@@ -5,13 +5,10 @@
 //! reference markers.  Ported from `core/compiler/codegen/_values.py`.
 
 use super::format::esc;
-use super::{CodegenCtx, Op, Operand};
+use super::{bytecode_imm, CodegenCtx, Op, Operand};
 
 // -- Literal emission --
 
-// Bytecode operand indices (literal pool, LVT slots) are always well
-// within i32 range.  Suppress truncation/wrap lints on the emit helpers.
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 impl CodegenCtx {
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
@@ -19,7 +16,7 @@ impl CodegenCtx {
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         self.emit_comment(
             op,
-            vec![Operand::Imm(idx as i32)],
+            vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\"", esc(value, 40)),
         );
     }
@@ -30,7 +27,7 @@ impl CodegenCtx {
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         self.emit_comment(
             op,
-            vec![Operand::Imm(idx as i32)],
+            vec![Operand::Imm(bytecode_imm(idx))],
             &format!("\"{}\" #nodedup", esc(value, 40)),
         );
     }
@@ -44,7 +41,10 @@ impl CodegenCtx {
             let label = self.fresh_label("cmd_end");
             self.emit_comment(
                 Op::START_CMD,
-                vec![Operand::Label(label.clone()), Operand::Imm(count as i32)],
+                vec![
+                    Operand::Label(label.clone()),
+                    Operand::Imm(i32::try_from(count).expect("count fits in i32")),
+                ],
                 "",
             );
             self.start_cmd_end_label = Some(label);
@@ -101,7 +101,6 @@ pub fn needs_stk_var_ref(name: &str, is_proc: bool) -> bool {
 
 // -- Variable load/store --
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 impl CodegenCtx {
     /// Push an array element key onto the stack.
     ///
@@ -132,7 +131,7 @@ impl CodegenCtx {
                 self.push_array_key(elem);
                 self.emit_comment(
                     Op::LOAD_ARRAY1,
-                    vec![Operand::Imm(slot as i32)],
+                    vec![Operand::Imm(bytecode_imm(slot))],
                     &format!("var \"{base}\""),
                 );
             } else {
@@ -144,7 +143,7 @@ impl CodegenCtx {
                 };
                 self.emit_comment(
                     op,
-                    vec![Operand::Imm(slot as i32)],
+                    vec![Operand::Imm(bytecode_imm(slot))],
                     &format!("var \"{name}\""),
                 );
             }
@@ -171,7 +170,7 @@ impl CodegenCtx {
                 let slot = self.lvt.intern(base);
                 self.emit_comment(
                     Op::STORE_ARRAY1,
-                    vec![Operand::Imm(slot as i32)],
+                    vec![Operand::Imm(bytecode_imm(slot))],
                     &format!("var \"{base}\""),
                 );
             } else {
@@ -183,7 +182,7 @@ impl CodegenCtx {
                 };
                 self.emit_comment(
                     op,
-                    vec![Operand::Imm(slot as i32)],
+                    vec![Operand::Imm(bytecode_imm(slot))],
                     &format!("var \"{name}\""),
                 );
             }
@@ -206,7 +205,7 @@ impl CodegenCtx {
                 None => {
                     self.emit_comment(
                         Op::INCR_SCALAR1_IMM,
-                        vec![Operand::Imm(slot as i32), Operand::Imm(1)],
+                        vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(1)],
                         &format!("var \"{name}\""),
                     );
                 }
@@ -215,14 +214,14 @@ impl CodegenCtx {
                         if (-128..=127).contains(&imm) {
                             self.emit_comment(
                                 Op::INCR_SCALAR1_IMM,
-                                vec![Operand::Imm(slot as i32), Operand::Imm(imm as i32)],
+                                vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(i32::try_from(imm).expect("incr literal fits in i32 after range check"))],
                                 &format!("var \"{name}\""),
                             );
                         } else {
                             self.push_lit(amt);
                             self.emit_comment(
                                 Op::INCR_SCALAR1,
-                                vec![Operand::Imm(slot as i32)],
+                                vec![Operand::Imm(bytecode_imm(slot))],
                                 &format!("var \"{name}\""),
                             );
                         }
@@ -231,7 +230,7 @@ impl CodegenCtx {
                         self.push_lit(amt);
                         self.emit_comment(
                             Op::INCR_SCALAR1,
-                            vec![Operand::Imm(slot as i32)],
+                            vec![Operand::Imm(bytecode_imm(slot))],
                             &format!("var \"{name}\""),
                         );
                     }
@@ -242,7 +241,7 @@ impl CodegenCtx {
                     self.load_var(var_ref.unwrap_or(amt));
                     self.emit_comment(
                         Op::INCR_SCALAR1,
-                        vec![Operand::Imm(slot as i32)],
+                        vec![Operand::Imm(bytecode_imm(slot))],
                         &format!("var \"{name}\""),
                     );
                 }
@@ -266,10 +265,10 @@ impl CodegenCtx {
                             if let Some((base, elem)) = arr {
                                 self.push_lit(base);
                                 self.push_lit(elem);
-                                self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(imm as i32)]);
+                                self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(i32::try_from(imm).expect("incr literal fits in i32 after range check"))]);
                             } else {
                                 self.push_lit(name);
-                                self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(imm as i32)]);
+                                self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(i32::try_from(imm).expect("incr literal fits in i32 after range check"))]);
                             }
                         } else {
                             // Large increment — fall back to invokeStk

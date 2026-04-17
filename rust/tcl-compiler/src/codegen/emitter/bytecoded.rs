@@ -14,7 +14,7 @@ use super::super::values::is_qualified;
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
-use super::super::{parse_tcl_index, INDEX_END};
+use super::super::{bytecode_imm, parse_tcl_index, INDEX_END};
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
 /// command hook. Returns `true` if the hook handled the command;
@@ -64,19 +64,19 @@ fn lassign(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     }
     ctx.emit_value_interpolated(&args[0]);
     let var_names = &args[1..];
-    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     for (i, var) in var_names.iter().enumerate() {
         ctx.push_lit(var);
         ctx.emit(Op::OVER, vec![Operand::Imm(1)]);
-        ctx.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(i as i32)]);
+        ctx.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(bytecode_imm(i))]);
         ctx.emit(Op::STORE_STK, vec![]);
         ctx.emit(Op::POP, vec![]);
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-    let n = var_names.len() as i32;
     ctx.emit(
         Op::LIST_RANGE_IMM,
-        vec![Operand::Imm(n), Operand::Imm(INDEX_END)],
+        vec![
+            Operand::Imm(bytecode_imm(var_names.len())),
+            Operand::Imm(INDEX_END),
+        ],
     );
     ctx.emit(Op::POP, vec![]);
     true
@@ -115,9 +115,10 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     for a in &args[1..] {
         ctx.emit_value_interpolated(a);
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-    let depth = args.len() as i32;
-    ctx.emit(Op::LREPLACE4, vec![Operand::Imm(depth), Operand::Imm(2)]);
+    ctx.emit(
+        Op::LREPLACE4,
+        vec![Operand::Imm(bytecode_imm(args.len())), Operand::Imm(2)],
+    );
     ctx.emit(Op::POP, vec![]);
     true
 }
@@ -151,9 +152,10 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             &format!("var \"{var_name}\""),
         );
         if indices.len() >= 2 {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let total = (indices.len() + 2) as i32;
-            ctx.emit(Op::LSET_FLAT, vec![Operand::Imm(total)]);
+            ctx.emit(
+                Op::LSET_FLAT,
+                vec![Operand::Imm(bytecode_imm(indices.len() + 2))],
+            );
         } else {
             ctx.emit(Op::LSET_LIST, vec![]);
         }
@@ -176,9 +178,10 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_value_interpolated(idx);
         }
         ctx.emit_value_interpolated(value);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let depth = (indices.len() + 1) as i32;
-        ctx.emit(Op::OVER, vec![Operand::Imm(depth)]);
+        ctx.emit(
+            Op::OVER,
+            vec![Operand::Imm(bytecode_imm(indices.len() + 1))],
+        );
         ctx.emit(Op::LOAD_STK, vec![]);
         ctx.emit(Op::LSET_LIST, vec![]);
         ctx.emit(Op::STORE_STK, vec![]);
@@ -199,7 +202,6 @@ fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 /// - `dict incr var key ?amount?` — `DICT_INCR_IMM amt slot`.
 /// - `dict append var key value` — `DICT_APPEND slot`.
 /// - `dict lappend var key value` — `DICT_LAPPEND slot`.
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.is_proc || args.len() < 3 {
         return false;
@@ -223,8 +225,8 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_comment(
                 Op::DICT_SET,
                 vec![
-                    Operand::Imm(keys.len() as i32),
-                    Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX)),
+                    Operand::Imm(bytecode_imm(keys.len())),
+                    Operand::Imm(bytecode_imm(slot)),
                 ],
                 &format!("var \"{var_name}\""),
             );
@@ -240,8 +242,8 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_comment(
                 Op::DICT_UNSET,
                 vec![
-                    Operand::Imm(keys.len() as i32),
-                    Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX)),
+                    Operand::Imm(bytecode_imm(keys.len())),
+                    Operand::Imm(bytecode_imm(slot)),
                 ],
                 &format!("var \"{var_name}\""),
             );
@@ -262,10 +264,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_value_interpolated(key);
             ctx.emit_comment(
                 Op::DICT_INCR_IMM,
-                vec![
-                    Operand::Imm(amount),
-                    Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX)),
-                ],
+                vec![Operand::Imm(amount), Operand::Imm(bytecode_imm(slot))],
                 &format!("var \"{var_name}\""),
             );
             ctx.emit(Op::POP, vec![]);
@@ -279,7 +278,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_value_interpolated(value);
             ctx.emit_comment(
                 Op::DICT_APPEND,
-                vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
+                vec![Operand::Imm(bytecode_imm(slot))],
                 &format!("var \"{var_name}\""),
             );
             ctx.emit(Op::POP, vec![]);
@@ -293,7 +292,7 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
             ctx.emit_value_interpolated(value);
             ctx.emit_comment(
                 Op::DICT_LAPPEND,
-                vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
+                vec![Operand::Imm(bytecode_imm(slot))],
                 &format!("var \"{var_name}\""),
             );
             ctx.emit(Op::POP, vec![]);
@@ -320,8 +319,7 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
             for a in rest {
                 ctx.emit_value_interpolated(a);
             }
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let n_args = (1 + rest.len()) as i32;
+            let n_args = bytecode_imm(1 + rest.len());
             let op = if n_args < 256 {
                 Op::INVOKE_STK1
             } else {

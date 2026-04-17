@@ -7,15 +7,20 @@ use crate::prelude::*;
 /// Walks the argument list recognising `then`, `elseif`, `else`
 /// keywords and classifying each positional argument as either
 /// `Expr` (conditions) or `Body` (scripts).
-#[allow(clippy::cast_possible_truncation)]
 fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     let mut i: usize = 0;
     let n = args.len();
 
+    let push_role = |roles: &mut Vec<(u8, ArgRole)>, index: usize, role: ArgRole| {
+        if let Ok(idx) = u8::try_from(index) {
+            roles.push((idx, role));
+        }
+    };
+
     // First condition
     if i < n {
-        roles.push((i as u8, ArgRole::Expr));
+        push_role(&mut roles, i, ArgRole::Expr);
         i += 1;
     }
     // Optional 'then'
@@ -24,7 +29,7 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
     // First body
     if i < n {
-        roles.push((i as u8, ArgRole::Body));
+        push_role(&mut roles, i, ArgRole::Body);
         i += 1;
     }
 
@@ -33,27 +38,27 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         if kw == "elseif" {
             i += 1;
             if i < n {
-                roles.push((i as u8, ArgRole::Expr));
+                push_role(&mut roles, i, ArgRole::Expr);
                 i += 1;
             }
             if i < n && args[i] == "then" {
                 i += 1;
             }
             if i < n {
-                roles.push((i as u8, ArgRole::Body));
+                push_role(&mut roles, i, ArgRole::Body);
                 i += 1;
             }
             continue;
         }
         if kw == "else" {
             if i + 1 < n {
-                roles.push(((i + 1) as u8, ArgRole::Body));
+                push_role(&mut roles, i + 1, ArgRole::Body);
             }
             break;
         }
         // Implicit else: trailing word with no keyword
         if i == n - 1 {
-            roles.push((i as u8, ArgRole::Body));
+            push_role(&mut roles, i, ArgRole::Body);
             break;
         }
         i += 1;

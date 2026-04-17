@@ -8,8 +8,6 @@
 //!
 //! Ported from `core/compiler/static_loops.py` (C27b).
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-
 use std::collections::HashMap;
 
 use crate::expr_ast::{expr_text, ExprNode};
@@ -89,6 +87,9 @@ pub fn evaluate_expr_with_constants(expr: &ExprNode, env: &StaticEnv) -> Option<
                 return None;
             }
             if f.fract() == 0.0 {
+                // Finite integral float: `as i64` saturates on overflow,
+                // which is an acceptable cap for loop-bound evaluation.
+                #[allow(clippy::cast_possible_truncation)]
                 Some(f as i64)
             } else {
                 None

@@ -16,7 +16,7 @@ use crate::ir::Statement;
 
 use super::cmd_subst::parse_cmd_parts;
 use super::values::is_qualified;
-use super::{CodegenCtx, Op, Operand};
+use super::{bytecode_imm, CodegenCtx, Op, Operand};
 
 // ---------------------------------------------------------------------------
 // Constant expression error detection
@@ -50,7 +50,6 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
 // CodegenCtx methods
 // ---------------------------------------------------------------------------
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 impl CodegenCtx {
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
     ///
@@ -81,7 +80,9 @@ impl CodegenCtx {
         // beginCatch4 with current nesting depth.
         self.emit(
             Op::BEGIN_CATCH4,
-            vec![Operand::Imm(self.catch_depth as i32)],
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
         );
         self.catch_depth += 1;
 
@@ -207,10 +208,13 @@ impl CodegenCtx {
                 for (arg, braced) in body_args {
                     self.emit_cmd_subst_arg(arg, *braced);
                 }
-                self.emit(
-                    Op::INVOKE_STK1,
-                    vec![Operand::Imm((1 + body_args.len()) as i32)],
-                );
+                let argc = bytecode_imm(1 + body_args.len());
+                let invoke_op = if argc < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                };
+                self.emit(invoke_op, vec![Operand::Imm(argc)]);
                 self.seen_generic_invoke = true;
             }
         }
@@ -310,18 +314,20 @@ impl CodegenCtx {
         let handler_body_text = &args[4].0;
 
         // Allocate LVT slots in tclsh order
-        let msg_slot = self.lvt.intern(&handler_var) as i32;
+        let msg_slot = bytecode_imm(self.lvt.intern(&handler_var));
         let temp_result_name = format!("#temp{}", self.catch_depth);
         let temp_opts_name = format!("#temp{}", self.catch_depth + 1);
-        let temp_result_slot = self.lvt.intern(&temp_result_name) as i32;
-        let temp_opts_slot = self.lvt.intern(&temp_opts_name) as i32;
+        let temp_result_slot = bytecode_imm(self.lvt.intern(&temp_result_name));
+        let temp_opts_slot = bytecode_imm(self.lvt.intern(&temp_opts_name));
 
         let initial_depth = self.catch_depth;
 
         // Try body exception range
         self.emit(
             Op::BEGIN_CATCH4,
-            vec![Operand::Imm(self.catch_depth as i32)],
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
         );
         self.catch_depth += 1;
 
@@ -384,7 +390,9 @@ impl CodegenCtx {
         // Handler body exception range
         self.emit(
             Op::BEGIN_CATCH4,
-            vec![Operand::Imm(self.catch_depth as i32)],
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
         );
         self.catch_depth += 1;
 
@@ -493,10 +501,13 @@ impl CodegenCtx {
                 for (a, b) in cmd_args {
                     self.emit_cmd_subst_arg(a, *b);
                 }
-                self.emit(
-                    Op::INVOKE_STK1,
-                    vec![Operand::Imm((1 + cmd_args.len()) as i32)],
-                );
+                let argc = bytecode_imm(1 + cmd_args.len());
+                let invoke_op = if argc < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                };
+                self.emit(invoke_op, vec![Operand::Imm(argc)]);
             }
         }
 
@@ -518,7 +529,9 @@ impl CodegenCtx {
         // try body
         self.emit(
             Op::BEGIN_CATCH4,
-            vec![Operand::Imm(self.catch_depth as i32)],
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
         );
         self.catch_depth += 1;
 
@@ -537,7 +550,9 @@ impl CodegenCtx {
         // finally body
         self.emit(
             Op::BEGIN_CATCH4,
-            vec![Operand::Imm(self.catch_depth as i32)],
+            vec![Operand::Imm(
+                i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
+            )],
         );
         self.catch_depth += 1;
 

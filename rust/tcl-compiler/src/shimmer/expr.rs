@@ -60,10 +60,8 @@ pub fn find_expr_shimmers(
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
             match &ss.statement {
-                Statement::AssignExpr { expr, span, .. } => {
-                    collect_expr_shimmers(expr, &ss.uses, types, *span, &mut out);
-                }
-                Statement::ExprEval { expr, span, .. } => {
+                Statement::AssignExpr { expr, span, .. }
+                | Statement::ExprEval { expr, span, .. } => {
                     collect_expr_shimmers(expr, &ss.uses, types, *span, &mut out);
                 }
                 _ => {}
@@ -72,7 +70,10 @@ pub fn find_expr_shimmers(
 
         // 2. Branch terminator condition (if/while/for predicate).
         if let Some(block) = cfg.blocks.get(&block_name) {
-            if let Some(Terminator::Branch { condition, span, .. }) = &block.terminator {
+            if let Some(Terminator::Branch {
+                condition, span, ..
+            }) = &block.terminator
+            {
                 let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
                 // Use exit_versions: those are the variable versions in scope
                 // when the condition is evaluated.
@@ -98,7 +99,9 @@ fn collect_expr_shimmers(
     out: &mut Vec<ShimmerWarning>,
 ) {
     match node {
-        ExprNode::Binary { op, left, right, .. } => {
+        ExprNode::Binary {
+            op, left, right, ..
+        } => {
             // Recurse into children first.
             collect_expr_shimmers(left, uses, types, stmt_span, out);
             collect_expr_shimmers(right, uses, types, stmt_span, out);
@@ -116,8 +119,8 @@ fn collect_expr_shimmers(
                 | BinOp::BitAnd
                 | BinOp::BitOr
                 | BinOp::BitXor => {
-                    check_numeric_operand(left, uses, types, stmt_span, op, out);
-                    check_numeric_operand(right, uses, types, stmt_span, op, out);
+                    check_numeric_operand(left, uses, types, stmt_span, *op, out);
+                    check_numeric_operand(right, uses, types, stmt_span, *op, out);
                 }
 
                 // String comparison operators: operands should be String.
@@ -127,8 +130,8 @@ fn collect_expr_shimmers(
                 | BinOp::StrLe
                 | BinOp::StrGt
                 | BinOp::StrGe => {
-                    check_string_operand(left, uses, types, stmt_span, op, out);
-                    check_string_operand(right, uses, types, stmt_span, op, out);
+                    check_string_operand(left, uses, types, stmt_span, *op, out);
+                    check_string_operand(right, uses, types, stmt_span, *op, out);
                 }
 
                 _ => {}
@@ -161,7 +164,7 @@ fn check_numeric_operand(
     uses: &HashMap<String, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     span: Span,
-    op: &BinOp,
+    op: BinOp,
     out: &mut Vec<ShimmerWarning>,
 ) {
     let ExprNode::Var { name, .. } = node else {
@@ -179,9 +182,8 @@ fn check_numeric_operand(
     if lattice.kind != TypeKind::Known {
         return;
     }
-    let current = match lattice.tcl_type {
-        Some(t) => t,
-        None => return,
+    let Some(current) = lattice.tcl_type else {
+        return;
     };
     // Only flag clearly non-numeric types (String, List, Dict).
     if matches!(current, TclType::String | TclType::List | TclType::Dict) {
@@ -210,7 +212,7 @@ fn check_string_operand(
     uses: &HashMap<String, u32>,
     types: &HashMap<ValueKey, TypeLattice>,
     span: Span,
-    op: &BinOp,
+    op: BinOp,
     out: &mut Vec<ShimmerWarning>,
 ) {
     let ExprNode::Var { name, .. } = node else {
@@ -228,9 +230,8 @@ fn check_string_operand(
     if lattice.kind != TypeKind::Known {
         return;
     }
-    let current = match lattice.tcl_type {
-        Some(t) => t,
-        None => return,
+    let Some(current) = lattice.tcl_type else {
+        return;
     };
     // Numeric types in string comparison → shimmer to String.
     if matches!(
@@ -246,9 +247,8 @@ fn check_string_operand(
             in_loop: false,
             code: "S100".to_owned(),
             message: format!(
-                "S100: numeric variable '{var}' used in string comparison (op {op:?}); \
-                 consider using == or != instead",
-                var = base,
+                "S100: numeric variable '{base}' used in string comparison (op {op:?}); \
+                 consider using == or != instead"
             ),
             related: Vec::new(),
         });
@@ -268,11 +268,7 @@ mod tests {
     /// An Int variable in arithmetic — no shimmer.
     #[test]
     fn no_expr_shimmer_int_in_arithmetic() {
-        let cu = CompilationUnit::build_for(
-            "set x 5\nset y [expr {$x + 1}]",
-            &registry(),
-            false,
-        );
+        let cu = CompilationUnit::build_for("set x 5\nset y [expr {$x + 1}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
@@ -288,28 +284,33 @@ mod tests {
         );
         let fu = cu.function("::top").unwrap();
         let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer =
-            w.iter().any(|sw| sw.variable == "x" && sw.from_type == TclType::String);
-        assert!(has_shimmer, "expected string-in-arithmetic shimmer, got: {w:?}");
+        let has_shimmer = w
+            .iter()
+            .any(|sw| sw.variable == "x" && sw.from_type == TclType::String);
+        assert!(
+            has_shimmer,
+            "expected string-in-arithmetic shimmer, got: {w:?}"
+        );
     }
 
     /// An Int variable used in a string comparison inside an `AssignExpr` produces S100.
     #[test]
     fn expr_shimmer_int_in_string_comparison_assign_expr() {
-        let cu = CompilationUnit::build_for(
-            "set x 42\nset z [expr {$x eq \"42\"}]",
-            &registry(),
-            false,
-        );
+        let cu =
+            CompilationUnit::build_for("set x 42\nset z [expr {$x eq \"42\"}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer =
-            w.iter().any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
-        assert!(has_shimmer, "expected Int-in-string-cmp shimmer, got: {w:?}");
+        let has_shimmer = w
+            .iter()
+            .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
+        assert!(
+            has_shimmer,
+            "expected Int-in-string-cmp shimmer, got: {w:?}"
+        );
     }
 
     /// An Int variable used in a string comparison inside an `if` condition
-    /// (Terminator::Branch) produces S100 via the branch-condition path.
+    /// (`Terminator::Branch`) produces S100 via the branch-condition path.
     #[test]
     fn expr_shimmer_int_in_if_branch_condition() {
         let cu = CompilationUnit::build_for(
@@ -319,8 +320,9 @@ mod tests {
         );
         let fu = cu.function("::top").unwrap();
         let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer =
-            w.iter().any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
+        let has_shimmer = w
+            .iter()
+            .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
         assert!(
             has_shimmer,
             "expected Int-in-string-cmp shimmer in if-condition, got: {w:?}"

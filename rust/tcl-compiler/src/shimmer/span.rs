@@ -110,18 +110,15 @@ mod tests {
     fn def_range_map_finds_statement_span() {
         let ssa = make_ssa_with_def("x", 1, Span::new(10, 20));
         let map = def_range_map(&ssa);
-        assert_eq!(
-            map.get(&("x".to_owned(), 1)),
-            Some(&Span::new(10, 20))
-        );
+        assert_eq!(map.get(&("x".to_owned(), 1)), Some(&Span::new(10, 20)));
     }
 
     #[test]
     fn def_range_map_misses_unknown_key() {
         let ssa = make_ssa_with_def("x", 1, Span::new(10, 20));
         let map = def_range_map(&ssa);
-        assert!(map.get(&("y".to_owned(), 1)).is_none());
-        assert!(map.get(&("x".to_owned(), 2)).is_none());
+        assert!(!map.contains_key(&("y".to_owned(), 1)));
+        assert!(!map.contains_key(&("x".to_owned(), 2)));
     }
 
     #[test]

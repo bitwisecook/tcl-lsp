@@ -35,7 +35,7 @@ pub fn arg_shimmer_type(
         let sub_name = args.first().copied()?;
         let sub = spec.subcommand(sub_name)?;
         // arg_index 0 = subcommand word; subtract 1 for sub-relative index.
-        let sub_idx = arg_index.checked_sub(1)? as u8;
+        let sub_idx = u8::try_from(arg_index.checked_sub(1)?).ok()?;
         return sub
             .arg_types
             .iter()
@@ -43,9 +43,10 @@ pub fn arg_shimmer_type(
             .and_then(|(_, h)| if h.shimmers { h.expected } else { None });
     }
 
+    let needle = u8::try_from(arg_index).ok()?;
     spec.arg_types
         .iter()
-        .find(|(i, _)| *i == arg_index as u8)
+        .find(|(i, _)| *i == needle)
         .and_then(|(_, h)| if h.shimmers { h.expected } else { None })
 }
 
@@ -57,18 +58,13 @@ pub fn arg_shimmer_type(
 /// in arithmetic and boolean contexts; no intrep conversion is needed.
 #[must_use]
 pub fn is_numeric_compatible(current: TclType, expected: TclType) -> bool {
+    use TclType::{Boolean, Int, Numeric};
     if current == expected {
         return true;
     }
-    use TclType::{Boolean, Int, Numeric};
     matches!(
         (current, expected),
-        (Int, Boolean)
-            | (Boolean, Int)
-            | (Int, Numeric)
-            | (Numeric, Int)
-            | (Boolean, Numeric)
-            | (Numeric, Boolean)
+        (Int | Numeric, Boolean) | (Boolean | Numeric, Int) | (Int | Boolean, Numeric)
     )
 }
 

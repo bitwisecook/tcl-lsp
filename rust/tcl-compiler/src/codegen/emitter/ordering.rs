@@ -45,29 +45,28 @@ pub fn starts_with_any(name: &str, prefixes: &[&str]) -> bool {
 /// Returns `Some(true)`/`Some(false)` for constant conditions, `None`
 /// if the value is unknown at compile time.
 #[must_use]
-#[allow(clippy::match_same_arms)]
 pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
-    match cond {
-        ExprNode::Var { .. } | ExprNode::Command { .. } | ExprNode::Raw { .. } => None,
-        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => {
-            // Strip quotes/braces if present
-            let trimmed = text
-                .strip_prefix('"')
-                .and_then(|s| s.strip_suffix('"'))
-                .or_else(|| text.strip_prefix('{').and_then(|s| s.strip_suffix('}')))
-                .unwrap_or(text);
-            if let Ok(i) = trimmed.parse::<i64>() {
-                return Some(i != 0);
-            }
-            if let Ok(f) = trimmed.parse::<f64>() {
-                return Some(f != 0.0);
-            }
-            match trimmed.to_lowercase().as_str() {
-                "true" | "yes" | "on" => Some(true),
-                "false" | "no" | "off" => Some(false),
-                _ => None,
-            }
-        }
+    // Only textual literals can be folded. Var/Command/Raw carry runtime
+    // values and structured nodes (Binary/Unary/Ternary/Call) are handled
+    // by the caller's own folding path — both collapse to `None` here.
+    let (ExprNode::Literal { text, .. } | ExprNode::String { text, .. }) = cond else {
+        return None;
+    };
+
+    let trimmed = text
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| text.strip_prefix('{').and_then(|s| s.strip_suffix('}')))
+        .unwrap_or(text);
+    if let Ok(i) = trimmed.parse::<i64>() {
+        return Some(i != 0);
+    }
+    if let Ok(f) = trimmed.parse::<f64>() {
+        return Some(f != 0.0);
+    }
+    match trimmed.to_lowercase().as_str() {
+        "true" | "yes" | "on" => Some(true),
+        "false" | "no" | "off" => Some(false),
         _ => None,
     }
 }

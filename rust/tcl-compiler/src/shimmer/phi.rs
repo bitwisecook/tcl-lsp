@@ -57,13 +57,11 @@ pub fn find_phi_shimmers(
             if lattice.kind != TypeKind::Shimmered {
                 continue;
             }
-            let from = match lattice.from_type {
-                Some(t) => t,
-                None => continue,
+            let Some(from) = lattice.from_type else {
+                continue;
             };
-            let to = match lattice.tcl_type {
-                Some(t) => t,
-                None => continue,
+            let Some(to) = lattice.tcl_type else {
+                continue;
             };
 
             let span = phi_span(phi, ssa, &def_map);
@@ -119,8 +117,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings =
-            find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         // Both 1 and 2 are Int — no Shimmered phi expected.
         for w in &warnings {
             if w.command == "<phi>" {
@@ -138,8 +135,7 @@ mod tests {
     fn phi_shimmers_empty_source() {
         let cu = CompilationUnit::build_for("", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let _ =
-            find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let _ = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
     }
 
     /// An if/else that assigns Int on one branch and String on the other
@@ -154,9 +150,10 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let warnings =
-            find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer = warnings.iter().any(|w| w.variable == "x" && w.code == "S101");
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let has_shimmer = warnings
+            .iter()
+            .any(|w| w.variable == "x" && w.code == "S101");
         assert!(
             has_shimmer,
             "expected S101 phi shimmer for Int/String merge of 'x', got: {warnings:?}"

@@ -40,6 +40,9 @@ pub enum PyExprTokenType {
     Eof = 14,
 }
 
+// `&self` on `Copy` `pyclass` enums is required by `PyO3`, so we can't
+// take `self` by value here even though clippy::trivially_copy_pass_by_ref
+// would prefer it.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 #[pymethods]
 impl PyExprTokenType {

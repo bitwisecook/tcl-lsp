@@ -34,6 +34,19 @@ use crate::expr_ast::{BinOp, UnaryOp};
 /// `end` → `INDEX_END`, `end-N` → `INDEX_END - N`.
 pub const INDEX_END: i32 = -(1 << 30);
 
+/// Convert a non-negative count or index to an `i32` bytecode operand.
+///
+/// Bytecode `Imm` operands are `i32`; call-site usage always comes from
+/// `usize` counts (argument lists, indices, slot numbers) that cannot
+/// plausibly exceed `i32::MAX` — a compiler invariant. A program that
+/// does exceed this limit is malformed and panicking is the correct
+/// outcome rather than silent truncation.
+#[inline]
+#[must_use]
+pub fn bytecode_imm(n: usize) -> i32 {
+    i32::try_from(n).expect("bytecode operand exceeds i32::MAX")
+}
+
 /// Parse a Tcl index string to an integer suitable for IMM instructions.
 ///
 /// Plain integers compile directly. `end`-based indices are encoded

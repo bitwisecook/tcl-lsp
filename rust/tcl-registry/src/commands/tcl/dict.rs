@@ -3,21 +3,23 @@
 use crate::prelude::*;
 
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
-#[allow(clippy::cast_possible_truncation)]
 fn dict_last_arg_body(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     if args.len() >= 2 {
         roles.push((0, ArgRole::VarWrite));
-        roles.push(((args.len() - 1) as u8, ArgRole::Body));
+        if let Ok(last) = u8::try_from(args.len() - 1) {
+            roles.push((last, ArgRole::Body));
+        }
     }
     roles
 }
 
 /// Dynamic resolver: body only when filter type is "script".
-#[allow(clippy::cast_possible_truncation)]
 fn dict_filter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 3 && args[1] == "script" {
-        vec![((args.len() - 1) as u8, ArgRole::Body)]
+        u8::try_from(args.len() - 1)
+            .map(|last| vec![(last, ArgRole::Body)])
+            .unwrap_or_default()
     } else {
         Vec::new()
     }

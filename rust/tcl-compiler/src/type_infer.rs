@@ -118,7 +118,9 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
                 .unwrap_or_else(TypeLattice::unknown)
         }
 
-        ExprNode::Binary { op, left, right, .. } => {
+        ExprNode::Binary {
+            op, left, right, ..
+        } => {
             let lt = infer_expr_type(left, var_types);
             let rt = infer_expr_type(right, var_types);
             match op {
@@ -171,9 +173,7 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
         }
 
         ExprNode::Unary { op, operand, .. } => match op {
-            UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot => {
-                infer_expr_type(operand, var_types)
-            }
+            UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot => infer_expr_type(operand, var_types),
             UnaryOp::Not | UnaryOp::WordNot => TypeLattice::of(TclType::Boolean),
         },
 
@@ -187,17 +187,14 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
             type_join(&tt, &ft)
         }
 
-        // Command substitution inside an expression — registry not available
-        // here, so always overdefined. The outer evaluate_type_def handles
-        // command-sub type resolution where the registry is in scope.
-        ExprNode::Command { .. } => TypeLattice::overdefined(),
-
-        // Raw / unrecognised expression text.
-        ExprNode::Raw { .. } => TypeLattice::overdefined(),
-
-        // Function calls inside expressions (e.g. `string length $x`) —
-        // would need registry to resolve; treat as overdefined.
-        ExprNode::Call { .. } => TypeLattice::overdefined(),
+        // Command substitutions, raw/unrecognised expression text, and
+        // function calls inside expressions all need the registry (or
+        // runtime context) to resolve. Without it we over-approximate to
+        // overdefined; the outer evaluate_type_def handles command-sub
+        // type resolution where the registry is in scope.
+        ExprNode::Command { .. } | ExprNode::Raw { .. } | ExprNode::Call { .. } => {
+            TypeLattice::overdefined()
+        }
     }
 }
 
@@ -258,17 +255,20 @@ fn evaluate_type_def(
 
         Statement::Incr { .. } => TypeLattice::of(TclType::Int),
 
-        Statement::ExprEval { .. } => TypeLattice::overdefined(),
-
-        Statement::Call { command, args, defs, .. } if !defs.is_empty() => {
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } if !defs.is_empty() => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             return_type_for_command(registry, command, &arg_refs)
         }
 
-        Statement::Barrier { .. } => TypeLattice::overdefined(),
-
-        // Structured statements (already lowered to CFG blocks, but appear
-        // as statements before CFG construction in some paths).
+        // `ExprEval`, `Barrier`, and structured statements that survive as
+        // statements (before CFG construction in some paths) all lack a
+        // resolvable result type here — treat them conservatively as
+        // overdefined.
         _ => TypeLattice::overdefined(),
     }
 }
@@ -332,7 +332,10 @@ pub fn propagate_types(
                         phi_type = type_join(&phi_type, &t);
                     }
                     let key = (phi.name.clone(), phi.version);
-                    let old = types.get(&key).cloned().unwrap_or_else(TypeLattice::unknown);
+                    let old = types
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(TypeLattice::unknown);
                     let merged = type_join(&old, &phi_type);
                     if merged != old {
                         types.insert(key, merged);
@@ -348,8 +351,10 @@ pub fn propagate_types(
                     Statement::Barrier { .. } => {
                         for (var, &ver) in &ssa_stmt.defs {
                             let key = (var.clone(), ver);
-                            let old =
-                                types.get(&key).cloned().unwrap_or_else(TypeLattice::unknown);
+                            let old = types
+                                .get(&key)
+                                .cloned()
+                                .unwrap_or_else(TypeLattice::unknown);
                             let merged = type_join(&old, &TypeLattice::overdefined());
                             if merged != old {
                                 types.insert(key, merged);
@@ -362,8 +367,10 @@ pub fn propagate_types(
                             let inferred =
                                 evaluate_type_def(stmt, &ssa_stmt.uses, &types, registry);
                             let key = (var.clone(), ver);
-                            let old =
-                                types.get(&key).cloned().unwrap_or_else(TypeLattice::unknown);
+                            let old = types
+                                .get(&key)
+                                .cloned()
+                                .unwrap_or_else(TypeLattice::unknown);
                             let merged = type_join(&old, &inferred);
                             if merged != old {
                                 types.insert(key, merged);
@@ -385,6 +392,7 @@ mod tests {
     use crate::cfg::{Block, Function};
     use crate::ir::Statement;
     use crate::ssa::{Phi, SsaBlock, SsaFunction, SsaStatement};
+    use std::collections::HashSet;
     use tcl_lexer::Span;
 
     fn registry() -> CommandRegistry {
@@ -394,8 +402,8 @@ mod tests {
     fn empty_sccp(blocks: &[&str]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
-            executable_blocks: blocks.iter().map(|s| s.to_string()).collect(),
-            executable_edges: Default::default(),
+            executable_blocks: blocks.iter().copied().map(String::from).collect(),
+            executable_edges: HashSet::default(),
             constant_branches: Vec::new(),
         }
     }
@@ -412,7 +420,7 @@ mod tests {
         SsaStatement {
             statement: stmt,
             uses: HashMap::new(),
-            defs: defs.iter().map(|(n, v)| (n.to_string(), *v)).collect(),
+            defs: defs.iter().map(|&(n, v)| (String::from(n), v)).collect(),
         }
     }
 
@@ -546,7 +554,7 @@ mod tests {
         );
     }
 
-    /// AssignValue with a pure variable reference inherits the source type.
+    /// `AssignValue` with a pure variable reference inherits the source type.
     #[test]
     fn assign_value_pure_var_ref_inherits_type() {
         use crate::compilation_unit::CompilationUnit;
@@ -565,16 +573,13 @@ mod tests {
         assert!(y_is_int, "expected y to inherit Int type from x");
     }
 
-    /// AssignValue with a command substitution uses the command's return type.
+    /// `AssignValue` with a command substitution uses the command's return type.
     #[test]
     fn assign_value_command_sub_uses_return_type() {
         use crate::compilation_unit::CompilationUnit;
         // `llength` returns Int per the registry.
-        let cu = CompilationUnit::build_for(
-            "set lst {a b c}\nset n [llength $lst]",
-            &registry(),
-            false,
-        );
+        let cu =
+            CompilationUnit::build_for("set lst {a b c}\nset n [llength $lst]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let n_is_int = fu
             .types

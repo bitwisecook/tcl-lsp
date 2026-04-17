@@ -16,7 +16,6 @@ pub(crate) const SC_GENERIC_TAG: &str = "sc:generic";
 /// Tag appended to no-dedup literal comments.
 pub(crate) const NO_DEDUP_TAG: &str = " #nodedup";
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 impl CodegenCtx {
     /// Emit a statement, wrapping with `startCommand` if needed.
     ///
@@ -42,7 +41,12 @@ impl CodegenCtx {
             };
             sc_idx = Some(self.emit_comment(
                 Op::START_CMD,
-                vec![Operand::Label(label.clone()), Operand::Imm(count as i32)],
+                vec![
+                    Operand::Label(label.clone()),
+                    Operand::Imm(
+                        i32::try_from(count).expect("startCommand count fits in i32"),
+                    ),
+                ],
                 "",
             ));
             end_label = Some(label);
@@ -290,7 +294,12 @@ impl CodegenCtx {
             word_count += 1;
             // expand_word[0] is the command itself, args start at [1]
             if expand_word.get(i + 1).copied().unwrap_or(false) {
-                self.emit(Op::EXPAND_STKTOP, vec![Operand::Imm(word_count as i32)]);
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(word_count).expect("word_count fits in i32"),
+                    )],
+                );
             }
         }
         self.emit_comment(Op::INVOKE_EXPANDED, vec![], cmd);
@@ -298,7 +307,6 @@ impl CodegenCtx {
     }
 
     /// Emit a regular command call.
-    #[allow(clippy::similar_names)]
     pub fn emit_call(&mut self, cmd: &str, args: &[String], used_generic_invoke: &mut bool) {
         // break/continue inside loops: emit jump instead of invokeStk
         if cmd == "continue" {
@@ -324,14 +332,14 @@ impl CodegenCtx {
         for a in args {
             self.emit_value_interpolated(a);
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let argc = (1 + args.len()) as i32;
-        let op = if argc < 256 {
+        let arg_count = i32::try_from(1 + args.len())
+            .expect("invoke argument count fits in i32 (bytecode limit)");
+        let op = if arg_count < 256 {
             Op::INVOKE_STK1
         } else {
             Op::INVOKE_STK4
         };
-        self.emit_comment(op, vec![Operand::Imm(argc)], cmd);
+        self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
     }

@@ -90,9 +90,7 @@ fn check_statement(
         Statement::Call { command, args, .. } => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             for (i, word) in args.iter().enumerate() {
-                let Some(expected) =
-                    arg_shimmer_type(registry, command, &arg_refs, i)
-                else {
+                let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) else {
                     continue;
                 };
                 // Only flag pure variable references — complex words may produce
@@ -113,9 +111,8 @@ fn check_statement(
                 if lattice.kind != TypeKind::Known {
                     continue;
                 }
-                let current = match lattice.tcl_type {
-                    Some(t) => t,
-                    None => continue,
+                let Some(current) = lattice.tcl_type else {
+                    continue;
                 };
                 if is_numeric_compatible(current, expected) {
                     continue;
@@ -160,9 +157,8 @@ fn check_statement(
             if lattice.kind != TypeKind::Known {
                 return;
             }
-            let current = match lattice.tcl_type {
-                Some(t) => t,
-                None => return,
+            let Some(current) = lattice.tcl_type else {
+                return;
             };
             if is_numeric_compatible(current, TclType::Int) {
                 return;
@@ -217,7 +213,10 @@ mod tests {
         let w = warnings
             .iter()
             .find(|w| w.command == "incr" && w.from_type == TclType::String);
-        assert!(w.is_some(), "expected incr/String shimmer, got: {warnings:?}");
+        assert!(
+            w.is_some(),
+            "expected incr/String shimmer, got: {warnings:?}"
+        );
         assert_eq!(w.unwrap().to_type, TclType::Int);
     }
 
@@ -254,7 +253,10 @@ mod tests {
             &registry(),
         );
         let w = warnings.iter().find(|w| w.command == "lindex");
-        assert!(w.is_some(), "expected lindex shimmer for Int var, got: {warnings:?}");
+        assert!(
+            w.is_some(),
+            "expected lindex shimmer for Int var, got: {warnings:?}"
+        );
         assert_eq!(w.unwrap().from_type, TclType::Int);
         assert_eq!(w.unwrap().to_type, TclType::List);
     }
@@ -263,8 +265,7 @@ mod tests {
     #[test]
     fn no_shimmer_for_unknown_type() {
         // `set x $other` — type of x is Unknown (other has no known type).
-        let cu =
-            CompilationUnit::build_for("set x $other\nlindex $x 0", &registry(), false);
+        let cu = CompilationUnit::build_for("set x $other\nlindex $x 0", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let warnings = find_use_site_shimmers(
             &fu.cfg,
@@ -274,8 +275,7 @@ mod tests {
             &registry(),
         );
         // x has Unknown type; should not produce a shimmer.
-        let lindex_shimmers: Vec<_> =
-            warnings.iter().filter(|w| w.command == "lindex").collect();
+        let lindex_shimmers: Vec<_> = warnings.iter().filter(|w| w.command == "lindex").collect();
         assert!(
             lindex_shimmers.is_empty(),
             "unexpected shimmer for Unknown type: {lindex_shimmers:?}"
