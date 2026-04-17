@@ -80,7 +80,11 @@ pub fn optimise_jumps(instrs: &mut [Instruction], labels: &HashMap<String, usize
 }
 
 /// Assign final byte offsets and return label→offset mapping.
-#[allow(clippy::implicit_hasher, clippy::cast_sign_loss)]
+///
+/// `implicit_hasher` is allowed because call sites always construct a
+/// default `HashMap`; plumbing a hasher parameter through the whole
+/// layout pass is noise for no measurable win.
+#[allow(clippy::implicit_hasher)]
 pub fn resolve_layout(
     instrs: &mut [Instruction],
     labels: &HashMap<String, usize>,
@@ -93,11 +97,15 @@ pub fn resolve_layout(
 
     let mut label_offsets = HashMap::new();
     for (label, &instr_idx) in labels {
-        if instr_idx < instrs.len() {
-            label_offsets.insert(label.clone(), instrs[instr_idx].offset as usize);
+        let raw_offset = if instr_idx < instrs.len() {
+            instrs[instr_idx].offset
         } else {
-            label_offsets.insert(label.clone(), offset as usize);
-        }
+            offset
+        };
+        label_offsets.insert(
+            label.clone(),
+            usize::try_from(raw_offset).expect("bytecode offsets are non-negative"),
+        );
     }
     label_offsets
 }

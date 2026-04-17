@@ -226,12 +226,14 @@ fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     try_eliminate_switch(
         ctx,
         *span,
-        subject,
-        arms,
-        default_body.as_ref(),
-        *default_span,
-        *mode,
-        *nocase,
+        &SwitchInfo {
+            subject_raw: subject,
+            arms,
+            default_body: default_body.as_ref(),
+            default_span: *default_span,
+            mode: *mode,
+            nocase: *nocase,
+        },
         env,
     );
     for arm in arms {
@@ -287,28 +289,32 @@ fn try_eliminate_if(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn try_eliminate_switch(
-    ctx: &mut PassContext<'_>,
-    stmt_span: tcl_lexer::Span,
-    subject_raw: &str,
-    arms: &[SwitchArm],
-    default_body: Option<&Script>,
+/// Bundle of per-switch fields passed through static-match evaluation.
+struct SwitchInfo<'a> {
+    subject_raw: &'a str,
+    arms: &'a [SwitchArm],
+    default_body: Option<&'a Script>,
     default_span: Option<tcl_lexer::Span>,
     mode: SwitchMode,
     nocase: bool,
+}
+
+fn try_eliminate_switch(
+    ctx: &mut PassContext<'_>,
+    stmt_span: tcl_lexer::Span,
+    info: &SwitchInfo<'_>,
     env: &Env,
 ) {
     // regexp mode is too complex to evaluate statically.
-    if matches!(mode, SwitchMode::Regexp) {
+    if matches!(info.mode, SwitchMode::Regexp) {
         return;
     }
-    let Some(subject) = resolve_subject(subject_raw, env) else {
+    let Some(subject) = resolve_subject(info.subject_raw, env) else {
         return;
     };
 
-    for (idx, arm) in arms.iter().enumerate() {
-        if !pattern_matches(&subject, &arm.pattern, mode, nocase) {
+    for (idx, arm) in info.arms.iter().enumerate() {
+        if !pattern_matches(&subject, &arm.pattern, info.mode, info.nocase) {
             continue;
         }
         // Walk past fall-through arms.
@@ -316,7 +322,7 @@ fn try_eliminate_switch(
         let mut chosen_span: Option<tcl_lexer::Span> = arm.body_span;
         if arm.fallthrough {
             let mut next = None;
-            for subsequent in &arms[idx + 1..] {
+            for subsequent in &info.arms[idx + 1..] {
                 if !subsequent.fallthrough {
                     next = Some((subsequent.body.as_ref(), subsequent.body_span));
                     break;
@@ -326,8 +332,8 @@ fn try_eliminate_switch(
                 chosen_body = body;
                 chosen_span = span;
             } else {
-                chosen_body = default_body;
-                chosen_span = default_span;
+                chosen_body = info.default_body;
+                chosen_span = info.default_span;
             }
         }
         if let (Some(_body), Some(span)) = (chosen_body, chosen_span) {
@@ -345,7 +351,7 @@ fn try_eliminate_switch(
         return;
     }
     // No arm matched.
-    if let (Some(_body), Some(span)) = (default_body, default_span) {
+    if let (Some(_body), Some(span)) = (info.default_body, info.default_span) {
         let replacement = extract_body_text(ctx.source, span, stmt_span);
         ctx.report(Optimisation::new(
             "O112",

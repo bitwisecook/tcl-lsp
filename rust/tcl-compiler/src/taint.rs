@@ -507,15 +507,7 @@ fn evaluate_taint_def(
     taints: &HashMap<ValueKey, TaintLattice>,
     ctx: TaintCtx<'_>,
 ) -> TaintLattice {
-    // `AssignConst` is retained as an explicit arm despite sharing the
-    // wildcard's body: "constants are always clean" is a deliberate
-    // semantic statement, whereas the wildcard merely covers unhandled
-    // statement kinds conservatively.
-    #[allow(clippy::match_same_arms)]
     match stmt {
-        // Constants are always clean.
-        Statement::AssignConst { .. } => TaintLattice::clean(),
-
         // Expression: join taint from all used variables.
         Statement::AssignExpr { .. } => join_uses(uses, taints),
 
@@ -564,6 +556,11 @@ fn evaluate_taint_def(
             t
         }
 
+        // `AssignConst` and any unhandled statement variant (e.g.
+        // structured control flow that survives in some code paths) are
+        // treated as clean: constants cannot introduce taint, and
+        // opaque control-flow statements have no value definition to
+        // propagate taint through.
         _ => TaintLattice::clean(),
     }
 }

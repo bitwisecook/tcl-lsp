@@ -14,7 +14,9 @@
 
 use super::helpers::{parse_subst_template, regexp_to_glob, SubstPart};
 use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
-use super::{parse_tcl_index, str_class_id, CodegenCtx, Op, Operand, INDEX_END};
+use super::{
+    bytecode_imm, parse_tcl_index, str_class_id, CodegenCtx, Op, Operand, INDEX_END,
+};
 
 // ---------------------------------------------------------------------------
 // Free functions — pure parsing, no emission state needed
@@ -258,7 +260,6 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
 // CodegenCtx methods — emission helpers for command substitutions
 // ---------------------------------------------------------------------------
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 impl CodegenCtx {
     /// Emit a single arg from a parsed command substitution.
     ///
@@ -361,7 +362,7 @@ impl CodegenCtx {
                 self.push_lit(arg);
             }
         }
-        let argc = (1 + args.len()) as i32;
+        let argc = bytecode_imm(1 + args.len());
         let op = if argc < 256 {
             Op::INVOKE_STK1
         } else {
@@ -540,7 +541,7 @@ impl CodegenCtx {
                     }
                     self.emit(
                         Op::STR_CONCAT1,
-                        vec![Operand::Imm(parts.len() as i32)],
+                        vec![Operand::Imm(bytecode_imm(parts.len()))],
                     );
                     return;
                 }
@@ -630,7 +631,7 @@ impl CodegenCtx {
                 for (a, b) in args {
                     self.emit_cmd_subst_arg(a, *b);
                 }
-                self.emit(Op::LIST, vec![Operand::Imm(args.len() as i32)]);
+                self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
             }
             "array" if args.len() >= 2 => {
                 self.emit_inline_array(args);
@@ -662,7 +663,7 @@ impl CodegenCtx {
     fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
         let var_name = &args[0].0;
         if self.is_proc && !is_qualified(var_name) {
-            let slot = self.lvt.intern(var_name) as i32;
+            let slot = bytecode_imm(self.lvt.intern(var_name));
             if args.len() == 1 {
                 self.emit_comment(
                     Op::INCR_SCALAR1_IMM,
@@ -675,7 +676,13 @@ impl CodegenCtx {
                     if (-128..=127).contains(&amt) {
                         self.emit_comment(
                             Op::INCR_SCALAR1_IMM,
-                            vec![Operand::Imm(slot), Operand::Imm(amt as i32)],
+                            vec![
+                                Operand::Imm(slot),
+                                Operand::Imm(
+                                    i32::try_from(amt)
+                                        .expect("incr literal fits in i32 after range check"),
+                                ),
+                            ],
                             &format!("var \"{var_name}\""),
                         );
                     } else {
@@ -717,7 +724,7 @@ impl CodegenCtx {
         self.used_inline_cmd_subst = true;
         let var_name = &args[1].0;
         if self.is_proc && !is_qualified(var_name) {
-            let slot = self.lvt.intern(var_name) as i32;
+            let slot = bytecode_imm(self.lvt.intern(var_name));
             self.emit_comment(
                 Op::EXIST_SCALAR,
                 vec![Operand::Imm(slot)],
@@ -883,7 +890,7 @@ impl CodegenCtx {
                 for (a, b) in sargs {
                     self.emit_cmd_subst_arg(a, *b);
                 }
-                let argc = (1 + sargs.len()) as i32;
+                let argc = bytecode_imm(1 + sargs.len());
                 self.emit(Op::INVOKE_STK1, vec![Operand::Imm(argc)]);
                 self.place_label(&sc_end);
                 self.seen_generic_invoke = true;
@@ -1031,7 +1038,7 @@ impl CodegenCtx {
             for a in &args[1..] {
                 self.emit_cmd_subst_arg(&a.0, a.1);
             }
-            self.emit(Op::LINDEX_MULTI, vec![Operand::Imm(args.len() as i32)]);
+            self.emit(Op::LINDEX_MULTI, vec![Operand::Imm(bytecode_imm(args.len()))]);
         }
     }
 
@@ -1063,7 +1070,7 @@ impl CodegenCtx {
         }
         self.emit(
             Op::LREPLACE4,
-            vec![Operand::Imm(args.len() as i32), Operand::Imm(1)],
+            vec![Operand::Imm(bytecode_imm(args.len())), Operand::Imm(1)],
         );
     }
 
@@ -1075,7 +1082,7 @@ impl CodegenCtx {
         }
         self.emit(
             Op::LREPLACE4,
-            vec![Operand::Imm(args.len() as i32), Operand::Imm(2)],
+            vec![Operand::Imm(bytecode_imm(args.len())), Operand::Imm(2)],
         );
     }
 
@@ -1104,7 +1111,7 @@ impl CodegenCtx {
             for (a, b) in &all_parts[1..] {
                 self.emit_cmd_subst_arg(a, *b);
             }
-            self.emit(Op::REGEXP, vec![Operand::Imm(all_parts.len() as i32)]);
+            self.emit(Op::REGEXP, vec![Operand::Imm(bytecode_imm(all_parts.len()))]);
         } else {
             self.used_inline_cmd_subst = false;
             self.emit_generic_cmd_subst("regexp", args);
@@ -1120,7 +1127,7 @@ impl CodegenCtx {
             && !is_qualified(&rest[0].0)
         {
             self.used_inline_cmd_subst = true;
-            let slot = self.lvt.intern(&rest[0].0) as i32;
+            let slot = bytecode_imm(self.lvt.intern(&rest[0].0));
             self.emit_comment(
                 Op::ARRAY_EXISTS_IMM,
                 vec![Operand::Imm(slot)],
@@ -1140,7 +1147,7 @@ impl CodegenCtx {
             }
             self.emit(
                 Op::INVOKE_STK1,
-                vec![Operand::Imm((1 + rest.len()) as i32)],
+                vec![Operand::Imm(bytecode_imm(1 + rest.len()))],
             );
             self.place_label(&sc_end);
             self.seen_generic_invoke = true;
@@ -1158,7 +1165,7 @@ impl CodegenCtx {
         for (k, b) in keys {
             self.emit_cmd_subst_arg(k, *b);
         }
-        self.emit(Op::DICT_GET, vec![Operand::Imm(keys.len() as i32)]);
+        self.emit(Op::DICT_GET, vec![Operand::Imm(bytecode_imm(keys.len()))]);
     }
 }
 

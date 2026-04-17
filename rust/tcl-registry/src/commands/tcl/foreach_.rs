@@ -3,10 +3,11 @@
 use crate::prelude::*;
 
 /// Dynamic arg role resolver: last argument is always the body.
-#[allow(clippy::cast_possible_truncation)]
 fn foreach_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 3 {
-        vec![((args.len() - 1) as u8, ArgRole::Body)]
+        u8::try_from(args.len() - 1)
+            .map(|last| vec![(last, ArgRole::Body)])
+            .unwrap_or_default()
     } else {
         Vec::new()
     }

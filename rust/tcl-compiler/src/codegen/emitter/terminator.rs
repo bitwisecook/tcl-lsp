@@ -179,10 +179,7 @@ impl CodegenCtx {
             if self.proc_exit_label.is_none() {
                 self.proc_exit_label = Some(self.fresh_label("proc_exit"));
             }
-            #[allow(clippy::assigning_clones)]
-            {
-                join_block = self.proc_exit_label.clone();
-            }
+            join_block.clone_from(&self.proc_exit_label);
         }
 
         // Only emit startCommand for non-first commands in the proc body.

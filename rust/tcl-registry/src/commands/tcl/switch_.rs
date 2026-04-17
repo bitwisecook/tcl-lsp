@@ -10,7 +10,6 @@ const SWITCH_VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
 /// Skips option flags (including value-consuming options like
 /// `-matchvar`/`-indexvar`), then identifies pattern/body pairs
 /// or a single braced-list body.
-#[allow(clippy::cast_possible_truncation)]
 fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut i: usize = 0;
     // Skip option flags.
@@ -39,13 +38,17 @@ fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     // Braced list form: single trailing argument.
     if i == args.len() - 1 {
-        roles.push((i as u8, ArgRole::Body));
+        if let Ok(idx) = u8::try_from(i) {
+            roles.push((idx, ArgRole::Body));
+        }
         return roles;
     }
     // List form: pattern body pairs.
     while i + 1 < args.len() {
         if args[i + 1] != "-" {
-            roles.push(((i + 1) as u8, ArgRole::Body));
+            if let Ok(idx) = u8::try_from(i + 1) {
+                roles.push((idx, ArgRole::Body));
+            }
         }
         i += 2;
     }

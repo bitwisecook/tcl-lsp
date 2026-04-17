@@ -10,7 +10,6 @@ use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand};
 use crate::expr_ast::{render_expr, BinOp, ExprNode};
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 impl CodegenCtx {
     /// Compile an expression AST node; leaves the result on TOS.
     ///
@@ -177,11 +176,9 @@ impl CodegenCtx {
                 for arg in args {
                     self.emit_expr(arg);
                 }
-                self.emit_comment(
-                    Op::INVOKE_STK1,
-                    vec![Operand::Imm(1 + args.len() as i32)],
-                    "",
-                );
+                let arg_count = i32::try_from(1 + args.len())
+                    .expect("expression call arg count fits in i32 (bytecode limit)");
+                self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(arg_count)], "");
                 false
             }
 

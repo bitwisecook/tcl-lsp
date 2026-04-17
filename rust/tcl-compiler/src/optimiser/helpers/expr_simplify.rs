@@ -387,255 +387,282 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
 /// One pass of strength reduction. Returns `None` when no
 /// rewrite applies. Conservative — only obviously-safe rewrites
 /// (no overflow / divide-by-zero concerns).
-#[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
-    // Ternary with constant condition.
-    if let ExprNode::Ternary {
-        condition,
-        true_branch,
-        false_branch,
-    } = node
-    {
-        if let Some(k) = int_literal_value(condition) {
-            if k != 0 {
-                return Some((**true_branch).clone());
+    match node {
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => reduce_ternary(condition, true_branch, false_branch),
+        ExprNode::Unary { op, operand } => reduce_unary(*op, operand),
+        ExprNode::Binary { op, left, right } => reduce_binary(*op, left, right),
+        _ => None,
+    }
+}
+
+/// `cond ? a : b` with a constant `cond` collapses to the chosen branch.
+fn reduce_ternary(
+    condition: &ExprNode,
+    true_branch: &ExprNode,
+    false_branch: &ExprNode,
+) -> Option<ExprNode> {
+    let k = int_literal_value(condition)?;
+    if k != 0 {
+        Some(true_branch.clone())
+    } else {
+        Some(false_branch.clone())
+    }
+}
+
+/// Unary identities and negation collapses.
+fn reduce_unary(op: crate::expr_ast::UnaryOp, operand: &ExprNode) -> Option<ExprNode> {
+    use crate::expr_ast::UnaryOp;
+
+    // `+x` → `x` (arithmetic identity).
+    if matches!(op, UnaryOp::Pos) {
+        return Some(operand.clone());
+    }
+
+    // `~~x` → `x`, `!!x` → `x`, `not not x` → `x`.
+    if matches!(op, UnaryOp::BitNot | UnaryOp::Not | UnaryOp::WordNot) {
+        if let ExprNode::Unary {
+            op: inner_op,
+            operand: inner_operand,
+        } = operand
+        {
+            if op == *inner_op {
+                return Some((**inner_operand).clone());
             }
-            return Some((**false_branch).clone());
         }
     }
 
-    // Unary identities and double negations.
-    if let ExprNode::Unary { op, operand } = node {
-        // `+x` → `x` (arithmetic identity).
-        if matches!(op, crate::expr_ast::UnaryOp::Pos) {
-            return Some((**operand).clone());
-        }
-        // `~~x` → `x`, `!!x` → `x` (via the typed-bool canonical
-        // collapse). We also collapse `not not x` for iRules.
-        if matches!(
-            op,
-            crate::expr_ast::UnaryOp::BitNot
-                | crate::expr_ast::UnaryOp::Not
-                | crate::expr_ast::UnaryOp::WordNot
-        ) {
-            if let ExprNode::Unary {
-                op: inner_op,
-                operand: inner_operand,
-            } = operand.as_ref()
-            {
-                if op == inner_op {
-                    return Some((**inner_operand).clone());
-                }
+    // `!(x <cmp> y)` → inverted comparison, and DeMorgan for `!(a && b)`.
+    if matches!(op, UnaryOp::Not | UnaryOp::WordNot) {
+        if let ExprNode::Binary {
+            op: inner_op,
+            left,
+            right,
+        } = operand
+        {
+            if let Some(new_op) = invert_comparison_op(*inner_op) {
+                return Some(ExprNode::Binary {
+                    op: new_op,
+                    left: left.clone(),
+                    right: right.clone(),
+                });
+            }
+            if let Some(new_op) = demorgan_flip(*inner_op) {
+                let not_left = ExprNode::Unary {
+                    op: UnaryOp::Not,
+                    operand: left.clone(),
+                };
+                let not_right = ExprNode::Unary {
+                    op: UnaryOp::Not,
+                    operand: right.clone(),
+                };
+                return Some(ExprNode::Binary {
+                    op: new_op,
+                    left: Box::new(not_left),
+                    right: Box::new(not_right),
+                });
             }
         }
-        // `!(x == y)` → `x != y` and its ne / lt / gt / le / ge
-        // / eq / ni / in / str-eq / str-ne inverses. Also DeMorgan:
-        // `!(a && b)` → `!a || !b`, `!(a || b)` → `!a && !b`.
-        if matches!(
-            op,
-            crate::expr_ast::UnaryOp::Not | crate::expr_ast::UnaryOp::WordNot
-        ) {
-            if let ExprNode::Binary {
-                op: inner_op,
-                left,
-                right,
-            } = operand.as_ref()
-            {
-                let inverted = match inner_op {
-                    BinOp::Eq => Some(BinOp::Ne),
-                    BinOp::Ne => Some(BinOp::Eq),
-                    BinOp::Lt => Some(BinOp::Ge),
-                    BinOp::Ge => Some(BinOp::Lt),
-                    BinOp::Gt => Some(BinOp::Le),
-                    BinOp::Le => Some(BinOp::Gt),
-                    BinOp::StrEq => Some(BinOp::StrNe),
-                    BinOp::StrNe => Some(BinOp::StrEq),
-                    _ => None,
-                };
-                if let Some(new_op) = inverted {
-                    return Some(ExprNode::Binary {
-                        op: new_op,
-                        left: left.clone(),
-                        right: right.clone(),
-                    });
-                }
-                // DeMorgan: !(a && b) → !a || !b, !(a || b) → !a && !b.
-                let dm_op = match inner_op {
-                    BinOp::And => Some(BinOp::Or),
-                    BinOp::Or => Some(BinOp::And),
-                    _ => None,
-                };
-                if let Some(new_op) = dm_op {
-                    let not_left = ExprNode::Unary {
-                        op: crate::expr_ast::UnaryOp::Not,
-                        operand: left.clone(),
-                    };
-                    let not_right = ExprNode::Unary {
-                        op: crate::expr_ast::UnaryOp::Not,
-                        operand: right.clone(),
-                    };
-                    return Some(ExprNode::Binary {
-                        op: new_op,
-                        left: Box::new(not_left),
-                        right: Box::new(not_right),
-                    });
-                }
-            }
-        }
-        return None;
     }
 
-    let ExprNode::Binary { op, left, right } = node else {
-        return None;
-    };
+    None
+}
 
-    // Self-comparison tautologies: `x == x` → 1, `x != x` → 0,
-    // `x < x` → 0, `x <= x` → 1, etc. Only fires when both
-    // operands are the same variable reference — ``$x == $x`` —
-    // because references to commands / literals could have side
-    // effects (`[f] == [f]` might not be 1 if `f` has state).
-    if let (ExprNode::Var { name: l, .. }, ExprNode::Var { name: r, .. }) =
-        (left.as_ref(), right.as_ref())
-    {
-        if l == r {
-            let result = match op {
-                BinOp::Eq | BinOp::Le | BinOp::Ge | BinOp::StrEq => Some(1),
-                BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe | BinOp::BitXor | BinOp::Sub => {
-                    Some(0)
-                }
-                _ => None,
-            };
-            if let Some(k) = result {
-                return Some(make_int_literal(k));
-            }
-        }
+/// Return the opposite comparison operator, or `None` for non-comparisons.
+fn invert_comparison_op(op: BinOp) -> Option<BinOp> {
+    match op {
+        BinOp::Eq => Some(BinOp::Ne),
+        BinOp::Ne => Some(BinOp::Eq),
+        BinOp::Lt => Some(BinOp::Ge),
+        BinOp::Ge => Some(BinOp::Lt),
+        BinOp::Gt => Some(BinOp::Le),
+        BinOp::Le => Some(BinOp::Gt),
+        BinOp::StrEq => Some(BinOp::StrNe),
+        BinOp::StrNe => Some(BinOp::StrEq),
+        _ => None,
+    }
+}
+
+/// De Morgan operator flip: `&&` ↔ `||`, otherwise `None`.
+fn demorgan_flip(op: BinOp) -> Option<BinOp> {
+    match op {
+        BinOp::And => Some(BinOp::Or),
+        BinOp::Or => Some(BinOp::And),
+        _ => None,
+    }
+}
+
+/// Binary-operator algebraic identities and absorbing cases.
+fn reduce_binary(op: BinOp, left: &ExprNode, right: &ExprNode) -> Option<ExprNode> {
+    // Self-comparison tautologies for pure variable references.
+    if let Some(result) = reduce_self_comparison(op, left, right) {
+        return Some(result);
     }
 
     let lit_right = int_literal_value(right);
     let lit_left = int_literal_value(left);
 
+    reduce_arith_identity(op, left, right, lit_left, lit_right)
+        .or_else(|| reduce_pow(op, left, right, lit_right))
+        .or_else(|| reduce_mod(op, left, lit_right))
+        .or_else(|| reduce_shift(op, left, lit_right))
+        .or_else(|| reduce_bitwise(op, left, right, lit_left, lit_right))
+        .or_else(|| reduce_logical(op, lit_left, lit_right))
+}
+
+/// `$x <cmp> $x` collapses to 0/1 when both sides are the same variable.
+///
+/// Only fires for pure variable references because commands or literal
+/// expressions could have side effects (`[f] == [f]` might not be 1 if
+/// `f` mutates state).
+fn reduce_self_comparison(op: BinOp, left: &ExprNode, right: &ExprNode) -> Option<ExprNode> {
+    let (ExprNode::Var { name: l, .. }, ExprNode::Var { name: r, .. }) = (left, right) else {
+        return None;
+    };
+    if l != r {
+        return None;
+    }
+    let k = match op {
+        BinOp::Eq | BinOp::Le | BinOp::Ge | BinOp::StrEq => 1,
+        BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe | BinOp::BitXor | BinOp::Sub => 0,
+        _ => return None,
+    };
+    Some(make_int_literal(k))
+}
+
+/// `+/-/*//` arithmetic identities and annihilators.
+fn reduce_arith_identity(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    lit_left: Option<i64>,
+    lit_right: Option<i64>,
+) -> Option<ExprNode> {
     match op {
-        // Identity: x + 0 → x, 0 + x → x.
+        // x + 0 → x, 0 + x → x.
         BinOp::Add => {
             if lit_right == Some(0) {
-                return Some((**left).clone());
+                return Some(left.clone());
             }
             if lit_left == Some(0) {
-                return Some((**right).clone());
+                return Some(right.clone());
             }
             None
         }
-        // Identity: x - 0 → x.
-        BinOp::Sub => {
-            if lit_right == Some(0) {
-                return Some((**left).clone());
-            }
-            None
-        }
-        // Identity: x * 1 → x, 1 * x → x.
-        // Annihilator: x * 0 → 0 (only when x cannot have side
-        // effects — no Command in operand, checked by caller
-        // gates).
+        // x - 0 → x.
+        BinOp::Sub if lit_right == Some(0) => Some(left.clone()),
+        // x * 1 → x, 1 * x → x, x * 0 / 0 * x → 0.
+        // (Annihilator is safe only when operands are side-effect-free;
+        // gates in the caller ensure this.)
         BinOp::Mul => {
             if lit_right == Some(1) {
-                return Some((**left).clone());
+                return Some(left.clone());
             }
             if lit_left == Some(1) {
-                return Some((**right).clone());
+                return Some(right.clone());
             }
             if lit_right == Some(0) || lit_left == Some(0) {
                 return Some(make_int_literal(0));
             }
             None
         }
-        // Identity: x / 1 → x.
-        BinOp::Div => {
-            if lit_right == Some(1) {
-                return Some((**left).clone());
-            }
-            None
-        }
-        // x ** 0 → 1, x ** 1 → x, x ** 2 → x * x (integer literal only).
-        BinOp::Pow => {
-            if lit_right == Some(0) {
-                return Some(make_int_literal(1));
-            }
-            if lit_right == Some(1) {
-                return Some((**left).clone());
-            }
-            if lit_right == Some(2) {
-                return Some(ExprNode::Binary {
-                    op: BinOp::Mul,
-                    left: left.clone(),
-                    right: left.clone(),
-                });
-            }
-            None
-        }
-        // x % 1 → 0 (absorbing); x % pow2 → x & (pow2 - 1).
-        BinOp::Mod => {
-            let n = lit_right?;
-            if n == 1 {
-                return Some(make_int_literal(0));
-            }
-            if n > 1 && (n & (n - 1)) == 0 {
-                return Some(ExprNode::Binary {
-                    op: BinOp::BitAnd,
-                    left: left.clone(),
-                    right: Box::new(make_int_literal(n - 1)),
-                });
-            }
-            None
-        }
-        // Shift identities: x << 0 → x, x >> 0 → x.
-        BinOp::LShift | BinOp::RShift => {
-            if lit_right == Some(0) {
-                return Some((**left).clone());
-            }
-            None
-        }
-        // Bitwise identities / absorbing:
-        //   x & 0 → 0, 0 & x → 0 (absorbing);
-        //   x | 0 → x, 0 | x → x (identity);
-        //   x ^ 0 → x, 0 ^ x → x (identity).
-        BinOp::BitAnd => {
-            if lit_right == Some(0) || lit_left == Some(0) {
-                return Some(make_int_literal(0));
-            }
-            None
-        }
+        // x / 1 → x.
+        BinOp::Div if lit_right == Some(1) => Some(left.clone()),
+        _ => None,
+    }
+}
+
+/// `x ** 0 → 1`, `x ** 1 → x`, `x ** 2 → x * x` for integer literal exponents.
+fn reduce_pow(
+    op: BinOp,
+    left: &ExprNode,
+    _right: &ExprNode,
+    lit_right: Option<i64>,
+) -> Option<ExprNode> {
+    if !matches!(op, BinOp::Pow) {
+        return None;
+    }
+    match lit_right? {
+        0 => Some(make_int_literal(1)),
+        1 => Some(left.clone()),
+        2 => Some(ExprNode::Binary {
+            op: BinOp::Mul,
+            left: Box::new(left.clone()),
+            right: Box::new(left.clone()),
+        }),
+        _ => None,
+    }
+}
+
+/// `x % 1 → 0` (absorbing) and `x % pow2 → x & (pow2 - 1)`.
+fn reduce_mod(op: BinOp, left: &ExprNode, lit_right: Option<i64>) -> Option<ExprNode> {
+    if !matches!(op, BinOp::Mod) {
+        return None;
+    }
+    let n = lit_right?;
+    if n == 1 {
+        return Some(make_int_literal(0));
+    }
+    if n > 1 && (n & (n - 1)) == 0 {
+        return Some(ExprNode::Binary {
+            op: BinOp::BitAnd,
+            left: Box::new(left.clone()),
+            right: Box::new(make_int_literal(n - 1)),
+        });
+    }
+    None
+}
+
+/// `x << 0 → x`, `x >> 0 → x`.
+fn reduce_shift(op: BinOp, left: &ExprNode, lit_right: Option<i64>) -> Option<ExprNode> {
+    if !matches!(op, BinOp::LShift | BinOp::RShift) {
+        return None;
+    }
+    if lit_right == Some(0) {
+        Some(left.clone())
+    } else {
+        None
+    }
+}
+
+/// Bitwise identities / annihilators: `x & 0 → 0`, `x | 0 → x`, `x ^ 0 → x`.
+fn reduce_bitwise(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    lit_left: Option<i64>,
+    lit_right: Option<i64>,
+) -> Option<ExprNode> {
+    match op {
+        BinOp::BitAnd if lit_right == Some(0) || lit_left == Some(0) => Some(make_int_literal(0)),
         BinOp::BitOr | BinOp::BitXor => {
             if lit_right == Some(0) {
-                return Some((**left).clone());
+                Some(left.clone())
+            } else if lit_left == Some(0) {
+                Some(right.clone())
+            } else {
+                None
             }
-            if lit_left == Some(0) {
-                return Some((**right).clone());
-            }
-            None
         }
-        // Logical absorbing only — NOT identity:
-        //   x && 0 → 0, 0 && x → 0  (absorbing, safe)
-        //   x || 1 → 1, 1 || x → 1  (absorbing, safe)
-        //
-        // Identities (``x && 1 → x``, ``x || 0 → x``) are
-        // *unsafe* in Tcl because `&&`/`||` return the
-        // normalised boolean (`0`/`1`), not the operand value —
-        // `expr {2 && 1}` is `1`, not `2`, so a rewrite to
-        // `x` would change the runtime result for any non-0/1
-        // `x`. The absorbing cases collapse to the correct
-        // boolean result regardless of the other operand.
-        BinOp::And => {
-            if lit_right == Some(0) || lit_left == Some(0) {
-                return Some(make_int_literal(0));
-            }
-            None
-        }
-        BinOp::Or => {
-            if lit_right == Some(1) || lit_left == Some(1) {
-                return Some(make_int_literal(1));
-            }
-            None
-        }
+        _ => None,
+    }
+}
+
+/// Logical absorbing reductions for `&&` / `||`.
+///
+/// Identities like `x && 1 → x` are *unsafe* in Tcl because `&&`/`||`
+/// return the normalised boolean (`0`/`1`), not the operand value
+/// (`expr {2 && 1}` is `1`, not `2`). Only absorbing cases are folded
+/// because they collapse to the correct boolean regardless of the
+/// other operand.
+fn reduce_logical(op: BinOp, lit_left: Option<i64>, lit_right: Option<i64>) -> Option<ExprNode> {
+    match op {
+        BinOp::And if lit_right == Some(0) || lit_left == Some(0) => Some(make_int_literal(0)),
+        BinOp::Or if lit_right == Some(1) || lit_left == Some(1) => Some(make_int_literal(1)),
         _ => None,
     }
 }

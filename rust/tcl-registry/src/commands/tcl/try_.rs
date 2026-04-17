@@ -3,7 +3,6 @@
 use crate::prelude::*;
 
 /// Dynamic arg role resolver for `try`/`on`/`trap`/`finally`.
-#[allow(clippy::cast_possible_truncation)]
 fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     if !args.is_empty() {
@@ -13,10 +12,14 @@ fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     while i < args.len() {
         let kw = args[i];
         if kw == "finally" && i + 1 < args.len() {
-            roles.push(((i + 1) as u8, ArgRole::Body));
+            if let Ok(idx) = u8::try_from(i + 1) {
+                roles.push((idx, ArgRole::Body));
+            }
             i += 2;
         } else if (kw == "on" || kw == "trap") && i + 3 < args.len() {
-            roles.push(((i + 3) as u8, ArgRole::Body));
+            if let Ok(idx) = u8::try_from(i + 3) {
+                roles.push((idx, ArgRole::Body));
+            }
             i += 4;
         } else {
             i += 1;
