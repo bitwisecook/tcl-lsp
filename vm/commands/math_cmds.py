@@ -223,7 +223,7 @@ def _mf_pow(args: list[str]) -> str:
         return _format_number(math.pow(base, exp))
     except OverflowError:
         # IEEE platforms return Inf/-Inf for overflow
-        if base < 0 and exp == int(exp) and int(exp) % 2 == 1:
+        if base < 0 and exp == int(exp) and int(exp) & 1:
             return "-Inf"
         return "Inf"
 

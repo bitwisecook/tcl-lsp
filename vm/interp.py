@@ -1387,7 +1387,7 @@ class TclInterp:
                 except OverflowError:
                     base = float(vals[0])
                     exp = float(vals[1])
-                    if base < 0 and exp == int(exp) and int(exp) % 2 == 1:
+                    if base < 0 and exp == int(exp) and int(exp) & 1:
                         return "-Inf"
                     return "Inf"
             case "rand":
