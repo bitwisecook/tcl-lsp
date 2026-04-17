@@ -1211,7 +1211,7 @@ class BytecodeVM:
                     s = stack.pop()
                     mapping_str = stack.pop()
                     mapping_list = _split_list(mapping_str)
-                    if len(mapping_list) % 2 != 0:
+                    if len(mapping_list) & 1:
                         raise TclError("char map list unbalanced")
                     pairs = [
                         (mapping_list[j], mapping_list[j + 1])
@@ -2071,7 +2071,7 @@ def _parse_index(idx_str: str, length: int) -> int:
 def _dict_from_list(text: str) -> dict[str, str]:
     """Parse a Tcl dict (key/value list) into a Python dict."""
     elements = _split_list(text)
-    if len(elements) % 2 != 0:
+    if len(elements) & 1:
         raise TclError("missing value to go with key")
     result: dict[str, str] = {}
     for i in range(0, len(elements), 2):

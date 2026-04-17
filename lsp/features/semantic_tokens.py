@@ -1636,7 +1636,7 @@ def _collect_string_map_pairs_tokens(
 
     for idx, (elem, tok) in enumerate(zip(elements, element_tokens)):
         pair_num = idx // 2
-        type_idx = pair_types[pair_num % 2]
+        type_idx = pair_types[pair_num & 1]
         rendered = f"{{{elem}}}" if tok.type is TokenType.STR else elem
         _append_text_token(
             out,

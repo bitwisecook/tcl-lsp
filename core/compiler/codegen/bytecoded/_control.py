@@ -158,7 +158,7 @@ def codegen_upvar(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     # Tcl 9.0: push level; load/push remote; upvar %vN; pop; nop; nop; nop
     level = args[0]
     pairs = args[1:]
-    if len(pairs) % 2 != 0:
+    if len(pairs) & 1:
         return False
     for i in range(0, len(pairs), 2):
         remote, local = pairs[i], pairs[i + 1]

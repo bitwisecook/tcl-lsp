@@ -186,7 +186,7 @@ def _cmd_upvar(interp: TclInterp, args: list[str]) -> TclResult:
             rel = int(level_str, 10)
         target_frame = interp.frame_at_relative(rel, level_str)
         start = 1
-    elif (len(args) - 0) % 2 == 1:
+    elif len(args) & 1:
         # Odd arg count → first arg is assumed to be a level but isn't valid
         raise TclError(f'bad level "{level_str}"')
     else:
@@ -195,7 +195,7 @@ def _cmd_upvar(interp: TclInterp, args: list[str]) -> TclResult:
 
     # Remaining args must be pairs
     remaining = len(args) - start
-    if remaining % 2 != 0 or remaining == 0:
+    if remaining & 1 or remaining == 0:
         raise TclError(
             'wrong # args: should be "upvar ?level? otherVar localVar ?otherVar localVar ...?"'
         )

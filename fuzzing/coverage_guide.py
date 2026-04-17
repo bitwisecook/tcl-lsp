@@ -178,7 +178,7 @@ def mutate_script(script: str, rng: random.Random, *, bad_input_pct: float = 0.0
     # Verify braces/quotes are still balanced
     if result.count("{") != result.count("}"):
         return script  # reject mutation
-    if result.count('"') % 2 != 0:
+    if result.count('"') & 1:
         return script  # reject mutation
     return result
 
@@ -371,7 +371,7 @@ def run_coverage_guided(
         # Detect intentionally corrupted scripts
         is_bad = (
             script.count("{") != script.count("}")
-            or script.count('"') % 2 != 0
+            or script.count('"') & 1
             or script.count("[") != script.count("]")
             or "\x00" in script
         )
