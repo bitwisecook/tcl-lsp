@@ -24,6 +24,7 @@ const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_get_int = rt.obj_get_int;
 const obj_new_string_copy = rt.obj_new_string_copy;
+const copy_unbraced_elem = rt.copy_unbraced_elem;
 const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
@@ -211,6 +212,28 @@ fn parse_command(
 
 // -- Variable substitution --
 
+fn encode_utf8(d: [*]u8, cp: u32) u32 {
+    if (cp < 0x80) {
+        d[0] = @intCast(cp);
+        return 1;
+    } else if (cp < 0x800) {
+        d[0] = @intCast(0xC0 | (cp >> 6));
+        d[1] = @intCast(0x80 | (cp & 0x3F));
+        return 2;
+    } else if (cp < 0x10000) {
+        d[0] = @intCast(0xE0 | (cp >> 12));
+        d[1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        d[2] = @intCast(0x80 | (cp & 0x3F));
+        return 3;
+    } else {
+        d[0] = @intCast(0xF0 | (cp >> 18));
+        d[1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+        d[2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        d[3] = @intCast(0x80 | (cp & 0x3F));
+        return 4;
+    }
+}
+
 /// Expand ``$var`` / ``[cmd]`` / ``\x`` in a word.  Always performs
 /// all three substitutions — this is the tokenizer's word-expansion
 /// path called after parse_command.  Braced words skip this entirely
@@ -235,11 +258,13 @@ fn subst_flagged(
     const src: [*]const u8 = @ptrFromInt(wptr);
     var has_dollar = false;
     var has_bracket = false;
+    var has_backslash = false;
     for (0..wlen) |i| {
         if (src[i] == '$') has_dollar = true;
         if (src[i] == '[') has_bracket = true;
+        if (src[i] == '\\') has_backslash = true;
     }
-    if (!has_dollar and !has_bracket and !do_bs) {
+    if (!has_dollar and !has_bracket and (!do_bs or !has_backslash)) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
     // Single-pass substitution into a pre-recorded "pieces" array.
@@ -342,14 +367,83 @@ fn subst_flagged(
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
             flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
             i += 1;
-            const esc: u8 = switch (src[i]) { 'n' => '\n', 't' => '\t', 'r' => '\r', else => src[i] };
-            // Stash the escape byte at a stable address so the
-            // final memcpy has a source to read.
-            const esc_ptr = alloc(1);
+            const esc_ptr = alloc(6); // max 4 UTF-8 bytes for \uXXXX, or 1 for simple
             const d: [*]u8 = @ptrFromInt(esc_ptr);
-            d[0] = esc;
-            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, 1);
-            i += 1;
+            var esc_len: u32 = 1;
+            switch (src[i]) {
+                'n' => { d[0] = '\n'; i += 1; },
+                't' => { d[0] = '\t'; i += 1; },
+                'r' => { d[0] = '\r'; i += 1; },
+                'a' => { d[0] = 0x07; i += 1; },
+                'b' => { d[0] = 0x08; i += 1; },
+                'f' => { d[0] = 0x0C; i += 1; },
+                'v' => { d[0] = 0x0B; i += 1; },
+                'x', 'X' => {
+                    // \xNN — 1 or 2 hex digits
+                    i += 1;
+                    var val: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 2 and i < wlen) {
+                        const c = src[i];
+                        if (c >= '0' and c <= '9') { val = val * 16 + @as(u32, c - '0'); i += 1; ndig += 1; }
+                        else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(u32, c - 'a' + 10); i += 1; ndig += 1; }
+                        else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(u32, c - 'A' + 10); i += 1; ndig += 1; }
+                        else break;
+                    }
+                    d[0] = @intCast(val & 0xFF);
+                    esc_len = 1;
+                },
+                'u' => {
+                    // \uNNNN — exactly 4 hex digits → UTF-8 encode
+                    i += 1;
+                    var cp: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 4 and i < wlen) {
+                        const c = src[i];
+                        if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); i += 1; ndig += 1; }
+                        else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); i += 1; ndig += 1; }
+                        else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); i += 1; ndig += 1; }
+                        else break;
+                    }
+                    esc_len = encode_utf8(d, cp);
+                },
+                'U' => {
+                    // \UNNNNNNNN — up to 8 hex digits → UTF-8 encode
+                    i += 1;
+                    var cp: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 8 and i < wlen) {
+                        const c = src[i];
+                        if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); i += 1; ndig += 1; }
+                        else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); i += 1; ndig += 1; }
+                        else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); i += 1; ndig += 1; }
+                        else break;
+                    }
+                    esc_len = encode_utf8(d, cp);
+                },
+                '0'...'9' => {
+                    // \NNN — octal (up to 3 digits)
+                    var val: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 3 and i < wlen and src[i] >= '0' and src[i] <= '7') {
+                        val = val * 8 + @as(u32, src[i] - '0');
+                        i += 1; ndig += 1;
+                    }
+                    d[0] = @intCast(val & 0xFF);
+                    esc_len = 1;
+                },
+                ' ', '\n', '\t', '\r' => {
+                    // backslash-newline/space → single space
+                    d[0] = ' ';
+                    i += 1;
+                    // skip any following whitespace for \<newline>
+                    if (src[i - 1] == '\n') {
+                        while (i < wlen and (src[i] == ' ' or src[i] == '\t')) i += 1;
+                    }
+                },
+                else => { d[0] = src[i]; i += 1; },
+            }
+            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, esc_len);
             lit_start = i;
         } else {
             lit_run += 1;
@@ -378,7 +472,35 @@ fn subst_flagged(
 
 fn eval_expr_str(ptr: u32, len: u32) i64 {
     var pos: u32 = 0;
-    return expr_add(ptr, len, &pos);
+    return expr_or(ptr, len, &pos);
+}
+
+fn expr_or(ptr: u32, len: u32, pos: *u32) i64 {
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var left = expr_and(ptr, len, pos);
+    while (pos.* < len) {
+        expr_skip_ws(src, len, pos);
+        if (pos.* + 1 < len and src[pos.*] == '|' and src[pos.* + 1] == '|') {
+            pos.* += 2;
+            const right = expr_and(ptr, len, pos);
+            left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
+        } else break;
+    }
+    return left;
+}
+
+fn expr_and(ptr: u32, len: u32, pos: *u32) i64 {
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var left = expr_add(ptr, len, pos);
+    while (pos.* < len) {
+        expr_skip_ws(src, len, pos);
+        if (pos.* + 1 < len and src[pos.*] == '&' and src[pos.* + 1] == '&') {
+            pos.* += 2;
+            const right = expr_add(ptr, len, pos);
+            left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
+        } else break;
+    }
+    return left;
 }
 
 fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
@@ -422,13 +544,25 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     expr_skip_ws(src, len, pos);
     if (pos.* >= len) return 0;
+    if (src[pos.*] == '!') { pos.* += 1; return if (expr_atom(ptr, len, pos) != 0) @as(i64, 0) else @as(i64, 1); }
+    if (src[pos.*] == '~') { pos.* += 1; return ~expr_atom(ptr, len, pos); }
     if (src[pos.*] == '-') { pos.* += 1; return -expr_atom(ptr, len, pos); }
     if (src[pos.*] == '(') {
         pos.* += 1;
-        const val = expr_add(ptr, len, pos);
+        const val = expr_or(ptr, len, pos);
         expr_skip_ws(src, len, pos);
         if (pos.* < len and src[pos.*] == ')') pos.* += 1;
         return val;
+    }
+    // String literal "...": parse and return 0 (advances past closing quote).
+    if (src[pos.*] == '"') {
+        pos.* += 1;
+        while (pos.* < len and src[pos.*] != '"') {
+            if (src[pos.*] == '\\' and pos.* + 1 < len) pos.* += 1;
+            pos.* += 1;
+        }
+        if (pos.* < len) pos.* += 1; // closing quote
+        return 0;
     }
     if (src[pos.*] == '$') {
         pos.* += 1;
@@ -458,6 +592,28 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
     if (src[pos.*] == '+') pos.* += 1;
     if (pos.* < len and src[pos.*] == '-') { negative = true; pos.* += 1; }
     var val: i64 = 0;
+    // Hex literal: 0x...
+    if (pos.* + 1 < len and src[pos.*] == '0' and (src[pos.* + 1] == 'x' or src[pos.* + 1] == 'X')) {
+        pos.* += 2;
+        while (pos.* < len) {
+            const c = src[pos.*];
+            if (c >= '0' and c <= '9') { val = val * 16 + @as(i64, c - '0'); pos.* += 1; }
+            else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(i64, c - 'a' + 10); pos.* += 1; }
+            else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(i64, c - 'A' + 10); pos.* += 1; }
+            else break;
+        }
+        return if (negative) -val else val;
+    }
+    // Octal literal: 0o...
+    if (pos.* + 1 < len and src[pos.*] == '0' and (src[pos.* + 1] == 'o' or src[pos.* + 1] == 'O')) {
+        pos.* += 2;
+        while (pos.* < len and src[pos.*] >= '0' and src[pos.*] <= '7') {
+            val = val * 8 + @as(i64, src[pos.*] - '0');
+            pos.* += 1;
+        }
+        return if (negative) -val else val;
+    }
+    // Decimal integer
     while (pos.* < len and src[pos.*] >= '0' and src[pos.*] <= '9') {
         val = val * 10 + @as(i64, src[pos.*] - '0');
         pos.* += 1;
@@ -614,15 +770,24 @@ fn eval_command(words: []const i32) i32 {
         if (words.len >= 2) {
             rt.catch_enter();
             const body_s = obj_ensure_string(words[1]);
-            _ = eval_script(body_s.ptr, body_s.len);
-            return rt.catch_leave();
+            const body_result = eval_script(body_s.ptr, body_s.len);
+            rt.catch_set_ok_result(body_result);
+            const catch_val = rt.catch_result();
+            const code = rt.catch_leave();
+            if (words.len >= 3) {
+                _ = frames.var_set(words[2], catch_val);
+            }
+            return code;
         }
         return obj_new_int(0);
     }
     if (str_eq(cmd, cmd_s.len, "append")) {
-        if (words.len >= 3) {
-            const cur = frames.var_resolve(words[1]);
-            const result = rt.tcl_cmd_append(cur, words[2]);
+        if (words.len >= 2) {
+            var result = frames.var_resolve(words[1]);
+            var wi: u32 = 2;
+            while (wi < words.len) : (wi += 1) {
+                result = rt.tcl_cmd_append(result, words[wi]);
+            }
             _ = frames.var_set(words[1], result);
             return result;
         }
@@ -631,9 +796,12 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.tcl_cmd_list_length(words[1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.tcl_cmd_list_index(words[1], words[2]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lappend")) {
-        if (words.len >= 3) {
-            const cur = frames.var_resolve(words[1]);
-            const result = rt.tcl_cmd_lappend(cur, words[2]);
+        if (words.len >= 2) {
+            var result = frames.var_resolve(words[1]);
+            var wi2: u32 = 2;
+            while (wi2 < words.len) : (wi2 += 1) {
+                result = rt.tcl_cmd_lappend(result, words[wi2]);
+            }
             _ = frames.var_set(words[1], result);
             return result;
         }
@@ -696,6 +864,20 @@ fn eval_command(words: []const i32) i32 {
         const a2 = if (words.len >= 4) words[3] else 0;
         const a3 = if (words.len >= 5) words[4] else 0;
         return fmt_mod.tcl_cmd_format(fmt, a1, a2, a3);
+    }
+    if (str_eq(cmd, cmd_s.len, "scan")) {
+        // ``scan str fmt ?varName?``
+        // 2-arg: return matched value; 3-arg: store in varName, return match count.
+        const fmt_stubs = @import("tcl_fmt_stubs.zig");
+        if (words.len >= 3) {
+            const val = fmt_stubs.tcl_cmd_scan(words[1], words[2]);
+            if (words.len >= 4) {
+                _ = frames.var_set(words[3], val);
+                return obj_new_int(1);
+            }
+            return val;
+        }
+        return obj_new_int(-1);
     }
     if (str_eq(cmd, cmd_s.len, "pwd")) {
         const fs_mod = @import("tcl_fs.zig");
@@ -804,26 +986,20 @@ fn eval_command(words: []const i32) i32 {
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "list")) {
-        // ``list`` is variadic — build a single Tcl list from all
-        // word arguments.  The previous 2-arg pairwise form left
-        // the tail behind on 3+ arg calls, silently dropping
-        // elements from e.g. ``array set a [list x 1 y 2]``
-        // (only x=1 stored).  Use a two-pass buffer: size each
-        // element with ``dict_needs_braces`` quoting then copy.
-        // Nested calls to ``rt.tcl_list`` would double-brace
-        // existing list-shaped arguments, so build in one pass.
+        // ``list`` — build a properly-quoted Tcl list from all arguments.
+        // Uses list_elem_quote for each element so that values containing
+        // braces, backslashes, or spaces are correctly represented.
         if (words.len <= 1) return obj_new_string(0, 0);
-        if (words.len == 2) return words[1];
-        var total: u32 = 0;
+        // Allocate worst-case buffer: each element may double in size
+        // (backslash-escaping) plus 2 for braces, plus separators.
+        var max_total: u32 = 0;
         var ei: u32 = 1;
         while (ei < words.len) : (ei += 1) {
             const s = obj_ensure_string(words[ei]);
-            const needs = obj_mod.dict_needs_braces(s.ptr, s.len);
-            total += if (needs) s.len + 2 else s.len;
-            if (ei > 1) total += 1; // separator space
+            max_total += s.len * 2 + 2;
+            if (ei > 1) max_total += 1; // separator space
         }
-        if (total == 0) return obj_new_string(0, 0);
-        const buf = obj_mod.alloc(total);
+        const buf = obj_mod.alloc(max_total + 4);
         var off: u32 = 0;
         ei = 1;
         while (ei < words.len) : (ei += 1) {
@@ -833,14 +1009,18 @@ fn eval_command(words: []const i32) i32 {
                 off += 1;
             }
             const s = obj_ensure_string(words[ei]);
-            off = obj_mod.dict_append_elem(buf, off, s.ptr, s.len);
+            off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
         }
         return obj_new_string(@bitCast(buf), @bitCast(off));
     }
     if (str_eq(cmd, cmd_s.len, "concat")) {
-        if (words.len >= 3) return rt.tcl_cmd_concat(words[1], words[2]);
-        if (words.len >= 2) return words[1];
-        return obj_new_string(0, 0);
+        if (words.len <= 1) return obj_new_string(0, 0);
+        var acc = words[1];
+        var ci: usize = 2;
+        while (ci < words.len) : (ci += 1) {
+            acc = rt.tcl_cmd_concat(acc, words[ci]);
+        }
+        return acc;
     }
     if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.tcl_cmd_list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
     if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.tcl_cmd_list_search(words[1], words[2]); return obj_new_int(-1); }
@@ -873,11 +1053,35 @@ fn eval_command(words: []const i32) i32 {
             if (sub.len == 4 and sub.ptr != 0) {
                 const sp: [*]const u8 = @ptrFromInt(sub.ptr);
                 if (sp[0] == 'e' and sp[1] == 'v' and sp[2] == 'a' and sp[3] == 'l') {
-                    // Body is the last word; join multiple body words with space.
-                    const body = words[words.len - 1];
-                    const bs = obj_ensure_string(body);
-                    if (bs.len > 0) {
-                        return eval_script(bs.ptr, bs.len);
+                    // namespace eval <ns> script ?arg? ... — concatenate body args
+                    // with single spaces (matches Tcl semantics).
+                    if (words.len == 4) {
+                        const bs = obj_ensure_string(words[3]);
+                        if (bs.len > 0) return eval_script(bs.ptr, bs.len);
+                        return 0;
+                    }
+                    if (words.len > 4) {
+                        var total: u32 = 0;
+                        var wi3: u32 = 3;
+                        while (wi3 < words.len) : (wi3 += 1) {
+                            const ws = obj_ensure_string(words[wi3]);
+                            total += ws.len;
+                            if (wi3 + 1 < words.len) total += 1; // space
+                        }
+                        const buf = alloc(total);
+                        var off: u32 = 0;
+                        wi3 = 3;
+                        while (wi3 < words.len) : (wi3 += 1) {
+                            const ws = obj_ensure_string(words[wi3]);
+                            memcpy(buf + off, ws.ptr, ws.len);
+                            off += ws.len;
+                            if (wi3 + 1 < words.len) {
+                                const d: [*]u8 = @ptrFromInt(buf + off);
+                                d[0] = ' ';
+                                off += 1;
+                            }
+                        }
+                        return eval_script(buf, total);
                     }
                 }
             }
@@ -1151,7 +1355,14 @@ fn eval_foreach(words: []const i32) i32 {
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
         const elem = list_element_at(list_s.ptr, list_s.len, idx);
-        _ = frames.var_set(var_name, obj_new_string_copy(list_s.ptr + elem.start, elem.len));
+        const elem_val = if (elem.braced)
+            obj_new_string_copy(list_s.ptr + elem.start, elem.len)
+        else blk: {
+            const buf = alloc(elem.len);
+            const out_len = copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
+            break :blk obj_new_string(@intCast(buf), @intCast(out_len));
+        };
+        _ = frames.var_set(var_name, elem_val);
         result = eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
@@ -1211,17 +1422,61 @@ fn eval_proc_call(words: []const i32) i32 {
     // Push frame
     _ = frames.frame_push();
 
-    // Bind parameters: walk the params list, assign each from argv
+    // Bind parameters: walk the params list, assign each from argv.
+    // If the last parameter is named "args", it collects all remaining
+    // arguments as a Tcl list (standard Tcl variadic proc convention).
     if (params_obj != 0 and n_params > 0) {
         const ps = obj_ensure_string(params_obj);
         var pi: u32 = 0;
         while (pi < n_params) : (pi += 1) {
             const param_elem = list_element_at(ps.ptr, ps.len, @intCast(pi));
-            const param_name = obj_new_string_copy(ps.ptr + param_elem.start, param_elem.len);
+            const param_name_ptr = ps.ptr + param_elem.start;
+            const param_name_len = param_elem.len;
+            const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
+            const param_name_s: [*]const u8 = @ptrFromInt(param_name_ptr);
             // argv[0] is the command name, so argv[pi+1] is the first arg
             const arg_idx = pi + 1;
-            const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
-            _ = frames.local_set(param_name, arg_val);
+            // Check if this is the special "args" parameter (last param only)
+            const is_args_param = (pi == n_params - 1) and
+                (param_name_len == 4) and
+                param_name_s[0] == 'a' and param_name_s[1] == 'r' and
+                param_name_s[2] == 'g' and param_name_s[3] == 's';
+            if (is_args_param) {
+                // Collect all remaining arguments into a list
+                if (arg_idx >= words.len) {
+                    // No remaining args: set to empty list
+                    _ = frames.local_set(param_name, obj_new_string(0, 0));
+                } else if (arg_idx + 1 == words.len) {
+                    // Exactly one remaining arg: use it directly as a list
+                    _ = frames.local_set(param_name, words[arg_idx]);
+                } else {
+                    // Multiple remaining args: build a list
+                    var total: u32 = 0;
+                    var ai: u32 = arg_idx;
+                    while (ai < words.len) : (ai += 1) {
+                        const sv = obj_ensure_string(words[ai]);
+                        total += sv.len * 2 + 4; // generous quoting estimate
+                        if (ai > arg_idx) total += 1;
+                    }
+                    const buf = alloc(total + 4);
+                    var off: u32 = 0;
+                    ai = arg_idx;
+                    while (ai < words.len) : (ai += 1) {
+                        if (ai > arg_idx) {
+                            const d: [*]u8 = @ptrFromInt(buf + off);
+                            d[0] = ' ';
+                            off += 1;
+                        }
+                        const sv = obj_ensure_string(words[ai]);
+                        off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                    }
+                    _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
+                }
+                break;
+            } else {
+                const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
+                _ = frames.local_set(param_name, arg_val);
+            }
         }
     }
 
@@ -1263,6 +1518,8 @@ fn eval_string_cmd(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "match") and words.len >= 4) return rt.string_match(words[2], words[3]);
     if (str_eq(sp, sub.len, "map") and words.len >= 4) return rt.string_map(words[2], words[3]);
     if (str_eq(sp, sub.len, "trim")) return rt.string_trim(words[2]);
+    if (str_eq(sp, sub.len, "trimleft")) return rt.string_trimleft(words[2]);
+    if (str_eq(sp, sub.len, "trimright")) return rt.string_trimright(words[2]);
     if (str_eq(sp, sub.len, "first") and words.len >= 4) return rt.string_first(words[2], words[3]);
     if (str_eq(sp, sub.len, "last") and words.len >= 4) return rt.string_last(words[2], words[3]);
     if (str_eq(sp, sub.len, "toupper")) return rt.string_toupper(words[2]);
@@ -1270,6 +1527,187 @@ fn eval_string_cmd(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "reverse")) return rt.string_reverse(words[2]);
     if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return rt.string_repeat(words[2], words[3]);
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return rt.string_replace(words[2], words[3], words[4], words[5]);
+    if (str_eq(sp, sub.len, "is")) {
+        // ``string is class ?-strict? ?-failindex var? str``
+        // Find the class name (words[2]) and the final string arg.
+        // Skip any -strict / -failindex flags and their args.
+        if (words.len < 4) return obj_new_int(1); // empty string: non-strict default is 1
+        const cls = obj_ensure_string(words[2]);
+        const clsp: [*]const u8 = @ptrFromInt(cls.ptr);
+        var str_idx: u32 = 3;
+        while (str_idx + 1 < words.len) {
+            const a = obj_ensure_string(words[str_idx]);
+            const ap: [*]const u8 = @ptrFromInt(a.ptr);
+            if (a.len > 0 and ap[0] == '-') {
+                // -strict: no extra arg; -failindex: consumes next arg
+                if (str_eq(ap, a.len, "-failindex")) str_idx += 1;
+                str_idx += 1;
+            } else break;
+        }
+        if (str_idx >= words.len) return obj_new_int(1);
+        const sv = obj_ensure_string(words[str_idx]);
+        if (sv.len == 0) {
+            // non-strict: empty is 1 for all; strict: 0
+            return obj_new_int(1);
+        }
+        const svp: [*]const u8 = @ptrFromInt(sv.ptr);
+        if (str_eq(clsp, cls.len, "print")) {
+            // printable: 0x20-0x7E ASCII, or any multibyte UTF-8
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) continue; // multibyte UTF-8 — treat as printable
+                if (b < 0x20 or b == 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "alpha")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "digit")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                if (svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "alnum")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or (b >= '0' and b <= '9'))) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "space") or str_eq(clsp, cls.len, "whitespace")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b != ' ' and b != '\t' and b != '\n' and b != '\r' and b != 0x0C and b != 0x0B) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "integer")) {
+            var i: u32 = 0;
+            while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
+            if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
+            if (i < sv.len and svp[i] == '0' and i + 1 < sv.len and (svp[i+1] == 'x' or svp[i+1] == 'X')) {
+                i += 2;
+                if (i >= sv.len) return obj_new_int(0);
+                while (i < sv.len) : (i += 1) {
+                    const b = svp[i];
+                    if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return obj_new_int(0);
+                }
+                return obj_new_int(1);
+            }
+            if (i >= sv.len) return obj_new_int(0);
+            while (i < sv.len) : (i += 1) {
+                if (svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "boolean")) {
+            if (str_eq(svp, sv.len, "1") or str_eq(svp, sv.len, "0") or
+                str_eq(svp, sv.len, "true") or str_eq(svp, sv.len, "false") or
+                str_eq(svp, sv.len, "yes") or str_eq(svp, sv.len, "no") or
+                str_eq(svp, sv.len, "on") or str_eq(svp, sv.len, "off") or
+                str_eq(svp, sv.len, "True") or str_eq(svp, sv.len, "False") or
+                str_eq(svp, sv.len, "TRUE") or str_eq(svp, sv.len, "FALSE")) return obj_new_int(1);
+            return obj_new_int(0);
+        }
+        if (str_eq(clsp, cls.len, "ascii")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                if (svp[i] > 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "control")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) return obj_new_int(0);
+                if (b >= 0x20 and b != 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "graph")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (b <= 0x20 or b == 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "lower")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (b < 'a' or b > 'z') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "upper")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (b < 'A' or b > 'Z') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "punct")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                const is_punct = (b >= '!' and b <= '/') or (b >= ':' and b <= '@') or
+                    (b >= '[' and b <= '`') or (b >= '{' and b <= '~');
+                if (!is_punct) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "xdigit")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "double") or str_eq(clsp, cls.len, "float")) {
+            // Very basic: try to parse as number with optional decimal/exponent
+            var i: u32 = 0;
+            while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
+            if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
+            var has_digit = false;
+            while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
+            if (i < sv.len and svp[i] == '.') {
+                i += 1;
+                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
+            }
+            if (!has_digit) return obj_new_int(0);
+            if (i < sv.len and (svp[i] == 'e' or svp[i] == 'E')) {
+                i += 1;
+                if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
+                if (i >= sv.len or svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') i += 1;
+            }
+            if (i != sv.len) return obj_new_int(0);
+            return obj_new_int(1);
+        }
+        // Unknown class — return 0
+        return obj_new_int(0);
+    }
     return 0;
 }
 
@@ -1433,10 +1871,13 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
                     while (j < n) : (j += 1) {
                         if (ecount >= MAX_EXPANDED_WORDS) break;
                         const elem = list_element_at(s.ptr, s.len, j);
-                        expanded[ecount] = obj_new_string(
-                            @intCast(s.ptr + elem.start),
-                            @intCast(elem.len),
-                        );
+                        if (elem.braced) {
+                            expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
+                        } else {
+                            const buf = alloc(elem.len);
+                            const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
+                            expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
+                        }
                         ecount += 1;
                     }
                 } else {

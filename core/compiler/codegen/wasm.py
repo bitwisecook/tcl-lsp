@@ -102,6 +102,29 @@ def _leb128_signed(value: int) -> bytes:
     return bytes(result)
 
 
+def _tcl_token_value(token: str) -> str:
+    """Return the runtime VALUE of a Tcl source token (word).
+
+    Mirrors the C Tcl parser's substitution rules:
+    - Braced words ``{content}``: strip outer braces; content is literal
+      (no substitution of any kind).
+    - All other words: apply backslash substitution (``\\n`` → newline,
+      ``\\\\`` → ``\\``, etc.).  Variable and command substitutions are
+      left as-is because they must be resolved at runtime.
+
+    Use this before ``_tcl_list_quote`` whenever *token* comes directly
+    from IR source tokens rather than from a previously-evaluated value.
+
+    Inverse: ``_tcl_list_quote(_tcl_token_value(token))`` gives the
+    canonical list-element representation of the word's value.
+    """
+    if token.startswith("{") and token.endswith("}") and len(token) >= 2:
+        return token[1:-1]
+    if "\\" in token:
+        return _tcl_backslash_subst(token)
+    return token
+
+
 def _tcl_list_quote(s: str) -> str:
     """Return *s* encoded as a single Tcl list element.
 
@@ -793,6 +816,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    "tcl_expr_order_cmp": (
+        "tcl",
+        "tcl_expr_order_cmp",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_string_map": ("tcl", "string_map", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_string_match": ("tcl", "string_match", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_string_trim": ("tcl", "string_trim", [ValType.I32], [ValType.I32]),
@@ -1282,6 +1311,40 @@ def _has_embedded_subst_scan(value: str) -> bool:
     return False
 
 
+def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
+    """Parse an expression body and add any runtime imports it needs."""
+    from ..expr_ast import BinOp, ExprBinary, ExprCall, ExprTernary, ExprUnary
+    from ...parsing.expr_parser import parse_expr
+
+    try:
+        node = parse_expr(expr_text)
+    except Exception:
+        return
+
+    def _walk(n: object) -> None:
+        match n:
+            case ExprBinary(op=op, left=left, right=right):
+                if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
+                    needed.add("tcl_string_equal")
+                if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
+                    needed.add("tcl_string_compare")
+                if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+                    needed.add("tcl_expr_order_cmp")
+                _walk(left)
+                _walk(right)
+            case ExprUnary(operand=operand):
+                _walk(operand)
+            case ExprTernary(cond=cond, true_expr=t, false_expr=f):
+                _walk(cond)
+                _walk(t)
+                _walk(f)
+            case ExprCall(args=args):
+                for arg in args:
+                    _walk(arg)
+
+    _walk(node)
+
+
 def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
     """Scan a text value for [cmd ...] command substitutions and add imports."""
     i = 0
@@ -1382,7 +1445,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_eval")
                     needed.add("tcl_append")
                 elif cmd == "expr":
-                    pass  # expr doesn't need imports itself
+                    if len(parts) > 1:
+                        # Extract the whole expr body (not using split, which
+                        # breaks braced content like {"a" < "b"}).
+                        rest = cmd_text[len(cmd) :].lstrip()
+                        if rest.startswith("{") and rest.endswith("}"):
+                            rest = rest[1:-1]
+                        _scan_expr_body_imports(rest, needed)
                 elif cmd == "catch":
                     # ``[catch {body} ?var?]`` as a command substitution
                     # compiles via the real catch codegen path (see
@@ -1472,6 +1541,10 @@ def _scan_needed_imports(
             case ExprBinary(op=op, left=left, right=right):
                 if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
                     needed.add("tcl_string_equal")
+                if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
+                    needed.add("tcl_string_compare")
+                if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+                    needed.add("tcl_expr_order_cmp")
                 _scan_expr(left)
                 _scan_expr(right)
             case ExprUnary(operand=operand):
@@ -2519,6 +2592,24 @@ class _WasmEmitter:
             self._emit_list_value(tuple(cmd_args))
             return
 
+        # ``concat`` in value context — variadic, trim+join semantics.
+        if cmd_name == "concat":
+            concat_idx = self._shared_imports.get("tcl_concat")
+            if concat_idx is not None:
+                if not cmd_args:
+                    self._emit_obj_literal("")
+                elif len(cmd_args) == 1:
+                    # Single-arg concat: trim whitespace (concat(x, "") returns trimmed x).
+                    self._emit_value(cmd_args[0])
+                    self._emit_obj_literal("")
+                    self._emit_call(concat_idx)
+                else:
+                    self._emit_value(cmd_args[0])
+                    for a in cmd_args[1:]:
+                        self._emit_value(a)
+                        self._emit_call(concat_idx)
+                return
+
         # Runtime command in value context (llength, lindex, etc.)
         if cmd_name in _CMD_RUNTIME:
             import_key, _ = _CMD_RUNTIME[cmd_name]
@@ -2660,14 +2751,16 @@ class _WasmEmitter:
 
         all_literals = all(_is_literal(a) for a in tail_args)
         if all_literals:
-            # Build the list string at compile time.
-            def _expand_literal(a: str) -> str:
-                if a.startswith("{") and a.endswith("}") and len(a) >= 2:
-                    return a[1:-1]  # brace-quoted: content is literal, no subst
-                if "\\" in a:
-                    return _tcl_backslash_subst(a)
-                return a
-            list_str = " ".join(_tcl_list_quote(_expand_literal(a)) for a in tail_args)
+            # Build the list string at compile time.  IR values have outer
+            # braces already stripped by the lexer, so treat brace-looking
+            # values (e.g. "{}" from source "{{}}") as literal data and let
+            # _tcl_list_quote encode them correctly.  Non-braced values may
+            # have raw backslash sequences that need expansion first.
+            def _prep(a: str) -> str:
+                if a.startswith("{") and a.endswith("}"):
+                    return a  # brace chars are part of the value, not quoting
+                return _tcl_backslash_subst(a) if "\\" in a else a
+            list_str = " ".join(_tcl_list_quote(_prep(a)) for a in tail_args)
             self._emit_obj_literal(list_str)
             return
 
@@ -2679,7 +2772,9 @@ class _WasmEmitter:
                 self._emit_value(a)
                 self._emit_call(lappend_idx)
         else:
-            # No lappend available — fall back to compile-time join
+            # No lappend available — fall back to compile-time join.
+            # IR values are already de-braced by the lexer; _tcl_list_quote
+            # handles proper list encoding.
             list_str = " ".join(_tcl_list_quote(a) for a in tail_args)
             self._emit_obj_literal(list_str)
 
@@ -3001,6 +3096,11 @@ class _WasmEmitter:
                 start = i
                 i += 1
                 while i < n and depth > 0:
+                    # Per Tcl spec: \{ and \} inside a braced word are
+                    # backslash-escaped and do NOT count for brace depth.
+                    if text[i] == "\\" and i + 1 < n and text[i + 1] in "{}":
+                        i += 2  # skip backslash + brace
+                        continue
                     if text[i] == "{":
                         depth += 1
                     elif text[i] == "}":
@@ -3085,6 +3185,12 @@ class _WasmEmitter:
                 self._emit_i64_const(folded)
                 return
 
+        # Ordering comparisons: use tcl_expr_order_cmp which tries numeric
+        # first then falls back to string comparison (Tcl 9 semantics).
+        if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+            self._emit_expr_order_cmp(op, left, right)
+            return
+
         wasm_op = _BINOP_WASM.get(op)
         if wasm_op is not None:
             self._emit_expr(left)
@@ -3105,6 +3211,8 @@ class _WasmEmitter:
             # Negate: result XOR 1
             self._emit_i64_const(1)
             self._emit(WasmOp.I64_XOR)
+        elif op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
+            self._emit_str_cmp(op, left, right)
         else:
             # Unsupported binary op — emit operands and drop
             self._emit_expr(left)
@@ -3133,6 +3241,66 @@ class _WasmEmitter:
             self._emit(WasmOp.I64_EQ)
             self._emit(WasmOp.I64_EXTEND_I32_S)
 
+    def _emit_str_cmp(self, op: BinOp, left: ExprNode, right: ExprNode) -> None:
+        """Emit a string ordering comparison — result is i64 (0 or 1).
+
+        Calls ``string_compare(a, b)`` which returns a TclObj wrapping
+        -1, 0, or 1, unboxes to i64, then compares with 0.
+        """
+        cmp_idx = self._shared_imports.get("tcl_string_compare")
+        if cmp_idx is None:
+            self._emit_i64_const(0)
+            return
+        self._emit_str_value(left)
+        self._emit_str_value(right)
+        self._emit_call(cmp_idx)
+        self._emit_unbox_int()  # i64: -1, 0, or 1
+        self._emit_i64_const(0)
+        match op:
+            case BinOp.STR_LT:
+                self._emit(WasmOp.I64_LT_S)
+            case BinOp.STR_GT:
+                self._emit(WasmOp.I64_GT_S)
+            case BinOp.STR_LE:
+                self._emit(WasmOp.I64_LE_S)
+            case BinOp.STR_GE:
+                self._emit(WasmOp.I64_GE_S)
+        self._emit(WasmOp.I64_EXTEND_I32_S)
+
+    def _emit_expr_order_cmp(self, op: BinOp, left: ExprNode, right: ExprNode) -> None:
+        """Emit an ordering comparison using tcl_expr_order_cmp.
+
+        Tries numeric comparison first; falls back to string comparison when
+        either operand is non-numeric (Tcl 9 semantics for < > <= >=).
+        """
+        cmp_idx = self._shared_imports.get("tcl_expr_order_cmp")
+        if cmp_idx is None:
+            # Fallback: plain integer comparison
+            self._emit_expr(left)
+            self._emit_expr(right)
+            wasm_op = _BINOP_WASM.get(op)
+            if wasm_op is not None:
+                self._emit(wasm_op)
+                self._emit(WasmOp.I64_EXTEND_I32_S)
+            else:
+                self._emit_i64_const(0)
+            return
+        self._emit_str_value(left)
+        self._emit_str_value(right)
+        self._emit_call(cmp_idx)
+        self._emit_unbox_int()  # i64: -1, 0, or 1
+        self._emit_i64_const(0)
+        match op:
+            case BinOp.LT:
+                self._emit(WasmOp.I64_LT_S)
+            case BinOp.GT:
+                self._emit(WasmOp.I64_GT_S)
+            case BinOp.LE:
+                self._emit(WasmOp.I64_LE_S)
+            case BinOp.GE:
+                self._emit(WasmOp.I64_GE_S)
+        self._emit(WasmOp.I64_EXTEND_I32_S)
+
     def _emit_str_value(self, node: ExprNode) -> None:
         """Emit an expression as an i32 TclObj pointer (for string ops).
 
@@ -3140,7 +3308,7 @@ class _WasmEmitter:
         For ExprLiteral, creates a boxed string/int.
         For other nodes, evaluates as i64 and boxes.
         """
-        from ..expr_ast import ExprLiteral, ExprRaw, ExprVar
+        from ..expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
 
         match node:
             case ExprVar(text=text):
@@ -3157,6 +3325,13 @@ class _WasmEmitter:
                 if var is not None:
                     self._emit_var_read_obj(var)
                     return
+            case ExprCommand(text=text):
+                # Command substitution ``[cmd ...]`` — evaluate via
+                # _emit_value to get a TclObj string pointer directly.
+                # Going through the i64 fallback path loses the string
+                # representation (empty string → int 0 → "0").
+                self._emit_value(text)
+                return
             case ExprRaw(text=text):
                 # ``ExprRaw`` carries the literal source text of a
                 # subject / operand that the expression parser
@@ -3176,6 +3351,19 @@ class _WasmEmitter:
                 return
             case ExprLiteral(text=text):
                 self._emit_obj_literal(text)
+                return
+            case ExprString(text=text):
+                # Quoted string literal — strip outer quotes/braces and
+                # apply backslash substitution for double-quoted strings.
+                inner = text
+                if len(inner) >= 2:
+                    if inner[0] == '"' and inner[-1] == '"':
+                        inner = inner[1:-1]
+                        if "\\" in inner:
+                            inner = _tcl_backslash_subst(inner)
+                    elif inner[0] == "{" and inner[-1] == "}":
+                        inner = inner[1:-1]
+                self._emit_obj_literal(inner)
                 return
         # Fallback: evaluate expr to i64 and box
         self._emit_expr(node)
@@ -4026,17 +4214,14 @@ class _WasmEmitter:
                 for a in args:
                     if a.startswith("$") or a.startswith("["):
                         # Substitution words pass through unquoted so
-                        # the interpreter can resolve them at eval
-                        # time.
+                        # the interpreter can resolve them at eval time.
                         parts.append(a)
                     else:
-                        # Everything else goes through Tcl list-element
-                        # encoding so unbalanced-brace payloads (e.g.
-                        # ``}{``) round-trip correctly.  Empty strings
-                        # become ``{}``; words with whitespace / braces /
-                        # brackets / ``"`` / ``\\`` / ``$`` / ``;`` get
-                        # either brace-wrapped or backslash-escaped (the
-                        # latter when braces don't balance).
+                        # Literal IR value: the Tcl lexer has already stripped
+                        # outer braces, so the string is the actual VALUE.
+                        # _tcl_list_quote encodes it as a safe Tcl word —
+                        # e.g. the 2-char string "{}" becomes "{{}}",
+                        # "foo bar" becomes "{foo bar}", etc.
                         parts.append(_tcl_list_quote(a))
                 script = " ".join(parts)
             # Sync all live proc-locals into the frame so the interpreter
@@ -5224,14 +5409,13 @@ class _WasmEmitter:
         if not args:
             self._emit_i32_const(0)
             return
-        # Fast path: all literals → compile-time string with each
-        # element Tcl-quoted.  Strip outer braces from braced words
-        # ({a b} → a b) before quoting so the list element value is
-        # correct rather than double-brace-wrapped.
+        # Fast path: all literals → compile-time string.
+        # _tcl_token_value expands each source token to its VALUE (strips
+        # braces, applies backslash subst), then _tcl_list_quote encodes
+        # the value as a list element.
         if all(not a.startswith("$") and not a.startswith("[") for a in args):
             self._emit_obj_literal(" ".join(
-                _tcl_list_quote(a[1:-1] if a.startswith("{") and a.endswith("}") else a)
-                for a in args
+                _tcl_list_quote(_tcl_token_value(a)) for a in args
             ))
             return
         # Mixed: start with an empty list, lappend each arg so that
@@ -5755,6 +5939,39 @@ class _WasmEmitter:
             self._emit_call(func_idx)
             if spec[3]:
                 # puts returns empty string — drop
+                self._emit(WasmOp.DROP)
+            return
+
+        # concat: variadic — Tcl concat trims whitespace from each arg and
+        # joins non-empty results with a single space.
+        if command == "concat":
+            def _concat_is_lit(a: str) -> bool:
+                return (
+                    not a.startswith("$")
+                    and not a.startswith("[")
+                    and not self._has_embedded_subst(a)
+                    and a not in self._aliases
+                    and a not in self._local_index
+                )
+            all_lits = all(_concat_is_lit(a) for a in args)
+            if not args:
+                self._emit_obj_literal("")
+            elif all_lits:
+                # Compile-time: trim each IR value (already de-braced and
+                # backslash-substituted by the lexer), drop empties, join.
+                parts = [a.strip() for a in args]
+                self._emit_obj_literal(" ".join(p for p in parts if p))
+            else:
+                # Mixed literals + runtime values: chain tcl_cmd_concat calls.
+                # tcl_cmd_concat trims each arg's whitespace before joining.
+                self._emit_value(args[0])
+                for a in args[1:]:
+                    self._emit_value(a)
+                    self._emit_call(func_idx)
+            if defs and spec[3]:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            elif spec[3]:
                 self._emit(WasmOp.DROP)
             return
 

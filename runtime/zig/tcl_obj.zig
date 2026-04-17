@@ -414,6 +414,33 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
     return .{ .start = 0, .len = 0, .braced = false };
 }
 
+// Copy an unbraced list-element's bytes, expanding backslash sequences.
+// Returns number of output bytes written to dst.
+pub fn copy_unbraced_elem(dst: u32, src_ptr: u32, src_len: u32) u32 {
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    const out: [*]u8 = @ptrFromInt(dst);
+    var si: u32 = 0;
+    var di: u32 = 0;
+    while (si < src_len) {
+        if (src[si] == '\\' and si + 1 < src_len) {
+            si += 1;
+            const ch = src[si];
+            switch (ch) {
+                'n' => { out[di] = '\n'; di += 1; },
+                't' => { out[di] = '\t'; di += 1; },
+                'r' => { out[di] = '\r'; di += 1; },
+                else => { out[di] = ch; di += 1; },
+            }
+            si += 1;
+        } else {
+            out[di] = src[si];
+            di += 1;
+            si += 1;
+        }
+    }
+    return di;
+}
+
 // Check if a string value needs braces when used as a list/dict element.
 pub fn dict_needs_braces(ptr: u32, len: u32) bool {
     if (len == 0) return true;
@@ -422,6 +449,70 @@ pub fn dict_needs_braces(ptr: u32, len: u32) bool {
         if (is_space(src[i])) return true;
     }
     return false;
+}
+
+// Append a string as a properly-quoted list element.  Returns new offset.
+// Handles all cases: empty, spaces, special chars, unbalanced braces.
+pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
+    if (len == 0) {
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = '{'; d[1] = '}';
+        return off + 2;
+    }
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var has_special = false;
+    var brace_balance: i32 = 0;
+    var min_balance: i32 = 0;
+    for (0..len) |k| {
+        const ch = src[k];
+        if (is_space(ch) or ch == '"') has_special = true;
+        if (ch == '{') brace_balance += 1;
+        if (ch == '}') {
+            brace_balance -= 1;
+            if (brace_balance < min_balance) min_balance = brace_balance;
+        }
+    }
+    const starts_with_brace = src[0] == '{';
+    const balanced = (brace_balance == 0) and (min_balance >= 0);
+    // Plain word: no special chars, balanced braces, doesn't start with `{`
+    if (!has_special and !starts_with_brace and brace_balance == 0) {
+        memcpy(buf + off, ptr, len);
+        return off + len;
+    }
+    // Safely braceable: balanced inner braces → wrap in {}
+    if (balanced and !starts_with_brace) {
+        const d0: [*]u8 = @ptrFromInt(buf + off);
+        d0[0] = '{';
+        memcpy(buf + off + 1, ptr, len);
+        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + len);
+        d1[0] = '}';
+        return off + len + 2;
+    }
+    // Starts with { and balanced braces → wrap in outer {} giving {{...}}
+    if (starts_with_brace and balanced) {
+        const d0: [*]u8 = @ptrFromInt(buf + off);
+        d0[0] = '{';
+        memcpy(buf + off + 1, ptr, len);
+        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + len);
+        d1[0] = '}';
+        return off + len + 2;
+    }
+    // Unbalanced braces or other problematic chars → backslash-escape
+    var o = off;
+    for (0..len) |k| {
+        const ch = src[k];
+        const needs_esc = is_space(ch) or ch == '{' or ch == '}' or
+            ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';';
+        if (needs_esc) {
+            const d: [*]u8 = @ptrFromInt(buf + o);
+            d[0] = '\\';
+            o += 1;
+        }
+        const d2: [*]u8 = @ptrFromInt(buf + o);
+        d2[0] = ch;
+        o += 1;
+    }
+    return o;
 }
 
 // Append an element to a buffer, adding braces if needed. Returns new offset.
