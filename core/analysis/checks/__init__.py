@@ -12,6 +12,12 @@ Diagnostic code conventions:
 
 from __future__ import annotations
 
+from ._bounds import (
+    check_list_index_out_of_range,
+    check_loop_termination,
+    check_lset_index_out_of_range,
+    check_string_index_out_of_range,
+)
 from ._domain import (
     check_deprecated_irules_command,
     check_disabled_command,

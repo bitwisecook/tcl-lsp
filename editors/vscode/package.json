@@ -3670,6 +3670,36 @@
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
             "order": 23
+          },
+          "tclLsp.diagnostics.W230": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/linsert/lreplace silently return empty or clamp.",
+            "order": 24
+          },
+          "tclLsp.diagnostics.W231": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
+            "order": 25
+          },
+          "tclLsp.diagnostics.W232": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
+            "order": 26
+          },
+          "tclLsp.diagnostics.W240": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
+            "order": 27
+          },
+          "tclLsp.diagnostics.W241": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
+            "order": 28
           }
         }
       },
@@ -3814,6 +3844,12 @@
             "default": false,
             "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
             "order": 1
+          },
+          "tclLsp.diagnostics.W242": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "**W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
+            "order": 2
           }
         }
       },
