@@ -212,9 +212,13 @@ def _mf_pow(args: list[str]) -> str:
     exp = float(args[1])
     # pow(±0.0, negative) = ±Inf in Tcl 9.0 (verified against tclsh 9.0.3).
     # Python raises ZeroDivisionError here; apply sign rule manually.
+    # IEEE 754: negative odd-integer exponent preserves base sign; all other
+    # negative exponents (including -Inf) yield +Inf.  Guard ``int(exp)`` with
+    # ``isfinite`` — otherwise exp=-Inf would raise OverflowError here.
     if base == 0.0 and exp < 0:
-        sign = math.copysign(1.0, base) if (exp == int(exp) and int(exp) % 2 == 1) else 1.0
-        return "-Inf" if sign < 0 else "Inf"
+        if math.isfinite(exp) and exp == int(exp) and int(exp) % 2 == 1:
+            return "-Inf" if math.copysign(1.0, base) < 0 else "Inf"
+        return "Inf"
     try:
         return _format_number(math.pow(base, exp))
     except OverflowError:
