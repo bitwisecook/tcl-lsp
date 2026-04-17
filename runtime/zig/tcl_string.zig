@@ -454,17 +454,26 @@ fn list_quote_elem(buf: u32, off: u32, src: u32, slen: u32) u32 {
     }
     const starts_with_brace = ps[0] == '{';
     const balanced = (brace_balance == 0) and (min_balance >= 0);
+    // Count trailing backslashes.  A braced wrap is only safe when the
+    // trailing-backslash count is even; an odd trailing ``\`` would escape
+    // the closing ``}`` and leave the list element unclosed (Tcl's
+    // TclFindElement consumes ``\<byte>`` pairs whole inside braces).
+    var trailing_bs: u32 = 0;
+    var ti: u32 = slen;
+    while (ti > 0 and ps[ti - 1] == '\\') : (ti -= 1) {
+        trailing_bs += 1;
+    }
+    const trailing_bs_safe = (trailing_bs & 1) == 0;
     if (!has_special and brace_balance == 0 and !starts_with_brace) {
         memcpy(buf + off, src, slen);
         return off + slen;
     }
-    // Wrap in {...} only when the content has no backslash.  A backslash
-    // inside a braced element escapes the following byte when the list
-    // parser scans for the closing brace (Tcl's TclFindElement rule), so
-    // something like ``\`` would emit ``{\}`` which reads as an un-closed
-    // element.  When a backslash is present, fall through to the safe
-    // backslash-escape path instead.
-    if (has_special and balanced and !starts_with_brace and !has_backslash) {
+    // Wrap in {...} when braces are balanced.  Backslashes inside are fine
+    // as long as the element doesn't end with an un-paired trailing ``\``
+    // (which would escape the closing ``}`` and leave the element open).
+    // When a trailing ``\`` is present, fall through to the backslash-escape
+    // path instead of losing content.
+    if (has_special and balanced and !starts_with_brace and (!has_backslash or trailing_bs_safe)) {
         const d0: [*]u8 = @ptrFromInt(buf + off);
         d0[0] = '{';
         memcpy(buf + off + 1, src, slen);
