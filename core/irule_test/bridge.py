@@ -665,7 +665,7 @@ class IruleTestSession:
         """Read state from a specific layer."""
         resp = await self._send({"cmd": "get_state", "layer": layer})
         result = resp.get("result", [])
-        if isinstance(result, list) and len(result) % 2 == 0:
+        if isinstance(result, list) and not len(result) & 1:
             return dict(zip(result[::2], result[1::2]))
         return {}
 

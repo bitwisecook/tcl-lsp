@@ -132,7 +132,7 @@ def codegen_dict(emitter: _Emitter, args: tuple[str, ...]) -> bool:  # noqa: C90
             # Constant args: fold to literal + dup + verifyDict.
             # Only fold when even number of args (valid key/value pairs).
             all_const = all("$" not in a and "[" not in a for a in rest)
-            if all_const and len(rest) % 2 == 0:
+            if all_const and not len(rest) & 1:
                 clean_rest = [
                     a[3:-3] if a.startswith("\x00\x01{") and a.endswith("}\x01\x00") else a
                     for a in rest

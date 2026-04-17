@@ -375,7 +375,7 @@ def _ns_path(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _ns_upvar(interp: TclInterp, args: list[str]) -> TclResult:
     """namespace upvar ns ?otherVar myVar ...?"""
-    if len(args) < 1 or (len(args) > 1 and len(args) % 2 == 0):
+    if len(args) < 1 or (len(args) > 1 and not len(args) & 1):
         raise TclError('wrong # args: should be "namespace upvar ns ?otherVar myVar ...?"')
     ns_name = _resolve_ns_name(interp, args[0])
     ns = resolve_namespace(interp.root_namespace, ns_name)
@@ -429,7 +429,7 @@ def _parse_ensemble_options(
     """Parse ensemble option-value pairs, returning a dict of option -> value."""
     from ..machine import _split_list
 
-    if len(args) % 2 != 0:
+    if len(args) & 1:
         raise TclError('wrong # args: should be "namespace ensemble create ?option value ...?"')
 
     result: dict[str, str | list[str] | dict[str, str] | bool] = {}
@@ -444,7 +444,7 @@ def _parse_ensemble_options(
                 result["subcommands"] = list(_split_list(val))
             case "-map":
                 items = list(_split_list(val))
-                if len(items) % 2 != 0:
+                if len(items) & 1:
                     raise TclError("missing value to go with key")
                 m: dict[str, str] = {}
                 for j in range(0, len(items), 2):
@@ -549,7 +549,7 @@ def _ns_ensemble_configure(interp: TclInterp, args: list[str]) -> TclResult:
     # Set options
     from ..machine import _split_list
 
-    if len(rest) % 2 != 0:
+    if len(rest) & 1:
         raise TclError("wrong # args: must have even number of args after cmdname")
 
     i = 0
@@ -559,7 +559,7 @@ def _ns_ensemble_configure(interp: TclInterp, args: list[str]) -> TclResult:
         match opt:
             case "-map":
                 items = list(_split_list(val))
-                if len(items) % 2 != 0:
+                if len(items) & 1:
                     raise TclError("missing value to go with key")
                 m: dict[str, str] = {}
                 for j in range(0, len(items), 2):

@@ -4260,7 +4260,7 @@ class _WasmEmitter:
             pairs_start = 0
 
         pair_args = args[pairs_start:]
-        if len(pair_args) % 2 != 0:
+        if len(pair_args) & 1:
             self._emit_unsupported_trap("upvar (uneven var pairs)")
             return
 
@@ -4611,7 +4611,7 @@ class _WasmEmitter:
         except Exception:
             self._emit_eval_fallback("array", ("set", arr, kv_text))
             return
-        if len(words) % 2 != 0:
+        if len(words) & 1:
             self._emit_eval_fallback("array", ("set", arr, kv_text))
             return
         for i in range(0, len(words), 2):

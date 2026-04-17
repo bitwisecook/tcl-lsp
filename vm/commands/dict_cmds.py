@@ -144,7 +144,7 @@ def _cmd_dict(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _dict_create(interp: TclInterp, args: list[str]) -> TclResult:
     """dict create ?key value ...?"""
-    if len(args) % 2 != 0:
+    if len(args) & 1:
         raise TclError('wrong # args: should be "dict create ?key value ...?"')
     parts: list[str] = []
     for i in range(0, len(args), 2):
@@ -240,7 +240,7 @@ def _dict_replace(interp: TclInterp, args: list[str]) -> TclResult:
     """dict replace dictValue ?key value ...?"""
     if not args:
         raise TclError('wrong # args: should be "dict replace dictValue ?key value ...?"')
-    if (len(args) - 1) % 2 != 0:
+    if (len(args) - 1) & 1:
         raise TclError('wrong # args: should be "dict replace dictValue ?key value ...?"')
     d = _dict_from_list(args[0])
     for i in range(1, len(args), 2):
@@ -455,7 +455,7 @@ def _dict_info(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _dict_update(interp: TclInterp, args: list[str]) -> TclResult:
     """dict update dictVariable key varName ?key varName ...? body"""
-    if len(args) < 4 or (len(args) - 2) % 2 != 0:
+    if len(args) < 4 or (len(args) - 2) & 1:
         raise TclError(
             'wrong # args: should be "dict update dictVariable key varName ?key varName ...? body"'
         )

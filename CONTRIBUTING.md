@@ -44,6 +44,8 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
 - Domain abbreviations are acceptable when established and clear (`cfg`, `ssa`, `uri`).
 - Prefer ASCII punctuation in comments/docs for consistency.
 - Prefer `match/case` for enum/token dispatch with 3+ branches; use `if` for simple guards.
+- Prefer `x & 1` over `x % 2` for odd/even checks on integers, and use
+  truthiness (`if x & 1:` rather than `if x & 1 == 1:`).
 
 ## Code reuse and deduplication
 

@@ -674,7 +674,7 @@ def _eval_string_subcmd(subcmd: str, args: list[str]) -> str | None:
         if subcmd == "map" and len(args) == 2:
             # string map {old new old2 new2} string
             mapping_list = _tcl_list_split(args[0])
-            if len(mapping_list) % 2 != 0:
+            if len(mapping_list) & 1:
                 return None
             result = args[1]
             for i in range(0, len(mapping_list), 2):

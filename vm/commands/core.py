@@ -195,7 +195,7 @@ def _cmd_upvar(interp: TclInterp, args: list[str]) -> TclResult:
 
     # Remaining args must be pairs
     remaining = len(args) - start
-    if remaining % 2 != 0 or remaining == 0:
+    if remaining & 1 or remaining == 0:
         raise TclError(
             'wrong # args: should be "upvar ?level? otherVar localVar ?otherVar localVar ...?"'
         )
