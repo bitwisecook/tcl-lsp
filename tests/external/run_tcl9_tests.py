@@ -49,6 +49,7 @@ _EXTERNAL = Path(__file__).resolve().parent
 # Resolve Tcl 9 source paths (lazy — skip if not available)
 # ---------------------------------------------------------------------------
 
+
 def _tcl9_tcltest() -> Path:
     """Return path to Tcl 9 tcltest.tcl, skip if missing."""
     tests_dir = ensure_tcl_source("9.0")
@@ -96,15 +97,17 @@ def _bundle(test_file_path: Path) -> str:
     tcltest_src = _tcl9_tcltest().read_text(encoding="utf-8")
     test_src = test_file_path.read_text(encoding="utf-8")
 
-    return "\n".join([
-        "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
-        tcltest_src,
-        "# ===== run_tcl9_tests preamble =====",
-        _PREAMBLE,
-        f"# ===== {test_file_path.name} =====",
-        test_src,
-        "",
-    ])
+    return "\n".join(
+        [
+            "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
+            tcltest_src,
+            "# ===== run_tcl9_tests preamble =====",
+            _PREAMBLE,
+            f"# ===== {test_file_path.name} =====",
+            test_src,
+            "",
+        ]
+    )
 
 
 def _parse_summary(stdout: str) -> tuple[int, int, int, int] | None:
@@ -122,8 +125,10 @@ def _parse_summary(stdout: str) -> tuple[int, int, int, int] | None:
     )
     if m is None:
         return None
+
     def _int(s: str) -> int:
         return int(s) if s else 0
+
     return (_int(m.group(1)), _int(m.group(2)), _int(m.group(3)), _int(m.group(4)))
 
 
@@ -159,6 +164,7 @@ def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
 # Stage 1 & 2: tcltest.tcl alone
 # ---------------------------------------------------------------------------
 
+
 class TestTcltest9Init:
     """Stages 1–2: Tcl 9 tcltest.tcl compiles and its top-level runs."""
 
@@ -192,6 +198,7 @@ class TestTcltest9Init:
 # ---------------------------------------------------------------------------
 # Stage 3 & 4: individual Tcl 9 test files
 # ---------------------------------------------------------------------------
+
 
 def _make_test_class(test_name: str, xfail_run: bool = False):
     """Dynamically build a test class for a Tcl 9 .test file.
@@ -250,34 +257,34 @@ def _make_test_class(test_name: str, xfail_run: bool = False):
 # ---------------------------------------------------------------------------
 
 # Simple string / value commands — most tests use only core built-ins
-TestTcl9_append   = _make_test_class("append")
-TestTcl9_concat   = _make_test_class("concat")
-TestTcl9_list     = _make_test_class("list")
-TestTcl9_lsort    = _make_test_class("lsort")
-TestTcl9_lsearch  = _make_test_class("lsearch")
-TestTcl9_lrange   = _make_test_class("lrange")
+TestTcl9_append = _make_test_class("append")
+TestTcl9_concat = _make_test_class("concat")
+TestTcl9_list = _make_test_class("list")
+TestTcl9_lsort = _make_test_class("lsort")
+TestTcl9_lsearch = _make_test_class("lsearch")
+TestTcl9_lrange = _make_test_class("lrange")
 TestTcl9_lreplace = _make_test_class("lreplace")
-TestTcl9_lindex   = _make_test_class("lindex")
-TestTcl9_linsert  = _make_test_class("linsert")
-TestTcl9_llength  = _make_test_class("llength")
-TestTcl9_dict     = _make_test_class("dict")
-TestTcl9_string   = _make_test_class("string")
-TestTcl9_apply    = _make_test_class("apply")
-TestTcl9_expr     = _make_test_class("expr")
-TestTcl9_format   = _make_test_class("format")
-TestTcl9_scan     = _make_test_class("scan")
-TestTcl9_split    = _make_test_class("split")
-TestTcl9_join     = _make_test_class("join")
-TestTcl9_incr     = _make_test_class("incr")
-TestTcl9_eval     = _make_test_class("eval")
-TestTcl9_error    = _make_test_class("error")
-TestTcl9_for_     = _make_test_class("for")
-TestTcl9_foreach  = _make_test_class("foreach")
-TestTcl9_while_   = _make_test_class("while")
-TestTcl9_if_      = _make_test_class("if")
-TestTcl9_proc_    = _make_test_class("proc")
-TestTcl9_return_  = _make_test_class("return")
-TestTcl9_upvar    = _make_test_class("upvar")
-TestTcl9_uplevel  = _make_test_class("uplevel")
+TestTcl9_lindex = _make_test_class("lindex")
+TestTcl9_linsert = _make_test_class("linsert")
+TestTcl9_llength = _make_test_class("llength")
+TestTcl9_dict = _make_test_class("dict")
+TestTcl9_string = _make_test_class("string")
+TestTcl9_apply = _make_test_class("apply")
+TestTcl9_expr = _make_test_class("expr")
+TestTcl9_format = _make_test_class("format")
+TestTcl9_scan = _make_test_class("scan")
+TestTcl9_split = _make_test_class("split")
+TestTcl9_join = _make_test_class("join")
+TestTcl9_incr = _make_test_class("incr")
+TestTcl9_eval = _make_test_class("eval")
+TestTcl9_error = _make_test_class("error")
+TestTcl9_for_ = _make_test_class("for")
+TestTcl9_foreach = _make_test_class("foreach")
+TestTcl9_while_ = _make_test_class("while")
+TestTcl9_if_ = _make_test_class("if")
+TestTcl9_proc_ = _make_test_class("proc")
+TestTcl9_return_ = _make_test_class("return")
+TestTcl9_upvar = _make_test_class("upvar")
+TestTcl9_uplevel = _make_test_class("uplevel")
 TestTcl9_variable = _make_test_class("variable")
 TestTcl9_namespace = _make_test_class("namespace")
