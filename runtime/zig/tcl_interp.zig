@@ -959,7 +959,13 @@ fn eval_command(words: []const i32) i32 {
                 off += 1;
             }
             const s = obj_ensure_string(words[ei]);
-            off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
+            // ei starts at 1 (words[0] is the command name); ei==1 is
+            // element 0 of the output list and gets hash-quoting.
+            if (ei == 1) {
+                off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
+            } else {
+                off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
+            }
         }
         return obj_new_string(@bitCast(buf), @bitCast(off));
     }
@@ -1421,7 +1427,14 @@ fn eval_proc_call(words: []const i32) i32 {
                             off += 1;
                         }
                         const sv = obj_ensure_string(words[ai]);
-                        off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                        // ai starts at ``arg_idx`` (first element of the
+                        // ``args`` list) and increases; only that first
+                        // element gets leading-# quoting.
+                        if (ai == arg_idx) {
+                            off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                        } else {
+                            off = obj_mod.list_elem_quote_nth(buf, off, sv.ptr, sv.len);
+                        }
                     }
                     _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
                 }
