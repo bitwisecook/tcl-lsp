@@ -658,3 +658,63 @@ def _try_incr_idiom(
             return f"incr {var_name}"
         return f"incr {var_name} {-incr_int}"
     return None
+
+
+def _parse_llength_arg(cmd_text: str) -> str | None:
+    """If *cmd_text* is ``[llength <arg>]`` or ``llength <arg>``, return ``<arg>``."""
+    inner = cmd_text
+    if inner.startswith("[") and inner.endswith("]"):
+        inner = inner[1:-1]
+    inner = inner.strip()
+    if not inner.startswith("llength"):
+        return None
+    parsed = _parse_command_words(inner)
+    if parsed is None:
+        return None
+    cmd_texts, _cmd_tokens, _cmd_single = parsed
+    if len(cmd_texts) != 2 or cmd_texts[0] != "llength":
+        return None
+    return cmd_texts[1]
+
+
+def _try_end_offset_from_length_expr(expr_text: str) -> tuple[str, str, int] | None:
+    """Parse ``[llength $L] - N`` / ``[string length $S] - N`` / bare length.
+
+    Returns ``(kind, container_word, offset)`` where:
+
+    - *kind* is ``"llength"`` or ``"strlen"``.
+    - *container_word* is the length command's argument as written (e.g.
+      ``"$foo"`` or ``"${foo}"``).
+    - *offset* is the Tcl end-offset: ``0`` for ``end``, ``N`` for ``end-N``.
+
+    Bare ``[llength $L]`` (no subtraction) is **not** a valid end-offset — the
+    result would be one past the last index, so this helper returns ``None``
+    for that shape.
+    """
+    from ...common.dialect import active_dialect
+    from ...parsing.expr_parser import parse_expr
+    from ..expr_ast import BinOp, ExprBinary, ExprCommand, ExprLiteral, ExprRaw
+
+    stripped = expr_text.strip()
+    parsed = parse_expr(stripped, dialect=active_dialect())
+    if isinstance(parsed, ExprRaw):
+        return None
+    if not isinstance(parsed, ExprBinary) or parsed.op is not BinOp.SUB:
+        return None
+    if not isinstance(parsed.left, ExprCommand) or not isinstance(parsed.right, ExprLiteral):
+        return None
+    rhs = _parse_decimal_int(parsed.right.text)
+    if rhs is None:
+        return None
+    n = int(rhs)
+    if n < 1:
+        return None
+
+    cmd_text = parsed.left.text
+    llength_arg = _parse_llength_arg(cmd_text)
+    if llength_arg is not None:
+        return ("llength", llength_arg, n - 1)
+    strlen_arg = _parse_string_length_arg(cmd_text)
+    if strlen_arg is not None:
+        return ("strlen", strlen_arg, n - 1)
+    return None

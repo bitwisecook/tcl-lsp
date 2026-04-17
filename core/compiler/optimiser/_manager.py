@@ -194,6 +194,7 @@ class _CompilerOptimiser:
         _pattern_recognition.optimise_string_build_chains(ctx, cfg, ssa)
         _pattern_recognition.optimise_incr_idioms(ctx, cfg, ssa)
         _pattern_recognition.optimise_multi_set_packing(ctx, cfg, ssa)
+        _pattern_recognition.optimise_end_offset_indexes(ctx, cfg, ssa)
 
         kill_sites: list[tuple[int, str]] = []
         for block in cfg.blocks.values():

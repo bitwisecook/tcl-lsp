@@ -138,6 +138,7 @@ object DiagnosticCatalog {
         OptimisationDef("O125", "O125: Sink side-effect-free assignments into the deepest d...", true),
         OptimisationDef("O126", "O126: Remove unused variable assignments", true),
         OptimisationDef("O127", "O127: Inline single-use variable assignment", true),
+        OptimisationDef("O128", "O128: Rewrite [expr {[llength \$L] - N}] / [expr {[string l...", true),
     )
 
     val sectionTitles: Map<String, String> = mapOf(
