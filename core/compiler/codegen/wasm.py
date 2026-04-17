@@ -4265,12 +4265,25 @@ class _WasmEmitter:
 
         Honours ``upvar`` / ``variable`` aliases so ``upvar #0
         counter::T-$tag counter; set counter(N) 0`` hits the correct
-        per-tag array.  ``::``-qualified and plain names pass through
-        as literals.
+        per-tag array.  ``::``-qualified names pass through as
+        literals.  Inside a ``namespace eval ::ns { ... }`` body
+        unqualified names are prefixed with the block's namespace
+        so ``set Option(-match) *`` lands in ``::ns::Option(-match)``
+        rather than the bare global ``Option(-match)``.
         """
         binding = self._aliases.get(arr)
         if binding is not None and binding[0] == "global":
             self._emit_local_get(binding[1])
+            return
+        if arr.startswith("::"):
+            self._emit_obj_literal(arr)
+            return
+        if (
+            not self._is_proc
+            and self._block_namespace is not None
+            and self._block_namespace != "::"
+        ):
+            self._emit_obj_literal(f"{self._block_namespace}::{arr}")
             return
         self._emit_obj_literal(arr)
 
