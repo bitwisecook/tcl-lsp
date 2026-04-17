@@ -1,0 +1,47 @@
+ByteCode 0x86d13d810, refCt 1, epoch 21, interp 0x86d01c010 (epoch 21)
+  Source "proc test {} {\n    set ::a(1) 1\n    set ::a(2) $::a(1..."
+  Cmds 1, src 82, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-80
+  Command 1: "proc test {} {\n    set ::a(1) 1\n    set ::a(2) $::a(1..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set ::a(1) 1\n    set ::a(2) $::a(..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x86d13d810, refCt 1, epoch 95, interp 0x86d103010 (epoch 95)
+  Source "\n    set ::a(1) 1\n    set ::a(2) $::a(1)\n    return ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 3, src 66, inst 47, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x86d179690, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-7, src 5-16        2: pc 8-27, src 22-39
+      3: pc 28-45, src 45-64
+  Command 1: "set ::a(1) 1..."
+    (0) push1 0 	# "::a"
+    (2) push1 1 	# "1"
+    (4) push1 1 	# "1"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "set ::a(2) $::a(1)..."
+    (8) startCommand +19 1 	# next cmd at pc 27, 1 cmds start here
+    (17) push1 0 	# "::a"
+    (19) push1 2 	# "2"
+    (21) push1 0 	# "::a"
+    (23) push1 1 	# "1"
+    (25) loadArrayStk 
+    (26) storeArrayStk 
+    (27) pop 
+  Command 3: "return $::a($::a(1))..."
+    (28) startCommand +18 1 	# next cmd at pc 46, 1 cmds start here
+    (37) push1 0 	# "::a"
+    (39) push1 0 	# "::a"
+    (41) push1 1 	# "1"
+    (43) loadArrayStk 
+    (44) loadArrayStk 
+    (45) done 
+    (46) done 
+

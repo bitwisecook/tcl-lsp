@@ -1,0 +1,19 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc0c04600, refCt 1, epoch 0, interp 0x596ec60 (epoch 0)
+  Source "set evens [lmap x {1 2 3 4 5 6} {\n    if {$x % 2 == 0} "
+  Cmds 2, src 110, inst 13, litObjs 4, aux 0, stkDepth 4, code/src 1.96
+  Code 216 = header 160+inst 13+litObj 32+exc 0+aux 0+cmdMap 8
+  Proc 0xc1838c00, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "evens"
+  Commands 2:
+      1: pc 0-11, src 0-108   	   2: pc 0-9, src 11-107
+  Command 1: "set evens [lmap x {1 2 3 4 5 6} {\n    if {$x % 2 == 0} "
+  Command 2: "lmap x {1 2 3 4 5 6} {\n    if {$x % 2 == 0} {\n        s"
+    (0) push1 0  	# "lmap"
+    (2) push1 1  	# "x"
+    (4) push1 2  	# "1 2 3 4 5 6"
+    (6) push1 3  	# "\n    if {$x % 2 == 0} {\n        set x\n  "
+    (8) invokeStk1 4 
+    (10) storeScalar1 0	# var "evens"
+    (12) done 

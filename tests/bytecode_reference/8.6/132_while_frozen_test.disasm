@@ -1,0 +1,29 @@
+ByteCode 0x0x89aca7a10, refCt 1, epoch 17, interp 0x0x89ac28010 (epoch 17)
+  Source "set i 0\nset j 0\nwhile [expr {$i < 3}] {\n    set j [i..."
+  Cmds 4, src 83, inst 43, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-6        2: pc 6-20, src 8-14
+      3: pc 21-41, src 16-81        4: pc 23-37, src 23-35
+  Command 1: "set i 0..."
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set j 0..."
+    (6) startCommand +14 1 	# next cmd at pc 20, 1 cmds start here
+    (15) push1 2 	# "j"
+    (17) push1 1 	# "0"
+    (19) storeStk 
+    (20) pop 
+  Command 3: "while [expr {$i < 3}] {\n    set j [incr i]\n    if {$j..."
+    (21) push1 3 	# "while"
+  Command 4: "expr {$i < 3}..."
+    (23) startCommand +15 1 	# next cmd at pc 38, 1 cmds start here
+    (32) push1 0 	# "i"
+    (34) loadStk 
+    (35) push1 4 	# "3"
+    (37) lt 
+    (38) push1 5 	# "\n    set j [incr i]\n    if {$j > 3} br..."
+    (40) invokeStk1 3 
+    (42) done 
+

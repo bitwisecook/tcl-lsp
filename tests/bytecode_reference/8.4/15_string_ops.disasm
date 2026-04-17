@@ -1,0 +1,45 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x470c0640, refCt 1, epoch 0, interp 0x46c0d000 (epoch 0)
+  Source "set s \"Hello World\"\nstring length $s\nstring index $s 0\n"
+  Cmds 6, src 111, inst 46, litObjs 7, aux 0, stkDepth 5, code/src 2.59
+  Code 288 = header 160+inst 46+litObj 56+exc 0+aux 0+cmdMap 24
+  Proc 0x470c9c40, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "s"
+  Commands 6:
+      1: pc 0-4, src 0-18   	   2: pc 5-8, src 20-35
+      3: pc 9-14, src 37-53   	   4: pc 15-27, src 55-73
+      5: pc 28-36, src 75-91   	   6: pc 37-44, src 93-109
+  Command 1: "set s \"Hello World\""
+    (0) push1 0  	# "Hello World"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "string length $s"
+    (5) loadScalar1 0	# var "s"
+    (7) strlen 
+    (8) pop 
+  Command 3: "string index $s 0"
+    (9) loadScalar1 0	# var "s"
+    (11) push1 1  	# "0"
+    (13) strindex 
+    (14) pop 
+  Command 4: "string range $s 0 4"
+    (15) push1 2  	# "string"
+    (17) push1 3  	# "range"
+    (19) loadScalar1 0	# var "s"
+    (21) push1 1  	# "0"
+    (23) push1 4  	# "4"
+    (25) invokeStk1 5 
+    (27) pop 
+  Command 5: "string toupper $s"
+    (28) push1 2  	# "string"
+    (30) push1 5  	# "toupper"
+    (32) loadScalar1 0	# var "s"
+    (34) invokeStk1 3 
+    (36) pop 
+  Command 6: "string tolower $s"
+    (37) push1 2  	# "string"
+    (39) push1 6  	# "tolower"
+    (41) loadScalar1 0	# var "s"
+    (43) invokeStk1 3 
+    (45) done 

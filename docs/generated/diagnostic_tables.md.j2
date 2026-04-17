@@ -1,0 +1,20 @@
+### Diagnostic Codes
+
+| Code | Section | Description | Default |
+|------|---------|-------------|---------|
+{% for d in diagnostics %}
+| {{ d.code }} | {{ d.section }} | {{ d.description }} | {{ "✓" if d.default else "✗" }} |
+{% endfor %}
+
+### Optimisation Codes
+
+| Code | Category | Description | readability | standard | full |
+|------|----------|-------------|:-----------:|:--------:|:----:|
+{% for o in optimisations %}
+| {{ o.code }} | {{ o.category }} | {{ o.description }} | {{ "✓" if o.readability else "" }} | {{ "✓" if o.standard else "" }} | ✓ |
+{% endfor %}
+
+**Profiles:** `off` disables all passes. `readability`, `standard`, and `full` enable
+progressively more passes (single-pass). `aggressive` = `full` with multi-pass
+to fixpoint (up to 5 iterations). The default editor profile is `readability`;
+explicit actions (CLI, chat, MCP) default to `full`.

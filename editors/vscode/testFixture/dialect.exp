@@ -1,0 +1,6 @@
+#!/usr/bin/expect
+# Expect test fixture for dialect detection
+spawn ssh user@host
+expect "password:"
+send "secret\r"
+interact

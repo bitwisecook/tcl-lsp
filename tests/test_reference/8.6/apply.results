@@ -1,0 +1,52 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     apply.test
+DATE     2026-03-03T12:53:48Z
+---
+PASS apply-1.1
+PASS apply-2.0
+PASS apply-2.1
+PASS apply-2.2
+PASS apply-2.3
+PASS apply-2.4
+PASS apply-2.5
+PASS apply-3.1
+PASS apply-3.2
+PASS apply-3.3
+PASS apply-3.4
+PASS apply-4.1
+PASS apply-4.2
+PASS apply-4.3
+PASS apply-4.4
+PASS apply-4.5
+PASS apply-5.1
+PASS apply-6.1
+PASS apply-6.2
+PASS apply-6.3
+PASS apply-7.1
+PASS apply-7.2
+PASS apply-7.3
+PASS apply-7.4
+PASS apply-7.5
+PASS apply-7.6
+PASS apply-7.7
+PASS apply-7.8
+PASS apply-8.1
+PASS apply-8.10
+PASS apply-8.2
+PASS apply-8.3
+PASS apply-8.4
+PASS apply-8.5
+PASS apply-8.6
+PASS apply-8.7
+PASS apply-8.8
+PASS apply-8.9
+SKIP apply-10.1 applylambda
+SKIP apply-9.1 memory
+SKIP apply-9.2 memory
+SKIP apply-9.3 memory
+---
+TOTAL   42
+PASSED  38
+SKIPPED 4
+FAILED  0

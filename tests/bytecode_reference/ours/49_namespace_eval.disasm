@@ -1,0 +1,17 @@
+ByteCode ::top, 7 instructions, 17 bytes, 5 literals, 0 variables
+  Literals:
+    0: "namespace"
+    1: "eval"
+    2: "foo"
+    3: "\n    variable x 42\n    proc bar {} ..."
+    4: "::tcl::namespace::eval"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "namespace"
+    (2) push1 1	# "eval"
+    (4) push1 2	# "foo"
+    (6) push1 3	# "\n    variable x 42\n    proc bar {} ..."
+    (8) push1 4	# "::tcl::namespace::eval"
+    (10) invokeReplace 4 2
+  # exit_2:
+    (16) done

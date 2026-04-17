@@ -1,0 +1,15 @@
+ByteCode 0x0x714ce9210, refCt 1, epoch 17, interp 0x0x714814010 (epoch 17)
+  Source "set status2 [catch {\n    set status1 [catch {\n       ..."
+  Cmds 2, src 94, inst 12, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-92        2: pc 2-9, src 13-91
+  Command 1: "set status2 [catch {\n    set status1 [catch {\n       ..."
+    (0) push1 0 	# "status2"
+  Command 2: "catch {\n    set status1 [catch {\n        error \"inne..."
+    (2) push1 1 	# "catch"
+    (4) push1 2 	# "\n    set status1 [catch {\n        erro..."
+    (6) push1 3 	# "result2"
+    (8) invokeStk1 3 
+    (10) storeStk 
+    (11) done 
+

@@ -1,0 +1,32 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "check"
+    2: "val"
+    3: "\n    string is integer -strict $val\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "check"
+    (4) push1 2	# "val"
+    (6) push1 3	# "\n    string is integer -strict $val\n"
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::check, 7 instructions, 10 bytes, 1 literals, 1 variables
+  Literals:
+    0: "3"
+  Local variables:
+    %v0: "val"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v0	# var "val"
+    (2) numericType
+    (3) dup
+    (4) jumpFalse1 +5	# pc 9
+    (6) push1 0	# "3"
+    (8) le
+  # si_end_1:
+  # exit_2:
+    (9) done

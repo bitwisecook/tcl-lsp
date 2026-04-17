@@ -1,0 +1,18 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x48cb4600, refCt 1, epoch 0, interp 0x17dec60 (epoch 0)
+  Source "try {\n    set x 42\n} on error {msg} {\n    set x 0\n}\n"
+  Cmds 1, src 52, inst 15, litObjs 6, aux 0, stkDepth 6, code/src 4.38
+  Code 228 = header 160+inst 15+litObj 48+exc 0+aux 0+cmdMap 4
+  Proc 0x490d4bc0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-13, src 0-50
+  Command 1: "try {\n    set x 42\n} on error {msg} {\n    set x 0\n}"
+    (0) push1 0  	# "try"
+    (2) push1 1  	# "\n    set x 42\n"
+    (4) push1 2  	# "on"
+    (6) push1 3  	# "error"
+    (8) push1 4  	# "msg"
+    (10) push1 5  	# "\n    set x 0\n"
+    (12) invokeStk1 6 
+    (14) done 

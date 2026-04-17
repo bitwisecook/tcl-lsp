@@ -1,0 +1,31 @@
+ByteCode 0x0xaae8e6210, refCt 1, epoch 3, interp 0x0xaae80c010 (epoch 3)
+  Source "proc myproc {} { return hello }\nrename myproc newname\n"
+  Cmds 2, src 54, inst 20, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-30   	   2: pc 11-18, src 32-52
+  Command 1: "proc myproc {} { return hello }"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "myproc"
+    (4) push1 2 	# ""
+    (6) push1 3 	# " return hello "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "rename myproc newname"
+    (11) push1 4 	# "rename"
+    (13) push1 1 	# "myproc"
+    (15) push1 5 	# "newname"
+    (17) invokeStk1 3 
+    (19) done 
+
+
+ByteCode 0x0xaae902210, refCt 1, epoch 3, interp 0x0xaae8e0810 (epoch 3)
+  Source " return hello "
+  Cmds 1, src 14, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0xaae8f7810, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-2, src 1-13
+  Command 1: "return hello "
+    (0) push1 0 	# "hello"
+    (2) done 
+    (3) done 
+

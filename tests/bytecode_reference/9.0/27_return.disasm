@@ -1,0 +1,52 @@
+ByteCode 0xb411f4010, refCt 1, epoch 21, interp 0xb4101c010 (epoch 21)
+  Source "proc fact {n} {\n    if {$n <= 1} {\n        return 1\n..."
+  Cmds 1, src 108, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-106
+  Command 1: "proc fact {n} {\n    if {$n <= 1} {\n        return 1\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "fact"
+    (4) push1 2 	# "n"
+    (6) push1 3 	# "\n    if {$n <= 1} {\n        return 1\n..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0xb41180610, refCt 1, epoch 95, interp 0xb41103010 (epoch 95)
+  Source "\n    if {$n <= 1} {\n        return 1\n    }\n    retu..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 6, src 91, inst 56, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0xb411b3c10, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "n"
+  Commands 6:
+      1: pc 0-23, src 5-41        2: pc 7-18, src 28-35
+      3: pc 24-54, src 47-89        4: pc 33-53, src 55-88
+      5: pc 35-52, src 67-86        6: pc 37-50, src 73-85
+  Command 1: "if {$n <= 1} {\n        return 1\n   ..."
+    (0) loadScalar1 %v0 	# var "n"
+    (2) push1 0 	# "1"
+    (4) le 
+    (5) jumpFalse1 +16 	# pc 21
+  Command 2: "return 1..."
+    (7) startCommand +12 1 	# next cmd at pc 19, 1 cmds start here
+    (16) push1 0 	# "1"
+    (18) done 
+    (19) jump1 +4 	# pc 23
+    (21) push1 1 	# ""
+    (23) pop 
+  Command 3: "return [expr {$n * [fact [expr {$n - 1}]]}]..."
+    (24) startCommand +31 2 	# next cmd at pc 55, 2 cmds start here
+  Command 4: "expr {$n * [fact [expr {$n - 1}]]}..."
+    (33) loadScalar1 %v0 	# var "n"
+  Command 5: "fact [expr {$n - 1}]..."
+    (35) push1 2 	# "fact"
+  Command 6: "expr {$n - 1}..."
+    (37) startCommand +14 1 	# next cmd at pc 51, 1 cmds start here
+    (46) loadScalar1 %v0 	# var "n"
+    (48) push1 0 	# "1"
+    (50) sub 
+    (51) invokeStk1 2 
+    (53) mult 
+    (54) done 
+    (55) done 
+

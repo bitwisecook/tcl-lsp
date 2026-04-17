@@ -1,0 +1,38 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xf4cb8600, refCt 1, epoch 0, interp 0x143ae10 (epoch 0)
+  Source "set d [dict create \\n    name \"Alice\" \\n    age 30 \\n  "
+  Cmds 4, src 109, inst 43, litObjs 10, aux 0, stkDepth 8, code/src 2.79
+  Code 304 = header 160+inst 43+litObj 80+exc 0+aux 0+cmdMap 16
+  Proc 0xf50e1c80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 4:
+      1: pc 0-20, src 0-70   	   2: pc 0-17, src 7-69
+      3: pc 21-31, src 72-87   	   4: pc 32-41, src 89-107
+  Command 1: "set d [dict create \\n    name \"Alice\" \\n    age 30 \\n  "
+  Command 2: "dict create \\n    name \"Alice\" \\n    age 30 \\n    city "
+    (0) push1 0  	# "dict"
+    (2) push1 1  	# "create"
+    (4) push1 2  	# "name"
+    (6) push1 3  	# "Alice"
+    (8) push1 4  	# "age"
+    (10) push1 5  	# "30"
+    (12) push1 6  	# "city"
+    (14) push1 7  	# "London"
+    (16) invokeStk1 8 
+    (18) storeScalar1 0	# var "d"
+    (20) pop 
+  Command 3: "dict get $d name"
+    (21) push1 0  	# "dict"
+    (23) push1 8  	# "get"
+    (25) loadScalar1 0	# var "d"
+    (27) push1 2  	# "name"
+    (29) invokeStk1 4 
+    (31) pop 
+  Command 4: "dict exists $d city"
+    (32) push1 0  	# "dict"
+    (34) push1 9  	# "exists"
+    (36) loadScalar1 0	# var "d"
+    (38) push1 6  	# "city"
+    (40) invokeStk1 4 
+    (42) done 

@@ -1,0 +1,38 @@
+ByteCode 0x88adaac10, refCt 1, epoch 21, interp 0x88ac28010 (epoch 21)
+  Source "set s \"hello world\"\nset a [string range $s 0 4]\nset..."
+  Cmds 7, src 112, inst 54, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-18        2: pc 6-21, src 20-46
+      3: pc 8-19, src 27-45        4: pc 22-37, src 48-80
+      5: pc 24-35, src 55-79        6: pc 38-52, src 82-110
+      7: pc 40-51, src 89-109
+  Command 1: "set s \"hello world..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello world"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set a [string range $s 0 4]..."
+    (6) push1 2 	# "a"
+  Command 3: "string range $s 0 4..."
+    (8) push1 0 	# "s"
+    (10) loadStk 
+    (11) strrangeImm 0 4 
+    (20) storeStk 
+    (21) pop 
+  Command 4: "set b [string range $s end-4 end]..."
+    (22) push1 3 	# "b"
+  Command 5: "string range $s end-4 end..."
+    (24) push1 0 	# "s"
+    (26) loadStk 
+    (27) strrangeImm end-4 end 
+    (36) storeStk 
+    (37) pop 
+  Command 6: "set c [string range $s 6 end]..."
+    (38) push1 4 	# "c"
+  Command 7: "string range $s 6 end..."
+    (40) push1 0 	# "s"
+    (42) loadStk 
+    (43) strrangeImm 6 end 
+    (52) storeStk 
+    (53) done 
+

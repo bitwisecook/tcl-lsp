@@ -1,0 +1,107 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    set outer [catch {\n        try..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set outer [catch {\n        try..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 67 instructions, 185 bytes, 5 literals, 6 variables
+  Literals:
+    0: "inner"
+    1: ""
+    2: "1"
+    3: "-during"
+    4: "0"
+  Local variables:
+    %v0: "outer"
+    %v1: "result"
+    %v2: "msg"
+    %v3: "#temp1"
+    %v4: "#temp2"
+    %v5: "caught"
+  Instructions:
+  # entry_1:
+    (0) beginCatch4 0
+    (5) startCommand +143 1	# next cmd at pc 148, 1 cmds start here
+    (14) beginCatch4 1
+    (19) startCommand +22 1	# next cmd at pc 41, 1 cmds start here
+    (28) push1 0	# "inner"
+    (30) push1 1	# ""
+    (32) returnImm +1 0
+  # catch_body_end_2:
+    (41) endCatch
+    (42) jump4 +106	# pc 148
+    (47) pushReturnCode
+    (48) pushResult
+    (49) pushReturnOpts
+    (50) endCatch
+    (51) storeScalar1 %v4	# temp var 4
+    (53) pop
+    (54) storeScalar1 %v3	# temp var 3
+    (56) pop
+    (57) dup
+    (58) push1 2	# "1"
+    (60) eq
+    (61) jumpFalse4 +81	# pc 142
+    (66) pop
+    (67) loadScalar1 %v3	# temp var 3
+    (69) storeScalar1 %v2	# var "msg"
+    (71) pop
+    (72) beginCatch4 2
+    (77) startCommand +13 1	# next cmd at pc 90, 1 cmds start here
+    (86) loadScalar1 %v2	# var "msg"
+    (88) storeScalar1 %v5	# var "caught"
+  # handler_body_end_4:
+    (90) endCatch
+    (91) jump4 +57	# pc 148
+    (96) pushResult
+    (97) pushReturnOpts
+    (98) pushReturnCode
+    (99) endCatch
+    (100) push1 2	# "1"
+    (102) eq
+    (103) jumpFalse1 +28	# pc 131
+    (105) loadScalar1 %v4	# temp var 4
+    (107) reverse 2
+    (112) storeScalar1 %v4	# temp var 4
+    (114) pop
+    (115) push1 3	# "-during"
+    (117) reverse 2
+    (122) dictSet 1 %v4	# temp var 4
+  # try_on_cleanup_5:
+    (131) reverse 2
+    (136) returnStk
+    (137) jump4 +11	# pc 148
+  # try_on_nomatch_3:
+    (142) pop
+    (143) loadScalar1 %v4	# temp var 4
+    (145) loadScalar1 %v3	# temp var 3
+    (147) returnStk
+  # catch_body_end_1:
+    (148) push1 4	# "0"
+    (150) jump1 +4	# pc 154
+    (152) pushResult
+    (153) pushReturnCode
+  # catch_end_6:
+    (154) endCatch
+    (155) reverse 2
+    (160) storeScalar1 %v1	# var "result"
+    (162) pop
+    (163) storeScalar1 %v0	# var "outer"
+    (165) pop
+    (166) startCommand +18 1	# next cmd at pc 184, 1 cmds start here
+    (175) loadScalar1 %v0	# var "outer"
+    (177) loadScalar1 %v1	# var "result"
+    (179) list 2
+  # cmd_end_7:
+  # exit_2:
+    (184) done

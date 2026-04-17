@@ -1,0 +1,24 @@
+{
+  "seed": 1772845921,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"52.39\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"52.39\" as right operand of \"|\"\n    invoked from within\n\"if {abs((83 | 52.39))} {\n                expr {$x}\n                expr {(((~34.10) * (-34.02 ^ $data)) <= round(58))}\n            }\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach result {710 -366} {\n            expr {double(-4)}\n            catch {build }\n            if {abs((83 | 52.39))} {\n                expr {$x}\n  ...\"\n    (\"foreach\" body line 69)\n    invoked from within\n\"foreach acc {-4"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

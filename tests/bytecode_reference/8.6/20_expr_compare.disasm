@@ -1,0 +1,46 @@
+ByteCode 0x0x70b0fe410, refCt 1, epoch 17, interp 0x0x70b01c010 (epoch 17)
+  Source "set a 10\nset b 20\nexpr {$a == $b}\nexpr {$a != $b}\ne..."
+  Cmds 6, src 81, inst 44, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 6:
+      1: pc 0-5, src 0-7        2: pc 6-11, src 9-16
+      3: pc 12-19, src 18-32        4: pc 20-27, src 34-48
+      5: pc 28-35, src 50-63        6: pc 36-42, src 65-79
+  Command 1: "set a 10..."
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "10"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set b 20..."
+    (6) push1 2 	# "b"
+    (8) push1 3 	# "20"
+    (10) storeStk 
+    (11) pop 
+  Command 3: "expr {$a == $b}..."
+    (12) push1 0 	# "a"
+    (14) loadStk 
+    (15) push1 2 	# "b"
+    (17) loadStk 
+    (18) eq 
+    (19) pop 
+  Command 4: "expr {$a != $b}..."
+    (20) push1 0 	# "a"
+    (22) loadStk 
+    (23) push1 2 	# "b"
+    (25) loadStk 
+    (26) neq 
+    (27) pop 
+  Command 5: "expr {$a < $b}..."
+    (28) push1 0 	# "a"
+    (30) loadStk 
+    (31) push1 2 	# "b"
+    (33) loadStk 
+    (34) lt 
+    (35) pop 
+  Command 6: "expr {$a >= $b}..."
+    (36) push1 0 	# "a"
+    (38) loadStk 
+    (39) push1 2 	# "b"
+    (41) loadStk 
+    (42) ge 
+    (43) done 
+

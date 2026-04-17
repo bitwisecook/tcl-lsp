@@ -1,0 +1,25 @@
+ByteCode 0x0x928cf6410, refCt 1, epoch 3, interp 0x0x928c20010 (epoch 3)
+  Source "set x [list a b c]\nlist {*}$x\n"
+  Cmds 3, src 30, inst 27, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 3:
+      1: pc 0-13, src 0-17   	   2: pc 2-11, src 7-16
+      3: pc 14-25, src 19-28
+  Command 1: "set x [list a b c]"
+    (0) push1 0 	# "x"
+  Command 2: "list a b c"
+    (2) push1 1 	# "list"
+    (4) push1 2 	# "a"
+    (6) push1 3 	# "b"
+    (8) push1 4 	# "c"
+    (10) invokeStk1 4 
+    (12) storeScalarStk 
+    (13) pop 
+  Command 3: "list {*}$x"
+    (14) expandStart 
+    (15) push1 1 	# "list"
+    (17) push1 0 	# "x"
+    (19) loadScalarStk 
+    (20) expandStkTop 2 
+    (25) invokeExpanded 
+    (26) done 
+

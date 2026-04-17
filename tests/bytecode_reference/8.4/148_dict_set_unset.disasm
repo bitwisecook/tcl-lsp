@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xb1029000, refCt 1, epoch 0, interp 0xb0c0d000 (epoch 0)
+  Source "proc test {} {\n    set d [dict create a 1 b 2]\n    dict"
+  Cmds 1, src 121, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 1.75
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0xb10c9c40, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-119
+  Command 1: "proc test {} {\n    set d [dict create a 1 b 2]\n    dict"
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "test"
+    (4) push1 2  	# ""
+    (6) push1 3  	# "\n    set d [dict create a 1 b 2]\n    dic"
+    (8) invokeStk1 4 
+    (10) done 

@@ -1,0 +1,39 @@
+ByteCode 0x0x79345f810, refCt 1, epoch 17, interp 0x0x79301c010 (epoch 17)
+  Source "set x 5\nif {$x < 0} {\n    set sign -1\n} elseif {$x >..."
+  Cmds 5, src 99, inst 42, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-6        2: pc 6-40, src 8-97
+      3: pc 14-18, src 26-36        4: pc 29-33, src 62-71
+      5: pc 36-40, src 86-95
+  Command 1: "set x 5..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "5"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "if {$x < 0} {\n    set sign -1\n} elseif {$x > 0} {\n  ..."
+    (6) push1 0 	# "x"
+    (8) loadStk 
+    (9) push1 2 	# "0"
+    (11) lt 
+    (12) jumpFalse1 +9 	# pc 21
+  Command 3: "set sign -1..."
+    (14) push1 3 	# "sign"
+    (16) push1 4 	# "-1"
+    (18) storeStk 
+    (19) jump1 +22 	# pc 41
+    (21) push1 0 	# "x"
+    (23) loadStk 
+    (24) push1 2 	# "0"
+    (26) gt 
+    (27) jumpFalse1 +9 	# pc 36
+  Command 4: "set sign 1..."
+    (29) push1 3 	# "sign"
+    (31) push1 5 	# "1"
+    (33) storeStk 
+    (34) jump1 +7 	# pc 41
+  Command 5: "set sign 0..."
+    (36) push1 3 	# "sign"
+    (38) push1 2 	# "0"
+    (40) storeStk 
+    (41) done 
+

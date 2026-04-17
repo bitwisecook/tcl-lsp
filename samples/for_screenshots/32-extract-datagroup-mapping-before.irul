@@ -1,0 +1,11 @@
+when HTTP_REQUEST {
+    set uri [HTTP::uri]
+    #   ^--- cursor on switch
+    switch -exact -- $uri {
+        "/api"    { set target api_pool }
+        "/web"    { set target web_pool }
+        "/static" { set target cdn_pool }
+        "/admin"  { set target mgmt_pool }
+    }
+    pool $target
+}

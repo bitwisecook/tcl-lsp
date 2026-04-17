@@ -1,0 +1,53 @@
+ByteCode ::top, 35 instructions, 98 bytes, 7 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "name Alice age 30 city London"
+    2: "::tcl::dict::keys"
+    3: "::tcl::dict::values"
+    4: "::tcl::dict::size"
+    5: "::tcl::dict::merge"
+    6: "hobby reading"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "d"
+    (2) startCommand +13 1	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1	# "name Alice age 30 city London"
+    (13) dup
+    (14) verifyDict
+  # cmd_end_1:
+    (15) storeStk
+    (16) pop
+    (17) startCommand +16 1	# next cmd at pc 33, 1 cmds start here
+    (26) push1 2	# "::tcl::dict::keys"
+    (28) push1 0	# "d"
+    (30) loadStk
+    (31) invokeStk1 2
+  # cmd_end_2:
+    (33) pop
+    (34) startCommand +16 1	# next cmd at pc 50, 1 cmds start here
+    (43) push1 3	# "::tcl::dict::values"
+    (45) push1 0	# "d"
+    (47) loadStk
+    (48) invokeStk1 2
+  # cmd_end_3:
+    (50) pop
+    (51) startCommand +16 1	# next cmd at pc 67, 1 cmds start here
+    (60) push1 4	# "::tcl::dict::size"
+    (62) push1 0	# "d"
+    (64) loadStk
+    (65) invokeStk1 2
+  # cmd_end_4:
+    (67) pop
+    (68) startCommand +29 1	# next cmd at pc 97, 1 cmds start here
+    (77) push1 5	# "::tcl::dict::merge"
+    (79) push1 0	# "d"
+    (81) loadStk
+    (82) startCommand +13 1	# next cmd at pc 95, 1 cmds start here
+    (91) push1 6	# "hobby reading"
+    (93) dup
+    (94) verifyDict
+  # cmd_end_6:
+    (95) invokeStk1 3
+  # cmd_end_5:
+  # exit_2:
+    (97) done

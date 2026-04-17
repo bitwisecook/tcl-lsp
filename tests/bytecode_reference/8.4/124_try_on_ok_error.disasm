@@ -1,0 +1,22 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xff0c4640, refCt 1, epoch 0, interp 0x2edae20 (epoch 0)
+  Source "try {\n    set x 42\n} on ok {result} {\n    set y $result"
+  Cmds 1, src 106, inst 23, litObjs 9, aux 0, stkDepth 10, code/src 2.45
+  Code 260 = header 160+inst 23+litObj 72+exc 0+aux 0+cmdMap 4
+  Proc 0xff0bd0c0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-21, src 0-104
+  Command 1: "try {\n    set x 42\n} on ok {result} {\n    set y $result"
+    (0) push1 0  	# "try"
+    (2) push1 1  	# "\n    set x 42\n"
+    (4) push1 2  	# "on"
+    (6) push1 3  	# "ok"
+    (8) push1 4  	# "result"
+    (10) push1 5  	# "\n    set y $result\n"
+    (12) push1 2  	# "on"
+    (14) push1 6  	# "error"
+    (16) push1 7  	# "msg opts"
+    (18) push1 8  	# "\n    set y \"error: $msg\"\n"
+    (20) invokeStk1 10 
+    (22) done 

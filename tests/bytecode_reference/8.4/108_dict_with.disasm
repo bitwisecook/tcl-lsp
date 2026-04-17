@@ -1,0 +1,31 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x7d838640, refCt 1, epoch 0, interp 0x366ee20 (epoch 0)
+  Source "set d [dict create x 1 y 2 z 3]\ndict with d {\n    incr "
+  Cmds 3, src 73, inst 32, litObjs 11, aux 0, stkDepth 8, code/src 4.00
+  Code 292 = header 160+inst 32+litObj 88+exc 0+aux 0+cmdMap 12
+  Proc 0x7d01a340, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "d"
+  Commands 3:
+      1: pc 0-20, src 0-30   	   2: pc 0-17, src 7-29
+      3: pc 21-30, src 32-71
+  Command 1: "set d [dict create x 1 y 2 z 3]"
+  Command 2: "dict create x 1 y 2 z 3"
+    (0) push1 0  	# "dict"
+    (2) push1 1  	# "create"
+    (4) push1 2  	# "x"
+    (6) push1 3  	# "1"
+    (8) push1 4  	# "y"
+    (10) push1 5  	# "2"
+    (12) push1 6  	# "z"
+    (14) push1 7  	# "3"
+    (16) invokeStk1 8 
+    (18) storeScalar1 0	# var "d"
+    (20) pop 
+  Command 3: "dict with d {\n    incr x\n    incr y 10\n}"
+    (21) push1 0  	# "dict"
+    (23) push1 8  	# "with"
+    (25) push1 9  	# "d"
+    (27) push1 10  	# "\n    incr x\n    incr y 10\n"
+    (29) invokeStk1 4 
+    (31) done 

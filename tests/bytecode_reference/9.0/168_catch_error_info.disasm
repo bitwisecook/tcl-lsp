@@ -1,0 +1,69 @@
+ByteCode 0xacf174410, refCt 1, epoch 21, interp 0xacf01c010 (epoch 21)
+  Source "proc test {} {\n    if {[catch {expr {1/0}} result opts..."
+  Cmds 1, src 141, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-139
+  Command 1: "proc test {} {\n    if {[catch {expr {1/0}} result opts..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    if {[catch {expr {1/0}} result opt..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0xacf159a10, refCt 1, epoch 95, interp 0xacf0f7010 (epoch 95)
+  Source "\n    if {[catch {expr {1/0}} result opts]} {\n        ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 7, src 125, inst 102, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Proc 0xacf18c990, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "result"
+      slot 1, scalar, "opts"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-26, catch 31
+  Commands 7:
+      1: pc 0-88, src 5-107        2: pc 0-45, src 10-39
+      3: pc 5-26, src 17-26        4: pc 49-83, src 53-101
+      5: pc 58-82, src 61-100        6: pc 60-77, src 75-99
+      7: pc 89-100, src 113-123
+  Command 1: "if {[catch {expr {1/0}} result opts]} {\n        return..."
+  Command 2: "catch {expr {1/0}} result opts..."
+    (0) beginCatch4 0 
+  Command 3: "expr {1/0}..."
+    (5) startCommand +22 1 	# next cmd at pc 27, 1 cmds start here
+    (14) push1 0 	# "divide by zero"
+    (16) push1 1 	# "-code 1 -level 0 -errorcode {ARITH DIVZE..."
+    (18) syntax +1 0 
+    (27) push1 2 	# "0"
+    (29) jump1 +4 	# pc 33
+    (31) pushResult 
+    (32) pushReturnCode 
+    (33) pushReturnOpts 
+    (34) endCatch 
+    (35) storeScalar1 %v1 	# var "opts"
+    (37) pop 
+    (38) reverse 2 
+    (43) storeScalar1 %v0 	# var "result"
+    (45) pop 
+    (46) nop 
+    (47) jumpFalse1 +39 	# pc 86
+  Command 4: "return [list $result [dict get $opts -errorcode]]..."
+    (49) startCommand +35 2 	# next cmd at pc 84, 2 cmds start here
+  Command 5: "list $result [dict get $opts -errorcode]..."
+    (58) loadScalar1 %v0 	# var "result"
+  Command 6: "dict get $opts -errorcode..."
+    (60) startCommand +18 1 	# next cmd at pc 78, 1 cmds start here
+    (69) loadScalar1 %v1 	# var "opts"
+    (71) push1 3 	# "-errorcode"
+    (73) dictGet 1 
+    (78) list 2 
+    (83) done 
+    (84) jump1 +4 	# pc 88
+    (86) push1 4 	# ""
+    (88) pop 
+  Command 7: "return \"ok..."
+    (89) startCommand +12 1 	# next cmd at pc 101, 1 cmds start here
+    (98) push1 5 	# "ok"
+    (100) done 
+    (101) done 
+

@@ -1,0 +1,35 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xe4c5c600, refCt 1, epoch 0, interp 0x144ac60 (epoch 0)
+  Source "set x \"hello\"\nswitch -exact -- $x {\n    hello {set y 1}"
+  Cmds 2, src 100, inst 18, litObjs 5, aux 0, stkDepth 5, code/src 2.32
+  Code 232 = header 160+inst 18+litObj 40+exc 0+aux 0+cmdMap 8
+  Proc 0xe5055e80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 2:
+      1: pc 0-4, src 0-12   	   2: pc 5-16, src 14-98
+  Command 1: "set x \"hello\""
+    (0) push1 0  	# "hello"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "switch -exact -- $x {\n    hello {set y 1}\n    world {se"
+    (5) push1 1  	# "switch"
+    (7) push1 2  	# "-exact"
+    (9) push1 3  	# "--"
+    (11) loadScalar1 0	# var "x"
+    (13) push1 4  	# "\n    hello {set y 1}\n    world {set y 2}"
+    (15) invokeStk1 5 
+    (17) done 
+  Compiling: "set y 1"
+
+ByteCode 0xe50a02a0, refCt 1, epoch 0, interp 0x144ac60 (epoch 0)
+  Source "set y 1"
+  Cmds 1, src 7, inst 6, litObjs 2, aux 0, stkDepth 2, code/src 26.86
+  Code 188 = header 160+inst 6+litObj 16+exc 0+aux 0+cmdMap 4
+  Commands 1:
+      1: pc 0-4, src 0-6
+  Command 1: "set y 1"
+    (0) push1 0  	# "y"
+    (2) push1 1  	# "1"
+    (4) storeScalarStk 
+    (5) done 

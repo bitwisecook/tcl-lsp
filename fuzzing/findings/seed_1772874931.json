@@ -1,0 +1,24 @@
+{
+  "seed": 1772874931,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"-70.66\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-70.66\" as left operand of \">>\"\n    invoked from within\n\"expr {(-100 ? min((-70.66 >> -68), 51.94) : ((39 | -36) || (-95 + 76)))}\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach i {-354 10} {\n                set i [expr {(-100 ? min((-70.66 >> -68), 51.94) : ((39 | -36) || (-95 + 76)))}]\n                set j false\n   ...\"\n    (\"foreach\" body line 10)\n    invoked from within\n\"foreach i {478 323} {\n            expr {(!((-61 - -30) ? -69 : (3 || -43))"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

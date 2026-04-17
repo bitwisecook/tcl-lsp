@@ -1,0 +1,12 @@
+<snippet>
+	<content><![CDATA[if {[catch {
+    ${1:# risky call}
+} result opts]} {
+    puts stderr \$result
+    return -code error -options \$opts \$result
+}
+${0}]]></content>
+	<tabTrigger>tcl-catch</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a catch pattern that preserves result and options</description>
+</snippet>

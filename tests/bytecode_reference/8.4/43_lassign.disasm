@@ -1,0 +1,28 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x21894640, refCt 1, epoch 0, interp 0x20c0d000 (epoch 0)
+  Source "set lst [list a b c d]\nlassign $lst x y z\n"
+  Cmds 3, src 42, inst 29, litObjs 8, aux 0, stkDepth 5, code/src 6.38
+  Code 268 = header 160+inst 29+litObj 64+exc 0+aux 0+cmdMap 12
+  Proc 0x2189dc80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "lst"
+  Commands 3:
+      1: pc 0-15, src 0-21   	   2: pc 0-12, src 9-20
+      3: pc 16-27, src 23-40
+  Command 1: "set lst [list a b c d]"
+  Command 2: "list a b c d"
+    (0) push1 0  	# "a"
+    (2) push1 1  	# "b"
+    (4) push1 2  	# "c"
+    (6) push1 3  	# "d"
+    (8) list 4 
+    (13) storeScalar1 0	# var "lst"
+    (15) pop 
+  Command 3: "lassign $lst x y z"
+    (16) push1 4  	# "lassign"
+    (18) loadScalar1 0	# var "lst"
+    (20) push1 5  	# "x"
+    (22) push1 6  	# "y"
+    (24) push1 7  	# "z"
+    (26) invokeStk1 5 
+    (28) done 

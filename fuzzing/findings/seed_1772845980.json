@@ -1,0 +1,32 @@
+{
+  "seed": 1772845980,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"39.32\" as operand of \"~\"\n    invoked from within\n\"expr {((~(~39.32)) <= 73.02)}\"\n    (\"foreach\" body line 12)\n    invoked from within\n\"foreach item {ykov ree 1 432 -919} {\n    if {$item < 14} {\n        concat {oogbdv false 0 1 kn} {19.74 799 143 -129 0}\n        expr {(-20 - (-(28 >> $...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmptm418dx4.tcl\" line 16)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"39.32\" as operand of \"~\"\n    invoked from within\n\"expr {((~(~39.32)) <= 73.02)}\"\n    (\"foreach\" body line 12)\n    invoked from within\n\"foreach item {ykov ree 1 432 -919} {\n    if {$item < 14} {\n        concat {oogbdv false 0 1 kn} {19.74 799 143 -129 0}\n        expr {(-20 - (-(28 >> $...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmptm418dx4.tcl\" line 16)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

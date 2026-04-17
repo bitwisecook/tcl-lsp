@@ -1,0 +1,32 @@
+{
+  "seed": 1772845742,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {$val > -2} {\n        set val {0 920 -101 -299 -504}\n        set msg 0\n        while {$msg < 4} {\n            set msg 18\n            incr msg 5\n   ...\"\n    (in namespace eval \"::baz\" script line 24)\n    invoked from within\n\"namespace eval baz {\n    catch {\n        lrepeat 3 -47\n        switch -- -963 {\n            \"11brslj4+lixu.j5bc;e\" {\n                set x [expr {-10}...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tm"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"val\": no such variable\n    while executing\n\"if {$val > -2} {\n        set val {0 920 -101 -299 -504}\n        set msg 0\n        while {$msg < 4} {\n            set msg 18\n            incr msg 5\n   ...\"\n    (in namespace eval \"::baz\" script line 24)\n    invoked from within\n\"namespace eval baz {\n    catch {\n        lrepeat 3 -47\n        switch -- -963 {\n            \"11brslj4+lixu.j5bc;e\" {\n                set x [expr {-10}...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tm"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}
