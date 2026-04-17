@@ -343,6 +343,7 @@ mod tests {
             sccp,
             types: std::collections::HashMap::new(),
             taints: std::collections::HashMap::new(),
+            rendered_props: std::collections::HashMap::new(),
             memory_ssa: None,
         }
     }
