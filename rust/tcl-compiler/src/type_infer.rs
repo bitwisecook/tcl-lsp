@@ -38,18 +38,14 @@ use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{type_join, TypeKind, TypeLattice};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
-// Float literal pattern: optional sign, digits with optional decimal point,
-// optional exponent.  Matches the Python `_FLOAT_RE`.
+// Float literal pattern matching Python's `_FLOAT_RE`: requires a decimal
+// point so that forms like `1e3` (no `.`) are NOT classified as floats.
 fn looks_like_float(s: &str) -> bool {
     let s = s.trim();
-    // Must contain a '.' or 'e'/'E' and parse as f64.
-    (s.contains('.') || s.to_ascii_lowercase().contains('e')) && s.parse::<f64>().is_ok()
+    s.contains('.') && s.parse::<f64>().is_ok()
 }
 
-const BOOL_LITERALS: &[&str] = &[
-    "0", "1", "true", "false", "yes", "no", "on", "off", "TRUE", "FALSE", "YES", "NO", "ON",
-    "OFF",
-];
+const BOOL_LITERALS: &[&str] = &["true", "false", "yes", "no", "on", "off"];
 
 /// Classify a literal string as its Tcl intrep type.
 #[must_use]
@@ -61,7 +57,8 @@ fn literal_type(text: &str) -> TypeLattice {
     if looks_like_float(s) {
         return TypeLattice::of(TclType::Double);
     }
-    if BOOL_LITERALS.contains(&s) {
+    // Case-insensitive boolean check, matching Python's behaviour.
+    if BOOL_LITERALS.contains(&s.to_ascii_lowercase().as_str()) {
         return TypeLattice::of(TclType::Boolean);
     }
     TypeLattice::of(TclType::String)

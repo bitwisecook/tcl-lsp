@@ -25,6 +25,7 @@ use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
+use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
@@ -48,10 +49,13 @@ pub fn find_expr_shimmers(
 ) -> Vec<ShimmerWarning> {
     let mut out = Vec::new();
 
-    for (block_name, ssa_block) in &ssa.blocks {
-        if !executable_blocks.contains(block_name) {
+    for block_name in cfg_order(cfg) {
+        if !executable_blocks.contains(&block_name) {
             continue;
         }
+        let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+            continue;
+        };
 
         // 1. SSA statements: AssignExpr and ExprEval.
         for ss in &ssa_block.statements {
@@ -67,7 +71,7 @@ pub fn find_expr_shimmers(
         }
 
         // 2. Branch terminator condition (if/while/for predicate).
-        if let Some(block) = cfg.blocks.get(block_name) {
+        if let Some(block) = cfg.blocks.get(&block_name) {
             if let Some(Terminator::Branch { condition, span, .. }) = &block.terminator {
                 let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
                 // Use exit_versions: those are the variable versions in scope

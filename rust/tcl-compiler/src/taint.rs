@@ -262,18 +262,31 @@ fn is_taint_source(registry: &CommandRegistry, command: &str, args: &[&str]) -> 
     }
 }
 
-/// Return `true` when `command` is a sanitiser — its return value is
-/// a fixed-type result that cannot carry taint through it.
+/// Return `true` when `command` (with optional subcommand in `args`) is a
+/// sanitiser — its return value is a fixed numeric type that cannot carry
+/// taint through it.
 ///
-/// Mirrors `_is_sanitiser` in Python: commands that return a numeric
-/// type (INT or BOOLEAN) are sanitisers because their output is
-/// type-determined, not content-determined.
-fn is_sanitiser(registry: &CommandRegistry, command: &str) -> bool {
+/// Mirrors `_is_sanitiser` in Python: commands (or subcommands) that return
+/// `Int` or `Boolean` are sanitisers because their output is type-determined,
+/// not content-determined.  Subcommand specs are checked first so that, e.g.,
+/// `string length` and `string is integer` are recognised as sanitisers even
+/// though `string` itself has no top-level return type.
+fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
+    use tcl_registry::TclType;
+    fn is_fixed_numeric(t: Option<TclType>) -> bool {
+        matches!(t, Some(TclType::Int | TclType::Boolean))
+    }
     let Some(spec) = registry.get(command) else {
         return false;
     };
-    use tcl_registry::TclType;
-    matches!(spec.return_type, Some(TclType::Int | TclType::Boolean))
+    if let Some(sub_name) = args.first().copied() {
+        if let Some(sub) = spec.subcommand(sub_name) {
+            if is_fixed_numeric(sub.return_type) {
+                return true;
+            }
+        }
+    }
+    is_fixed_numeric(spec.return_type)
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +315,7 @@ fn word_taint(
     // Bracketed command substitution.
     if let Some((cmd, args)) = parse_command_substitution(stripped) {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        if is_sanitiser(registry, &cmd) {
+        if is_sanitiser(registry, &cmd, &arg_refs) {
             return TaintLattice::clean();
         }
         if is_taint_source(registry, &cmd, &arg_refs) {
@@ -316,15 +329,29 @@ fn word_taint(
         return t;
     }
 
-    // Interpolated string: scan for $var references.
+    // Interpolated string: scan for $var references and [cmd] substitutions.
     if stripped.contains('$') || stripped.contains('[') {
         let mut t = TaintLattice::clean();
-        // Simple scan: extract $name tokens from the word.
+
+        // Scan for [cmd ...] command substitutions (non-nested).
+        let mut rest = stripped;
+        while let Some(open) = rest.find('[') {
+            rest = &rest[open..];
+            if let Some(close) = rest.find(']') {
+                let sub = &rest[..=close];
+                t = t.join(word_taint(sub, uses, taints, registry));
+                rest = &rest[close + 1..];
+            } else {
+                break;
+            }
+        }
+
+        // Scan for $var references.
         let mut rest = stripped;
         while let Some(pos) = rest.find('$') {
             rest = &rest[pos + 1..];
             // ${name} form.
-            let name = if rest.starts_with('{') {
+            let raw_name = if rest.starts_with('{') {
                 if let Some(end) = rest.find('}') {
                     let n = &rest[1..end];
                     rest = &rest[end + 1..];
@@ -333,7 +360,7 @@ fn word_taint(
                     break;
                 }
             } else {
-                // $name — grab identifier chars.
+                // $name — grab identifier chars (including :: for namespaces).
                 let end = rest
                     .find(|c: char| !c.is_alphanumeric() && c != '_' && c != ':')
                     .unwrap_or(rest.len());
@@ -341,7 +368,8 @@ fn word_taint(
                 rest = &rest[end..];
                 n
             };
-            if !name.is_empty() {
+            if !raw_name.is_empty() {
+                let name = normalise_var_name(raw_name);
                 t = t.join(var_taint(name, uses, taints));
             }
         }
@@ -400,7 +428,7 @@ fn evaluate_taint_def(
         // Generic call that defines variables.
         Statement::Call { command, args, defs, .. } if !defs.is_empty() => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            if is_sanitiser(registry, command) {
+            if is_sanitiser(registry, command, &arg_refs) {
                 return TaintLattice::clean();
             }
             if is_taint_source(registry, command, &arg_refs) {
@@ -414,9 +442,16 @@ fn evaluate_taint_def(
             t
         }
 
-        // Barrier's defs are clean: the Barrier itself is checked as a
-        // sink in `find_taint_warnings`, so its *outputs* are not tainted.
-        Statement::Barrier { .. } => TaintLattice::clean(),
+        // Barrier has unknown semantics — propagate taint conservatively
+        // from its arguments so attacker-influenced data flowing through
+        // an opaque command taints any output variables it defines.
+        Statement::Barrier { args, .. } => {
+            let mut t = TaintLattice::clean();
+            for arg in args {
+                t = t.join(word_taint(arg, uses, taints, registry));
+            }
+            t
+        }
 
         _ => TaintLattice::clean(),
     }
@@ -577,10 +612,11 @@ fn classify_sink(
 /// Run sink detection over a single function.
 ///
 /// For each SSA use of a tainted variable in a sink statement, emits
-/// one `TaintWarning`. Driven entirely by the SSA statements so no
-/// parallel indexing against the original CFG block is needed.
+/// one `TaintWarning`. Iterates blocks in `cfg_order` for deterministic
+/// diagnostic ordering (matching the other shimmer/taint passes).
 #[must_use]
 pub fn find_taint_warnings(
+    cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
     executable_blocks: &HashSet<String>,
@@ -588,8 +624,11 @@ pub fn find_taint_warnings(
 ) -> Vec<TaintWarning> {
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
-    for bn in executable_blocks {
-        let Some(ssa_block) = ssa.blocks.get(bn) else {
+    for bn in cfg_order(cfg) {
+        if !executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(ssa_block) = ssa.blocks.get(&bn) else {
             continue;
         };
 
@@ -958,7 +997,7 @@ mod tests {
 
         let sccp = simple_sccp(&["entry"]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
-        let warnings = find_taint_warnings(&ssa, &taints, &sccp.executable_blocks, &registry);
+        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry);
 
         assert!(
             warnings.iter().any(|w| w.code == "T100" && w.variable == "x"),
@@ -1093,7 +1132,7 @@ mod tests {
 
         let sccp = simple_sccp(&["entry"]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
-        let warnings = find_taint_warnings(&ssa, &taints, &sccp.executable_blocks, &registry);
+        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry);
 
         assert!(
             warnings.iter().any(|w| w.code == "T102" && w.variable == "pattern"),
@@ -1171,7 +1210,7 @@ mod tests {
 
         let sccp = simple_sccp(&["entry"]);
         let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
-        let warnings = find_taint_warnings(&ssa, &taints, &sccp.executable_blocks, &registry);
+        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry);
 
         let t102: Vec<_> = warnings.iter().filter(|w| w.code == "T102").collect();
         assert!(t102.is_empty(), "expected no T102 when '--' terminator present, got {t102:?}");
