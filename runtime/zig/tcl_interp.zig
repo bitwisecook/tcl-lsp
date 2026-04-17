@@ -378,8 +378,11 @@ fn subst_flagged(
                 'b' => { d[0] = 0x08; i += 1; },
                 'f' => { d[0] = 0x0C; i += 1; },
                 'v' => { d[0] = 0x0B; i += 1; },
-                'x', 'X' => {
-                    // \xNN — 1 or 2 hex digits
+                'x' => {
+                    // ``\xNN`` — 1 or 2 hex digits.  Tcl only recognises
+                    // lowercase ``\x``; upper-case ``\X`` is NOT a valid
+                    // escape and falls through to the ``else`` branch
+                    // (emits a literal ``X``).
                     i += 1;
                     var val: u32 = 0;
                     var ndig: u32 = 0;
@@ -472,32 +475,50 @@ fn subst_flagged(
 
 fn eval_expr_str(ptr: u32, len: u32) i64 {
     var pos: u32 = 0;
-    return expr_or(ptr, len, &pos);
+    return expr_or(ptr, len, &pos, false);
 }
 
-fn expr_or(ptr: u32, len: u32, pos: *u32) i64 {
+/// Short-circuit evaluation: when *skip* is true the expression walks the
+/// tokens to advance ``pos`` but does NOT run ``[cmd]`` substitutions —
+/// so ``{[info exists x] && [use $x]}`` only runs ``[use $x]`` when the
+/// first operand is true.  Atoms like ``$var`` are read-only so they
+/// evaluate normally even in skip mode (the alternative — routing
+/// reads through a no-op path — buys nothing because variable lookup
+/// has no observable side effect).
+fn expr_or(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_and(ptr, len, pos);
+    var left = expr_and(ptr, len, pos, skip);
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* + 1 < len and src[pos.*] == '|' and src[pos.* + 1] == '|') {
             pos.* += 2;
-            const right = expr_and(ptr, len, pos);
-            left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
+            // Short-circuit: skip RHS when LHS is already truthy OR we're
+            // already skipping outer scope.  Still walk the RHS tokens
+            // so ``pos`` advances past them.
+            const rhs_skip = skip or (left != 0);
+            const right = expr_and(ptr, len, pos, rhs_skip);
+            if (!skip) {
+                left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
+            }
         } else break;
     }
     return left;
 }
 
-fn expr_and(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_add(ptr, len, pos);
+    var left = expr_add(ptr, len, pos, skip);
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* + 1 < len and src[pos.*] == '&' and src[pos.* + 1] == '&') {
             pos.* += 2;
-            const right = expr_add(ptr, len, pos);
-            left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
+            // Short-circuit: skip RHS when LHS is already falsy OR we're
+            // already skipping.
+            const rhs_skip = skip or (left == 0);
+            const right = expr_add(ptr, len, pos, rhs_skip);
+            if (!skip) {
+                left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
+            }
         } else break;
     }
     return left;
@@ -507,49 +528,49 @@ fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
     while (pos.* < len and (src[pos.*] == ' ' or src[pos.*] == '\t')) pos.* += 1;
 }
 
-fn expr_add(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_mul(ptr, len, pos);
+    var left = expr_mul(ptr, len, pos, skip);
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '+') { pos.* += 1; left = left + expr_mul(ptr, len, pos); }
-        else if (src[pos.*] == '-') { pos.* += 1; left = left - expr_mul(ptr, len, pos); }
-        else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left == expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left != expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left <= expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left >= expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (src[pos.*] == '<') { pos.* += 1; left = if (left < expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (src[pos.*] == '>') { pos.* += 1; left = if (left > expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
+        if (src[pos.*] == '+') { pos.* += 1; left = left + expr_mul(ptr, len, pos, skip); }
+        else if (src[pos.*] == '-') { pos.* += 1; left = left - expr_mul(ptr, len, pos, skip); }
+        else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left == expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left != expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left <= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left >= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (src[pos.*] == '<') { pos.* += 1; left = if (left < expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (src[pos.*] == '>') { pos.* += 1; left = if (left > expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
         else break;
     }
     return left;
 }
 
-fn expr_mul(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_mul(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_atom(ptr, len, pos);
+    var left = expr_atom(ptr, len, pos, skip);
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '*') { pos.* += 1; left = left * expr_atom(ptr, len, pos); }
-        else if (src[pos.*] == '/') { pos.* += 1; const r = expr_atom(ptr, len, pos); left = if (r != 0) @divTrunc(left, r) else 0; }
-        else if (src[pos.*] == '%') { pos.* += 1; const r = expr_atom(ptr, len, pos); left = if (r != 0) @rem(left, r) else 0; }
+        if (src[pos.*] == '*') { pos.* += 1; left = left * expr_atom(ptr, len, pos, skip); }
+        else if (src[pos.*] == '/') { pos.* += 1; const r = expr_atom(ptr, len, pos, skip); left = if (r != 0) @divTrunc(left, r) else 0; }
+        else if (src[pos.*] == '%') { pos.* += 1; const r = expr_atom(ptr, len, pos, skip); left = if (r != 0) @rem(left, r) else 0; }
         else break;
     }
     return left;
 }
 
-fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     expr_skip_ws(src, len, pos);
     if (pos.* >= len) return 0;
-    if (src[pos.*] == '!') { pos.* += 1; return if (expr_atom(ptr, len, pos) != 0) @as(i64, 0) else @as(i64, 1); }
-    if (src[pos.*] == '~') { pos.* += 1; return ~expr_atom(ptr, len, pos); }
-    if (src[pos.*] == '-') { pos.* += 1; return -expr_atom(ptr, len, pos); }
+    if (src[pos.*] == '!') { pos.* += 1; return if (expr_atom(ptr, len, pos, skip) != 0) @as(i64, 0) else @as(i64, 1); }
+    if (src[pos.*] == '~') { pos.* += 1; return ~expr_atom(ptr, len, pos, skip); }
+    if (src[pos.*] == '-') { pos.* += 1; return -expr_atom(ptr, len, pos, skip); }
     if (src[pos.*] == '(') {
         pos.* += 1;
-        const val = expr_or(ptr, len, pos);
+        const val = expr_or(ptr, len, pos, skip);
         expr_skip_ws(src, len, pos);
         if (pos.* < len and src[pos.*] == ')') pos.* += 1;
         return val;
@@ -596,6 +617,12 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
             if (src[pos.*] == '[') depth += 1 else if (src[pos.*] == ']') depth -= 1;
             if (depth > 0) pos.* += 1 else pos.* += 1;
         }
+        // Short-circuit: when the enclosing ``||`` or ``&&`` already knows
+        // the result, skip the command substitution body entirely — the
+        // tokens are consumed above, but ``eval_script`` would run
+        // side-effecting commands that Tcl's short-circuit semantics
+        // require us to avoid.
+        if (skip) return 0;
         const result = eval_script(ptr + cs, pos.* - 1 - cs);
         if (result != 0) return obj_get_int(result);
         return 0;
@@ -1532,9 +1559,18 @@ fn eval_string_cmd(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "equal") and words.len >= 4) return rt.string_equal(words[2], words[3]);
     if (str_eq(sp, sub.len, "match") and words.len >= 4) return rt.string_match(words[2], words[3]);
     if (str_eq(sp, sub.len, "map") and words.len >= 4) return rt.string_map(words[2], words[3]);
-    if (str_eq(sp, sub.len, "trim")) return rt.string_trim(words[2]);
-    if (str_eq(sp, sub.len, "trimleft")) return rt.string_trimleft(words[2]);
-    if (str_eq(sp, sub.len, "trimright")) return rt.string_trimright(words[2]);
+    if (str_eq(sp, sub.len, "trim")) {
+        const chars = if (words.len >= 4) words[3] else 0;
+        return rt.string_trim(words[2], chars);
+    }
+    if (str_eq(sp, sub.len, "trimleft")) {
+        const chars = if (words.len >= 4) words[3] else 0;
+        return rt.string_trimleft(words[2], chars);
+    }
+    if (str_eq(sp, sub.len, "trimright")) {
+        const chars = if (words.len >= 4) words[3] else 0;
+        return rt.string_trimright(words[2], chars);
+    }
     if (str_eq(sp, sub.len, "first") and words.len >= 4) return rt.string_first(words[2], words[3]);
     if (str_eq(sp, sub.len, "last") and words.len >= 4) return rt.string_last(words[2], words[3]);
     if (str_eq(sp, sub.len, "toupper")) return rt.string_toupper(words[2]);

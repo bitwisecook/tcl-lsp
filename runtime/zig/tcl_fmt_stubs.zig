@@ -77,7 +77,7 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
     }
 
     if (spec == 'd' or spec == 'i') {
-        // Parse a decimal (or 0x-prefixed hex) integer.
+        // Parse a decimal (or 0x-prefixed hex) integer with overflow guard.
         if (ss.len == 0) return obj_new_int(0);
         const sp: [*]const u8 = @ptrFromInt(ss.ptr);
         var i: u32 = 0;
@@ -93,22 +93,24 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
             var val: i64 = 0;
             while (i < ss.len) : (i += 1) {
                 const c = sp[i];
-                if (c >= '0' and c <= '9') val = val * 16 + @as(i64, c - '0')
-                else if (c >= 'a' and c <= 'f') val = val * 16 + @as(i64, c - 'a' + 10)
-                else if (c >= 'A' and c <= 'F') val = val * 16 + @as(i64, c - 'A' + 10)
+                var digit: i64 = 0;
+                if (c >= '0' and c <= '9') digit = @as(i64, c - '0')
+                else if (c >= 'a' and c <= 'f') digit = @as(i64, c - 'a' + 10)
+                else if (c >= 'A' and c <= 'F') digit = @as(i64, c - 'A' + 10)
                 else break;
+                val = accumulate_i64(val, 16, digit) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
             }
             return obj_new_int(if (neg) -val else val);
         }
         var val: i64 = 0;
         while (i < ss.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
-            val = val * 10 + @as(i64, sp[i] - '0');
+            val = accumulate_i64(val, 10, @as(i64, sp[i] - '0')) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
         }
         return obj_new_int(if (neg) -val else val);
     }
 
     if (spec == 'x' or spec == 'X') {
-        // Parse a hexadecimal integer.
+        // Parse a hexadecimal integer with overflow guard.
         if (ss.len == 0) return obj_new_int(0);
         const sp: [*]const u8 = @ptrFromInt(ss.ptr);
         var i: u32 = 0;
@@ -122,16 +124,18 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
         var val: i64 = 0;
         while (i < ss.len) : (i += 1) {
             const c = sp[i];
-            if (c >= '0' and c <= '9') val = val * 16 + @as(i64, c - '0')
-            else if (c >= 'a' and c <= 'f') val = val * 16 + @as(i64, c - 'a' + 10)
-            else if (c >= 'A' and c <= 'F') val = val * 16 + @as(i64, c - 'A' + 10)
+            var digit: i64 = 0;
+            if (c >= '0' and c <= '9') digit = @as(i64, c - '0')
+            else if (c >= 'a' and c <= 'f') digit = @as(i64, c - 'a' + 10)
+            else if (c >= 'A' and c <= 'F') digit = @as(i64, c - 'A' + 10)
             else break;
+            val = accumulate_i64(val, 16, digit) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
         }
         return obj_new_int(if (neg) -val else val);
     }
 
     if (spec == 'o') {
-        // Parse an octal integer.
+        // Parse an octal integer with overflow guard.
         if (ss.len == 0) return obj_new_int(0);
         const sp: [*]const u8 = @ptrFromInt(ss.ptr);
         var i: u32 = 0;
@@ -141,7 +145,7 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
         else if (i < ss.len and sp[i] == '+') { i += 1; }
         var val: i64 = 0;
         while (i < ss.len and sp[i] >= '0' and sp[i] <= '7') : (i += 1) {
-            val = val * 8 + @as(i64, sp[i] - '0');
+            val = accumulate_i64(val, 8, @as(i64, sp[i] - '0')) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
         }
         return obj_new_int(if (neg) -val else val);
     }
@@ -153,6 +157,21 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
 
 fn is_space(c: u8) bool {
     return c == ' ' or c == '\t' or c == '\n' or c == '\r';
+}
+
+const INT64_MAX: i64 = 0x7FFF_FFFF_FFFF_FFFF;
+const INT64_MIN: i64 = -0x8000_0000_0000_0000;
+
+/// Return ``val * base + digit`` saturated on overflow — ``null`` signals
+/// the caller should clamp to ``INT64_MAX``/``INT64_MIN``.  Used by the
+/// ``scan`` integer parsers so a 30-digit input doesn't silently wrap
+/// into a negative value.
+fn accumulate_i64(val: i64, base: i64, digit: i64) ?i64 {
+    const mul = @mulWithOverflow(val, base);
+    if (mul[1] != 0) return null;
+    const add = @addWithOverflow(mul[0], digit);
+    if (add[1] != 0) return null;
+    return add[0];
 }
 
 pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {

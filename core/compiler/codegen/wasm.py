@@ -826,9 +826,22 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     ),
     "tcl_string_map": ("tcl", "string_map", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_string_match": ("tcl", "string_match", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_trim": ("tcl", "string_trim", [ValType.I32], [ValType.I32]),
-    "tcl_string_trimleft": ("tcl", "string_trimleft", [ValType.I32], [ValType.I32]),
-    "tcl_string_trimright": ("tcl", "string_trimright", [ValType.I32], [ValType.I32]),
+    # ``string trim{,left,right} value ?chars?`` — a null (i32 0) chars arg
+    # means "default whitespace"; otherwise the TclObj's string value is the
+    # set of bytes to trim.
+    "tcl_string_trim": ("tcl", "string_trim", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_string_trimleft": (
+        "tcl",
+        "string_trimleft",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_string_trimright": (
+        "tcl",
+        "string_trimright",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_string_equal": ("tcl", "string_equal", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_string_first": ("tcl", "string_first", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_string_last": ("tcl", "string_last", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -2654,27 +2667,12 @@ class _WasmEmitter:
         # them with spaces at runtime, then pass the assembled script to
         # ``tcl_eval``.
         if cmd_name == "namespace" and cmd_args and cmd_args[0] == "eval" and len(cmd_args) > 2:
-            script_parts = cmd_args[2:]
-            eval_idx_ns = self._shared_imports.get("tcl_eval")
-            if eval_idx_ns is not None:
-                if len(script_parts) == 1:
-                    self._emit_value(script_parts[0])
-                else:
-                    append_idx_ns = self._shared_imports.get("tcl_append")
-                    if append_idx_ns is not None:
-                        self._emit_value(script_parts[0])
-                        for sa in script_parts[1:]:
-                            self._emit_obj_literal(" ")
-                            self._emit_call(append_idx_ns)
-                            self._emit_value(sa)
-                            self._emit_call(append_idx_ns)
-                    else:
-                        self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
-                        return
-                self._emit_frame_sync()
-                self._emit_call(eval_idx_ns)
-                self._emit_frame_readback()
+            if self._emit_namespace_eval_bridge(cmd_args[2:], drop_result=False):
                 return
+            # Required runtime imports missing — fall through to the
+            # generic eval fallback below so we still produce something.
+            self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+            return
 
         # Unknown command in value context — fall back to interpreter.
         # Use the original command text (script_override) so braced
@@ -3988,27 +3986,11 @@ class _WasmEmitter:
             # (so compiled-frame aliases like $arr($key) are resolved
             # correctly) and call tcl_eval for side effects.
             if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
-                script_parts = args[2:]
-                eval_idx_stmt = self._shared_imports.get("tcl_eval")
-                if eval_idx_stmt is not None:
-                    if len(script_parts) == 1:
-                        self._emit_value(script_parts[0])
-                    else:
-                        append_idx_stmt = self._shared_imports.get("tcl_append")
-                        if append_idx_stmt is not None:
-                            self._emit_value(script_parts[0])
-                            for sa in script_parts[1:]:
-                                self._emit_obj_literal(" ")
-                                self._emit_call(append_idx_stmt)
-                                self._emit_value(sa)
-                                self._emit_call(append_idx_stmt)
-                        else:
-                            return  # can't build script, skip
-                    self._emit_frame_sync()
-                    self._emit_call(eval_idx_stmt)
-                    self._emit(WasmOp.DROP)
-                    self._emit_frame_readback()
-                    return
+                # Bridge drops the result since we're in statement context.
+                # If imports are missing the bridge returns False and we
+                # silently skip (statement context has no stack commitments).
+                self._emit_namespace_eval_bridge(args[2:], drop_result=True)
+                return
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
@@ -4397,27 +4379,11 @@ class _WasmEmitter:
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
             if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
-                script_parts = args[2:]
-                eval_idx_tail = self._shared_imports.get("tcl_eval")
-                if eval_idx_tail is not None:
-                    if len(script_parts) == 1:
-                        self._emit_value(script_parts[0])
-                    else:
-                        append_idx_tail = self._shared_imports.get("tcl_append")
-                        if append_idx_tail is not None:
-                            self._emit_value(script_parts[0])
-                            for sa in script_parts[1:]:
-                                self._emit_obj_literal(" ")
-                                self._emit_call(append_idx_tail)
-                                self._emit_value(sa)
-                                self._emit_call(append_idx_tail)
-                        else:
-                            self._emit_i32_const(0)
-                            return
-                    self._emit_frame_sync()
-                    self._emit_call(eval_idx_tail)
-                    self._emit_frame_readback()
+                if self._emit_namespace_eval_bridge(args[2:], drop_result=False):
                     return
+                # Runtime imports missing — push null TclObj as fallback.
+                self._emit_i32_const(0)
+                return
             self._emit_i32_const(0)
             return
 
@@ -4910,6 +4876,56 @@ class _WasmEmitter:
         self._emit_local_get(local_idx)
         self._emit_call(gset_idx)
         self._emit(WasmOp.DROP)
+
+    def _emit_namespace_eval_bridge(
+        self,
+        script_parts: tuple[str, ...] | list[str],
+        *,
+        drop_result: bool,
+    ) -> bool:
+        """Emit a ``namespace eval <ns> <script-parts...>`` bridge.
+
+        Assembles the script at WASM level (so compiled-frame aliases
+        like ``$arr($key)`` resolve correctly) then calls ``tcl_eval``
+        with a ``frame_sync`` / ``frame_readback`` pair around it so
+        the interpreter sees the caller's locals.
+
+        *drop_result* controls what happens to the eval result:
+          - ``True`` (statement context): drop — stack returns to empty.
+          - ``False`` (value / tail context): keep the i32 TclObj on
+            the stack for the caller.
+
+        Returns ``True`` when the bridge was emitted in full, ``False``
+        when the required runtime imports aren't available — the
+        caller should fall through to its normal fallback path
+        (usually ``_emit_eval_fallback``) in that case.
+        """
+        eval_idx = self._shared_imports.get("tcl_eval")
+        if eval_idx is None:
+            return False
+        if not script_parts:
+            # No script → empty string is a valid no-op.
+            if not drop_result:
+                self._emit_obj_literal("")
+            return True
+        if len(script_parts) == 1:
+            self._emit_value(script_parts[0])
+        else:
+            append_idx = self._shared_imports.get("tcl_append")
+            if append_idx is None:
+                return False
+            self._emit_value(script_parts[0])
+            for sa in script_parts[1:]:
+                self._emit_obj_literal(" ")
+                self._emit_call(append_idx)
+                self._emit_value(sa)
+                self._emit_call(append_idx)
+        self._emit_frame_sync()
+        self._emit_call(eval_idx)
+        if drop_result:
+            self._emit(WasmOp.DROP)
+        self._emit_frame_readback()
+        return True
 
     def _emit_frame_sync(self) -> None:
         """Mirror all live proc-locals into the call frame before the Zig
@@ -7124,28 +7140,7 @@ class _WasmEmitter:
                     and barrier_args[0] == "eval"
                     and len(barrier_args) > 2
                 ):
-                    script_parts = barrier_args[2:]
-                    eval_idx_bar = self._shared_imports.get("tcl_eval")
-                    if eval_idx_bar is not None:
-                        if len(script_parts) == 1:
-                            self._emit_value(script_parts[0])
-                        else:
-                            append_idx_bar = self._shared_imports.get("tcl_append")
-                            if append_idx_bar is not None:
-                                self._emit_value(script_parts[0])
-                                for sa in script_parts[1:]:
-                                    self._emit_obj_literal(" ")
-                                    self._emit_call(append_idx_bar)
-                                    self._emit_value(sa)
-                                    self._emit_call(append_idx_bar)
-                            else:
-                                self._emit_eval_fallback(barrier_cmd, barrier_args)
-                                # result stays on stack (no DROP)
-                        if eval_idx_bar is not None:
-                            self._emit_frame_sync()
-                            self._emit_call(eval_idx_bar)
-                            self._emit_frame_readback()
-                    else:
+                    if not self._emit_namespace_eval_bridge(barrier_args[2:], drop_result=False):
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
                         # result stays on stack (no DROP)
                 else:

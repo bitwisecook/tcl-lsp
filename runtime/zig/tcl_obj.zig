@@ -571,11 +571,20 @@ pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
     }
     const starts_with_brace = src[0] == '{';
     const balanced = (brace_balance == 0) and (min_balance >= 0);
-    // Count trailing backslashes.  A braced element whose content ends with an
-    // odd number of ``\`` would confuse TclFindElement's closing-brace scan —
-    // the final ``\`` would escape the closing ``}``, leaving the element
-    // unclosed.  Wrapping is only safe when the trailing-backslash count is
-    // even (including zero).
+    // Count trailing backslashes.  A braced element whose content ends
+    // with an odd number of ``\`` would confuse TclFindElement's
+    // closing-brace scan — the final ``\`` would escape the closing
+    // ``}``, leaving the element unclosed.  Wrapping is only safe when
+    // the trailing-backslash count is even (including zero).
+    //
+    // Mid-string ``\}`` sequences DO NOT need a separate safety check.
+    // Inside the wrapped form ``{…\}…}``, the list parser's backslash
+    // consumption rule ``\<byte>`` keeps ``\}`` paired with its ``\``
+    // so the brace depth never decrements from that ``}``.  The outer
+    // ``}`` (real close brace) is reached normally and the round-trip
+    // extracts the exact literal content.  So the only hazard is
+    // specifically an UN-PAIRED final ``\`` that swallows the outer
+    // brace — captured by the odd-trailing-count check.
     var trailing_bs: u32 = 0;
     var ti: u32 = len;
     while (ti > 0 and src[ti - 1] == '\\') : (ti -= 1) {
@@ -590,13 +599,12 @@ pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
         memcpy(buf + off, ptr, len);
         return off + len;
     }
-    // Safely braceable: balanced inner braces → wrap in {}.  When the content
-    // contains a backslash we additionally require the trailing-backslash
-    // count to be even (so the closing ``}`` isn't escaped by an un-paired
-    // final ``\``).  Inside ``{…}`` the list parser preserves every char
-    // literally and consumes ``\<byte>`` pairs whole — so ``\{`` and ``\}``
-    // inside the wrapped content don't affect brace depth and round-trip
-    // correctly.
+    // Safely braceable: balanced inner braces → wrap in ``{…}``.  When
+    // the content contains a backslash we additionally require the
+    // trailing-backslash count to be even (see comment above).  Inside
+    // ``{…}`` the list parser preserves every byte literally, and
+    // ``\<byte>`` pairs are consumed as a unit — so ``\{`` / ``\}``
+    // mid-string don't affect brace depth and round-trip correctly.
     if (balanced and !starts_with_brace and (!has_backslash or trailing_bs_safe)) {
         const d0: [*]u8 = @ptrFromInt(buf + off);
         d0[0] = '{';
