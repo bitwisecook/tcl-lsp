@@ -6413,6 +6413,8 @@ class _WasmEmitter:
         header_stmts: tuple,
         body_block: str,
         end_block: str,
+        *,
+        header_block: str = "",
     ) -> None:
         """Emit a list-iteration loop for a foreach CFG pattern.
 
@@ -6486,11 +6488,14 @@ class _WasmEmitter:
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
 
-        self._visited.add(body_block)
-        body = self._cfg.blocks.get(body_block)
-        if body is not None:
-            for stmt in body.statements:
-                self._emit_stmt(stmt)
+        # Mark the foreach header as an active outer loop so that
+        # _is_loop_header doesn't treat the header→body back-edge as a
+        # new nested loop when it walks successor blocks of the body.
+        if header_block:
+            self._active_loop_headers.add(header_block)
+        self._emit_block(body_block)
+        if header_block:
+            self._active_loop_headers.discard(header_block)
 
         self._loop_ctrl_depths.pop()
         self._loop_depth -= 1
@@ -6617,7 +6622,7 @@ class _WasmEmitter:
                 # a header block with an opaque <foreach_has_next> branch.
                 # Detect this and emit a counter-based WASM loop instead.
                 if isinstance(condition, ExprRaw) and condition.text == "<foreach_has_next>":
-                    self._emit_foreach_loop(stmts, tt, ft)
+                    self._emit_foreach_loop(stmts, tt, ft, header_block=block_name)
                     return
 
                 # For/while loop pattern: the header block branches on a
