@@ -461,10 +461,12 @@ pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
     }
     const src: [*]const u8 = @ptrFromInt(ptr);
     var has_special = false;
+    var has_backslash = false;
     var brace_balance: i32 = 0;
     var min_balance: i32 = 0;
     for (0..len) |k| {
         const ch = src[k];
+        if (ch == '\\') has_backslash = true;
         if (is_space(ch) or ch == '"') has_special = true;
         if (ch == '{') brace_balance += 1;
         if (ch == '}') {
@@ -474,13 +476,33 @@ pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
     }
     const starts_with_brace = src[0] == '{';
     const balanced = (brace_balance == 0) and (min_balance >= 0);
-    // Plain word: no special chars, balanced braces, doesn't start with `{`
-    if (!has_special and !starts_with_brace and brace_balance == 0) {
+    // Count trailing backslashes.  A braced element whose content ends with an
+    // odd number of ``\`` would confuse TclFindElement's closing-brace scan —
+    // the final ``\`` would escape the closing ``}``, leaving the element
+    // unclosed.  Wrapping is only safe when the trailing-backslash count is
+    // even (including zero).
+    var trailing_bs: u32 = 0;
+    var ti: u32 = len;
+    while (ti > 0 and src[ti - 1] == '\\') : (ti -= 1) {
+        trailing_bs += 1;
+    }
+    const trailing_bs_safe = (trailing_bs & 1) == 0;
+    // Plain word: no special chars, no backslash, balanced braces, doesn't start with `{`.
+    // (A lone ``\`` with nothing else special is still a valid bare word, since Tcl's
+    // list parser treats ``\`` + whitespace as escaping — but a bare single-char word
+    // ``\`` also safely parses as itself.)
+    if (!has_special and !has_backslash and !starts_with_brace and brace_balance == 0) {
         memcpy(buf + off, ptr, len);
         return off + len;
     }
-    // Safely braceable: balanced inner braces → wrap in {}
-    if (balanced and !starts_with_brace) {
+    // Safely braceable: balanced inner braces → wrap in {}.  When the content
+    // contains a backslash we additionally require the trailing-backslash
+    // count to be even (so the closing ``}`` isn't escaped by an un-paired
+    // final ``\``).  Inside ``{…}`` the list parser preserves every char
+    // literally and consumes ``\<byte>`` pairs whole — so ``\{`` and ``\}``
+    // inside the wrapped content don't affect brace depth and round-trip
+    // correctly.
+    if (balanced and !starts_with_brace and (!has_backslash or trailing_bs_safe)) {
         const d0: [*]u8 = @ptrFromInt(buf + off);
         d0[0] = '{';
         memcpy(buf + off + 1, ptr, len);
@@ -488,8 +510,9 @@ pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
         d1[0] = '}';
         return off + len + 2;
     }
-    // Starts with { and balanced braces → wrap in outer {} giving {{...}}
-    if (starts_with_brace and balanced) {
+    // Starts with { and balanced braces → wrap in outer {} giving {{...}}.
+    // Same trailing-backslash safety rule applies.
+    if (starts_with_brace and balanced and (!has_backslash or trailing_bs_safe)) {
         const d0: [*]u8 = @ptrFromInt(buf + off);
         d0[0] = '{';
         memcpy(buf + off + 1, ptr, len);

@@ -46,7 +46,9 @@ from ..expr_ast import (
     ExprVar,
     UnaryOp,
 )
+from ...parsing.tokens import TokenType
 from ..ir import (
+    CommandTokens,
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -2193,7 +2195,7 @@ class _WasmEmitter:
             return value[1:]
         return None
 
-    def _emit_value(self, value: str) -> None:
+    def _emit_value(self, value: str, *, was_braced: bool = False) -> None:
         """Emit an i32 TclObj pointer for *value*.
 
         Resolves ``$x`` and ``${x}`` variable references to local.get
@@ -2204,31 +2206,45 @@ class _WasmEmitter:
         For strings with embedded substitutions (e.g. ``"hello $x"`` or
         ``"fib(10) = [fib 10]"``), parses the string into chunks and
         emits a concat chain using the runtime ``tcl_append`` function.
+
+        *was_braced* is set by callers that know the IR value came from
+        a braced ``{…}`` token (the lexer strips the outer braces before
+        storing the value, so we otherwise can't tell).  In that case,
+        Tcl semantics say NO substitution applies — backslash
+        substitution and ``$`` / ``[`` interpolation must be suppressed
+        so ``\\{`` stays as the two-char sequence ``\\{`` instead of
+        collapsing to ``{``.
         """
-        var = self._resolve_var_name(value)
-        if var is not None:
-            # Intern on first reference so reads before assignment
-            # get a proper local (default-initialised to 0) instead
-            # of falling through and boxing "$var" as a string literal.
-            # Aliased variables (upvar/variable) route through the
-            # runtime global table via _emit_var_read_obj.
-            self._emit_var_read_obj(var)
-            return
-        # Try direct local lookup (for bare names like in IRAssignValue).
-        # Alias-aware: checks _aliases before local_index.
-        if value in self._aliases:
-            self._emit_var_read_obj(value)
-            return
-        idx = self._local_index.get(value)
-        if idx is not None:
-            self._emit_local_get(idx)
-            return
+        if not was_braced:
+            var = self._resolve_var_name(value)
+            if var is not None:
+                # Intern on first reference so reads before assignment
+                # get a proper local (default-initialised to 0) instead
+                # of falling through and boxing "$var" as a string literal.
+                # Aliased variables (upvar/variable) route through the
+                # runtime global table via _emit_var_read_obj.
+                self._emit_var_read_obj(var)
+                return
+            # Try direct local lookup (for bare names like in IRAssignValue).
+            # Alias-aware: checks _aliases before local_index.
+            if value in self._aliases:
+                self._emit_var_read_obj(value)
+                return
+            idx = self._local_index.get(value)
+            if idx is not None:
+                self._emit_local_get(idx)
+                return
         # Braced literal — outer braces suppress all substitution in Tcl.
         # _split_command_subst preserves {…} so downstream code can
         # distinguish a braced word (literal) from a quoted one (allows
         # substitution).  Strip the braces and emit the content as-is.
         if value.startswith("{") and value.endswith("}"):
             self._emit_obj_literal(value[1:-1])
+            return
+        # Braced token whose outer braces the IR already stripped — emit
+        # the raw content verbatim, no ``\\`` / ``$`` / ``[`` processing.
+        if was_braced:
+            self._emit_obj_literal(value)
             return
         # Command substitution: [cmd arg1 arg2 ...]
         if value.startswith("[") and value.endswith("]"):
@@ -3739,7 +3755,7 @@ class _WasmEmitter:
                     if self._optimise:
                         self._const_map.clear()
                 else:
-                    self._emit_call_stmt(command, args, defs)
+                    self._emit_call_stmt(command, args, defs, tokens=tokens)
 
             case IRReturn(value=value, expr=expr):
                 if expr is not None:
@@ -3894,6 +3910,7 @@ class _WasmEmitter:
         command: str,
         args: tuple[str, ...],
         defs: tuple[str, ...] = (),
+        tokens: "CommandTokens | None" = None,
     ) -> None:
         """Emit a command invocation.
 
@@ -3903,6 +3920,12 @@ class _WasmEmitter:
         Proc calls are resolved first so that a user-defined proc
         named ``puts`` shadows the built-in runtime import, matching
         Tcl's command resolution semantics.
+
+        *tokens* — original parsed tokens for the command invocation.
+        Threaded through to user-proc calls so they can distinguish
+        braced (``{…}``) args from unbraced ones (braced args must
+        skip backslash / interpolation substitution, per Tcl
+        semantics).
         """
         # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
         # to invalidate caller-side SSA defs around a call that modifies
@@ -4017,7 +4040,9 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             qname = self._resolve_proc_qname(command)
-            self._emit_cmd_proc_call(proc_info[0], proc_info[1], args, defs, qname=qname)
+            self._emit_cmd_proc_call(
+                proc_info[0], proc_info[1], args, defs, qname=qname, tokens=tokens,
+            )
             return
 
         # set/incr: only inline the canonical 1-or-2 arg forms that the
@@ -4114,7 +4139,7 @@ class _WasmEmitter:
             return
 
         # Unknown command — fall back to interpreter
-        self._emit_eval_fallback(command, args)
+        self._emit_eval_fallback(command, args, tokens=tokens)
         self._emit(WasmOp.DROP)  # statement context — discard result
 
     def _emit_diag_site(
@@ -4188,6 +4213,7 @@ class _WasmEmitter:
         args: tuple[str, ...] | list[str] = (),
         *,
         script_override: str | None = None,
+        tokens: "CommandTokens | None" = None,
     ) -> None:
         """Fall back to the Zig interpreter for an uncompiled command.
 
@@ -4200,6 +4226,16 @@ class _WasmEmitter:
         Use this when the original source text must be preserved (e.g.
         for ``{*}`` argument expansion whose syntax cannot be round-tripped
         through the normal quoting path).
+
+        *tokens* carries the original parsed word tokens when available.
+        Used to distinguish braced (``{…}``, STR) arguments — whose IR
+        value is the literal content — from plain / double-quoted
+        (ESC) arguments whose IR value still contains raw backslash
+        sequences that must be substituted before list-quoting.
+        Without this distinction ``"a\\\\{b"`` (source → IR value
+        ``a\\{b``) would round-trip through list-quote as though the
+        two backslashes were the *final* value, producing ``a\\{b``
+        instead of ``a\\{b`` after the interpreter re-parses the word.
         """
         self._emit_diag_site(command, args=tuple(args), kind="fallback")
         eval_idx = self._shared_imports.get("tcl_eval")
@@ -4210,19 +4246,78 @@ class _WasmEmitter:
                 # Build command string: "command arg1 arg2 ..."
                 # For literal args, concatenate them. For $var refs,
                 # include the dollar sign so the interpreter can resolve them.
+                def _arg_was_braced(i: int) -> bool:
+                    """Return True if call-site arg *i* came from a ``{…}`` token.
+
+                    *i* is 0-based into *args*, so ``tokens.argv[i + 1]``
+                    is the corresponding parsed word (argv[0] is the
+                    command name).  Requires a single-token word —
+                    a concatenated word like ``{a}b`` is not purely
+                    braced and needs normal processing.
+                    """
+                    if tokens is None or tokens.argv is None:
+                        return False
+                    tok_idx = i + 1
+                    if tok_idx >= len(tokens.argv):
+                        return False
+                    if tokens.single_token_word is not None:
+                        if tok_idx >= len(tokens.single_token_word):
+                            return False
+                        if not tokens.single_token_word[tok_idx]:
+                            return False
+                    return tokens.argv[tok_idx].type == TokenType.STR
+
                 parts = [command]
-                for a in args:
+                for i, a in enumerate(args):
                     if a.startswith("$") or a.startswith("["):
                         # Substitution words pass through unquoted so
                         # the interpreter can resolve them at eval time.
                         parts.append(a)
+                    elif _arg_was_braced(i):
+                        # Braced token — IR holds the literal content
+                        # with outer ``{}`` stripped.  Re-wrap in braces
+                        # so the interpreter sees the exact same word
+                        # without applying any substitution.  Fall back
+                        # to list-quote when the value contains an
+                        # unbalanced brace (rare — ``{a{b}`` style).
+                        if "{" in a or "}" in a:
+                            # Use list-quote to get balanced/escaped form.
+                            parts.append(_tcl_list_quote(a))
+                        else:
+                            parts.append("{" + a + "}")
                     else:
-                        # Literal IR value: the Tcl lexer has already stripped
-                        # outer braces, so the string is the actual VALUE.
-                        # _tcl_list_quote encodes it as a safe Tcl word —
-                        # e.g. the 2-char string "{}" becomes "{{}}",
-                        # "foo bar" becomes "{foo bar}", etc.
-                        parts.append(_tcl_list_quote(a))
+                        # Literal IR value from an ESC token (plain or
+                        # double-quoted word).  The IR stores the RAW
+                        # text: source-level ``\\{`` is still two bytes
+                        # ``\`` + ``{``.  Apply backslash substitution
+                        # so the value we embed in the script reflects
+                        # what the original word would have evaluated
+                        # to.  _tcl_list_quote then encodes it as a
+                        # safe Tcl word that round-trips through the
+                        # interpreter's word parser.
+                        #
+                        # Guard: if compile-time substitution would
+                        # produce a Python string with isolated
+                        # surrogates (``\uD83D\uDE02`` in a Tcl 9 test)
+                        # we can't safely UTF-8-encode it into the WASM
+                        # data segment.  Fall back to embedding the raw
+                        # value verbatim so the interpreter itself
+                        # handles the escape sequences at eval time.
+                        prepped: str | None = None
+                        if "\\" in a:
+                            candidate = _tcl_backslash_subst(a)
+                            try:
+                                candidate.encode("utf-8")
+                            except UnicodeEncodeError:
+                                prepped = None  # signal: use raw path
+                            else:
+                                prepped = candidate
+                        else:
+                            prepped = a
+                        if prepped is None:
+                            parts.append(_tcl_list_quote(a))
+                        else:
+                            parts.append(_tcl_list_quote(prepped))
                 script = " ".join(parts)
             # Sync all live proc-locals into the frame so the interpreter
             # can see them via var_resolve.  Only pays at eval-fallback
@@ -5998,6 +6093,7 @@ class _WasmEmitter:
         args: tuple[str, ...],
         defs: tuple[str, ...],
         qname: str | None = None,
+        tokens: "CommandTokens | None" = None,
     ) -> None:
         """Emit a direct call to a compiled procedure.
 
@@ -6012,6 +6108,12 @@ class _WasmEmitter:
         ``_proc_args_tail``), all call-site args beyond the fixed
         positional count are packed into a single list TclObj and
         passed as the last argument.
+
+        *tokens* provides the original parsed tokens for each call-site
+        word, letting us distinguish braced (``{…}``) args from
+        unbraced ones.  Braced args must skip backslash / interpolation
+        substitution at emit time (Tcl semantics: braces suppress all
+        substitution).
         """
         defaults: tuple[str | None, ...] = ()
         if qname is not None:
@@ -6019,11 +6121,25 @@ class _WasmEmitter:
 
         has_args_tail = qname is not None and qname in self._proc_args_tail
 
+        def _was_braced(call_arg_idx: int) -> bool:
+            """Return True if the call-site word at *call_arg_idx* was braced.
+
+            *call_arg_idx* is 0-based into *args* (the CALLSITE args tuple),
+            so ``tokens.argv`` is indexed at ``call_arg_idx + 1`` to skip
+            the command-name token.
+            """
+            if tokens is None or tokens.argv is None:
+                return False
+            tok_idx = call_arg_idx + 1
+            if tok_idx >= len(tokens.argv):
+                return False
+            return tokens.argv[tok_idx].type == TokenType.STR
+
         if has_args_tail and n_params > 0:
             # Fixed positional slots: first n_params-1
             fixed = n_params - 1
             for i in range(min(fixed, len(args))):
-                self._emit_value(args[i])
+                self._emit_value(args[i], was_braced=_was_braced(i))
             # Pad missing fixed slots with defaults / null
             for slot in range(len(args), fixed):
                 default = defaults[slot] if slot < len(defaults) else None
@@ -6037,7 +6153,7 @@ class _WasmEmitter:
         else:
             # Push arguments up to the callee's parameter count
             for i in range(min(n_params, len(args))):
-                self._emit_value(args[i])
+                self._emit_value(args[i], was_braced=_was_braced(i))
             # Pad missing args with the declared default or boxed zero.
             # Defaults are LITERAL values from the param spec — ``{$y}``
             # and ``{[clock seconds]}`` must reach the callee unchanged,
