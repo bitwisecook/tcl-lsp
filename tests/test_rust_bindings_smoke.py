@@ -66,7 +66,7 @@ def test_compiler_checks_run_all_returns_diagnostic_tuples() -> None:
     """C32-shim smoke test: the Rust ``compiler_checks_run_all``
     entry point must return diagnostic tuples for a source with a
     constant-true branch (exercises the SCCP check), and each
-    tuple must have the six-field shape Python callers expect.
+    tuple must have the seven-field shape Python callers expect.
     """
     diagnostics = tcl_lsp_rust.compiler_checks_run_all(
         "if {1} { set x 1 } else { set y 2 }", None
@@ -74,14 +74,15 @@ def test_compiler_checks_run_all_returns_diagnostic_tuples() -> None:
     assert isinstance(diagnostics, list)
     assert diagnostics, "expected at least one diagnostic from SCCP check"
     for t in diagnostics:
-        assert len(t) == 6, f"unexpected tuple shape: {t!r}"
-        code, category, severity, message, start, end = t
+        assert len(t) == 7, f"unexpected tuple shape: {t!r}"
+        code, category, severity, message, start, end, replacement = t
         assert isinstance(code, str) and code
         assert isinstance(category, str) and category
         assert severity in {"hint", "suggestion", "warning", "error"}
         assert isinstance(message, str) and message
         assert isinstance(start, int) and isinstance(end, int)
         assert start <= end
+        assert replacement is None or isinstance(replacement, str)
 
 
 def test_compiler_checks_run_all_empty_source_is_empty() -> None:

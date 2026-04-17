@@ -14,6 +14,7 @@ use tcl_lexer::Span;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
+use crate::path_concat::{find_path_concat_warnings, PathConcatWarning};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning};
 use crate::taint::{find_taint_warnings, TaintWarning};
@@ -52,6 +53,11 @@ pub struct Diagnostic {
     pub severity: Severity,
     /// Formatted message.
     pub message: String,
+    /// Optional replacement text for a code-action fix that rewrites
+    /// the diagnostic's span. `None` when the check has no suggested
+    /// fix or could not build one. Consumers that surface code actions
+    /// (LSP `CodeAction`, CLI auto-fix) should plumb this through.
+    pub replacement: Option<String>,
 }
 
 impl Diagnostic {
@@ -68,6 +74,7 @@ impl Diagnostic {
                 "condition in block {} is a constant {} — take target `{}`",
                 cb.block, cb.value, cb.taken_target
             ),
+            replacement: None,
         }
     }
 
@@ -78,6 +85,7 @@ impl Diagnostic {
             category: "shimmer".into(),
             severity: Severity::Warning,
             message: w.message.clone(),
+            replacement: None,
         }
     }
 
@@ -88,6 +96,7 @@ impl Diagnostic {
             category: "shimmer".into(),
             severity: Severity::Warning,
             message: w.message.clone(),
+            replacement: None,
         }
     }
 
@@ -98,6 +107,7 @@ impl Diagnostic {
             category: "taint".into(),
             severity: Severity::Error,
             message: w.message.clone(),
+            replacement: None,
         }
     }
 
@@ -108,6 +118,18 @@ impl Diagnostic {
             category: "gvn".into(),
             severity: Severity::Suggestion,
             message: r.message.clone(),
+            replacement: None,
+        }
+    }
+
+    fn from_path_concat(w: &PathConcatWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code.clone(),
+            category: "taint".into(),
+            severity: Severity::Warning,
+            message: w.message.clone(),
+            replacement: w.replacement.clone(),
         }
     }
 }
@@ -182,6 +204,15 @@ pub fn run_all_checks(
         ) {
             out.push(Diagnostic::from_taint(&w));
         }
+        for w in find_path_concat_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.rendered_props,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+        ) {
+            out.push(Diagnostic::from_path_concat(&w));
+        }
     }
 
     out
@@ -226,5 +257,29 @@ mod tests {
         let d = Diagnostic::from_redundant(&r);
         assert_eq!(d.code, "O105");
         assert_eq!(d.category, "gvn");
+    }
+
+    #[test]
+    fn run_all_checks_reports_w201_path_concat() {
+        let cu = CompilationUnit::build_for(
+            "set x 42\nset p \"/tmp/$x\"",
+            &registry(),
+            false,
+        );
+        let diagnostics = run_all_checks(&cu, &registry(), None);
+        let w201 = diagnostics
+            .iter()
+            .find(|d| d.code == "W201" && d.category == "taint")
+            .unwrap_or_else(|| panic!("expected W201 path-concat diagnostic, got {diagnostics:?}"));
+        // The `[file join …]` suggestion must survive the lowering
+        // from `PathConcatWarning` to `Diagnostic`.
+        let replacement = w201
+            .replacement
+            .as_deref()
+            .expect("W201 diagnostic should carry a [file join] replacement");
+        assert!(
+            replacement.starts_with("[file join ") && replacement.ends_with(']'),
+            "unexpected replacement text: {replacement:?}",
+        );
     }
 }
