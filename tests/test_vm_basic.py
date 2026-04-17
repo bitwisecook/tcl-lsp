@@ -155,6 +155,14 @@ class TestVMExpr:
         assert interp.eval("expr {pow(0.0,-2.0)}").value == "Inf"
         assert interp.eval("expr {pow(-0.0,-1.0)}").value == "-Inf"
 
+    def test_math_func_pow_zero_neg_inf_exp(self) -> None:
+        # IEEE 754: pow(±0, -Inf) = +Inf.  Regression guard: int(-Inf) raises
+        # OverflowError in Python, so the sign-check must skip non-finite exps.
+        interp = TclInterp()
+        assert interp.eval("expr {pow(0.0, -Inf)}").value == "Inf"
+        assert interp.eval("expr {pow(-0.0, -Inf)}").value == "Inf"
+        assert interp.eval("expr {pow(0.0, -1.0/0.0)}").value == "Inf"
+
     def test_math_func_ceil_floor_inf(self) -> None:
         # Verified against tclsh 9.0.3: ceil/floor of ±Inf returns ±Inf
         interp = TclInterp()
