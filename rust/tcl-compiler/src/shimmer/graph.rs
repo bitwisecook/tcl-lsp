@@ -1,84 +1,19 @@
-//! Intrep shimmer analysis — detect places where a variable's
-//! Tcl-value intrep (list/dict/int/…) is converted at a use site.
+//! CFG graph helpers for shimmer analysis.
 //!
-//! Ported from `core/compiler/shimmer.py` (C27d). This strip lands
-//! the diagnostic types (`ShimmerWarning`, `ThunkingWarning`),
-//! supporting lattice/graph helpers (`loop_body_blocks`,
-//! `blocks_reaching`), and a stub `find_shimmer_warnings` entry
-//! point that returns an empty result. The full use-site / phi /
-//! expression-context shimmer detection is a follow-up that
-//! depends on the richer `TypeLattice` machinery.
+//! - [`loop_body_blocks`] — identify blocks that are part of a cycle.
+//! - [`blocks_reaching`] — reverse-reachability query.
+//! - [`build_successors`] — successor map from CFG terminators.
 
 #![allow(clippy::implicit_hasher)]
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_lexer::Span;
-
 use crate::cfg::{Function as CfgFunction, Terminator};
-use tcl_registry::TclType;
 
-// ---------------------------------------------------------------------------
-// Diagnostic types
-// ---------------------------------------------------------------------------
-
-/// A use-site where a variable's intrep is converted.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ShimmerWarning {
-    /// Source span of the use.
-    pub span: Span,
-    /// Variable name.
-    pub variable: String,
-    /// Source intrep kind.
-    pub from_type: TclType,
-    /// Target intrep kind.
-    pub to_type: TclType,
-    /// Command that triggered the conversion.
-    pub command: String,
-    /// Whether the use is inside a loop body.
-    pub in_loop: bool,
-    /// Diagnostic code (`"S100"` / `"S101"`).
-    pub code: String,
-    /// Formatted message.
-    pub message: String,
-    /// Related spans + labels for diagnostic context.
-    pub related: Vec<(Span, String)>,
-}
-
-/// A variable that oscillates between two types across loop
-/// iterations.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ThunkingWarning {
-    /// Source span.
-    pub span: Span,
-    /// Variable name.
-    pub variable: String,
-    /// First observed type.
-    pub type_a: TclType,
-    /// Second observed type.
-    pub type_b: TclType,
-    /// Diagnostic code (`"S102"`).
-    pub code: String,
-    /// Formatted message.
-    pub message: String,
-    /// Related spans.
-    pub related: Vec<(Span, String)>,
-}
-
-/// Human-readable name for a Tcl intrep type.
-#[must_use]
-pub fn type_name(t: TclType) -> String {
-    format!("{t:?}").to_ascii_lowercase()
-}
-
-// ---------------------------------------------------------------------------
-// CFG helpers
-// ---------------------------------------------------------------------------
-
-/// Return the set of blocks that are inside a loop body.
+/// Return the set of block names that are part of a loop body.
 ///
-/// A block is "in a loop" if it is on a cycle — i.e. can reach
-/// itself via CFG successor edges.
+/// A block is "in a loop" if it lies on a cycle: there exists a
+/// path from it back to itself via CFG successor edges.
 #[must_use]
 pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let succs = build_successors(cfg);
@@ -106,8 +41,7 @@ pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
         if found {
             // A block is on the cycle iff it was visited on the
             // forward BFS AND it can reach `start` — otherwise
-            // the BFS merely passed through it on a dead-end
-            // branch (e.g. the exit block).
+            // the BFS merely passed through it on a dead-end branch.
             let reaching = blocks_reaching(&succs, start);
             loop_blocks.insert(start.clone());
             for name in visited {
@@ -143,7 +77,8 @@ pub fn blocks_reaching(succs: &HashMap<String, Vec<String>>, target: &str) -> Ha
     visited
 }
 
-fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>> {
+/// Build a `block → successors` adjacency map from CFG terminators.
+pub(super) fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>> {
     let mut out: HashMap<String, Vec<String>> = HashMap::new();
     for (bn, block) in &cfg.blocks {
         let mut s: Vec<String> = Vec::new();
@@ -172,31 +107,6 @@ fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>> {
     out
 }
 
-// ---------------------------------------------------------------------------
-// Entry points (stubbed — full analysis deferred)
-// ---------------------------------------------------------------------------
-
-/// Find intrep-shimmer warnings for a single function.
-///
-/// **Current status**: returns an empty vector. The full
-/// use-site shimmer detection requires the type lattice and
-/// per-command argument-type hints from the registry, plus the
-/// phi-shimmer and thunking passes. This stub lets downstream
-/// callers integrate the API now; a follow-up strip will flesh
-/// out the analysis.
-#[must_use]
-pub fn find_shimmer_warnings(_cfg: &CfgFunction) -> Vec<ShimmerWarning> {
-    Vec::new()
-}
-
-/// Find thunking warnings for a single function.
-///
-/// **Current status**: stub returning an empty vector.
-#[must_use]
-pub fn find_thunking_warnings(_cfg: &CfgFunction) -> Vec<ThunkingWarning> {
-    Vec::new()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,7 +131,7 @@ mod tests {
 
     #[test]
     fn loop_body_blocks_detects_simple_cycle() {
-        // entry → body → entry (back edge)
+        // entry → body → entry (back edge), entry → exit
         let mut f = Function::new("::top", "entry");
         f.blocks.insert("body".into(), Block::new("body"));
         f.blocks.get_mut("entry").unwrap().terminator = Some(branch(
@@ -271,19 +181,5 @@ mod tests {
         assert!(r.contains("a"));
         assert!(r.contains("b"));
         assert!(r.contains("c"));
-    }
-
-    #[test]
-    fn find_shimmer_warnings_is_empty_stub() {
-        let f = Function::new("::top", "entry");
-        assert!(find_shimmer_warnings(&f).is_empty());
-        assert!(find_thunking_warnings(&f).is_empty());
-    }
-
-    #[test]
-    fn type_name_is_lowercase() {
-        // `format!("{:?}", TclType::Int)` renders "Int" →
-        // lowercased to "int".
-        assert_eq!(type_name(TclType::Int), "int");
     }
 }
