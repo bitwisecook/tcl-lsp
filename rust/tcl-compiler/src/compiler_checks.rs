@@ -20,7 +20,9 @@ use crate::sccp::ConstantBranch;
 use crate::shimmer::{
     find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning,
 };
-use crate::taint::{find_setter_constraint_warnings, find_taint_warnings, TaintWarning};
+use crate::taint::{
+    find_setter_constraint_warnings, find_taint_warnings, is_irules_dialect, TaintWarning,
+};
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
@@ -214,13 +216,18 @@ pub fn run_all_checks(
         ) {
             out.push(Diagnostic::from_taint(&w));
         }
-        for w in find_setter_constraint_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.taints,
-            &fu.sccp.executable_blocks,
-        ) {
-            out.push(Diagnostic::from_taint(&w));
+        // IRULE3101 is iRules-only — keep it gated alongside IRULE3001-3004
+        // so non-iRules dialects don't see spurious errors from user
+        // commands that happen to be named `HTTP::uri` / `HTTP::path`.
+        if is_irules_dialect(dialect) {
+            for w in find_setter_constraint_warnings(
+                &fu.cfg,
+                &fu.ssa,
+                &fu.taints,
+                &fu.sccp.executable_blocks,
+            ) {
+                out.push(Diagnostic::from_taint(&w));
+            }
         }
         for w in find_path_concat_warnings(
             &fu.cfg,
@@ -320,6 +327,30 @@ mod tests {
             .unwrap_or_else(|| panic!("expected IRULE3102, got {diagnostics:?}"));
         assert_eq!(hit.category, "irules");
         assert_eq!(hit.severity, Severity::Warning);
+    }
+
+    #[test]
+    fn run_all_checks_irule3101_gated_by_dialect() {
+        // Regression: `HTTP::uri foo` is a non-slash-prefixed literal.
+        // Under `f5-irules` it should warn with IRULE3101; under plain
+        // Tcl it must stay silent (user-defined proc named "HTTP::uri"
+        // must not trigger a high-severity error).
+        let src = "HTTP::uri foo";
+
+        let irules_cu = CompilationUnit::build_for(src, &registry(), false)
+            .with_interprocedural(&registry(), Some("f5-irules"));
+        let irules_diags = run_all_checks(&irules_cu, &registry(), Some("f5-irules"));
+        assert!(
+            irules_diags.iter().any(|d| d.code == "IRULE3101"),
+            "expected IRULE3101 under f5-irules dialect, got {irules_diags:?}",
+        );
+
+        let plain_cu = CompilationUnit::build_for(src, &registry(), false);
+        let plain_diags = run_all_checks(&plain_cu, &registry(), None);
+        assert!(
+            plain_diags.iter().all(|d| d.code != "IRULE3101"),
+            "no IRULE3101 without dialect, got {plain_diags:?}",
+        );
     }
 
     #[test]

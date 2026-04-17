@@ -307,7 +307,11 @@ fn is_taint_source(
 }
 
 /// True when the supplied `dialect` enables iRules-specific taint rules.
-fn is_irules_dialect(dialect: Option<&str>) -> bool {
+///
+/// Exposed so adjacent check modules (`compiler_checks`, `irules_checks`)
+/// can gate their iRules-only diagnostics on the same predicate.
+#[must_use]
+pub fn is_irules_dialect(dialect: Option<&str>) -> bool {
     matches!(dialect, Some("f5-irules" | "irules"))
 }
 
@@ -2113,6 +2117,21 @@ mod tests {
         assert!(
             w.iter().any(|x| x.code == "IRULE3002"),
             "expected IRULE3002, got {w:?}"
+        );
+    }
+
+    #[test]
+    fn irule3002_fires_in_command_sub_form() {
+        // Regression: `set _ [HTTP::header insert X-Foo $v]` — sink is
+        // inside a command substitution, so the AssignValue branch must
+        // preserve the subcommand args so classify_irules_sink sees
+        // "insert" at arg-index 0.
+        let w = irules_warnings_for(
+            "set v [HTTP::header X-Src]\nset _ [HTTP::header insert X-Echo $v]",
+        );
+        assert!(
+            w.iter().any(|x| x.code == "IRULE3002"),
+            "expected IRULE3002 inside command-sub sink, got {w:?}"
         );
     }
 
