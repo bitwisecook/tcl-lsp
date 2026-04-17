@@ -863,6 +863,19 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_catch_set_ok_result": ("tcl", "catch_set_ok_result", [ValType.I32], []),
     # Interpreter fallback
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
+    # Namespace context for eval-fallback calls — compiled procs
+    # set the current namespace before ``tcl_eval`` so dynamic
+    # ``proc $name`` / ``variable $name`` inside the fallback
+    # qualify into the enclosing namespace instead of the global
+    # scope.  ``ns_set`` returns an opaque i64 save token;
+    # ``ns_restore`` unwinds it.
+    "tcl_ns_set": (
+        "tcl",
+        "ns_set",
+        [ValType.I32, ValType.I32],
+        [ValType.I64],
+    ),
+    "tcl_ns_restore": ("tcl", "ns_restore", [ValType.I64], []),
     # Frame stack (local variable scoping)
     "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
     "tcl_frame_pop": ("tcl", "frame_pop", [], []),
@@ -1794,6 +1807,8 @@ def _scan_needed_imports(
     # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
     needed.add("tcl_eval")
+    needed.add("tcl_ns_set")
+    needed.add("tcl_ns_restore")
     needed.add("tcl_diag_set")
     needed.add("tcl_global_set")
     needed.add("tcl_global_get")
@@ -3601,8 +3616,20 @@ class _WasmEmitter:
             self._emit_cmd_variable(args)
             return
 
-        # Scope declarations are NOPs in the WASM model
+        # Scope declarations are NOPs in the WASM model — EXCEPT when
+        # the proc / namespace command has a dynamic name that must be
+        # resolved at runtime (tcltest's ``Option`` does ``proc
+        # $varName body`` to install accessor procs, and the compile-
+        # time registry never learns about them).  Route those through
+        # the eval fallback so the interpreter's ``proc`` handler
+        # registers under the current namespace.
         if command in _SCOPE_NOP_COMMANDS:
+            if command == "proc" and args and (
+                args[0].startswith("$") or args[0].startswith("[")
+            ):
+                self._emit_eval_fallback(command, args)
+                self._emit(WasmOp.DROP)
+                return
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
@@ -3847,11 +3874,57 @@ class _WasmEmitter:
             # can see them via var_resolve.  Only pays at eval-fallback
             # sites — procs with no fallbacks get zero overhead.
             self._emit_frame_sync()
+            # Stamp the current namespace into the interpreter's ns
+            # register so dynamic ``proc $name body`` / ``variable
+            # $name`` inside the fallback qualify into the enclosing
+            # namespace instead of falling through to ``::``.  Only
+            # applies inside compiled procs that have a namespace
+            # other than global.
+            ns_saved_idx: int | None = None
+            if (
+                self._is_proc
+                and self._proc_namespace
+                and self._proc_namespace != "::"
+            ):
+                ns_set_idx = self._shared_imports.get("tcl_ns_set")
+                if ns_set_idx is not None:
+                    ns_saved_idx = self._add_extra_local(
+                        prefix="_ns_saved", val_type=ValType.I64
+                    )
+                    # ns name without the leading ``::`` — the
+                    # interpreter's qualify_name prepends ``::`` if
+                    # needed; keep the full ``::ns`` form for
+                    # consistency with how the compiler emits
+                    # qualified names elsewhere.
+                    ns_literal = self._proc_namespace
+                    # Stash namespace bytes in the data section and
+                    # push (ptr, len).  Reuse the string-constant
+                    # pool so multiple fallbacks in the same proc
+                    # share the bytes.
+                    offset = self._intern_string(ns_literal)
+                    encoded = ns_literal.encode("utf-8")
+                    self._emit_i32_const(offset + 4)
+                    self._emit_i32_const(len(encoded))
+                    self._emit_call(ns_set_idx)
+                    self._emit_local_set(ns_saved_idx)
             self._emit_obj_literal(script)
             self._emit_call(eval_idx)
             # Reload locals from frame — eval may have modified them (e.g.
             # ``set x 99``, writes through ``upvar`` aliases, ``unset``).
             self._emit_frame_readback()
+            # Restore the caller's namespace context.
+            if ns_saved_idx is not None:
+                ns_restore_idx = self._shared_imports.get("tcl_ns_restore")
+                if ns_restore_idx is not None:
+                    # Stash eval result before calling ns_restore
+                    # (which returns void) and put it back after.
+                    result_tmp = self._add_extra_local(
+                        prefix="_eval_result", val_type=ValType.I32
+                    )
+                    self._emit_local_set(result_tmp)
+                    self._emit_local_get(ns_saved_idx)
+                    self._emit_call(ns_restore_idx)
+                    self._emit_local_get(result_tmp)
             return
         # No interpreter available — hard trap
         fidx = self._shared_imports.get("tcl_error")

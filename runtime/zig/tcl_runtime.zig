@@ -313,4 +313,6 @@ comptime {
     _ = &tcl_array.array_names;
     // tcl_interp exports
     _ = &interp.tcl_eval;
+    _ = &interp.ns_set;
+    _ = &interp.ns_restore;
 }

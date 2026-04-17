@@ -549,7 +549,15 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "for")) return eval_for(words);
     if (str_eq(cmd, cmd_s.len, "foreach")) return eval_foreach(words);
     if (str_eq(cmd, cmd_s.len, "proc")) {
-        if (words.len >= 4) _ = procs.proc_register(words[1], words[2], words[3]);
+        if (words.len >= 4) {
+            // Resolve the registration name with respect to the
+            // current namespace (set by compiled procs before calling
+            // tcl_eval).  Unqualified names get the namespace prefix;
+            // ``::``-qualified names pass through verbatim so callers
+            // that explicitly name-space their defs still work.
+            const qname = qualify_name(words[1]);
+            _ = procs.proc_register(qname, words[2], words[3]);
+        }
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "eval")) {
@@ -886,6 +894,55 @@ fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
         if (a[i] != b[i]) return false;
     }
     return true;
+}
+
+/// Namespace context for eval-fallback calls.  Compiled procs set
+/// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
+/// commands like ``proc $varName body`` inside the fallback
+/// register in the enclosing namespace instead of the global scope.
+/// Zero means "no namespace context" — unqualified names stay
+/// unqualified.
+var current_ns_ptr: u32 = 0;
+var current_ns_len: u32 = 0;
+
+/// Set the current namespace (pointer + length into UTF-8 bytes).
+/// Returns a packed save value the caller should pass back to
+/// ``ns_restore`` to unwind — supports nesting without a heap stack.
+pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
+    const saved: i64 = (@as(i64, current_ns_ptr) << 32) | @as(i64, current_ns_len);
+    current_ns_ptr = @intCast(name_ptr);
+    current_ns_len = @intCast(name_len);
+    return saved;
+}
+
+/// Restore a saved namespace context, unwinding an ``ns_set`` pair.
+pub export fn ns_restore(saved: i64) void {
+    current_ns_ptr = @intCast((saved >> 32) & 0xFFFFFFFF);
+    current_ns_len = @intCast(saved & 0xFFFFFFFF);
+}
+
+/// If *name* (a TclObj) is unqualified (no leading ``::``) and a
+/// current namespace context is active, return a fresh TclObj
+/// holding ``<ns>::<name>``.  Otherwise return *name* unchanged.
+/// Used by the interpreter's ``proc`` / ``variable`` handlers to
+/// namespace-qualify dynamically constructed names.
+fn qualify_name(name: i32) i32 {
+    if (current_ns_ptr == 0 or current_ns_len == 0) return name;
+    const s = obj_ensure_string(name);
+    if (s.len == 0) return name;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Already qualified with ``::`` — leave alone.
+    if (s.len >= 2 and sp[0] == ':' and sp[1] == ':') return name;
+    // Build ``<ns>::<name>`` in the bump allocator.
+    const ns_ptr: [*]const u8 = @ptrFromInt(current_ns_ptr);
+    const total: u32 = current_ns_len + 2 + s.len;
+    const buf_addr: u32 = obj_mod.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    for (0..current_ns_len) |i| buf[i] = ns_ptr[i];
+    buf[current_ns_len] = ':';
+    buf[current_ns_len + 1] = ':';
+    for (0..s.len) |i| buf[current_ns_len + 2 + i] = sp[i];
+    return obj_mod.obj_new_string(@intCast(buf_addr), @intCast(total));
 }
 
 // -- upvar / uplevel helpers --
