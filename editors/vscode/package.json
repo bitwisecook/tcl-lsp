@@ -4383,6 +4383,15 @@
             "default": null,
             "markdownDescription": "**O127:** Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. (`null` = inherit from profile)",
             "order": 29
+          },
+          "tclLsp.optimiser.O128": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "markdownDescription": "**O128:** Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument. (`null` = inherit from profile)",
+            "order": 30
           }
         }
       },

@@ -86,7 +86,7 @@ class TestProfileSpec:
         spec = profile_spec(OptimisationProfile.READABILITY)
         assert spec.enabled_codes == READABILITY_CODES
         assert not spec.multi_pass
-        assert len(spec.enabled_codes) == 5
+        assert len(spec.enabled_codes) == 6
 
     def test_standard_includes_readability(self):
         spec = profile_spec(OptimisationProfile.STANDARD)
@@ -112,7 +112,7 @@ class TestProfileSpec:
 
     def test_standard_code_count(self):
         spec = profile_spec(OptimisationProfile.STANDARD)
-        assert len(spec.enabled_codes) == 16
+        assert len(spec.enabled_codes) == 17
 
 
 # ---------------------------------------------------------------------------

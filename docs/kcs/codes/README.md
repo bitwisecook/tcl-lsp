@@ -199,6 +199,7 @@ Populated in Phase 5.2.*
 - [O125 — code sinking](kcs-optimisation-o125-code-sinking.md)
 - [O126 — unused variable removal](kcs-optimisation-o126-unused-variable-removal.md)
 - [O127 — single-use inline](kcs-optimisation-o127-single-use-inline.md)
+- [O128 — end-offset index rewrite](kcs-optimisation-o128-end-offset-index.md)
 
 ## Internal codes
 
