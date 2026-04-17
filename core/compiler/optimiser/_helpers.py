@@ -353,6 +353,8 @@ def _select_non_overlapping_optimisations(optimisations: list[Optimisation]) -> 
 
 
 def _format_constant(value: object) -> str | None:
+    import math
+
     from ..tcl_expr_eval import format_tcl_value
 
     if isinstance(value, bool):
@@ -360,6 +362,11 @@ def _format_constant(value: object) -> str | None:
     if isinstance(value, int):
         return str(value)
     if isinstance(value, float):
+        # Never substitute a NaN constant into source — Tcl 9.0 raises
+        # ARITH DOMAIN for any expression that evaluates to NaN, so the
+        # optimiser must leave the expression for the runtime to reject.
+        if math.isnan(value):
+            return None
         return format_tcl_value(value)
     if isinstance(value, str):
         return value

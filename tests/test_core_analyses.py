@@ -80,6 +80,62 @@ if {$total > 5} {
         assert analysis.values[("c", 1)].kind is LatticeKind.CONST
         assert analysis.values[("c", 1)].value == 9
 
+    def test_sccp_does_not_propagate_nan_as_constant(self):
+        # Verified against tclsh 9.0.3: any expression that evaluates to
+        # NaN raises ARITH DOMAIN — so even if an input variable carries a
+        # NaN constant (e.g. produced by a future code path, a decoded
+        # literal, or an upstream analysis), the lattice evaluator must
+        # widen the expression to OVERDEFINED.  Otherwise downstream passes
+        # could substitute ``NaN`` into the source and defeat the runtime
+        # error.  This directly exercises the guard in
+        # ``_substitute_expr_with_lattice``.
+        import math
+
+        from core.compiler.core_analyses import (
+            LatticeValue,
+            _substitute_expr_with_lattice,
+        )
+        from core.compiler.expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar
+
+        # Evaluating ``$x + 0`` with lattice x=CONST(nan) must widen.
+        expr = ExprBinary(
+            op=BinOp.ADD,
+            left=ExprVar(text="$x", name="x", start=0, end=0),
+            right=ExprLiteral(text="0", start=0, end=0),
+        )
+        lv = _substitute_expr_with_lattice(
+            expr,
+            uses={"x": 1},
+            values={("x", 1): LatticeValue.const(math.nan)},
+        )
+        assert lv.kind is LatticeKind.OVERDEFINED
+
+        # Sanity: non-NaN constants still propagate.
+        lv_ok = _substitute_expr_with_lattice(
+            expr,
+            uses={"x": 1},
+            values={("x", 1): LatticeValue.const(5)},
+        )
+        assert lv_ok.kind is LatticeKind.CONST
+        assert lv_ok.value == 5
+
+    def test_format_constant_rejects_nan(self):
+        # Defensive guard in the optimiser's constant-to-source helper:
+        # a NaN float must never be formatted into a substitutable string,
+        # because substituting it would bypass Tcl 9.0.3's ARITH DOMAIN.
+        # (Non-NaN floats — Inf, -Inf, finite values — continue to format
+        # through ``format_tcl_value`` and are covered by its own tests.)
+        import math
+
+        from core.compiler.optimiser._helpers import _format_constant
+
+        assert _format_constant(math.nan) is None
+        assert _format_constant(-math.nan) is None
+        # Regular floats and ints still format to a non-None string.
+        assert _format_constant(42) == "42"
+        assert _format_constant(True) == "1"
+        assert _format_constant(False) == "0"
+
     def test_analysis_runs_for_lowered_procedures(self):
         source = """
 proc add_static {} {
