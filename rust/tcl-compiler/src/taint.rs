@@ -66,7 +66,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{cfg_order, SccpResult};
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 // ---------------------------------------------------------------------------
@@ -201,8 +201,7 @@ impl TaintLattice {
     #[must_use]
     pub fn join(self, other: Self) -> Self {
         let taint = (self.colours | other.colours) & TaintColour::TAINTED;
-        let mitigations =
-            (self.colours & other.colours) & !TaintColour::TAINTED;
+        let mitigations = (self.colours & other.colours) & !TaintColour::TAINTED;
         Self {
             colours: taint | mitigations,
         }
@@ -275,7 +274,7 @@ fn is_taint_source(
         "gets" | "read" | "exec" | "socket" => true,
         "chan" => {
             // chan gets / chan read are sources; chan puts, configure, etc. are not.
-            matches!(args.first().copied(), Some("gets") | Some("read"))
+            matches!(args.first().copied(), Some("gets" | "read"))
         }
         "encoding" => {
             // encoding convertfrom may decode attacker-controlled bytes.
@@ -508,6 +507,11 @@ fn evaluate_taint_def(
     taints: &HashMap<ValueKey, TaintLattice>,
     ctx: TaintCtx<'_>,
 ) -> TaintLattice {
+    // `AssignConst` is retained as an explicit arm despite sharing the
+    // wildcard's body: "constants are always clean" is a deliberate
+    // semantic statement, whereas the wildcard merely covers unhandled
+    // statement kinds conservatively.
+    #[allow(clippy::match_same_arms)]
     match stmt {
         // Constants are always clean.
         Statement::AssignConst { .. } => TaintLattice::clean(),
@@ -525,7 +529,12 @@ fn evaluate_taint_def(
         }
 
         // Generic call that defines variables.
-        Statement::Call { command, args, defs, .. } if !defs.is_empty() => {
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } if !defs.is_empty() => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             if is_sanitiser(ctx.registry, command, &arg_refs) {
                 return TaintLattice::clean();
@@ -639,11 +648,7 @@ fn reachable_writes_global(
                         }
                         if visited.insert(target) {
                             for c in &summary.calls {
-                                if ia
-                                    .procedures
-                                    .get(c)
-                                    .is_some_and(|s| s.writes_global)
-                                {
+                                if ia.procedures.get(c).is_some_and(|s| s.writes_global) {
                                     return true;
                                 }
                             }
@@ -751,9 +756,7 @@ pub fn propagate_taints(
         if reachable_writes_global(ssa, cfg, ia) {
             let globals = collect_global_reads(ssa);
             for name in globals {
-                taints
-                    .entry((name, 0))
-                    .or_insert(TaintLattice::tainted());
+                taints.entry((name, 0)).or_insert(TaintLattice::tainted());
             }
         }
     }
@@ -827,8 +830,7 @@ pub fn propagate_taints(
             for ssa_stmt in &ssa_block.statements {
                 let stmt = &ssa_stmt.statement;
                 for (var, &ver) in &ssa_stmt.defs {
-                    let mut inferred =
-                        evaluate_taint_def(stmt, &ssa_stmt.uses, &taints, ctx);
+                    let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &taints, ctx);
                     // Enrich the inferred taint with rendered-property
                     // colours when available.
                     if let Some(rp) = rendered_props {
@@ -865,13 +867,8 @@ pub fn propagate_taints(
 /// - **T100** — code-execution sinks (`eval`, `exec`, `uplevel`,
 ///   `subst`, `expr` via `EVALUATES_CODE` / `TAINT_SINK` traits).
 /// - **T101** — output sinks (`puts`).
-fn classify_sink(
-    registry: &CommandRegistry,
-    command: &str,
-) -> Option<(&'static str, String)> {
-    let Some(spec) = registry.get(command) else {
-        return None;
-    };
+fn classify_sink(registry: &CommandRegistry, command: &str) -> Option<(&'static str, String)> {
+    let spec = registry.get(command)?;
 
     // T100: dangerous code-execution sinks.
     if spec.traits.contains(Traits::EVALUATES_CODE) {
@@ -914,113 +911,148 @@ pub fn find_taint_warnings(
         };
 
         for ssa_stmt in &ssa_block.statements {
-            let stmt = &ssa_stmt.statement;
-            let span = stmt.span();
-
-            // AssignExpr / ExprEval: any tainted variable in the expression
-            // is a T100 violation (direct expr injection).
-            match stmt {
-                Statement::AssignExpr { .. } | Statement::ExprEval { .. } => {
-                    for (name, &ver) in &ssa_stmt.uses {
-                        if ver == 0 {
-                            continue;
-                        }
-                        let t = taints
-                            .get(&(name.clone(), ver))
-                            .copied()
-                            .unwrap_or(TaintLattice::clean());
-                        if t.is_tainted() {
-                            warnings.push(TaintWarning {
-                                span,
-                                variable: name.clone(),
-                                sink_command: "expr".to_owned(),
-                                code: "T100".to_owned(),
-                                message: format!(
-                                    "Tainted variable ${name} used in expr; \
-                                     possible code injection"
-                                ),
-                            });
-                        }
-                    }
-                    continue;
-                }
-                _ => {}
-            }
-
-            // For Call / Barrier / AssignValue (command sub): classify sink.
-            let command = match stmt {
-                Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-                    command.as_str()
-                }
-                Statement::AssignValue { value, .. } => {
-                    let stripped = value.trim();
-                    if stripped.starts_with('[') && stripped.ends_with(']') {
-                        let inner = stripped[1..stripped.len() - 1].trim();
-                        inner.split_ascii_whitespace().next().unwrap_or("")
-                    } else {
-                        continue;
-                    }
-                }
-                _ => continue,
-            };
-
-            // T102: option injection — only for Call statements.
-            if let Statement::Call { args, .. } = stmt {
-                emit_option_injection(
-                    command,
-                    args,
-                    &ssa_stmt.uses,
-                    taints,
-                    span,
-                    registry,
-                    &mut warnings,
-                );
-            }
-
-            let Some((code, sink_label)) = classify_sink(registry, command) else {
-                continue;
-            };
-
-            // Check each used variable for taint.
-            let mut emitted: HashSet<String> = HashSet::new();
-            for (name, &ver) in &ssa_stmt.uses {
-                if ver == 0 {
-                    continue;
-                }
-                if emitted.contains(name) {
-                    continue;
-                }
-                let t = taints
-                    .get(&(name.clone(), ver))
-                    .copied()
-                    .unwrap_or(TaintLattice::clean());
-                if !t.is_tainted() {
-                    continue;
-                }
-                let message = match code {
-                    "T100" => format!(
-                        "Tainted variable ${name} flows into {sink_label}; \
-                         possible code injection"
-                    ),
-                    "T101" => format!(
-                        "Tainted variable ${name} flows into {sink_label}; \
-                         output may contain injected content"
-                    ),
-                    _ => format!("Tainted variable ${name} flows into {sink_label}"),
-                };
-                warnings.push(TaintWarning {
-                    span,
-                    variable: name.clone(),
-                    sink_command: sink_label.clone(),
-                    code: code.to_owned(),
-                    message,
-                });
-                emitted.insert(name.clone());
-            }
+            emit_statement_warnings(ssa_stmt, taints, registry, &mut warnings);
         }
     }
 
     warnings
+}
+
+/// Emit taint warnings for a single SSA statement.
+///
+/// Handles three cases:
+/// - `AssignExpr` / `ExprEval`: any tainted use is a T100 injection.
+/// - `Call` / `Barrier` / `AssignValue` with `[cmd ...]`: classify as a
+///   sink via the registry and emit T100/T101 per tainted use.
+/// - `Call`: additionally emits T102 option-injection warnings.
+fn emit_statement_warnings(
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    registry: &CommandRegistry,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let stmt = &ssa_stmt.statement;
+    let span = stmt.span();
+
+    // AssignExpr / ExprEval: any tainted variable in the expression
+    // is a T100 violation (direct expr injection).
+    if matches!(
+        stmt,
+        Statement::AssignExpr { .. } | Statement::ExprEval { .. }
+    ) {
+        emit_expr_warnings(&ssa_stmt.uses, taints, span, warnings);
+        return;
+    }
+
+    // For Call / Barrier / AssignValue (command sub): classify sink.
+    let command = match stmt {
+        Statement::Call { command, .. } | Statement::Barrier { command, .. } => command.as_str(),
+        Statement::AssignValue { value, .. } => {
+            let stripped = value.trim();
+            if stripped.starts_with('[') && stripped.ends_with(']') {
+                let inner = stripped[1..stripped.len() - 1].trim();
+                inner.split_ascii_whitespace().next().unwrap_or("")
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+
+    // T102: option injection — only for Call statements.
+    if let Statement::Call { args, .. } = stmt {
+        emit_option_injection(
+            command,
+            args,
+            &ssa_stmt.uses,
+            taints,
+            span,
+            registry,
+            warnings,
+        );
+    }
+
+    let Some((code, sink_label)) = classify_sink(registry, command) else {
+        return;
+    };
+
+    emit_sink_warnings(&ssa_stmt.uses, taints, span, code, &sink_label, warnings);
+}
+
+/// Emit T100 warnings for every tainted use in an expression context.
+fn emit_expr_warnings(
+    uses: &HashMap<String, u32>,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    span: Span,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    for (name, &ver) in uses {
+        if ver == 0 {
+            continue;
+        }
+        let t = taints
+            .get(&(name.clone(), ver))
+            .copied()
+            .unwrap_or(TaintLattice::clean());
+        if t.is_tainted() {
+            warnings.push(TaintWarning {
+                span,
+                variable: name.clone(),
+                sink_command: "expr".to_owned(),
+                code: "T100".to_owned(),
+                message: format!(
+                    "Tainted variable ${name} used in expr; \
+                     possible code injection"
+                ),
+            });
+        }
+    }
+}
+
+/// Emit one warning per tainted use flowing into a classified sink.
+///
+/// Deduplicates on variable name so the same variable appearing multiple
+/// times in `uses` only produces one warning.
+fn emit_sink_warnings(
+    uses: &HashMap<String, u32>,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    span: Span,
+    code: &str,
+    sink_label: &str,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let mut emitted: HashSet<String> = HashSet::new();
+    for (name, &ver) in uses {
+        if ver == 0 || emitted.contains(name) {
+            continue;
+        }
+        let t = taints
+            .get(&(name.clone(), ver))
+            .copied()
+            .unwrap_or(TaintLattice::clean());
+        if !t.is_tainted() {
+            continue;
+        }
+        let message = match code {
+            "T100" => format!(
+                "Tainted variable ${name} flows into {sink_label}; \
+                 possible code injection"
+            ),
+            "T101" => format!(
+                "Tainted variable ${name} flows into {sink_label}; \
+                 output may contain injected content"
+            ),
+            _ => format!("Tainted variable ${name} flows into {sink_label}"),
+        };
+        warnings.push(TaintWarning {
+            span,
+            variable: name.clone(),
+            sink_command: sink_label.to_owned(),
+            code: code.to_owned(),
+            message,
+        });
+        emitted.insert(name.clone());
+    }
 }
 
 /// Emit T102 warnings for option injection into a `WARN_WITHOUT_TERMINATOR` command.
@@ -1042,7 +1074,9 @@ fn emit_option_injection(
     registry: &CommandRegistry,
     warnings: &mut Vec<TaintWarning>,
 ) {
-    let Some(spec) = registry.get(command) else { return };
+    let Some(spec) = registry.get(command) else {
+        return;
+    };
     if !spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR) {
         return;
     }
@@ -1099,7 +1133,7 @@ mod tests {
     fn simple_sccp(blocks: &[&str]) -> SccpResult {
         SccpResult {
             values: HashMap::new(),
-            executable_blocks: blocks.iter().map(|s| s.to_string()).collect(),
+            executable_blocks: blocks.iter().copied().map(String::from).collect(),
             executable_edges: HashSet::new(),
             constant_branches: Vec::new(),
         }
@@ -1167,7 +1201,11 @@ mod tests {
             tokens: None,
         };
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().statements.push(stmt.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(stmt.clone());
         cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
@@ -1204,7 +1242,7 @@ mod tests {
         assert!(
             taints
                 .get(&("x".to_string(), 1))
-                .map_or(false, |t| t.is_tainted()),
+                .is_some_and(|t| t.is_tainted()),
             "gets stdin result should be tainted"
         );
     }
@@ -1237,8 +1275,16 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().statements.push(assign.clone());
-        cfg.blocks.get_mut("entry").unwrap().statements.push(eval_call.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(assign.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(eval_call.clone());
         cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
@@ -1281,7 +1327,9 @@ mod tests {
         let warnings = find_taint_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry);
 
         assert!(
-            warnings.iter().any(|w| w.code == "T100" && w.variable == "x"),
+            warnings
+                .iter()
+                .any(|w| w.code == "T100" && w.variable == "x"),
             "expected T100 for tainted $x passed to eval, got {warnings:?}"
         );
     }
@@ -1372,8 +1420,16 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().statements.push(assign.clone());
-        cfg.blocks.get_mut("entry").unwrap().statements.push(regexp_call.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(assign.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(regexp_call.clone());
         cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
@@ -1416,7 +1472,9 @@ mod tests {
         let warnings = find_taint_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry);
 
         assert!(
-            warnings.iter().any(|w| w.code == "T102" && w.variable == "pattern"),
+            warnings
+                .iter()
+                .any(|w| w.code == "T102" && w.variable == "pattern"),
             "expected T102 for tainted $pattern passed to regexp, got {warnings:?}"
         );
     }
@@ -1450,8 +1508,16 @@ mod tests {
         };
 
         let mut cfg = Function::new("::top", "entry");
-        cfg.blocks.get_mut("entry").unwrap().statements.push(assign.clone());
-        cfg.blocks.get_mut("entry").unwrap().statements.push(regexp_call.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(assign.clone());
+        cfg.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(regexp_call.clone());
         cfg.blocks.get_mut("entry").unwrap().terminator = Some(Terminator::Return {
             value: None,
             span: None,
@@ -1494,7 +1560,10 @@ mod tests {
         let warnings = find_taint_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry);
 
         let t102: Vec<_> = warnings.iter().filter(|w| w.code == "T102").collect();
-        assert!(t102.is_empty(), "expected no T102 when '--' terminator present, got {t102:?}");
+        assert!(
+            t102.is_empty(),
+            "expected no T102 when '--' terminator present, got {t102:?}"
+        );
     }
 
     /// Taint propagates through an interpolated-string word that embeds a
@@ -1530,8 +1599,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         // Without the dialect: HTTP::uri is unknown → not a source.
-        let cu =
-            CompilationUnit::build_for("set u [HTTP::uri]", &registry, false);
+        let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry, false);
         let fu = cu.function("::top").unwrap();
         assert!(
             !fu.taints
@@ -1546,7 +1614,9 @@ mod tests {
             .with_interprocedural(&registry, Some("f5-irules"));
         let fu = cu.function("::top").unwrap();
         assert!(
-            fu.taints.iter().any(|((n, _), t)| n == "u" && t.is_tainted()),
+            fu.taints
+                .iter()
+                .any(|((n, _), t)| n == "u" && t.is_tainted()),
             "under f5-irules, HTTP::uri should be a taint source",
         );
     }

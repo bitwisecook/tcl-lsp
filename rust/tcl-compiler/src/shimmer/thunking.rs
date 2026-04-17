@@ -62,9 +62,7 @@ pub fn find_thunking_warnings(
                 targets.iter().any(|t| t == *bn) && !loop_blocks.contains(pred)
             });
             let has_back = succs.iter().any(|(pred, targets)| {
-                targets.iter().any(|t| t == *bn)
-                    && loop_blocks.contains(pred)
-                    && pred != *bn
+                targets.iter().any(|t| t == *bn) && loop_blocks.contains(pred) && pred != *bn
             });
             has_entry && has_back
         })
@@ -90,13 +88,11 @@ pub fn find_thunking_warnings(
             if lattice.kind != TypeKind::Shimmered {
                 continue;
             }
-            let type_a = match lattice.from_type {
-                Some(t) => t,
-                None => continue,
+            let Some(type_a) = lattice.from_type else {
+                continue;
             };
-            let type_b = match lattice.tcl_type {
-                Some(t) => t,
-                None => continue,
+            let Some(type_b) = lattice.tcl_type else {
+                continue;
             };
 
             let span = phi_span(phi, ssa, &def_map);
@@ -151,12 +147,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-        );
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty(), "unexpected thunking warnings: {w:?}");
     }
 
@@ -165,27 +156,16 @@ mod tests {
     fn thunking_empty_source() {
         let cu = CompilationUnit::build_for("", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-        );
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty());
     }
 
     /// A while loop with no variables — no thunking.
     #[test]
     fn no_thunking_for_no_loop_variables() {
-        let cu =
-            CompilationUnit::build_for("while {1} { puts \"hello\" }", &registry(), false);
+        let cu = CompilationUnit::build_for("while {1} { puts \"hello\" }", &registry(), false);
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-        );
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         assert!(w.is_empty(), "unexpected thunking: {w:?}");
     }
 
@@ -202,12 +182,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::top").unwrap();
-        let w = find_thunking_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-        );
+        let w = find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
         let has_thunking = w.iter().any(|tw| tw.variable == "x" && tw.code == "S102");
         assert!(
             has_thunking,

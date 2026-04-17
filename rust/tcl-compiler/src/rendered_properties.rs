@@ -94,9 +94,7 @@ impl RenderedProperties {
 
     /// Mask of provenance bits.
     pub const PROVENANCE_MASK: Self = Self::from_bits_truncate(
-        Self::WAS_UNESCAPED.bits()
-            | Self::DOUBLE_UNESCAPED.bits()
-            | Self::FULLY_NORMALISED.bits(),
+        Self::WAS_UNESCAPED.bits() | Self::DOUBLE_UNESCAPED.bits() | Self::FULLY_NORMALISED.bits(),
     );
 
     /// Mask of "must"-join properties.
@@ -255,8 +253,7 @@ fn is_normalised_getter(registry: &CommandRegistry, command: &str, args: &[&str]
     let Some(spec) = registry.get(command) else {
         return false;
     };
-    spec.traits.contains(Traits::UNNORMALISED_HTTP_GETTER)
-        && args.contains(&"-normalized")
+    spec.traits.contains(Traits::UNNORMALISED_HTTP_GETTER) && args.contains(&"-normalized")
 }
 
 // ---------------------------------------------------------------------------
@@ -295,71 +292,20 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
         match bytes[i] {
             b'$' => {
                 may |= RenderedProperties::HAS_INTERPOLATION;
-                if !leading_resolved {
-                    leading_resolved = true;
-                }
-                // Skip over the variable reference.
-                i += 1;
-                if i < bytes.len() && bytes[i] == b'{' {
-                    i += 1;
-                    while i < bytes.len() && bytes[i] != b'}' {
-                        i += 1;
-                    }
-                    if i < bytes.len() {
-                        i += 1; // consume '}'
-                    }
-                } else {
-                    while i < bytes.len() {
-                        let b = bytes[i];
-                        if b.is_ascii_alphanumeric() || b == b'_' {
-                            i += 1;
-                        } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
-                            i += 2;
-                        } else {
-                            break;
-                        }
-                    }
-                }
+                leading_resolved = true;
+                i = skip_variable_ref(bytes, i);
             }
             b'[' => {
                 may |= RenderedProperties::HAS_INTERPOLATION;
-                if !leading_resolved {
-                    leading_resolved = true;
-                }
-                // Skip the bracketed command sub (no nesting tracked).
-                i += 1;
-                while i < bytes.len() && bytes[i] != b']' {
-                    i += 1;
-                }
-                if i < bytes.len() {
-                    i += 1; // consume ']'
-                }
+                leading_resolved = true;
+                i = skip_command_sub(bytes, i);
             }
             b'\\' => {
-                may |= RenderedProperties::HAS_BACKSLASH;
-                if i + 1 < bytes.len() {
-                    let esc = bytes[i + 1];
-                    // Recognise a handful of mapped escapes.
-                    if matches!(esc, b'n' | b'r') {
-                        may |= RenderedProperties::HAS_CRLF;
-                    } else if esc == b'0' {
-                        may |= RenderedProperties::HAS_NULL;
-                    }
-                    // Rendered-text starts-with: take the escaped
-                    // char as the first char when it is a mapped
-                    // escape producing a printable char.
-                    if !leading_resolved {
-                        match esc {
-                            b'/' => must |= RenderedProperties::STARTS_WITH_SLASH,
-                            b'-' => must |= RenderedProperties::STARTS_WITH_DASH,
-                            _ => {}
-                        }
-                        leading_resolved = true;
-                    }
-                    i += 2;
-                } else {
-                    i += 1;
-                }
+                let escape = scan_escape(bytes, i, leading_resolved);
+                may |= escape.may_add;
+                must |= escape.must_add;
+                leading_resolved |= escape.starts_leading;
+                i += escape.advance;
             }
             b'/' => {
                 may |= RenderedProperties::HAS_FORWARD_SLASH;
@@ -378,32 +324,111 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
             }
             b'\r' | b'\n' => {
                 may |= RenderedProperties::HAS_CRLF;
-                if !leading_resolved {
-                    leading_resolved = true;
-                }
+                leading_resolved = true;
                 i += 1;
             }
             0 => {
                 may |= RenderedProperties::HAS_NULL;
-                if !leading_resolved {
-                    leading_resolved = true;
-                }
+                leading_resolved = true;
                 i += 1;
             }
+            // Delimiters — don't contribute a content char but keep scanning.
             b'"' | b'{' | b'}' => {
-                // Delimiters — don't contribute a content char but
-                // keep scanning.
                 i += 1;
             }
             _ => {
-                if !leading_resolved {
-                    leading_resolved = true;
-                }
+                leading_resolved = true;
                 i += 1;
             }
         }
     }
     RenderedValueProps { may, must }
+}
+
+/// Skip past `$name` or `${...}` starting at the `$` byte.
+fn skip_variable_ref(bytes: &[u8], start: usize) -> usize {
+    let mut i = start + 1;
+    if i < bytes.len() && bytes[i] == b'{' {
+        i += 1;
+        while i < bytes.len() && bytes[i] != b'}' {
+            i += 1;
+        }
+        if i < bytes.len() {
+            i += 1; // consume '}'
+        }
+        return i;
+    }
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b.is_ascii_alphanumeric() || b == b'_' {
+            i += 1;
+        } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
+            i += 2;
+        } else {
+            break;
+        }
+    }
+    i
+}
+
+/// Skip past `[...]` command substitution starting at the `[` byte.
+/// Nesting is not tracked — downstream passes that care about exact
+/// boundaries must re-lex.
+fn skip_command_sub(bytes: &[u8], start: usize) -> usize {
+    let mut i = start + 1;
+    while i < bytes.len() && bytes[i] != b']' {
+        i += 1;
+    }
+    if i < bytes.len() {
+        i += 1; // consume ']'
+    }
+    i
+}
+
+/// Analyse the backslash escape starting at `bytes[start]`.
+struct EscapeScan {
+    advance: usize,
+    may_add: RenderedProperties,
+    must_add: RenderedProperties,
+    starts_leading: bool,
+}
+
+fn scan_escape(bytes: &[u8], start: usize, leading_resolved: bool) -> EscapeScan {
+    let mut may_add = RenderedProperties::HAS_BACKSLASH;
+    let mut must_add = RenderedProperties::NONE;
+
+    let Some(&esc) = bytes.get(start + 1) else {
+        return EscapeScan {
+            advance: 1,
+            may_add,
+            must_add,
+            starts_leading: false,
+        };
+    };
+
+    // Recognise a handful of mapped escapes.
+    if matches!(esc, b'n' | b'r') {
+        may_add |= RenderedProperties::HAS_CRLF;
+    } else if esc == b'0' {
+        may_add |= RenderedProperties::HAS_NULL;
+    }
+
+    // Rendered-text starts-with: take the escaped char as the first
+    // char when it is a mapped escape producing a printable char.
+    if !leading_resolved {
+        match esc {
+            b'/' => must_add |= RenderedProperties::STARTS_WITH_SLASH,
+            b'-' => must_add |= RenderedProperties::STARTS_WITH_DASH,
+            _ => {}
+        }
+    }
+
+    EscapeScan {
+        advance: 2,
+        may_add,
+        must_add,
+        starts_leading: true,
+    }
 }
 
 /// Compute rendered properties for an `AssignValue` RHS word.
@@ -515,8 +540,7 @@ fn evaluate_call(
     // Track unescape provenance across SSA.
     if is_unescape_command(registry, command, &arg_refs) {
         let input_may = collect_use_may(uses, props);
-        let mut result_may =
-            RenderedProperties::MAY_MASK | RenderedProperties::WAS_UNESCAPED;
+        let mut result_may = RenderedProperties::MAY_MASK | RenderedProperties::WAS_UNESCAPED;
         if input_may.contains(RenderedProperties::WAS_UNESCAPED)
             && !input_may.contains(RenderedProperties::FULLY_NORMALISED)
         {
@@ -563,9 +587,12 @@ fn evaluate_def(
                 must: RenderedProperties::NONE,
             }
         }
-        Statement::Call { command, args, defs, .. } if !defs.is_empty() => {
-            evaluate_call(command, args, uses, props, registry)
-        }
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } if !defs.is_empty() => evaluate_call(command, args, uses, props, registry),
         // Barriers / anything else we can't reason about → top.
         _ => RenderedValueProps::top(),
     }
@@ -597,9 +624,9 @@ pub fn propagate_rendered_props(
     let mut props: HashMap<ValueKey, RenderedValueProps> = HashMap::new();
 
     let set_props = |map: &mut HashMap<ValueKey, RenderedValueProps>,
-                         key: ValueKey,
-                         candidate: RenderedValueProps,
-                         changed: &mut bool| {
+                     key: ValueKey,
+                     candidate: RenderedValueProps,
+                     changed: &mut bool| {
         let old = map.get(&key).copied().unwrap_or_default();
         let merged = rendered_join(old, candidate);
         if merged != old {
@@ -822,11 +849,8 @@ mod tests {
 
     #[test]
     fn pure_var_ref_inherits_props() {
-        let cu = CompilationUnit::build_for(
-            "set path /etc/hosts\nset copy $path",
-            &registry(),
-            false,
-        );
+        let cu =
+            CompilationUnit::build_for("set path /etc/hosts\nset copy $path", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let copy = fu
             .rendered_props
@@ -842,11 +866,7 @@ mod tests {
         let cu = CompilationUnit::build_for("set n [expr {1 + 2}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         // n should have neither forward slash nor starts-with bits.
-        if let Some(((_, _), p)) = fu
-            .rendered_props
-            .iter()
-            .find(|((n, _), _)| n == "n")
-        {
+        if let Some(((_, _), p)) = fu.rendered_props.iter().find(|((n, _), _)| n == "n") {
             assert!(!p.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
             assert!(!p.must.contains(RenderedProperties::STARTS_WITH_DASH));
         }
