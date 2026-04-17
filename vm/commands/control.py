@@ -397,7 +397,7 @@ def _cmd_while(interp: TclInterp, args: list[str]) -> TclResult:
 
 def _cmd_foreach(interp: TclInterp, args: list[str]) -> TclResult:
     """foreach varList list ?varList list ...? command"""
-    if len(args) < 3 or len(args) % 2 == 0:
+    if len(args) < 3 or not len(args) & 1:
         raise TclError('wrong # args: should be "foreach varList list ?varList list ...? command"')
 
     body = args[-1]
@@ -440,7 +440,7 @@ def _cmd_lmap(interp: TclInterp, args: list[str]) -> TclResult:
 
     Like foreach, but collects each body result into a list.
     """
-    if len(args) < 3 or len(args) % 2 == 0:
+    if len(args) < 3 or not len(args) & 1:
         raise TclError('wrong # args: should be "lmap varList list ?varList list ...? command"')
 
     body = args[-1]
@@ -528,7 +528,7 @@ def _cmd_switch(interp: TclInterp, args: list[str]) -> TclResult:
         pairs_list = _split_list(remaining[0])
         remaining = pairs_list
 
-    if len(remaining) % 2 != 0:
+    if len(remaining) & 1:
         raise TclError("extra switch pattern with no body")
 
     # The last body must not be a fall-through

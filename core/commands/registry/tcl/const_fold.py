@@ -308,7 +308,7 @@ def fold_string_map(args: tuple[str, ...]) -> str | None:
         return None
     mapping_str, s = args[i], args[i + 1]
     pairs = _split_list(mapping_str)
-    if pairs is None or len(pairs) % 2 != 0:
+    if pairs is None or len(pairs) & 1:
         return None
     # Build replacement pairs
     replacements = [(pairs[j], pairs[j + 1]) for j in range(0, len(pairs), 2)]
@@ -486,7 +486,7 @@ def fold_string_wordstart(args: tuple[str, ...]) -> str | None:
 
 def fold_dict_create(args: tuple[str, ...]) -> str | None:
     """``dict create ?key value ...?``"""
-    if len(args) % 2 != 0:
+    if len(args) & 1:
         return None
     return " ".join(args)
 
@@ -613,7 +613,7 @@ def _split_list(s: str) -> list[str] | None:
 def _parse_dict(s: str) -> dict[str, str] | None:
     """Parse a flat Tcl dict string into a Python dict."""
     elements = _split_list(s)
-    if elements is None or len(elements) % 2 != 0:
+    if elements is None or len(elements) & 1:
         return None
     return {elements[i]: elements[i + 1] for i in range(0, len(elements), 2)}
 

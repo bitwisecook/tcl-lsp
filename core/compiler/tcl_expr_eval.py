@@ -442,7 +442,7 @@ def _tcl_pow(a: TclValue, b: TclValue) -> TclValue | None:
     if a == 1:
         return 1
     if a == -1:
-        return -1 if b % 2 else 1
+        return -1 if b & 1 else 1
 
     if b < 0:
         return 0  # Tcl: |base| > 1, negative exponent → integer 0
