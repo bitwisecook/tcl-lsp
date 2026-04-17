@@ -9,6 +9,12 @@ from ...parsing.tokens import Token
 from ..irules_checks import check_deprecated_event as check_deprecated_irules_event
 from ..irules_checks import check_when_missing_priority
 from ..semantic_model import Diagnostic
+from ._bounds import (
+    check_list_index_out_of_range,
+    check_loop_termination,
+    check_lset_index_out_of_range,
+    check_string_index_out_of_range,
+)
 from ._domain import (
     check_deprecated_irules_command,
     check_disabled_command,
@@ -57,6 +63,10 @@ _CheckFn = type(check_non_ascii)
 # All checks that run on every command.  Each function has the signature:
 #   (cmd_name, args, arg_tokens, all_tokens, source) -> list[Diagnostic]
 ALL_CHECKS = [
+    check_list_index_out_of_range,
+    check_lset_index_out_of_range,
+    check_string_index_out_of_range,
+    check_loop_termination,
     check_disabled_command,
     check_deprecated_irules_command,
     check_unsafe_irules_command,
@@ -142,6 +152,7 @@ _TRAIT_CHECK_MAP: list[tuple[str, _CheckFn]] = [
     ("is_irules_event_handler", check_deprecated_irules_event),
     ("is_irules_event_handler", check_when_missing_priority),
     ("has_loop_body", check_loop_bound_inequality),
+    ("has_loop_body", check_loop_termination),
     ("configures_channel", check_encoding_mismatch),
     ("has_interp_eval", check_interp_eval_injection),
     ("is_unnormalized_http_getter", check_irules_unnormalized_http_getter),
@@ -155,6 +166,9 @@ _PATTERN_CHECKS: list[tuple[frozenset[str], _CheckFn]] = [
     (frozenset({"regexp", "regsub", "switch"}), check_redos),
     (frozenset({"regexp", "regsub", "class"}), check_literal_expected),
     (frozenset({"binary"}), check_binary_format_modifiers),
+    (frozenset({"lindex", "lrange", "linsert", "lreplace"}), check_list_index_out_of_range),
+    (frozenset({"lset"}), check_lset_index_out_of_range),
+    (frozenset({"string"}), check_string_index_out_of_range),
 ]
 
 _targeted_checks: dict[str, list[_CheckFn]] = {}

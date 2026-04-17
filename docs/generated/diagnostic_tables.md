@@ -30,6 +30,11 @@
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
+| W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
+| W231 | warning | Constant list index out of range — lset raises a runtime error. | ✓ |
+| W232 | warning | Constant string index out of range — string index/range/replace/insert silently return empty or no-op. | ✓ |
+| W240 | warning | Loop condition is a constant false — body never executes. | ✓ |
+| W241 | warning | Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step. | ✓ |
 | W210 | variable | Variable read before set. | ✓ |
 | W211 | variable | Variable set but never used. | ✓ |
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |
@@ -51,6 +56,7 @@
 | W313 | security | Destructive file operation with variable path — path-traversal risk. | ✓ |
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
 | W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✗ |
+| W242 | hint | Loop termination cannot be proven — counter not provably modified by the loop body or step. | ✗ |
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |
 | S102 | shimmer | Variable oscillates between two types across loop iterations. | ✓ |
