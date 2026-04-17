@@ -88,6 +88,7 @@ pub mod lowering_hooks;
 pub mod memory_ssa;
 pub mod naming;
 pub mod optimiser;
+pub mod path_concat;
 pub mod rendered_properties;
 pub mod sccp;
 pub mod segmenter;

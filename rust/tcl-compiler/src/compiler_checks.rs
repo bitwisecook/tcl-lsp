@@ -14,6 +14,7 @@ use tcl_lexer::Span;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
+use crate::path_concat::{find_path_concat_warnings, PathConcatWarning};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning};
 use crate::taint::{find_taint_warnings, TaintWarning};
@@ -110,6 +111,16 @@ impl Diagnostic {
             message: r.message.clone(),
         }
     }
+
+    fn from_path_concat(w: &PathConcatWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code.clone(),
+            category: "taint".into(),
+            severity: Severity::Warning,
+            message: w.message.clone(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +193,15 @@ pub fn run_all_checks(
         ) {
             out.push(Diagnostic::from_taint(&w));
         }
+        for w in find_path_concat_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.rendered_props,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+        ) {
+            out.push(Diagnostic::from_path_concat(&w));
+        }
     }
 
     out
@@ -226,5 +246,22 @@ mod tests {
         let d = Diagnostic::from_redundant(&r);
         assert_eq!(d.code, "O105");
         assert_eq!(d.category, "gvn");
+    }
+
+    #[test]
+    fn run_all_checks_reports_w201_path_concat() {
+        let cu = CompilationUnit::build_for(
+            "set x 42\nset p \"/tmp/$x\"",
+            &registry(),
+            false,
+        );
+        let diagnostics = run_all_checks(&cu, &registry(), None);
+        let has_w201 = diagnostics
+            .iter()
+            .any(|d| d.code == "W201" && d.category == "taint");
+        assert!(
+            has_w201,
+            "expected W201 path-concat diagnostic, got {diagnostics:?}",
+        );
     }
 }
