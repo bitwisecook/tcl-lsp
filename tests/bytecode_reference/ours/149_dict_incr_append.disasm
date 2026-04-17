@@ -1,0 +1,59 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    set d [dict create count 0 log ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set d [dict create count 0 log ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 27 instructions, 100 bytes, 5 literals, 1 variables
+  Literals:
+    0: "count 0 log {}"
+    1: "count"
+    2: "log"
+    3: "entry1 "
+    4: "entry2"
+  Local variables:
+    %v0: "d"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "count 0 log {}"
+    (2) dup
+    (3) verifyDict
+    (4) storeScalar1 %v0	# var "d"
+    (6) pop
+    (7) startCommand +20 1	# next cmd at pc 27, 1 cmds start here
+    (16) push1 1	# "count"
+    (18) dictIncrImm +1 %v0	# var "d"
+  # cmd_end_1:
+    (27) pop
+    (28) startCommand +20 1	# next cmd at pc 48, 1 cmds start here
+    (37) push1 1	# "count"
+    (39) dictIncrImm +5 %v0	# var "d"
+  # cmd_end_2:
+    (48) pop
+    (49) startCommand +18 1	# next cmd at pc 67, 1 cmds start here
+    (58) push1 2	# "log"
+    (60) push1 3	# "entry1 "
+    (62) dictAppend %v0	# var "d"
+  # cmd_end_3:
+    (67) pop
+    (68) startCommand +18 1	# next cmd at pc 86, 1 cmds start here
+    (77) push1 2	# "log"
+    (79) push1 4	# "entry2"
+    (81) dictAppend %v0	# var "d"
+  # cmd_end_4:
+    (86) pop
+    (87) startCommand +12 1	# next cmd at pc 99, 1 cmds start here
+    (96) loadScalar1 %v0	# var "d"
+    (98) done
+  # ret_end_5:
+    (99) done

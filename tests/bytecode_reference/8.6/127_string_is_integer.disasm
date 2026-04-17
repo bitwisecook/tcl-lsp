@@ -1,0 +1,31 @@
+ByteCode 0x0x8f64b5010, refCt 1, epoch 17, interp 0x0x8f6c28010 (epoch 17)
+  Source "proc check {val} {\n    string is integer -strict $val\n..."
+  Cmds 1, src 56, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-54
+  Command 1: "proc check {val} {\n    string is integer -strict $val\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "check"
+    (4) push1 2 	# "val"
+    (6) push1 3 	# "\n    string is integer -strict $val..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x8f64b5510, refCt 1, epoch 72, interp 0x0x8f647e010 (epoch 72)
+  Source "\n    string is integer -strict $val..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 36, inst 10, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x8f64a6390, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "val"
+  Commands 1:
+      1: pc 0-8, src 5-34
+  Command 1: "string is integer -strict $val..."
+    (0) loadScalar1 %v0 	# var "val"
+    (2) numericType 
+    (3) dup 
+    (4) jumpFalse1 +5 	# pc 9
+    (6) push1 0 	# "1"
+    (8) eq 
+    (9) done 
+

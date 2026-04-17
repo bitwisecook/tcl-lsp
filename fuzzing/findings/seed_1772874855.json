@@ -1,0 +1,24 @@
+{
+  "seed": 1772874855,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {(abs($a) * -42)} {\n                append buf ut\n                append i 1\n            } else {\n                set key yh\n                append...\"\n    (\"while\" body line 102)\n    invoked from within\n\"while {$buf < 5} {\n    expr {68.14}\n    switch -- -837 {\n        55 {\n            append buf 42\n            append buf true\n            lrange {0 6 0 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp0bcu2e7d.tcl\" line 2"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"a\": no such variable\n    while executing\n\"if {(abs($a) * -42)} {\n                append buf ut\n                append i 1\n            } else {\n                set key yh\n                append...\"\n    (\"while\" body line 102)\n    invoked from within\n\"while {$buf < 5} {\n    expr {68.14}\n    switch -- -837 {\n        55 {\n            append buf 42\n            append buf true\n            lrange {0 6 0 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp0bcu2e7d.tcl\" line 2"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

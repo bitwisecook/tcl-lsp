@@ -1,0 +1,94 @@
+ByteCode 0x0xc64cfa210, refCt 1, epoch 3, interp 0x0xc64c20010 (epoch 3)
+  Source "proc foo {} {\n    catch {return 1}\n}\nproc bar {} {\n    "
+  Cmds 3, src 112, inst 33, litObjs 8, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-10, src 0-35   	   2: pc 11-21, src 37-76
+      3: pc 22-31, src 78-110
+  Command 1: "proc foo {} {\n    catch {return 1}\n}"
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "foo"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    catch {return 1}\n"
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc bar {} {\n    catch {error \"fail\"}\n}"
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "bar"
+    (15) push1 2 	# ""
+    (17) push1 5 	# "\n    catch {error \"fail\"}\n"
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "proc baz {} {\n    catch {break}\n}"
+    (22) push1 0 	# "proc"
+    (24) push1 6 	# "baz"
+    (26) push1 2 	# ""
+    (28) push1 7 	# "\n    catch {break}\n"
+    (30) invokeStk1 4 
+    (32) done 
+
+
+ByteCode 0x0xc64d1ac10, refCt 1, epoch 3, interp 0x0xc64d04010 (epoch 3)
+  Source "\n    catch {return 1}\n"
+  Cmds 2, src 22, inst 35, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xc64cf5910, refCt 1, args 0, compiled locals 0
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-26, catch 32
+  Commands 2:
+      1: pc 0-33, src 5-20   	   2: pc 5-26, src 12-19
+  Command 1: "catch {return 1}"
+    (0) beginCatch4 0 
+  Command 2: "return 1"
+    (5) startCommand +22 1 	# next cmd at pc 27
+    (14) push1 0 	# "1"
+    (16) push1 1 	# ""
+    (18) returnImm +0 1 
+    (27) pop 
+    (28) push1 2 	# "0"
+    (30) jump1 +3 	# pc 33
+    (32) pushReturnCode 
+    (33) endCatch 
+    (34) done 
+
+
+ByteCode 0x0xc64cfa810, refCt 1, epoch 3, interp 0x0xc64d04010 (epoch 3)
+  Source "\n    catch {error \"fail\"}\n"
+  Cmds 2, src 26, inst 19, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xc64d20610, refCt 1, args 0, compiled locals 0
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-10, catch 16
+  Commands 2:
+      1: pc 0-17, src 5-24   	   2: pc 5-10, src 12-23
+  Command 1: "catch {error \"fail\"}"
+    (0) beginCatch4 0 
+  Command 2: "error \"fail\""
+    (5) push1 0 	# "error"
+    (7) push1 1 	# "fail"
+    (9) invokeStk1 2 
+    (11) pop 
+    (12) push1 2 	# "0"
+    (14) jump1 +3 	# pc 17
+    (16) pushReturnCode 
+    (17) endCatch 
+    (18) done 
+
+
+ByteCode 0x0xc64d1ae10, refCt 1, epoch 3, interp 0x0xc64d04010 (epoch 3)
+  Source "\n    catch {break}\n"
+  Cmds 2, src 19, inst 23, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0xc64d12b10, refCt 1, args 0, compiled locals 0
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-14, catch 20
+  Commands 2:
+      1: pc 0-21, src 5-17   	   2: pc 5-14, src 12-16
+  Command 1: "catch {break}"
+    (0) beginCatch4 0 
+  Command 2: "break"
+    (5) startCommand +10 1 	# next cmd at pc 15
+    (14) break 
+    (15) pop 
+    (16) push1 0 	# "0"
+    (18) jump1 +3 	# pc 21
+    (20) pushReturnCode 
+    (21) endCatch 
+    (22) done 
+

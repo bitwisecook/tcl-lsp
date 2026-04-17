@@ -1,0 +1,12 @@
+{
+    "cmd": ["tclsh", "$file"],
+    "file_regex": "^FAILED:\\s+(.+)$",
+    "selector": "source.tcl",
+    "working_dir": "$file_path",
+    "variants": [
+        {
+            "name": "Run iRule Tests",
+            "cmd": ["tclsh", "$file"]
+        }
+    ]
+}

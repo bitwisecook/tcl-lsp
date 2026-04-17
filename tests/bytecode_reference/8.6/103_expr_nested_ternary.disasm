@@ -1,0 +1,29 @@
+ByteCode 0x0xbdb0c1810, refCt 1, epoch 17, interp 0x0xbdb01c010 (epoch 17)
+  Source "expr {1 ? 2 ? 3 : 4 : 5}\nexpr {0 ? 42 : 1 ? 99 : 0}\ns..."
+  Cmds 4, src 83, inst 25, litObjs 6, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-2, src 0-23        2: pc 3-5, src 25-50
+      3: pc 6-11, src 52-61        4: pc 12-23, src 63-81
+  Command 1: "expr {1 ? 2 ? 3 : 4 : 5}..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "expr {0 ? 42 : 1 ? 99 : 0}..."
+    (3) nop 
+    (4) nop 
+    (5) nop 
+  Command 3: "set a \"no..."
+    (6) push1 2 	# "a"
+    (8) push1 3 	# "no"
+    (10) storeStk 
+    (11) pop 
+  Command 4: "expr {1 ? $a : -54}..."
+    (12) push1 4 	# "1"
+    (14) jumpFalse1 +7 	# pc 21
+    (16) push1 2 	# "a"
+    (18) loadStk 
+    (19) jump1 +4 	# pc 23
+    (21) push1 5 	# "-54"
+    (23) tryCvtToNumeric 
+    (24) done 
+

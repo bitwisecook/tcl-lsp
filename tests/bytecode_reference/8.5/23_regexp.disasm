@@ -1,0 +1,11 @@
+ByteCode 0x0x8c889bc10, refCt 1, epoch 3, interp 0x0x8c8c20010 (epoch 3)
+  Source "regexp {^[0-9]+$} \"12345\"\n"
+  Cmds 1, src 26, inst 7, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 1:
+      1: pc 0-5, src 0-24
+  Command 1: "regexp {^[0-9]+$} \"12345\""
+    (0) push1 0 	# "^[0-9]+$"
+    (2) push1 1 	# "12345"
+    (4) regexp +3 
+    (6) done 
+

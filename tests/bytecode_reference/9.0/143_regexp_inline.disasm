@@ -1,0 +1,29 @@
+ByteCode 0xc274f5c10, refCt 1, epoch 21, interp 0xc2701c010 (epoch 21)
+  Source "set result [regexp -inline {(\w+)\s+(\w+)} \"hello worl..."
+  Cmds 4, src 106, inst 39, litObjs 9, aux 0, stkDepth 6, code/src 0.00
+  Commands 4:
+      1: pc 0-13, src 0-56        2: pc 2-11, src 12-55
+      3: pc 14-37, src 58-104        4: pc 25-36, src 67-103
+  Command 1: "set result [regexp -inline {(\w+)\s+(\w+)} \"hello worl..."
+    (0) push1 0 	# "result"
+  Command 2: "regexp -inline {(\w+)\s+(\w+)} \"hello world..."
+    (2) push1 1 	# "regexp"
+    (4) push1 2 	# "-inline"
+    (6) push1 3 	# "(\w+)\s+(\w+)"
+    (8) push1 4 	# "hello world"
+    (10) invokeStk1 4 
+    (12) storeStk 
+    (13) pop 
+  Command 3: "set all [regexp -all -inline {\d+} \"a1b23c456\"..."
+    (14) startCommand +24 1 	# next cmd at pc 38, 1 cmds start here
+    (23) push1 5 	# "all"
+  Command 4: "regexp -all -inline {\d+} \"a1b23c456..."
+    (25) push1 1 	# "regexp"
+    (27) push1 6 	# "-all"
+    (29) push1 2 	# "-inline"
+    (31) push1 7 	# "\d+"
+    (33) push1 8 	# "a1b23c456"
+    (35) invokeStk1 5 
+    (37) storeStk 
+    (38) done 
+

@@ -1,0 +1,33 @@
+ByteCode 0x0xbb8cfa210, refCt 1, epoch 3, interp 0x0xbb8c20010 (epoch 3)
+  Source "expr {sqrt(pow(3.0, 2.0))}\nexpr {abs(int(-3.7))}\nexpr {"
+  Cmds 3, src 90, inst 54, litObjs 9, aux 0, stkDepth 4, code/src 0.00
+  Commands 3:
+      1: pc 0-13, src 0-25   	   2: pc 14-34, src 27-47
+      3: pc 35-52, src 49-88
+  Command 1: "expr {sqrt(pow(3.0, 2.0))}"
+    (0) push1 0 	# "tcl::mathfunc::sqrt"
+    (2) push1 1 	# "tcl::mathfunc::pow"
+    (4) push1 2 	# "3.0"
+    (6) push1 3 	# "2.0"
+    (8) invokeStk1 3 
+    (10) invokeStk1 2 
+    (12) tryCvtToNumeric 
+    (13) pop 
+  Command 2: "expr {abs(int(-3.7))}"
+    (14) startCommand +20 1 	# next cmd at pc 34
+    (23) push1 4 	# "tcl::mathfunc::abs"
+    (25) push1 5 	# "tcl::mathfunc::int"
+    (27) push1 6 	# "-3.7"
+    (29) invokeStk1 2 
+    (31) invokeStk1 2 
+    (33) tryCvtToNumeric 
+    (34) pop 
+  Command 3: "expr {pow(2.1, 27.5 - (24.4 * (5 % 2)))}"
+    (35) startCommand +18 1 	# next cmd at pc 53
+    (44) push1 1 	# "tcl::mathfunc::pow"
+    (46) push1 7 	# "2.1"
+    (48) push1 8 	# "3.1000000000000014"
+    (50) invokeStk1 3 
+    (52) tryCvtToNumeric 
+    (53) done 
+

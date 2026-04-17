@@ -1,0 +1,32 @@
+{
+  "seed": 1772845773,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"20.96\" as right operand of \"&\"\n    while executing\n\"if {((18 & 20.96) ? (16 << 12) : (-57.21 <= -60))} {\n    lrange {phryicij -365 578 79.01 ynkxbd 204} 0 2\n    set key {no 58 yes -81.72 0}\n    if {$key...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpigbcaysh.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"20.96\" as right operand of \"&\"\n    while executing\n\"if {((18 & 20.96) ? (16 << 12) : (-57.21 <= -60))} {\n    lrange {phryicij -365 578 79.01 ynkxbd 204} 0 2\n    set key {no 58 yes -81.72 0}\n    if {$key...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpigbcaysh.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

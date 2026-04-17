@@ -1,0 +1,24 @@
+{
+  "seed": 1772845874,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"expr {$flag}\"\n    (\"for\" body line 17)\n    invoked from within\n\"for {set key 0} {$key < 5} {incr key} {\n    set tmp \"#on509!;cpf 7\"\n    expr {($msg > -46)}\n    catch {\n        set msg \"9h3m f\"\n    } b\n    set buf -...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp7958dobu.tcl\" line 99)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

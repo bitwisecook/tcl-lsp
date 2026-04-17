@@ -1,0 +1,37 @@
+ByteCode ::top, 25 instructions, 50 bytes, 4 literals, 0 variables
+  Literals:
+    0: "args"
+    1: "a b c"
+    2: "d"
+    3: "e"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "args"
+    (2) push1 1	# "a b c"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "args"
+    (8) loadStk
+    (9) push1 2	# "d"
+    (11) list 1
+    (16) listConcat
+  # cmd_end_1:
+    (17) pop
+    (18) push1 2	# "d"
+    (20) list 1
+    (25) push1 0	# "args"
+    (27) loadStk
+    (28) listConcat
+  # cmd_end_2:
+    (29) pop
+    (30) push1 2	# "d"
+    (32) list 1
+    (37) push1 0	# "args"
+    (39) loadStk
+    (40) listConcat
+    (41) push1 3	# "e"
+    (43) list 1
+    (48) listConcat
+  # cmd_end_3:
+  # exit_2:
+    (49) done

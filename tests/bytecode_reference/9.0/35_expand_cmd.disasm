@@ -1,0 +1,11 @@
+ByteCode 0x8bf162410, refCt 1, epoch 21, interp 0x8bf01c010 (epoch 21)
+  Source "list {*}[list a b c]\n"
+  Cmds 2, src 21, inst 12, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-19        2: pc 0-1, src 9-18
+  Command 1: "list {*}[list a b c]..."
+  Command 2: "list a b c..."
+    (0) push1 0 	# "a b c"
+    (2) listRangeImm 0 end 
+    (11) done 
+

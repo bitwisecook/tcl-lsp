@@ -1,0 +1,26 @@
+ByteCode ::top, 12 instructions, 28 bytes, 7 literals, 0 variables
+  Literals:
+    0: "s"
+    1: "Alice is 30 years old"
+    2: "scan"
+    3: "42 hello"
+    4: "%d %s"
+    5: "num"
+    6: "word"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "s"
+    (2) startCommand +11 1	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1	# "Alice is 30 years old"
+  # cmd_end_1:
+    (13) storeStk
+    (14) pop
+    (15) push1 2	# "scan"
+    (17) push1 3	# "42 hello"
+    (19) push1 4	# "%d %s"
+    (21) push1 5	# "num"
+    (23) push1 6	# "word"
+    (25) invokeStk1 5	# scan
+  # cmd_end_2:
+  # exit_2:
+    (27) done

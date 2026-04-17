@@ -1,0 +1,8 @@
+<snippet>
+	<content><![CDATA[namespace eval ${1:::ns} {
+    ${0:# body}
+}]]></content>
+	<tabTrigger>tcl-namespace</tabTrigger>
+	<scope>source.tcl, source.irule</scope>
+	<description>Create a namespace eval block</description>
+</snippet>

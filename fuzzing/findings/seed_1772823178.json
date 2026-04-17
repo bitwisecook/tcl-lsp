@@ -1,0 +1,24 @@
+{
+  "seed": 1772823178,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {min((-46 ** 14), (-4.66))} {\n        if {$flag < 15} {\n            set flag {rglk true gnryas}\n            set flag {jcugdfz bpaf -211 96.61}\n    ...\"\n    invoked from within\n\"if {$y <= 14} {\n    if {min((-46 ** 14), (-4.66))} {\n        if {$flag < 15} {\n            set flag {rglk true gnryas}\n            set flag {jcugdfz b...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpswae_3nj.tcl\" line "
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {min((-46 ** 14), (-4.66))} {\n        if {$flag < 15} {\n            set flag {rglk true gnryas}\n            set flag {jcugdfz bpaf -211 96.61}\n    ...\"\n    invoked from within\n\"if {$y <= 14} {\n    if {min((-46 ** 14), (-4.66))} {\n        if {$flag < 15} {\n            set flag {rglk true gnryas}\n            set flag {jcugdfz b...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpswae_3nj.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "if-else-elseif validation in lowering and _cmd_if",
+  "category": "if-else-elseif"
+}

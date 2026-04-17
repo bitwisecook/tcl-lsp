@@ -1,0 +1,37 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x92cfc600, refCt 1, epoch 0, interp 0x52eee10 (epoch 0)
+  Source "set lst [list a b c d e]\nlreplace $lst 1 2 x y\nlinsert "
+  Cmds 4, src 64, inst 44, litObjs 12, aux 0, stkDepth 6, code/src 5.00
+  Code 320 = header 160+inst 44+litObj 96+exc 0+aux 0+cmdMap 16
+  Proc 0x930c5a80, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "lst"
+  Commands 4:
+      1: pc 0-17, src 0-23   	   2: pc 0-14, src 9-22
+      3: pc 18-32, src 25-45   	   4: pc 33-42, src 47-62
+  Command 1: "set lst [list a b c d e]"
+  Command 2: "list a b c d e"
+    (0) push1 0  	# "a"
+    (2) push1 1  	# "b"
+    (4) push1 2  	# "c"
+    (6) push1 3  	# "d"
+    (8) push1 4  	# "e"
+    (10) list 5 
+    (15) storeScalar1 0	# var "lst"
+    (17) pop 
+  Command 3: "lreplace $lst 1 2 x y"
+    (18) push1 5  	# "lreplace"
+    (20) loadScalar1 0	# var "lst"
+    (22) push1 6  	# "1"
+    (24) push1 7  	# "2"
+    (26) push1 8  	# "x"
+    (28) push1 9  	# "y"
+    (30) invokeStk1 6 
+    (32) pop 
+  Command 4: "linsert $lst 2 z"
+    (33) push1 10  	# "linsert"
+    (35) loadScalar1 0	# var "lst"
+    (37) push1 7  	# "2"
+    (39) push1 11  	# "z"
+    (41) invokeStk1 4 
+    (43) done 

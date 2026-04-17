@@ -1,0 +1,32 @@
+{
+  "seed": 1772845798,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {((-21 ? -97 : (68 != $flag)) ^ ((!$z) & $n))}\"\n    (\"for\" body line 51)\n    invoked from within\n\"for {set idx 0} {$idx < 6} {incr idx} {\n    set x true\n    for {set a 0} {$a < 6} {incr a} {\n        for {set z 0} {$z < 2} {incr z} {\n            app...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpte1vuvmk.tcl\" line 114)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {((-21 ? -97 : (68 != $flag)) ^ ((!$z) & $n))}\"\n    (\"for\" body line 51)\n    invoked from within\n\"for {set idx 0} {$idx < 6} {incr idx} {\n    set x true\n    for {set a 0} {$a < 6} {incr a} {\n        for {set z 0} {$z < 2} {incr z} {\n            app...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpte1vuvmk.tcl\" line 114)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

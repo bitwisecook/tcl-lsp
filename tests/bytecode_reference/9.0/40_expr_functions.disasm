@@ -1,0 +1,34 @@
+ByteCode 0x94f514610, refCt 1, epoch 21, interp 0x94f01c010 (epoch 21)
+  Source "expr {abs(-5)}\nexpr {int(3.7)}\nexpr {double(42)}\nexp..."
+  Cmds 4, src 67, inst 59, litObjs 8, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-7, src 0-13        2: pc 8-24, src 15-29
+      3: pc 25-41, src 31-47        4: pc 42-57, src 49-65
+  Command 1: "expr {abs(-5)}..."
+    (0) push1 0 	# "tcl::mathfunc::abs"
+    (2) push1 1 	# "-5"
+    (4) invokeStk1 2 
+    (6) tryCvtToNumeric 
+    (7) pop 
+  Command 2: "expr {int(3.7)}..."
+    (8) startCommand +16 1 	# next cmd at pc 24, 1 cmds start here
+    (17) push1 2 	# "tcl::mathfunc::int"
+    (19) push1 3 	# "3.7"
+    (21) invokeStk1 2 
+    (23) tryCvtToNumeric 
+    (24) pop 
+  Command 3: "expr {double(42)}..."
+    (25) startCommand +16 1 	# next cmd at pc 41, 1 cmds start here
+    (34) push1 4 	# "tcl::mathfunc::double"
+    (36) push1 5 	# "42"
+    (38) invokeStk1 2 
+    (40) tryCvtToNumeric 
+    (41) pop 
+  Command 4: "expr {round(3.5)}..."
+    (42) startCommand +16 1 	# next cmd at pc 58, 1 cmds start here
+    (51) push1 6 	# "tcl::mathfunc::round"
+    (53) push1 7 	# "3.5"
+    (55) invokeStk1 2 
+    (57) tryCvtToNumeric 
+    (58) done 
+

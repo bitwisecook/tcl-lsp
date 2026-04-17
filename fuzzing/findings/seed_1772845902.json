@@ -1,0 +1,24 @@
+{
+  "seed": 1772845902,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    invoked from within\n\"if {((~50) || (-85.56 % max(1, abs(-57))))} {\n    regexp \"[0-9]\" \"zsk\"\n    for {set tmp 0} {$tmp < 2} {incr tmp} {\n        lsort {tqcb 90.50 1 yes -32...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpo7vvvmu9.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on invalid command",
+  "category": "vm-timeout-resolved"
+}

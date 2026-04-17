@@ -1,0 +1,58 @@
+ByteCode 0x0xc310e9410, refCt 1, epoch 17, interp 0x0xc3101c010 (epoch 17)
+  Source "proc fib {n} {\n    if {$n <= 1} {\n        return $n\n..."
+  Cmds 1, src 117, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-115
+  Command 1: "proc fib {n} {\n    if {$n <= 1} {\n        return $n\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "fib"
+    (4) push1 2 	# "n"
+    (6) push1 3 	# "\n    if {$n <= 1} {\n        return $n\n..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xc310ed610, refCt 1, epoch 72, interp 0x0xc310bd810 (epoch 72)
+  Source "\n    if {$n <= 1} {\n        return $n\n    }\n    exp..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 7, src 101, inst 71, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0xc310eba90, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "n"
+  Commands 7:
+      1: pc 0-23, src 5-42        2: pc 7-18, src 28-36
+      3: pc 24-69, src 48-99        4: pc 33-50, src 55-73
+      5: pc 35-48, src 60-72        6: pc 51-68, src 79-97
+      7: pc 53-66, src 84-96
+  Command 1: "if {$n <= 1} {\n        return $n\n   ..."
+    (0) loadScalar1 %v0 	# var "n"
+    (2) push1 0 	# "1"
+    (4) le 
+    (5) jumpFalse1 +16 	# pc 21
+  Command 2: "return $n..."
+    (7) startCommand +12 1 	# next cmd at pc 19, 1 cmds start here
+    (16) loadScalar1 %v0 	# var "n"
+    (18) done 
+    (19) jump1 +4 	# pc 23
+    (21) push1 1 	# ""
+    (23) pop 
+  Command 3: "expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}..."
+    (24) startCommand +46 1 	# next cmd at pc 70, 1 cmds start here
+  Command 4: "fib [expr {$n - 1}]..."
+    (33) push1 2 	# "fib"
+  Command 5: "expr {$n - 1}..."
+    (35) startCommand +14 1 	# next cmd at pc 49, 1 cmds start here
+    (44) loadScalar1 %v0 	# var "n"
+    (46) push1 0 	# "1"
+    (48) sub 
+    (49) invokeStk1 2 
+  Command 6: "fib [expr {$n - 2}]..."
+    (51) push1 2 	# "fib"
+  Command 7: "expr {$n - 2}..."
+    (53) startCommand +14 1 	# next cmd at pc 67, 1 cmds start here
+    (62) loadScalar1 %v0 	# var "n"
+    (64) push1 3 	# "2"
+    (66) sub 
+    (67) invokeStk1 2 
+    (69) add 
+    (70) done 
+

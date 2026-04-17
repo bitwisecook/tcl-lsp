@@ -1,0 +1,107 @@
+ByteCode 0x93ad44210, refCt 1, epoch 21, interp 0x93ac28010 (epoch 21)
+  Source "proc test {} {\n    set outer [catch {\n        try {\n..."
+  Cmds 1, src 183, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-181
+  Command 1: "proc test {} {\n    set outer [catch {\n        try {\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set outer [catch {\n        try {\n..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x93ad98410, refCt 1, epoch 95, interp 0x93ace7010 (epoch 95)
+  Source "\n    set outer [catch {\n        try {\n            er..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 6, src 167, inst 185, litObjs 5, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x93ad0b110, refCt 1, args 0, compiled locals 6
+      slot 0, scalar, "outer"
+      slot 1, scalar, "result"
+      slot 2, scalar, "msg"
+      slot 3, scalar, temp
+      slot 4, scalar, temp
+      slot 5, scalar, "caught"
+  Exception ranges 3, depth 2:
+      0: level 0, catch, pc 5-147, catch 152
+      1: level 1, catch, pc 19-40, catch 47
+      2: level 1, catch, pc 77-89, catch 96
+  Commands 6:
+      1: pc 0-165, src 5-141        2: pc 0-162, src 16-140
+      3: pc 5-147, src 32-127        4: pc 19-40, src 50-62
+      5: pc 77-89, src 103-117        6: pc 166-183, src 147-165
+  Command 1: "set outer [catch {\n        try {\n            error \"..."
+  Command 2: "catch {\n        try {\n            error \"inner\"\n  ..."
+    (0) beginCatch4 0 
+  Command 3: "try {\n            error \"inner\"\n        } on error ..."
+    (5) startCommand +143 1 	# next cmd at pc 148, 1 cmds start here
+    (14) beginCatch4 1 
+  Command 4: "error \"inner..."
+    (19) startCommand +22 1 	# next cmd at pc 41, 1 cmds start here
+    (28) push1 0 	# "inner"
+    (30) push1 1 	# ""
+    (32) returnImm +1 0 
+    (41) endCatch 
+    (42) jump4 +106 	# pc 148
+    (47) pushReturnCode 
+    (48) pushResult 
+    (49) pushReturnOpts 
+    (50) endCatch 
+    (51) storeScalar1 %v4 	# temp var 4
+    (53) pop 
+    (54) storeScalar1 %v3 	# temp var 3
+    (56) pop 
+    (57) dup 
+    (58) push1 2 	# "1"
+    (60) eq 
+    (61) jumpFalse4 +81 	# pc 142
+    (66) pop 
+    (67) loadScalar1 %v3 	# temp var 3
+    (69) storeScalar1 %v2 	# var "msg"
+    (71) pop 
+    (72) beginCatch4 2 
+  Command 5: "set caught $msg..."
+    (77) startCommand +13 1 	# next cmd at pc 90, 1 cmds start here
+    (86) loadScalar1 %v2 	# var "msg"
+    (88) storeScalar1 %v5 	# var "caught"
+    (90) endCatch 
+    (91) jump4 +57 	# pc 148
+    (96) pushResult 
+    (97) pushReturnOpts 
+    (98) pushReturnCode 
+    (99) endCatch 
+    (100) push1 2 	# "1"
+    (102) eq 
+    (103) jumpFalse1 +28 	# pc 131
+    (105) loadScalar1 %v4 	# temp var 4
+    (107) reverse 2 
+    (112) storeScalar1 %v4 	# temp var 4
+    (114) pop 
+    (115) push1 3 	# "-during"
+    (117) reverse 2 
+    (122) dictSet 1 %v4 	# temp var 4
+    (131) reverse 2 
+    (136) returnStk 
+    (137) jump4 +11 	# pc 148
+    (142) pop 
+    (143) loadScalar1 %v4 	# temp var 4
+    (145) loadScalar1 %v3 	# temp var 3
+    (147) returnStk 
+    (148) push1 4 	# "0"
+    (150) jump1 +4 	# pc 154
+    (152) pushResult 
+    (153) pushReturnCode 
+    (154) endCatch 
+    (155) reverse 2 
+    (160) storeScalar1 %v1 	# var "result"
+    (162) pop 
+    (163) storeScalar1 %v0 	# var "outer"
+    (165) pop 
+  Command 6: "list $outer $result..."
+    (166) startCommand +18 1 	# next cmd at pc 184, 1 cmds start here
+    (175) loadScalar1 %v0 	# var "outer"
+    (177) loadScalar1 %v1 	# var "result"
+    (179) list 2 
+    (184) done 
+

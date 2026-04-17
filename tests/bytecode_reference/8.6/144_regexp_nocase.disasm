@@ -1,0 +1,23 @@
+ByteCode 0x0x9b0cfb810, refCt 1, epoch 17, interp 0x0x9b0c28010 (epoch 17)
+  Source "set x [regexp -nocase {hello} \"HELLO WORLD\"]\nset y [..."
+  Cmds 4, src 87, inst 20, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-9, src 0-43        2: pc 2-7, src 7-42
+      3: pc 10-18, src 45-85        4: pc 12-17, src 52-84
+  Command 1: "set x [regexp -nocase {hello} \"HELLO WORLD\"..."
+    (0) push1 0 	# "x"
+  Command 2: "regexp -nocase {hello} \"HELLO WORLD..."
+    (2) push1 1 	# "*hello*"
+    (4) push1 2 	# "HELLO WORLD"
+    (6) strmatch +1 
+    (8) storeStk 
+    (9) pop 
+  Command 3: "set y [regexp -nocase -- {^abc} \"ABCdef\"..."
+    (10) push1 3 	# "y"
+  Command 4: "regexp -nocase -- {^abc} \"ABCdef..."
+    (12) push1 4 	# "abc*"
+    (14) push1 5 	# "ABCdef"
+    (16) strmatch +1 
+    (18) storeStk 
+    (19) done 
+

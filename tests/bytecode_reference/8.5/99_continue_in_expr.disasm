@@ -1,0 +1,75 @@
+ByteCode 0x0x732d13d10, refCt 1, epoch 3, interp 0x0x732c20010 (epoch 3)
+  Source "proc test_continue {} {\n    set result {}\n    set i 0\n "
+  Cmds 1, src 206, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-204
+  Command 1: "proc test_continue {} {\n    set result {}\n    set i 0\n "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test_continue"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    set result {}\n    set i 0\n    while"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0x732d08010, refCt 1, epoch 3, interp 0x0x732cf0810 (epoch 3)
+  Source "\n    set result {}\n    set i 0\n    while {[incr i] <= 1"
+  Cmds 10, src 181, inst 122, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x73280f410, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "result"
+      slot 1, scalar, "i"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 30-87, continue 89, break 106
+  Commands 10:
+      1: pc 0-4, src 5-17   	   2: pc 5-18, src 23-29
+      3: pc 19-108, src 35-160   	   4: pc 30-43, src 68-84
+      5: pc 44-74, src 94-129   	   6: pc 53-71, src 110-128
+      7: pc 55-64, src 118-125   	   8: pc 75-87, src 139-154
+      9: pc 89-100, src 43-48   	  10: pc 109-120, src 166-179
+  Command 1: "set result {}"
+    (0) push1 0 	# ""
+    (2) storeScalar1 %v0 	# var "result"
+    (4) pop 
+  Command 2: "set i 0"
+    (5) startCommand +13 1 	# next cmd at pc 18
+    (14) push1 1 	# "0"
+    (16) storeScalar1 %v1 	# var "i"
+    (18) pop 
+  Command 3: "while {[incr i] <= 10} {\n        lappend result $i\n    "
+    (19) startCommand +89 1 	# next cmd at pc 108
+    (28) jump1 +61 	# pc 89
+  Command 4: "lappend result $i"
+    (30) startCommand +13 1 	# next cmd at pc 43
+    (39) loadScalar1 %v1 	# var "i"
+    (41) lappendScalar1 %v0 	# var "result"
+    (43) pop 
+  Command 5: "lappend result [list b [continue] c]"
+    (44) startCommand +30 2 	# next cmd at pc 74, 2 cmds start here
+  Command 6: "list b [continue] c"
+    (53) push1 2 	# "b"
+  Command 7: "continue"
+    (55) startCommand +10 1 	# next cmd at pc 65
+    (64) continue 
+    (65) push1 3 	# "c"
+    (67) list 3 
+    (72) lappendScalar1 %v0 	# var "result"
+    (74) pop 
+  Command 8: "lappend result c"
+    (75) startCommand +13 1 	# next cmd at pc 88
+    (84) push1 3 	# "c"
+    (86) lappendScalar1 %v0 	# var "result"
+    (88) pop 
+  Command 9: "incr i"
+    (89) startCommand +12 1 	# next cmd at pc 101
+    (98) incrScalar1Imm %v1 +1 	# var "i"
+    (101) push1 4 	# "10"
+    (103) le 
+    (104) jumpTrue1 -74 	# pc 30
+    (106) push1 0 	# ""
+    (108) pop 
+  Command 10: "return $result"
+    (109) startCommand +12 1 	# next cmd at pc 121
+    (118) loadScalar1 %v0 	# var "result"
+    (120) done 
+    (121) done 
+

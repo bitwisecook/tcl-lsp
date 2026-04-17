@@ -1,0 +1,32 @@
+{
+  "seed": 1772845825,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {(min(int(32), ($n * -93)) | (-(65 > $tmp)))}\"\n    (in namespace eval \"::util\" script line 99)\n    invoked from within\n\"namespace eval util {\n    concat {0 hb} {958}\n    switch -- 50 {\n        97 {\n            if {$b >= -4} {\n                catch {\n                    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr536eiyt.tcl\" line 37)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"n\": no such variable\n    while executing\n\"expr {(min(int(32), ($n * -93)) | (-(65 > $tmp)))}\"\n    (in namespace eval \"::util\" script line 99)\n    invoked from within\n\"namespace eval util {\n    concat {0 hb} {958}\n    switch -- 50 {\n        97 {\n            if {$b >= -4} {\n                catch {\n                    ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpr536eiyt.tcl\" line 37)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

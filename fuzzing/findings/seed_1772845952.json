@@ -1,0 +1,32 @@
+{
+  "seed": 1772845952,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"\"\n    while executing\n\"expr {($idx ** (!($val ? -85 : 14)))}\"\n    (\"foreach\" body line 15)\n    invoked from within\n\"foreach idx {819 -23.62 1 1 false} {\n        set msg 79\n        incr msg -2\n        set acc ijahg\n        set acc 56\n        incr acc 6\n        foreac...\"\n    (\"foreach\" body line 40)\n    invoked from within\n\"foreach x {1 hyzuw -589 yusgg -50.41} {\n    switch -- \"n+\" {\n        mgfiaw {\n            string tolower \"dy=z!9z_c\"\n        }\n        ha {\n   "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got \"\"\n    while executing\n\"expr {($idx ** (!($val ? -85 : 14)))}\"\n    (\"foreach\" body line 15)\n    invoked from within\n\"foreach idx {819 -23.62 1 1 false} {\n        set msg 79\n        incr msg -2\n        set acc ijahg\n        set acc 56\n        incr acc 6\n        foreac...\"\n    (\"foreach\" body line 40)\n    invoked from within\n\"foreach x {1 hyzuw -589 yusgg -50.41} {\n    switch -- \"n+\" {\n        mgfiaw {\n            string tolower \"dy=z!9z_c\"\n        }\n        ha {\n   "
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors: expected boolean value but got \"\"",
+  "category": "vm-timeout-resolved"
+}

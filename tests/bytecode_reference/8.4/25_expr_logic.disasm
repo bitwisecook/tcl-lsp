@@ -1,0 +1,36 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x88cb8600, refCt 1, epoch 0, interp 0x4c2ee20 (epoch 0)
+  Source "expr {1 && 0}\nexpr {1 || 0}\nexpr {!1}\n"
+  Cmds 3, src 38, inst 38, litObjs 2, aux 0, stkDepth 2, code/src 6.00
+  Code 228 = header 160+inst 38+litObj 16+exc 0+aux 0+cmdMap 12
+  Proc 0x890bd0c0, refCt 1, args 0, compiled locals 0
+  Commands 3:
+      1: pc 0-16, src 0-12   	   2: pc 17-33, src 14-26
+      3: pc 34-36, src 28-36
+  Command 1: "expr {1 && 0}"
+    (0) push1 0  	# "1"
+    (2) jumpTrue1 6  	# pc 8
+    (4) push1 1  	# "0"
+    (6) jump1 4  	# pc 10
+    (8) push1 0  	# "1"
+    (10) dup 
+    (11) jumpFalse1 5  	# pc 16
+    (13) push1 1  	# "0"
+    (15) land 
+    (16) pop 
+  Command 2: "expr {1 || 0}"
+    (17) push1 0  	# "1"
+    (19) jumpTrue1 6  	# pc 25
+    (21) push1 1  	# "0"
+    (23) jump1 4  	# pc 27
+    (25) push1 0  	# "1"
+    (27) dup 
+    (28) jumpTrue1 5  	# pc 33
+    (30) push1 1  	# "0"
+    (32) lor 
+    (33) pop 
+  Command 3: "expr {!1}"
+    (34) push1 0  	# "1"
+    (36) not 
+    (37) done 

@@ -1,0 +1,69 @@
+ByteCode 0x0xc44cfa210, refCt 1, epoch 3, interp 0x0xc44c20010 (epoch 3)
+  Source "set i 0\nset sum 0\nwhile {$i < 10} {\n    incr i\n    if {"
+  Cmds 9, src 111, inst 135, litObjs 7, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 32-122, continue 124, break 132
+  Commands 9:
+      1: pc 0-5, src 0-6   	   2: pc 6-20, src 8-16
+      3: pc 21-133, src 18-109   	   4: pc 32-45, src 40-45
+      5: pc 46-77, src 51-71   	   6: pc 63-72, src 64-71
+      7: pc 78-109, src 77-94   	   8: pc 95-104, src 90-94
+      9: pc 110-122, src 100-107
+  Command 1: "set i 0"
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set sum 0"
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "sum"
+    (17) push1 1 	# "0"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "while {$i < 10} {\n    incr i\n    if {$i == 3} continue\n"
+    (21) startCommand +113 1 	# next cmd at pc 134
+    (30) jump1 +94 	# pc 124
+  Command 4: "incr i"
+    (32) startCommand +13 1 	# next cmd at pc 45
+    (41) push1 0 	# "i"
+    (43) incrScalarStkImm +1 
+    (45) pop 
+  Command 5: "if {$i == 3} continue"
+    (46) startCommand +31 1 	# next cmd at pc 77
+    (55) push1 0 	# "i"
+    (57) loadScalarStk 
+    (58) push1 3 	# "3"
+    (60) eq 
+    (61) jumpFalse1 +14 	# pc 75
+  Command 6: "continue"
+    (63) startCommand +10 1 	# next cmd at pc 73
+    (72) continue 
+    (73) jump1 +4 	# pc 77
+    (75) push1 4 	# ""
+    (77) pop 
+  Command 7: "if {$i == 7} break"
+    (78) startCommand +31 1 	# next cmd at pc 109
+    (87) push1 0 	# "i"
+    (89) loadScalarStk 
+    (90) push1 5 	# "7"
+    (92) eq 
+    (93) jumpFalse1 +14 	# pc 107
+  Command 8: "break"
+    (95) startCommand +10 1 	# next cmd at pc 105
+    (104) break 
+    (105) jump1 +4 	# pc 109
+    (107) push1 4 	# ""
+    (109) pop 
+  Command 9: "incr sum"
+    (110) startCommand +13 1 	# next cmd at pc 123
+    (119) push1 2 	# "sum"
+    (121) incrScalarStkImm +1 
+    (123) pop 
+    (124) push1 0 	# "i"
+    (126) loadScalarStk 
+    (127) push1 6 	# "10"
+    (129) lt 
+    (130) jumpTrue1 -98 	# pc 32
+    (132) push1 4 	# ""
+    (134) done 
+

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875163,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag >= 12} {\n            expr {(((-37 ? 4 : -77) & (~-65)) / max(1, abs((min(-95, 57) || (51.54 ? $acc : -13)))))}\n            for {set acc 0} {...\"\n    (in namespace eval \"::bar\" script line 9)\n    invoked from within\n\"namespace eval bar {\n    foreach acc {} {\n        append flag 20\n        set flag {ntlbyw 824 -60.52 thx no}\n        lappend flag -26\n        lreverse...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tm"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag >= 12} {\n            expr {(((-37 ? 4 : -77) & (~-65)) / max(1, abs((min(-95, 57) || (51.54 ? $acc : -13)))))}\n            for {set acc 0} {...\"\n    (in namespace eval \"::bar\" script line 9)\n    invoked from within\n\"namespace eval bar {\n    foreach acc {} {\n        append flag 20\n        set flag {ntlbyw 824 -60.52 thx no}\n        lappend flag -26\n        lreverse...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tm"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

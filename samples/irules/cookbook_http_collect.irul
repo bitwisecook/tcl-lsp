@@ -1,0 +1,59 @@
+# iRules Cookbook: HTTP::collect / HTTP::payload / HTTP::release
+#
+# The collect/payload/release cycle lets you inspect or modify
+# HTTP request and response bodies on the BIG-IP.
+#
+# Flow:
+#   1. HTTP_REQUEST  / HTTP_RESPONSE  → HTTP::collect <length>
+#   2. HTTP_REQUEST_DATA / HTTP_RESPONSE_DATA → HTTP::payload ... HTTP::release
+#   3. The _DATA event fires exactly once per collect call.
+
+# ── Inspect POST body ──────────────────────────────────────────
+
+when HTTP_REQUEST priority 500 {
+    if {[HTTP::method] eq "POST"} {
+        set content_length [HTTP::header value "Content-Length"]
+        if {$content_length ne "" && $content_length <= 1048576} {
+            HTTP::collect [expr {int($content_length)}]
+        }
+    }
+}
+
+when HTTP_REQUEST_DATA priority 500 {
+    set body [HTTP::payload]
+
+    # Scan for sensitive data in POST body
+    if {[string match "*password=*" $body]} {
+        HTTP::header insert X-Password-Field 1
+    }
+
+    HTTP::release
+}
+
+# ── Modify response body ───────────────────────────────────────
+
+when HTTP_RESPONSE priority 500 {
+    if {[HTTP::header value "Content-Type"] starts_with "text/html"} {
+        set content_length [HTTP::header value "Content-Length"]
+        if {$content_length ne "" && $content_length <= 1048576} {
+            HTTP::collect [expr {int($content_length)}]
+        }
+    }
+}
+
+when HTTP_RESPONSE_DATA priority 500 {
+    set body [HTTP::payload]
+
+    # Inject a tracking snippet before </body>
+    set new_body [string map {
+        "</body>" "<script src='/tracking.js'></script></body>"
+    } $body]
+
+    if {$new_body ne $body} {
+        HTTP::payload replace 0 [HTTP::payload length] $new_body
+        # Adjust Content-Length for the new body size
+        HTTP::header replace "Content-Length" [string length $new_body]
+    }
+
+    HTTP::release
+}

@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# Tcl 9.0 dialect — selects tcl9.0 for LSP analysis
+name: Tcl 9.0
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax

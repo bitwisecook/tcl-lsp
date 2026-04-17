@@ -1,0 +1,36 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: ""
+    3: "\n    foreach ::x {1 2 3} {\n        ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    foreach ::x {1 2 3} {\n        ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 11 instructions, 25 bytes, 4 literals, 0 variables
+  Literals:
+    0: "foreach"
+    1: "::x"
+    2: "1 2 3"
+    3: "\n        set y $::x\n    "
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "foreach"
+    (2) push1 1	# "::x"
+    (4) push1 2	# "1 2 3"
+    (6) push1 3	# "\n        set y $::x\n    "
+    (8) invokeStk1 4	# foreach
+    (10) pop
+    (11) startCommand +13 1	# next cmd at pc 24, 1 cmds start here
+    (20) push1 1	# "::x"
+    (22) loadStk
+    (23) done
+  # ret_end_1:
+    (24) done
