@@ -3200,8 +3200,17 @@ class _WasmEmitter:
                 self._emit_i64_const(folded)
                 return
 
-        # Ordering comparisons: use tcl_expr_order_cmp which tries numeric
-        # first then falls back to string comparison (Tcl 9 semantics).
+        # Ordering comparisons: use tcl_expr_order_cmp which tries
+        # numeric first then falls back to string comparison.
+        #
+        # Tcl 9 semantics: ``"a" < "b"`` → 1 (lexicographic).
+        # Tcl 8.x semantics: same expression raises ``expected floating-
+        # point number but got "a"``.  The WASM runtime currently
+        # targets Tcl 9.0 only — no dialect gating is threaded through
+        # the emitter.  If 8.x compatibility is needed in future,
+        # switch this branch based on ``self._target_dialect`` (not
+        # yet plumbed) so the emitter falls through to the plain
+        # ``I64_LT_S``/... path that errors on non-numeric operands.
         if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
             self._emit_expr_order_cmp(op, left, right)
             return
@@ -4305,9 +4314,14 @@ class _WasmEmitter:
                         else:
                             parts.append(_tcl_list_quote(prepped))
                 script = " ".join(parts)
-            # Sync all live proc-locals into the frame so the interpreter
-            # can see them via var_resolve.  Only pays at eval-fallback
-            # sites — procs with no fallbacks get zero overhead.
+            # Sync all live proc-locals into the frame so the
+            # interpreter can see them via var_resolve.  We sync
+            # conservatively (every local, not just ``$name`` refs
+            # in the script) because Tcl commands like ``info exists
+            # x`` / ``unset x`` / ``upvar 1 x y`` take BARE identifiers
+            # that we can't reliably distinguish from literal strings
+            # by a simple scan.  Narrowing is a future optimisation;
+            # requires a per-command argument-kind analysis.
             self._emit_frame_sync()
             # Stamp the current namespace into the interpreter's ns
             # register so dynamic ``proc $name body`` / ``variable
@@ -4927,13 +4941,44 @@ class _WasmEmitter:
         self._emit_frame_readback()
         return True
 
-    def _emit_frame_sync(self) -> None:
-        """Mirror all live proc-locals into the call frame before the Zig
+    def _iter_sync_locals(self, vars_used: set[str] | None = None) -> "list[tuple[str, int]]":
+        """Return the ``(name, local_idx)`` pairs that should take part
+        in a frame sync / readback at the current emit site, sorted by
+        name for deterministic WASM output across Python-dict iteration
+        orders.
+
+        *vars_used* is the conservative set of local names the upcoming
+        interpreter call could observe.  ``None`` means "unknown — sync
+        every Tcl local".  An empty set also means the caller
+        explicitly knows nothing is referenced (no sync needed).
+        """
+        pairs: list[tuple[str, int]] = []
+        for name, idx in self._tcl_var_locals.items():
+            if name in self._aliases:
+                continue
+            if name in self._globals:
+                continue
+            if name.startswith("::"):
+                continue
+            if vars_used is not None and name not in vars_used:
+                continue
+            pairs.append((name, idx))
+        pairs.sort(key=lambda p: p[0])
+        return pairs
+
+    def _emit_frame_sync(self, vars_used: set[str] | None = None) -> None:
+        """Mirror proc-locals into the call frame before the Zig
         interpreter takes control (e.g. at a ``tcl_eval`` call site).
 
         Only called at interpreter-entry boundary points — not after every
         variable write — so procs that never reach the interpreter pay zero
         frame-sync overhead.
+
+        *vars_used* narrows the sync to locals the upcoming script is
+        statically known to reference (``$name`` / ``${name}``).  When
+        ``None`` (or script scanning failed) we fall back to syncing
+        every Tcl local, matching the original conservative behaviour.
+        An empty set skips the sync entirely.
 
         A null-guard (``if (local != 0) { … }``) around each
         ``tcl_local_set`` call ensures that WASM locals that were never
@@ -4949,13 +4994,7 @@ class _WasmEmitter:
         lset_idx = self._shared_imports.get("tcl_local_set")
         if lset_idx is None:
             return
-        for name, idx in self._tcl_var_locals.items():
-            if name in self._aliases:
-                continue
-            if name in self._globals:
-                continue
-            if name.startswith("::"):
-                continue
+        for name, idx in self._iter_sync_locals(vars_used):
             # Emit: if (local != 0) { tcl_local_set(name_obj, local) }
             # Skips zero-initialised locals that were never assigned so they
             # don't create spurious frame entries.
@@ -4967,35 +5006,19 @@ class _WasmEmitter:
             self._emit(WasmOp.DROP)
             self._emit(WasmOp.END)
 
-    def _emit_frame_readback(self) -> None:
-        """Reload all frame-synced proc-locals from the call frame after eval.
-
-        After ``tcl_eval`` returns, the interpreter may have modified variables
-        in the frame hash table (e.g. via ``set x 99``, ``upvar``/``uplevel``
-        writes, or explicit ``unset``).  Re-reading every synced local via
-        ``local_get`` keeps the WASM locals consistent with the frame.
-
-        ``local_get`` returns 0 for variables not found in the frame.  Since
-        ``_emit_frame_sync`` null-guarded unset locals (never wrote them to the
-        frame), a 0 readback either means the local was already 0 before eval
-        (no change) or that eval unset it — both correct outcomes.
-
-        Skipped when:
-        - not inside a compiled proc (``_is_proc`` is False)
-        - ``tcl_local_get`` is not imported
+    def _emit_frame_readback(self, vars_used: set[str] | None = None) -> None:
+        """Reload proc-locals from the call frame after the interpreter
+        returns.  See :func:`_emit_frame_sync` for the *vars_used*
+        contract — the same set must be used here so writes by the
+        interpreter (``set x 99`` through an aliased name) surface back
+        into the compiled proc's WASM locals.
         """
         if not self._is_proc:
             return
         lget_idx = self._shared_imports.get("tcl_local_get")
         if lget_idx is None:
             return
-        for name, idx in self._tcl_var_locals.items():
-            if name in self._aliases:
-                continue
-            if name in self._globals:
-                continue
-            if name.startswith("::"):
-                continue
+        for name, idx in self._iter_sync_locals(vars_used):
             self._emit_obj_literal(name)
             self._emit_call(lget_idx)
             self._emit_local_set(idx)

@@ -212,27 +212,10 @@ fn parse_command(
 
 // -- Variable substitution --
 
-fn encode_utf8(d: [*]u8, cp: u32) u32 {
-    if (cp < 0x80) {
-        d[0] = @intCast(cp);
-        return 1;
-    } else if (cp < 0x800) {
-        d[0] = @intCast(0xC0 | (cp >> 6));
-        d[1] = @intCast(0x80 | (cp & 0x3F));
-        return 2;
-    } else if (cp < 0x10000) {
-        d[0] = @intCast(0xE0 | (cp >> 12));
-        d[1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
-        d[2] = @intCast(0x80 | (cp & 0x3F));
-        return 3;
-    } else {
-        d[0] = @intCast(0xF0 | (cp >> 18));
-        d[1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
-        d[2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
-        d[3] = @intCast(0x80 | (cp & 0x3F));
-        return 4;
-    }
-}
+// ``encode_utf8`` lives in tcl_obj.zig as a shared helper used by both
+// the interpreter's ``subst_flagged`` and the list-element decoder
+// ``copy_unbraced_elem``.  Kept there so changes to the UTF-8 tables
+// only happen in one place.
 
 /// Expand ``$var`` / ``[cmd]`` / ``\x`` in a word.  Always performs
 /// all three substitutions — this is the tokenizer's word-expansion
@@ -366,87 +349,15 @@ fn subst_flagged(
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
             flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
-            i += 1;
-            const esc_ptr = alloc(6); // max 4 UTF-8 bytes for \uXXXX, or 1 for simple
-            const d: [*]u8 = @ptrFromInt(esc_ptr);
-            var esc_len: u32 = 1;
-            switch (src[i]) {
-                'n' => { d[0] = '\n'; i += 1; },
-                't' => { d[0] = '\t'; i += 1; },
-                'r' => { d[0] = '\r'; i += 1; },
-                'a' => { d[0] = 0x07; i += 1; },
-                'b' => { d[0] = 0x08; i += 1; },
-                'f' => { d[0] = 0x0C; i += 1; },
-                'v' => { d[0] = 0x0B; i += 1; },
-                'x' => {
-                    // ``\xNN`` — 1 or 2 hex digits.  Tcl only recognises
-                    // lowercase ``\x``; upper-case ``\X`` is NOT a valid
-                    // escape and falls through to the ``else`` branch
-                    // (emits a literal ``X``).
-                    i += 1;
-                    var val: u32 = 0;
-                    var ndig: u32 = 0;
-                    while (ndig < 2 and i < wlen) {
-                        const c = src[i];
-                        if (c >= '0' and c <= '9') { val = val * 16 + @as(u32, c - '0'); i += 1; ndig += 1; }
-                        else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(u32, c - 'a' + 10); i += 1; ndig += 1; }
-                        else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(u32, c - 'A' + 10); i += 1; ndig += 1; }
-                        else break;
-                    }
-                    d[0] = @intCast(val & 0xFF);
-                    esc_len = 1;
-                },
-                'u' => {
-                    // \uNNNN — exactly 4 hex digits → UTF-8 encode
-                    i += 1;
-                    var cp: u32 = 0;
-                    var ndig: u32 = 0;
-                    while (ndig < 4 and i < wlen) {
-                        const c = src[i];
-                        if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); i += 1; ndig += 1; }
-                        else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); i += 1; ndig += 1; }
-                        else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); i += 1; ndig += 1; }
-                        else break;
-                    }
-                    esc_len = encode_utf8(d, cp);
-                },
-                'U' => {
-                    // \UNNNNNNNN — up to 8 hex digits → UTF-8 encode
-                    i += 1;
-                    var cp: u32 = 0;
-                    var ndig: u32 = 0;
-                    while (ndig < 8 and i < wlen) {
-                        const c = src[i];
-                        if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); i += 1; ndig += 1; }
-                        else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); i += 1; ndig += 1; }
-                        else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); i += 1; ndig += 1; }
-                        else break;
-                    }
-                    esc_len = encode_utf8(d, cp);
-                },
-                '0'...'9' => {
-                    // \NNN — octal (up to 3 digits)
-                    var val: u32 = 0;
-                    var ndig: u32 = 0;
-                    while (ndig < 3 and i < wlen and src[i] >= '0' and src[i] <= '7') {
-                        val = val * 8 + @as(u32, src[i] - '0');
-                        i += 1; ndig += 1;
-                    }
-                    d[0] = @intCast(val & 0xFF);
-                    esc_len = 1;
-                },
-                ' ', '\n', '\t', '\r' => {
-                    // backslash-newline/space → single space
-                    d[0] = ' ';
-                    i += 1;
-                    // skip any following whitespace for \<newline>
-                    if (src[i - 1] == '\n') {
-                        while (i < wlen and (src[i] == ' ' or src[i] == '\t')) i += 1;
-                    }
-                },
-                else => { d[0] = src[i]; i += 1; },
-            }
-            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, esc_len);
+            // Shared escape-decoder handles the full Tcl backslash
+            // table (\\n \\t \\r \\a \\b \\f \\v, \\xNN, \\uNNNN,
+            // \\UNNNNNNNN, octal \\NNN, \\<whitespace> folding).
+            // Allocate 4 bytes upfront (UTF-8 max for \\uXXXX) in the
+            // bump arena so the push_piece recording has a stable src.
+            const esc_ptr = alloc(4);
+            const r = obj_mod.consume_bs_escape(src, i + 1, wlen, @ptrFromInt(esc_ptr));
+            i = r.next_si;
+            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, r.written);
             lit_start = i;
         } else {
             lit_run += 1;
