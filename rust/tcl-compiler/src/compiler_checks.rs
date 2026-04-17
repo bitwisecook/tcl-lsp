@@ -53,6 +53,11 @@ pub struct Diagnostic {
     pub severity: Severity,
     /// Formatted message.
     pub message: String,
+    /// Optional replacement text for a code-action fix that rewrites
+    /// the diagnostic's span. `None` when the check has no suggested
+    /// fix or could not build one. Consumers that surface code actions
+    /// (LSP `CodeAction`, CLI auto-fix) should plumb this through.
+    pub replacement: Option<String>,
 }
 
 impl Diagnostic {
@@ -69,6 +74,7 @@ impl Diagnostic {
                 "condition in block {} is a constant {} — take target `{}`",
                 cb.block, cb.value, cb.taken_target
             ),
+            replacement: None,
         }
     }
 
@@ -79,6 +85,7 @@ impl Diagnostic {
             category: "shimmer".into(),
             severity: Severity::Warning,
             message: w.message.clone(),
+            replacement: None,
         }
     }
 
@@ -89,6 +96,7 @@ impl Diagnostic {
             category: "shimmer".into(),
             severity: Severity::Warning,
             message: w.message.clone(),
+            replacement: None,
         }
     }
 
@@ -99,6 +107,7 @@ impl Diagnostic {
             category: "taint".into(),
             severity: Severity::Error,
             message: w.message.clone(),
+            replacement: None,
         }
     }
 
@@ -109,6 +118,7 @@ impl Diagnostic {
             category: "gvn".into(),
             severity: Severity::Suggestion,
             message: r.message.clone(),
+            replacement: None,
         }
     }
 
@@ -119,6 +129,7 @@ impl Diagnostic {
             category: "taint".into(),
             severity: Severity::Warning,
             message: w.message.clone(),
+            replacement: w.replacement.clone(),
         }
     }
 }
@@ -256,12 +267,19 @@ mod tests {
             false,
         );
         let diagnostics = run_all_checks(&cu, &registry(), None);
-        let has_w201 = diagnostics
+        let w201 = diagnostics
             .iter()
-            .any(|d| d.code == "W201" && d.category == "taint");
+            .find(|d| d.code == "W201" && d.category == "taint")
+            .unwrap_or_else(|| panic!("expected W201 path-concat diagnostic, got {diagnostics:?}"));
+        // The `[file join …]` suggestion must survive the lowering
+        // from `PathConcatWarning` to `Diagnostic`.
+        let replacement = w201
+            .replacement
+            .as_deref()
+            .expect("W201 diagnostic should carry a [file join] replacement");
         assert!(
-            has_w201,
-            "expected W201 path-concat diagnostic, got {diagnostics:?}",
+            replacement.starts_with("[file join ") && replacement.ends_with(']'),
+            "unexpected replacement text: {replacement:?}",
         );
     }
 }

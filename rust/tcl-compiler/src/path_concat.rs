@@ -12,11 +12,16 @@
 //!   and `HAS_INTERPOLATION` (substitution evidence) on each SSA def.
 //! * `taints` — `PATH_NORMALISED` on the defined value suppresses the
 //!   warning (the value has already been through `file normalize` or
-//!   equivalent).
+//!   equivalent). *Latent today* — the Rust taint engine does not yet
+//!   set `PATH_NORMALISED` on `[file normalize]` results; this arm
+//!   will light up once that propagation lands. The equivalent Python
+//!   check also suppresses on `PATH_JOINED`, which has no Rust
+//!   counterpart yet and is tracked as a follow-up.
 //!
 //! A forward-scan within the same block also suppresses the warning
 //! when the very next assignment to the same variable is
-//! `[file normalize $var]`.
+//! `[file normalize $var]` — this is the only suppression path that
+//! currently fires end-to-end.
 
 #![allow(clippy::implicit_hasher)]
 
@@ -159,7 +164,12 @@ pub fn find_path_concat_warnings(
 ) -> Vec<PathConcatWarning> {
     let mut out: Vec<PathConcatWarning> = Vec::new();
     let path_sep_bits = RenderedProperties::HAS_FORWARD_SLASH | RenderedProperties::HAS_BACKSLASH;
-    let suppress_colours = TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED;
+    // Only `PATH_NORMALISED` — Python also uses `PATH_JOINED`, but the
+    // Rust lattice has no counterpart yet. Neither colour is actually
+    // assigned by the current taint engine, so this arm is latent
+    // until `[file normalize]` / `[file join]` propagation lands; the
+    // forward-scan below is the only active suppression.
+    let suppress_colours = TaintColour::PATH_NORMALISED;
 
     for bn in cfg_order(cfg) {
         if !executable_blocks.contains(&bn) {

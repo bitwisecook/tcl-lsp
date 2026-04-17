@@ -28,13 +28,16 @@ use tcl_registry::CommandRegistry;
 /// Run every landed compiler check against `source` and return a
 /// flat list of diagnostic tuples:
 ///
-/// `(code, category, severity, message, start_offset, end_offset)`
+/// `(code, category, severity, message, start_offset, end_offset,
+///   replacement_or_none)`
 ///
 /// - `severity` is one of `"hint"`, `"suggestion"`, `"warning"`,
 ///   `"error"` — matching Python's `Severity` enum string values.
 /// - `start_offset` / `end_offset` are absolute byte offsets into
 ///   `source`; the Python caller resolves them through its own
 ///   line index to build `SourcePosition` / `Range` values.
+/// - `replacement` is a suggested fix text to replace `[start, end)`
+///   with, or `None` when the diagnostic has no code action.
 ///
 /// `dialect` is forwarded as-is; `None` selects plain Tcl.
 #[pyfunction]
@@ -43,7 +46,7 @@ use tcl_registry::CommandRegistry;
 pub fn compiler_checks_run_all(
     source: &str,
     dialect: Option<&str>,
-) -> Vec<(String, String, String, String, u32, u32)> {
+) -> Vec<(String, String, String, String, u32, u32, Option<String>)> {
     let registry = CommandRegistry::build_default();
     let cu = CompilationUnit::build_for(source, &registry, false)
         .with_interprocedural(&registry, dialect);
@@ -58,6 +61,7 @@ pub fn compiler_checks_run_all(
                 d.message,
                 d.span.start(),
                 d.span.end(),
+                d.replacement,
             )
         })
         .collect()
