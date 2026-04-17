@@ -13,15 +13,17 @@ default
 
 ## Question
 
-Why does the analyser flag a constant index passed to `lindex`, `lrange`,
-`linsert`, or `lreplace` that falls outside the list?
+Why does the analyser flag a constant index passed to `lindex`,
+`lrange`, or `lreplace` that falls outside the list?
 
 ## Why
 
-In Tcl 9, these commands silently return the empty string or clamp the
-range when the index is out of bounds. That silent behaviour hides real
-bugs: the programmer usually expected an element and will never see the
-error.
+In Tcl 9, these commands silently return the empty string, clamp the
+range, or (for `lreplace`) prepend/append instead of replacing when the
+index is out of bounds. That silent behaviour hides real bugs: the
+programmer usually expected an element and will never see the error.
+`linsert` is deliberately excluded — its clamp always produces a
+sensible result, so flagging it would second-guess intent.
 
 The analyser checks two constant shapes:
 

@@ -3674,7 +3674,7 @@
           "tclLsp.diagnostics.W230": {
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/linsert/lreplace silently return empty or clamp.",
+            "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
             "order": 24
           },
           "tclLsp.diagnostics.W231": {

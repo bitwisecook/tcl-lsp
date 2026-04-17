@@ -10,7 +10,12 @@ List-index semantics (Tcl 9.0.3):
 
 * ``lindex`` -- out-of-range returns the empty string silently.
 * ``lrange`` -- out-of-range clamps; result can be empty.
-* ``lreplace`` / ``linsert`` -- out-of-range clamps at the boundary.
+* ``lreplace`` -- out-of-range indices clamp to the boundary and the
+  replacement is inserted at the start or end rather than replacing
+  an element.  W230 calls this out explicitly (prepends/appends) when
+  both indices fall outside the list.
+* ``linsert`` -- out-of-range clamps to start/end; always produces a
+  sensible result, so W230 does NOT apply.
 * ``lset`` -- out-of-range is a *hard error* at runtime.
 
 String-index semantics (Tcl 9.0.3):
@@ -110,8 +115,7 @@ def _describe_index(resolved: int, length: int) -> str:
 @diag(
     code="W230",
     description=(
-        "Constant list index out of range — lindex/lrange/linsert/lreplace "
-        "silently return empty or clamp."
+        "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp."
     ),
     section="warning",
     ai_category="control_flow",
@@ -128,11 +132,12 @@ def check_list_index_out_of_range(
     Fires when the list argument is a literal (or empty) *and* at least one
     index argument is a literal that resolves outside ``[0, length)``.
     Tcl silently returns empty / clamps, which usually indicates a bug.
+
+    ``linsert`` is deliberately excluded: its out-of-range clamp
+    (``-N`` -> prepend, ``>= length`` -> append) always produces a
+    meaningful result, so flagging it would be second-guessing intent.
     """
     if cmd_name not in ("lindex", "lrange", "lreplace"):
-        # `linsert` always succeeds (clamps to start/end).  Flagging a
-        # literal -5 on linsert would be guessing at intent — Tcl 9
-        # validates this as a sensible prepend, so leave it alone.
         return []
     if len(args) < 2 or len(arg_tokens) < 2:
         return []
@@ -183,12 +188,10 @@ def check_list_index_out_of_range(
         if len(args) != 3 or len(arg_tokens) < 3:
             return []
         first_pos, last_pos = 1, 2
-        verb = "lrange slice is empty"
     else:  # lreplace
         if len(args) < 3 or len(arg_tokens) < 3:
             return []
         first_pos, last_pos = 1, 2
-        verb = "lreplace touches no element (indices fall outside the list)"
 
     first_text = args[first_pos]
     last_text = args[last_pos]
@@ -218,6 +221,18 @@ def check_list_index_out_of_range(
     if not (both_below or both_above or empty_after_clamp or list_empty):
         return []
 
+    if cmd_name == "lrange":
+        verb = "lrange slice is empty"
+    elif both_below:
+        # Tcl clamps both indices to 0 and inserts the replacement at the
+        # start — i.e. a prepend rather than the replacement the author
+        # likely intended.
+        verb = "lreplace prepends instead of replacing (both indices resolve before the list)"
+    elif both_above:
+        # Clamps to length — appends.
+        verb = "lreplace appends instead of replacing (both indices resolve past the list)"
+    else:
+        verb = "lreplace touches no element (first > last after clamping)"
     msg = (
         f"{verb}: first='{first_text}' resolves to {first_val}, "
         f"last='{last_text}' resolves to {last_val} "
@@ -258,12 +273,22 @@ def check_lset_index_out_of_range(
     if len(args) < 3 or len(arg_tokens) < 3:
         return []
 
-    # index arguments are positions 1 .. len(args)-2 (last arg is the value).
+    # Multi-index forms (``lset L i j ... v``) address *nested* sublists;
+    # index ``j`` is evaluated against ``lindex $L i``'s length, not
+    # against ``$L``.  We only have the top-level length, so when more
+    # than one index is present we fire only on *plain negative* literals
+    # (those are invalid at every nesting level) and leave length-based
+    # checks to the single-index form.
     index_positions = list(range(1, len(args) - 1))
+    nested = len(index_positions) > 1
 
     # Try to resolve the list length via a recent literal `set var {...}`.
     var_name = args[0]
-    list_len = _infer_list_length_from_recent_set(source, var_name, arg_tokens[0].start.offset)
+    list_len = (
+        None
+        if nested
+        else _infer_list_length_from_recent_set(source, var_name, arg_tokens[0].start.offset)
+    )
 
     diagnostics: list[Diagnostic] = []
     for pos in index_positions:
@@ -321,10 +346,19 @@ def _infer_list_length_from_recent_set(
 ) -> int | None:
     """Return the literal length of *var_name* if a recent ``set`` assigned it.
 
-    Uses a cheap regex scan of ``source[:before_offset]``.  A full
-    command segmentation would be quadratic across many ``lset`` calls
-    in the same file; this check only needs the most recent brace-quoted
-    literal assignment, which the regex finds in O(n).
+    Conservative, scope-aware heuristic:
+
+    * Scans ``source[:before_offset]`` with a cheap regex for
+      ``set <var> {literal}`` forms (O(n); full command segmentation
+      would be quadratic across many ``lset`` calls).
+    * Only accepts a match when the text between the match and the
+      ``lset`` stays at brace depth zero — i.e. no unclosed ``{`` or
+      ``}`` intervenes.  This rejects matches made in a *deeper* scope
+      (a ``proc`` body, ``namespace eval`` block, or nested braces)
+      that do not affect the variable the ``lset`` actually sees.
+    * The regex already excludes values containing ``{`` / ``}``, so
+      the captured literal cannot hide additional braces that would
+      confuse the depth count.
     """
     if before_offset <= 0 or not var_name:
         return None
@@ -332,12 +366,50 @@ def _infer_list_length_from_recent_set(
     for m in _LIST_SET_RE.finditer(source, 0, before_offset):
         if m.group(1) != var_name:
             continue
+        # Only trust the match if the surrounding scope stays flat
+        # (no unclosed braces, no `proc`/`namespace eval` crossings).
+        between = source[m.end() : before_offset]
+        if not _scope_is_flat(between):
+            continue
         elements = _split_list_literal(m.group(2)[1:-1])
         if elements is None:
             best_length = None
             continue
         best_length = len(elements)
     return best_length
+
+
+_SCOPE_MARKERS_RE = re.compile(r"\b(?:proc|namespace\s+eval|apply|try)\b")
+
+
+def _scope_is_flat(between: str) -> bool:
+    """Return True if *between* stays at brace depth 0 and introduces no
+    ``proc`` / ``namespace eval`` / ``apply`` / ``try`` scope.
+
+    Because the captured ``set`` value excluded braces, any ``{`` we
+    encounter here opens a new scope.  If any such scope remains open
+    at the end of *between*, or any scope-introducing keyword appears,
+    the trailing ``lset`` does not share the variable's originating
+    scope and we must back off.
+    """
+    if _SCOPE_MARKERS_RE.search(between):
+        return False
+    depth = 0
+    i = 0
+    n = len(between)
+    while i < n:
+        ch = between[i]
+        if ch == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth < 0:
+                return False
+        i += 1
+    return depth == 0
 
 
 # W232: string index out of range
@@ -393,8 +465,21 @@ def check_string_index_out_of_range(
 
     str_tok = arg_tokens[1]
     str_text = args[1]
-    str_is_literal = _is_braced_or_esc(str_tok) and not _has_subst(str_text, str_tok)
-    str_len = len(str_text) if str_is_literal else None
+    # Only use source length as the runtime length when it is safe to
+    # do so: braced strings (``{...}``) perform no backslash processing,
+    # and ESC words without any backslash are also byte-identical to
+    # their runtime form.  An ESC with a backslash may have a source
+    # length larger than its runtime length (``\n`` is 2 source chars,
+    # 1 runtime char); we back off in that case rather than emit a
+    # diagnostic against the wrong length.
+    if _has_subst(str_text, str_tok) or not _is_braced_or_esc(str_tok):
+        str_len = None
+    elif str_tok.type is TokenType.STR:
+        str_len = len(str_text)
+    elif "\\" in str_text:
+        str_len = None
+    else:
+        str_len = len(str_text)
 
     diagnostics: list[Diagnostic] = []
 
@@ -612,7 +697,6 @@ def check_loop_termination(
         cond_text = args[0]
         body_text = args[1]
         cond_tok = arg_tokens[0]
-        body_tok = arg_tokens[1]
         init_text = ""
         step_text = ""
     else:  # for
@@ -623,7 +707,6 @@ def check_loop_termination(
         step_text = args[2]
         body_text = args[3]
         cond_tok = arg_tokens[1]
-        body_tok = arg_tokens[3]
 
     diagnostics: list[Diagnostic] = []
     const = _condition_constant(cond_text)
@@ -669,13 +752,16 @@ def check_loop_termination(
             return diagnostics
 
     # W242: counter variable in condition but no step / body write visible.
+    # Report the diagnostic on the *condition* token so the range is
+    # consistent with W240/W241 (and IRULE5003); the condition is what
+    # cannot be proven to change, not the body.
     var = _extract_counter_name(cond_text)
     if var is not None:
         modifies = _loop_modifies_var(var, step_text, body_text)
         if not modifies:
             diagnostics.append(
                 Diagnostic(
-                    range=Range(start=body_tok.start, end=body_tok.end),
+                    range=Range(start=cond_tok.start, end=cond_tok.end),
                     message=(
                         f"{cmd_name} termination cannot be proven: variable "
                         f"'{var}' in the condition is never modified by the "
@@ -690,32 +776,48 @@ def check_loop_termination(
 
 _SIMPLE_COUNTER_RE = re.compile(
     r"""
+    \s*
     \$\{?(?P<v>\w+)\}?
     \s* (?P<op><=|>=|<|>|==|!=|eq|ne) \s*
     (?P<bound>-?\d+)
+    \s*
     """,
     re.VERBOSE,
 )
 _SIMPLE_COUNTER_REV_RE = re.compile(
     r"""
+    \s*
     (?P<bound>-?\d+)
     \s* (?P<op><=|>=|<|>|==|!=|eq|ne) \s*
     \$\{?(?P<v>\w+)\}?
+    \s*
     """,
     re.VERBOSE,
 )
 
+# Compound-condition markers that mean the infinity proof is unsound:
+# ``&&`` / ``||`` combine predicates, ``?:`` introduces a branch, and
+# ``!`` can invert the sense of the comparison.
+_COMPOUND_MARKERS_RE = re.compile(r"&&|\|\||\?|(?<![<>=!])!(?!=)")
+
 
 def _parse_simple_for_cond(cond: str) -> tuple[str, str, int] | None:
-    """Return (var, op, bound) if *cond* is ``$v OP literal`` or ``literal OP $v``.
+    """Return (var, op, bound) if *cond* is exactly ``$v OP literal``
+    or ``literal OP $v``.
 
-    The operator is normalised so that the variable is always on the left.
+    The regex is anchored (``fullmatch``) and compound operators
+    (``&&``, ``||``, ``?:``, ``!``) cause an early return — so a
+    compound condition such as ``$i < 10 && 0`` is never reduced to
+    a simple counter form and thus does not trigger the W241 infinity
+    proof.
     """
     c = _strip_braces(cond)
-    m = _SIMPLE_COUNTER_RE.search(c)
+    if _COMPOUND_MARKERS_RE.search(c):
+        return None
+    m = _SIMPLE_COUNTER_RE.fullmatch(c)
     if m is not None:
         return m.group("v"), m.group("op"), int(m.group("bound"))
-    m = _SIMPLE_COUNTER_REV_RE.search(c)
+    m = _SIMPLE_COUNTER_REV_RE.fullmatch(c)
     if m is not None:
         # Flip operator so the variable is on the left.
         flip = {"<": ">", ">": "<", "<=": ">=", ">=": "<=", "==": "==", "!=": "!="}
