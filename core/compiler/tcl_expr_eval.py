@@ -80,13 +80,16 @@ def eval_tcl_expr_str(
 def format_tcl_value(value: TclValue) -> str:
     """Render a TclValue as a Tcl source literal."""
     if isinstance(value, float):
-        if math.isinf(value) or math.isnan(value):
-            return repr(value)
+        if math.isinf(value):
+            return "-Inf" if value < 0 else "Inf"
+        if math.isnan(value):
+            return "NaN"
         if value == 0.0:
             # Preserve the sign bit: IEEE 754 distinguishes -0.0 from +0.0.
             return "-0.0" if math.copysign(1.0, value) < 0 else "0.0"
-        if value == int(value):
-            return f"{int(value)}.0"
+        # repr() gives "42.0" for whole-number floats and "1e+308" for large
+        # values — both correct for Tcl.  The previous int() branch produced
+        # a many-digit integer string for values like 1e308.
         return repr(value)
     return str(value)
 
@@ -302,7 +305,12 @@ def _eval_binary(
         return None
 
     try:
-        return _apply_binary(op, lv, rv)
+        result = _apply_binary(op, lv, rv)
+        # Tcl 9.0 raises ARITH DOMAIN for NaN-producing operations; let the
+        # VM runtime handle them rather than silently constant-folding to NaN.
+        if isinstance(result, float) and math.isnan(result):
+            return None
+        return result
     except Exception:
         log.debug("expr_eval: binary operation failed", exc_info=True)
         return None

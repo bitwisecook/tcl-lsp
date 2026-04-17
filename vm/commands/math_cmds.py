@@ -103,7 +103,11 @@ def _mf_bool(args: list[str]) -> str:
 
 
 def _mf_ceil(args: list[str]) -> str:
-    return _format_number(int(math.ceil(float(args[0]))))
+    v = float(args[0])
+    # math.ceil(±Inf) raises OverflowError in Python; Tcl returns ±Inf.
+    if math.isinf(v):
+        return "-Inf" if v < 0 else "Inf"
+    return _format_number(int(math.ceil(v)))
 
 
 def _mf_cos(args: list[str]) -> str:
@@ -122,7 +126,13 @@ def _mf_double(args: list[str]) -> str:
 
 
 def _mf_entier(args: list[str]) -> str:
-    return str(int(float(args[0])))
+    v = float(args[0])
+    if math.isinf(v) or math.isnan(v):
+        raise TclError(
+            "integer value too large to represent",
+            error_code="ARITH IOVERFLOW {integer value too large to represent}",
+        )
+    return str(int(v))
 
 
 def _mf_exp(args: list[str]) -> str:
@@ -134,7 +144,11 @@ def _mf_exp(args: list[str]) -> str:
 
 
 def _mf_floor(args: list[str]) -> str:
-    return _format_number(int(math.floor(float(args[0]))))
+    v = float(args[0])
+    # math.floor(±Inf) raises OverflowError in Python; Tcl returns ±Inf.
+    if math.isinf(v):
+        return "-Inf" if v < 0 else "Inf"
+    return _format_number(int(math.floor(v)))
 
 
 def _mf_fmod(args: list[str]) -> str:
@@ -146,7 +160,13 @@ def _mf_hypot(args: list[str]) -> str:
 
 
 def _mf_int(args: list[str]) -> str:
-    return str(int(float(args[0])))
+    v = float(args[0])
+    if math.isinf(v) or math.isnan(v):
+        raise TclError(
+            "integer value too large to represent",
+            error_code="ARITH IOVERFLOW {integer value too large to represent}",
+        )
+    return str(int(v))
 
 
 def _mf_isqrt(args: list[str]) -> str:
@@ -154,11 +174,19 @@ def _mf_isqrt(args: list[str]) -> str:
 
 
 def _mf_log(args: list[str]) -> str:
-    return _format_number(math.log(float(args[0])))
+    v = float(args[0])
+    # log(0.0) = -Inf in Tcl 9.0 (matches IEEE 754 limit); Python raises ValueError.
+    if v == 0.0:
+        return "-Inf"
+    return _format_number(math.log(v))
 
 
 def _mf_log10(args: list[str]) -> str:
-    return _format_number(math.log10(float(args[0])))
+    v = float(args[0])
+    # log10(0.0) = -Inf in Tcl 9.0; Python raises ValueError.
+    if v == 0.0:
+        return "-Inf"
+    return _format_number(math.log10(v))
 
 
 def _mf_max(args: list[str]) -> str:
@@ -180,13 +208,22 @@ def _mf_min(args: list[str]) -> str:
 
 
 def _mf_pow(args: list[str]) -> str:
+    base = float(args[0])
+    exp = float(args[1])
+    # pow(±0.0, negative) = ±Inf in Tcl 9.0 (verified against tclsh 9.0.3).
+    # Python raises ZeroDivisionError here; apply sign rule manually.
+    # IEEE 754: negative odd-integer exponent preserves base sign; all other
+    # negative exponents (including -Inf) yield +Inf.  Guard ``int(exp)`` with
+    # ``isfinite`` — otherwise exp=-Inf would raise OverflowError here.
+    if base == 0.0 and exp < 0:
+        if math.isfinite(exp) and exp == int(exp) and int(exp) & 1:
+            return "-Inf" if math.copysign(1.0, base) < 0 else "Inf"
+        return "Inf"
     try:
-        return _format_number(math.pow(float(args[0]), float(args[1])))
+        return _format_number(math.pow(base, exp))
     except OverflowError:
         # IEEE platforms return Inf/-Inf for overflow
-        base = float(args[0])
-        exp = float(args[1])
-        if base < 0 and exp == int(exp) and int(exp) % 2 == 1:
+        if base < 0 and exp == int(exp) and int(exp) & 1:
             return "-Inf"
         return "Inf"
 
@@ -221,6 +258,18 @@ def _mf_tanh(args: list[str]) -> str:
     return _format_number(math.tanh(float(args[0])))
 
 
+def _mf_isinf(args: list[str]) -> str:
+    return "1" if math.isinf(float(args[0])) else "0"
+
+
+def _mf_isnan(args: list[str]) -> str:
+    return "1" if math.isnan(float(args[0])) else "0"
+
+
+def _mf_isfinite(args: list[str]) -> str:
+    return "1" if math.isfinite(float(args[0])) else "0"
+
+
 def _mf_rand(args: list[str]) -> str:
     return _format_number(random.random())
 
@@ -243,6 +292,11 @@ def _mf_wide(args: list[str]) -> str:
     # Float to wide int: truncate like C's (Tcl_WideInt)(double)
 
     fv = float(v)
+    if math.isinf(fv) or math.isnan(fv):
+        raise TclError(
+            "integer value too large to represent",
+            error_code="ARITH IOVERFLOW {integer value too large to represent}",
+        )
     # Pack as C double, unpack as signed 64-bit int equivalent via
     # C-style truncation.  For values in range, int() suffices.
     # For out-of-range values, use struct to get the C behaviour.
@@ -277,6 +331,9 @@ _MATH_FUNCS: dict[str, tuple[object, int, int]] = {
     "fmod": (_mf_fmod, 2, 2),
     "hypot": (_mf_hypot, 2, 2),
     "int": (_mf_int, 1, 1),
+    "isfinite": (_mf_isfinite, 1, 1),
+    "isinf": (_mf_isinf, 1, 1),
+    "isnan": (_mf_isnan, 1, 1),
     "isqrt": (_mf_isqrt, 1, 1),
     "log": (_mf_log, 1, 1),
     "log10": (_mf_log10, 1, 1),

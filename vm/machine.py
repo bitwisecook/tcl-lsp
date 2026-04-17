@@ -452,10 +452,16 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
             result = a * b
         case "div":
             if b == 0:
-                # IEEE platforms: float/0.0 → Inf/-Inf/NaN
+                # IEEE platforms: float/±0.0 → ±Inf (sign = sign(a)×sign(b)); 0/0 → domain error
                 if isinstance(a, float) or isinstance(b, float):
                     fa, fb = float(a), float(b)
-                    result = math.copysign(math.inf, fa) if fa != 0.0 else math.nan
+                    if fa == 0.0:
+                        raise TclError(
+                            "domain error: argument not in valid range",
+                            error_code="ARITH DOMAIN {domain error: argument not in valid range}",
+                        )
+                    sign = math.copysign(1.0, fa) * math.copysign(1.0, fb)
+                    result = math.copysign(math.inf, sign)
                 else:
                     raise TclError("divide by zero", error_code="ARITH DIVZERO {divide by zero}")
             elif isinstance(a, int) and isinstance(b, int):
@@ -486,7 +492,7 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
                         try:
                             result = fa**b
                         except OverflowError:
-                            result = math.copysign(math.inf, a) if a < 0 and b % 2 else math.inf
+                            result = math.copysign(math.inf, a) if a < 0 and b & 1 else math.inf
                 else:
                     try:
                         result = a**b
@@ -505,10 +511,17 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
                 try:
                     result = fa**fb
                 except OverflowError:
-                    result = math.copysign(math.inf, fa) if fa < 0 and int(fb) % 2 else math.inf
+                    result = math.copysign(math.inf, fa) if fa < 0 and int(fb) & 1 else math.inf
         case _:
             raise TclError(f"unknown arithmetic op: {op_name}")
 
+    # IEEE 754 operations that produce NaN (Inf-Inf, Inf*0, Inf/Inf, etc.)
+    # are domain errors in Tcl 9.0, not silently propagated NaN values.
+    if isinstance(result, float) and math.isnan(result):
+        raise TclError(
+            "domain error: argument not in valid range",
+            error_code="ARITH DOMAIN {domain error: argument not in valid range}",
+        )
     return _format_number(result)
 
 
@@ -1725,6 +1738,36 @@ class BytecodeVM:
                     for _ in range(num_indices):
                         indices.insert(0, stack.pop() if stack else "0")
                     stack.append(_lset_nested(list_val, indices, new_val))
+
+                case Op.NUMERIC_TYPE:
+                    # numericType: pop TOS, push a numeric type code:
+                    #   0 = not numeric
+                    #   1 = integer (int or wide int or bignum)
+                    #   4 = double (IEEE 754 float, including Inf/-Inf/NaN/-0.0)
+                    # Used by bytecoded ``string is integer`` and
+                    # ``string is double``.  The ``string is integer`` check
+                    # uses ``<= 3`` so integer must be type 1; any non-zero
+                    # type passes the ``string is double`` truthy test.
+                    _nt_val = stack.pop() if stack else ""
+                    _nt_s = _nt_val.strip()
+                    if not _nt_s:
+                        stack.append("0")
+                    else:
+                        _nt_type = 0
+                        try:
+                            int(_nt_s, 0)
+                            _nt_type = 1
+                        except (ValueError, TypeError):
+                            try:
+                                int(_nt_s, 10)
+                                _nt_type = 1
+                            except (ValueError, TypeError):
+                                try:
+                                    float(_nt_s)
+                                    _nt_type = 4
+                                except (ValueError, TypeError):
+                                    _nt_type = 0
+                        stack.append(str(_nt_type))
 
                 case Op.STR_CLASS:
                     # strclass classId: check whether TOS is a member of
