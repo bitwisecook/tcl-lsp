@@ -25,6 +25,7 @@ from enum import IntEnum
 
 from ...analysis.semantic_model import Range
 from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
+from ...parsing.tokens import TokenType
 from ..cfg import (
     CFGBranch,
     CFGFunction,
@@ -46,7 +47,6 @@ from ..expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from ...parsing.tokens import TokenType
 from ..ir import (
     CommandTokens,
     IRAssignConst,
@@ -1315,8 +1315,8 @@ def _has_embedded_subst_scan(value: str) -> bool:
 
 def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     """Parse an expression body and add any runtime imports it needs."""
-    from ..expr_ast import BinOp, ExprBinary, ExprCall, ExprTernary, ExprUnary
     from ...parsing.expr_parser import parse_expr
+    from ..expr_ast import BinOp, ExprBinary, ExprCall, ExprTernary, ExprUnary
 
     try:
         node = parse_expr(expr_text)
@@ -6507,8 +6507,10 @@ class _WasmEmitter:
         ``unset``, etc.) we push a null TclObj (0) as the result.
         """
         from ..ir import (
-            IRCall, IRBarrier, IRReturn, IRIncr, IRExprEval,
-            IRAssignConst, IRAssignValue, IRAssignExpr,
+            IRBarrier,
+            IRCall,
+            IRExprEval,
+            IRIncr,
         )
         match stmt:
             case IRCall(command=command, args=args, defs=defs, tokens=tokens):
