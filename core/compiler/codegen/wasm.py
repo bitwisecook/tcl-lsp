@@ -6464,6 +6464,7 @@ class _WasmEmitter:
             is_last = capture_last and (i == len(stmts) - 1)
             if is_last:
                 # Emit in "keep result" mode, then record for catch_result().
+                assert set_ok_idx is not None  # guaranteed by capture_last
                 self._emit_stmt_keep_result(stmt)
                 self._emit_call(set_ok_idx)  # consumes the i32 result
             else:

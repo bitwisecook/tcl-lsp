@@ -414,8 +414,34 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
     return .{ .start = 0, .len = 0, .braced = false };
 }
 
+// UTF-8-encode a codepoint into *d*, returning the byte count.
+fn encode_utf8_local(d: [*]u8, cp: u32) u32 {
+    if (cp < 0x80) {
+        d[0] = @intCast(cp);
+        return 1;
+    } else if (cp < 0x800) {
+        d[0] = @intCast(0xC0 | (cp >> 6));
+        d[1] = @intCast(0x80 | (cp & 0x3F));
+        return 2;
+    } else if (cp < 0x10000) {
+        d[0] = @intCast(0xE0 | (cp >> 12));
+        d[1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        d[2] = @intCast(0x80 | (cp & 0x3F));
+        return 3;
+    } else {
+        d[0] = @intCast(0xF0 | (cp >> 18));
+        d[1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+        d[2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        d[3] = @intCast(0x80 | (cp & 0x3F));
+        return 4;
+    }
+}
+
 // Copy an unbraced list-element's bytes, expanding backslash sequences.
-// Returns number of output bytes written to dst.
+// Returns number of output bytes written to dst.  Handles the full Tcl
+// backslash table (same as ``subst`` in a double-quoted / bare context):
+// ``\n \t \r \a \b \f \v``, ``\xNN``, ``\uNNNN``, ``\UNNNNNNNN``,
+// ``\NNN`` (octal), and ``\<space>`` / ``\<newline>`` → single space.
 pub fn copy_unbraced_elem(dst: u32, src_ptr: u32, src_len: u32) u32 {
     const src: [*]const u8 = @ptrFromInt(src_ptr);
     const out: [*]u8 = @ptrFromInt(dst);
@@ -426,12 +452,81 @@ pub fn copy_unbraced_elem(dst: u32, src_ptr: u32, src_len: u32) u32 {
             si += 1;
             const ch = src[si];
             switch (ch) {
-                'n' => { out[di] = '\n'; di += 1; },
-                't' => { out[di] = '\t'; di += 1; },
-                'r' => { out[di] = '\r'; di += 1; },
-                else => { out[di] = ch; di += 1; },
+                'n' => { out[di] = '\n'; di += 1; si += 1; },
+                't' => { out[di] = '\t'; di += 1; si += 1; },
+                'r' => { out[di] = '\r'; di += 1; si += 1; },
+                'a' => { out[di] = 0x07; di += 1; si += 1; },
+                'b' => { out[di] = 0x08; di += 1; si += 1; },
+                'f' => { out[di] = 0x0C; di += 1; si += 1; },
+                'v' => { out[di] = 0x0B; di += 1; si += 1; },
+                'x' => {
+                    // ``\xNN`` — 1 or 2 hex digits
+                    si += 1;
+                    var val: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 2 and si < src_len) {
+                        const c = src[si];
+                        if (c >= '0' and c <= '9') { val = val * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
+                        else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
+                        else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
+                        else break;
+                    }
+                    out[di] = @intCast(val & 0xFF);
+                    di += 1;
+                },
+                'u' => {
+                    // ``\uNNNN`` — up to 4 hex digits → UTF-8
+                    si += 1;
+                    var cp: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 4 and si < src_len) {
+                        const c = src[si];
+                        if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
+                        else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
+                        else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
+                        else break;
+                    }
+                    di += encode_utf8_local(@ptrFromInt(dst + di), cp);
+                },
+                'U' => {
+                    // ``\UNNNNNNNN`` — up to 8 hex digits → UTF-8
+                    si += 1;
+                    var cp: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 8 and si < src_len) {
+                        const c = src[si];
+                        if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
+                        else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
+                        else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
+                        else break;
+                    }
+                    di += encode_utf8_local(@ptrFromInt(dst + di), cp);
+                },
+                '0'...'9' => {
+                    // ``\NNN`` — octal (up to 3 digits)
+                    var val: u32 = 0;
+                    var ndig: u32 = 0;
+                    while (ndig < 3 and si < src_len and src[si] >= '0' and src[si] <= '7') {
+                        val = val * 8 + @as(u32, src[si] - '0');
+                        si += 1; ndig += 1;
+                    }
+                    out[di] = @intCast(val & 0xFF);
+                    di += 1;
+                },
+                ' ', '\n', '\t', '\r' => {
+                    // ``\<whitespace>`` — folds to a single space;
+                    // ``\<newline>`` additionally eats following
+                    // spaces / tabs.
+                    out[di] = ' ';
+                    di += 1;
+                    const was_newline = (ch == '\n');
+                    si += 1;
+                    if (was_newline) {
+                        while (si < src_len and (src[si] == ' ' or src[si] == '\t')) si += 1;
+                    }
+                },
+                else => { out[di] = ch; di += 1; si += 1; },
             }
-            si += 1;
         } else {
             out[di] = src[si];
             di += 1;
