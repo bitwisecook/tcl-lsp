@@ -65,6 +65,9 @@ perf_history.sqlite3
 # Zig build cache (the built tcl_runtime.wasm is checked in)
 runtime/zig/.zig-cache/
 runtime/zig/zig-out/lib/
+# Stray build artifacts in the zig root (should be in zig-out/bin/)
+runtime/zig/tcl_runtime.wasm
+runtime/zig/tcl_runtime.wasm.o
 
 # Fetched Tcl regex sources — downloaded by scripts/fetch_tcl_regex.sh
 # on demand (see runtime/zig/build.zig).  Not vendored in the repo.
