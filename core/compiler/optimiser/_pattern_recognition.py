@@ -639,23 +639,31 @@ def _end_offset_command_shape(
 
     Returns ``(index_positions, container_position, expected_kind)`` or
     ``None`` when the command does not match a supported shape.
+
+    ``linsert`` is intentionally excluded: ``linsert $L end x`` appends to
+    the list, whereas ``linsert $L [expr {[llength $L] - 1}] x`` inserts
+    before the final element. No general ``end``/``end-N`` rewrite
+    preserves that semantics for the ``N == 1`` case, so the whole command
+    is skipped rather than partially rewritten.
+
+    ``lindex`` with multiple indices resolves each index against the
+    *sub-list* produced by the previous step, so only the first index
+    position (2) is safe to rewrite.
     """
     if not argv_texts:
         return None
     cmd = argv_texts[0]
     nargs = len(argv_texts)
     if cmd == "lindex" and nargs >= 3:
-        # lindex list index...
-        return (tuple(range(2, nargs)), 1, "llength")
+        # Only the first index is relative to the original list value;
+        # later indices resolve against intermediate sub-lists.
+        return ((2,), 1, "llength")
     if cmd == "lrange" and nargs == 4:
         # lrange list first last
         return ((2, 3), 1, "llength")
     if cmd == "lreplace" and nargs >= 4:
         # lreplace list first last ?element ...?
         return ((2, 3), 1, "llength")
-    if cmd == "linsert" and nargs >= 3:
-        # linsert list index ?element ...?
-        return ((2,), 1, "llength")
     if cmd == "string" and nargs >= 2:
         sub = argv_texts[1]
         if sub == "index" and nargs == 4:
@@ -667,16 +675,6 @@ def _end_offset_command_shape(
         if sub == "replace" and nargs >= 5:
             # string replace str first last ?newString?
             return ((3, 4), 2, "strlen")
-    return None
-
-
-def _var_ref_to_name(text: str) -> str | None:
-    """Extract the variable name from ``$foo`` / ``${foo}``."""
-    s = text.strip()
-    if s.startswith("${") and s.endswith("}"):
-        return s[2:-1]
-    if s.startswith("$"):
-        return s[1:]
     return None
 
 
@@ -699,7 +697,10 @@ def _apply_end_offset_to_argv(
     container_tok = argv_tokens[container_pos]
     if container_tok.type is not TokenType.VAR:
         return
-    container_name = _normalise_var_name(container_tok.text)
+    # Compare full variable references (``${L}``, ``${a(1)}``, ``$={a(1)}``),
+    # not normalised base names — otherwise ``$a(1)`` and ``$a(2)`` would be
+    # treated as the same container and the rewrite would change semantics.
+    container_repr = argv_texts[container_pos].strip()
 
     for pos in index_positions:
         if pos >= len(argv_texts) or pos >= len(argv_tokens):
@@ -718,10 +719,7 @@ def _apply_end_offset_to_argv(
         kind, length_var_ref, offset = match
         if kind != expected_kind:
             continue
-        length_name = _var_ref_to_name(length_var_ref)
-        if length_name is None:
-            continue
-        if _normalise_var_name(length_name) != container_name:
+        if length_var_ref.strip() != container_repr:
             continue
 
         replacement = "end" if offset == 0 else f"end-{offset}"
