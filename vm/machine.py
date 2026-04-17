@@ -492,7 +492,7 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
                         try:
                             result = fa**b
                         except OverflowError:
-                            result = math.copysign(math.inf, a) if a < 0 and b % 2 else math.inf
+                            result = math.copysign(math.inf, a) if a < 0 and b & 1 else math.inf
                 else:
                     try:
                         result = a**b
@@ -511,7 +511,7 @@ def _arith_binary(a_str: str, b_str: str, op_name: str) -> str:
                 try:
                     result = fa**fb
                 except OverflowError:
-                    result = math.copysign(math.inf, fa) if fa < 0 and int(fb) % 2 else math.inf
+                    result = math.copysign(math.inf, fa) if fa < 0 and int(fb) & 1 else math.inf
         case _:
             raise TclError(f"unknown arithmetic op: {op_name}")
 
