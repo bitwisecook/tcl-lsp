@@ -541,7 +541,7 @@ class _Lowerer:
             body_text = args[i]
             body_tok = arg_tokens[i]
             elements, element_tokens = _switch_body_elements(body_text, body_tok)
-            if len(elements) % 2 != 0:
+            if len(elements) & 1:
                 # Odd count → "extra switch pattern with no body" at runtime
                 return IRBarrier(
                     range=cmd.range,
@@ -563,7 +563,7 @@ class _Lowerer:
                 j += 2
         else:
             remaining_count = len(args) - i
-            if remaining_count % 2 != 0:
+            if remaining_count & 1:
                 return IRBarrier(
                     range=cmd.range,
                     reason="switch odd pattern count",
@@ -717,7 +717,7 @@ class _Lowerer:
         arg_tokens = cmd.arg_tokens
         arg_single = cmd.arg_single_token
         # foreach varList list ?varList list ...? body — need at least 3 args (odd count)
-        if len(args) < 3 or len(args) % 2 == 0:
+        if len(args) < 3 or not len(args) & 1:
             return IRBarrier(
                 range=cmd.range,
                 reason="malformed foreach",

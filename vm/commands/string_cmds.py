@@ -168,7 +168,7 @@ def _cmd_string(interp: TclInterp, args: list[str]) -> TclResult:
             from ..machine import _split_list
 
             mapping_list = _split_list(r[0])
-            if len(mapping_list) % 2 != 0:
+            if len(mapping_list) & 1:
                 raise TclError("list must have an even number of elements")
             string = r[1]
             pairs = list(zip(mapping_list[::2], mapping_list[1::2]))

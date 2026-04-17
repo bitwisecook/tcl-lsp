@@ -143,7 +143,7 @@ def _when_argument_values(
         return ()
     if arg_index == 0:
         return REGISTRY.argument_values("when", 0, dialect)
-    if arg_index % 2 == 1:
+    if arg_index & 1:
         return REGISTRY.argument_values("when", 1, dialect)
 
     cmd, args, _current_word, _word_index = find_command_context_details_at_position(

@@ -62,7 +62,7 @@ class TestGenerator:
     def test_balanced_quotes(self) -> None:
         gen = TclGenerator(seed=456)
         script = gen.generate()
-        assert script.count('"') % 2 == 0
+        assert not script.count('"') & 1
 
     def test_deterministic(self) -> None:
         a = TclGenerator(seed=99).generate()
@@ -83,7 +83,7 @@ class TestGenerator:
             script = gen.generate()
             is_bad = (
                 script.count("{") != script.count("}")
-                or script.count('"') % 2 != 0
+                or script.count('"') & 1
                 or script.count("[") != script.count("]")
                 or "\x00" in script
             )
@@ -100,7 +100,7 @@ class TestGenerator:
             gen = TclGenerator(seed=seed, config=cfg)
             script = gen.generate()
             assert "\x00" not in script, f"seed={seed}: null byte found"
-            assert script.count('"') % 2 == 0, f"seed={seed}: odd quotes"
+            assert not script.count('"') & 1, f"seed={seed}: odd quotes"
 
 
 # VM optimised vs unoptimised

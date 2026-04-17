@@ -77,7 +77,7 @@ def run_campaign(
         # intentionally corrupted by the generator's bad_input_pct path.
         is_bad = (
             script.count("{") != script.count("}")
-            or script.count('"') % 2 != 0
+            or script.count('"') & 1
             or script.count("[") != script.count("]")
             or "\x00" in script
         )

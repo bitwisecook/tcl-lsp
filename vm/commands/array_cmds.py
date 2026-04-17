@@ -79,7 +79,7 @@ def _array_set(interp: TclInterp, args: list[str]) -> TclResult:
         raise TclError('wrong # args: should be "array set arrayName list"')
     name = args[0]
     elements = _split_list(args[1])
-    if len(elements) % 2 != 0:
+    if len(elements) & 1:
         raise TclError("list must have an even number of elements")
     mapping: dict[str, str] = {}
     for i in range(0, len(elements), 2):
