@@ -23,11 +23,28 @@ pub var return_val: i32 = 0; // TclObj return value
 pub var break_flag: u32 = 0; // 1 = break pending (absorbed by loops)
 pub var continue_flag: u32 = 0; // 1 = continue pending (absorbed by loops)
 
+// ``catch body result`` success path: when no error occurs, the result
+// variable should receive the return value of the body's last command,
+// not the error message (which stays 0).  Compiled catch bodies record
+// this value via ``catch_set_ok_result`` so that ``catch_result()`` can
+// return the correct value for both success and error cases.
+pub var catch_ok_result: i32 = 0;
+
 // Exported: enter a catch scope.
 pub export fn catch_enter() void {
     catch_depth += 1;
     error_flag = 0;
     error_msg = 0;
+    catch_ok_result = 0;
+}
+
+// Exported: record the success result of the catch body's last statement.
+// Called by compiled catch bodies after their last statement when a
+// result variable is needed.  Ignored if an error already occurred.
+pub export fn catch_set_ok_result(val: i32) void {
+    if (error_flag == 0) {
+        catch_ok_result = val;
+    }
 }
 
 // Exported: leave a catch scope. Returns 0 (TCL_OK) or 1 (TCL_ERROR).
@@ -38,9 +55,12 @@ pub export fn catch_leave() i32 {
     return obj_new_int(@intCast(had_error));
 }
 
-// Exported: get the error message (or last result) after catch.
+// Exported: get the result (or error message) after catch.
+// Returns the error message when an error occurred, or the body's
+// last-command result (set by ``catch_set_ok_result``) on success.
 pub export fn catch_result() i32 {
-    return error_msg;
+    if (error_flag != 0) return error_msg;
+    return catch_ok_result;
 }
 
 // Exported: check if an error is pending (for early exit from catch body).

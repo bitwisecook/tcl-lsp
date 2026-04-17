@@ -92,6 +92,7 @@ pub const catch_enter = tcl_catch.catch_enter;
 pub const catch_leave = tcl_catch.catch_leave;
 pub const catch_result = tcl_catch.catch_result;
 pub const catch_has_error = tcl_catch.catch_has_error;
+pub const catch_set_ok_result = tcl_catch.catch_set_ok_result;
 pub const tcl_cmd_error = tcl_catch.tcl_cmd_error;
 pub const error_flag = &tcl_catch.error_flag;
 pub const return_flag = &tcl_catch.return_flag;
@@ -206,6 +207,7 @@ comptime {
     _ = &tcl_catch.catch_leave;
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
+    _ = &tcl_catch.catch_set_ok_result;
     _ = &tcl_catch.tcl_cmd_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than

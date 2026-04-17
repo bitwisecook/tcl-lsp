@@ -102,6 +102,11 @@ pub export fn obj_new_string(data_ptr: i32, length: i32) i32 {
 }
 
 pub export fn obj_get_int(obj: i32) i64 {
+    // Null/zero pointer sentinel — return 0 rather than reading
+    // arbitrary bytes from address 0 (the pre-heap WASM stack area).
+    // ``global_get`` returns 0 for unset variables; callers that pass
+    // that result here expect to get the empty-string / zero integer.
+    if (obj == 0) return 0;
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
@@ -286,6 +291,14 @@ pub fn list_count_elements(ptr: u32, len: u32) i64 {
             i += 1;
             var depth: u32 = 1;
             while (i < len and depth > 0) {
+                // Tcl list parsing: a backslash escapes the next
+                // character so ``\{`` / ``\}`` do NOT affect the
+                // brace-nesting depth.  Consume both bytes and
+                // continue without touching depth.
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
                 if (src[i] == '{') {
                     depth += 1;
                 } else if (src[i] == '}') {
@@ -294,7 +307,13 @@ pub fn list_count_elements(ptr: u32, len: u32) i64 {
                 i += 1;
             }
         } else {
-            while (i < len and !is_space(src[i])) i += 1;
+            while (i < len and !is_space(src[i])) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
         }
     }
     return count;
@@ -314,6 +333,12 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
             const inner_start = i;
             var depth: u32 = 1;
             while (i < len and depth > 0) {
+                // Backslash escapes the next char — ``\{`` / ``\}``
+                // inside a braced list element are NOT depth-changing.
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
                 if (src[i] == '{') {
                     depth += 1;
                 } else if (src[i] == '}') {
@@ -326,7 +351,13 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
             }
         } else {
             const elem_start = i;
-            while (i < len and !is_space(src[i])) i += 1;
+            while (i < len and !is_space(src[i])) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
             if (count == idx) {
                 return .{ .start = elem_start, .len = i - elem_start, .braced = false };
             }
