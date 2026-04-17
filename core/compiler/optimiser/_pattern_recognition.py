@@ -10,7 +10,7 @@ from ...common.dialect import active_dialect
 from ...common.naming import (
     normalise_var_name as _normalise_var_name,
 )
-from ...parsing.tokens import Token
+from ...parsing.tokens import Token, TokenType
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -21,11 +21,14 @@ from ._helpers import (
     _DYNAMIC_BARRIER_COMMANDS,
     _SAFE_WORD_RE,
     _STATIC_VAR_WORD_RE,
+    _command_subst_range,
+    _expr_arg_from_expr_command,
     _full_command_range,
     _is_static_var_word,
     _parse_static_string_arg,
     _render_static_string_word,
     _tokens_for_statement,
+    _try_end_offset_from_length_expr,
     _try_incr_idiom,
 )
 from ._types import Optimisation, PassContext, _StringWriteChain
@@ -620,4 +623,219 @@ def optimise_multi_set_packing(ctx: PassContext, cfg, ssa) -> None:
                         replacement="",
                         group=group_id,
                     )
+                )
+
+
+# O128: End-offset index rewrite
+
+# (command-matcher) -> (index_arg_positions, container_arg_position, expected_kind)
+# container and index positions are 0-based indices into argv_texts.
+
+
+def _end_offset_command_shape(
+    argv_texts: list[str],
+) -> tuple[tuple[int, ...], int, str] | None:
+    """Identify list/string commands that accept ``end``/``end-N`` index args.
+
+    Returns ``(index_positions, container_position, expected_kind)`` or
+    ``None`` when the command does not match a supported shape.
+    """
+    if not argv_texts:
+        return None
+    cmd = argv_texts[0]
+    nargs = len(argv_texts)
+    if cmd == "lindex" and nargs >= 3:
+        # lindex list index...
+        return (tuple(range(2, nargs)), 1, "llength")
+    if cmd == "lrange" and nargs == 4:
+        # lrange list first last
+        return ((2, 3), 1, "llength")
+    if cmd == "lreplace" and nargs >= 4:
+        # lreplace list first last ?element ...?
+        return ((2, 3), 1, "llength")
+    if cmd == "linsert" and nargs >= 3:
+        # linsert list index ?element ...?
+        return ((2,), 1, "llength")
+    if cmd == "string" and nargs >= 2:
+        sub = argv_texts[1]
+        if sub == "index" and nargs == 4:
+            # string index str charIndex
+            return ((3,), 2, "strlen")
+        if sub == "range" and nargs == 5:
+            # string range str first last
+            return ((3, 4), 2, "strlen")
+        if sub == "replace" and nargs >= 5:
+            # string replace str first last ?newString?
+            return ((3, 4), 2, "strlen")
+    return None
+
+
+def _var_ref_to_name(text: str) -> str | None:
+    """Extract the variable name from ``$foo`` / ``${foo}``."""
+    s = text.strip()
+    if s.startswith("${") and s.endswith("}"):
+        return s[2:-1]
+    if s.startswith("$"):
+        return s[1:]
+    return None
+
+
+def _apply_end_offset_to_argv(
+    ctx: PassContext,
+    argv_texts: list[str],
+    argv_tokens: list[Token],
+    argv_single: list[bool],
+) -> None:
+    """Emit O128 optimisations for index args in the given command words."""
+    shape = _end_offset_command_shape(argv_texts)
+    if shape is None:
+        return
+    index_positions, container_pos, expected_kind = shape
+
+    if container_pos >= len(argv_texts) or container_pos >= len(argv_tokens):
+        return
+    if not argv_single[container_pos]:
+        return
+    container_tok = argv_tokens[container_pos]
+    if container_tok.type is not TokenType.VAR:
+        return
+    container_name = _normalise_var_name(container_tok.text)
+
+    for pos in index_positions:
+        if pos >= len(argv_texts) or pos >= len(argv_tokens):
+            continue
+        if not argv_single[pos]:
+            continue
+        idx_tok = argv_tokens[pos]
+        if idx_tok.type is not TokenType.CMD:
+            continue
+        expr_arg = _expr_arg_from_expr_command(idx_tok.text)
+        if expr_arg is None:
+            continue
+        match = _try_end_offset_from_length_expr(expr_arg)
+        if match is None:
+            continue
+        kind, length_var_ref, offset = match
+        if kind != expected_kind:
+            continue
+        length_name = _var_ref_to_name(length_var_ref)
+        if length_name is None:
+            continue
+        if _normalise_var_name(length_name) != container_name:
+            continue
+
+        replacement = "end" if offset == 0 else f"end-{offset}"
+        ctx.optimisations.append(
+            Optimisation(
+                code="O128",
+                message="Use end-offset index instead of length arithmetic",
+                range=_command_subst_range(idx_tok),
+                replacement=replacement,
+            )
+        )
+
+
+def _parse_cmd_token_contents(
+    cmd_tok: Token,
+) -> tuple[list[str], list[Token], list[bool]] | None:
+    """Parse the inside of a CMD substitution token with absolute positions.
+
+    The inner text lives one character past the opening ``[``; passing the
+    correct ``base_offset``/``base_line``/``base_col`` to the lexer keeps
+    every re-parsed inner token's range pointing into the original source.
+    """
+    from ...parsing.lexer import TclLexer
+
+    lexer = TclLexer(
+        cmd_tok.text,
+        base_offset=cmd_tok.start.offset + 1,
+        base_line=cmd_tok.start.line,
+        base_col=cmd_tok.start.character + 1,
+    )
+    argv_texts: list[str] = []
+    argv_tokens: list[Token] = []
+    argv_single: list[bool] = []
+    prev_type = TokenType.EOL
+    saw_eol = False
+
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type is TokenType.COMMENT:
+            continue
+        if tok.type is TokenType.SEP:
+            prev_type = tok.type
+            continue
+        if tok.type is TokenType.EOL:
+            if argv_texts:
+                saw_eol = True
+            prev_type = tok.type
+            continue
+        if saw_eol:
+            return None
+
+        from ..token_helpers import word_piece
+
+        piece = word_piece(tok)
+        if prev_type in (TokenType.SEP, TokenType.EOL):
+            argv_texts.append(piece)
+            argv_tokens.append(tok)
+            argv_single.append(True)
+        else:
+            if argv_texts:
+                argv_texts[-1] += piece
+                argv_single[-1] = False
+            else:
+                argv_texts.append(piece)
+                argv_tokens.append(tok)
+                argv_single.append(True)
+        prev_type = tok.type
+
+    if not argv_texts:
+        return None
+    return argv_texts, argv_tokens, argv_single
+
+
+def _walk_nested_cmd_tokens(argv_tokens: list[Token], argv_single: list[bool]):
+    """Yield each CMD token's argv appearing in *argv_tokens*, recursing into
+    nested command substitutions while preserving absolute source positions.
+    """
+    for idx, tok in enumerate(argv_tokens):
+        if idx >= len(argv_single) or not argv_single[idx]:
+            continue
+        if tok.type is not TokenType.CMD:
+            continue
+        inner = _parse_cmd_token_contents(tok)
+        if inner is None:
+            continue
+        yield inner
+        _inner_texts, inner_tokens, inner_single = inner
+        yield from _walk_nested_cmd_tokens(list(inner_tokens), list(inner_single))
+
+
+@opt(
+    code="O128",
+    description=(
+        "Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` "
+        "to `end-(N-1)` when used as an index argument."
+    ),
+    opt_category="readability",
+)
+def optimise_end_offset_indexes(ctx: PassContext, cfg, ssa) -> None:
+    """O128: Use ``end``/``end-N`` instead of length arithmetic for index args."""
+    for _block_name, block in cfg.blocks.items():
+        for stmt in block.statements:
+            parsed = _tokens_for_statement(stmt, ctx.source)
+            if parsed is None:
+                continue
+            argv_texts, argv_tokens, argv_single = parsed
+            _apply_end_offset_to_argv(ctx, argv_texts, list(argv_tokens), list(argv_single))
+            for inner in _walk_nested_cmd_tokens(list(argv_tokens), list(argv_single)):
+                inner_texts, inner_tokens, inner_single = inner
+                _apply_end_offset_to_argv(
+                    ctx,
+                    list(inner_texts),
+                    list(inner_tokens),
+                    list(inner_single),
                 )

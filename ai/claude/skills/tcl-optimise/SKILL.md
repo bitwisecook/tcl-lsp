@@ -33,7 +33,7 @@ Apply LSP optimiser suggestions to Tcl files with safety explanations for each t
 See `docs/generated/optimisation_codes.md` for the full auto-generated table of O100+ codes.
 Key categories:
 
-- **Readability** (O111, O114, O115, O117, O120): Idiomatic rewrites (incr, eq/ne, bracing)
+- **Readability** (O111, O114, O115, O117, O120, O128): Idiomatic rewrites (incr, eq/ne, bracing)
 - **Constant folding/propagation** (O100, O101, O102, O103, O105, O110, O113, O116, O118): Inline and simplify known values
 - **Pattern recognition** (O104, O119): Fold string chains, pack consecutive sets
 - **Dead code** (O107, O108, O109, O112, O124, O126): Remove unreachable or unused code and stores
@@ -43,7 +43,7 @@ Key categories:
 ## Optimiser profiles
 
 - **off**: All optimisations disabled
-- **readability** (editor default): O111, O114, O115, O117, O120
+- **readability** (editor default): O111, O114, O115, O117, O120, O128
 - **standard**: readability + constant folding + pattern recognition
 - **full** (CLI/AI default): All 28 passes, single pass
 - **aggressive**: All passes, multi-pass to fixpoint

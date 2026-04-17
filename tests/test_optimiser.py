@@ -1371,6 +1371,112 @@ class TestMultiSetPacking:
             configure_signatures(dialect="tcl8.6")
 
 
+class TestEndOffsetIndexRewrite:
+    """O128 — rewrite length-arithmetic index expressions to ``end``/``end-N``."""
+
+    def test_lindex_last_element(self):
+        source = "set x [lindex $L [expr {[llength $L] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lindex $L end]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_lindex_second_last(self):
+        source = "set x [lindex $L [expr {[llength $L] - 2}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lindex $L end-1]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_lrange_to_end(self):
+        source = "set x [lrange $L 0 [expr {[llength $L] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lrange $L 0 end]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_lreplace_last_two(self):
+        source = "set x [lreplace $L [expr {[llength $L] - 2}] [expr {[llength $L] - 1}] foo]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lreplace $L end-1 end foo]"
+        assert sum(1 for r in rewrites if r.code == "O128") == 2
+
+    def test_linsert_at_end(self):
+        source = "set x [linsert $L [expr {[llength $L] - 1}] foo]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [linsert $L end foo]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_string_index_last_char(self):
+        source = "set x [string index $s [expr {[string length $s] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [string index $s end]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_string_range_to_end(self):
+        source = "set x [string range $s 0 [expr {[string length $s] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [string range $s 0 end]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_string_replace_last(self):
+        source = (
+            "set x [string replace $s [expr {[string length $s] - 2}] "
+            "[expr {[string length $s] - 1}] foo]"
+        )
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [string replace $s end-1 end foo]"
+        assert sum(1 for r in rewrites if r.code == "O128") == 2
+
+    def test_qualified_var_name(self):
+        source = "set x [lindex ${my::list} [expr {[llength ${my::list}] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lindex ${my::list} end]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_top_level_command(self):
+        source = "puts [lindex $L [expr {[llength $L] - 3}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "puts [lindex $L end-2]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_mismatched_variable(self):
+        source = "set x [lindex $L [expr {[llength $M] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_zero_offset(self):
+        # [llength $L] - 0 is past the last valid index — do not rewrite.
+        source = "set x [lindex $L [expr {[llength $L] - 0}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_bare_length(self):
+        # [llength $L] without subtraction is past-the-end — do not rewrite.
+        source = "set x [lindex $L [expr {[llength $L]}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_string_length_for_list_command(self):
+        # Wrong length command for the container kind.
+        source = "set x [lindex $L [expr {[string length $L] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_llength_for_string_command(self):
+        source = "set x [string index $s [expr {[llength $s] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_rewrite_inside_proc_body(self):
+        source = textwrap.dedent("""\
+            proc last {L} {
+                set r [lindex $L [expr {[llength $L] - 1}]]
+                return $r
+            }
+        """).rstrip()
+        optimised, rewrites = optimise_source(source)
+        assert "[lindex $L end]" in optimised
+        assert any(r.code == "O128" for r in rewrites)
+
+
 class TestVariableShapeOptimisationGuardrails:
     """Variable-shape forms should not be conflated by optimiser rewrites."""
 
