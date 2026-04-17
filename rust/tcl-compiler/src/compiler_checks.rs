@@ -14,10 +14,13 @@ use tcl_lexer::Span;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
+use crate::irules_checks::{find_unnormalised_getter_warnings, IrulesCheckWarning};
 use crate::path_concat::{find_path_concat_warnings, PathConcatWarning};
 use crate::sccp::ConstantBranch;
-use crate::shimmer::{find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning};
-use crate::taint::{find_taint_warnings, TaintWarning};
+use crate::shimmer::{
+    find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning,
+};
+use crate::taint::{find_setter_constraint_warnings, find_taint_warnings, TaintWarning};
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
@@ -107,7 +110,18 @@ impl Diagnostic {
             category: "taint".into(),
             severity: Severity::Error,
             message: w.message.clone(),
-            replacement: None,
+            replacement: w.replacement.clone(),
+        }
+    }
+
+    fn from_irules_check(w: &IrulesCheckWarning) -> Self {
+        Self {
+            span: w.span,
+            code: w.code.clone(),
+            category: "irules".into(),
+            severity: Severity::Warning,
+            message: w.message.clone(),
+            replacement: w.replacement.clone(),
         }
     }
 
@@ -183,12 +197,7 @@ pub fn run_all_checks(
         ) {
             out.push(Diagnostic::from_shimmer(&w));
         }
-        for w in find_thunking_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-        ) {
+        for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
             out.push(Diagnostic::from_thunking(&w));
         }
     }
@@ -201,6 +210,15 @@ pub fn run_all_checks(
             &fu.taints,
             &fu.sccp.executable_blocks,
             registry,
+            dialect,
+        ) {
+            out.push(Diagnostic::from_taint(&w));
+        }
+        for w in find_setter_constraint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
         ) {
             out.push(Diagnostic::from_taint(&w));
         }
@@ -213,6 +231,11 @@ pub fn run_all_checks(
         ) {
             out.push(Diagnostic::from_path_concat(&w));
         }
+    }
+
+    // iRules-dialect non-taint checks.
+    for w in find_unnormalised_getter_warnings(cu, registry, dialect) {
+        out.push(Diagnostic::from_irules_check(&w));
     }
 
     out
@@ -234,11 +257,8 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_sccp_constant_branch() {
-        let cu = CompilationUnit::build_for(
-            "if {1} { set x 1 } else { set y 2 }",
-            &registry(),
-            false,
-        );
+        let cu =
+            CompilationUnit::build_for("if {1} { set x 1 } else { set y 2 }", &registry(), false);
         let diagnostics = run_all_checks(&cu, &registry(), None);
         // SCCP should have flagged the constant-true branch.
         let has_sccp = diagnostics.iter().any(|d| d.category == "sccp");
@@ -260,12 +280,65 @@ mod tests {
     }
 
     #[test]
-    fn run_all_checks_reports_w201_path_concat() {
+    fn run_all_checks_reports_irule3001_end_to_end() {
         let cu = CompilationUnit::build_for(
-            "set x 42\nset p \"/tmp/$x\"",
+            "set u [HTTP::uri]\nHTTP::respond 200 content $u",
+            &registry(),
+            false,
+        )
+        .with_interprocedural(&registry(), Some("f5-irules"));
+        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "IRULE3001" && d.category == "taint"),
+            "expected IRULE3001, got {diagnostics:?}",
+        );
+    }
+
+    #[test]
+    fn run_all_checks_reports_irule3101_end_to_end() {
+        let cu = CompilationUnit::build_for("HTTP::uri foo", &registry(), false)
+            .with_interprocedural(&registry(), Some("f5-irules"));
+        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "IRULE3101" && d.category == "taint"),
+            "expected IRULE3101, got {diagnostics:?}",
+        );
+    }
+
+    #[test]
+    fn run_all_checks_reports_irule3102_end_to_end() {
+        let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false)
+            .with_interprocedural(&registry(), Some("f5-irules"));
+        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+        let hit = diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE3102")
+            .unwrap_or_else(|| panic!("expected IRULE3102, got {diagnostics:?}"));
+        assert_eq!(hit.category, "irules");
+        assert_eq!(hit.severity, Severity::Warning);
+    }
+
+    #[test]
+    fn run_all_checks_irule_codes_gated_by_dialect() {
+        let cu = CompilationUnit::build_for(
+            "set u [HTTP::uri]\nHTTP::respond 200 content $u",
             &registry(),
             false,
         );
+        let diagnostics = run_all_checks(&cu, &registry(), None);
+        assert!(
+            diagnostics.iter().all(|d| !d.code.starts_with("IRULE")),
+            "no IRULE diagnostics without dialect, got {diagnostics:?}",
+        );
+    }
+
+    #[test]
+    fn run_all_checks_reports_w201_path_concat() {
+        let cu = CompilationUnit::build_for("set x 42\nset p \"/tmp/$x\"", &registry(), false);
         let diagnostics = run_all_checks(&cu, &registry(), None);
         let w201 = diagnostics
             .iter()

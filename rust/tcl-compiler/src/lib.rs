@@ -83,6 +83,7 @@ pub mod gvn;
 pub mod interprocedural;
 pub mod ir;
 pub mod ir_helpers;
+pub mod irules_checks;
 pub mod lowering;
 pub mod lowering_hooks;
 pub mod memory_ssa;
