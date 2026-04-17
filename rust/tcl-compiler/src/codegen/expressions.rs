@@ -7,7 +7,7 @@
 use tcl_lexer::backslash_subst;
 
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
-use super::{CodegenCtx, Op, Operand};
+use super::{bytecode_imm, CodegenCtx, Op, Operand};
 use crate::expr_ast::{render_expr, BinOp, ExprNode};
 
 impl CodegenCtx {
@@ -176,9 +176,15 @@ impl CodegenCtx {
                 for arg in args {
                     self.emit_expr(arg);
                 }
-                let arg_count = i32::try_from(1 + args.len())
-                    .expect("expression call arg count fits in i32 (bytecode limit)");
-                self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(arg_count)], "");
+                // invokeStk1 has a 1-byte operand; switch to invokeStk4 when
+                // arg_count exceeds u8 to avoid truncation.
+                let arg_count = bytecode_imm(1 + args.len());
+                let op = if arg_count < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                };
+                self.emit_comment(op, vec![Operand::Imm(arg_count)], "");
                 false
             }
 
