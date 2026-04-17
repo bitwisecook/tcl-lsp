@@ -216,7 +216,7 @@ def _mf_pow(args: list[str]) -> str:
     # negative exponents (including -Inf) yield +Inf.  Guard ``int(exp)`` with
     # ``isfinite`` — otherwise exp=-Inf would raise OverflowError here.
     if base == 0.0 and exp < 0:
-        if math.isfinite(exp) and exp == int(exp) and int(exp) % 2 == 1:
+        if math.isfinite(exp) and exp == int(exp) and int(exp) & 1:
             return "-Inf" if math.copysign(1.0, base) < 0 else "Inf"
         return "Inf"
     try:
