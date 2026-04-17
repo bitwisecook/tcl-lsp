@@ -190,20 +190,10 @@ fn infer_expr_type(node: &ExprNode, var_types: &HashMap<String, TypeLattice>) ->
             type_join(&tt, &ft)
         }
 
-        // Command substitution inside an expression — use return type if the
-        // command is simple enough to parse.
-        ExprNode::Command { text, .. } => {
-            // `text` is the raw `[cmd ...]` text.
-            if let Some((cmd, args)) = parse_command_substitution(text) {
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                // We don't have the registry here, so fall back to Overdefined.
-                // Callers that want richer resolution use `_evaluate_type_def`.
-                let _ = (cmd, arg_refs);
-                TypeLattice::overdefined()
-            } else {
-                TypeLattice::overdefined()
-            }
-        }
+        // Command substitution inside an expression — registry not available
+        // here, so always overdefined. The outer evaluate_type_def handles
+        // command-sub type resolution where the registry is in scope.
+        ExprNode::Command { .. } => TypeLattice::overdefined(),
 
         // Raw / unrecognised expression text.
         ExprNode::Raw { .. } => TypeLattice::overdefined(),
@@ -557,5 +547,42 @@ mod tests {
             types.get(&("x".to_owned(), 2)),
             Some(&TypeLattice::of(TclType::Int))
         );
+    }
+
+    /// AssignValue with a pure variable reference inherits the source type.
+    #[test]
+    fn assign_value_pure_var_ref_inherits_type() {
+        use crate::compilation_unit::CompilationUnit;
+        let cu = CompilationUnit::build_for("set x 42\nset y $x", &registry(), false);
+        let fu = cu.function("::top").unwrap();
+        // x should be Int; y (which copies x) should also be Int.
+        let x_is_int = fu
+            .types
+            .iter()
+            .any(|((name, _), t)| name == "x" && t.tcl_type == Some(TclType::Int));
+        let y_is_int = fu
+            .types
+            .iter()
+            .any(|((name, _), t)| name == "y" && t.tcl_type == Some(TclType::Int));
+        assert!(x_is_int, "expected x to be Int");
+        assert!(y_is_int, "expected y to inherit Int type from x");
+    }
+
+    /// AssignValue with a command substitution uses the command's return type.
+    #[test]
+    fn assign_value_command_sub_uses_return_type() {
+        use crate::compilation_unit::CompilationUnit;
+        // `llength` returns Int per the registry.
+        let cu = CompilationUnit::build_for(
+            "set lst {a b c}\nset n [llength $lst]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let n_is_int = fu
+            .types
+            .iter()
+            .any(|((name, _), t)| name == "n" && t.tcl_type == Some(TclType::Int));
+        assert!(n_is_int, "expected n to be Int (llength return type)");
     }
 }

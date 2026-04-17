@@ -78,7 +78,7 @@ impl FunctionUnit {
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
         let sccp = sccp(&cfg, &ssa, None);
         let types = propagate_types(&cfg, &ssa, &sccp, registry);
-        let taints = propagate_taints(&cfg, &ssa, &sccp.executable_blocks, registry);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, registry);
         Self {
             name: name.into(),
             cfg,

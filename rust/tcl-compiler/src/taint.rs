@@ -19,9 +19,8 @@
 //! - Inter-procedural summaries (C28): proc-to-proc taint transfer.
 //! - Path-concat / URI-split heuristics.
 //! - iRules-specific sink/source codes (IRULE3001–3004).
-//! - T102 option-injection, T103 regex-injection, T104 SSRF, T105
-//!   cross-interpreter injection — follow-up strips once the registry
-//!   gains full taint-hint metadata.
+//! - T103 regex-injection, T104 SSRF, T105 cross-interpreter injection
+//!   — follow-up strips once the registry gains full taint-hint metadata.
 //!
 //! ## Source commands (hardcoded pending registry metadata)
 //!
@@ -51,7 +50,7 @@ use tcl_registry::{CommandRegistry, Traits};
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
-use crate::sccp::cfg_order;
+use crate::sccp::{cfg_order, SccpResult};
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
@@ -415,8 +414,8 @@ fn evaluate_taint_def(
             t
         }
 
-        // Barrier widens all defs to tainted (conservative: unknown
-        // side effects may expose attacker data).
+        // Barrier's defs are clean: the Barrier itself is checked as a
+        // sink in `find_taint_warnings`, so its *outputs* are not tainted.
         Statement::Barrier { .. } => TaintLattice::clean(),
 
         _ => TaintLattice::clean(),
@@ -448,13 +447,14 @@ fn join_uses(
 /// lattice value. Entries absent from the map are implicitly clean.
 ///
 /// Sources are identified by [`is_taint_source`]. Propagation follows
-/// SSA phi-join semantics: a phi is tainted if any incoming path is
-/// tainted (`join` unions the `TAINTED` bit).
+/// SSA phi-join semantics with SCCP edge-level reachability: a phi
+/// predecessor only contributes if its incoming CFG edge is executable,
+/// preventing taint from propagating through SCCP-proven dead branches.
 #[must_use]
 pub fn propagate_taints(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<String>,
+    sccp: &SccpResult,
     registry: &CommandRegistry,
 ) -> HashMap<ValueKey, TaintLattice> {
     let preds = cfg.predecessors();
@@ -466,20 +466,25 @@ pub fn propagate_taints(
     while changed {
         changed = false;
         for bn in &order {
-            if !executable_blocks.contains(bn) {
+            if !sccp.executable_blocks.contains(bn) {
                 continue;
             }
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 continue;
             };
 
-            // Phi nodes: join taint from all executable predecessors.
+            // Phi nodes: join taint from edge-executable predecessors only.
+            // Using executable_edges (not just executable_blocks) ensures
+            // taint does not flow through SCCP-proven dead branches.
             for phi in &ssa_block.phis {
                 let exec_preds = preds
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
-                            .filter(|p| executable_blocks.contains(*p))
+                            .filter(|p| {
+                                sccp.executable_edges
+                                    .contains(&((*p).to_owned(), bn.clone()))
+                            })
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
@@ -569,33 +574,13 @@ fn classify_sink(
     None
 }
 
-/// Extract the command name from a statement if it has one.
-#[allow(dead_code)]
-fn stmt_command(stmt: &Statement) -> Option<&str> {
-    match stmt {
-        Statement::Call { command, .. } | Statement::Barrier { command, .. } => Some(command),
-        Statement::AssignValue { value, .. } => {
-            // [cmd ...] on the RHS.
-            let stripped = value.trim();
-            if stripped.starts_with('[') && stripped.ends_with(']') {
-                // Return the command name portion.
-                let inner = stripped[1..stripped.len() - 1].trim();
-                Some(inner.split_ascii_whitespace().next().unwrap_or(""))
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-/// Run sink detection over a single function's CFG.
+/// Run sink detection over a single function.
 ///
 /// For each SSA use of a tainted variable in a sink statement, emits
-/// one `TaintWarning`.
+/// one `TaintWarning`. Driven entirely by the SSA statements so no
+/// parallel indexing against the original CFG block is needed.
 #[must_use]
 pub fn find_taint_warnings(
-    cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
     executable_blocks: &HashSet<String>,
@@ -604,19 +589,13 @@ pub fn find_taint_warnings(
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
     for bn in executable_blocks {
-        let Some(block) = cfg.blocks.get(bn) else {
-            continue;
-        };
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
 
-        for (idx, ssa_stmt) in ssa_block.statements.iter().enumerate() {
-            let Some(stmt) = block.statements.get(idx) else {
-                continue;
-            };
-
-            let span = stmt_span(stmt);
+        for ssa_stmt in &ssa_block.statements {
+            let stmt = &ssa_stmt.statement;
+            let span = stmt.span();
 
             // AssignExpr / ExprEval: any tainted variable in the expression
             // is a T100 violation (direct expr injection).
@@ -665,11 +644,7 @@ pub fn find_taint_warnings(
                 _ => continue,
             };
 
-            // T102: option injection.
-            // Applies when the command has WARN_WITHOUT_TERMINATOR and a
-            // tainted pure-variable-reference argument appears before any
-            // `--` terminator.  Only checked for Call statements — Barrier
-            // args are already evaluated and cannot inject options.
+            // T102: option injection — only for Call statements.
             if let Statement::Call { args, .. } = stmt {
                 emit_option_injection(
                     command,
@@ -711,9 +686,7 @@ pub fn find_taint_warnings(
                         "Tainted variable ${name} flows into {sink_label}; \
                          output may contain injected content"
                     ),
-                    _ => format!(
-                        "Tainted variable ${name} flows into {sink_label}"
-                    ),
+                    _ => format!("Tainted variable ${name} flows into {sink_label}"),
                 };
                 warnings.push(TaintWarning {
                     span,
@@ -794,12 +767,6 @@ fn emit_option_injection(
     }
 }
 
-/// Extract the source span from a statement.
-#[inline]
-fn stmt_span(stmt: &Statement) -> Span {
-    stmt.span()
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -807,6 +774,16 @@ fn stmt_span(stmt: &Statement) -> Span {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sccp::SccpResult;
+
+    fn simple_sccp(blocks: &[&str]) -> SccpResult {
+        SccpResult {
+            values: HashMap::new(),
+            executable_blocks: blocks.iter().map(|s| s.to_string()).collect(),
+            executable_edges: HashSet::new(),
+            constant_branches: Vec::new(),
+        }
+    }
 
     #[test]
     fn clean_and_tainted_constructors() {
@@ -902,8 +879,8 @@ mod tests {
             },
         );
 
-        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
-        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
         assert!(
             taints
                 .get(&("x".to_string(), 1))
@@ -979,9 +956,9 @@ mod tests {
             },
         );
 
-        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
-        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
-        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &exec, &registry);
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
+        let warnings = find_taint_warnings(&ssa, &taints, &sccp.executable_blocks, &registry);
 
         assert!(
             warnings.iter().any(|w| w.code == "T100" && w.variable == "x"),
@@ -1036,8 +1013,8 @@ mod tests {
             },
         );
 
-        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
-        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
         assert!(
             taints
                 .get(&("x".to_string(), 1))
@@ -1114,9 +1091,9 @@ mod tests {
             },
         );
 
-        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
-        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
-        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &exec, &registry);
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
+        let warnings = find_taint_warnings(&ssa, &taints, &sccp.executable_blocks, &registry);
 
         assert!(
             warnings.iter().any(|w| w.code == "T102" && w.variable == "pattern"),
@@ -1192,11 +1169,35 @@ mod tests {
             },
         );
 
-        let exec: HashSet<String> = ["entry".to_string()].into_iter().collect();
-        let taints = propagate_taints(&cfg, &ssa, &exec, &registry);
-        let warnings = find_taint_warnings(&cfg, &ssa, &taints, &exec, &registry);
+        let sccp = simple_sccp(&["entry"]);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry);
+        let warnings = find_taint_warnings(&ssa, &taints, &sccp.executable_blocks, &registry);
 
         let t102: Vec<_> = warnings.iter().filter(|w| w.code == "T102").collect();
         assert!(t102.is_empty(), "expected no T102 when '--' terminator present, got {t102:?}");
+    }
+
+    /// Taint propagates through an interpolated-string word that embeds a
+    /// tainted variable: `set out "prefix_${x}_suffix"` where `$x` is tainted.
+    #[test]
+    fn interpolated_string_word_propagates_taint() {
+        use crate::compilation_unit::CompilationUnit;
+        use tcl_registry::CommandRegistry;
+
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(
+            "set x [gets stdin]\nset out \"prefix_${x}_suffix\"",
+            &registry,
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let out_tainted = fu
+            .taints
+            .iter()
+            .any(|((name, _ver), t)| name == "out" && t.is_tainted());
+        assert!(
+            out_tainted,
+            "expected 'out' to be tainted via interpolated string embedding tainted $x"
+        );
     }
 }

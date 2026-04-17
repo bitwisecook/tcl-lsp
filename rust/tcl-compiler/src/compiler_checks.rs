@@ -174,7 +174,6 @@ pub fn run_all_checks(
     // Taint.
     for fu in cu.functions() {
         for w in find_taint_warnings(
-            &fu.cfg,
             &fu.ssa,
             &fu.taints,
             &fu.sccp.executable_blocks,

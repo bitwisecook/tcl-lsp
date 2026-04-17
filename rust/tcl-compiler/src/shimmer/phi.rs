@@ -141,4 +141,25 @@ mod tests {
         let _ =
             find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
     }
+
+    /// An if/else that assigns Int on one branch and String on the other
+    /// produces an S101 warning at the phi merge point.
+    #[test]
+    fn phi_shimmer_emitted_for_int_string_merge() {
+        // Use [gets stdin] for the condition so SCCP cannot fold the branch;
+        // both arms remain executable, and the phi merges Int and String.
+        let cu = CompilationUnit::build_for(
+            "set cond [gets stdin]\nif {$cond} { set x 1 } else { set x \"hello\" }\nputs $x",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings =
+            find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        let has_shimmer = warnings.iter().any(|w| w.variable == "x" && w.code == "S101");
+        assert!(
+            has_shimmer,
+            "expected S101 phi shimmer for Int/String merge of 'x', got: {warnings:?}"
+        );
+    }
 }

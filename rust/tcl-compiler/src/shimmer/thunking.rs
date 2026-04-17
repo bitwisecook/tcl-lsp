@@ -188,4 +188,30 @@ mod tests {
         );
         assert!(w.is_empty(), "unexpected thunking: {w:?}");
     }
+
+    /// A loop variable initialised as Int before the loop and reassigned as
+    /// String inside produces an S102 thunking warning: the loop-header phi
+    /// merges Int (from the entry edge) and String (from the back edge).
+    #[test]
+    fn thunking_detected_for_int_string_oscillation() {
+        // Use a non-constant while condition so SCCP does not eliminate
+        // the loop body, keeping both the entry and back edges executable.
+        let cu = CompilationUnit::build_for(
+            "set x 0\nwhile {[gets stdin] ne \"\"} {\n    set x \"hello\"\n}",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+        );
+        let has_thunking = w.iter().any(|tw| tw.variable == "x" && tw.code == "S102");
+        assert!(
+            has_thunking,
+            "expected S102 thunking for 'x' oscillating Int/String, got: {w:?}"
+        );
+    }
 }
