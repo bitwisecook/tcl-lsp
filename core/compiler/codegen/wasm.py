@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 
 from ...analysis.semantic_model import Range
+from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
 from ..cfg import (
     CFGBranch,
     CFGFunction,
@@ -1300,6 +1301,11 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 cmd = parts[0]
                 if cmd in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[cmd][0])
+                elif cmd == "list":
+                    # ``[list $a $b ...]`` with variable/command args uses
+                    # tcl_lappend internally in _emit_list_value to properly
+                    # quote each element.  Add it so the import is available.
+                    needed.add("tcl_lappend")
                 elif cmd == "dict" and len(parts) > 1:
                     subcmd = parts[1]
                     if subcmd in _DICT_SUBCMD_IMPORT:
@@ -1369,6 +1375,12 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_array_set")
                     elif sub == "get":
                         needed.add("tcl_array_get")
+                elif cmd == "namespace" and len(parts) > 1 and parts[1] == "eval":
+                    # ``[namespace eval ns arg1 arg2 ...]`` with dynamic
+                    # script args: needs tcl_eval to run the assembled
+                    # script and tcl_append to join multiple args.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_append")
                 elif cmd == "expr":
                     pass  # expr doesn't need imports itself
                 elif cmd == "catch":
@@ -1577,6 +1589,10 @@ def _scan_needed_imports(
                     is_key = _STRING_IS_IMPORT.get(args[1])
                     if is_key:
                         needed.add(is_key)
+                elif command == "list":
+                    # ``list $a $b ...`` with variable args uses tcl_lappend
+                    # internally in _emit_list_value to quote each element.
+                    needed.add("tcl_lappend")
                 elif command == "dict" and args and args[0] in _DICT_SUBCMD_IMPORT:
                     needed.add(_DICT_SUBCMD_IMPORT[args[0]])
                 elif command == "global":
@@ -1662,6 +1678,15 @@ def _scan_needed_imports(
                         and not args[0].lstrip("-").isdigit()
                     ):
                         needed.add("tcl_append")
+                elif command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+                    # ``namespace eval ns arg1 arg2 ...`` with dynamic
+                    # script args: evaluated through WASM, not fallback.
+                    needed.add("tcl_eval")
+                    needed.add("tcl_append")
+                    # Scan each script arg as a runtime value (not body text)
+                    # so array-element refs ($arr($key)) pull in tcl_array_get.
+                    for a in args[2:]:
+                        _scan_value(a)
                 elif command == "unset":
                     for a in args:
                         if _parse_array_ref(a) is not None:
@@ -1713,6 +1738,19 @@ def _scan_needed_imports(
                     # interpolation helpers.
                     for arg in barrier_args:
                         _scan_value(arg)
+                elif (
+                    barrier_cmd == "namespace"
+                    and barrier_args
+                    and barrier_args[0] == "eval"
+                    and len(barrier_args) > 2
+                ):
+                    # ``namespace eval ns arg1 arg2 ...`` with dynamic script
+                    # args: emitted via WASM assembly (not fallback), so each
+                    # script arg is evaluated through ``_emit_value`` and may
+                    # need ``tcl_append``, ``tcl_array_get``, etc.
+                    needed.add("tcl_append")
+                    for a in barrier_args[2:]:
+                        _scan_value(a)
                 elif (
                     barrier_cmd == "return"
                     and barrier_args
@@ -2112,6 +2150,13 @@ class _WasmEmitter:
         if idx is not None:
             self._emit_local_get(idx)
             return
+        # Braced literal — outer braces suppress all substitution in Tcl.
+        # _split_command_subst preserves {…} so downstream code can
+        # distinguish a braced word (literal) from a quoted one (allows
+        # substitution).  Strip the braces and emit the content as-is.
+        if value.startswith("{") and value.endswith("}"):
+            self._emit_obj_literal(value[1:-1])
+            return
         # Command substitution: [cmd arg1 arg2 ...]
         if value.startswith("[") and value.endswith("]"):
             self._emit_command_subst_value(value)
@@ -2121,6 +2166,11 @@ class _WasmEmitter:
         if self._has_embedded_subst(value):
             self._emit_interpolated_value(value)
             return
+        # Apply Tcl backslash substitution for non-braced literals.  Braced
+        # words (already handled above) suppress all substitution; plain words
+        # and double-quoted words allow ``\\`` → ``\``, ``\n`` → newline, etc.
+        if "\\" in value:
+            value = _tcl_backslash_subst(value)
         self._emit_obj_literal(value)
 
     def _has_embedded_subst(self, value: str) -> bool:
@@ -2316,9 +2366,11 @@ class _WasmEmitter:
         cmd_args = parts[1:]
 
         # [expr {...}] — compile expression and box to TclObj.
-        # The splitter already strips braces.
+        # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
+            if expr_arg.startswith("{") and expr_arg.endswith("}"):
+                expr_arg = expr_arg[1:-1]
             from ...parsing.expr_parser import parse_expr
 
             try:
@@ -2345,11 +2397,31 @@ class _WasmEmitter:
         # different storage, so ``[set a(x)]`` would return empty.
         # Route reads through the same ``_emit_var_read_obj`` path
         # that handles array refs, aliases, and qualified globals.
-        # 2-arg writes keep their inline set codegen via the
-        # statement-context path; value-context writes are rare
-        # enough to leave to the fallback.
         if cmd_name == "set" and len(cmd_args) == 1:
             self._emit_var_read_obj(cmd_args[0])
+            return
+        # ``[set varname value]`` — 2-arg write: evaluate the value,
+        # store it, and leave it on the stack (set returns the new value).
+        if cmd_name == "set" and len(cmd_args) == 2:
+            self._emit_value(cmd_args[1])
+            self._emit_var_write_obj_keep(cmd_args[0])
+            return
+
+        # ``[namespace origin <name>]`` — return the canonical qualified
+        # name of a command.  The runtime has no proc registry visible
+        # to ``namespace origin``, so resolve at compile time: if the
+        # bare name is known in the current proc's namespace, return its
+        # qualified form; otherwise prepend ``::`` for global scope.
+        # The tcltest pattern ``[list [namespace origin Eval] ...]``
+        # depends on this producing a non-null string so uplevel
+        # dispatches the right proc.
+        if cmd_name == "namespace" and len(cmd_args) >= 2 and cmd_args[0] == "origin":
+            bare_name = cmd_args[1]
+            qualified = self._resolve_proc_qname(bare_name) or bare_name
+            if not qualified.startswith("::"):
+                ns = self._proc_namespace or "::"
+                qualified = f"{ns}::{bare_name}" if ns != "::" else f"::{bare_name}"
+            self._emit_obj_literal(qualified)
             return
 
         # Proc call — result is already i32 TclObj
@@ -2463,8 +2535,45 @@ class _WasmEmitter:
                     self._emit_i32_const(0)
                 return
 
-        # Unknown command in value context — fall back to interpreter
-        self._emit_eval_fallback(cmd_name, cmd_args)
+        # ``[namespace eval ns arg1 arg2 ...]`` with dynamic script args.
+        # The eval-fallback path would embed the literal source text (e.g.
+        # ``$CustomMatch($mode)``) and let the interpreter re-evaluate it.
+        # But the interpreter can't see compiled-frame aliases (e.g.
+        # ``CustomMatch`` aliased to ``::tcltest::CustomMatch`` via
+        # ``variable CustomMatch``), so array-element references like
+        # ``$CustomMatch($mode)`` resolve to the wrong value (or nothing).
+        # Fix: evaluate each script arg through the WASM compiled path
+        # (which honours aliases) to get the actual string values, join
+        # them with spaces at runtime, then pass the assembled script to
+        # ``tcl_eval``.
+        if cmd_name == "namespace" and cmd_args and cmd_args[0] == "eval" and len(cmd_args) > 2:
+            script_parts = cmd_args[2:]
+            eval_idx_ns = self._shared_imports.get("tcl_eval")
+            if eval_idx_ns is not None:
+                if len(script_parts) == 1:
+                    self._emit_value(script_parts[0])
+                else:
+                    append_idx_ns = self._shared_imports.get("tcl_append")
+                    if append_idx_ns is not None:
+                        self._emit_value(script_parts[0])
+                        for sa in script_parts[1:]:
+                            self._emit_obj_literal(" ")
+                            self._emit_call(append_idx_ns)
+                            self._emit_value(sa)
+                            self._emit_call(append_idx_ns)
+                    else:
+                        self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                        return
+                self._emit_frame_sync()
+                self._emit_call(eval_idx_ns)
+                self._emit_frame_readback()
+                return
+
+        # Unknown command in value context — fall back to interpreter.
+        # Use the original command text (script_override) so braced
+        # words like {[^a-z]+} are not re-interpreted as command
+        # substitutions during fallback script reconstruction.
+        self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
 
     def _emit_obj_literal(self, value: str) -> None:
         """Create a TclObj for a literal value — pushes i32 pointer.
@@ -2539,18 +2648,26 @@ class _WasmEmitter:
             self._emit_obj_literal("")
             return
 
-        # Check whether all elements are plain literals
-        all_literals = all(
-            not self._has_embedded_subst(a)
-            and not a.startswith("$")
-            and not a.startswith("[")
-            and a not in self._aliases
-            and a not in self._local_index
-            for a in tail_args
-        )
+        # Check whether all elements are plain literals.
+        def _is_literal(a: str) -> bool:
+            return (
+                not self._has_embedded_subst(a)
+                and not a.startswith("$")
+                and not a.startswith("[")
+                and a not in self._aliases
+                and a not in self._local_index
+            )
+
+        all_literals = all(_is_literal(a) for a in tail_args)
         if all_literals:
-            # Build the list string at compile time
-            list_str = " ".join(_tcl_list_quote(a) for a in tail_args)
+            # Build the list string at compile time.
+            def _expand_literal(a: str) -> str:
+                if a.startswith("{") and a.endswith("}") and len(a) >= 2:
+                    return a[1:-1]  # brace-quoted: content is literal, no subst
+                if "\\" in a:
+                    return _tcl_backslash_subst(a)
+                return a
+            list_str = " ".join(_tcl_list_quote(_expand_literal(a)) for a in tail_args)
             self._emit_obj_literal(list_str)
             return
 
@@ -2686,10 +2803,11 @@ class _WasmEmitter:
         cmd_args = parts[1:]
 
         # Handle [expr {...}] — recursively compile the expression.
-        # The splitter already strips braces, so cmd_args[0] is the
-        # raw expression text.
+        # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
+            if expr_arg.startswith("{") and expr_arg.endswith("}"):
+                expr_arg = expr_arg[1:-1]
             # Parse and emit the nested expression
             from ...parsing.expr_parser import parse_expr
 
@@ -2720,6 +2838,27 @@ class _WasmEmitter:
         # ``_emit_command_subst_value``.
         if cmd_name == "set" and len(cmd_args) == 1:
             self._emit_var_read_obj(cmd_args[0])
+            self._emit_unbox_int()
+            return
+        # ``[set varname value]`` — 2-arg write form in expression
+        # context (e.g. ``[set scriptCompare [catch {...} var]] == 0``).
+        # Evaluate the value, store it keeping it on the stack, then
+        # unbox to i64 for the surrounding expression comparison.
+        if cmd_name == "set" and len(cmd_args) == 2:
+            self._emit_value(cmd_args[1])
+            self._emit_var_write_obj_keep(cmd_args[0])
+            self._emit_unbox_int()
+            return
+
+        # ``[namespace origin <name>]`` — compile-time qualified name;
+        # mirrors the value-context handler.
+        if cmd_name == "namespace" and len(cmd_args) >= 2 and cmd_args[0] == "origin":
+            bare_name = cmd_args[1]
+            qualified = self._resolve_proc_qname(bare_name) or bare_name
+            if not qualified.startswith("::"):
+                ns = self._proc_namespace or "::"
+                qualified = f"{ns}::{bare_name}" if ns != "::" else f"::{bare_name}"
+            self._emit_obj_literal(qualified)
             self._emit_unbox_int()
             return
 
@@ -2833,8 +2972,9 @@ class _WasmEmitter:
                 return
 
         # Unknown command in expression context — fall back to interpreter,
-        # unbox result to i64 for expression arithmetic.
-        self._emit_eval_fallback(cmd_name, cmd_args)
+        # unbox result to i64 for expression arithmetic.  Use the original
+        # command text so braced words are not mangled during reconstruction.
+        self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
         self._emit_unbox_int()
 
     def _split_command_subst(self, text: str) -> list[str]:
@@ -2854,7 +2994,8 @@ class _WasmEmitter:
                 i += 1
             if i >= n:
                 break
-            # Braced argument — strip outer braces
+            # Braced argument — keep outer braces so _emit_value can
+            # recognise {…} words as literals (no substitution in Tcl).
             if text[i] == "{":
                 depth = 1
                 start = i
@@ -2865,8 +3006,8 @@ class _WasmEmitter:
                     elif text[i] == "}":
                         depth -= 1
                     i += 1
-                # Strip outer { }
-                parts.append(text[start + 1 : i - 1])
+                # Keep outer { } intact; _emit_value strips them.
+                parts.append(text[start:i])
             # Bracketed argument (nested command) — keep brackets
             elif text[i] == "[":
                 depth = 1
@@ -3352,6 +3493,8 @@ class _WasmEmitter:
                     self._const_map.pop(name, None)
 
             case IRAssignValue(name=name, value=value):
+                # value_needs_backsubst is already handled by _emit_value's
+                # general backslash substitution path for non-braced literals.
                 self._emit_value(value)
                 self._emit_var_write_obj(name)
                 if self._optimise:
@@ -3630,6 +3773,32 @@ class _WasmEmitter:
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
+            # ``namespace eval ns arg1 arg2 ...`` in statement context
+            # with dynamic script args: build the script at WASM level
+            # (so compiled-frame aliases like $arr($key) are resolved
+            # correctly) and call tcl_eval for side effects.
+            if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+                script_parts = args[2:]
+                eval_idx_stmt = self._shared_imports.get("tcl_eval")
+                if eval_idx_stmt is not None:
+                    if len(script_parts) == 1:
+                        self._emit_value(script_parts[0])
+                    else:
+                        append_idx_stmt = self._shared_imports.get("tcl_append")
+                        if append_idx_stmt is not None:
+                            self._emit_value(script_parts[0])
+                            for sa in script_parts[1:]:
+                                self._emit_obj_literal(" ")
+                                self._emit_call(append_idx_stmt)
+                                self._emit_value(sa)
+                                self._emit_call(append_idx_stmt)
+                        else:
+                            return  # can't build script, skip
+                    self._emit_frame_sync()
+                    self._emit_call(eval_idx_stmt)
+                    self._emit(WasmOp.DROP)
+                    self._emit_frame_readback()
+                    return
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
@@ -3948,6 +4117,31 @@ class _WasmEmitter:
         """
         # Scope declarations produce no value — return null TclObj
         if command in _SCOPE_NOP_COMMANDS:
+            # ``namespace eval ns arg1 arg2 ...`` in tail position with dynamic
+            # script args: assemble the script at WASM level and call tcl_eval
+            # so the result becomes the proc's return value.
+            if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+                script_parts = args[2:]
+                eval_idx_tail = self._shared_imports.get("tcl_eval")
+                if eval_idx_tail is not None:
+                    if len(script_parts) == 1:
+                        self._emit_value(script_parts[0])
+                    else:
+                        append_idx_tail = self._shared_imports.get("tcl_append")
+                        if append_idx_tail is not None:
+                            self._emit_value(script_parts[0])
+                            for sa in script_parts[1:]:
+                                self._emit_obj_literal(" ")
+                                self._emit_call(append_idx_tail)
+                                self._emit_value(sa)
+                                self._emit_call(append_idx_tail)
+                        else:
+                            self._emit_i32_const(0)
+                            return
+                    self._emit_frame_sync()
+                    self._emit_call(eval_idx_tail)
+                    self._emit_frame_readback()
+                    return
             self._emit_i32_const(0)
             return
 
@@ -5031,29 +5225,39 @@ class _WasmEmitter:
             self._emit_i32_const(0)
             return
         # Fast path: all literals → compile-time string with each
-        # element Tcl-quoted.
+        # element Tcl-quoted.  Strip outer braces from braced words
+        # ({a b} → a b) before quoting so the list element value is
+        # correct rather than double-brace-wrapped.
         if all(not a.startswith("$") and not a.startswith("[") for a in args):
-            self._emit_obj_literal(" ".join(_tcl_list_quote(a) for a in args))
+            self._emit_obj_literal(" ".join(
+                _tcl_list_quote(a[1:-1] if a.startswith("{") and a.endswith("}") else a)
+                for a in args
+            ))
             return
-        # Mixed: emit each arg and chain tcl_concat with " " separators.
-        concat_idx = self._shared_imports.get("tcl_concat")
-        if concat_idx is None:
-            # No concat helper — best-effort: just emit the first arg.
+        # Mixed: start with an empty list, lappend each arg so that
+        # runtime values containing spaces are properly quoted as
+        # single list elements (tcl_cmd_lappend wraps in {} if needed).
+        lappend_idx = self._shared_imports.get("tcl_lappend")
+        if lappend_idx is None:
+            # No lappend helper — fall back to first arg only.
             self._emit_value(args[0])
             return
 
         def _emit_elem(a: str) -> None:
+            # Braced literal — strip outer braces and emit the raw content;
+            # tcl_cmd_lappend will re-quote it correctly if needed.
+            if a.startswith("{") and a.endswith("}"):
+                self._emit_obj_literal(a[1:-1])
+                return
             if a.startswith("$") or a.startswith("["):
                 self._emit_value(a)
             else:
-                self._emit_obj_literal(_tcl_list_quote(a))
+                self._emit_obj_literal(a)
 
-        _emit_elem(args[0])
-        for i in range(1, len(args)):
-            self._emit_obj_literal(" ")
-            self._emit_call(concat_idx)
-            _emit_elem(args[i])
-            self._emit_call(concat_idx)
+        self._emit_obj_literal("")  # empty list seed
+        for a in args:
+            _emit_elem(a)
+            self._emit_call(lappend_idx)
 
     def _emit_cmd_uplevel(self, args: tuple[str, ...]) -> None:
         """``uplevel ?level? body`` — evaluate script in a caller's frame.
@@ -6040,6 +6244,10 @@ class _WasmEmitter:
         is left on the WASM stack for implicit return.
         """
         body_text = args[0].strip() if args else ""
+        # Strip outer braces preserved by _split_command_subst so
+        # lower_to_ir receives the raw script, not "{script}".
+        if body_text.startswith("{") and body_text.endswith("}"):
+            body_text = body_text[1:-1]
         result_var = args[1] if len(args) >= 2 else None
 
         if not body_text:
@@ -6525,13 +6733,15 @@ class _WasmEmitter:
             return
 
         # Detect implicit return pattern: last statement is IRExprEval,
-        # IRCall, or IRIncr followed by goto to an empty exit block.
-        # In Tcl, the last command's result is the proc's return value.
+        # IRCall, IRIncr, or an IRBarrier that has a real runtime result
+        # (e.g. ``namespace eval :: $cmd $args``), followed by goto to an
+        # empty exit block.  In Tcl, the last command's result is the
+        # proc's return value.
         stmts = block.statements
         use_implicit_return = False
         if (
             stmts
-            and isinstance(stmts[-1], (IRExprEval, IRCall, IRIncr))
+            and isinstance(stmts[-1], (IRExprEval, IRCall, IRIncr, IRBarrier))
             and isinstance(block.terminator, CFGGoto)
             and self._is_exit_block(block.terminator.target)
             and self._is_proc
@@ -6573,6 +6783,51 @@ class _WasmEmitter:
                         self._const_map.clear()
                 else:
                     self._emit_call_stmt_tail(last.command, last.args, last.defs)
+            elif isinstance(last, IRBarrier):
+                # IRBarrier in tail position — keep result on stack (no DROP).
+                # ``namespace eval ns arg1 arg2 ...`` with dynamic args uses
+                # WASM-level assembly so compiled-frame aliases resolve.
+                barrier_cmd = last.command
+                barrier_args = last.args
+                if (
+                    barrier_cmd == "namespace"
+                    and barrier_args
+                    and barrier_args[0] == "eval"
+                    and len(barrier_args) > 2
+                ):
+                    script_parts = barrier_args[2:]
+                    eval_idx_bar = self._shared_imports.get("tcl_eval")
+                    if eval_idx_bar is not None:
+                        if len(script_parts) == 1:
+                            self._emit_value(script_parts[0])
+                        else:
+                            append_idx_bar = self._shared_imports.get("tcl_append")
+                            if append_idx_bar is not None:
+                                self._emit_value(script_parts[0])
+                                for sa in script_parts[1:]:
+                                    self._emit_obj_literal(" ")
+                                    self._emit_call(append_idx_bar)
+                                    self._emit_value(sa)
+                                    self._emit_call(append_idx_bar)
+                            else:
+                                self._emit_eval_fallback(barrier_cmd, barrier_args)
+                                # result stays on stack (no DROP)
+                        if eval_idx_bar is not None:
+                            self._emit_frame_sync()
+                            self._emit_call(eval_idx_bar)
+                            self._emit_frame_readback()
+                    else:
+                        self._emit_eval_fallback(barrier_cmd, barrier_args)
+                        # result stays on stack (no DROP)
+                else:
+                    # Generic barrier in tail position — eval fallback,
+                    # result stays on stack.
+                    if barrier_cmd:
+                        self._emit_eval_fallback(barrier_cmd, barrier_args)
+                    else:
+                        self._emit_eval_fallback(last.reason)
+                if self._optimise:
+                    self._const_map.clear()
             elif isinstance(last, IRIncr):
                 # Emit incr keeping the new value (i32 TclObj) on stack.
                 # Alias-aware: reads/writes route through globals for
