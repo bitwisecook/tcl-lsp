@@ -458,86 +458,11 @@ pub export fn string_is_space(value: i32) i32 {
     return obj_new_int(1);
 }
 
-// Quote an element for embedding in a Tcl list string.  Writes to *buf* at
-// *off* and returns the new offset.  Rules:
-//   - empty element → ``{}``
-//   - contains no whitespace, no braces, no backslash, no quotes → emit bare
-//   - contains whitespace but has balanced ``{..}`` and does not start with
-//     ``{`` → wrap in braces
-//   - otherwise → backslash-escape each whitespace/brace/backslash character
-// This matches how tclsh's Tcl_ConvertToList treats most common cases while
-// avoiding the invalid output produced by unconditional bracing of
-// brace-bearing elements.
-fn list_quote_elem(buf: u32, off: u32, src: u32, slen: u32) u32 {
-    if (slen == 0) {
-        const d: [*]u8 = @ptrFromInt(buf + off);
-        d[0] = '{';
-        d[1] = '}';
-        return off + 2;
-    }
-    const ps: [*]const u8 = @ptrFromInt(src);
-    var has_special = false;
-    var has_backslash = false;
-    var brace_balance: i32 = 0;
-    var min_balance: i32 = 0;
-    for (0..slen) |k| {
-        const ch = ps[k];
-        if (ch == '\\') has_backslash = true;
-        if (is_space(ch) or ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';') {
-            has_special = true;
-        }
-        if (ch == '{') brace_balance += 1;
-        if (ch == '}') {
-            brace_balance -= 1;
-            if (brace_balance < min_balance) min_balance = brace_balance;
-        }
-    }
-    const starts_with_brace = ps[0] == '{';
-    const balanced = (brace_balance == 0) and (min_balance >= 0);
-    // Count trailing backslashes.  A braced wrap is only safe when the
-    // trailing-backslash count is even; an odd trailing ``\`` would escape
-    // the closing ``}`` and leave the list element unclosed (Tcl's
-    // TclFindElement consumes ``\<byte>`` pairs whole inside braces).
-    var trailing_bs: u32 = 0;
-    var ti: u32 = slen;
-    while (ti > 0 and ps[ti - 1] == '\\') : (ti -= 1) {
-        trailing_bs += 1;
-    }
-    const trailing_bs_safe = (trailing_bs & 1) == 0;
-    if (!has_special and brace_balance == 0 and !starts_with_brace) {
-        memcpy(buf + off, src, slen);
-        return off + slen;
-    }
-    // Wrap in {...} when braces are balanced.  Backslashes inside are fine
-    // as long as the element doesn't end with an un-paired trailing ``\``
-    // (which would escape the closing ``}`` and leave the element open).
-    // When a trailing ``\`` is present, fall through to the backslash-escape
-    // path instead of losing content.
-    if (has_special and balanced and !starts_with_brace and (!has_backslash or trailing_bs_safe)) {
-        const d0: [*]u8 = @ptrFromInt(buf + off);
-        d0[0] = '{';
-        memcpy(buf + off + 1, src, slen);
-        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + slen);
-        d1[0] = '}';
-        return off + slen + 2;
-    }
-    // Backslash-escape path: emit each problematic byte preceded by '\'.
-    var o = off;
-    for (0..slen) |k| {
-        const ch = ps[k];
-        const needs_escape = is_space(ch) or ch == '{' or ch == '}' or
-            ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';';
-        if (needs_escape) {
-            const d: [*]u8 = @ptrFromInt(buf + o);
-            d[0] = '\\';
-            o += 1;
-        }
-        const d2: [*]u8 = @ptrFromInt(buf + o);
-        d2[0] = ch;
-        o += 1;
-    }
-    return o;
-}
+// ``list_quote_elem`` is now a thin wrapper around the canonical
+// :func:`obj.list_elem_quote` in tcl_obj.zig.  Kept as a file-local
+// alias so the split-by-char path below can stay a single-line call;
+// any future change to the quoting rules only happens in one place.
+const list_quote_elem = obj.list_elem_quote;
 
 // Exported: split — split a string by a separator into a Tcl list.
 // If splitChars is empty, splits into individual characters.

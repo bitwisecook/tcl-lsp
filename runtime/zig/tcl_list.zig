@@ -28,38 +28,46 @@ pub export fn tcl_cmd_list_length(list: i32) i32 {
 }
 
 // Exported: list append — append element to list with proper quoting.
-// Parses the existing list, re-quotes each element using list_elem_quote,
-// then appends the new element.  This correctly handles lists that contain
-// backslash-escaped values (e.g. "\ " = one space element) or trailing
-// whitespace (e.g. "x " = one element "x").
+//
+// Fast path (the common case): the existing list representation is kept
+// verbatim — we only trim trailing whitespace, append a single space,
+// and append the quoted new element.  Existing elements retain
+// whatever canonical form they already had (braced / backslash-escaped),
+// so repeated lappend is O(n) per call instead of the O(existing_elems)
+// re-parse + re-quote the two-pass approach used before.
+//
+// Slow path: if the existing list's last non-whitespace byte is an
+// unpaired backslash, the simple concat would turn the appended space
+// into a literal character (``\ ``) and merge our new element into
+// the last existing one.  In that rare case we fall back to the
+// parse / re-quote path that guarantees correct element boundaries.
 pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
-    // Worst-case buffer: existing content backslash-escaped (3x) + new element (2x+2) + separators.
-    const max_buf: u32 = sc.len * 3 + sv.len * 2 + 8;
+    // Worst-case buffer: existing content verbatim + separator + new element (2x+2).
+    const max_buf: u32 = sc.len + sv.len * 2 + 8;
     const buf = alloc(max_buf);
     var off: u32 = 0;
 
     if (sc.len > 0) {
-        const n = list_count_elements(sc.ptr, sc.len);
-        var idx: i64 = 0;
-        while (idx < n) : (idx += 1) {
-            if (idx > 0) {
-                const d: [*]u8 = @ptrFromInt(buf + off);
-                d[0] = ' ';
-                off += 1;
+        // Strip trailing whitespace from the existing representation.
+        const cp: [*]const u8 = @ptrFromInt(sc.ptr);
+        var end: u32 = sc.len;
+        while (end > 0 and is_space(cp[end - 1])) end -= 1;
+        if (end > 0) {
+            // Count trailing backslashes — odd means the next space
+            // would be eaten as a ``\<space>`` escape.  Fall back to
+            // re-parse if so.
+            var bs_count: u32 = 0;
+            var ei: u32 = end;
+            while (ei > 0 and cp[ei - 1] == '\\') : (ei -= 1) {
+                bs_count += 1;
             }
-            const elem = list_element_at(sc.ptr, sc.len, idx);
-            if (elem.braced) {
-                off = list_elem_quote(buf, off, sc.ptr + elem.start, elem.len);
-            } else {
-                // Process backslash escapes to get the actual element value.
-                const tmp = alloc(elem.len + 1);
-                const actual_len = copy_unbraced_elem(tmp, sc.ptr + elem.start, elem.len);
-                off = list_elem_quote(buf, off, tmp, actual_len);
+            if ((bs_count & 1) == 1) {
+                return lappend_reparse(sc.ptr, sc.len, sv.ptr, sv.len);
             }
-        }
-        if (n > 0) {
+            memcpy(buf, sc.ptr, end);
+            off = end;
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';
             off += 1;
@@ -67,6 +75,40 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     }
 
     off = list_elem_quote(buf, off, sv.ptr, sv.len);
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
+/// Fallback for :func:`tcl_cmd_lappend`: parse the existing list into
+/// elements, re-quote each, then append the new element.  Only invoked
+/// when the fast concat path would misplace the element boundary
+/// (existing rep ends with an unpaired ``\``).
+fn lappend_reparse(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
+    const max_buf: u32 = sc_len * 3 + sv_len * 2 + 8;
+    const buf = alloc(max_buf);
+    var off: u32 = 0;
+    const n = list_count_elements(sc_ptr, sc_len);
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        if (idx > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const elem = list_element_at(sc_ptr, sc_len, idx);
+        if (elem.braced) {
+            off = list_elem_quote(buf, off, sc_ptr + elem.start, elem.len);
+        } else {
+            const tmp = alloc(elem.len + 1);
+            const actual_len = copy_unbraced_elem(tmp, sc_ptr + elem.start, elem.len);
+            off = list_elem_quote(buf, off, tmp, actual_len);
+        }
+    }
+    if (n > 0) {
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = ' ';
+        off += 1;
+    }
+    off = list_elem_quote(buf, off, sv_ptr, sv_len);
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
