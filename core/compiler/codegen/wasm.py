@@ -1707,7 +1707,7 @@ def _scan_needed_imports(
                             # ``info exists $dynamicName`` — dispatch
                             # to runtime ``info_exists`` which resolves
                             # the name's value at runtime.
-                            if (raw.startswith("$") or raw.startswith("[")):
+                            if raw.startswith("$") or raw.startswith("["):
                                 stripped = raw
                                 if raw.startswith("${") and raw.endswith("}"):
                                     stripped = raw[2:-1]
@@ -2776,6 +2776,7 @@ class _WasmEmitter:
                 if a.startswith("{") and a.endswith("}"):
                     return a  # brace chars are part of the value, not quoting
                 return _tcl_backslash_subst(a) if "\\" in a else a
+
             list_str = " ".join(_tcl_list_quote(_prep(a)) for a in tail_args)
             self._emit_obj_literal(list_str)
             return
@@ -3978,9 +3979,7 @@ class _WasmEmitter:
         # the eval fallback so the interpreter's ``proc`` handler
         # registers under the current namespace.
         if command in _SCOPE_NOP_COMMANDS:
-            if command == "proc" and args and (
-                args[0].startswith("$") or args[0].startswith("[")
-            ):
+            if command == "proc" and args and (args[0].startswith("$") or args[0].startswith("[")):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
@@ -4041,7 +4040,12 @@ class _WasmEmitter:
         if proc_info is not None:
             qname = self._resolve_proc_qname(command)
             self._emit_cmd_proc_call(
-                proc_info[0], proc_info[1], args, defs, qname=qname, tokens=tokens,
+                proc_info[0],
+                proc_info[1],
+                args,
+                defs,
+                qname=qname,
+                tokens=tokens,
             )
             return
 
@@ -4330,16 +4334,10 @@ class _WasmEmitter:
             # applies inside compiled procs that have a namespace
             # other than global.
             ns_saved_idx: int | None = None
-            if (
-                self._is_proc
-                and self._proc_namespace
-                and self._proc_namespace != "::"
-            ):
+            if self._is_proc and self._proc_namespace and self._proc_namespace != "::":
                 ns_set_idx = self._shared_imports.get("tcl_ns_set")
                 if ns_set_idx is not None:
-                    ns_saved_idx = self._add_extra_local(
-                        prefix="_ns_saved", val_type=ValType.I64
-                    )
+                    ns_saved_idx = self._add_extra_local(prefix="_ns_saved", val_type=ValType.I64)
                     # ns name without the leading ``::`` — the
                     # interpreter's qualify_name prepends ``::`` if
                     # needed; keep the full ``::ns`` form for
@@ -4367,9 +4365,7 @@ class _WasmEmitter:
                 if ns_restore_idx is not None:
                     # Stash eval result before calling ns_restore
                     # (which returns void) and put it back after.
-                    result_tmp = self._add_extra_local(
-                        prefix="_eval_result", val_type=ValType.I32
-                    )
+                    result_tmp = self._add_extra_local(prefix="_eval_result", val_type=ValType.I32)
                     self._emit_local_set(result_tmp)
                     self._emit_local_get(ns_saved_idx)
                     self._emit_call(ns_restore_idx)
@@ -5103,8 +5099,9 @@ class _WasmEmitter:
             # skipped because the name only exists at runtime; users
             # who want a local alias can follow up with an explicit
             # ``upvar``.
-            is_dynamic = (name.startswith("$") or name.startswith("[")) and \
-                         _parse_array_ref(name) is None
+            is_dynamic = (name.startswith("$") or name.startswith("[")) and _parse_array_ref(
+                name
+            ) is None
             if is_dynamic:
                 gset_idx = self._shared_imports.get("tcl_global_set")
                 append_idx = self._shared_imports.get("tcl_append")
@@ -5117,9 +5114,7 @@ class _WasmEmitter:
                     # check and the write can reuse it without
                     # recomputing the concat.
                     ns_prefix = f"{ns}::" if ns != "::" else "::"
-                    qname_idx = self._add_extra_local(
-                        prefix="_var_dyn_qname", val_type=ValType.I32
-                    )
+                    qname_idx = self._add_extra_local(prefix="_var_dyn_qname", val_type=ValType.I32)
                     self._emit_obj_literal(ns_prefix)
                     self._emit_value(name)
                     self._emit_call(append_idx)
@@ -5130,9 +5125,7 @@ class _WasmEmitter:
                     if gexist_idx is not None:
                         self._emit_local_get(qname_idx)
                         self._emit_call(gexist_idx)
-                        self._emit_call(
-                            self._shared_imports["tcl_obj_get_int"]
-                        )
+                        self._emit_call(self._shared_imports["tcl_obj_get_int"])
                         self._emit(WasmOp.I64_EQZ)
                         self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
                         self._emit_local_get(qname_idx)
@@ -5509,9 +5502,7 @@ class _WasmEmitter:
         # braces, applies backslash subst), then _tcl_list_quote encodes
         # the value as a list element.
         if all(not a.startswith("$") and not a.startswith("[") for a in args):
-            self._emit_obj_literal(" ".join(
-                _tcl_list_quote(_tcl_token_value(a)) for a in args
-            ))
+            self._emit_obj_literal(" ".join(_tcl_list_quote(_tcl_token_value(a)) for a in args))
             return
         # Mixed: start with an empty list, lappend each arg so that
         # runtime values containing spaces are properly quoted as
@@ -5838,10 +5829,9 @@ class _WasmEmitter:
             # and dispatch through the runtime ``info_exists`` helper
             # so the check follows the name's actual string, not the
             # literal text after ``$``.
-            is_dynamic = (
-                (var.startswith("$") or var.startswith("["))
-                and _parse_array_ref(var) is None
-            )
+            is_dynamic = (var.startswith("$") or var.startswith("[")) and _parse_array_ref(
+                var
+            ) is None
             if is_dynamic:
                 info_exists_idx = self._shared_imports.get("tcl_info_exists")
                 if info_exists_idx is not None:
@@ -6040,6 +6030,7 @@ class _WasmEmitter:
         # concat: variadic — Tcl concat trims whitespace from each arg and
         # joins non-empty results with a single space.
         if command == "concat":
+
             def _concat_is_lit(a: str) -> bool:
                 return (
                     not a.startswith("$")
@@ -6048,6 +6039,7 @@ class _WasmEmitter:
                     and a not in self._aliases
                     and a not in self._local_index
                 )
+
             all_lits = all(_concat_is_lit(a) for a in args)
             if not args:
                 self._emit_obj_literal("")
@@ -6512,6 +6504,7 @@ class _WasmEmitter:
             IRExprEval,
             IRIncr,
         )
+
         match stmt:
             case IRCall(command=command, args=args, defs=defs, tokens=tokens):
                 if (
