@@ -238,6 +238,8 @@ is incomplete and must not be merged.
 - Use **UK spelling** in identifiers and comments (`normalise`, `optimiser`, `analyse`).
 - Keep names explicit; avoid ambiguous single-letter variables outside tiny loops.
 - Prefer `match/case` for enum/token dispatch with 3+ branches.
+- Prefer `x & 1` over `x % 2` for odd/even checks on integers (and use
+  truthiness: `if x & 1:` rather than `if x & 1 == 1:`).
 - **Comments** must be plain, minimal, and only present when they illuminate
   something the code itself does not convey. Do not use banner-style comments
   (`# -----------`, `# --- Text ---`, `# -- [section] ------`). Use a plain
