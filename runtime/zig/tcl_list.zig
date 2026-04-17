@@ -9,6 +9,8 @@ const obj_new_string = obj.obj_new_string;
 const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 const obj_new_string_copy = obj.obj_new_string_copy;
+const copy_unbraced_elem = obj.copy_unbraced_elem;
+const list_elem_quote = obj.list_elem_quote;
 const is_space = obj.is_space;
 const str_cmp = obj.str_cmp;
 const list_count_elements = obj.list_count_elements;
@@ -25,46 +27,47 @@ pub export fn tcl_cmd_list_length(list: i32) i32 {
     return obj_new_int(n);
 }
 
-// Exported: list append — append element to list (space-separated).
+// Exported: list append — append element to list with proper quoting.
+// Parses the existing list, re-quotes each element using list_elem_quote,
+// then appends the new element.  This correctly handles lists that contain
+// backslash-escaped values (e.g. "\ " = one space element) or trailing
+// whitespace (e.g. "x " = one element "x").
 pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
-    var needs_braces = false;
-    if (sv.len > 0) {
-        const vsrc: [*]const u8 = @ptrFromInt(sv.ptr);
-        for (0..sv.len) |i| {
-            if (is_space(vsrc[i])) {
-                needs_braces = true;
-                break;
+    // Worst-case buffer: existing content backslash-escaped (3x) + new element (2x+2) + separators.
+    const max_buf: u32 = sc.len * 3 + sv.len * 2 + 8;
+    const buf = alloc(max_buf);
+    var off: u32 = 0;
+
+    if (sc.len > 0) {
+        const n = list_count_elements(sc.ptr, sc.len);
+        var idx: i64 = 0;
+        while (idx < n) : (idx += 1) {
+            if (idx > 0) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            const elem = list_element_at(sc.ptr, sc.len, idx);
+            if (elem.braced) {
+                off = list_elem_quote(buf, off, sc.ptr + elem.start, elem.len);
+            } else {
+                // Process backslash escapes to get the actual element value.
+                const tmp = alloc(elem.len + 1);
+                const actual_len = copy_unbraced_elem(tmp, sc.ptr + elem.start, elem.len);
+                off = list_elem_quote(buf, off, tmp, actual_len);
             }
         }
-    }
-    if (sc.len == 0) {
-        if (needs_braces) {
-            const buf = alloc(sv.len + 2);
-            const dst: [*]u8 = @ptrFromInt(buf);
-            dst[0] = '{';
-            memcpy(buf + 1, sv.ptr, sv.len);
-            dst[sv.len + 1] = '}';
-            return obj_new_string(@intCast(buf), @intCast(sv.len + 2));
+        if (n > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
         }
-        return value;
     }
-    const extra: u32 = if (needs_braces) sv.len + 3 else sv.len + 1;
-    const total = sc.len + extra;
-    const buf = alloc(total);
-    memcpy(buf, sc.ptr, sc.len);
-    const dst: [*]u8 = @ptrFromInt(buf + sc.len);
-    dst[0] = ' ';
-    if (needs_braces) {
-        dst[1] = '{';
-        memcpy(buf + sc.len + 2, sv.ptr, sv.len);
-        const d2: [*]u8 = @ptrFromInt(buf + sc.len + 2 + sv.len);
-        d2[0] = '}';
-    } else {
-        memcpy(buf + sc.len + 1, sv.ptr, sv.len);
-    }
-    return obj_new_string(@intCast(buf), @intCast(total));
+
+    off = list_elem_quote(buf, off, sv.ptr, sv.len);
+    return obj_new_string(@intCast(buf), @intCast(off));
 }
 
 // Exported: list — create a list from individual elements.
@@ -89,23 +92,57 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
+// Parse a list index that may be "end", "end-N", or a plain integer.
+// Returns the resolved 0-based index, or -1 for out-of-range.
+fn resolve_list_index(idx: i32, n: i64) i64 {
+    const sv = obj_ensure_string(idx);
+    if (sv.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sv.ptr);
+        if (sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+            if (sv.len == 3) return n - 1;  // "end"
+            if (sv.len >= 5 and sp[3] == '-') {
+                // "end-N"
+                var offset: i64 = 0;
+                var i: u32 = 4;
+                while (i < sv.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
+                    offset = offset * 10 + @as(i64, sp[i] - '0');
+                }
+                return n - 1 - offset;
+            }
+            if (sv.len >= 5 and sp[3] == '+') {
+                // "end+N"
+                var offset: i64 = 0;
+                var i: u32 = 4;
+                while (i < sv.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
+                    offset = offset * 10 + @as(i64, sp[i] - '0');
+                }
+                return n - 1 + offset;
+            }
+        }
+    }
+    return obj_get_int(idx);
+}
+
 // Exported: list index — extract the nth element (0-based).
 pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     const s = obj_ensure_string(list);
-    const i_val = obj_get_int(idx);
-    if (i_val < 0) return obj_new_string(0, 0);
     const n = list_count_elements(s.ptr, s.len);
-    if (i_val >= n) return obj_new_string(0, 0);
+    const i_val = resolve_list_index(idx, n);
+    if (i_val < 0 or i_val >= n) return obj_new_string(0, 0);
     const elem = list_element_at(s.ptr, s.len, i_val);
-    return obj_new_string_copy(s.ptr + elem.start, elem.len);
+    if (elem.braced) return obj_new_string_copy(s.ptr + elem.start, elem.len);
+    // Unbraced element: process backslash escapes.
+    const buf = alloc(elem.len);
+    const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
+    return obj_new_string(@intCast(buf), @intCast(out_len));
 }
 
 // Exported: list range — extract elements [first..last] (inclusive).
 pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(list);
-    var f = obj_get_int(first);
-    var l = obj_get_int(last);
     const total = list_count_elements(s.ptr, s.len);
+    var f = resolve_list_index(first, total);
+    var l = resolve_list_index(last, total);
     if (f < 0) f = 0;
     if (l >= total) l = total - 1;
     if (f > l or f >= total) return obj_new_string(0, 0);
