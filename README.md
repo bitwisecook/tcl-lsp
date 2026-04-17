@@ -1691,7 +1691,7 @@ overridden via `tclLsp.optimiser.*` settings.
 | O125 | code_motion | Sink side-effect-free assignments into the deepest decision block (`if`/`switch`) that uses them. |  |  | ✓ |
 | O126 | dce | Remove unused variable assignments — eliminate `set` statements for variables that are never read. |  |  | ✓ |
 | O127 | code_motion | Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site. |  |  | ✓ |
-| O128 | readability | Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument. | ✓ | ✓ | ✓ |
+| O128 | readability | Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument to `lindex` (first index), `lrange`, `lreplace`, `string index`, `string range`, or `string replace` with a matching container reference. | ✓ | ✓ | ✓ |
 
 **Profiles:** `off` disables all passes. `readability`, `standard`, and `full` enable
 progressively more passes (single-pass). `aggressive` = `full` with multi-pass

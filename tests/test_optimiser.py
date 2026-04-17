@@ -1398,12 +1398,6 @@ class TestEndOffsetIndexRewrite:
         assert optimised == "set x [lreplace $L end-1 end foo]"
         assert sum(1 for r in rewrites if r.code == "O128") == 2
 
-    def test_linsert_at_end(self):
-        source = "set x [linsert $L [expr {[llength $L] - 1}] foo]"
-        optimised, rewrites = optimise_source(source)
-        assert optimised == "set x [linsert $L end foo]"
-        assert any(r.code == "O128" for r in rewrites)
-
     def test_string_index_last_char(self):
         source = "set x [string index $s [expr {[string length $s] - 1}]]"
         optimised, rewrites = optimise_source(source)
@@ -1475,6 +1469,196 @@ class TestEndOffsetIndexRewrite:
         optimised, rewrites = optimise_source(source)
         assert "[lindex $L end]" in optimised
         assert any(r.code == "O128" for r in rewrites)
+
+    # ------------------------------------------------------------------
+    # Robustness: the rewrite MUST NOT fire when equivalence is unclear.
+    # Each test below pairs an unsafe pattern with a parallel, nearly
+    # identical safe pattern that SHOULD fire, to confirm the guard is
+    # not over-broad.
+    # ------------------------------------------------------------------
+
+    def test_no_rewrite_linsert_end_is_append(self):
+        # `linsert $L end x` appends to the list, whereas the explicit
+        # `[llength $L] - 1` index inserts BEFORE the final element.
+        # Since there is no generic ``end-N`` form that matches the
+        # "insert before last" semantics for N == 1, linsert is excluded
+        # from O128 entirely.
+        source = "set x [linsert $L [expr {[llength $L] - 1}] foo]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == source
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_linsert_any_offset(self):
+        source = "set x [linsert $L [expr {[llength $L] - 3}] foo]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_multi_index_lindex_later_position(self):
+        # `lindex $L 0 idx` resolves ``idx`` against the sub-list at index
+        # 0, not against $L, so the outer llength does not describe the
+        # correct container.
+        source = "set x [lindex $L 0 [expr {[llength $L] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == source
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_rewrite_multi_index_lindex_first_position_only(self):
+        # Sanity check: the first index IS relative to $L, so that
+        # position should still rewrite even when extra indices follow.
+        source = "set x [lindex $L [expr {[llength $L] - 1}] 0]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lindex $L end 0]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_mismatched_array_element(self):
+        # `$a(1)` and `$a(2)` are different scalars held inside the same
+        # array; normalising to the base name ``a`` would incorrectly
+        # treat them as the same container.
+        source = "set x [lindex $a(1) [expr {[llength $a(2)] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == source
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_rewrite_matching_array_element(self):
+        source = "set x [lindex $a(1) [expr {[llength $a(1)] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lindex $a(1) end]"
+        assert any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_braced_scalar_vs_array_element(self):
+        # ``${a(1)}`` refers to a scalar variable literally named ``a(1)``;
+        # ``$a(1)`` (bare) is an array-element access.  They must not be
+        # conflated even though both texts include ``a(1)``.
+        source = "set x [lindex ${a(1)} [expr {[llength $a(1)] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_command_substitution_container(self):
+        # Collapsing two ``[get_list]`` invocations into one ``end``
+        # drops a side-effect-bearing call.
+        source = "set x [lindex [get_list] [expr {[llength [get_list]] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == source
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_literal_container(self):
+        # The container is a braced list literal, not a variable.
+        source = "set x [lindex {a b c d} [expr {[llength {a b c d}] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_non_literal_offset(self):
+        # The subtracted constant is a variable, not a literal integer —
+        # the offset can only be named ``end-N`` when N is known.
+        source = "set x [lindex $L [expr {[llength $L] - $N}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_addition(self):
+        # ``llength + N`` is out of range, never an end-offset.
+        source = "set x [lindex $L [expr {[llength $L] + 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_multiplication(self):
+        source = "set x [lindex $L [expr {[llength $L] * 2 - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_reversed_subtraction(self):
+        # ``N - [llength $L]`` is not an end-offset (would be negative).
+        source = "set x [lindex $L [expr {1 - [llength $L]}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_chained_subtractions(self):
+        # ``(llength - 1) - 1`` could be simplified to ``llength - 2``
+        # but we do not attempt that fold here; leave it to O101 /O110.
+        source = "set x [lindex $L [expr {[llength $L] - 1 - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_negative_constant(self):
+        # ``llength - -1`` = ``llength + 1`` = one past end.
+        source = "set x [lindex $L [expr {[llength $L] - -1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_unbraced_expr(self):
+        # Unbraced expr arguments are substituted before parsing and the
+        # optimiser cannot prove the substituted text matches the
+        # bracketed form.
+        source = "set x [lindex $L [expr [llength $L] - 1]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_llength_of_command_result(self):
+        # The length is taken over a command result, not a variable.
+        source = "set x [lindex $L [expr {[llength [lsort $L]] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_container_with_adjacent_text(self):
+        # A word is only "single token" when it consists of one token;
+        # ``$L:extra`` spans VAR + ESC and should not be normalised.
+        source = "set x [lindex $L:extra [expr {[llength $L:extra] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_string_command_on_list(self):
+        # ``string length $L`` counts characters; for a list variable that
+        # number is not the list length.  The command kind must match.
+        source = "set x [lindex $L [expr {[string length $L] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_wrong_string_subcommand(self):
+        # ``string length`` does not take end-offset indices, and the
+        # command is not on our supported list, so even with a matching
+        # length expression we must not touch it.
+        source = "set n [string length [expr {[string length $s] - 1}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_lset(self):
+        # lset takes a variable name (not a $var), and has subtly
+        # different end-offset semantics for multi-index forms.  Not
+        # in the supported command list.
+        source = "lset L [expr {[llength $L] - 1}] foo"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_when_expr_contains_other_substitutions(self):
+        # Any operand that is not ``[<llength|string length> $var]`` or a
+        # literal integer keeps the expression opaque.
+        source = "set x [lindex $L [expr {[llength $L] - [get_offset]}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_no_rewrite_nested_brace_grouping(self):
+        # An extra layer of braces around the expression stops
+        # ``extract_single_expr_argument`` from recognising it, so the
+        # optimiser leaves it alone.  This is intentionally conservative.
+        source = "set x [lindex $L [expr {{[llength $L] - 1}}]]"
+        _optimised, rewrites = optimise_source(source)
+        assert not any(r.code == "O128" for r in rewrites)
+
+    def test_lrange_only_one_index_rewritten(self):
+        # The first index does not match the pattern; only the second
+        # should rewrite.
+        source = "set x [lrange $L 2 [expr {[llength $L] - 1}]]"
+        optimised, rewrites = optimise_source(source)
+        assert optimised == "set x [lrange $L 2 end]"
+        assert sum(1 for r in rewrites if r.code == "O128") == 1
+
+    def test_lreplace_only_matching_indices_rewritten(self):
+        # One index uses $M (mismatched), the other uses $L.
+        source = "set x [lreplace $L [expr {[llength $M] - 1}] [expr {[llength $L] - 1}] foo]"
+        optimised, rewrites = optimise_source(source)
+        # Only the $L index rewrites.
+        assert "end" in optimised
+        assert "[llength $M] - 1" in optimised
+        assert sum(1 for r in rewrites if r.code == "O128") == 1
 
 
 class TestVariableShapeOptimisationGuardrails:

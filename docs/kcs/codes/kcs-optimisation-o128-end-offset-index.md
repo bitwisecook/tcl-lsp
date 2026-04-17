@@ -46,10 +46,12 @@ set last_char [string index $s end]
 
 List commands (paired with `llength`):
 
-- `lindex list index ...`
+- `lindex list index` — only the single-index form rewrites; additional
+  indices in `lindex list i j …` resolve against the sub-list produced
+  by the previous step, so the outer `llength` would no longer describe
+  the correct container.
 - `lrange list first last`
 - `lreplace list first last ?element ...?`
-- `linsert list index ?element ...?`
 
 String commands (paired with `string length`):
 
@@ -57,21 +59,39 @@ String commands (paired with `string length`):
 - `string range string first last`
 - `string replace string first last ?newString?`
 
+## Commands intentionally excluded
+
+- `linsert list index ?element ...?` — `linsert $L end x` appends to
+  the list, whereas `linsert $L [expr {[llength $L] - 1}] x` inserts
+  before the final element. No generic `end`/`end-N` form preserves
+  that semantics for the `N == 1` case, so the whole command is
+  skipped rather than partially rewritten.
+- `lset` — takes a variable name (not a `$var`), and the multi-index
+  form has subtly different end-offset semantics from the other list
+  commands.
+
 ## Safety conditions
 
 - The container argument must be a single `$var` (or `${var}`) reference.
   Commands such as `lindex [get-list] [expr {[llength [get-list]] - 1}]`
   are **not** rewritten because collapsing them would drop one of the two
   `[get-list]` calls and change observable side effects.
-- The length command inside the index expression must read the same
-  variable as the outer container argument. Cross-variable patterns like
-  `lindex $L [expr {[llength $M] - 1}]` are skipped.
-- The subtraction constant must be a positive integer. `[llength $L] - 0`
-  and bare `[llength $L]` point one past the last valid index and are
-  left alone.
+- The length command inside the index expression must be the **same
+  concrete variable reference** as the outer container. Comparison
+  preserves array indices and braced-scalar-vs-array-element forms, so
+  `lindex $a(1) [expr {[llength $a(2)] - 1}]` and
+  `lindex ${a(1)} [expr {[llength $a(1)] - 1}]` are both rejected.
+- The subtracted operand must be a positive integer literal.
+  `[llength $L] - 0`, bare `[llength $L]`, `[llength $L] - $N`,
+  `[llength $L] - [foo]`, and chained subtractions like
+  `[llength $L] - 1 - 1` are all skipped — the latter are left to the
+  expression-folding passes to handle first.
 - The length kind must match the command kind: `llength` pairs with list
   commands, `string length` with string commands. Mismatches are skipped
-  so that a user-intended shimmer is not silently rewritten away.
+  so that a user-intended [shimmer](../../GLOSSARY.md#shimmer) is not
+  silently rewritten away.
+- For multi-index `lindex`, only the first index (which is relative to
+  the original list value) is considered; later indices are left alone.
 
 ## How to disable
 
