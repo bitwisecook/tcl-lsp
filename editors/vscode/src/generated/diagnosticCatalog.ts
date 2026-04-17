@@ -711,6 +711,12 @@ export const OPTIMISATIONS: OptimisationDef[] = [
       "Inline single-use variable assignment — eliminate redundant variable load by folding `set` into the use site.",
     defaultEnabled: true,
   },
+  {
+    code: "O128",
+    description:
+      "Rewrite `[expr {[llength $L] - N}]` / `[expr {[string length $s] - N}]` to `end-(N-1)` when used as an index argument.",
+    defaultEnabled: true,
+  },
 ];
 
 export const SECTION_TITLES: Record<string, string> = {
