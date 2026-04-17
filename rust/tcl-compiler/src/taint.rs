@@ -350,15 +350,18 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
 
 /// Shared inputs for the per-statement taint helpers.
 ///
-/// Bundles the registry, optional interprocedural analysis summary,
-/// and optional dialect so helper functions don't need a five-argument
-/// signature. The rendered-properties map is consumed only at the
-/// `propagate_taints` outer level (to colour each SSA def) and is not
-/// referenced by the nested helpers.
+/// Bundles the registry, optional interprocedural analysis summary
+/// (plus a precomputed set of its known procedure names so call-site
+/// helpers don't rebuild it each invocation), and optional dialect so
+/// helper functions don't need a five-argument signature. The
+/// rendered-properties map is consumed only at the `propagate_taints`
+/// outer level (to colour each SSA def) and is not referenced by the
+/// nested helpers.
 #[derive(Clone, Copy)]
 struct TaintCtx<'a> {
     registry: &'a CommandRegistry,
     interproc: Option<&'a InterproceduralAnalysis>,
+    known_procs: Option<&'a HashSet<String>>,
     caller_qname: Option<&'a str>,
     dialect: Option<&'a str>,
 }
@@ -467,11 +470,9 @@ fn interproc_call_taint(
     ctx: TaintCtx<'_>,
 ) -> Option<TaintLattice> {
     let interproc = ctx.interproc?;
+    let known = ctx.known_procs?;
     let caller = ctx.caller_qname.unwrap_or("::top");
-    let known: std::collections::HashSet<String> =
-        interproc.procedures.keys().cloned().collect();
-    let target =
-        crate::interprocedural::resolve_internal_call(command, caller, &known)?;
+    let target = crate::interprocedural::resolve_internal_call(command, caller, known)?;
     let summary = interproc.procedures.get(&target)?;
     let passthrough = summary.return_passthrough_param.as_ref()?;
     let idx = summary.params.iter().position(|p| p == passthrough)?;
@@ -560,35 +561,19 @@ fn evaluate_taint_def(
 
 /// Apply rendered-property-derived colours to a taint lattice.
 ///
-/// Values that start with `/` gain `PATH_PREFIXED` (and implicitly
-/// `NON_DASH_PREFIXED`); values that can't start with `-` gain
-/// `NON_DASH_PREFIXED`; values free of CR/LF gain `CRLF_FREE`.
+/// Only adds mitigating colours when the rendered-properties lattice
+/// provides *positive* evidence for them. A leading `/` (must-bit
+/// `STARTS_WITH_SLASH`) proves both `PATH_PREFIXED` and
+/// `NON_DASH_PREFIXED`. We deliberately do *not* infer
+/// `NON_DASH_PREFIXED` or `CRLF_FREE` from the absence of bits,
+/// because phi-joins and unknown command substitutions lose those
+/// facts without proving the value is safe — inferring from absence
+/// would unsoundly suppress T102 / CRLF-injection warnings.
 fn colour_from_rendered(lat: TaintLattice, props: RenderedValueProps) -> TaintLattice {
     let mut out = lat;
     if props.must.contains(RenderedProperties::STARTS_WITH_SLASH) {
         out = out.with(TaintColour::PATH_PREFIXED);
         out = out.with(TaintColour::NON_DASH_PREFIXED);
-    } else if props.must.contains(RenderedProperties::STARTS_WITH_DASH) {
-        // Explicitly dash-prefixed: do not add NON_DASH_PREFIXED.
-    } else {
-        // If the rendered-properties pass has seen a leading char and
-        // it is neither `/` nor `-`, the value cannot be option-
-        // injected. We approximate this by: a value with `must` set
-        // for either STARTS_WITH_SLASH (handled above) or with
-        // resolved but non-dash `must` bits means NON_DASH_PREFIXED.
-        // The props lattice loses STARTS_WITH_DASH when intersections
-        // at phi-joins disagree, so we only add NON_DASH_PREFIXED
-        // when STARTS_WITH_DASH is definitely absent from `may`.
-        if !props.may.contains(RenderedProperties::HAS_INTERPOLATION)
-            && !props.must.contains(RenderedProperties::STARTS_WITH_DASH)
-        {
-            // A fully-static value that hasn't been flagged as
-            // dash-prefixed is safe against option injection.
-            out = out.with(TaintColour::NON_DASH_PREFIXED);
-        }
-    }
-    if !props.may.contains(RenderedProperties::HAS_CRLF) {
-        out = out.with(TaintColour::CRLF_FREE);
     }
     out
 }
@@ -610,6 +595,99 @@ fn join_uses(
         }
     }
     t
+}
+
+/// True when any procedure reachable from the current function (the
+/// caller named `ssa.name`) has `writes_global = true`.
+///
+/// For a known proc, uses its summary's transitive `calls` list. For
+/// `::top` or an unknown caller, enumerates direct callees from the
+/// function's IR via `Statement::Call` commands that resolve to an
+/// internal proc, then unions their transitive closures.
+fn reachable_writes_global(
+    ssa: &SsaFunction,
+    cfg: &CfgFunction,
+    ia: &InterproceduralAnalysis,
+) -> bool {
+    // If the function itself is in the summary, use its transitive
+    // closure directly.
+    if let Some(self_summary) = ia.procedures.get(ssa.name.as_str()) {
+        if self_summary.writes_global {
+            return true;
+        }
+        return self_summary
+            .calls
+            .iter()
+            .any(|c| ia.procedures.get(c).is_some_and(|s| s.writes_global));
+    }
+
+    // Unknown / top-level caller: walk the CFG for direct Call
+    // targets, resolve them, and union the transitive closures.
+    let known: HashSet<String> = ia.procedures.keys().cloned().collect();
+    let mut visited: HashSet<String> = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            if let Statement::Call { command, .. } = stmt {
+                if let Some(target) = crate::interprocedural::resolve_internal_call(
+                    command,
+                    ssa.name.as_str(),
+                    &known,
+                ) {
+                    if let Some(summary) = ia.procedures.get(&target) {
+                        if summary.writes_global {
+                            return true;
+                        }
+                        if visited.insert(target) {
+                            for c in &summary.calls {
+                                if ia
+                                    .procedures
+                                    .get(c)
+                                    .is_some_and(|s| s.writes_global)
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Collect the set of `::`-prefixed (global / namespace-scoped)
+/// variable names that the function reads at SSA version 0.
+///
+/// Scans every block's `entry_versions`, every statement's `uses`
+/// map, and every phi's incoming edges so we catch globals reached
+/// from any predecessor — the entry block alone typically has no
+/// seeded versions for globals.
+fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
+    let mut out: HashSet<String> = HashSet::new();
+    let mut consider = |name: &str| {
+        if name.starts_with("::") {
+            out.insert(name.to_owned());
+        }
+    };
+    for block in ssa.blocks.values() {
+        for name in block.entry_versions.keys() {
+            consider(name);
+        }
+        for phi in &block.phis {
+            if phi.incoming.values().any(|&v| v == 0) {
+                consider(&phi.name);
+            }
+        }
+        for stmt in &block.statements {
+            for (name, &ver) in &stmt.uses {
+                if ver == 0 {
+                    consider(name);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Run intra-procedural taint propagation over one SSA function.
@@ -646,34 +724,36 @@ pub fn propagate_taints(
     let preds = cfg.predecessors();
     let order = cfg_order(cfg);
 
+    // Precompute the set of known procedure names once so per-call
+    // resolution in `interproc_call_taint` is O(1) rather than
+    // O(procedures) per call site.
+    let known_procs: Option<HashSet<String>> =
+        interproc.map(|ia| ia.procedures.keys().cloned().collect());
     let ctx = TaintCtx {
         registry,
         interproc,
+        known_procs: known_procs.as_ref(),
         caller_qname: Some(ssa.name.as_str()),
         dialect,
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
 
-    // Seed: if the interproc summary tells us any callee writes to
-    // global scope, mark version-0 globals as tainted conservatively.
-    // This is an approximation — without must-alias info we can't
-    // tell which specific global each proc writes.
+    // Seed: when a callee reachable from the current function writes
+    // to global scope, taint version-0 reads of global/namespace
+    // variables that this function actually touches. Scoping to
+    // reachable callees prevents an unrelated helper proc's global
+    // writes from polluting functions that never invoke it; scanning
+    // *every* block's entry_versions (plus statement uses / phi
+    // incomings) ensures we discover globals even when the entry
+    // block has no seeded versions.
     if let Some(ia) = interproc {
-        if ia.procedures.values().any(|s| s.writes_global) {
-            // Mark any version-0 entry whose name starts with `::` as
-            // potentially tainted by a global write.
-            let entry_versions = ssa
-                .blocks
-                .get(&cfg.entry)
-                .map(|b| b.entry_versions.clone())
-                .unwrap_or_default();
-            for name in entry_versions.keys() {
-                if name.starts_with("::") {
-                    taints
-                        .entry((name.clone(), 0))
-                        .or_insert(TaintLattice::tainted());
-                }
+        if reachable_writes_global(ssa, cfg, ia) {
+            let globals = collect_global_reads(ssa);
+            for name in globals {
+                taints
+                    .entry((name, 0))
+                    .or_insert(TaintLattice::tainted());
             }
         }
     }
@@ -718,9 +798,9 @@ pub fn propagate_taints(
                 let mut phi_taint: Option<TaintLattice> = None;
                 for pred in exec_preds {
                     let ver = phi.incoming.get(pred).copied().unwrap_or(0);
-                    if ver == 0 {
-                        continue;
-                    }
+                    // Include version-0 incomings: they represent
+                    // enclosing-scope reads (possibly pre-seeded with
+                    // taint when a reachable callee writes globals).
                     let incoming = taints
                         .get(&(phi.name.clone(), ver))
                         .copied()
@@ -1493,6 +1573,36 @@ mod tests {
                 .iter()
                 .any(|((n, _), t)| n == "out" && t.is_tainted()),
             "expected 'out' to be tainted via passthrough proc: {:?}",
+            fu.taints,
+        );
+    }
+
+    /// Global-write seeding must be scoped to procs actually reachable
+    /// from the current function. An unrelated helper that writes to
+    /// `::state` should not taint `::other_global` in a function that
+    /// never calls it.
+    #[test]
+    fn global_write_seeding_is_scoped_to_reachable_callees() {
+        use crate::compilation_unit::CompilationUnit;
+
+        let registry = CommandRegistry::build_default();
+        // `::writer` writes ::state. `::top` never calls ::writer, so
+        // reads of other globals here must stay clean.
+        let cu = CompilationUnit::build_for(
+            "proc ::writer {} { set ::state 1 }\n\
+             set local $::safe",
+            &registry,
+            false,
+        )
+        .with_interprocedural(&registry, None);
+        let fu = cu.function("::top").unwrap();
+        let local_tainted = fu
+            .taints
+            .iter()
+            .any(|((n, _), t)| n == "local" && t.is_tainted());
+        assert!(
+            !local_tainted,
+            "`local` must stay clean — `::writer` is unreachable from top-level: {:?}",
             fu.taints,
         );
     }

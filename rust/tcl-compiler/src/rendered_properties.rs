@@ -349,8 +349,10 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
                     // char as the first char when it is a mapped
                     // escape producing a printable char.
                     if !leading_resolved {
-                        if esc == b'/' {
-                            must |= RenderedProperties::STARTS_WITH_SLASH;
+                        match esc {
+                            b'/' => must |= RenderedProperties::STARTS_WITH_SLASH,
+                            b'-' => must |= RenderedProperties::STARTS_WITH_DASH,
+                            _ => {}
                         }
                         leading_resolved = true;
                     }
@@ -429,40 +431,50 @@ fn evaluate_value(
                     .unwrap_or_default();
             }
         }
-        return RenderedValueProps {
-            may: RenderedProperties::HAS_INTERPOLATION,
-            must: RenderedProperties::NONE,
-        };
+        // Version 0 / unseen: the value comes from an enclosing scope
+        // or hasn't been defined on this path. Be conservative — every
+        // may-property is possible, no must-property is known.
+        return unknown_top();
     }
 
-    // Pure command substitution → opaque, with a few registry hints.
+    // Pure command substitution → opaque baseline (top), refined with
+    // registry hints.
     if let Some((cmd, args)) = parse_command_substitution(stripped) {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut may = RenderedProperties::HAS_INTERPOLATION;
-        let must = RenderedProperties::NONE;
+        let mut rendered = unknown_top();
         if is_path_returning(registry, &cmd, &arg_refs) {
-            may |= RenderedProperties::HAS_FORWARD_SLASH;
+            rendered.may |= RenderedProperties::HAS_FORWARD_SLASH;
         }
         if is_normalised_getter(registry, &cmd, &arg_refs) {
-            may |= RenderedProperties::FULLY_NORMALISED;
-            return RenderedValueProps { may, must };
+            rendered.may |= RenderedProperties::FULLY_NORMALISED;
+            return rendered;
         }
         if is_unescape_command(registry, &cmd, &arg_refs) {
-            may |= RenderedProperties::WAS_UNESCAPED;
+            rendered.may |= RenderedProperties::WAS_UNESCAPED;
             // Escalate to DOUBLE_UNESCAPED if any input use was
             // already WAS_UNESCAPED (and not FULLY_NORMALISED).
             let input_may = collect_use_may(uses, props);
             if input_may.contains(RenderedProperties::WAS_UNESCAPED)
                 && !input_may.contains(RenderedProperties::FULLY_NORMALISED)
             {
-                may |= RenderedProperties::DOUBLE_UNESCAPED;
+                rendered.may |= RenderedProperties::DOUBLE_UNESCAPED;
             }
         }
-        return RenderedValueProps { may, must };
+        return rendered;
     }
 
     // Generic word — scan the literal + interpolation pattern.
     scan_value_text(value)
+}
+
+/// Lattice value for "unknown content" — every may-property
+/// conservatively possible, no must-property proven.
+#[must_use]
+fn unknown_top() -> RenderedValueProps {
+    RenderedValueProps {
+        may: RenderedProperties::MAY_MASK,
+        must: RenderedProperties::NONE,
+    }
 }
 
 /// Union the `may` bits of every SSA input used by a statement.
@@ -629,16 +641,19 @@ pub fn propagate_rendered_props(
                     let mut phi_props = RenderedValueProps::bottom();
                     for pred in &exec_preds {
                         let ver = phi.incoming.get(*pred).copied().unwrap_or(0);
-                        if ver == 0 {
-                            continue;
-                        }
-                        phi_props = rendered_join(
-                            phi_props,
+                        // Version 0 = undefined-on-this-path / enclosing
+                        // scope. Model it as top so the merge stays sound
+                        // instead of silently narrowing to the other
+                        // predecessors' facts.
+                        let incoming = if ver == 0 {
+                            unknown_top()
+                        } else {
                             props
                                 .get(&(phi.name.clone(), ver))
                                 .copied()
-                                .unwrap_or_default(),
-                        );
+                                .unwrap_or_default()
+                        };
+                        phi_props = rendered_join(phi_props, incoming);
                     }
                     set_props(
                         &mut props,
@@ -835,6 +850,17 @@ mod tests {
             assert!(!p.may.contains(RenderedProperties::HAS_FORWARD_SLASH));
             assert!(!p.must.contains(RenderedProperties::STARTS_WITH_DASH));
         }
+    }
+
+    /// `\-flag` (backslash-escaped dash) should still resolve the
+    /// leading character to `-`, setting `STARTS_WITH_DASH`.
+    #[test]
+    fn escape_dash_gets_starts_with_dash() {
+        let p = scan_value_text("\\-flag");
+        assert!(
+            p.must.contains(RenderedProperties::STARTS_WITH_DASH),
+            "expected STARTS_WITH_DASH on '\\-flag', got {p:?}",
+        );
     }
 
     #[test]
