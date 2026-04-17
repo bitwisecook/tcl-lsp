@@ -188,7 +188,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W230",
     section: "warning",
     description:
-      "Constant list index out of range — lindex/lrange/linsert/lreplace silently return empty or clamp.",
+      "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
     defaultEnabled: true,
   },
   {

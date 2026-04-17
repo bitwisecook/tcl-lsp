@@ -30,7 +30,7 @@
 | W126 | warning | Non-channel value in channel argument position. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
-| W230 | warning | Constant list index out of range — lindex/lrange/linsert/lreplace silently return empty or clamp. | ✓ |
+| W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
 | W231 | warning | Constant list index out of range — lset raises a runtime error. | ✓ |
 | W232 | warning | Constant string index out of range — string index/range/replace/insert silently return empty or no-op. | ✓ |
 | W240 | warning | Loop condition is a constant false — body never executes. | ✓ |

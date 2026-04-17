@@ -25,16 +25,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.analysis.analyser import analyse
 
 
+def _is_tcl_9(tclsh_path: str) -> bool:
+    """Return True if *tclsh_path* reports a 9.x patchlevel."""
+    try:
+        proc = subprocess.run(
+            [tclsh_path],
+            input="puts [info patchlevel]",
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
+    return proc.returncode == 0 and proc.stdout.strip().startswith("9.")
+
+
 def _find_tcl() -> str | None:
-    # Check standard names, then fall back to /tmp/tcl9-full/unix/tclsh
-    # (used in CI / dev environments where Tcl was just built from source).
-    for candidate in ("tclsh9.0", "tclsh"):
-        found = shutil.which(candidate)
-        if found:
-            return found
-    local = Path("/tmp/tcl9-full/unix/tclsh")
-    if local.exists():
-        return str(local)
+    # Accept only a Tcl 9.x interpreter.  Older binaries (8.6) have
+    # different index and loop semantics, so they would make this
+    # cross-check unsound.
+    candidates = [
+        shutil.which("tclsh9.0"),
+        shutil.which("tclsh"),
+        "/tmp/tcl9-full/unix/tclsh",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists() and _is_tcl_9(candidate):
+            return str(candidate)
     return None
 
 
