@@ -26,6 +26,7 @@ use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::lowering::lower_to_ir;
 use crate::memory_ssa::{build_memory_ssa, MemorySSAFunction};
+use crate::rendered_properties::{propagate_rendered_props, RenderedValueProps};
 use crate::sccp::{sccp, SccpResult};
 use crate::ssa::{build_ssa, SsaFunction, ValueKey};
 use crate::taint::{propagate_taints, TaintLattice};
@@ -60,6 +61,11 @@ pub struct FunctionUnit {
     /// Computed by the intra-procedural taint-propagation pass.
     /// Absent entries are implicitly clean (untainted).
     pub taints: HashMap<ValueKey, TaintLattice>,
+    /// Rendered-string-property lattice values per SSA definition.
+    ///
+    /// Computed by `propagate_rendered_props`. Absent entries are
+    /// implicitly `RenderedValueProps::bottom()`.
+    pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySSAFunction>,
 }
@@ -71,14 +77,16 @@ impl FunctionUnit {
     /// it.
     ///
     /// Runs in order: SSA → def-use → SCCP → type-propagation →
-    /// taint-propagation.
+    /// rendered-properties → taint-propagation.
     #[must_use]
     pub fn build(name: impl Into<String>, cfg: CfgFunction, registry: &CommandRegistry) -> Self {
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
         let sccp = sccp(&cfg, &ssa, None);
         let types = propagate_types(&cfg, &ssa, &sccp, registry);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, registry);
+        let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
+        let taints =
+            propagate_taints(&cfg, &ssa, &sccp, registry, Some(&rendered_props), None, None);
         Self {
             name: name.into(),
             cfg,
@@ -87,6 +95,7 @@ impl FunctionUnit {
             sccp,
             types,
             taints,
+            rendered_props,
             memory_ssa: None,
         }
     }
@@ -159,17 +168,48 @@ impl CompilationUnit {
     /// [`build_interprocedural_analysis`]. Call after
     /// [`build_for`] when a consumer (optimiser, compiler-checks)
     /// needs proc summaries.
+    ///
+    /// Re-runs `propagate_taints` on every function unit using the
+    /// freshly-built summary + the requested `dialect`, so
+    /// inter-procedural taint transfer and dialect-specific source
+    /// handling take effect.
     #[must_use]
     pub fn with_interprocedural(
         mut self,
         registry: &CommandRegistry,
         dialect: Option<&str>,
     ) -> Self {
-        self.interproc = Some(crate::interprocedural::build_interprocedural_analysis(
+        let interproc = crate::interprocedural::build_interprocedural_analysis(
             &self.ir_module,
             registry,
             dialect,
-        ));
+        );
+
+        // Re-run taint with the new summary + dialect. We borrow
+        // `interproc` immutably while each function unit re-runs
+        // `propagate_taints`.
+        self.top_level.taints = propagate_taints(
+            &self.top_level.cfg,
+            &self.top_level.ssa,
+            &self.top_level.sccp,
+            registry,
+            Some(&self.top_level.rendered_props),
+            Some(&interproc),
+            dialect,
+        );
+        for fu in self.procedures.values_mut() {
+            fu.taints = propagate_taints(
+                &fu.cfg,
+                &fu.ssa,
+                &fu.sccp,
+                registry,
+                Some(&fu.rendered_props),
+                Some(&interproc),
+                dialect,
+            );
+        }
+
+        self.interproc = Some(interproc);
         self
     }
 
