@@ -72,6 +72,12 @@ in the pages; Phase 7 cross-links.
 - [W134 — missing pkgIndex.tcl](kcs-diagnostic-w134-missing-pkgindex.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
+- [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)
+- [W231 — lset index out of range](kcs-diagnostic-w231-lset-index-out-of-range.md)
+- [W232 — string index out of range](kcs-diagnostic-w232-string-index-out-of-range.md)
+- [W240 — loop condition is constant false](kcs-diagnostic-w240-loop-constant-false.md)
+- [W241 — loop is provably infinite](kcs-diagnostic-w241-loop-provably-infinite.md)
+- [W242 — loop termination not provable (opt-in)](kcs-diagnostic-w242-loop-termination-unprovable.md)
 
 ## Security (W1xx, W3xx)
 

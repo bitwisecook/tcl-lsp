@@ -185,6 +185,39 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W230",
+    section: "warning",
+    description:
+      "Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W231",
+    section: "warning",
+    description: "Constant list index out of range — lset raises a runtime error.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W232",
+    section: "warning",
+    description:
+      "Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W240",
+    section: "warning",
+    description: "Loop condition is a constant false — body never executes.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W241",
+    section: "warning",
+    description:
+      "Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
+    defaultEnabled: true,
+  },
+  {
     code: "W210",
     section: "variable",
     description: "Variable read before set.",
@@ -310,6 +343,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W123",
     section: "hint",
     description: "Unresolved command — not found in registry, user procs, or `unknown` handler.",
+    defaultEnabled: false,
+  },
+  {
+    code: "W242",
+    section: "hint",
+    description:
+      "Loop termination cannot be proven — counter not provably modified by the loop body or step.",
     defaultEnabled: false,
   },
   {
