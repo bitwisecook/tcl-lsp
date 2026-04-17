@@ -554,14 +554,26 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
         if (pos.* < len and src[pos.*] == ')') pos.* += 1;
         return val;
     }
-    // String literal "...": parse and return 0 (advances past closing quote).
+    // String literal "...": advance past closing quote and parse the
+    // content as an integer if possible.  In Tcl expressions ``"5"``
+    // evaluates to 5 and participates in numeric context; falling back
+    // to 0 silently made any ``{"$x" == "5"}`` comparison compare
+    // against 0 regardless of value.  (String-vs-string comparison
+    // operators go through dedicated runtime helpers, not this atom
+    // path — this return value only surfaces when the literal is
+    // used in a numeric slot.)
     if (src[pos.*] == '"') {
         pos.* += 1;
+        const content_start = pos.*;
         while (pos.* < len and src[pos.*] != '"') {
             if (src[pos.*] == '\\' and pos.* + 1 < len) pos.* += 1;
             pos.* += 1;
         }
+        const content_end = pos.*;
         if (pos.* < len) pos.* += 1; // closing quote
+        if (obj_mod.try_parse_int(ptr + content_start, content_end - content_start)) |v| {
+            return v;
+        }
         return 0;
     }
     if (src[pos.*] == '$') {
@@ -1263,13 +1275,16 @@ fn eval_uplevel(words: []const i32) i32 {
 
     if (w1.len > 0) {
         if (w1p[0] == '#') {
+            // ``#N`` is an ABSOLUTE target level — shift by
+            // (frame_depth - N) so the target frame becomes the
+            // active one.  Clamp to ``frame_depth`` when ``N`` is
+            // deeper than the current stack (treats as #0).
             body_start = 2;
             const level = parse_uint_bytes(w1p + 1, w1.len - 1);
-            if (level == 0) {
-                // #0 = absolute global: shift all the way to depth 0
+            if (level >= frames.frame_depth) {
                 shift = @intCast(frames.frame_depth);
             } else {
-                shift = @intCast(level);
+                shift = @intCast(frames.frame_depth - level);
             }
         } else if (w1p[0] >= '0' and w1p[0] <= '9') {
             body_start = 2;

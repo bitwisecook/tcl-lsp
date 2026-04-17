@@ -211,7 +211,7 @@ def _make_test_class(test_name: str, xfail_run: bool = False):
 
     class _TestClass:
         def test_compiles(self):
-            f"""Tcl 9 {filename} bundle compiles to WASM."""
+            """Tcl 9 test-file bundle compiles to WASM."""
             test_path = _tcl9_test_file(filename)
             src = _bundle(test_path)
             try:
@@ -220,7 +220,7 @@ def _make_test_class(test_name: str, xfail_run: bool = False):
                 pytest.fail(f"{filename} bundle failed to compile: {exc}")
 
         def test_runs(self):
-            f"""Tcl 9 {filename} bundle executes and reports Failed == 0."""
+            """Tcl 9 test-file bundle executes and reports Failed == 0."""
             test_path = _tcl9_test_file(filename)
             src = _bundle(test_path)
             stdout, stderr = _run_bundle(src, filename)
@@ -238,7 +238,7 @@ def _make_test_class(test_name: str, xfail_run: bool = False):
             )
 
     if xfail_run:
-        _TestClass.test_runs = pytest.mark.xfail(  # type: ignore[method-assign]
+        _TestClass.test_runs = pytest.mark.xfail(
             reason=f"{filename} hits unimplemented commands; xfail until fixed",
             strict=False,
         )(_TestClass.test_runs)

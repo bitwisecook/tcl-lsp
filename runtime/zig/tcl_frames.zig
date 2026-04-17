@@ -32,6 +32,7 @@ const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
+const obj_get_int = obj.obj_get_int;
 
 const globals = @import("tcl_globals.zig");
 const fnv1a = globals.fnv1a;
@@ -281,14 +282,19 @@ fn frame_set_at_depth(abs_depth: u32, name: i32, fallback_name: i32, value: i32)
 
 /// Check whether variable *name* exists in the frame at *abs_depth*.
 fn frame_exists_at_depth(abs_depth: u32, name: i32, fallback_name: i32) bool {
-    if (abs_depth == 0) return globals.global_exists(name) != obj_new_int(0);
+    // ``global_exists`` and ``resolve_ext_exists`` return a freshly
+    // allocated TclObj with integer value 0 or 1 — never a handle
+    // that round-trips.  Comparing those handles against a new
+    // ``obj_new_int(0)`` is always *unequal* (different addresses),
+    // so we must unwrap them with ``obj_get_int`` instead.
+    if (abs_depth == 0) return obj_get_int(globals.global_exists(name)) != 0;
     if (frame_at_depth(abs_depth)) |base| {
         const sn = obj_ensure_string(name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + 12);
-            if (v == ALIAS_GLOBAL) return globals.global_exists(name) != obj_new_int(0);
-            if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), fallback_name) != obj_new_int(0);
+            if (v == ALIAS_GLOBAL) return obj_get_int(globals.global_exists(name)) != 0;
+            if (is_alias_ext(v)) return obj_get_int(resolve_ext_exists(alias_desc_ptr(v), fallback_name)) != 0;
             return true;
         }
     }
