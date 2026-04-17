@@ -118,8 +118,55 @@ pub export fn obj_get_int(obj: i32) i64 {
             write_i64(addr + OBJ_INT_CACHE, val);
             return val;
         }
+        // Tcl boolean literals — ``true`` / ``yes`` / ``on`` → 1,
+        // ``false`` / ``no`` / ``off`` → 0 (case-insensitive, and
+        // Tcl also accepts unique prefixes).  Used by ``expr`` in
+        // boolean contexts (``$x && $x`` with ``$x = "true"``) and
+        // by tcltest's ``AcceptBoolean``.
+        if (try_parse_bool(sptr, slen)) |val| {
+            write_i32(addr + OBJ_TYPE_TAG, TYPE_INT);
+            write_i64(addr + OBJ_INT_CACHE, val);
+            return val;
+        }
     }
     return read_i64(addr + OBJ_INT_CACHE);
+}
+
+/// Recognise Tcl boolean keywords (case-insensitive) — ``true`` /
+/// ``yes`` / ``on`` → 1, ``false`` / ``no`` / ``off`` → 0.  Returns
+/// ``null`` if the string is not a recognised boolean.  Matches the
+/// set accepted by ``Tcl_GetBooleanFromObj``.
+pub fn try_parse_bool(ptr: u32, len: u32) ?i64 {
+    if (len == 0 or len > 5) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var buf: [5]u8 = undefined;
+    for (0..len) |i| {
+        const c = src[i];
+        buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    const lc = buf[0..len];
+    // True-valued keywords.
+    if (std_eq(lc, "true") or std_eq(lc, "yes") or std_eq(lc, "on") or
+        std_eq(lc, "tru") or std_eq(lc, "tr") or std_eq(lc, "t") or
+        std_eq(lc, "ye") or std_eq(lc, "y"))
+        return 1;
+    // False-valued keywords (``off`` / ``of`` need the longer match
+    // before ``of`` so ``on``/``of`` don't collide; handled by the
+    // exact-match comparisons above already).
+    if (std_eq(lc, "false") or std_eq(lc, "fals") or std_eq(lc, "fal") or
+        std_eq(lc, "fa") or std_eq(lc, "f") or
+        std_eq(lc, "no") or std_eq(lc, "n") or
+        std_eq(lc, "off") or std_eq(lc, "of"))
+        return 0;
+    return null;
+}
+
+fn std_eq(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |ca, cb| {
+        if (ca != cb) return false;
+    }
+    return true;
 }
 
 pub fn try_parse_int(ptr: u32, len: u32) ?i64 {

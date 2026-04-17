@@ -1580,6 +1580,15 @@ def _scan_needed_imports(
                     # the enclosing namespace. Same runtime path as upvar #0.
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
+                    # Dynamic ``variable $name ?value?`` (tcltest's
+                    # ``Default`` / ``Option``) needs runtime string
+                    # concatenation + existence probe to build the
+                    # qualified target and honour the Tcl semantics
+                    # of initialising only when unset.
+                    if args and (args[0].startswith("$") or args[0].startswith("[")):
+                        needed.add("tcl_append")
+                        needed.add("tcl_global_exists")
+                        needed.add("tcl_obj_get_int")
                 elif command == "info" and args:
                     # info exists — resolves via tcl_global_exists for
                     # aliased / ``::`` names; plain locals are boxed to
@@ -1591,6 +1600,17 @@ def _scan_needed_imports(
                         # ``info exists arr(key)`` — probe the array table.
                         if len(args) >= 2:
                             raw = args[1]
+                            # ``info exists $dynamicName`` — dispatch
+                            # to runtime ``info_exists`` which resolves
+                            # the name's value at runtime.
+                            if (raw.startswith("$") or raw.startswith("[")):
+                                stripped = raw
+                                if raw.startswith("${") and raw.endswith("}"):
+                                    stripped = raw[2:-1]
+                                elif raw.startswith("$"):
+                                    stripped = raw[1:]
+                                if _parse_array_ref(stripped) is None:
+                                    needed.add("tcl_info_exists")
                             # Strip a ``$`` / ``${...}`` sigil if present.
                             if raw.startswith("${") and raw.endswith("}"):
                                 raw = raw[2:-1]
@@ -4514,6 +4534,67 @@ class _WasmEmitter:
         while i < len(args):
             name = args[i]
             has_value = i + 1 < len(args)
+            # Dynamic name — ``variable $varName ?value?`` as used by
+            # tcltest's ``Default`` / ``Option``.  Build the qualified
+            # target at runtime (``<ns>::<$name-value>``) and — when a
+            # value is supplied — write it to the global table via
+            # ``tcl_global_set``.  The compile-time alias registration
+            # (used for later ``$local`` reads in the proc body) is
+            # skipped because the name only exists at runtime; users
+            # who want a local alias can follow up with an explicit
+            # ``upvar``.
+            is_dynamic = (name.startswith("$") or name.startswith("[")) and \
+                         _parse_array_ref(name) is None
+            if is_dynamic:
+                gset_idx = self._shared_imports.get("tcl_global_set")
+                append_idx = self._shared_imports.get("tcl_append")
+                gexist_idx = self._shared_imports.get("tcl_global_exists")
+                if has_value and gset_idx is not None and append_idx is not None:
+                    # Construct ``<ns>::<name>`` at runtime by
+                    # concatenating the namespace prefix with the
+                    # dynamic name value via ``tcl_append``.  Stash
+                    # the result in a hidden local so the existence
+                    # check and the write can reuse it without
+                    # recomputing the concat.
+                    ns_prefix = f"{ns}::" if ns != "::" else "::"
+                    qname_idx = self._add_extra_local(
+                        prefix="_var_dyn_qname", val_type=ValType.I32
+                    )
+                    self._emit_obj_literal(ns_prefix)
+                    self._emit_value(name)
+                    self._emit_call(append_idx)
+                    self._emit_local_set(qname_idx)
+                    # ``variable`` only initialises when the variable
+                    # does not already exist — check via
+                    # ``tcl_global_exists`` and skip the write on hit.
+                    if gexist_idx is not None:
+                        self._emit_local_get(qname_idx)
+                        self._emit_call(gexist_idx)
+                        self._emit_call(
+                            self._shared_imports["tcl_obj_get_int"]
+                        )
+                        self._emit(WasmOp.I64_EQZ)
+                        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                        self._emit_local_get(qname_idx)
+                        self._emit_value(args[i + 1])
+                        self._emit_call(gset_idx)
+                        self._emit(WasmOp.DROP)
+                        self._emit(WasmOp.END)
+                    else:
+                        self._emit_local_get(qname_idx)
+                        self._emit_value(args[i + 1])
+                        self._emit_call(gset_idx)
+                        self._emit(WasmOp.DROP)
+                    i += 2
+                else:
+                    # Bare ``variable $name`` declaration or missing
+                    # runtime helpers — nothing to emit at compile time;
+                    # reads of the local ``name`` won't route through a
+                    # namespace alias, but that's the same degraded
+                    # mode we had before dynamic support landed.
+                    i += 2 if has_value else 1
+                continue
+
             # Resolve the target name: ``::ns::name`` for unqualified
             # names, or the literal name if already qualified with ``::``.
             if name.startswith("::"):
@@ -5182,6 +5263,26 @@ class _WasmEmitter:
             # qualified names hit the global table rather than searching
             # for an unrelated local.
             var = args[1]
+            # ``info exists $dynamicName`` / ``info exists [cmd]`` —
+            # the NAME of the variable to check is produced at runtime
+            # from a substitution.  Resolve the name value at runtime
+            # and dispatch through the runtime ``info_exists`` helper
+            # so the check follows the name's actual string, not the
+            # literal text after ``$``.
+            is_dynamic = (
+                (var.startswith("$") or var.startswith("["))
+                and _parse_array_ref(var) is None
+            )
+            if is_dynamic:
+                info_exists_idx = self._shared_imports.get("tcl_info_exists")
+                if info_exists_idx is not None:
+                    self._emit_value(var)
+                    self._emit_call(info_exists_idx)
+                    return
+                # Helper missing — fall through to the interpreter so
+                # the answer is correct even if less efficient.
+                self._emit_eval_fallback("info", args)
+                return
             # Normalise ``$name`` / ``${name}`` just in case the lowerer
             # hasn't stripped the sigil.
             resolved = self._resolve_var_name(var) or var
