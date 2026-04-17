@@ -24,6 +24,7 @@ const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_get_int = rt.obj_get_int;
 const obj_new_string_copy = rt.obj_new_string_copy;
+const copy_unbraced_elem = rt.copy_unbraced_elem;
 const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
@@ -52,6 +53,17 @@ fn parse_braced(src: [*]const u8, pos: u32, len: u32) struct { end: u32, start: 
     const start = p;
     var depth: u32 = 1;
     while (p < len and depth > 0) {
+        // Tcl brace parsing: ``\<anychar>`` inside a braced word
+        // consumes two bytes without affecting the brace depth —
+        // so ``\{`` / ``\}`` are NOT depth-changing sequences,
+        // matching Tcl's TclParseBraces.  Without this, a test body
+        // like ``{lappend x \{\  abc}`` would see the ``\{`` bump
+        // depth past the closing ``}`` and consume the rest of the
+        // script into the single word.
+        if (src[p] == '\\' and p + 1 < len) {
+            p += 2;
+            continue;
+        }
         if (src[p] == '{') depth += 1 else if (src[p] == '}') depth -= 1;
         if (depth > 0) p += 1 else p += 1;
     }
@@ -119,6 +131,7 @@ fn parse_command(
     word_ptrs: *[MAX_WORDS]u32,
     word_lens: *[MAX_WORDS]u32,
     word_braced: *[MAX_WORDS]bool,
+    word_expand: *[MAX_WORDS]bool,
 ) struct { count: u32, next: u32 } {
     var p = pos;
     var count: u32 = 0;
@@ -143,11 +156,37 @@ fn parse_command(
             break;
         }
 
+        // Detect ``{*}`` argument-expansion prefix (Tcl 8.5+).
+        // The three-character sequence ``{*}`` immediately before a
+        // word signals that the word should be evaluated and then
+        // split as a Tcl list, with each element inserted as a
+        // separate argument.  Strip the prefix here and record the
+        // expansion flag; the actual splitting happens in eval_script.
+        var expand = false;
+        if (src[p] == '{' and p + 2 < len and src[p + 1] == '*' and src[p + 2] == '}') {
+            expand = true;
+            p += 3;
+            // Skip any whitespace between {*} and the word (rare but
+            // valid in Tcl: ``cmd {*} $args`` is the same as
+            // ``cmd {*}$args``).
+            p = skip_space(src, p, len);
+            if (p >= len or src[p] == '\n' or src[p] == ';') {
+                // bare {*} with nothing following — treat as empty expansion
+                word_ptrs[count] = 0;
+                word_lens[count] = 0;
+                word_braced[count] = false;
+                word_expand[count] = true;
+                count += 1;
+                break;
+            }
+        }
+
         if (src[p] == '{') {
             const r = parse_braced(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
             word_lens[count] = r.wlen;
             word_braced[count] = true;
+            word_expand[count] = expand;
             count += 1;
             p = r.end;
         } else if (src[p] == '"') {
@@ -155,6 +194,7 @@ fn parse_command(
             word_ptrs[count] = @intFromPtr(src) + r.start;
             word_lens[count] = r.wlen;
             word_braced[count] = false;
+            word_expand[count] = expand;
             count += 1;
             p = r.end;
         } else {
@@ -162,6 +202,7 @@ fn parse_command(
             word_ptrs[count] = @intFromPtr(src) + r.start;
             word_lens[count] = r.wlen;
             word_braced[count] = false;
+            word_expand[count] = expand;
             count += 1;
             p = r.end;
         }
@@ -170,6 +211,11 @@ fn parse_command(
 }
 
 // -- Variable substitution --
+
+// ``encode_utf8`` lives in tcl_obj.zig as a shared helper used by both
+// the interpreter's ``subst_flagged`` and the list-element decoder
+// ``copy_unbraced_elem``.  Kept there so changes to the UTF-8 tables
+// only happen in one place.
 
 /// Expand ``$var`` / ``[cmd]`` / ``\x`` in a word.  Always performs
 /// all three substitutions — this is the tokenizer's word-expansion
@@ -195,11 +241,13 @@ fn subst_flagged(
     const src: [*]const u8 = @ptrFromInt(wptr);
     var has_dollar = false;
     var has_bracket = false;
+    var has_backslash = false;
     for (0..wlen) |i| {
         if (src[i] == '$') has_dollar = true;
         if (src[i] == '[') has_bracket = true;
+        if (src[i] == '\\') has_backslash = true;
     }
-    if (!has_dollar and !has_bracket and !do_bs) {
+    if (!has_dollar and !has_bracket and (!do_bs or !has_backslash)) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
     // Single-pass substitution into a pre-recorded "pieces" array.
@@ -301,15 +349,15 @@ fn subst_flagged(
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
             flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
-            i += 1;
-            const esc: u8 = switch (src[i]) { 'n' => '\n', 't' => '\t', 'r' => '\r', else => src[i] };
-            // Stash the escape byte at a stable address so the
-            // final memcpy has a source to read.
-            const esc_ptr = alloc(1);
-            const d: [*]u8 = @ptrFromInt(esc_ptr);
-            d[0] = esc;
-            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, 1);
-            i += 1;
+            // Shared escape-decoder handles the full Tcl backslash
+            // table (\\n \\t \\r \\a \\b \\f \\v, \\xNN, \\uNNNN,
+            // \\UNNNNNNNN, octal \\NNN, \\<whitespace> folding).
+            // Allocate 4 bytes upfront (UTF-8 max for \\uXXXX) in the
+            // bump arena so the push_piece recording has a stable src.
+            const esc_ptr = alloc(4);
+            const r = obj_mod.consume_bs_escape(src, i + 1, wlen, @ptrFromInt(esc_ptr));
+            i = r.next_si;
+            push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, r.written);
             lit_start = i;
         } else {
             lit_run += 1;
@@ -338,57 +386,127 @@ fn subst_flagged(
 
 fn eval_expr_str(ptr: u32, len: u32) i64 {
     var pos: u32 = 0;
-    return expr_add(ptr, len, &pos);
+    return expr_or(ptr, len, &pos, false);
+}
+
+/// Short-circuit evaluation: when *skip* is true the expression walks the
+/// tokens to advance ``pos`` but does NOT run ``[cmd]`` substitutions —
+/// so ``{[info exists x] && [use $x]}`` only runs ``[use $x]`` when the
+/// first operand is true.  Atoms like ``$var`` are read-only so they
+/// evaluate normally even in skip mode (the alternative — routing
+/// reads through a no-op path — buys nothing because variable lookup
+/// has no observable side effect).
+fn expr_or(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var left = expr_and(ptr, len, pos, skip);
+    while (pos.* < len) {
+        expr_skip_ws(src, len, pos);
+        if (pos.* + 1 < len and src[pos.*] == '|' and src[pos.* + 1] == '|') {
+            pos.* += 2;
+            // Short-circuit: skip RHS when LHS is already truthy OR we're
+            // already skipping outer scope.  Still walk the RHS tokens
+            // so ``pos`` advances past them.
+            const rhs_skip = skip or (left != 0);
+            const right = expr_and(ptr, len, pos, rhs_skip);
+            if (!skip) {
+                left = if (left != 0 or right != 0) @as(i64, 1) else @as(i64, 0);
+            }
+        } else break;
+    }
+    return left;
+}
+
+fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var left = expr_add(ptr, len, pos, skip);
+    while (pos.* < len) {
+        expr_skip_ws(src, len, pos);
+        if (pos.* + 1 < len and src[pos.*] == '&' and src[pos.* + 1] == '&') {
+            pos.* += 2;
+            // Short-circuit: skip RHS when LHS is already falsy OR we're
+            // already skipping.
+            const rhs_skip = skip or (left == 0);
+            const right = expr_add(ptr, len, pos, rhs_skip);
+            if (!skip) {
+                left = if (left != 0 and right != 0) @as(i64, 1) else @as(i64, 0);
+            }
+        } else break;
+    }
+    return left;
 }
 
 fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
     while (pos.* < len and (src[pos.*] == ' ' or src[pos.*] == '\t')) pos.* += 1;
 }
 
-fn expr_add(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_mul(ptr, len, pos);
+    var left = expr_mul(ptr, len, pos, skip);
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '+') { pos.* += 1; left = left + expr_mul(ptr, len, pos); }
-        else if (src[pos.*] == '-') { pos.* += 1; left = left - expr_mul(ptr, len, pos); }
-        else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left == expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left != expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left <= expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left >= expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (src[pos.*] == '<') { pos.* += 1; left = if (left < expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
-        else if (src[pos.*] == '>') { pos.* += 1; left = if (left > expr_mul(ptr, len, pos)) @as(i64, 1) else @as(i64, 0); }
+        if (src[pos.*] == '+') { pos.* += 1; left = left + expr_mul(ptr, len, pos, skip); }
+        else if (src[pos.*] == '-') { pos.* += 1; left = left - expr_mul(ptr, len, pos, skip); }
+        else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left == expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left != expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left <= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left >= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (src[pos.*] == '<') { pos.* += 1; left = if (left < expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
+        else if (src[pos.*] == '>') { pos.* += 1; left = if (left > expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
         else break;
     }
     return left;
 }
 
-fn expr_mul(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_mul(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
-    var left = expr_atom(ptr, len, pos);
+    var left = expr_atom(ptr, len, pos, skip);
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '*') { pos.* += 1; left = left * expr_atom(ptr, len, pos); }
-        else if (src[pos.*] == '/') { pos.* += 1; const r = expr_atom(ptr, len, pos); left = if (r != 0) @divTrunc(left, r) else 0; }
-        else if (src[pos.*] == '%') { pos.* += 1; const r = expr_atom(ptr, len, pos); left = if (r != 0) @rem(left, r) else 0; }
+        if (src[pos.*] == '*') { pos.* += 1; left = left * expr_atom(ptr, len, pos, skip); }
+        else if (src[pos.*] == '/') { pos.* += 1; const r = expr_atom(ptr, len, pos, skip); left = if (r != 0) @divTrunc(left, r) else 0; }
+        else if (src[pos.*] == '%') { pos.* += 1; const r = expr_atom(ptr, len, pos, skip); left = if (r != 0) @rem(left, r) else 0; }
         else break;
     }
     return left;
 }
 
-fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
+fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     expr_skip_ws(src, len, pos);
     if (pos.* >= len) return 0;
-    if (src[pos.*] == '-') { pos.* += 1; return -expr_atom(ptr, len, pos); }
+    if (src[pos.*] == '!') { pos.* += 1; return if (expr_atom(ptr, len, pos, skip) != 0) @as(i64, 0) else @as(i64, 1); }
+    if (src[pos.*] == '~') { pos.* += 1; return ~expr_atom(ptr, len, pos, skip); }
+    if (src[pos.*] == '-') { pos.* += 1; return -expr_atom(ptr, len, pos, skip); }
     if (src[pos.*] == '(') {
         pos.* += 1;
-        const val = expr_add(ptr, len, pos);
+        const val = expr_or(ptr, len, pos, skip);
         expr_skip_ws(src, len, pos);
         if (pos.* < len and src[pos.*] == ')') pos.* += 1;
         return val;
+    }
+    // String literal "...": advance past closing quote and parse the
+    // content as an integer if possible.  In Tcl expressions ``"5"``
+    // evaluates to 5 and participates in numeric context; falling back
+    // to 0 silently made any ``{"$x" == "5"}`` comparison compare
+    // against 0 regardless of value.  (String-vs-string comparison
+    // operators go through dedicated runtime helpers, not this atom
+    // path — this return value only surfaces when the literal is
+    // used in a numeric slot.)
+    if (src[pos.*] == '"') {
+        pos.* += 1;
+        const content_start = pos.*;
+        while (pos.* < len and src[pos.*] != '"') {
+            if (src[pos.*] == '\\' and pos.* + 1 < len) pos.* += 1;
+            pos.* += 1;
+        }
+        const content_end = pos.*;
+        if (pos.* < len) pos.* += 1; // closing quote
+        if (obj_mod.try_parse_int(ptr + content_start, content_end - content_start)) |v| {
+            return v;
+        }
+        return 0;
     }
     if (src[pos.*] == '$') {
         pos.* += 1;
@@ -410,6 +528,12 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
             if (src[pos.*] == '[') depth += 1 else if (src[pos.*] == ']') depth -= 1;
             if (depth > 0) pos.* += 1 else pos.* += 1;
         }
+        // Short-circuit: when the enclosing ``||`` or ``&&`` already knows
+        // the result, skip the command substitution body entirely — the
+        // tokens are consumed above, but ``eval_script`` would run
+        // side-effecting commands that Tcl's short-circuit semantics
+        // require us to avoid.
+        if (skip) return 0;
         const result = eval_script(ptr + cs, pos.* - 1 - cs);
         if (result != 0) return obj_get_int(result);
         return 0;
@@ -418,6 +542,28 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32) i64 {
     if (src[pos.*] == '+') pos.* += 1;
     if (pos.* < len and src[pos.*] == '-') { negative = true; pos.* += 1; }
     var val: i64 = 0;
+    // Hex literal: 0x...
+    if (pos.* + 1 < len and src[pos.*] == '0' and (src[pos.* + 1] == 'x' or src[pos.* + 1] == 'X')) {
+        pos.* += 2;
+        while (pos.* < len) {
+            const c = src[pos.*];
+            if (c >= '0' and c <= '9') { val = val * 16 + @as(i64, c - '0'); pos.* += 1; }
+            else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(i64, c - 'a' + 10); pos.* += 1; }
+            else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(i64, c - 'A' + 10); pos.* += 1; }
+            else break;
+        }
+        return if (negative) -val else val;
+    }
+    // Octal literal: 0o...
+    if (pos.* + 1 < len and src[pos.*] == '0' and (src[pos.* + 1] == 'o' or src[pos.* + 1] == 'O')) {
+        pos.* += 2;
+        while (pos.* < len and src[pos.*] >= '0' and src[pos.*] <= '7') {
+            val = val * 8 + @as(i64, src[pos.*] - '0');
+            pos.* += 1;
+        }
+        return if (negative) -val else val;
+    }
+    // Decimal integer
     while (pos.* < len and src[pos.*] >= '0' and src[pos.*] <= '9') {
         val = val * 10 + @as(i64, src[pos.*] - '0');
         pos.* += 1;
@@ -509,7 +655,15 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "for")) return eval_for(words);
     if (str_eq(cmd, cmd_s.len, "foreach")) return eval_foreach(words);
     if (str_eq(cmd, cmd_s.len, "proc")) {
-        if (words.len >= 4) _ = procs.proc_register(words[1], words[2], words[3]);
+        if (words.len >= 4) {
+            // Resolve the registration name with respect to the
+            // current namespace (set by compiled procs before calling
+            // tcl_eval).  Unqualified names get the namespace prefix;
+            // ``::``-qualified names pass through verbatim so callers
+            // that explicitly name-space their defs still work.
+            const qname = qualify_name(words[1]);
+            _ = procs.proc_register(qname, words[2], words[3]);
+        }
         return 0;
     }
     if (str_eq(cmd, cmd_s.len, "eval")) {
@@ -566,15 +720,24 @@ fn eval_command(words: []const i32) i32 {
         if (words.len >= 2) {
             rt.catch_enter();
             const body_s = obj_ensure_string(words[1]);
-            _ = eval_script(body_s.ptr, body_s.len);
-            return rt.catch_leave();
+            const body_result = eval_script(body_s.ptr, body_s.len);
+            rt.catch_set_ok_result(body_result);
+            const catch_val = rt.catch_result();
+            const code = rt.catch_leave();
+            if (words.len >= 3) {
+                _ = frames.var_set(words[2], catch_val);
+            }
+            return code;
         }
         return obj_new_int(0);
     }
     if (str_eq(cmd, cmd_s.len, "append")) {
-        if (words.len >= 3) {
-            const cur = frames.var_resolve(words[1]);
-            const result = rt.tcl_cmd_append(cur, words[2]);
+        if (words.len >= 2) {
+            var result = frames.var_resolve(words[1]);
+            var wi: u32 = 2;
+            while (wi < words.len) : (wi += 1) {
+                result = rt.tcl_cmd_append(result, words[wi]);
+            }
             _ = frames.var_set(words[1], result);
             return result;
         }
@@ -583,9 +746,12 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "llength")) { if (words.len >= 2) return rt.tcl_cmd_list_length(words[1]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lindex")) { if (words.len >= 3) return rt.tcl_cmd_list_index(words[1], words[2]); return 0; }
     if (str_eq(cmd, cmd_s.len, "lappend")) {
-        if (words.len >= 3) {
-            const cur = frames.var_resolve(words[1]);
-            const result = rt.tcl_cmd_lappend(cur, words[2]);
+        if (words.len >= 2) {
+            var result = frames.var_resolve(words[1]);
+            var wi2: u32 = 2;
+            while (wi2 < words.len) : (wi2 += 1) {
+                result = rt.tcl_cmd_lappend(result, words[wi2]);
+            }
             _ = frames.var_set(words[1], result);
             return result;
         }
@@ -648,6 +814,20 @@ fn eval_command(words: []const i32) i32 {
         const a2 = if (words.len >= 4) words[3] else 0;
         const a3 = if (words.len >= 5) words[4] else 0;
         return fmt_mod.tcl_cmd_format(fmt, a1, a2, a3);
+    }
+    if (str_eq(cmd, cmd_s.len, "scan")) {
+        // ``scan str fmt ?varName?``
+        // 2-arg: return matched value; 3-arg: store in varName, return match count.
+        const fmt_stubs = @import("tcl_fmt_stubs.zig");
+        if (words.len >= 3) {
+            const val = fmt_stubs.tcl_cmd_scan(words[1], words[2]);
+            if (words.len >= 4) {
+                _ = frames.var_set(words[3], val);
+                return obj_new_int(1);
+            }
+            return val;
+        }
+        return obj_new_int(-1);
     }
     if (str_eq(cmd, cmd_s.len, "pwd")) {
         const fs_mod = @import("tcl_fs.zig");
@@ -756,26 +936,20 @@ fn eval_command(words: []const i32) i32 {
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "list")) {
-        // ``list`` is variadic — build a single Tcl list from all
-        // word arguments.  The previous 2-arg pairwise form left
-        // the tail behind on 3+ arg calls, silently dropping
-        // elements from e.g. ``array set a [list x 1 y 2]``
-        // (only x=1 stored).  Use a two-pass buffer: size each
-        // element with ``dict_needs_braces`` quoting then copy.
-        // Nested calls to ``rt.tcl_list`` would double-brace
-        // existing list-shaped arguments, so build in one pass.
+        // ``list`` — build a properly-quoted Tcl list from all arguments.
+        // Uses list_elem_quote for each element so that values containing
+        // braces, backslashes, or spaces are correctly represented.
         if (words.len <= 1) return obj_new_string(0, 0);
-        if (words.len == 2) return words[1];
-        var total: u32 = 0;
+        // Allocate worst-case buffer: each element may double in size
+        // (backslash-escaping) plus 2 for braces, plus separators.
+        var max_total: u32 = 0;
         var ei: u32 = 1;
         while (ei < words.len) : (ei += 1) {
             const s = obj_ensure_string(words[ei]);
-            const needs = obj_mod.dict_needs_braces(s.ptr, s.len);
-            total += if (needs) s.len + 2 else s.len;
-            if (ei > 1) total += 1; // separator space
+            max_total += s.len * 2 + 2;
+            if (ei > 1) max_total += 1; // separator space
         }
-        if (total == 0) return obj_new_string(0, 0);
-        const buf = obj_mod.alloc(total);
+        const buf = obj_mod.alloc(max_total + 4);
         var off: u32 = 0;
         ei = 1;
         while (ei < words.len) : (ei += 1) {
@@ -785,14 +959,18 @@ fn eval_command(words: []const i32) i32 {
                 off += 1;
             }
             const s = obj_ensure_string(words[ei]);
-            off = obj_mod.dict_append_elem(buf, off, s.ptr, s.len);
+            off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
         }
         return obj_new_string(@bitCast(buf), @bitCast(off));
     }
     if (str_eq(cmd, cmd_s.len, "concat")) {
-        if (words.len >= 3) return rt.tcl_cmd_concat(words[1], words[2]);
-        if (words.len >= 2) return words[1];
-        return obj_new_string(0, 0);
+        if (words.len <= 1) return obj_new_string(0, 0);
+        var acc = words[1];
+        var ci: usize = 2;
+        while (ci < words.len) : (ci += 1) {
+            acc = rt.tcl_cmd_concat(acc, words[ci]);
+        }
+        return acc;
     }
     if (str_eq(cmd, cmd_s.len, "lsort")) { if (words.len >= 2) return rt.tcl_cmd_list_sort(words[words.len - 1]); return obj_new_string(0, 0); }
     if (str_eq(cmd, cmd_s.len, "lsearch")) { if (words.len >= 3) return rt.tcl_cmd_list_search(words[1], words[2]); return obj_new_int(-1); }
@@ -807,10 +985,59 @@ fn eval_command(words: []const i32) i32 {
         }
         return 0;
     }
+    if (str_eq(cmd, cmd_s.len, "upvar")) return eval_upvar(words);
+    if (str_eq(cmd, cmd_s.len, "uplevel")) return eval_uplevel(words);
     if (str_eq(cmd, cmd_s.len, "package") or
-        str_eq(cmd, cmd_s.len, "namespace") or str_eq(cmd, cmd_s.len, "variable") or
+        str_eq(cmd, cmd_s.len, "variable") or
         str_eq(cmd, cmd_s.len, "rename"))
     { return 0; }
+    // ``namespace eval <ns> <body>`` — execute the body script.
+    // We ignore the namespace argument (no namespace tracking in the
+    // interpreter's flat model) and just run the body so that commands
+    // like ``upvar 0 src local`` inside namespace-eval blocks take
+    // effect.  Other namespace sub-commands (import, exists, …) are
+    // silently treated as no-ops.
+    if (str_eq(cmd, cmd_s.len, "namespace")) {
+        if (words.len >= 3) {
+            const sub = obj_ensure_string(words[1]);
+            if (sub.len == 4 and sub.ptr != 0) {
+                const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp[0] == 'e' and sp[1] == 'v' and sp[2] == 'a' and sp[3] == 'l') {
+                    // namespace eval <ns> script ?arg? ... — concatenate body args
+                    // with single spaces (matches Tcl semantics).
+                    if (words.len == 4) {
+                        const bs = obj_ensure_string(words[3]);
+                        if (bs.len > 0) return eval_script(bs.ptr, bs.len);
+                        return 0;
+                    }
+                    if (words.len > 4) {
+                        var total: u32 = 0;
+                        var wi3: u32 = 3;
+                        while (wi3 < words.len) : (wi3 += 1) {
+                            const ws = obj_ensure_string(words[wi3]);
+                            total += ws.len;
+                            if (wi3 + 1 < words.len) total += 1; // space
+                        }
+                        const buf = alloc(total);
+                        var off: u32 = 0;
+                        wi3 = 3;
+                        while (wi3 < words.len) : (wi3 += 1) {
+                            const ws = obj_ensure_string(words[wi3]);
+                            memcpy(buf + off, ws.ptr, ws.len);
+                            off += ws.len;
+                            if (wi3 + 1 < words.len) {
+                                const d: [*]u8 = @ptrFromInt(buf + off);
+                                d[0] = ' ';
+                                off += 1;
+                            }
+                        }
+                        return eval_script(buf, total);
+                    }
+                }
+            }
+        }
+        return 0;
+    }
     // -- Proc dispatch: check registry before erroring --
     return eval_proc_call(words);
 }
@@ -821,6 +1048,197 @@ fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
         if (a[i] != b[i]) return false;
     }
     return true;
+}
+
+/// Namespace context for eval-fallback calls.  Compiled procs set
+/// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
+/// commands like ``proc $varName body`` inside the fallback
+/// register in the enclosing namespace instead of the global scope.
+/// Zero means "no namespace context" — unqualified names stay
+/// unqualified.
+var current_ns_ptr: u32 = 0;
+var current_ns_len: u32 = 0;
+
+/// Set the current namespace (pointer + length into UTF-8 bytes).
+/// Returns a packed save value the caller should pass back to
+/// ``ns_restore`` to unwind — supports nesting without a heap stack.
+pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
+    const saved: i64 = (@as(i64, current_ns_ptr) << 32) | @as(i64, current_ns_len);
+    current_ns_ptr = @intCast(name_ptr);
+    current_ns_len = @intCast(name_len);
+    return saved;
+}
+
+/// Restore a saved namespace context, unwinding an ``ns_set`` pair.
+pub export fn ns_restore(saved: i64) void {
+    current_ns_ptr = @intCast((saved >> 32) & 0xFFFFFFFF);
+    current_ns_len = @intCast(saved & 0xFFFFFFFF);
+}
+
+/// If *name* (a TclObj) is unqualified (no leading ``::``) and a
+/// current namespace context is active, return a fresh TclObj
+/// holding ``<ns>::<name>``.  Otherwise return *name* unchanged.
+/// Used by the interpreter's ``proc`` / ``variable`` handlers to
+/// namespace-qualify dynamically constructed names.
+fn qualify_name(name: i32) i32 {
+    if (current_ns_ptr == 0 or current_ns_len == 0) return name;
+    const s = obj_ensure_string(name);
+    if (s.len == 0) return name;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Already qualified with ``::`` — leave alone.
+    if (s.len >= 2 and sp[0] == ':' and sp[1] == ':') return name;
+    // Build ``<ns>::<name>`` in the bump allocator.
+    const ns_ptr: [*]const u8 = @ptrFromInt(current_ns_ptr);
+    const total: u32 = current_ns_len + 2 + s.len;
+    const buf_addr: u32 = obj_mod.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    for (0..current_ns_len) |i| buf[i] = ns_ptr[i];
+    buf[current_ns_len] = ':';
+    buf[current_ns_len + 1] = ':';
+    for (0..s.len) |i| buf[current_ns_len + 2 + i] = sp[i];
+    return obj_mod.obj_new_string(@intCast(buf_addr), @intCast(total));
+}
+
+// -- upvar / uplevel helpers --
+
+/// Parse an unsigned integer from a byte slice.  Stops at first non-digit.
+fn parse_uint_bytes(ptr: [*]const u8, len: u32) u32 {
+    var result: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        const c = ptr[i];
+        if (c < '0' or c > '9') break;
+        result = result * 10 + (c - '0');
+    }
+    return result;
+}
+
+/// Concatenate a slice of TclObj words with single spaces into one TclObj.
+fn concat_words(ws: []const i32) i32 {
+    if (ws.len == 0) return obj_new_string(0, 0);
+    if (ws.len == 1) return ws[0];
+    // Calculate total byte length including spaces between words.
+    var total: u32 = 0;
+    for (ws) |w| {
+        const s = obj_ensure_string(w);
+        total += s.len;
+    }
+    total += @as(u32, @intCast(ws.len)) - 1; // spaces
+    const buf = alloc(total);
+    var off: u32 = 0;
+    for (ws, 0..) |w, wi| {
+        const s = obj_ensure_string(w);
+        memcpy(buf + off, s.ptr, s.len);
+        off += s.len;
+        if (wi + 1 < ws.len) {
+            const bp: [*]u8 = @ptrFromInt(buf + off);
+            bp[0] = ' ';
+            off += 1;
+        }
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(total));
+}
+
+/// ``upvar ?level? otherVar myVar ?otherVar myVar ...?``
+///
+/// Supported levels:
+///   ``#0``  — global alias (optionally different local/target name)
+///   ``N``   — relative: N frames above current (default 1)
+///
+/// Limitation: if the target frame belongs to a compiled proc that has not
+/// yet synced its WASM locals into the frame hash table (i.e., it never hit
+/// an eval-fallback), the aliased variable will read as 0/unset.  This is
+/// acceptable until full shadow-stack or pre-call-sync is implemented.
+fn eval_upvar(words: []const i32) i32 {
+    if (words.len < 3) return 0;
+
+    // Determine whether words[1] is a level specifier.
+    // A leading '#' or a digit sequence marks it as a level.
+    const w1 = obj_ensure_string(words[1]);
+    const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
+
+    var pairs_start: u32 = 1;
+    var is_global: bool = false;
+    // abs_target_depth: absolute 1-indexed depth of the target frame.
+    // Default: one level up from current (upvar 1).
+    var abs_target: i32 = @as(i32, @intCast(frames.frame_depth)) - 1;
+
+    if (w1.len > 0) {
+        if (w1p[0] == '#') {
+            // Absolute level: #0 = global, #N = abs frame N
+            pairs_start = 2;
+            const level = parse_uint_bytes(w1p + 1, w1.len - 1);
+            if (level == 0) {
+                is_global = true;
+            } else {
+                abs_target = @intCast(level);
+            }
+        } else if (w1p[0] >= '0' and w1p[0] <= '9') {
+            // Relative level
+            pairs_start = 2;
+            const rel = parse_uint_bytes(w1p, w1.len);
+            abs_target = @as(i32, @intCast(frames.frame_depth)) - @as(i32, @intCast(rel));
+        }
+        // else: not a level spec; default level 1 applies (pairs_start = 1)
+    }
+
+    var i = pairs_start;
+    while (i + 1 < words.len) : (i += 2) {
+        const other_var = words[i];     // name in the target frame
+        const local_var = words[i + 1]; // alias name in the current frame
+        if (is_global or abs_target <= 0) {
+            // #0 or level underflow → global alias
+            frames.frame_alias_named(local_var, other_var);
+        } else {
+            frames.frame_alias_frame_var(local_var, abs_target, other_var);
+        }
+    }
+    return 0;
+}
+
+/// ``uplevel ?level? body ?body ...?``
+///
+/// Evaluates the body in the caller's frame by temporarily adjusting
+/// frame_depth.  Multiple body words are joined with spaces (Tcl semantics).
+///
+/// Level defaults to 1 (one frame up).  ``#0`` means the global frame.
+fn eval_uplevel(words: []const i32) i32 {
+    if (words.len < 2) return 0;
+
+    const w1 = obj_ensure_string(words[1]);
+    const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
+
+    var body_start: u32 = 1;
+    var shift: i32 = 1; // frames to shift down (default: uplevel 1)
+
+    if (w1.len > 0) {
+        if (w1p[0] == '#') {
+            // ``#N`` is an ABSOLUTE target level — shift by
+            // (frame_depth - N) so the target frame becomes the
+            // active one.  Clamp to ``frame_depth`` when ``N`` is
+            // deeper than the current stack (treats as #0).
+            body_start = 2;
+            const level = parse_uint_bytes(w1p + 1, w1.len - 1);
+            if (level >= frames.frame_depth) {
+                shift = @intCast(frames.frame_depth);
+            } else {
+                shift = @intCast(frames.frame_depth - level);
+            }
+        } else if (w1p[0] >= '0' and w1p[0] <= '9') {
+            body_start = 2;
+            shift = @intCast(parse_uint_bytes(w1p, w1.len));
+        }
+        // else: not a level spec; body_start stays 1, shift stays 1
+    }
+
+    if (body_start >= words.len) return 0;
+
+    const body_obj = concat_words(words[body_start..]);
+    const saved = frames.frame_depth_stash(shift);
+    const body_s = obj_ensure_string(body_obj);
+    const result = eval_script(body_s.ptr, body_s.len);
+    frames.frame_depth_restore(saved);
+    return result;
 }
 
 // -- Control flow --
@@ -890,7 +1308,14 @@ fn eval_foreach(words: []const i32) i32 {
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
         const elem = list_element_at(list_s.ptr, list_s.len, idx);
-        _ = frames.var_set(var_name, obj_new_string_copy(list_s.ptr + elem.start, elem.len));
+        const elem_val = if (elem.braced)
+            obj_new_string_copy(list_s.ptr + elem.start, elem.len)
+        else blk: {
+            const buf = alloc(elem.len);
+            const out_len = copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
+            break :blk obj_new_string(@intCast(buf), @intCast(out_len));
+        };
+        _ = frames.var_set(var_name, elem_val);
         result = eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
@@ -950,17 +1375,61 @@ fn eval_proc_call(words: []const i32) i32 {
     // Push frame
     _ = frames.frame_push();
 
-    // Bind parameters: walk the params list, assign each from argv
+    // Bind parameters: walk the params list, assign each from argv.
+    // If the last parameter is named "args", it collects all remaining
+    // arguments as a Tcl list (standard Tcl variadic proc convention).
     if (params_obj != 0 and n_params > 0) {
         const ps = obj_ensure_string(params_obj);
         var pi: u32 = 0;
         while (pi < n_params) : (pi += 1) {
             const param_elem = list_element_at(ps.ptr, ps.len, @intCast(pi));
-            const param_name = obj_new_string_copy(ps.ptr + param_elem.start, param_elem.len);
+            const param_name_ptr = ps.ptr + param_elem.start;
+            const param_name_len = param_elem.len;
+            const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
+            const param_name_s: [*]const u8 = @ptrFromInt(param_name_ptr);
             // argv[0] is the command name, so argv[pi+1] is the first arg
             const arg_idx = pi + 1;
-            const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
-            _ = frames.local_set(param_name, arg_val);
+            // Check if this is the special "args" parameter (last param only)
+            const is_args_param = (pi == n_params - 1) and
+                (param_name_len == 4) and
+                param_name_s[0] == 'a' and param_name_s[1] == 'r' and
+                param_name_s[2] == 'g' and param_name_s[3] == 's';
+            if (is_args_param) {
+                // Collect all remaining arguments into a list
+                if (arg_idx >= words.len) {
+                    // No remaining args: set to empty list
+                    _ = frames.local_set(param_name, obj_new_string(0, 0));
+                } else if (arg_idx + 1 == words.len) {
+                    // Exactly one remaining arg: use it directly as a list
+                    _ = frames.local_set(param_name, words[arg_idx]);
+                } else {
+                    // Multiple remaining args: build a list
+                    var total: u32 = 0;
+                    var ai: u32 = arg_idx;
+                    while (ai < words.len) : (ai += 1) {
+                        const sv = obj_ensure_string(words[ai]);
+                        total += sv.len * 2 + 4; // generous quoting estimate
+                        if (ai > arg_idx) total += 1;
+                    }
+                    const buf = alloc(total + 4);
+                    var off: u32 = 0;
+                    ai = arg_idx;
+                    while (ai < words.len) : (ai += 1) {
+                        if (ai > arg_idx) {
+                            const d: [*]u8 = @ptrFromInt(buf + off);
+                            d[0] = ' ';
+                            off += 1;
+                        }
+                        const sv = obj_ensure_string(words[ai]);
+                        off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                    }
+                    _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
+                }
+                break;
+            } else {
+                const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
+                _ = frames.local_set(param_name, arg_val);
+            }
         }
     }
 
@@ -1001,7 +1470,18 @@ fn eval_string_cmd(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "equal") and words.len >= 4) return rt.string_equal(words[2], words[3]);
     if (str_eq(sp, sub.len, "match") and words.len >= 4) return rt.string_match(words[2], words[3]);
     if (str_eq(sp, sub.len, "map") and words.len >= 4) return rt.string_map(words[2], words[3]);
-    if (str_eq(sp, sub.len, "trim")) return rt.string_trim(words[2]);
+    if (str_eq(sp, sub.len, "trim")) {
+        const chars = if (words.len >= 4) words[3] else 0;
+        return rt.string_trim(words[2], chars);
+    }
+    if (str_eq(sp, sub.len, "trimleft")) {
+        const chars = if (words.len >= 4) words[3] else 0;
+        return rt.string_trimleft(words[2], chars);
+    }
+    if (str_eq(sp, sub.len, "trimright")) {
+        const chars = if (words.len >= 4) words[3] else 0;
+        return rt.string_trimright(words[2], chars);
+    }
     if (str_eq(sp, sub.len, "first") and words.len >= 4) return rt.string_first(words[2], words[3]);
     if (str_eq(sp, sub.len, "last") and words.len >= 4) return rt.string_last(words[2], words[3]);
     if (str_eq(sp, sub.len, "toupper")) return rt.string_toupper(words[2]);
@@ -1009,6 +1489,187 @@ fn eval_string_cmd(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "reverse")) return rt.string_reverse(words[2]);
     if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return rt.string_repeat(words[2], words[3]);
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return rt.string_replace(words[2], words[3], words[4], words[5]);
+    if (str_eq(sp, sub.len, "is")) {
+        // ``string is class ?-strict? ?-failindex var? str``
+        // Find the class name (words[2]) and the final string arg.
+        // Skip any -strict / -failindex flags and their args.
+        if (words.len < 4) return obj_new_int(1); // empty string: non-strict default is 1
+        const cls = obj_ensure_string(words[2]);
+        const clsp: [*]const u8 = @ptrFromInt(cls.ptr);
+        var str_idx: u32 = 3;
+        while (str_idx + 1 < words.len) {
+            const a = obj_ensure_string(words[str_idx]);
+            const ap: [*]const u8 = @ptrFromInt(a.ptr);
+            if (a.len > 0 and ap[0] == '-') {
+                // -strict: no extra arg; -failindex: consumes next arg
+                if (str_eq(ap, a.len, "-failindex")) str_idx += 1;
+                str_idx += 1;
+            } else break;
+        }
+        if (str_idx >= words.len) return obj_new_int(1);
+        const sv = obj_ensure_string(words[str_idx]);
+        if (sv.len == 0) {
+            // non-strict: empty is 1 for all; strict: 0
+            return obj_new_int(1);
+        }
+        const svp: [*]const u8 = @ptrFromInt(sv.ptr);
+        if (str_eq(clsp, cls.len, "print")) {
+            // printable: 0x20-0x7E ASCII, or any multibyte UTF-8
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) continue; // multibyte UTF-8 — treat as printable
+                if (b < 0x20 or b == 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "alpha")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "digit")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                if (svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "alnum")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or (b >= '0' and b <= '9'))) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "space") or str_eq(clsp, cls.len, "whitespace")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b != ' ' and b != '\t' and b != '\n' and b != '\r' and b != 0x0C and b != 0x0B) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "integer")) {
+            var i: u32 = 0;
+            while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
+            if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
+            if (i < sv.len and svp[i] == '0' and i + 1 < sv.len and (svp[i+1] == 'x' or svp[i+1] == 'X')) {
+                i += 2;
+                if (i >= sv.len) return obj_new_int(0);
+                while (i < sv.len) : (i += 1) {
+                    const b = svp[i];
+                    if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return obj_new_int(0);
+                }
+                return obj_new_int(1);
+            }
+            if (i >= sv.len) return obj_new_int(0);
+            while (i < sv.len) : (i += 1) {
+                if (svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "boolean")) {
+            if (str_eq(svp, sv.len, "1") or str_eq(svp, sv.len, "0") or
+                str_eq(svp, sv.len, "true") or str_eq(svp, sv.len, "false") or
+                str_eq(svp, sv.len, "yes") or str_eq(svp, sv.len, "no") or
+                str_eq(svp, sv.len, "on") or str_eq(svp, sv.len, "off") or
+                str_eq(svp, sv.len, "True") or str_eq(svp, sv.len, "False") or
+                str_eq(svp, sv.len, "TRUE") or str_eq(svp, sv.len, "FALSE")) return obj_new_int(1);
+            return obj_new_int(0);
+        }
+        if (str_eq(clsp, cls.len, "ascii")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                if (svp[i] > 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "control")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) return obj_new_int(0);
+                if (b >= 0x20 and b != 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "graph")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (b <= 0x20 or b == 0x7F) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "lower")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (b < 'a' or b > 'z') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "upper")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                if (b < 'A' or b > 'Z') return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "punct")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (b >= 0x80) { i += 1; continue; }
+                const is_punct = (b >= '!' and b <= '/') or (b >= ':' and b <= '@') or
+                    (b >= '[' and b <= '`') or (b >= '{' and b <= '~');
+                if (!is_punct) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "xdigit")) {
+            var i: u32 = 0;
+            while (i < sv.len) : (i += 1) {
+                const b = svp[i];
+                if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return obj_new_int(0);
+            }
+            return obj_new_int(1);
+        }
+        if (str_eq(clsp, cls.len, "double") or str_eq(clsp, cls.len, "float")) {
+            // Very basic: try to parse as number with optional decimal/exponent
+            var i: u32 = 0;
+            while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
+            if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
+            var has_digit = false;
+            while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
+            if (i < sv.len and svp[i] == '.') {
+                i += 1;
+                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
+            }
+            if (!has_digit) return obj_new_int(0);
+            if (i < sv.len and (svp[i] == 'e' or svp[i] == 'E')) {
+                i += 1;
+                if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
+                if (i >= sv.len or svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') i += 1;
+            }
+            if (i != sv.len) return obj_new_int(0);
+            return obj_new_int(1);
+        }
+        // Unknown class — return 0
+        return obj_new_int(0);
+    }
     return 0;
 }
 
@@ -1076,6 +1737,12 @@ fn eval_dict_cmd(words: []const i32) i32 {
 
 // -- Main eval entry point --
 
+// Maximum number of words after {*} expansion.  The parse limit is
+// MAX_WORDS per command, but each {*}$var can expand to many elements.
+// 128 is generous enough for realistic Tcl calls while staying cheap
+// on the WASM stack.
+const MAX_EXPANDED_WORDS: u32 = 128;
+
 pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     if (script_len == 0) return 0;
     const src: [*]const u8 = @ptrFromInt(script_ptr);
@@ -1091,6 +1758,10 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     // is wrong for e.g. ``proc foo args {body-with-$var}`` where
     // the body must stay unsubstituted until the proc runs.
     var wb: [MAX_WORDS]bool = undefined;
+    // ``we[i] == true`` means word i was prefixed with ``{*}`` and
+    // should be split as a Tcl list, expanding its elements into
+    // individual arguments at the call site.
+    var we: [MAX_WORDS]bool = undefined;
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
@@ -1114,22 +1785,72 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
 
-        const cmd = parse_command(src, pos, script_len, &wp, &wl, &wb);
+        const cmd = parse_command(src, pos, script_len, &wp, &wl, &wb, &we);
         pos = cmd.next;
         if (cmd.count == 0) continue;
 
-        var word_objs: [MAX_WORDS]i32 = undefined;
+        // Build the evaluated word list.  When no word has the
+        // expansion flag set we use the fast path (fixed-size array
+        // indexed directly).  When expansion is needed we copy into
+        // a larger buffer so each ``{*}`` word can contribute
+        // multiple elements without an allocation.
+        var has_expand = false;
         var i: u32 = 0;
         while (i < cmd.count) : (i += 1) {
-            if (wb[i]) {
-                // Braced word — preserve the content literally.
-                word_objs[i] = obj_new_string(@intCast(wp[i]), @intCast(wl[i]));
-            } else {
-                word_objs[i] = subst_word(wp[i], wl[i]);
-            }
+            if (we[i]) { has_expand = true; break; }
         }
 
-        result = eval_command(word_objs[0..cmd.count]);
+        if (!has_expand) {
+            // Fast path: no expansion.
+            var word_objs: [MAX_WORDS]i32 = undefined;
+            i = 0;
+            while (i < cmd.count) : (i += 1) {
+                if (wb[i]) {
+                    // Braced word — preserve the content literally.
+                    word_objs[i] = obj_new_string(@intCast(wp[i]), @intCast(wl[i]));
+                } else {
+                    word_objs[i] = subst_word(wp[i], wl[i]);
+                }
+            }
+            result = eval_command(word_objs[0..cmd.count]);
+        } else {
+            // Slow path: at least one {*} expansion.
+            var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
+            var ecount: u32 = 0;
+            i = 0;
+            while (i < cmd.count) : (i += 1) {
+                const word_obj: i32 = if (wb[i])
+                    obj_new_string(@intCast(wp[i]), @intCast(wl[i]))
+                else
+                    subst_word(wp[i], wl[i]);
+
+                if (we[i]) {
+                    // Expansion: split word_obj as a Tcl list and
+                    // insert each element as a separate argument.
+                    const s = obj_ensure_string(word_obj);
+                    const n = list_count_elements(s.ptr, s.len);
+                    var j: i64 = 0;
+                    while (j < n) : (j += 1) {
+                        if (ecount >= MAX_EXPANDED_WORDS) break;
+                        const elem = list_element_at(s.ptr, s.len, j);
+                        if (elem.braced) {
+                            expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
+                        } else {
+                            const buf = alloc(elem.len);
+                            const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
+                            expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
+                        }
+                        ecount += 1;
+                    }
+                } else {
+                    if (ecount < MAX_EXPANDED_WORDS) {
+                        expanded[ecount] = word_obj;
+                        ecount += 1;
+                    }
+                }
+            }
+            result = eval_command(expanded[0..ecount]);
+        }
         if (has_signal()) return result;
     }
     return result;

@@ -102,6 +102,11 @@ pub export fn obj_new_string(data_ptr: i32, length: i32) i32 {
 }
 
 pub export fn obj_get_int(obj: i32) i64 {
+    // Null/zero pointer sentinel — return 0 rather than reading
+    // arbitrary bytes from address 0 (the pre-heap WASM stack area).
+    // ``global_get`` returns 0 for unset variables; callers that pass
+    // that result here expect to get the empty-string / zero integer.
+    if (obj == 0) return 0;
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
@@ -113,8 +118,55 @@ pub export fn obj_get_int(obj: i32) i64 {
             write_i64(addr + OBJ_INT_CACHE, val);
             return val;
         }
+        // Tcl boolean literals — ``true`` / ``yes`` / ``on`` → 1,
+        // ``false`` / ``no`` / ``off`` → 0 (case-insensitive, and
+        // Tcl also accepts unique prefixes).  Used by ``expr`` in
+        // boolean contexts (``$x && $x`` with ``$x = "true"``) and
+        // by tcltest's ``AcceptBoolean``.
+        if (try_parse_bool(sptr, slen)) |val| {
+            write_i32(addr + OBJ_TYPE_TAG, TYPE_INT);
+            write_i64(addr + OBJ_INT_CACHE, val);
+            return val;
+        }
     }
     return read_i64(addr + OBJ_INT_CACHE);
+}
+
+/// Recognise Tcl boolean keywords (case-insensitive) — ``true`` /
+/// ``yes`` / ``on`` → 1, ``false`` / ``no`` / ``off`` → 0.  Returns
+/// ``null`` if the string is not a recognised boolean.  Matches the
+/// set accepted by ``Tcl_GetBooleanFromObj``.
+pub fn try_parse_bool(ptr: u32, len: u32) ?i64 {
+    if (len == 0 or len > 5) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var buf: [5]u8 = undefined;
+    for (0..len) |i| {
+        const c = src[i];
+        buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    const lc = buf[0..len];
+    // True-valued keywords.
+    if (std_eq(lc, "true") or std_eq(lc, "yes") or std_eq(lc, "on") or
+        std_eq(lc, "tru") or std_eq(lc, "tr") or std_eq(lc, "t") or
+        std_eq(lc, "ye") or std_eq(lc, "y"))
+        return 1;
+    // False-valued keywords (``off`` / ``of`` need the longer match
+    // before ``of`` so ``on``/``of`` don't collide; handled by the
+    // exact-match comparisons above already).
+    if (std_eq(lc, "false") or std_eq(lc, "fals") or std_eq(lc, "fal") or
+        std_eq(lc, "fa") or std_eq(lc, "f") or
+        std_eq(lc, "no") or std_eq(lc, "n") or
+        std_eq(lc, "off") or std_eq(lc, "of"))
+        return 0;
+    return null;
+}
+
+fn std_eq(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |ca, cb| {
+        if (ca != cb) return false;
+    }
+    return true;
 }
 
 pub fn try_parse_int(ptr: u32, len: u32) ?i64 {
@@ -286,6 +338,14 @@ pub fn list_count_elements(ptr: u32, len: u32) i64 {
             i += 1;
             var depth: u32 = 1;
             while (i < len and depth > 0) {
+                // Tcl list parsing: a backslash escapes the next
+                // character so ``\{`` / ``\}`` do NOT affect the
+                // brace-nesting depth.  Consume both bytes and
+                // continue without touching depth.
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
                 if (src[i] == '{') {
                     depth += 1;
                 } else if (src[i] == '}') {
@@ -294,7 +354,13 @@ pub fn list_count_elements(ptr: u32, len: u32) i64 {
                 i += 1;
             }
         } else {
-            while (i < len and !is_space(src[i])) i += 1;
+            while (i < len and !is_space(src[i])) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
         }
     }
     return count;
@@ -314,6 +380,12 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
             const inner_start = i;
             var depth: u32 = 1;
             while (i < len and depth > 0) {
+                // Backslash escapes the next char — ``\{`` / ``\}``
+                // inside a braced list element are NOT depth-changing.
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
                 if (src[i] == '{') {
                     depth += 1;
                 } else if (src[i] == '}') {
@@ -326,7 +398,13 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
             }
         } else {
             const elem_start = i;
-            while (i < len and !is_space(src[i])) i += 1;
+            while (i < len and !is_space(src[i])) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
             if (count == idx) {
                 return .{ .start = elem_start, .len = i - elem_start, .braced = false };
             }
@@ -334,6 +412,153 @@ pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u
         count += 1;
     }
     return .{ .start = 0, .len = 0, .braced = false };
+}
+
+/// UTF-8-encode a codepoint into *d*, returning the byte count.
+/// Used by the backslash-escape decoder (``\uNNNN`` / ``\UNNNNNNNN``).
+pub fn encode_utf8(d: [*]u8, cp: u32) u32 {
+    if (cp < 0x80) {
+        d[0] = @intCast(cp);
+        return 1;
+    } else if (cp < 0x800) {
+        d[0] = @intCast(0xC0 | (cp >> 6));
+        d[1] = @intCast(0x80 | (cp & 0x3F));
+        return 2;
+    } else if (cp < 0x10000) {
+        d[0] = @intCast(0xE0 | (cp >> 12));
+        d[1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        d[2] = @intCast(0x80 | (cp & 0x3F));
+        return 3;
+    } else {
+        d[0] = @intCast(0xF0 | (cp >> 18));
+        d[1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+        d[2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        d[3] = @intCast(0x80 | (cp & 0x3F));
+        return 4;
+    }
+}
+
+/// Decode one Tcl backslash escape starting at ``src[si]``.  ``si`` is
+/// the INDEX OF THE FIRST BYTE AFTER THE BACKSLASH — the caller has
+/// already consumed the ``\`` and verified the sequence is non-empty.
+///
+/// Writes up to 4 UTF-8 bytes to ``out`` and returns ``(next_si, written)``
+/// so the caller can advance its input cursor and output offset.
+///
+/// Handles the full Tcl table (same as ``subst`` in a double-quoted /
+/// bare context): ``\n \t \r \a \b \f \v``, ``\xNN``, ``\uNNNN``,
+/// ``\UNNNNNNNN``, octal ``\NNN``, and ``\<whitespace>`` folding (with
+/// ``\<newline>`` additionally eating following spaces / tabs).
+pub fn consume_bs_escape(
+    src: [*]const u8,
+    si_in: u32,
+    len: u32,
+    out: [*]u8,
+) struct { next_si: u32, written: u32 } {
+    var si = si_in;
+    const ch = src[si];
+    switch (ch) {
+        'n' => { out[0] = '\n'; return .{ .next_si = si + 1, .written = 1 }; },
+        't' => { out[0] = '\t'; return .{ .next_si = si + 1, .written = 1 }; },
+        'r' => { out[0] = '\r'; return .{ .next_si = si + 1, .written = 1 }; },
+        'a' => { out[0] = 0x07; return .{ .next_si = si + 1, .written = 1 }; },
+        'b' => { out[0] = 0x08; return .{ .next_si = si + 1, .written = 1 }; },
+        'f' => { out[0] = 0x0C; return .{ .next_si = si + 1, .written = 1 }; },
+        'v' => { out[0] = 0x0B; return .{ .next_si = si + 1, .written = 1 }; },
+        'x' => {
+            // ``\xNN`` — 1 or 2 hex digits.  ``\X`` is NOT recognised
+            // (Tcl is case-sensitive here) and falls through to the
+            // ``else`` branch via the outer switch.
+            si += 1;
+            var val: u32 = 0;
+            var ndig: u32 = 0;
+            while (ndig < 2 and si < len) {
+                const c = src[si];
+                if (c >= '0' and c <= '9') { val = val * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
+                else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
+                else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
+                else break;
+            }
+            out[0] = @intCast(val & 0xFF);
+            return .{ .next_si = si, .written = 1 };
+        },
+        'u' => {
+            // ``\uNNNN`` — up to 4 hex digits → UTF-8.
+            si += 1;
+            var cp: u32 = 0;
+            var ndig: u32 = 0;
+            while (ndig < 4 and si < len) {
+                const c = src[si];
+                if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
+                else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
+                else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
+                else break;
+            }
+            return .{ .next_si = si, .written = encode_utf8(out, cp) };
+        },
+        'U' => {
+            // ``\UNNNNNNNN`` — up to 8 hex digits → UTF-8.
+            si += 1;
+            var cp: u32 = 0;
+            var ndig: u32 = 0;
+            while (ndig < 8 and si < len) {
+                const c = src[si];
+                if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
+                else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
+                else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
+                else break;
+            }
+            return .{ .next_si = si, .written = encode_utf8(out, cp) };
+        },
+        '0'...'9' => {
+            // ``\NNN`` — up to 3 octal digits.
+            var val: u32 = 0;
+            var ndig: u32 = 0;
+            while (ndig < 3 and si < len and src[si] >= '0' and src[si] <= '7') {
+                val = val * 8 + @as(u32, src[si] - '0');
+                si += 1; ndig += 1;
+            }
+            out[0] = @intCast(val & 0xFF);
+            return .{ .next_si = si, .written = 1 };
+        },
+        ' ', '\n', '\t', '\r' => {
+            // ``\<whitespace>`` → single space; ``\<newline>``
+            // additionally eats following spaces / tabs.
+            out[0] = ' ';
+            si += 1;
+            if (ch == '\n') {
+                while (si < len and (src[si] == ' ' or src[si] == '\t')) si += 1;
+            }
+            return .{ .next_si = si, .written = 1 };
+        },
+        else => {
+            // Unknown escape — emit the byte verbatim (Tcl behaviour).
+            out[0] = ch;
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+    }
+}
+
+/// Copy an unbraced list-element's bytes, expanding backslash sequences
+/// via :func:`consume_bs_escape`.  Returns number of output bytes
+/// written to ``dst``.
+pub fn copy_unbraced_elem(dst: u32, src_ptr: u32, src_len: u32) u32 {
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    const out: [*]u8 = @ptrFromInt(dst);
+    var si: u32 = 0;
+    var di: u32 = 0;
+    while (si < src_len) {
+        if (src[si] == '\\' and si + 1 < src_len) {
+            const r = consume_bs_escape(src, si + 1, src_len, @ptrFromInt(dst + di));
+            di += r.written;
+            si = r.next_si;
+        } else {
+            out[di] = src[si];
+            di += 1;
+            si += 1;
+        }
+    }
+    return di;
 }
 
 // Check if a string value needs braces when used as a list/dict element.
@@ -344,6 +569,101 @@ pub fn dict_needs_braces(ptr: u32, len: u32) bool {
         if (is_space(src[i])) return true;
     }
     return false;
+}
+
+// Append a string as a properly-quoted list element.  Returns new offset.
+// Handles all cases: empty, spaces, special chars, unbalanced braces.
+pub fn list_elem_quote(buf: u32, off: u32, ptr: u32, len: u32) u32 {
+    if (len == 0) {
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = '{'; d[1] = '}';
+        return off + 2;
+    }
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var has_special = false;
+    var has_backslash = false;
+    var brace_balance: i32 = 0;
+    var min_balance: i32 = 0;
+    for (0..len) |k| {
+        const ch = src[k];
+        if (ch == '\\') has_backslash = true;
+        if (is_space(ch) or ch == '"') has_special = true;
+        if (ch == '{') brace_balance += 1;
+        if (ch == '}') {
+            brace_balance -= 1;
+            if (brace_balance < min_balance) min_balance = brace_balance;
+        }
+    }
+    const starts_with_brace = src[0] == '{';
+    const balanced = (brace_balance == 0) and (min_balance >= 0);
+    // Count trailing backslashes.  A braced element whose content ends
+    // with an odd number of ``\`` would confuse TclFindElement's
+    // closing-brace scan — the final ``\`` would escape the closing
+    // ``}``, leaving the element unclosed.  Wrapping is only safe when
+    // the trailing-backslash count is even (including zero).
+    //
+    // Mid-string ``\}`` sequences DO NOT need a separate safety check.
+    // Inside the wrapped form ``{…\}…}``, the list parser's backslash
+    // consumption rule ``\<byte>`` keeps ``\}`` paired with its ``\``
+    // so the brace depth never decrements from that ``}``.  The outer
+    // ``}`` (real close brace) is reached normally and the round-trip
+    // extracts the exact literal content.  So the only hazard is
+    // specifically an UN-PAIRED final ``\`` that swallows the outer
+    // brace — captured by the odd-trailing-count check.
+    var trailing_bs: u32 = 0;
+    var ti: u32 = len;
+    while (ti > 0 and src[ti - 1] == '\\') : (ti -= 1) {
+        trailing_bs += 1;
+    }
+    const trailing_bs_safe = (trailing_bs & 1) == 0;
+    // Plain word: no special chars, no backslash, balanced braces, doesn't start with `{`.
+    // (A lone ``\`` with nothing else special is still a valid bare word, since Tcl's
+    // list parser treats ``\`` + whitespace as escaping — but a bare single-char word
+    // ``\`` also safely parses as itself.)
+    if (!has_special and !has_backslash and !starts_with_brace and brace_balance == 0) {
+        memcpy(buf + off, ptr, len);
+        return off + len;
+    }
+    // Safely braceable: balanced inner braces → wrap in ``{…}``.  When
+    // the content contains a backslash we additionally require the
+    // trailing-backslash count to be even (see comment above).  Inside
+    // ``{…}`` the list parser preserves every byte literally, and
+    // ``\<byte>`` pairs are consumed as a unit — so ``\{`` / ``\}``
+    // mid-string don't affect brace depth and round-trip correctly.
+    if (balanced and !starts_with_brace and (!has_backslash or trailing_bs_safe)) {
+        const d0: [*]u8 = @ptrFromInt(buf + off);
+        d0[0] = '{';
+        memcpy(buf + off + 1, ptr, len);
+        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + len);
+        d1[0] = '}';
+        return off + len + 2;
+    }
+    // Starts with { and balanced braces → wrap in outer {} giving {{...}}.
+    // Same trailing-backslash safety rule applies.
+    if (starts_with_brace and balanced and (!has_backslash or trailing_bs_safe)) {
+        const d0: [*]u8 = @ptrFromInt(buf + off);
+        d0[0] = '{';
+        memcpy(buf + off + 1, ptr, len);
+        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + len);
+        d1[0] = '}';
+        return off + len + 2;
+    }
+    // Unbalanced braces or other problematic chars → backslash-escape
+    var o = off;
+    for (0..len) |k| {
+        const ch = src[k];
+        const needs_esc = is_space(ch) or ch == '{' or ch == '}' or
+            ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';';
+        if (needs_esc) {
+            const d: [*]u8 = @ptrFromInt(buf + o);
+            d[0] = '\\';
+            o += 1;
+        }
+        const d2: [*]u8 = @ptrFromInt(buf + o);
+        d2[0] = ch;
+        o += 1;
+    }
+    return o;
 }
 
 // Append an element to a buffer, adding braces if needed. Returns new offset.

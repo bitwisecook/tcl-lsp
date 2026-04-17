@@ -45,6 +45,36 @@ pub export fn string_compare(a: i32, b: i32) i32 {
     return obj_new_int(0);
 }
 
+// Exported: expr ordering comparison — try numeric first, fall back to string.
+// Returns TclObj wrapping -1, 0, or 1.
+// Used for expr's < > <= >= operators (Tcl 9 semantics: numeric when both
+// operands parse as integers, otherwise bytewise string comparison).
+pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
+    const sa = obj_ensure_string(a);
+    const sb = obj_ensure_string(b);
+    const ai = try_parse_int(sa.ptr, sa.len);
+    const bi = try_parse_int(sb.ptr, sb.len);
+    if (ai != null and bi != null) {
+        const av = ai.?;
+        const bv = bi.?;
+        if (av < bv) return obj_new_int(-1);
+        if (av > bv) return obj_new_int(1);
+        return obj_new_int(0);
+    }
+    // Fall back to bytewise string comparison (Unicode code-point order for
+    // single-character values, which is what Asciify and similar procs need).
+    const min_len = if (sa.len < sb.len) sa.len else sb.len;
+    const pa: [*]const u8 = @ptrFromInt(sa.ptr);
+    const pb: [*]const u8 = @ptrFromInt(sb.ptr);
+    for (0..min_len) |i| {
+        if (pa[i] < pb[i]) return obj_new_int(-1);
+        if (pa[i] > pb[i]) return obj_new_int(1);
+    }
+    if (sa.len < sb.len) return obj_new_int(-1);
+    if (sa.len > sb.len) return obj_new_int(1);
+    return obj_new_int(0);
+}
+
 // Exported: string length — byte length of the string representation.
 pub export fn string_length(value: i32) i32 {
     const s = obj_ensure_string(value);
@@ -135,12 +165,23 @@ pub export fn string_match(pattern: i32, value: i32) i32 {
 }
 
 fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+    // Guard against null/zero pointers produced by obj_ensure_string(0).
+    if (plen == 0) return vlen == 0;
     const pat: [*]const u8 = @ptrFromInt(pp);
-    const val: [*]const u8 = @ptrFromInt(vp);
+    // vp may be 0 when vlen == 0; defer the cast until we know vlen > 0.
     var pi: u32 = 0;
     var vi: u32 = 0;
     var star_pi: u32 = plen;
     var star_vi: u32 = 0;
+    if (vlen == 0) {
+        // Non-empty pattern vs empty value — only matches if pattern is all '*'.
+        while (pi < plen) {
+            if (pat[pi] != '*') return false;
+            pi += 1;
+        }
+        return true;
+    }
+    const val: [*]const u8 = @ptrFromInt(vp);
     while (vi < vlen or pi < plen) {
         if (pi < plen and pat[pi] == '*') {
             star_pi = pi;
@@ -160,37 +201,77 @@ fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
     return true;
 }
 
-// Exported: string trim — strip leading/trailing whitespace.
-pub export fn string_trim(value: i32) i32 {
+/// Return true if *c* is in *chars* (a u8 slice).
+inline fn in_chars(c: u8, chars: [*]const u8, chars_len: u32) bool {
+    for (0..chars_len) |i| {
+        if (chars[i] == c) return true;
+    }
+    return false;
+}
+
+/// Test whether *c* is a "trim" character for ``string trim ?chars?``.
+/// When *chars_obj* is 0 the default is Tcl whitespace (space, tab, LF,
+/// CR, VT, FF).  Otherwise the caller's trim set wins verbatim.
+inline fn is_trim_char(c: u8, chars_ptr: u32, chars_len: u32) bool {
+    if (chars_len == 0) return is_space(c);
+    const p: [*]const u8 = @ptrFromInt(chars_ptr);
+    return in_chars(c, p, chars_len);
+}
+
+// Exported: string trim — strip leading/trailing *chars* (default whitespace).
+// ``chars`` is a TclObj whose string value enumerates the bytes to trim;
+// pass 0 to use the default whitespace set.
+pub export fn string_trim(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
+    var cp: u32 = 0;
+    var cl: u32 = 0;
+    if (chars != 0) {
+        const cs = obj_ensure_string(chars);
+        cp = cs.ptr;
+        cl = cs.len;
+    }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_space(src[start])) start += 1;
+    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
     var end: u32 = s.len;
-    while (end > start and is_space(src[end - 1])) end -= 1;
+    while (end > start and is_trim_char(src[end - 1], cp, cl)) end -= 1;
     if (start == 0 and end == s.len) return value;
     return obj_new_string_copy(s.ptr + start, end - start);
 }
 
-// Exported: string trimleft — strip leading whitespace.
-pub export fn string_trimleft(value: i32) i32 {
+// Exported: string trimleft — strip leading *chars* (default whitespace).
+pub export fn string_trimleft(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
+    var cp: u32 = 0;
+    var cl: u32 = 0;
+    if (chars != 0) {
+        const cs = obj_ensure_string(chars);
+        cp = cs.ptr;
+        cl = cs.len;
+    }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_space(src[start])) start += 1;
+    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
     if (start == 0) return value;
     return obj_new_string_copy(s.ptr + start, s.len - start);
 }
 
-// Exported: string trimright — strip trailing whitespace.
-pub export fn string_trimright(value: i32) i32 {
+// Exported: string trimright — strip trailing *chars* (default whitespace).
+pub export fn string_trimright(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
+    var cp: u32 = 0;
+    var cl: u32 = 0;
+    if (chars != 0) {
+        const cs = obj_ensure_string(chars);
+        cp = cs.ptr;
+        cl = cs.len;
+    }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var end: u32 = s.len;
-    while (end > 0 and is_space(src[end - 1])) end -= 1;
+    while (end > 0 and is_trim_char(src[end - 1], cp, cl)) end -= 1;
     if (end == s.len) return value;
     return obj_new_string_copy(s.ptr, end);
 }
@@ -377,69 +458,11 @@ pub export fn string_is_space(value: i32) i32 {
     return obj_new_int(1);
 }
 
-// Quote an element for embedding in a Tcl list string.  Writes to *buf* at
-// *off* and returns the new offset.  Rules:
-//   - empty element → ``{}``
-//   - contains no whitespace, no braces, no backslash, no quotes → emit bare
-//   - contains whitespace but has balanced ``{..}`` and does not start with
-//     ``{`` → wrap in braces
-//   - otherwise → backslash-escape each whitespace/brace/backslash character
-// This matches how tclsh's Tcl_ConvertToList treats most common cases while
-// avoiding the invalid output produced by unconditional bracing of
-// brace-bearing elements.
-fn list_quote_elem(buf: u32, off: u32, src: u32, slen: u32) u32 {
-    if (slen == 0) {
-        const d: [*]u8 = @ptrFromInt(buf + off);
-        d[0] = '{';
-        d[1] = '}';
-        return off + 2;
-    }
-    const ps: [*]const u8 = @ptrFromInt(src);
-    var has_special = false;
-    var brace_balance: i32 = 0;
-    var min_balance: i32 = 0;
-    for (0..slen) |k| {
-        const ch = ps[k];
-        if (is_space(ch) or ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';') {
-            has_special = true;
-        }
-        if (ch == '{') brace_balance += 1;
-        if (ch == '}') {
-            brace_balance -= 1;
-            if (brace_balance < min_balance) min_balance = brace_balance;
-        }
-    }
-    const starts_with_brace = ps[0] == '{';
-    const balanced = (brace_balance == 0) and (min_balance >= 0);
-    if (!has_special and brace_balance == 0 and !starts_with_brace) {
-        memcpy(buf + off, src, slen);
-        return off + slen;
-    }
-    if (has_special and balanced and !starts_with_brace) {
-        const d0: [*]u8 = @ptrFromInt(buf + off);
-        d0[0] = '{';
-        memcpy(buf + off + 1, src, slen);
-        const d1: [*]u8 = @ptrFromInt(buf + off + 1 + slen);
-        d1[0] = '}';
-        return off + slen + 2;
-    }
-    // Backslash-escape path: emit each problematic byte preceded by '\'.
-    var o = off;
-    for (0..slen) |k| {
-        const ch = ps[k];
-        const needs_escape = is_space(ch) or ch == '{' or ch == '}' or
-            ch == '\\' or ch == '"' or ch == '$' or ch == '[' or ch == ';';
-        if (needs_escape) {
-            const d: [*]u8 = @ptrFromInt(buf + o);
-            d[0] = '\\';
-            o += 1;
-        }
-        const d2: [*]u8 = @ptrFromInt(buf + o);
-        d2[0] = ch;
-        o += 1;
-    }
-    return o;
-}
+// ``list_quote_elem`` is now a thin wrapper around the canonical
+// :func:`obj.list_elem_quote` in tcl_obj.zig.  Kept as a file-local
+// alias so the split-by-char path below can stay a single-line call;
+// any future change to the quoting rules only happens in one place.
+const list_quote_elem = obj.list_elem_quote;
 
 // Exported: split — split a string by a separator into a Tcl list.
 // If splitChars is empty, splits into individual characters.
@@ -451,8 +474,10 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
 
     // Empty splitChars: split into individual characters
     if (sd.len == 0) {
-        // Each char becomes a list element, separated by spaces
-        const buf = alloc(sv.len * 2);
+        // Each char becomes a properly-quoted list element.
+        // Allocate generously: each char can expand to at most 4 bytes
+        // (backslash + char + possible braces) plus a space separator.
+        const buf = alloc(sv.len * 5 + 4);
         var out: u32 = 0;
         for (0..sv.len) |i| {
             if (i > 0) {
@@ -460,9 +485,7 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
                 d[0] = ' ';
                 out += 1;
             }
-            const d: [*]u8 = @ptrFromInt(buf + out);
-            d[0] = src[i];
-            out += 1;
+            out = list_quote_elem(buf, out, sv.ptr + @as(u32, @intCast(i)), 1);
         }
         return obj_new_string(@intCast(buf), @intCast(out));
     }
@@ -553,16 +576,36 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
 }
 
 // Exported: concat — concatenate two TclObj string representations with space.
+// Each argument has leading/trailing whitespace trimmed before joining.
+// If both are empty after trimming, returns an empty string object.
 pub export fn tcl_cmd_concat(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
-    if (sa.len == 0) return b;
-    if (sb.len == 0) return a;
-    const total = sa.len + 1 + sb.len;
+    // Trim leading/trailing whitespace from each argument.
+    var a_start: u32 = 0;
+    var a_end: u32 = sa.len;
+    if (sa.len > 0) {
+        const pa: [*]const u8 = @ptrFromInt(sa.ptr);
+        while (a_start < a_end and is_space(pa[a_start])) a_start += 1;
+        while (a_end > a_start and is_space(pa[a_end - 1])) a_end -= 1;
+    }
+    var b_start: u32 = 0;
+    var b_end: u32 = sb.len;
+    if (sb.len > 0) {
+        const pb: [*]const u8 = @ptrFromInt(sb.ptr);
+        while (b_start < b_end and is_space(pb[b_start])) b_start += 1;
+        while (b_end > b_start and is_space(pb[b_end - 1])) b_end -= 1;
+    }
+    const ta_len = a_end - a_start;
+    const tb_len = b_end - b_start;
+    if (ta_len == 0 and tb_len == 0) return obj_new_string(0, 0);
+    if (ta_len == 0) return obj_new_string_copy(sb.ptr + b_start, tb_len);
+    if (tb_len == 0) return obj_new_string_copy(sa.ptr + a_start, ta_len);
+    const total = ta_len + 1 + tb_len;
     const buf = alloc(total);
-    memcpy(buf, sa.ptr, sa.len);
-    const dst: [*]u8 = @ptrFromInt(buf + sa.len);
+    memcpy(buf, sa.ptr + a_start, ta_len);
+    const dst: [*]u8 = @ptrFromInt(buf + ta_len);
     dst[0] = ' ';
-    memcpy(buf + sa.len + 1, sb.ptr, sb.len);
+    memcpy(buf + ta_len + 1, sb.ptr + b_start, tb_len);
     return obj_new_string(@intCast(buf), @intCast(total));
 }

@@ -44,6 +44,7 @@ pub const obj_new_string_copy = tcl_obj.obj_new_string_copy;
 pub const obj_ensure_string = tcl_obj.obj_ensure_string;
 pub const list_count_elements = tcl_obj.list_count_elements;
 pub const list_element_at = tcl_obj.list_element_at;
+pub const copy_unbraced_elem = tcl_obj.copy_unbraced_elem;
 
 pub const global_set = tcl_globals.global_set;
 pub const global_get = tcl_globals.global_get;
@@ -57,10 +58,13 @@ pub const string_length = tcl_string.string_length;
 pub const string_index = tcl_string.string_index;
 pub const string_range = tcl_string.string_range;
 pub const string_compare = tcl_string.string_compare;
+pub const tcl_expr_order_cmp = tcl_string.tcl_expr_order_cmp;
 pub const string_equal = tcl_string.string_equal;
 pub const string_match = tcl_string.string_match;
 pub const string_map = tcl_string.string_map;
 pub const string_trim = tcl_string.string_trim;
+pub const string_trimleft = tcl_string.string_trimleft;
+pub const string_trimright = tcl_string.string_trimright;
 pub const string_first = tcl_string.string_first;
 pub const string_last = tcl_string.string_last;
 pub const string_toupper = tcl_string.string_toupper;
@@ -92,6 +96,7 @@ pub const catch_enter = tcl_catch.catch_enter;
 pub const catch_leave = tcl_catch.catch_leave;
 pub const catch_result = tcl_catch.catch_result;
 pub const catch_has_error = tcl_catch.catch_has_error;
+pub const catch_set_ok_result = tcl_catch.catch_set_ok_result;
 pub const tcl_cmd_error = tcl_catch.tcl_cmd_error;
 pub const error_flag = &tcl_catch.error_flag;
 pub const return_flag = &tcl_catch.return_flag;
@@ -162,6 +167,7 @@ comptime {
     // tcl_string exports
     _ = &tcl_string.tcl_cmd_append;
     _ = &tcl_string.string_compare;
+    _ = &tcl_string.tcl_expr_order_cmp;
     _ = &tcl_string.string_length;
     _ = &tcl_string.string_index;
     _ = &tcl_string.string_range;
@@ -206,6 +212,7 @@ comptime {
     _ = &tcl_catch.catch_leave;
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
+    _ = &tcl_catch.catch_set_ok_result;
     _ = &tcl_catch.tcl_cmd_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than
@@ -311,4 +318,6 @@ comptime {
     _ = &tcl_array.array_names;
     // tcl_interp exports
     _ = &interp.tcl_eval;
+    _ = &interp.ns_set;
+    _ = &interp.ns_restore;
 }

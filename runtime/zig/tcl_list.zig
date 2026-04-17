@@ -9,6 +9,8 @@ const obj_new_string = obj.obj_new_string;
 const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 const obj_new_string_copy = obj.obj_new_string_copy;
+const copy_unbraced_elem = obj.copy_unbraced_elem;
+const list_elem_quote = obj.list_elem_quote;
 const is_space = obj.is_space;
 const str_cmp = obj.str_cmp;
 const list_count_elements = obj.list_count_elements;
@@ -25,46 +27,89 @@ pub export fn tcl_cmd_list_length(list: i32) i32 {
     return obj_new_int(n);
 }
 
-// Exported: list append — append element to list (space-separated).
+// Exported: list append — append element to list with proper quoting.
+//
+// Fast path (the common case): the existing list representation is kept
+// verbatim — we only trim trailing whitespace, append a single space,
+// and append the quoted new element.  Existing elements retain
+// whatever canonical form they already had (braced / backslash-escaped),
+// so repeated lappend is O(n) per call instead of the O(existing_elems)
+// re-parse + re-quote the two-pass approach used before.
+//
+// Slow path: if the existing list's last non-whitespace byte is an
+// unpaired backslash, the simple concat would turn the appended space
+// into a literal character (``\ ``) and merge our new element into
+// the last existing one.  In that rare case we fall back to the
+// parse / re-quote path that guarantees correct element boundaries.
 pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
-    var needs_braces = false;
-    if (sv.len > 0) {
-        const vsrc: [*]const u8 = @ptrFromInt(sv.ptr);
-        for (0..sv.len) |i| {
-            if (is_space(vsrc[i])) {
-                needs_braces = true;
-                break;
+    // Worst-case buffer: existing content verbatim + separator + new element (2x+2).
+    const max_buf: u32 = sc.len + sv.len * 2 + 8;
+    const buf = alloc(max_buf);
+    var off: u32 = 0;
+
+    if (sc.len > 0) {
+        // Strip trailing whitespace from the existing representation.
+        const cp: [*]const u8 = @ptrFromInt(sc.ptr);
+        var end: u32 = sc.len;
+        while (end > 0 and is_space(cp[end - 1])) end -= 1;
+        if (end > 0) {
+            // Count trailing backslashes — odd means the next space
+            // would be eaten as a ``\<space>`` escape.  Fall back to
+            // re-parse if so.
+            var bs_count: u32 = 0;
+            var ei: u32 = end;
+            while (ei > 0 and cp[ei - 1] == '\\') : (ei -= 1) {
+                bs_count += 1;
             }
+            if ((bs_count & 1) == 1) {
+                return lappend_reparse(sc.ptr, sc.len, sv.ptr, sv.len);
+            }
+            memcpy(buf, sc.ptr, end);
+            off = end;
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
         }
     }
-    if (sc.len == 0) {
-        if (needs_braces) {
-            const buf = alloc(sv.len + 2);
-            const dst: [*]u8 = @ptrFromInt(buf);
-            dst[0] = '{';
-            memcpy(buf + 1, sv.ptr, sv.len);
-            dst[sv.len + 1] = '}';
-            return obj_new_string(@intCast(buf), @intCast(sv.len + 2));
+
+    off = list_elem_quote(buf, off, sv.ptr, sv.len);
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
+/// Fallback for :func:`tcl_cmd_lappend`: parse the existing list into
+/// elements, re-quote each, then append the new element.  Only invoked
+/// when the fast concat path would misplace the element boundary
+/// (existing rep ends with an unpaired ``\``).
+fn lappend_reparse(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
+    const max_buf: u32 = sc_len * 3 + sv_len * 2 + 8;
+    const buf = alloc(max_buf);
+    var off: u32 = 0;
+    const n = list_count_elements(sc_ptr, sc_len);
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        if (idx > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
         }
-        return value;
+        const elem = list_element_at(sc_ptr, sc_len, idx);
+        if (elem.braced) {
+            off = list_elem_quote(buf, off, sc_ptr + elem.start, elem.len);
+        } else {
+            const tmp = alloc(elem.len + 1);
+            const actual_len = copy_unbraced_elem(tmp, sc_ptr + elem.start, elem.len);
+            off = list_elem_quote(buf, off, tmp, actual_len);
+        }
     }
-    const extra: u32 = if (needs_braces) sv.len + 3 else sv.len + 1;
-    const total = sc.len + extra;
-    const buf = alloc(total);
-    memcpy(buf, sc.ptr, sc.len);
-    const dst: [*]u8 = @ptrFromInt(buf + sc.len);
-    dst[0] = ' ';
-    if (needs_braces) {
-        dst[1] = '{';
-        memcpy(buf + sc.len + 2, sv.ptr, sv.len);
-        const d2: [*]u8 = @ptrFromInt(buf + sc.len + 2 + sv.len);
-        d2[0] = '}';
-    } else {
-        memcpy(buf + sc.len + 1, sv.ptr, sv.len);
+    if (n > 0) {
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = ' ';
+        off += 1;
     }
-    return obj_new_string(@intCast(buf), @intCast(total));
+    off = list_elem_quote(buf, off, sv_ptr, sv_len);
+    return obj_new_string(@intCast(buf), @intCast(off));
 }
 
 // Exported: list — create a list from individual elements.
@@ -89,23 +134,57 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
+// Parse a list index that may be "end", "end-N", or a plain integer.
+// Returns the resolved 0-based index, or -1 for out-of-range.
+fn resolve_list_index(idx: i32, n: i64) i64 {
+    const sv = obj_ensure_string(idx);
+    if (sv.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sv.ptr);
+        if (sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+            if (sv.len == 3) return n - 1;  // "end"
+            if (sv.len >= 5 and sp[3] == '-') {
+                // "end-N"
+                var offset: i64 = 0;
+                var i: u32 = 4;
+                while (i < sv.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
+                    offset = offset * 10 + @as(i64, sp[i] - '0');
+                }
+                return n - 1 - offset;
+            }
+            if (sv.len >= 5 and sp[3] == '+') {
+                // "end+N"
+                var offset: i64 = 0;
+                var i: u32 = 4;
+                while (i < sv.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
+                    offset = offset * 10 + @as(i64, sp[i] - '0');
+                }
+                return n - 1 + offset;
+            }
+        }
+    }
+    return obj_get_int(idx);
+}
+
 // Exported: list index — extract the nth element (0-based).
 pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     const s = obj_ensure_string(list);
-    const i_val = obj_get_int(idx);
-    if (i_val < 0) return obj_new_string(0, 0);
     const n = list_count_elements(s.ptr, s.len);
-    if (i_val >= n) return obj_new_string(0, 0);
+    const i_val = resolve_list_index(idx, n);
+    if (i_val < 0 or i_val >= n) return obj_new_string(0, 0);
     const elem = list_element_at(s.ptr, s.len, i_val);
-    return obj_new_string_copy(s.ptr + elem.start, elem.len);
+    if (elem.braced) return obj_new_string_copy(s.ptr + elem.start, elem.len);
+    // Unbraced element: process backslash escapes.
+    const buf = alloc(elem.len);
+    const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
+    return obj_new_string(@intCast(buf), @intCast(out_len));
 }
 
 // Exported: list range — extract elements [first..last] (inclusive).
 pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(list);
-    var f = obj_get_int(first);
-    var l = obj_get_int(last);
     const total = list_count_elements(s.ptr, s.len);
+    var f = resolve_list_index(first, total);
+    var l = resolve_list_index(last, total);
     if (f < 0) f = 0;
     if (l >= total) l = total - 1;
     if (f > l or f >= total) return obj_new_string(0, 0);

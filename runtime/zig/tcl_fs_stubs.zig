@@ -15,6 +15,7 @@
 //   - exec, source, load, unload
 
 const stubs = @import("tcl_stubs.zig");
+const obj = @import("tcl_obj.zig");
 
 // ``file`` moved to tcl_fs.zig — has pass-through implementations
 // for string-only path manipulation (join / dirname / tail /
@@ -24,8 +25,10 @@ const stubs = @import("tcl_stubs.zig");
 
 pub export fn tcl_cmd_glob(pattern: i32) i32 {
     _ = pattern;
-    stubs.unsupported("glob");
-    return 0;
+    // In the WASM sandbox there is no real filesystem to glob.  Always return
+    // an empty list — this matches ``glob -nocomplain`` behaviour and lets
+    // callers like tcltest's cleanupTests proceed without trapping.
+    return obj.obj_new_string(0, 0);
 }
 
 // ``pwd`` and ``cd`` moved to tcl_fs.zig — pwd returns "/" and cd

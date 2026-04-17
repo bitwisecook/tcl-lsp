@@ -318,6 +318,8 @@ def test_no_cmd_imports_for_pure_math():
         "obj_get_int",
         "tcl_cmd_error",
         "tcl_eval",
+        "ns_set",
+        "ns_restore",
         "diag_set",
         "global_set",
         "global_get",
