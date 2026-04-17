@@ -208,10 +208,13 @@ impl CodegenCtx {
                 for (arg, braced) in body_args {
                     self.emit_cmd_subst_arg(arg, *braced);
                 }
-                self.emit(
-                    Op::INVOKE_STK1,
-                    vec![Operand::Imm(bytecode_imm(1 + body_args.len()))],
-                );
+                let argc = bytecode_imm(1 + body_args.len());
+                let invoke_op = if argc < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                };
+                self.emit(invoke_op, vec![Operand::Imm(argc)]);
                 self.seen_generic_invoke = true;
             }
         }
@@ -498,10 +501,13 @@ impl CodegenCtx {
                 for (a, b) in cmd_args {
                     self.emit_cmd_subst_arg(a, *b);
                 }
-                self.emit(
-                    Op::INVOKE_STK1,
-                    vec![Operand::Imm(bytecode_imm(1 + cmd_args.len()))],
-                );
+                let argc = bytecode_imm(1 + cmd_args.len());
+                let invoke_op = if argc < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                };
+                self.emit(invoke_op, vec![Operand::Imm(argc)]);
             }
         }
 
