@@ -763,6 +763,8 @@ class TestCommandDispatch:
             "obj_get_int",
             "tcl_cmd_error",
             "tcl_eval",
+            "ns_set",
+            "ns_restore",
             "diag_set",
             "global_set",
             "global_get",

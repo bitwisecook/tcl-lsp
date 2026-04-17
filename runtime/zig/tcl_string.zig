@@ -201,37 +201,77 @@ fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
     return true;
 }
 
-// Exported: string trim — strip leading/trailing whitespace.
-pub export fn string_trim(value: i32) i32 {
+/// Return true if *c* is in *chars* (a u8 slice).
+inline fn in_chars(c: u8, chars: [*]const u8, chars_len: u32) bool {
+    for (0..chars_len) |i| {
+        if (chars[i] == c) return true;
+    }
+    return false;
+}
+
+/// Test whether *c* is a "trim" character for ``string trim ?chars?``.
+/// When *chars_obj* is 0 the default is Tcl whitespace (space, tab, LF,
+/// CR, VT, FF).  Otherwise the caller's trim set wins verbatim.
+inline fn is_trim_char(c: u8, chars_ptr: u32, chars_len: u32) bool {
+    if (chars_len == 0) return is_space(c);
+    const p: [*]const u8 = @ptrFromInt(chars_ptr);
+    return in_chars(c, p, chars_len);
+}
+
+// Exported: string trim — strip leading/trailing *chars* (default whitespace).
+// ``chars`` is a TclObj whose string value enumerates the bytes to trim;
+// pass 0 to use the default whitespace set.
+pub export fn string_trim(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
+    var cp: u32 = 0;
+    var cl: u32 = 0;
+    if (chars != 0) {
+        const cs = obj_ensure_string(chars);
+        cp = cs.ptr;
+        cl = cs.len;
+    }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_space(src[start])) start += 1;
+    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
     var end: u32 = s.len;
-    while (end > start and is_space(src[end - 1])) end -= 1;
+    while (end > start and is_trim_char(src[end - 1], cp, cl)) end -= 1;
     if (start == 0 and end == s.len) return value;
     return obj_new_string_copy(s.ptr + start, end - start);
 }
 
-// Exported: string trimleft — strip leading whitespace.
-pub export fn string_trimleft(value: i32) i32 {
+// Exported: string trimleft — strip leading *chars* (default whitespace).
+pub export fn string_trimleft(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
+    var cp: u32 = 0;
+    var cl: u32 = 0;
+    if (chars != 0) {
+        const cs = obj_ensure_string(chars);
+        cp = cs.ptr;
+        cl = cs.len;
+    }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_space(src[start])) start += 1;
+    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
     if (start == 0) return value;
     return obj_new_string_copy(s.ptr + start, s.len - start);
 }
 
-// Exported: string trimright — strip trailing whitespace.
-pub export fn string_trimright(value: i32) i32 {
+// Exported: string trimright — strip trailing *chars* (default whitespace).
+pub export fn string_trimright(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
+    var cp: u32 = 0;
+    var cl: u32 = 0;
+    if (chars != 0) {
+        const cs = obj_ensure_string(chars);
+        cp = cs.ptr;
+        cl = cs.len;
+    }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var end: u32 = s.len;
-    while (end > 0 and is_space(src[end - 1])) end -= 1;
+    while (end > 0 and is_trim_char(src[end - 1], cp, cl)) end -= 1;
     if (end == s.len) return value;
     return obj_new_string_copy(s.ptr, end);
 }
