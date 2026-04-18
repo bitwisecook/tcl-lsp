@@ -701,6 +701,26 @@ class _WasmEmitter:
             func_idx, n_params = proc_info
             qname = self._resolve_proc_qname(cmd_name)
             defaults = self._proc_defaults.get(qname, ()) if qname else ()
+            has_args_tail = qname is not None and qname in self._proc_args_tail
+            if has_args_tail and n_params > 0:
+                # ``proc p {... args}``: pack all surplus call-site args
+                # into a list TclObj for the trailing slot.  Without
+                # this branch the value-context dispatcher emitted the
+                # first argument into the ``args`` slot and silently
+                # dropped the rest (so ``p 1 2 3`` arrived as
+                # ``args == 1``).
+                fixed = n_params - 1
+                for i in range(min(fixed, len(cmd_args))):
+                    self._emit_value(cmd_args[i])
+                for slot in range(len(cmd_args), fixed):
+                    default = defaults[slot] if slot < len(defaults) else None
+                    if default is None:
+                        self._emit_default_arg()
+                    else:
+                        self._emit_obj_literal(default)
+                self._emit_args_list(tuple(cmd_args[fixed:]))
+                self._emit_call(func_idx)
+                return
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
             # Missing args: emit the declared default (as a string
