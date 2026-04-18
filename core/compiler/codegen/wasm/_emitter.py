@@ -789,6 +789,31 @@ class _WasmEmitter:
         # string sub-command in value context
         if cmd_name == "string" and cmd_args:
             subcmd = cmd_args[0]
+            # ``string cat`` — variadic, no-trim concat.  Fold pure
+            # literals; chain ``tcl_append`` for mixed cases.
+            if subcmd == "cat":
+                sub_args = cmd_args[1:]
+                if not sub_args:
+                    self._emit_obj_literal("")
+                    return
+                if all(
+                    not a.startswith("$")
+                    and not a.startswith("[")
+                    and not self._has_embedded_subst(a)
+                    and a not in self._aliases
+                    and a not in self._local_index
+                    for a in sub_args
+                ):
+                    self._emit_obj_literal("".join(sub_args))
+                    return
+                append_idx = self._shared_imports.get("tcl_append")
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    if append_idx is None:
+                        break
+                    self._emit_value(rest)
+                    self._emit_call(append_idx)
+                return
             import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
             if import_key is not None and import_key in self._shared_imports:
                 func_idx = self._shared_imports[import_key]
@@ -3744,6 +3769,39 @@ class _WasmEmitter:
             self._emit_unsupported_trap("string (no subcommand)")
             return
         subcmd = args[0]
+        # ``string cat ?arg ...?`` — variadic concatenation.  No runtime
+        # helper exists; fold pure literal args at compile time and
+        # chain ``tcl_concat`` for the mixed case.  Note: Tcl's
+        # ``string cat`` does NOT trim whitespace, unlike ``concat`` —
+        # reimplement the loop by hand (``tcl_append`` is the closest
+        # no-trim runtime helper).
+        if subcmd == "cat":
+            sub_args = args[1:]
+            if not sub_args:
+                self._emit_obj_literal("")
+            elif all(
+                not a.startswith("$")
+                and not a.startswith("[")
+                and not self._has_embedded_subst(a)
+                and a not in self._aliases
+                and a not in self._local_index
+                for a in sub_args
+            ):
+                self._emit_obj_literal("".join(sub_args))
+            else:
+                append_idx = self._shared_imports.get("tcl_append")
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    if append_idx is None:
+                        break
+                    self._emit_value(rest)
+                    self._emit_call(append_idx)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
         # Handle "string is <class> ?-strict? <value>"
         if subcmd == "is" and len(args) >= 3:
             class_name = args[1]
