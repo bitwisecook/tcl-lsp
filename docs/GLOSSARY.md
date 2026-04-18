@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination)
+[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Var-escape analysis](#var-escape-analysis)
 
 ---
 
@@ -843,6 +843,38 @@ flowchart LR
 
 See also: [O124 unused iRule procs](design/compiler/optimiser-o124-unused-irule-procs.md).
 KCS tag: `unused-procs`.
+
+### Escape tag
+
+One of two values — `LOCAL` or `FRAME` — attached to each Tcl variable
+in a procedure by the var-escape analysis. A `LOCAL` variable is kept in
+a WASM local slot (fast); a `FRAME` variable is spilled to the runtime
+frame so the interpreter, an `upvar` alias, or a dynamic `set $name`
+can observe it by name. The top of the lattice is `FRAME`; joins use
+the "any FRAME wins" rule. Defined in
+[`EscapeTag`](../core/compiler/var_escape/_types.py).
+
+See also: [Var-escape analysis](design/compiler/var-escape-analysis.md).
+KCS tag: `var-escape`.
+
+### Frame-only var
+
+Short-hand for a Tcl variable whose escape tag is `FRAME`. The WASM
+codegen bypasses the WASM local slot for frame-only vars: reads go
+through `tcl_local_get`, writes through `tcl_local_set`, and existence
+checks through `tcl_info_exists`. See
+[`_is_frame_only_var`](../core/compiler/codegen/wasm/__init__.py) in
+the emitter.
+
+### Var-escape analysis
+
+Per-proc + interprocedural static analysis that decides which Tcl
+variables must live in the runtime frame. Handles `upvar`, `global`,
+`variable`, dynamic `set $name` / `incr $name`, literal and dynamic
+`eval`, `uplevel`, and the frame-inspecting `info` subcommands. Runs a
+worklist fixpoint over `direct_callees` to fold callee `upvar` source
+sets back into callers. Implemented in
+[`core/compiler/var_escape/`](../core/compiler/var_escape/).
 
 ### Taint analysis
 
