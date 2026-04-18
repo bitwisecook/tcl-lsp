@@ -1482,6 +1482,10 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     if subcmd == "exists":
                         needed.add("tcl_global_exists")
                         needed.add("tcl_obj_new_int")
+                        # FRAME-tagged vars (per var-escape analysis)
+                        # route through this runtime helper for
+                        # literal-name existence checks.
+                        needed.add("tcl_info_exists")
                         # ``info exists arr(key)`` inside a substitution —
                         # parts[2] (if present) is the var text.
                         if len(parts) > 2:
@@ -1793,6 +1797,9 @@ def _scan_needed_imports(
                     if args[0] == "exists":
                         needed.add("tcl_global_exists")
                         needed.add("tcl_obj_new_int")
+                        # Literal-name existence in FRAME-tagged vars
+                        # dispatches through the runtime helper.
+                        needed.add("tcl_info_exists")
                         # ``info exists arr(key)`` — probe the array table.
                         if len(args) >= 2:
                             raw = args[1]
@@ -4830,6 +4837,18 @@ class _WasmEmitter:
                 self._emit_obj_literal(qname)
                 self._emit_call(gget_idx)
                 return
+        # Var-escape FRAME branch: the escape analysis proved this
+        # name is observed by the interpreter or a callee upvar, so
+        # its authoritative value lives in the runtime frame.  Read
+        # through ``tcl_local_get`` (frame-scoped; does NOT fall through
+        # to globals — that would alias with top-level vars of the same
+        # name).
+        if self._is_frame_only_var(name):
+            lget_idx = self._shared_imports.get("tcl_local_get")
+            if lget_idx is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(lget_idx)
+                return
         idx = self._intern_local(name)
         self._emit_local_get(idx)
 
@@ -4881,6 +4900,32 @@ class _WasmEmitter:
             qname = f"{self._block_namespace}::{name}"
             self._emit_global_set_via_literal(qname, keep_on_stack=keep_on_stack)
             return
+        # Var-escape FRAME branch: the escape analysis proved this
+        # name is observed by the interpreter or a callee upvar, so
+        # its authoritative value must live in the runtime frame.
+        # Route the write through ``tcl_local_set``.  Also mirror to a
+        # WASM local so subsequent reads of this name in the same
+        # basic block could fast-path — but we conservatively skip the
+        # mirror today because ``_emit_var_read_obj`` already goes
+        # through the frame for FRAME-tagged names.
+        if self._is_frame_only_var(name):
+            lset_idx = self._shared_imports.get("tcl_local_set")
+            if lset_idx is not None:
+                # Stack holds [value].  Need [name_obj, value] for
+                # tcl_local_set.  Stash value in a scratch local so we
+                # can push name_obj first.
+                tmp = self._add_extra_local(prefix="_frame_set_tmp", val_type=ValType.I32)
+                self._emit_local_set(tmp)
+                self._emit_obj_literal(name)
+                self._emit_local_get(tmp)
+                self._emit_call(lset_idx)
+                if keep_on_stack:
+                    self._emit(WasmOp.DROP)  # drop tcl_local_set return
+                    self._emit_local_get(tmp)  # leave value on stack
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+
         # At the top level (``::top``) there's no ``proc`` scope — every
         # variable is in the global namespace.  Route writes through
         # ``tcl_global_set`` AND keep a WASM local mirror so later reads
@@ -5072,6 +5117,39 @@ class _WasmEmitter:
             self._emit(WasmOp.DROP)
         self._emit_frame_readback()
         return True
+
+    def _is_frame_only_var(self, name: str) -> bool:
+        """True when the escape analysis says ``name`` must live in the runtime frame.
+
+        Only returns True for non-pessimistic procs where analysis
+        specifically proved the var escapes.  Pessimistic procs
+        (``dynamic_barrier=True``) keep today's WASM-local-with-sync
+        behaviour — routing every var through the frame primitives
+        would be a much larger change and the sync path is already
+        correct for that case.
+
+        Vars already handled by other routing mechanisms are excluded:
+        ``::``-qualified globals go through ``tcl_global_*``;
+        ``global`` / ``variable`` declared names go through the globals
+        table too; upvar aliases have their own binding.  Those paths
+        own the interpreter-visible storage and must not be short-
+        circuited by the frame-only branch.
+        """
+        summary = self._escape_summary
+        if summary is None or summary.dynamic_barrier:
+            return False
+        if not self._is_proc:
+            # At top level there's no frame; FRAME tags are meaningless
+            # and the writer already routes ``::``-prefixed and
+            # block-namespace writes through ``tcl_global_set``.
+            return False
+        if name in self._globals:
+            return False
+        if name in self._aliases:
+            return False
+        if name.startswith("::"):
+            return False
+        return summary.is_frame(name)
 
     def _iter_sync_locals(self, vars_used: set[str] | None = None) -> "list[tuple[str, int]]":
         """Return the ``(name, local_idx)`` pairs that should take part
@@ -6068,6 +6146,18 @@ class _WasmEmitter:
                 self._emit_obj_literal(resolved)
                 self._emit_call(gexist_idx)
                 return
+            # FRAME-only vars (routed through tcl_local_set by the
+            # escape-aware writer) don't land in a WASM local, so the
+            # pointer-nullness check below would always say "no".
+            # Dispatch through the runtime ``tcl_info_exists`` helper,
+            # which probes the frame table by name and returns a
+            # boxed TclObj 0/1 (matching the other existence paths).
+            if self._is_frame_only_var(resolved):
+                info_exists_idx = self._shared_imports.get("tcl_info_exists")
+                if info_exists_idx is not None:
+                    self._emit_obj_literal(resolved)
+                    self._emit_call(info_exists_idx)
+                    return
             # Plain proc-local: the compiled proc uses WASM locals
             # that are zero-initialised, so "exists" is approximated
             # as "value pointer is non-null" — matches writes that
