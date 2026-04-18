@@ -453,3 +453,136 @@ class TestPristineProc:
         assert summary.is_frame("alias")
         assert not summary.is_frame("local_a")
         assert not summary.is_frame("local_b")
+
+
+# Interprocedural propagation
+
+
+class TestInterproceduralUpvar:
+    def test_callee_upvar_source_escapes_caller_local(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc bar {} {
+                    upvar 1 shared local
+                    set local 1
+                }
+                proc foo {} {
+                    set shared 1
+                    bar
+                }
+                """
+            )
+        )
+        # ``foo``'s ``shared`` must be FRAME because ``bar`` aliases it
+        # by name from the caller's frame.
+        assert result["::foo"].is_frame("shared")
+        # ``bar``'s ``local`` (the alias target) is still FRAME.
+        assert result["::bar"].is_frame("local")
+
+    def test_callee_upvar_propagates_transitively(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc leaf {} {
+                    upvar 1 shared local
+                    set local 1
+                }
+                proc middle {} {
+                    leaf
+                }
+                proc top {} {
+                    set shared 42
+                    middle
+                }
+                """
+            )
+        )
+        # Even though ``top`` only calls ``middle`` directly, the
+        # transitive closure should spill ``shared`` because ``leaf``
+        # names it as an upvar source.
+        assert result["::top"].is_frame("shared")
+
+    def test_unbounded_callee_upvar_marks_caller_pessimistic(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc bar {name} {
+                    upvar 1 $name local
+                    set local 1
+                }
+                proc foo {} {
+                    set x 1
+                    bar x
+                }
+                """
+            )
+        )
+        # ``bar``'s dynamic-source upvar makes it pessimistic; ``foo``
+        # inherits the unbounded flag and must spill every local.
+        assert result["::foo"].dynamic_barrier
+
+    def test_unrelated_callee_does_not_escape_caller_local(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc helper {} {
+                    return 42
+                }
+                proc foo {} {
+                    set x 1
+                    helper
+                }
+                """
+            )
+        )
+        # ``helper`` has no upvars; ``foo``'s ``x`` stays LOCAL.
+        assert not result["::foo"].is_frame("x")
+        assert not result["::foo"].frame_needed
+
+    def test_source_set_accumulates_from_multiple_callees(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc reader {} {
+                    upvar 1 a alias_a
+                    return $alias_a
+                }
+                proc writer {} {
+                    upvar 1 b alias_b
+                    set alias_b 99
+                }
+                proc top {} {
+                    set a 1
+                    set b 2
+                    set c 3
+                    reader
+                    writer
+                }
+                """
+            )
+        )
+        assert result["::top"].is_frame("a")
+        assert result["::top"].is_frame("b")
+        # ``c`` is not named by any callee — stays LOCAL.
+        assert not result["::top"].is_frame("c")
+
+    def test_interprocedural_disabled_returns_per_proc(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc bar {} {
+                    upvar 1 shared local
+                }
+                proc foo {} {
+                    set shared 1
+                    bar
+                }
+                """
+            ),
+            interprocedural=False,
+        )
+        # Without the fixpoint, ``foo``'s ``shared`` is not escaped.
+        assert not result["::foo"].is_frame("shared")
+        # ``bar`` still has the raw source-name set recorded though.
+        assert "shared" in result["::bar"].upvar_source_names

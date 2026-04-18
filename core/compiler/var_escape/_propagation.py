@@ -126,7 +126,14 @@ def _scan_value_for_info_hazards(value: str) -> tuple[bool, list[str]]:
 class _EscapeState:
     """Mutable per-proc escape accumulator used during the IR walk."""
 
-    __slots__ = ("tags", "dynamic_barrier", "known_names")
+    __slots__ = (
+        "tags",
+        "dynamic_barrier",
+        "known_names",
+        "upvar_source_names",
+        "unbounded_upvar_source",
+        "direct_callees",
+    )
 
     def __init__(self, known_names: Iterable[str]) -> None:
         self.tags: dict[str, EscapeTag] = {}
@@ -135,6 +142,16 @@ class _EscapeState:
         # Used by the "spill all" branch of alias inference to target only
         # real proc-locals rather than every string that looks name-ish.
         self.known_names: set[str] = set(known_names)
+        # Names in the caller's frame that this proc reaches by name via
+        # ``upvar <positive-level>``.  Consumed by the interprocedural
+        # pass to escape matching locals in callers.
+        self.upvar_source_names: set[str] = set()
+        # True if a dynamic-source upvar defeats enumeration (the proc
+        # might name any caller var, so every caller local must spill).
+        self.unbounded_upvar_source: bool = False
+        # Statically-resolvable callees — qualified proc names this proc
+        # invokes with a known command word.
+        self.direct_callees: set[str] = set()
 
     def escape(self, name: str) -> None:
         """Mark ``name`` as needing frame storage."""
@@ -149,6 +166,20 @@ class _EscapeState:
     def mark_pessimistic(self) -> None:
         """Mark the whole proc as needing a dynamic-barrier fallback."""
         self.dynamic_barrier = True
+
+    def record_upvar_source(self, src: str) -> None:
+        """Record a literal caller-frame name this proc accesses via ``upvar``."""
+        if src:
+            self.upvar_source_names.add(src)
+
+    def record_unbounded_upvar(self) -> None:
+        """Record that the upvar source set cannot be statically enumerated."""
+        self.unbounded_upvar_source = True
+
+    def record_callee(self, qname: str) -> None:
+        """Record a statically-resolvable callee."""
+        if qname:
+            self.direct_callees.add(qname)
 
 
 def _collect_known_names(
@@ -224,7 +255,12 @@ def _has_expand_word(call: IRCall) -> bool:
 
 
 def _handle_upvar(call: IRCall, state: _EscapeState) -> None:
-    """Escape local-side vars of ``upvar ?level? src dst ...``."""
+    """Escape local-side vars of ``upvar ?level? src dst ...``.
+
+    Also records the caller-frame *source* names when the level targets
+    a caller (any level other than ``#0`` / ``0``). The interprocedural
+    pass uses these to force matching vars in callers to ``FRAME``.
+    """
     args = call.args
     if not args:
         return
@@ -237,8 +273,24 @@ def _handle_upvar(call: IRCall, state: _EscapeState) -> None:
         return
     for idx in upvar_local_declaration_indices("upvar", args):
         state.escape(args[idx])
-    # A level like ``$var`` for a non-first arg is a dynamic *source*
-    # name, harmless for local escape (it names a caller var, not ours).
+
+    # Determine pair-start offset and whether the target frame is the
+    # caller (any non-``#0`` level) so we can collect source names.
+    if is_level_literal:
+        level_literal = head
+        pairs_start = 1
+    else:
+        # No level → defaults to 1.
+        level_literal = "1"
+        pairs_start = 0
+    targets_caller = level_literal not in ("#0", "0")
+    if targets_caller:
+        for i in range(pairs_start, len(args) - 1, 2):
+            src = args[i]
+            if _is_dynamic_token(src):
+                state.record_unbounded_upvar()
+            else:
+                state.record_upvar_source(src)
 
 
 def _handle_global(call: IRCall, state: _EscapeState) -> None:
@@ -509,6 +561,12 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
         # don't escape — they're statically resolved writes.
         pass
 
+    # Record statically resolvable callees for interprocedural propagation.
+    # Bare or ``::``-qualified command words are candidates; anything that
+    # looks like a substitution (``$foo`` / ``[bar]``) is ignored.
+    if cmd and not _is_dynamic_token(cmd):
+        state.record_callee(cmd)
+
 
 def _apply_value_scan(value: str, state: _EscapeState) -> None:
     """Apply the info-hazard scan to an embedded value string."""
@@ -605,7 +663,13 @@ def analyse_script(
     body: IRScript,
     params: Iterable[str] = (),
 ) -> ProcEscapeSummary:
-    """Run the escape analysis over a single IR script body."""
+    """Run the escape analysis over a single IR script body.
+
+    The returned summary is *intraprocedural* — callee-induced escapes
+    haven't been folded in yet. Run the interprocedural pass
+    (``solve_interprocedural_escape``) to produce the final summary
+    the codegen should consume.
+    """
     known = _collect_known_names(params, body)
     state = _EscapeState(known_names=known)
     _walk(body.statements, state)
@@ -616,4 +680,7 @@ def analyse_script(
         tags=dict(state.tags),
         dynamic_barrier=state.dynamic_barrier,
         frame_needed=frame_needed,
+        upvar_source_names=frozenset(state.upvar_source_names),
+        unbounded_upvar_source=state.unbounded_upvar_source,
+        direct_callees=frozenset(state.direct_callees),
     )

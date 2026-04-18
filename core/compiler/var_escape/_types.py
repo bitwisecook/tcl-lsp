@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Iterable
 
 
 class EscapeTag(Enum):
@@ -45,11 +46,27 @@ class ProcEscapeSummary:
     ``frame_needed`` is a convenience flag for codegen: True if the
     proc needs a runtime frame at all. Equivalent to
     ``dynamic_barrier or any(tag is FRAME for tag in tags.values())``.
+
+    ``upvar_source_names`` is the set of literal variable names this
+    proc (or any of its transitive callees once the interprocedural
+    pass has run) names as the *source* of a caller-frame ``upvar``.
+    A caller must treat any of its local vars whose names appear in a
+    callee's ``upvar_source_names`` as ``FRAME`` — the callee aliases
+    them by name from the frame. ``unbounded_upvar_source`` is True
+    when the source set can't be enumerated (dynamic source name,
+    pessimistic callee, …) — callers must spill every local.
+
+    ``direct_callees`` is the set of qualified proc names this proc
+    calls with statically known arguments, used by the interprocedural
+    pass to drive the fixpoint.
     """
 
     tags: dict[str, EscapeTag] = field(default_factory=dict)
     dynamic_barrier: bool = False
     frame_needed: bool = False
+    upvar_source_names: frozenset[str] = frozenset()
+    unbounded_upvar_source: bool = False
+    direct_callees: frozenset[str] = frozenset()
 
     def tag(self, name: str) -> EscapeTag:
         """Return the tag for ``name`` (defaults to ``LOCAL``)."""
@@ -60,3 +77,33 @@ class ProcEscapeSummary:
     def is_frame(self, name: str) -> bool:
         """Shorthand: does ``name`` need to live in the runtime frame?"""
         return self.tag(name) is EscapeTag.FRAME
+
+    def with_escapes(
+        self,
+        extra_escaped: Iterable[str],
+        *,
+        pessimistic: bool = False,
+    ) -> "ProcEscapeSummary":
+        """Return a new summary with ``extra_escaped`` spilled to FRAME.
+
+        Used by the interprocedural pass to fold callee-induced
+        escapes (names a callee uses as ``upvar`` sources) into a
+        caller's summary without mutating the originally computed
+        structure.
+        """
+        new_tags = dict(self.tags)
+        for name in extra_escaped:
+            new_tags[name] = EscapeTag.FRAME
+        new_pessimistic = self.dynamic_barrier or pessimistic
+        new_frame_needed = (
+            new_pessimistic
+            or any(tag is EscapeTag.FRAME for tag in new_tags.values())
+        )
+        return ProcEscapeSummary(
+            tags=new_tags,
+            dynamic_barrier=new_pessimistic,
+            frame_needed=new_frame_needed,
+            upvar_source_names=self.upvar_source_names,
+            unbounded_upvar_source=self.unbounded_upvar_source,
+            direct_callees=self.direct_callees,
+        )
