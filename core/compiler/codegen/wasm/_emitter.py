@@ -815,10 +815,19 @@ class _WasmEmitter:
             if func_idx is not None:
                 spec = _RUNTIME_IMPORTS[import_key]
                 param_count = len(spec[2])
-                for i in range(min(param_count, len(cmd_args))):
-                    self._emit_value(cmd_args[i])
-                for _ in range(param_count - len(cmd_args)):
-                    self._emit_i32_const(0)
+                if cmd_name in ("lsort",) and len(cmd_args) > param_count:
+                    # ``lsort ?-switches? list`` — runtime export is
+                    # the no-switch form; grab the trailing positional
+                    # list rather than treating ``-integer`` as the list
+                    # itself and returning the single-element result.
+                    self._emit_value(cmd_args[-1])
+                    for _ in range(param_count - 1):
+                        self._emit_i32_const(0)
+                else:
+                    for i in range(min(param_count, len(cmd_args))):
+                        self._emit_value(cmd_args[i])
+                    for _ in range(param_count - len(cmd_args)):
+                        self._emit_i32_const(0)
                 self._emit_call(func_idx)
                 if not spec[3]:
                     self._emit_i32_const(0)
@@ -4443,12 +4452,24 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
             return
 
-        # Generic: push args up to param_count (all i32 TclObj pointers)
-        for i in range(min(param_count, len(args))):
-            self._emit_value(args[i])
-        # Pad missing args with null TclObj
-        for _ in range(param_count - len(args)):
-            self._emit_i32_const(0)
+        # ``lsort``/``lsearch``/``lindex``-style commands accept a
+        # trailing positional ``list`` preceded by optional ``-switches``.
+        # The runtime export is the no-switch form, so when extra args
+        # are present pick the trailing positional as the list rather
+        # than the leading ``-option`` token — otherwise ``lsort
+        # -integer {3 1 2}`` would dispatch with the list ``-integer``
+        # and produce the single-element result ``-integer``.
+        if command in ("lsort",) and len(args) > param_count:
+            self._emit_value(args[-1])
+            for _ in range(param_count - 1):
+                self._emit_i32_const(0)
+        else:
+            # Generic: push args up to param_count (all i32 TclObj pointers)
+            for i in range(min(param_count, len(args))):
+                self._emit_value(args[i])
+            # Pad missing args with null TclObj
+            for _ in range(param_count - len(args)):
+                self._emit_i32_const(0)
 
         self._emit_call(func_idx)
 
