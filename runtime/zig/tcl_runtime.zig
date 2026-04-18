@@ -69,6 +69,7 @@ pub const string_first = tcl_string.string_first;
 pub const string_last = tcl_string.string_last;
 pub const string_toupper = tcl_string.string_toupper;
 pub const string_tolower = tcl_string.string_tolower;
+pub const string_totitle = tcl_string.string_totitle;
 pub const string_reverse = tcl_string.string_reverse;
 pub const string_repeat = tcl_string.string_repeat;
 pub const string_replace = tcl_string.string_replace;
@@ -183,6 +184,7 @@ comptime {
     _ = &tcl_string.string_reverse;
     _ = &tcl_string.string_toupper;
     _ = &tcl_string.string_tolower;
+    _ = &tcl_string.string_totitle;
     _ = &tcl_string.string_replace;
     _ = &tcl_string.string_is_integer;
     _ = &tcl_string.string_is_alpha;

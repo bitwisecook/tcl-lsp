@@ -72,6 +72,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_string_reverse": ("tcl", "string_reverse", [ValType.I32], [ValType.I32]),
     "tcl_string_toupper": ("tcl", "string_toupper", [ValType.I32], [ValType.I32]),
     "tcl_string_tolower": ("tcl", "string_tolower", [ValType.I32], [ValType.I32]),
+    "tcl_string_totitle": ("tcl", "string_totitle", [ValType.I32], [ValType.I32]),
     "tcl_string_replace": (
         "tcl",
         "string_replace",
@@ -383,6 +384,7 @@ _STRING_SUBCMD_IMPORT: dict[str, str] = {
     "reverse": "tcl_string_reverse",
     "toupper": "tcl_string_toupper",
     "tolower": "tcl_string_tolower",
+    "totitle": "tcl_string_totitle",
     "replace": "tcl_string_replace",
 }
 

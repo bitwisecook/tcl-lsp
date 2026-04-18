@@ -391,6 +391,32 @@ pub export fn string_tolower(value: i32) i32 {
     return obj_new_string(@intCast(buf), @intCast(sv.len));
 }
 
+// Exported: string totitle — uppercase the first alphabetic byte and
+// lowercase every other byte.  Tcl's reference totitle walks the
+// whole string by Unicode codepoint; this ASCII-only approximation
+// covers the tcltest / tcllib patterns we see in the 9.0 corpus and
+// keeps parity with ``string toupper`` / ``string tolower`` above.
+pub export fn string_totitle(value: i32) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const buf = alloc(sv.len);
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var first_alpha_seen = false;
+    for (0..sv.len) |i| {
+        const c = src[i];
+        if (!first_alpha_seen and ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z'))) {
+            dst[i] = if (c >= 'a' and c <= 'z') c - 32 else c;
+            first_alpha_seen = true;
+        } else if (c >= 'A' and c <= 'Z') {
+            dst[i] = c + 32;
+        } else {
+            dst[i] = c;
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(sv.len));
+}
+
 // Exported: string replace — replace characters in range [first..last] with new string.
 pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i32 {
     const sv = obj_ensure_string(value);
