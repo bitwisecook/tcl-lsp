@@ -68,6 +68,13 @@ class ProcEscapeSummary:
     unbounded_upvar_source: bool = False
     direct_callees: frozenset[str] = frozenset()
     has_fallback: bool = False
+    # Per-SSA-version escape tags, populated by the flow-sensitive
+    # CFG+SSA propagation.  Empty when the analysis was driven from
+    # an IR-only source (no CompilationUnit).  ``ssa_tags`` is keyed
+    # by ``(var_name, ssa_version)`` — see
+    # ``core.compiler.ssa.SSAValueKey``.  The per-name ``tags``
+    # field is the join over this dict and is what codegen consumes.
+    ssa_tags: dict[tuple[str, int], EscapeTag] = field(default_factory=dict)
 
     def tag(self, name: str) -> EscapeTag:
         """Return the tag for ``name`` (defaults to ``LOCAL``)."""
@@ -107,4 +114,5 @@ class ProcEscapeSummary:
             unbounded_upvar_source=self.unbounded_upvar_source,
             direct_callees=self.direct_callees,
             has_fallback=self.has_fallback,
+            ssa_tags=dict(self.ssa_tags),
         )
