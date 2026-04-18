@@ -24,6 +24,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
     # Command runtime — all parameters/results are i32 TclObj pointers
     "tcl_puts": ("tcl", "tcl_cmd_puts", [ValType.I32], [ValType.I32]),
+    "tcl_puts_nonewline": (
+        "tcl",
+        "tcl_cmd_puts_nonewline",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_append": ("tcl", "tcl_cmd_append", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_length": ("tcl", "tcl_cmd_list_length", [ValType.I32], [ValType.I32]),
     "tcl_lappend": ("tcl", "tcl_cmd_lappend", [ValType.I32, ValType.I32], [ValType.I32]),

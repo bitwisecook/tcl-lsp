@@ -108,6 +108,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 cmd = parts[0]
                 if cmd in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[cmd][0])
+                    if cmd == "puts":
+                        # ``puts -nonewline …`` dispatches to a
+                        # second helper; include the import whenever
+                        # ``puts`` appears so the dispatch path can
+                        # pick it up.  Cheap (one import slot) and
+                        # avoids a second scan.
+                        needed.add("tcl_puts_nonewline")
                 elif cmd == "list":
                     # ``[list $a $b ...]`` with variable/command args uses
                     # tcl_lappend internally in _emit_list_value to properly
@@ -396,6 +403,10 @@ def _scan_needed_imports(
             case IRCall(command=command, args=args):
                 if command in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[command][0])
+                    if command == "puts":
+                        # Include the -nonewline helper alongside tcl_puts
+                        # so the dispatch path can choose between them.
+                        needed.add("tcl_puts_nonewline")
                 elif command == "string" and args and args[0] in _STRING_SUBCMD_IMPORT:
                     needed.add(_STRING_SUBCMD_IMPORT[args[0]])
                 elif command == "string" and args and args[0] == "is" and len(args) >= 3:

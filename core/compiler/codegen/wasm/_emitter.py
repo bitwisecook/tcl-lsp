@@ -4601,6 +4601,19 @@ class _WasmEmitter:
 
         # For puts, handle optional channel argument: puts ?-nonewline? ?channelId? string
         if command == "puts":
+            # ``puts -nonewline <string>`` dispatches to a newline-
+            # suppressing runtime helper.  Channel-id forms (e.g.
+            # ``puts stdout foo``) still fall through to the default
+            # tcl_cmd_puts call.
+            nonewline = len(args) >= 2 and args[0] == "-nonewline"
+            if nonewline:
+                no_nl_idx = self._shared_imports.get("tcl_puts_nonewline")
+                if no_nl_idx is not None:
+                    self._emit_value(args[-1])
+                    self._emit_call(no_nl_idx)
+                    if spec[3]:
+                        self._emit(WasmOp.DROP)
+                    return
             # Use the last argument as the string value
             if args:
                 self._emit_value(args[-1])
