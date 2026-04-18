@@ -52,6 +52,8 @@ User-facing compiler troubleshooting and how-tos live in
   content analysis over SSA.
 - [taint-analysis.md](taint-analysis.md) — sources, sinks, colours, and
   propagation.
+- [var-escape-analysis.md](var-escape-analysis.md) — which Tcl vars stay
+  on WASM locals vs spill to the runtime frame.
 - [interprocedural-analysis.md](interprocedural-analysis.md) —
   ProcSummary construction.
 - [optimisation-passes.md](optimisation-passes.md) — pass table and

@@ -1,0 +1,822 @@
+"""Tests for the var-escape analysis."""
+
+from __future__ import annotations
+
+import textwrap
+
+from core.compiler.var_escape import (
+    TOP_LEVEL_QNAME,
+    EscapeTag,
+    ProcEscapeSummary,
+    analyse_var_escape,
+)
+
+
+def _summary(source: str, qname: str = "::foo") -> ProcEscapeSummary:
+    """Run the analysis and return the summary for ``qname``."""
+    result = analyse_var_escape(source=textwrap.dedent(source))
+    assert qname in result, f"qname {qname!r} not in {sorted(result)!r}"
+    return result[qname]
+
+
+# Lattice basics
+
+
+class TestLattice:
+    def test_default_tag_is_local(self):
+        summary = ProcEscapeSummary()
+        assert summary.tag("anything") is EscapeTag.LOCAL
+        assert not summary.is_frame("anything")
+
+    def test_frame_overrides_default(self):
+        summary = ProcEscapeSummary(tags={"x": EscapeTag.FRAME})
+        assert summary.is_frame("x")
+        assert not summary.is_frame("y")
+
+    def test_dynamic_barrier_forces_frame(self):
+        summary = ProcEscapeSummary(dynamic_barrier=True)
+        assert summary.is_frame("any_var")
+
+
+# Structural pass
+
+
+class TestAnalysisEntryPoint:
+    def test_empty_proc_has_no_frame_need(self):
+        summary = _summary(
+            """
+            proc foo {} {}
+            """
+        )
+        assert not summary.frame_needed
+        assert not summary.dynamic_barrier
+        assert summary.tags == {}
+
+    def test_top_level_is_keyed(self):
+        result = analyse_var_escape(source="set x 1")
+        assert TOP_LEVEL_QNAME in result
+
+
+# Rule 1 — upvar / global / variable bindings
+
+
+class TestUpvarGlobalVariable:
+    def test_upvar_default_level_escapes_named_var(self):
+        # ``upvar src x`` defaults to level 1 — x is still name-bounded.
+        summary = _summary(
+            """
+            proc foo {} {
+                upvar src x
+                set x 1
+            }
+            """
+        )
+        assert summary.frame_needed
+        assert summary.is_frame("x")
+        assert not summary.dynamic_barrier
+
+    def test_upvar_level_1_escapes_named_var(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                upvar 1 src x
+                set x 1
+            }
+            """
+        )
+        assert summary.is_frame("x")
+
+    def test_upvar_level_hash_0_escapes_named_var(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                upvar #0 src x
+                set x 1
+            }
+            """
+        )
+        assert summary.is_frame("x")
+        assert not summary.dynamic_barrier
+
+    def test_global_escapes_listed_vars(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                global g1 g2
+                set local 1
+                set g1 2
+            }
+            """
+        )
+        assert summary.is_frame("g1")
+        assert summary.is_frame("g2")
+        assert not summary.is_frame("local")
+
+    def test_variable_escapes_declared_names(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                variable v1 default v2
+                set v1 1
+                set local 2
+            }
+            """
+        )
+        assert summary.is_frame("v1")
+        assert summary.is_frame("v2")
+        assert not summary.is_frame("local")
+
+
+# Rule 2 — dynamic var refs
+
+
+class TestDynamicVarRefs:
+    def test_set_dynamic_name_escapes_all_known(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set a 1
+                set b 2
+                set $name value
+            }
+            """
+        )
+        # ``$name`` is the variable-name argument — we can't bound it, so
+        # every known name spills.
+        assert summary.is_frame("a")
+        assert summary.is_frame("b")
+
+    def test_incr_dynamic_name_escapes_all(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set counter 0
+                incr $name
+            }
+            """
+        )
+        assert summary.is_frame("counter")
+
+    def test_unset_dynamic_name_escapes_all(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                unset $n
+            }
+            """
+        )
+        assert summary.is_frame("x")
+
+    def test_set_literal_name_does_not_escape(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set y 2
+            }
+            """
+        )
+        assert not summary.frame_needed
+
+    def test_single_literal_alias_inference_escapes_only_target(self):
+        # ``set n foo`` then ``set $n 1`` is treated as ``set foo 1``;
+        # only ``foo`` spills, not ``other``.
+        summary = _summary(
+            """
+            proc f {} {
+                set n foo
+                set foo 0
+                set other 2
+                set $n 1
+            }
+            """,
+            qname="::f",
+        )
+        assert summary.is_frame("foo")
+        assert not summary.is_frame("other")
+
+    def test_dual_writer_invalidates_alias_inference(self):
+        # Two writers to ``n`` — the cheap inference must not trust it
+        # any more and spill everything known.
+        summary = _summary(
+            """
+            proc f {} {
+                set n foo
+                set n bar
+                set foo 0
+                set bar 0
+                set other 2
+                set $n 1
+            }
+            """,
+            qname="::f",
+        )
+        # Both plausible targets plus ``other`` spill.
+        assert summary.is_frame("foo")
+        assert summary.is_frame("bar")
+        assert summary.is_frame("other")
+
+
+# Rule 3 — eval body
+
+
+class TestEval:
+    def test_eval_literal_body_escapes_named_refs(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set y 2
+                eval {set x 99}
+            }
+            """
+        )
+        assert summary.is_frame("x")
+
+    def test_eval_dynamic_body_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {script} {
+                set x 1
+                eval $script
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+        assert summary.frame_needed
+
+    def test_eval_does_not_escape_untouched_vars(self):
+        # After a literal-body eval, vars it didn't reference stay LOCAL.
+        summary = _summary(
+            """
+            proc foo {} {
+                set touched 1
+                set pristine 2
+                eval {set touched 99}
+            }
+            """
+        )
+        assert summary.is_frame("touched")
+        assert not summary.is_frame("pristine")
+
+
+# Rule 4 — uplevel level
+
+
+class TestUplevel:
+    def test_uplevel_hash_0_literal_is_not_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                uplevel #0 {set ::g 1}
+            }
+            """
+        )
+        # #0 runs in global scope; our locals aren't visible.
+        assert not summary.dynamic_barrier
+
+    def test_uplevel_level_1_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                uplevel 1 {set x 99}
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_uplevel_dynamic_level_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {lvl} {
+                set x 1
+                uplevel $lvl {set x 99}
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+
+# Rule 5 — info subcommands
+
+
+class TestInfoSubcommand:
+    def test_info_level_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set lvl [info level]
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_frame_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set f [info frame]
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_vars_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set v [info vars]
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_locals_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set l [info locals]
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_exists_literal_escapes_named_var(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set y 2
+                if {[info exists x]} {
+                    set y 3
+                }
+            }
+            """
+        )
+        assert summary.is_frame("x")
+        assert not summary.dynamic_barrier
+
+    def test_info_exists_dynamic_is_pessimistic(self):
+        summary = _summary(
+            """
+            proc foo {n} {
+                set x 1
+                if {[info exists $n]} {}
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_body_is_safe(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set b [info body foo]
+            }
+            """
+        )
+        assert not summary.dynamic_barrier
+
+    def test_info_commands_is_safe(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set c [info commands]
+            }
+            """
+        )
+        assert not summary.dynamic_barrier
+
+    def test_info_errorstack_is_pessimistic(self):
+        # ``info errorstack`` exposes caller frames; treat as pessimistic.
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set s [info errorstack]
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_cmdtype_is_safe(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set t [info cmdtype set]
+            }
+            """
+        )
+        assert not summary.dynamic_barrier
+
+    def test_info_globals_is_safe(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set g [info globals]
+            }
+            """
+        )
+        assert not summary.dynamic_barrier
+
+
+# Rule flow — structural recursion
+
+
+class TestStructuredControlFlow:
+    def test_escape_inside_if_body_propagates(self):
+        summary = _summary(
+            """
+            proc foo {cond} {
+                if {$cond} {
+                    upvar 1 src x
+                    set x 1
+                }
+            }
+            """
+        )
+        assert summary.is_frame("x")
+
+    def test_escape_inside_foreach_propagates(self):
+        summary = _summary(
+            """
+            proc foo {items} {
+                foreach item $items {
+                    upvar 1 src alias
+                    set alias $item
+                }
+            }
+            """
+        )
+        assert summary.is_frame("alias")
+
+    def test_nested_if_in_proc(self):
+        summary = _summary(
+            """
+            proc foo {a b} {
+                if {$a} {
+                    if {$b} {
+                        upvar 1 outer x
+                    }
+                }
+                set local 1
+            }
+            """
+        )
+        assert summary.is_frame("x")
+        assert not summary.is_frame("local")
+
+
+# Integration — pristine proc gets zero escape
+
+
+class TestPristineProc:
+    def test_arithmetic_proc_needs_no_frame(self):
+        summary = _summary(
+            """
+            proc add {a b} {
+                set sum [expr {$a + $b}]
+                return $sum
+            }
+            """,
+            qname="::add",
+        )
+        assert not summary.frame_needed
+        assert not summary.dynamic_barrier
+        assert not summary.tags
+
+    def test_list_manipulation_proc_needs_no_frame(self):
+        summary = _summary(
+            """
+            proc reverse_list {xs} {
+                set out [list]
+                foreach x $xs {
+                    set out [linsert $out 0 $x]
+                }
+                return $out
+            }
+            """,
+            qname="::reverse_list",
+        )
+        assert not summary.frame_needed
+
+    def test_mixed_proc_spills_only_escaped_vars(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set local_a 1
+                set local_b 2
+                upvar 1 src alias
+                set alias $local_a
+            }
+            """
+        )
+        assert summary.is_frame("alias")
+        assert not summary.is_frame("local_a")
+        assert not summary.is_frame("local_b")
+
+
+# Interprocedural propagation
+
+
+class TestInterproceduralUpvar:
+    def test_callee_upvar_source_escapes_caller_local(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc bar {} {
+                    upvar 1 shared local
+                    set local 1
+                }
+                proc foo {} {
+                    set shared 1
+                    bar
+                }
+                """
+            )
+        )
+        # ``foo``'s ``shared`` must be FRAME because ``bar`` aliases it
+        # by name from the caller's frame.
+        assert result["::foo"].is_frame("shared")
+        # ``bar``'s ``local`` (the alias target) is still FRAME.
+        assert result["::bar"].is_frame("local")
+
+    def test_callee_upvar_propagates_transitively(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc leaf {} {
+                    upvar 1 shared local
+                    set local 1
+                }
+                proc middle {} {
+                    leaf
+                }
+                proc top {} {
+                    set shared 42
+                    middle
+                }
+                """
+            )
+        )
+        # Even though ``top`` only calls ``middle`` directly, the
+        # transitive closure should spill ``shared`` because ``leaf``
+        # names it as an upvar source.
+        assert result["::top"].is_frame("shared")
+
+    def test_unbounded_callee_upvar_marks_caller_pessimistic(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc bar {name} {
+                    upvar 1 $name local
+                    set local 1
+                }
+                proc foo {} {
+                    set x 1
+                    bar x
+                }
+                """
+            )
+        )
+        # ``bar``'s dynamic-source upvar makes it pessimistic; ``foo``
+        # inherits the unbounded flag and must spill every local.
+        assert result["::foo"].dynamic_barrier
+
+    def test_unrelated_callee_does_not_escape_caller_local(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc helper {} {
+                    return 42
+                }
+                proc foo {} {
+                    set x 1
+                    helper
+                }
+                """
+            )
+        )
+        # ``helper`` has no upvars; ``foo``'s ``x`` stays LOCAL.
+        assert not result["::foo"].is_frame("x")
+        assert not result["::foo"].frame_needed
+
+    def test_source_set_accumulates_from_multiple_callees(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc reader {} {
+                    upvar 1 a alias_a
+                    return $alias_a
+                }
+                proc writer {} {
+                    upvar 1 b alias_b
+                    set alias_b 99
+                }
+                proc top {} {
+                    set a 1
+                    set b 2
+                    set c 3
+                    reader
+                    writer
+                }
+                """
+            )
+        )
+        assert result["::top"].is_frame("a")
+        assert result["::top"].is_frame("b")
+        # ``c`` is not named by any callee — stays LOCAL.
+        assert not result["::top"].is_frame("c")
+
+    def test_interprocedural_disabled_returns_per_proc(self):
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc bar {} {
+                    upvar 1 shared local
+                }
+                proc foo {} {
+                    set shared 1
+                    bar
+                }
+                """
+            ),
+            interprocedural=False,
+        )
+        # Without the fixpoint, ``foo``'s ``shared`` is not escaped.
+        assert not result["::foo"].is_frame("shared")
+        # ``bar`` still has the raw source-name set recorded though.
+        assert "shared" in result["::bar"].upvar_source_names
+
+
+# Flow-sensitive per-SSA-version tagging
+
+
+class TestSSATagging:
+    def test_ssa_tags_populated_when_cu_available(self):
+        # Driving the analysis from source triggers compile_source ->
+        # CompilationUnit -> CFG+SSA pass, which populates ssa_tags.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {} {
+                    upvar 1 src x
+                    set x 1
+                }
+                """
+            )
+        )
+        summary = result["::f"]
+        # The per-name result survives.
+        assert summary.is_frame("x")
+        # And the per-SSA-version map has an entry for ``x`` at the
+        # version produced by the upvar declaration / set.
+        assert any(name == "x" for (name, _v) in summary.ssa_tags)
+
+    def test_ssa_tags_empty_when_driven_from_ir_only(self):
+        # The IR-only fallback path does a tree walk and doesn't have
+        # access to SSA, so ssa_tags stays empty.  Per-name ``tags``
+        # still reflect the escape.
+        from core.compiler.lowering import lower_to_ir
+
+        ir_module = lower_to_ir(
+            textwrap.dedent(
+                """
+                proc f {} {
+                    upvar 1 src x
+                    set x 1
+                }
+                """
+            )
+        )
+        result = analyse_var_escape(ir_module=ir_module)
+        summary = result["::f"]
+        assert summary.is_frame("x")
+        assert summary.ssa_tags == {}
+
+    def test_namespace_qualified_cmd_subst_triggers_fallback(self):
+        # ``[::set foo 1]`` has the same fallback implications as
+        # ``[set foo 1]``; the scanner used to miss ``::``-prefixed
+        # heads because its regex only matched ``\w+``.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {} {
+                    set x [::foo::bar 1]
+                }
+                """
+            ),
+        )
+        summary = result["::f"]
+        # ``::foo::bar`` isn't in the frameless allow-list, so the
+        # substitution MUST flag has_fallback.
+        assert summary.has_fallback
+
+    def test_namespace_qualified_frameless_still_pristine(self):
+        # ``[::list …]`` (explicitly qualified) should be recognised
+        # as the frameless ``list`` primitive and NOT set has_fallback.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {xs} {
+                    set y [::list $xs 1]
+                    return $y
+                }
+                """
+            ),
+        )
+        summary = result["::f"]
+        assert not summary.has_fallback
+
+
+class TestInterproceduralHasFallback:
+    def test_pristine_caller_keeps_has_fallback_false(self):
+        # ``caller`` has no barriers or unknown commands itself. Its
+        # callee ``leaf`` does. ``has_fallback`` must stay
+        # intraprocedural — otherwise frame elision is defeated in
+        # every non-leaf proc.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc leaf {} {
+                    eval {set x 1}
+                }
+                proc caller {} {
+                    leaf
+                }
+                """
+            ),
+        )
+        assert result["::leaf"].has_fallback
+        assert not result["::caller"].has_fallback
+
+
+class TestNamespaceCalleeResolution:
+    def test_bare_call_resolves_to_caller_namespace(self):
+        # ``leaf`` called from ``::ns::caller`` should resolve to
+        # ``::ns::leaf`` — so its upvar source propagates back.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                namespace eval ::ns {
+                    proc leaf {} {
+                        upvar 1 shared local
+                        set local 1
+                    }
+                    proc caller {} {
+                        set shared 2
+                        leaf
+                    }
+                }
+                """
+            ),
+        )
+        assert result["::ns::caller"].is_frame("shared")
+
+
+class TestApiMutualExclusivity:
+    def test_no_argument_raises(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            analyse_var_escape()
+
+    def test_source_plus_ir_module_raises(self):
+        import pytest
+
+        from core.compiler.lowering import lower_to_ir
+
+        ir = lower_to_ir("proc f {} {}")
+        with pytest.raises(ValueError):
+            analyse_var_escape(source="proc f {} {}", ir_module=ir)
+
+    def test_multiple_ssa_versions_of_same_name_collapse_frame(self):
+        # Two writes to ``x`` before an upvar aliases it; both SSA
+        # versions collapse to FRAME in the per-name result.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {} {
+                    set x 1
+                    set x 2
+                    upvar 1 outer x
+                }
+                """
+            )
+        )
+        summary = result["::f"]
+        assert summary.is_frame("x")
+        # At least one SSA-version entry for ``x`` was tagged FRAME.
+        x_versions = [v for (n, v) in summary.ssa_tags if n == "x"]
+        assert x_versions

@@ -1,40 +1,38 @@
-"""WebAssembly (WASM) code generator for Tcl.
+"""The ``_WasmEmitter`` class and expression-operator opcode maps.
 
-Translates CFG-based IR into valid WASM binary modules.  Supports two
-output modes controlled by the ``optimise`` flag:
+This is the bulk of the WASM code generator. ``_WasmEmitter`` emits
+WASM instructions for a single CFG function; the public codegen
+entry points in ``__init__.py`` construct one emitter per proc and
+stitch the resulting functions into a ``WasmModule``.
 
-- **Non-optimised** (``optimise=False``): straightforward translation
-  with stack-based variable access, no instruction folding.
-- **Optimised** (``optimise=True``): constant folding, dead-code
-  elimination, and local variable promotion.
+The module is large because it owns every ``_emit_*`` helper for
+every Tcl command the compiler supports end-to-end. Its shape
+should be read alongside the sibling submodules:
 
-Public API::
+- ``_encoding.py`` — LEB128 + Tcl list-element quoting
+- ``_ir.py`` — WASM data classes and WAT formatter
+- ``_imports.py`` — runtime import tables
+- ``_parsing.py`` — compile-time string parsing helpers
+- ``_scan.py`` — pre-codegen scan of the IR for needed imports
 
-    wasm_codegen_module(cfg_module, ir_module, *, optimise=False) -> WasmModule
-    wasm_codegen_function(cfg, params=(), *, optimise=False) -> WasmFunction
-
-The resulting ``WasmModule`` can be serialised to a ``.wasm`` binary
-via :meth:`WasmModule.to_bytes` or inspected via :meth:`WasmModule.to_wat`.
+External callers should import the emitter through ``core.compiler.codegen.wasm``
+rather than reaching into this module.
 """
 
 from __future__ import annotations
 
-import struct
 from collections.abc import Callable
-from dataclasses import dataclass, field
-from enum import IntEnum
 
-from ...analysis.semantic_model import Range
-from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
-from ...parsing.tokens import TokenType
-from ..cfg import (
+from ....analysis.semantic_model import Range
+from ....parsing.substitution import backslash_subst as _tcl_backslash_subst
+from ....parsing.tokens import TokenType
+from ...cfg import (
     CFGBranch,
     CFGFunction,
     CFGGoto,
-    CFGModule,
     CFGReturn,
 )
-from ..expr_ast import (
+from ...expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -48,7 +46,7 @@ from ..expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from ..ir import (
+from ...ir import (
     CommandTokens,
     IRAssignConst,
     IRAssignExpr,
@@ -71,1967 +69,39 @@ from ..ir import (
     IRTry,
     IRWhile,
 )
-
-# WASM binary encoding helpers
-
-
-def _leb128_unsigned(value: int) -> bytes:
-    """Encode an unsigned integer as LEB128."""
-    if value < 0:
-        msg = f"unsigned LEB128 requires non-negative value, got {value}"
-        raise ValueError(msg)
-    result = bytearray()
-    while True:
-        byte = value & 0x7F
-        value >>= 7
-        if value:
-            byte |= 0x80
-        result.append(byte)
-        if not value:
-            break
-    return bytes(result)
-
-
-def _leb128_signed(value: int) -> bytes:
-    """Encode a signed integer as LEB128."""
-    result = bytearray()
-    while True:
-        byte = value & 0x7F
-        value >>= 7
-        if (value == 0 and not (byte & 0x40)) or (value == -1 and (byte & 0x40)):
-            result.append(byte)
-            break
-        result.append(byte | 0x80)
-    return bytes(result)
-
-
-def _tcl_token_value(token: str) -> str:
-    """Return the runtime VALUE of a Tcl source token (word).
-
-    Mirrors the C Tcl parser's substitution rules:
-    - Braced words ``{content}``: strip outer braces; content is literal
-      (no substitution of any kind).
-    - All other words: apply backslash substitution (``\\n`` → newline,
-      ``\\\\`` → ``\\``, etc.).  Variable and command substitutions are
-      left as-is because they must be resolved at runtime.
-
-    Use this before ``_tcl_list_quote`` whenever *token* comes directly
-    from IR source tokens rather than from a previously-evaluated value.
-
-    Inverse: ``_tcl_list_quote(_tcl_token_value(token))`` gives the
-    canonical list-element representation of the word's value.
-    """
-    if token.startswith("{") and token.endswith("}") and len(token) >= 2:
-        return token[1:-1]
-    if "\\" in token:
-        return _tcl_backslash_subst(token)
-    return token
-
-
-_LIST_ELEM_WHITESPACE = frozenset(" \t\n\x0b\x0c\r")
-
-
-# Flag bits for :func:`_tcl_scan_element` / :func:`_tcl_convert_element`.
-# Names and semantics mirror ``enum ConvertFlags`` in ``tclUtil.c`` so the
-# port is 1:1 with the Zig runtime (``runtime/zig/tcl_obj.zig``) and with
-# reference Tcl 9.0's ``TclScanElement`` / ``TclConvertElement``.
-_FLAG_CONVERT_NONE = 0
-_FLAG_DONT_USE_BRACES = 1
-_FLAG_CONVERT_BRACE = 2
-_FLAG_CONVERT_ESCAPE = 4
-_FLAG_DONT_QUOTE_HASH = 8
-_FLAG_CONVERT_MASK = _FLAG_CONVERT_BRACE | _FLAG_CONVERT_ESCAPE
-
-
-def _tcl_scan_element(s: str, flag_in: int = 0) -> int:
-    """Port of ``TclScanElement`` (tclUtil.c, Tcl 9.0, COMPAT=1).
-
-    Chooses the ``CONVERT_*`` mode appropriate for *s* so that
-    :func:`_tcl_convert_element` produces a valid list-element
-    representation.  Pass ``_FLAG_DONT_QUOTE_HASH`` to skip the
-    leading-``#`` quoting rule — matches ``UpdateStringOfList``'s
-    ``i ? TCL_DONT_QUOTE_HASH : 0`` convention for non-first elements.
-    """
-    if s == "":
-        return (flag_in & _FLAG_DONT_QUOTE_HASH) | _FLAG_CONVERT_BRACE
-    forbid_none = False
-    require_escape = False
-    prefer_escape = False
-    prefer_brace = False
-    nesting = 0
-    if s[0] == "{" or s[0] == '"':
-        forbid_none = True
-        prefer_brace = True
-    if s[0] == "#" and (flag_in & _FLAG_DONT_QUOTE_HASH) == 0:
-        prefer_brace = True
-    i = 0
-    n = len(s)
-    while i < n:
-        ch = s[i]
-        if ch == "{":
-            nesting += 1
-        elif ch == "}":
-            nesting -= 1
-            if nesting < 0:
-                require_escape = True
-        elif ch == "]" or ch == '"':
-            forbid_none = True
-            prefer_escape = True
-        elif ch == "[" or ch == "$" or ch == ";":
-            forbid_none = True
-            prefer_brace = True
-        elif ch == "\\":
-            if i + 1 >= n:
-                require_escape = True
-            elif s[i + 1] == "\n":
-                require_escape = True
-                i += 1
-            elif s[i + 1] == "{" or s[i + 1] == "}" or s[i + 1] == "\\":
-                i += 1
-            forbid_none = True
-            prefer_brace = True
-        elif ch in _LIST_ELEM_WHITESPACE:
-            forbid_none = True
-            prefer_brace = True
-        i += 1
-    if nesting > 0:
-        require_escape = True
-    out_hash = flag_in & _FLAG_DONT_QUOTE_HASH
-    if require_escape:
-        return out_hash | _FLAG_CONVERT_ESCAPE
-    if forbid_none:
-        if prefer_escape and not prefer_brace:
-            return out_hash | _FLAG_CONVERT_MASK
-        return out_hash | _FLAG_CONVERT_BRACE
-    return out_hash | _FLAG_CONVERT_NONE
-
-
-_ESCAPE_ONE_CHAR = frozenset('][$; \\"')
-_ESCAPE_CTL_MAP = {
-    "\n": "\\n",
-    "\t": "\\t",
-    "\r": "\\r",
-    "\x0b": "\\v",
-    "\x0c": "\\f",
-}
-
-
-def _tcl_convert_element(s: str, flags: int) -> str:
-    """Port of ``TclConvertElement`` (tclUtil.c, Tcl 9.0, COMPAT=1)."""
-    conversion = flags & _FLAG_CONVERT_MASK
-    if (flags & _FLAG_DONT_USE_BRACES) and (conversion & _FLAG_CONVERT_BRACE):
-        conversion = _FLAG_CONVERT_ESCAPE
-    if s == "":
-        return "{}"
-    prefix = ""
-    if s[0] == "#" and (flags & _FLAG_DONT_QUOTE_HASH) == 0:
-        if conversion == _FLAG_CONVERT_ESCAPE:
-            prefix = "\\#"
-            s = s[1:]
-        else:
-            conversion = _FLAG_CONVERT_BRACE
-    if conversion == _FLAG_CONVERT_NONE:
-        return prefix + s
-    if conversion == _FLAG_CONVERT_BRACE:
-        return prefix + "{" + s + "}"
-    # CONVERT_ESCAPE or CONVERT_MASK.
-    out: list[str] = [prefix] if prefix else []
-    for ch in s:
-        if ch in _ESCAPE_ONE_CHAR:
-            out.append("\\")
-            out.append(ch)
-        elif ch == "{" or ch == "}":
-            if conversion == _FLAG_CONVERT_ESCAPE:
-                out.append("\\")
-            out.append(ch)
-        elif ch in _ESCAPE_CTL_MAP:
-            out.append(_ESCAPE_CTL_MAP[ch])
-        else:
-            out.append(ch)
-    return "".join(out)
-
-
-def _tcl_list_quote(s: str, first: bool = True) -> str:
-    """Return *s* encoded as a single Tcl list element.
-
-    ``first=True`` — the element is position 0 of the output list, so a
-    leading ``#`` is quoted (``{#}`` or ``\\#``) to prevent later
-    ``eval`` re-parses from treating it as a comment.
-    ``first=False`` — adds ``TCL_DONT_QUOTE_HASH``, matching the
-    second-and-later-element rule in ``UpdateStringOfList``.
-    """
-    flag_in = 0 if first else _FLAG_DONT_QUOTE_HASH
-    flags = _tcl_scan_element(s, flag_in)
-    return _tcl_convert_element(s, flags)
-
-
-def _encode_string(s: str) -> bytes:
-    """Encode a UTF-8 string with length prefix."""
-    encoded = s.encode("utf-8")
-    return _leb128_unsigned(len(encoded)) + encoded
-
-
-def _encode_vector(items: list[bytes]) -> bytes:
-    """Encode a WASM vector (count + concatenated items)."""
-    return _leb128_unsigned(len(items)) + b"".join(items)
-
-
-# WASM type constants
-
-
-class ValType(IntEnum):
-    """WASM value types."""
-
-    I32 = 0x7F
-    I64 = 0x7E
-    F32 = 0x7D
-    F64 = 0x7C
-
-
-class SectionId(IntEnum):
-    """WASM section identifiers."""
-
-    CUSTOM = 0
-    TYPE = 1
-    IMPORT = 2
-    FUNCTION = 3
-    TABLE = 4
-    MEMORY = 5
-    GLOBAL = 6
-    EXPORT = 7
-    START = 8
-    ELEMENT = 9
-    CODE = 10
-    DATA = 11
-
-
-# WASM opcodes used in emission
-class WasmOp(IntEnum):
-    """WASM instruction opcodes (subset used by this backend)."""
-
-    UNREACHABLE = 0x00
-    NOP = 0x01
-    BLOCK = 0x02
-    LOOP = 0x03
-    IF = 0x04
-    ELSE = 0x05
-    END = 0x0B
-    BR = 0x0C
-    BR_IF = 0x0D
-    BR_TABLE = 0x0E
-    RETURN = 0x0F
-    CALL = 0x10
-    DROP = 0x1A
-    SELECT = 0x1B
-    LOCAL_GET = 0x20
-    LOCAL_SET = 0x21
-    LOCAL_TEE = 0x22
-    GLOBAL_GET = 0x23
-    GLOBAL_SET = 0x24
-    I32_LOAD = 0x28
-    I64_LOAD = 0x29
-    I32_STORE = 0x36
-    I64_STORE = 0x37
-    MEMORY_SIZE = 0x3F
-    MEMORY_GROW = 0x40
-    I32_CONST = 0x41
-    I64_CONST = 0x42
-    F64_CONST = 0x44
-    I32_EQZ = 0x45
-    I32_EQ = 0x46
-    I32_NE = 0x47
-    I32_LT_S = 0x48
-    I32_GT_S = 0x4A
-    I32_LE_S = 0x4C
-    I32_GE_S = 0x4E
-    I64_EQZ = 0x50
-    I64_EQ = 0x51
-    I64_NE = 0x52
-    I64_LT_S = 0x53
-    I64_GT_S = 0x55
-    I64_LE_S = 0x57
-    I64_GE_S = 0x59
-    I32_ADD = 0x6A
-    I32_SUB = 0x6B
-    I32_MUL = 0x6C
-    I32_DIV_S = 0x6D
-    I32_REM_S = 0x6F
-    I32_AND = 0x71
-    I32_OR = 0x72
-    I32_XOR = 0x73
-    I32_SHL = 0x74
-    I32_SHR_S = 0x75
-    I64_ADD = 0x7C
-    I64_SUB = 0x7D
-    I64_MUL = 0x7E
-    I64_DIV_S = 0x7F
-    I64_REM_S = 0x81
-    I64_AND = 0x83
-    I64_OR = 0x84
-    I64_XOR = 0x85
-    I64_SHL = 0x86
-    I64_SHR_S = 0x87
-    I32_WRAP_I64 = 0xA7
-    I64_EXTEND_I32_S = 0xAC
-
-
-# WASM magic and version
-_WASM_MAGIC = b"\x00asm"
-_WASM_VERSION = struct.pack("<I", 1)
-
-# Block type for void blocks
-_BLOCK_VOID = 0x40
-# Block type for i64 result
-_BLOCK_I64 = ValType.I64
-
-
-# Data structures
-
-
-@dataclass(slots=True)
-class WasmInstruction:
-    """A single WASM instruction with optional operands."""
-
-    op: int
-    operands: bytes = b""
-
-    def encode(self) -> bytes:
-        return bytes([self.op]) + self.operands
-
-
-@dataclass(slots=True)
-class WasmFunction:
-    """Compiled WASM function."""
-
-    name: str
-    params: list[ValType]
-    results: list[ValType]
-    locals: list[ValType]
-    body: list[WasmInstruction]
-    local_names: list[str] = field(default_factory=list)
-    exported: bool = False
-
-    def encode_body(self) -> bytes:
-        """Encode function body (locals + instructions + end)."""
-        # Encode local declarations (run-length compressed)
-        local_groups: list[bytes] = []
-        if self.locals:
-            # Group consecutive same-type locals
-            groups: list[tuple[int, ValType]] = []
-            current_type = self.locals[0]
-            count = 1
-            for lt in self.locals[1:]:
-                if lt == current_type:
-                    count += 1
-                else:
-                    groups.append((count, current_type))
-                    current_type = lt
-                    count = 1
-            groups.append((count, current_type))
-            for cnt, vt in groups:
-                local_groups.append(_leb128_unsigned(cnt) + bytes([vt]))
-
-        locals_section = _encode_vector(local_groups)
-        code = b"".join(instr.encode() for instr in self.body)
-        # Ensure the body ends with END
-        if not self.body or self.body[-1].op != WasmOp.END:
-            code += bytes([WasmOp.END])
-        func_body = locals_section + code
-        return _leb128_unsigned(len(func_body)) + func_body
-
-
-@dataclass(slots=True)
-class WasmImport:
-    """An imported function."""
-
-    module: str
-    name: str
-    type_idx: int
-
-
-@dataclass(slots=True)
-class WasmData:
-    """A data segment for string constants."""
-
-    offset: int
-    data: bytes
-
-
-@dataclass(slots=True)
-class DiagSite:
-    """A single diagnostic call-site in the compiled module.
-
-    Emitted by the codegen as a sidecar entry for every command invocation
-    whose trap path surfaces the command to the user — the eval fallback,
-    unsupported-command trap, and unknown-command dispatch.  At runtime
-    the last-registered site's ID is prefixed onto the stderr trap line
-    so a companion resolver (tcl-trap-resolve skill, or an in-process
-    harness loader) can map ``site=1234`` back to ``(file, line, col,
-    command)`` without embedding the strings in the .wasm.
-    """
-
-    id: int  # site_id emitted as the argument to tcl_diag_set
-    file: str  # source filename (may be "<unknown>" when not threaded)
-    line: int  # 1-based line number of the originating command
-    col: int  # 1-based column
-    end_line: int
-    end_col: int
-    command: str  # the Tcl command being dispatched
-    args: tuple[str, ...] = ()  # raw argument strings (best-effort)
-    kind: str = "fallback"  # "fallback" | "unsupported" | "unknown"
-    proc: str | None = None  # fully-qualified proc name this site lives in
-
-
-@dataclass(slots=True)
-class DiagMap:
-    """Sidecar source-location map for a compiled WASM module.
-
-    Produced alongside a :class:`WasmModule` by
-    :func:`wasm_codegen_module` when a filename is supplied.  The map
-    resolves the opaque ``site_id`` values that the runtime writes on a
-    trap back to concrete source locations.  :func:`to_json_dict` emits
-    the wire format that the runner writes to ``<module>.wasm.map.json``.
-
-    ``procs`` separately resolves WASM function indices to their proc
-    qualified names so a wasm backtrace like ``<wasm function 73>`` can
-    be rendered as ``::tcltest::Configure``.
-    """
-
-    sites: list[DiagSite] = field(default_factory=list)
-    procs: list[tuple[int, str]] = field(default_factory=list)
-    filename: str = "<unknown>"
-
-    def add_site(self, site: DiagSite) -> int:
-        """Register a site and return its id (1-based; 0 means 'unset')."""
-        self.sites.append(site)
-        return site.id
-
-    def to_json_dict(self) -> dict:
-        return {
-            "filename": self.filename,
-            "sites": [
-                {
-                    "id": s.id,
-                    "file": s.file,
-                    "line": s.line,
-                    "col": s.col,
-                    "end_line": s.end_line,
-                    "end_col": s.end_col,
-                    "command": s.command,
-                    "args": list(s.args),
-                    "kind": s.kind,
-                    "proc": s.proc,
-                }
-                for s in self.sites
-            ],
-            "procs": [{"func_idx": f, "qname": q} for f, q in self.procs],
-        }
-
-
-@dataclass(slots=True)
-class WasmModule:
-    """Complete WASM module."""
-
-    functions: list[WasmFunction] = field(default_factory=list)
-    imports: list[WasmImport] = field(default_factory=list)
-    data_segments: list[WasmData] = field(default_factory=list)
-    memory_pages: int = 1
-    import_memory: bool = True  # import memory from runtime instead of defining own
-    _type_cache: dict[tuple[tuple[int, ...], tuple[int, ...]], int] = field(default_factory=dict)
-    _types: list[tuple[list[ValType], list[ValType]]] = field(default_factory=list)
-
-    def _intern_type(self, params: list[ValType], results: list[ValType]) -> int:
-        key = (tuple(params), tuple(results))
-        idx = self._type_cache.get(key)
-        if idx is not None:
-            return idx
-        idx = len(self._types)
-        self._types.append((list(params), list(results)))
-        self._type_cache[key] = idx
-        return idx
-
-    def to_bytes(self) -> bytes:
-        """Serialise to a valid WASM binary."""
-        sections: list[bytes] = []
-
-        # Register all function types
-        for imp in self.imports:
-            # Import types already registered
-            pass
-        for func in self.functions:
-            self._intern_type(func.params, func.results)
-
-        # Type section
-        type_entries: list[bytes] = []
-        for params, results in self._types:
-            entry = b"\x60"  # functype
-            entry += _encode_vector([bytes([p]) for p in params])
-            entry += _encode_vector([bytes([r]) for r in results])
-            type_entries.append(entry)
-        if type_entries:
-            sections.append(self._make_section(SectionId.TYPE, _encode_vector(type_entries)))
-
-        # Import section
-        if self.imports:
-            import_entries: list[bytes] = []
-            for imp in self.imports:
-                entry = _encode_string(imp.module)
-                entry += _encode_string(imp.name)
-                entry += b"\x00"  # functype
-                entry += _leb128_unsigned(imp.type_idx)
-                import_entries.append(entry)
-            # Import memory from runtime so data segments share the same
-            # linear memory as TclObj allocations.
-            if self.import_memory:
-                mem_imp = _encode_string("tcl")
-                mem_imp += _encode_string("memory")
-                mem_imp += b"\x02"  # memory import
-                mem_imp += b"\x00"  # limits: no maximum
-                mem_imp += _leb128_unsigned(self.memory_pages)
-                import_entries.append(mem_imp)
-            sections.append(self._make_section(SectionId.IMPORT, _encode_vector(import_entries)))
-
-        # Function section (type indices for defined functions)
-        if self.functions:
-            func_type_indices: list[bytes] = []
-            for func in self.functions:
-                tidx = self._intern_type(func.params, func.results)
-                func_type_indices.append(_leb128_unsigned(tidx))
-            sections.append(
-                self._make_section(SectionId.FUNCTION, _encode_vector(func_type_indices))
-            )
-
-        # Memory section (only if not importing)
-        if not self.import_memory:
-            mem_data = _leb128_unsigned(1)  # 1 memory
-            mem_data += b"\x00"  # no maximum
-            mem_data += _leb128_unsigned(self.memory_pages)
-            sections.append(self._make_section(SectionId.MEMORY, mem_data))
-
-        # Export section
-        export_entries: list[bytes] = []
-        # Export memory (only if we define it, not if imported)
-        if not self.import_memory:
-            exp = _encode_string("memory")
-            exp += b"\x02"  # memory export
-            exp += _leb128_unsigned(0)
-            export_entries.append(exp)
-        # Export functions
-        num_imports = len(self.imports)
-        for i, func in enumerate(self.functions):
-            if func.exported:
-                exp = _encode_string(func.name)
-                exp += b"\x00"  # func export
-                exp += _leb128_unsigned(num_imports + i)
-                export_entries.append(exp)
-        if export_entries:
-            sections.append(self._make_section(SectionId.EXPORT, _encode_vector(export_entries)))
-
-        # Code section
-        if self.functions:
-            code_entries = [func.encode_body() for func in self.functions]
-            sections.append(self._make_section(SectionId.CODE, _encode_vector(code_entries)))
-
-        # Data section
-        if self.data_segments:
-            data_entries: list[bytes] = []
-            for seg in self.data_segments:
-                entry = b"\x00"  # active, memory 0
-                # i32.const offset + end
-                entry += bytes([WasmOp.I32_CONST]) + _leb128_signed(seg.offset)
-                entry += bytes([WasmOp.END])
-                entry += _leb128_unsigned(len(seg.data)) + seg.data
-                data_entries.append(entry)
-            sections.append(self._make_section(SectionId.DATA, _encode_vector(data_entries)))
-
-        return _WASM_MAGIC + _WASM_VERSION + b"".join(sections)
-
-    def to_wat(self) -> str:
-        """Generate a human-readable WAT (WebAssembly Text) representation."""
-        lines: list[str] = ["(module"]
-
-        # Types
-        for i, (params, results) in enumerate(self._types):
-            p = " ".join(f"(param {_valtype_name(p)})" for p in params)
-            r = " ".join(f"(result {_valtype_name(r)})" for r in results)
-            lines.append(f"  (type $t{i} (func {p} {r}))")
-
-        # Imports
-        for imp in self.imports:
-            lines.append(
-                f'  (import "{imp.module}" "{imp.name}" '
-                f"(func $imp_{imp.name} (type $t{imp.type_idx})))"
-            )
-
-        # Memory
-        if self.import_memory:
-            lines.append(f'  (import "tcl" "memory" (memory {self.memory_pages}))')
-        else:
-            lines.append(f'  (memory (export "memory") {self.memory_pages})')
-
-        # Functions
-        for func in self.functions:
-            self._intern_type(func.params, func.results)
-            export = f' (export "{func.name}")' if func.exported else ""
-            sig_parts: list[str] = []
-            for j, p in enumerate(func.params):
-                name = func.local_names[j] if j < len(func.local_names) else f"$p{j}"
-                sig_parts.append(f"(param {name} {_valtype_name(p)})")
-            for r in func.results:
-                sig_parts.append(f"(result {_valtype_name(r)})")
-            sig = " ".join(sig_parts)
-
-            lines.append(f"  (func ${func.name}{export} {sig}")
-
-            # Locals
-            param_count = len(func.params)
-            for j, lt in enumerate(func.locals):
-                local_idx = param_count + j
-                name = (
-                    func.local_names[local_idx] if local_idx < len(func.local_names) else f"$l{j}"
-                )
-                lines.append(f"    (local {name} {_valtype_name(lt)})")
-
-            # Body
-            indent = 2
-            for instr in func.body:
-                line = _format_wat_instr(instr, indent)
-                if line is not None:
-                    lines.append(line)
-                    # Track indent for blocks
-                    if instr.op in (WasmOp.BLOCK, WasmOp.LOOP, WasmOp.IF):
-                        indent += 1
-                    elif instr.op == WasmOp.ELSE:
-                        pass  # same indent
-                    elif instr.op == WasmOp.END:
-                        indent = max(2, indent - 1)
-
-            lines.append("  )")
-
-        # Data segments
-        for seg in self.data_segments:
-            escaped = (
-                seg.data.decode("utf-8", errors="replace").replace("\\", "\\\\").replace('"', '\\"')
-            )
-            lines.append(f'  (data (i32.const {seg.offset}) "{escaped}")')
-
-        lines.append(")")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _make_section(section_id: SectionId, content: bytes) -> bytes:
-        return bytes([section_id]) + _leb128_unsigned(len(content)) + content
-
-
-def _valtype_name(vt: ValType | int) -> str:
-    names = {ValType.I32: "i32", ValType.I64: "i64", ValType.F32: "f32", ValType.F64: "f64"}
-    return names.get(ValType(vt), f"unknown({vt})")
-
-
-def _format_wat_instr(instr: WasmInstruction, indent: int) -> str | None:
-    """Format a single instruction for WAT output."""
-    prefix = "    " * indent
-    op = instr.op
-
-    _WAT_NAMES: dict[int, str] = {
-        WasmOp.UNREACHABLE: "unreachable",
-        WasmOp.NOP: "nop",
-        WasmOp.BLOCK: "block",
-        WasmOp.LOOP: "loop",
-        WasmOp.IF: "if",
-        WasmOp.ELSE: "else",
-        WasmOp.END: "end",
-        WasmOp.BR: "br",
-        WasmOp.BR_IF: "br_if",
-        WasmOp.BR_TABLE: "br_table",
-        WasmOp.RETURN: "return",
-        WasmOp.CALL: "call",
-        WasmOp.DROP: "drop",
-        WasmOp.SELECT: "select",
-        WasmOp.LOCAL_GET: "local.get",
-        WasmOp.LOCAL_SET: "local.set",
-        WasmOp.LOCAL_TEE: "local.tee",
-        WasmOp.GLOBAL_GET: "global.get",
-        WasmOp.GLOBAL_SET: "global.set",
-        WasmOp.I32_CONST: "i32.const",
-        WasmOp.I64_CONST: "i64.const",
-        WasmOp.F64_CONST: "f64.const",
-        WasmOp.I32_EQZ: "i32.eqz",
-        WasmOp.I32_EQ: "i32.eq",
-        WasmOp.I32_NE: "i32.ne",
-        WasmOp.I32_LT_S: "i32.lt_s",
-        WasmOp.I32_GT_S: "i32.gt_s",
-        WasmOp.I32_LE_S: "i32.le_s",
-        WasmOp.I32_GE_S: "i32.ge_s",
-        WasmOp.I64_EQZ: "i64.eqz",
-        WasmOp.I64_EQ: "i64.eq",
-        WasmOp.I64_NE: "i64.ne",
-        WasmOp.I64_LT_S: "i64.lt_s",
-        WasmOp.I64_GT_S: "i64.gt_s",
-        WasmOp.I64_LE_S: "i64.le_s",
-        WasmOp.I64_GE_S: "i64.ge_s",
-        WasmOp.I32_ADD: "i32.add",
-        WasmOp.I32_SUB: "i32.sub",
-        WasmOp.I32_MUL: "i32.mul",
-        WasmOp.I32_DIV_S: "i32.div_s",
-        WasmOp.I32_REM_S: "i32.rem_s",
-        WasmOp.I32_AND: "i32.and",
-        WasmOp.I32_OR: "i32.or",
-        WasmOp.I32_XOR: "i32.xor",
-        WasmOp.I32_SHL: "i32.shl",
-        WasmOp.I32_SHR_S: "i32.shr_s",
-        WasmOp.I64_ADD: "i64.add",
-        WasmOp.I64_SUB: "i64.sub",
-        WasmOp.I64_MUL: "i64.mul",
-        WasmOp.I64_DIV_S: "i64.div_s",
-        WasmOp.I64_REM_S: "i64.rem_s",
-        WasmOp.I64_AND: "i64.and",
-        WasmOp.I64_OR: "i64.or",
-        WasmOp.I64_XOR: "i64.xor",
-        WasmOp.I64_SHL: "i64.shl",
-        WasmOp.I64_SHR_S: "i64.shr_s",
-        WasmOp.I32_WRAP_I64: "i32.wrap_i64",
-        WasmOp.I64_EXTEND_I32_S: "i64.extend_i32_s",
-        WasmOp.I32_STORE: "i32.store",
-        WasmOp.I64_STORE: "i64.store",
-        WasmOp.I32_LOAD: "i32.load",
-        WasmOp.I64_LOAD: "i64.load",
-        WasmOp.MEMORY_SIZE: "memory.size",
-        WasmOp.MEMORY_GROW: "memory.grow",
-    }
-
-    name = _WAT_NAMES.get(op)
-    if name is None:
-        return f"{prefix};; unknown op 0x{op:02x}"
-
-    # Decode operands for display
-    if op in (
-        WasmOp.LOCAL_GET,
-        WasmOp.LOCAL_SET,
-        WasmOp.LOCAL_TEE,
-        WasmOp.GLOBAL_GET,
-        WasmOp.GLOBAL_SET,
-        WasmOp.CALL,
-        WasmOp.BR,
-        WasmOp.BR_IF,
-    ):
-        if instr.operands:
-            # Decode LEB128 index from operands
-            idx = _decode_leb128_unsigned(instr.operands)
-            return f"{prefix}{name} {idx}"
-    elif op in (WasmOp.I32_CONST,):
-        if instr.operands:
-            val = _decode_leb128_signed(instr.operands)
-            return f"{prefix}{name} {val}"
-    elif op in (WasmOp.I64_CONST,):
-        if instr.operands:
-            val = _decode_leb128_signed(instr.operands)
-            return f"{prefix}{name} {val}"
-    elif op == WasmOp.BLOCK or op == WasmOp.LOOP or op == WasmOp.IF:
-        if instr.operands:
-            bt = instr.operands[0]
-            if bt == _BLOCK_VOID:
-                return f"{prefix}{name}"
-            return f"{prefix}{name} (result {_valtype_name(bt)})"
-        return f"{prefix}{name}"
-
-    return f"{prefix}{name}"
-
-
-def _decode_leb128_unsigned(data: bytes) -> int:
-    result = 0
-    shift = 0
-    for byte in data:
-        result |= (byte & 0x7F) << shift
-        if not (byte & 0x80):
-            break
-        shift += 7
-    return result
-
-
-def _decode_leb128_signed(data: bytes) -> int:
-    result = 0
-    shift = 0
-    for byte in data:
-        result |= (byte & 0x7F) << shift
-        shift += 7
-        if not (byte & 0x80):
-            if byte & 0x40:
-                result -= 1 << shift
-            break
-    return result
-
-
-# WASM Emitter
-
-
-# Runtime function signatures imported from the Tcl runtime.
-# Each entry maps an import key to (module, export_name, param_types, result_types).
-#
-# Values are represented as i32 TclObj pointers.  The TclObj lifecycle
-# imports (obj_new_int, obj_new_string, obj_get_int) bridge between raw
-# WASM integers (i64) used in expr arithmetic and the i32 object pointers
-# passed to/from runtime functions and stored in locals.
-_RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
-    # TclObj lifecycle — always imported
-    "tcl_obj_new_int": ("tcl", "obj_new_int", [ValType.I64], [ValType.I32]),
-    "tcl_obj_new_string": ("tcl", "obj_new_string", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
-    # Command runtime — all parameters/results are i32 TclObj pointers
-    "tcl_puts": ("tcl", "tcl_cmd_puts", [ValType.I32], [ValType.I32]),
-    "tcl_append": ("tcl", "tcl_cmd_append", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_length": ("tcl", "tcl_cmd_list_length", [ValType.I32], [ValType.I32]),
-    "tcl_lappend": ("tcl", "tcl_cmd_lappend", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_length": ("tcl", "string_length", [ValType.I32], [ValType.I32]),
-    "tcl_string_index": ("tcl", "string_index", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_range": (
-        "tcl",
-        "string_range",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_compare": (
-        "tcl",
-        "string_compare",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_expr_order_cmp": (
-        "tcl",
-        "tcl_expr_order_cmp",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_map": ("tcl", "string_map", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_match": ("tcl", "string_match", [ValType.I32, ValType.I32], [ValType.I32]),
-    # ``string trim{,left,right} value ?chars?`` — a null (i32 0) chars arg
-    # means "default whitespace"; otherwise the TclObj's string value is the
-    # set of bytes to trim.
-    "tcl_string_trim": ("tcl", "string_trim", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_trimleft": (
-        "tcl",
-        "string_trimleft",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_trimright": (
-        "tcl",
-        "string_trimright",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_equal": ("tcl", "string_equal", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_first": ("tcl", "string_first", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_last": ("tcl", "string_last", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_repeat": ("tcl", "string_repeat", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_reverse": ("tcl", "string_reverse", [ValType.I32], [ValType.I32]),
-    "tcl_string_toupper": ("tcl", "string_toupper", [ValType.I32], [ValType.I32]),
-    "tcl_string_tolower": ("tcl", "string_tolower", [ValType.I32], [ValType.I32]),
-    "tcl_string_replace": (
-        "tcl",
-        "string_replace",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_is_integer": ("tcl", "string_is_integer", [ValType.I32], [ValType.I32]),
-    "tcl_string_is_alpha": ("tcl", "string_is_alpha", [ValType.I32], [ValType.I32]),
-    "tcl_string_is_digit": ("tcl", "string_is_digit", [ValType.I32], [ValType.I32]),
-    "tcl_string_is_space": ("tcl", "string_is_space", [ValType.I32], [ValType.I32]),
-    "tcl_list_create": ("tcl", "tcl_list", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_concat": ("tcl", "tcl_cmd_concat", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_index": ("tcl", "tcl_cmd_list_index", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_range": (
-        "tcl",
-        "tcl_cmd_list_range",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_sort": ("tcl", "tcl_cmd_list_sort", [ValType.I32], [ValType.I32]),
-    "tcl_list_search": ("tcl", "tcl_cmd_list_search", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Dict commands
-    "tcl_dict_create": ("tcl", "dict_create", [], [ValType.I32]),
-    "tcl_dict_get": ("tcl", "dict_get", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_dict_set": (
-        "tcl",
-        "dict_set",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_dict_exists": ("tcl", "dict_exists", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_dict_keys": ("tcl", "dict_keys", [ValType.I32], [ValType.I32]),
-    "tcl_dict_values": ("tcl", "dict_values", [ValType.I32], [ValType.I32]),
-    "tcl_dict_size": ("tcl", "dict_size", [ValType.I32], [ValType.I32]),
-    "tcl_error": ("tcl", "tcl_cmd_error", [ValType.I32], []),
-    "tcl_format": (
-        "tcl",
-        "tcl_cmd_format",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_regexp": ("tcl", "tcl_cmd_regexp", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_open": ("tcl", "tcl_cmd_open", [ValType.I32], [ValType.I32]),
-    "tcl_close": ("tcl", "tcl_cmd_close", [ValType.I32], [ValType.I32]),
-    "tcl_read": ("tcl", "tcl_cmd_read", [ValType.I32], [ValType.I32]),
-    "tcl_gets": ("tcl", "tcl_cmd_gets", [ValType.I32], [ValType.I32]),
-    # Global variable table
-    "tcl_global_set": ("tcl", "global_set", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_global_get": ("tcl", "global_get", [ValType.I32], [ValType.I32]),
-    "tcl_global_exists": ("tcl", "global_exists", [ValType.I32], [ValType.I32]),
-    # Catch / error handling
-    "tcl_catch_enter": ("tcl", "catch_enter", [], []),
-    "tcl_catch_leave": ("tcl", "catch_leave", [], [ValType.I32]),
-    "tcl_catch_result": ("tcl", "catch_result", [], [ValType.I32]),
-    "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
-    "tcl_catch_set_ok_result": ("tcl", "catch_set_ok_result", [ValType.I32], []),
-    # Interpreter fallback
-    "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
-    # Namespace context for eval-fallback calls — compiled procs
-    # set the current namespace before ``tcl_eval`` so dynamic
-    # ``proc $name`` / ``variable $name`` inside the fallback
-    # qualify into the enclosing namespace instead of the global
-    # scope.  ``ns_set`` returns an opaque i64 save token;
-    # ``ns_restore`` unwinds it.
-    "tcl_ns_set": (
-        "tcl",
-        "ns_set",
-        [ValType.I32, ValType.I32],
-        [ValType.I64],
-    ),
-    "tcl_ns_restore": ("tcl", "ns_restore", [ValType.I64], []),
-    # Frame stack (local variable scoping)
-    "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
-    "tcl_frame_pop": ("tcl", "frame_pop", [], []),
-    "tcl_var_resolve": ("tcl", "var_resolve", [ValType.I32], [ValType.I32]),
-    "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),
-    "tcl_local_set": ("tcl", "local_set", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_local_get": ("tcl", "local_get", [ValType.I32], [ValType.I32]),
-    # Proc registry
-    "tcl_proc_register": (
-        "tcl",
-        "proc_register",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_proc_register_compiled": (
-        "tcl",
-        "proc_register_compiled",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    # Info command
-    "tcl_info_exists": ("tcl", "info_exists", [ValType.I32], [ValType.I32]),
-    "tcl_info_dispatch": ("tcl", "info_dispatch", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Clock command — WASI clock_time_get wrappers, integer results.
-    "tcl_clock_seconds": ("tcl", "clock_seconds", [], [ValType.I32]),
-    "tcl_clock_clicks": ("tcl", "clock_clicks", [], [ValType.I32]),
-    "tcl_clock_milliseconds": ("tcl", "clock_milliseconds", [], [ValType.I32]),
-    # Frame-depth helpers for uplevel — temporarily shift frame_depth
-    # so a called ``tcl_eval`` runs at a caller's scope.
-    "tcl_frame_depth_stash": (
-        "tcl",
-        "frame_depth_stash",
-        [ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
-    # Arrays — dedicated per-array hash tables.
-    "tcl_array_set": (
-        "tcl",
-        "array_set",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_array_get": ("tcl", "array_get", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_array_exists": ("tcl", "array_exists", [ValType.I32], [ValType.I32]),
-    "tcl_array_element_exists": (
-        "tcl",
-        "array_element_exists",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_array_size": ("tcl", "array_size", [ValType.I32], [ValType.I32]),
-    "tcl_array_unset": ("tcl", "array_unset", [ValType.I32], [ValType.I32]),
-    "tcl_array_unset_element": (
-        "tcl",
-        "array_unset_element",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_array_names": (
-        "tcl",
-        "array_names",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    # String split/join
-    "tcl_split": ("tcl", "tcl_cmd_split", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_join": ("tcl", "tcl_cmd_join", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Diagnostic — record the current source site so trap paths can
-    # prefix stderr with ``site=<id>`` for sidecar-map resolution.
-    "tcl_diag_set": ("tcl", "diag_set", [ValType.I32], []),
-    # I/O + channel stubs (tcl_io_stubs.zig) — trap with "unsupported
-    # command: <name>".  Each stub takes i32 args and returns i32.
-    "tcl_eof": ("tcl", "tcl_cmd_eof", [ValType.I32], [ValType.I32]),
-    "tcl_flush": ("tcl", "tcl_cmd_flush", [ValType.I32], [ValType.I32]),
-    "tcl_fblocked": ("tcl", "tcl_cmd_fblocked", [ValType.I32], [ValType.I32]),
-    "tcl_fconfigure": ("tcl", "tcl_cmd_fconfigure", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_tell": ("tcl", "tcl_cmd_tell", [ValType.I32], [ValType.I32]),
-    "tcl_seek": ("tcl", "tcl_cmd_seek", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_chan": ("tcl", "tcl_cmd_chan", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_fcopy": ("tcl", "tcl_cmd_fcopy", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_fileevent": ("tcl", "tcl_cmd_fileevent", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_socket": ("tcl", "tcl_cmd_socket", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Filesystem / process stubs (tcl_fs_stubs.zig).
-    "tcl_file": (
-        "tcl",
-        "tcl_cmd_file",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_glob": ("tcl", "tcl_cmd_glob", [ValType.I32], [ValType.I32]),
-    "tcl_pwd": ("tcl", "tcl_cmd_pwd", [], [ValType.I32]),
-    "tcl_cd": ("tcl", "tcl_cmd_cd", [ValType.I32], [ValType.I32]),
-    "tcl_exec": ("tcl", "tcl_cmd_exec", [ValType.I32], [ValType.I32]),
-    "tcl_source": ("tcl", "tcl_cmd_source", [ValType.I32], [ValType.I32]),
-    "tcl_load": ("tcl", "tcl_cmd_load", [ValType.I32], [ValType.I32]),
-    "tcl_unload": ("tcl", "tcl_cmd_unload", [ValType.I32], [ValType.I32]),
-    # Format / regex / encoding stubs (tcl_fmt_stubs.zig).
-    "tcl_scan": ("tcl", "tcl_cmd_scan", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_binary": ("tcl", "tcl_cmd_binary", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_regsub": ("tcl", "tcl_cmd_regsub", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_encoding": (
-        "tcl",
-        "tcl_cmd_encoding",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    # Time / event stubs (tcl_time_stubs.zig).  clock_format /
-    # clock_scan / clock_add are the non-implemented clock
-    # subcommands; the arithmetic ones (seconds / clicks /
-    # milliseconds) are real runtime fns in tcl_clock.zig.
-    "tcl_clock_format": ("tcl", "clock_format", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_clock_scan": ("tcl", "clock_scan", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_clock_add": ("tcl", "clock_add", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_after": ("tcl", "tcl_cmd_after", [ValType.I32], [ValType.I32]),
-    "tcl_vwait": ("tcl", "tcl_cmd_vwait", [ValType.I32], [ValType.I32]),
-    "tcl_update": ("tcl", "tcl_cmd_update", [], [ValType.I32]),
-    "tcl_coroutine": ("tcl", "tcl_cmd_coroutine", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_yield": ("tcl", "tcl_cmd_yield", [ValType.I32], [ValType.I32]),
-    "tcl_yieldto": ("tcl", "tcl_cmd_yieldto", [ValType.I32], [ValType.I32]),
-    # Environment / metadata stubs (tcl_env_stubs.zig).  ``namespace``
-    # and ``namespace eval`` are handled separately by the compiler;
-    # this stub catches the other namespace subcommands falling
-    # through.
-    "tcl_namespace": ("tcl", "namespace", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_package": ("tcl", "tcl_cmd_package_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_trace": ("tcl", "tcl_cmd_trace_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_interp": ("tcl", "tcl_cmd_interp_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_apply": ("tcl", "tcl_cmd_apply", [ValType.I32, ValType.I32], [ValType.I32]),
-}
-
-# Import keys for the TclObj lifecycle functions — always registered
-_OBJ_LIFECYCLE_IMPORTS = frozenset(
-    {
-        "tcl_obj_new_int",
-        "tcl_obj_new_string",
-        "tcl_obj_get_int",
-    }
+from ...var_escape import ProcEscapeSummary
+from ._encoding import (
+    _leb128_signed,
+    _leb128_unsigned,
+    _tcl_list_quote,
+    _tcl_token_value,
 )
-
-# Commands that map to runtime imports.  The value is
-# (import_key, arg_count_or_None) where ``None`` means variadic.
-#
-# Stub-mapped commands (file, glob, encoding, trace, etc.) route
-# through this dispatch table so the compiler calls the stub
-# directly — producing a clean ``unsupported command: <name>`` trap
-# — instead of generating a ``tcl_eval`` fallback that invokes the
-# interpreter which then fails to find the command.
-_CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
-    # Implemented runtime functions
-    "puts": ("tcl_puts", 1),
-    "append": ("tcl_append", 2),
-    "llength": ("tcl_list_length", 1),
-    "lappend": ("tcl_lappend", 2),
-    "lindex": ("tcl_list_index", 2),
-    "lrange": ("tcl_list_range", 3),
-    "lsort": ("tcl_list_sort", 1),
-    "lsearch": ("tcl_list_search", 2),
-    "concat": ("tcl_concat", 2),
-    "error": ("tcl_error", 1),
-    "split": ("tcl_split", 2),
-    "join": ("tcl_join", 2),
-    # I/O stubs — open/close/read/gets/eof/flush/fblocked/fconfigure/
-    # tell/seek/chan/fcopy/fileevent/socket all trap with
-    # "unsupported command: <name>".
-    "open": ("tcl_open", 1),
-    "close": ("tcl_close", 1),
-    "read": ("tcl_read", 1),
-    "gets": ("tcl_gets", 1),
-    "eof": ("tcl_eof", 1),
-    "flush": ("tcl_flush", 1),
-    "fblocked": ("tcl_fblocked", 1),
-    "fconfigure": ("tcl_fconfigure", 2),
-    "tell": ("tcl_tell", 1),
-    "seek": ("tcl_seek", 2),
-    "chan": ("tcl_chan", 2),
-    "fcopy": ("tcl_fcopy", 2),
-    "fileevent": ("tcl_fileevent", 2),
-    "socket": ("tcl_socket", 2),
-    # Filesystem / process stubs.
-    "file": ("tcl_file", 3),
-    "glob": ("tcl_glob", 1),
-    "pwd": ("tcl_pwd", 0),
-    "cd": ("tcl_cd", 1),
-    "exec": ("tcl_exec", 1),
-    "source": ("tcl_source", 1),
-    "load": ("tcl_load", 1),
-    "unload": ("tcl_unload", 1),
-    # Format / regex / encoding stubs.
-    "format": ("tcl_format", 4),
-    "scan": ("tcl_scan", 2),
-    "binary": ("tcl_binary", 2),
-    "regexp": ("tcl_regexp", 2),
-    "regsub": ("tcl_regsub", 2),
-    "encoding": ("tcl_encoding", 3),
-    # Event / coroutine stubs.  The arithmetic clock commands
-    # (``clock seconds`` / ``clock clicks`` / ``clock milliseconds``)
-    # are real runtime fns and route through a separate dispatcher
-    # in ``_emit_cmd_clock``; only the formatting variants surface
-    # here.
-    "after": ("tcl_after", 1),
-    "vwait": ("tcl_vwait", 1),
-    "update": ("tcl_update", 0),
-    "coroutine": ("tcl_coroutine", 2),
-    "yield": ("tcl_yield", 1),
-    "yieldto": ("tcl_yieldto", 1),
-    # Environment / metadata stubs.  ``namespace eval`` is compiled
-    # (it is a control-flow construct); the ``namespace`` entry here
-    # only catches the other subcommands (current, qualifiers, which,
-    # tail, code, delete, import, export, exists, parent, children,
-    # inscope, origin, forget, path, ensemble) that route through
-    # this dispatch.  Likewise ``interp`` covers the commands the
-    # previous ``_UNSUPPORTED_COMMANDS`` entry used to hard-trap;
-    # the stub trap is equivalent but gives a sourced site.
-    "package": ("tcl_package", 2),
-    "trace": ("tcl_trace", 2),
-    "interp": ("tcl_interp", 2),
-    "apply": ("tcl_apply", 2),
-}
-
-# String sub-command → import key
-_STRING_SUBCMD_IMPORT: dict[str, str] = {
-    "length": "tcl_string_length",
-    "index": "tcl_string_index",
-    "range": "tcl_string_range",
-    "compare": "tcl_string_compare",
-    "match": "tcl_string_match",
-    "map": "tcl_string_map",
-    "trim": "tcl_string_trim",
-    "trimleft": "tcl_string_trimleft",
-    "trimright": "tcl_string_trimright",
-    "equal": "tcl_string_equal",
-    "first": "tcl_string_first",
-    "last": "tcl_string_last",
-    "repeat": "tcl_string_repeat",
-    "reverse": "tcl_string_reverse",
-    "toupper": "tcl_string_toupper",
-    "tolower": "tcl_string_tolower",
-    "replace": "tcl_string_replace",
-}
-
-# ``string is <class> <value>`` sub-sub-command → import key
-_STRING_IS_IMPORT: dict[str, str] = {
-    "integer": "tcl_string_is_integer",
-    "alpha": "tcl_string_is_alpha",
-    "digit": "tcl_string_is_digit",
-    "space": "tcl_string_is_space",
-}
-
-# Dict sub-command → (import key, additional_arg_count after dict_var)
-_DICT_SUBCMD_IMPORT: dict[str, str] = {
-    "get": "tcl_dict_get",
-    "set": "tcl_dict_set",
-    "exists": "tcl_dict_exists",
-    "keys": "tcl_dict_keys",
-    "values": "tcl_dict_values",
-    "size": "tcl_dict_size",
-    "create": "tcl_dict_create",
-}
-
-# ``clock <subcmd>`` → import key.  Only subcommands that map to a
-# WASI-backed runtime hook are listed; ``format``/``scan`` fall through
-# to the interpreter which itself traps in the sandbox.
-_CLOCK_SUBCMD_IMPORT: dict[str, str] = {
-    "seconds": "tcl_clock_seconds",
-    "clicks": "tcl_clock_clicks",
-    "milliseconds": "tcl_clock_milliseconds",
-}
-
-# Commands that are scope declarations, compile-time-only, or CFG
-# placeholders — NOPs in WASM.
-_SCOPE_NOP_COMMANDS = frozenset(
-    {
-        "namespace",
-        "proc",
-        "package",
-        "rename",
-        # CFG placeholders — the actual logic is emitted by the loop/foreach
-        # emitters; these IRCall nodes are just iteration-setup markers.
-        "foreach",
-    }
+from ._imports import (
+    _CLOCK_SUBCMD_IMPORT,
+    _CMD_RUNTIME,
+    _DICT_SUBCMD_IMPORT,
+    _RUNTIME_IMPORTS,
+    _SCOPE_NOP_COMMANDS,
+    _STRING_IS_IMPORT,
+    _STRING_SUBCMD_IMPORT,
+    _UNSUPPORTED_COMMANDS,
 )
-
-# Commands that require capabilities unavailable in the WASM sandbox.
-# The codegen emits a call to the runtime ``error`` function with a
-# descriptive message so the module traps with a clear diagnostic
-# rather than silently emitting a NOP.
-# Commands that have no meaningful implementation in WASM and
-# aren't covered by the ``_CMD_RUNTIME`` stub table.  Kept as an
-# explicit trap path so (a) we reject them at compile time with a
-# clear message and (b) new users see they're intentionally
-# unimplemented rather than silently accepted.  Most commands that
-# used to live here (``exec``, ``socket``, ``interp``, ``after``,
-# etc.) have moved to the stub dispatch table — they still trap,
-# but the diag machinery attributes the trap to a source site.
-_UNSUPPORTED_COMMANDS: frozenset[str] = frozenset()
-
-
-def _parse_array_ref(name: str) -> tuple[str, str] | None:
-    """Return ``(array_name, key_text)`` if *name* looks like ``arr(key)``.
-
-    Returns ``None`` for scalar names.  The key may be a literal, a
-    variable reference (``$i``), an interpolated string
-    (``counter-$tag``), or a command substitution — the caller is
-    responsible for emitting it as a TclObj value via ``_emit_value``.
-
-    Array names can themselves contain ``::`` (``::ns::arr(key)``) and
-    the key may contain ``)``-balanced nested parens — we require
-    properly nested parens with the final ``)`` matching the first
-    unescaped ``(``.
-    """
-    # Strip Tcl's ``$=`` scalar-disambiguator prefix that the lowerer
-    # sometimes applies to braced ``${x(1)}`` scalars so we don't
-    # misidentify those as array refs.
-    if not name or "(" not in name or not name.endswith(")"):
-        return None
-    if name.startswith("$={"):
-        return None
-    # Find the first '(' that isn't escaped.
-    i = 0
-    n = len(name)
-    while i < n:
-        if name[i] == "\\" and i + 1 < n:
-            i += 2
-            continue
-        if name[i] == "(":
-            break
-        i += 1
-    else:
-        return None
-    arr = name[:i]
-    if not arr:
-        return None
-    # The key runs from i+1 to the matching ')', which is the last char.
-    key = name[i + 1 : -1]
-    return (arr, key)
-
-
-def _derive_proc_namespace(qname: str) -> str:
-    """Return the namespace containing *qname*.
-
-    ``::counter::init`` → ``::counter``; ``::main`` → ``::``. Used to
-    resolve ``variable x`` inside a proc to ``::counter::x``.
-    """
-    if not qname:
-        return "::"
-    # Strip leading ``::`` for the search, then re-add.
-    bare = qname[2:] if qname.startswith("::") else qname
-    idx = bare.rfind("::")
-    if idx < 0:
-        return "::"
-    return "::" + bare[:idx]
-
-
-def _has_embedded_subst_scan(value: str) -> bool:
-    """Detect embedded $var / ${var} / [cmd] substitutions mixed with literal text.
-
-    Returns True when *value* contains both literal characters and a
-    substitution — a pure ``$x`` / ``${x}`` / ``[cmd]`` reference returns
-    False (handled by the single-token paths in _emit_value).
-    """
-    # Strip off a pure variable or command substitution to see if there's
-    # anything else present.
-    if value.startswith("${") and value.endswith("}"):
-        # A single ``${name}`` is pure only when the inner text has no
-        # further substitutions or braces.  ``${a}${b}`` starts with
-        # ``${`` and ends with ``}`` but is NOT pure.
-        inner = value[2:-1]
-        if "$" not in inner and "[" not in inner and "}" not in inner:
-            return False
-    if value.startswith("$") and not value.startswith("$["):
-        # Check whether the entire string is just $name (possibly with
-        # :: namespace separators, e.g. $::ns::var).
-        j = 1
-        n = len(value)
-        while j < n:
-            ch = value[j]
-            if ch.isalnum() or ch == "_":
-                j += 1
-            elif ch == ":" and j + 1 < n and value[j + 1] == ":":
-                j += 2
-            else:
-                break
-        if j == n:
-            return False
-    if value.startswith("[") and value.endswith("]"):
-        return False
-    i = 0
-    n = len(value)
-    while i < n:
-        c = value[i]
-        if c == "\\" and i + 1 < n:
-            i += 2
-            continue
-        if c == "$" and i + 1 < n:
-            nxt = value[i + 1]
-            if nxt == "{" or nxt.isalpha() or nxt == "_" or nxt == ":":
-                return True
-        if c == "[":
-            return True
-        i += 1
-    return False
-
-
-def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
-    """Parse an expression body and add any runtime imports it needs."""
-    from ...parsing.expr_parser import parse_expr
-    from ..expr_ast import BinOp, ExprBinary, ExprCall, ExprTernary, ExprUnary
-
-    try:
-        node = parse_expr(expr_text)
-    except Exception:
-        return
-
-    def _walk(n: object) -> None:
-        match n:
-            case ExprBinary(op=op, left=left, right=right):
-                if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
-                    needed.add("tcl_string_equal")
-                if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
-                    needed.add("tcl_string_compare")
-                if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
-                    needed.add("tcl_expr_order_cmp")
-                _walk(left)
-                _walk(right)
-            case ExprUnary(operand=operand):
-                _walk(operand)
-            case ExprTernary(cond=cond, true_expr=t, false_expr=f):
-                _walk(cond)
-                _walk(t)
-                _walk(f)
-            case ExprCall(args=args):
-                for arg in args:
-                    _walk(arg)
-
-    _walk(node)
-
-
-def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
-    """Scan a text value for [cmd ...] command substitutions and add imports."""
-    i = 0
-    while i < len(text):
-        if text[i] == "[":
-            depth = 1
-            j = i + 1
-            while j < len(text) and depth > 0:
-                if text[j] == "[":
-                    depth += 1
-                elif text[j] == "]":
-                    depth -= 1
-                j += 1
-            cmd_text = text[i + 1 : j - 1].strip()
-            parts = cmd_text.split(None, 2)
-            if parts:
-                cmd = parts[0]
-                if cmd in _CMD_RUNTIME:
-                    needed.add(_CMD_RUNTIME[cmd][0])
-                elif cmd == "list":
-                    # ``[list $a $b ...]`` with variable/command args uses
-                    # tcl_lappend internally in _emit_list_value to properly
-                    # quote each element.  Add it so the import is available.
-                    needed.add("tcl_lappend")
-                elif cmd == "dict" and len(parts) > 1:
-                    subcmd = parts[1]
-                    if subcmd in _DICT_SUBCMD_IMPORT:
-                        needed.add(_DICT_SUBCMD_IMPORT[subcmd])
-                elif cmd == "string" and len(parts) > 1:
-                    subcmd = parts[1]
-                    if subcmd in _STRING_SUBCMD_IMPORT:
-                        needed.add(_STRING_SUBCMD_IMPORT[subcmd])
-                    elif subcmd == "is":
-                        # "string is <class> <value>" — extract class name
-                        rest = parts[2] if len(parts) > 2 else ""
-                        class_parts = rest.split(None, 1)
-                        if class_parts and class_parts[0] in _STRING_IS_IMPORT:
-                            needed.add(_STRING_IS_IMPORT[class_parts[0]])
-                elif cmd == "info" and len(parts) > 1:
-                    subcmd = parts[1]
-                    if subcmd == "exists":
-                        needed.add("tcl_global_exists")
-                        needed.add("tcl_obj_new_int")
-                        # ``info exists arr(key)`` inside a substitution —
-                        # parts[2] (if present) is the var text.
-                        if len(parts) > 2:
-                            raw = parts[2]
-                            if raw.startswith("${") and raw.endswith("}"):
-                                raw = raw[2:-1]
-                            elif raw.startswith("$"):
-                                raw = raw[1:]
-                            if _parse_array_ref(raw) is not None:
-                                needed.add("tcl_array_element_exists")
-                    if subcmd in ("body", "args", "exists"):
-                        needed.add("tcl_info_dispatch")
-                    elif subcmd == "level":
-                        # Inline ``info level 0`` in a compiled proc
-                        # builds a list by ``tcl_append``-ing the
-                        # proc name + each param; pull in the helper
-                        # so the codegen's concat chain can reach it.
-                        needed.add("tcl_append")
-                elif cmd == "lassign":
-                    needed.add("tcl_list_index")
-                    needed.add("tcl_list_tail")
-                elif cmd == "clock" and len(parts) > 1:
-                    key = _CLOCK_SUBCMD_IMPORT.get(parts[1])
-                    if key is not None:
-                        needed.add(key)
-                elif cmd == "uplevel":
-                    needed.add("tcl_eval")
-                    needed.add("tcl_frame_depth_stash")
-                    needed.add("tcl_frame_depth_restore")
-                elif cmd == "array" and len(parts) > 1:
-                    sub = parts[1]
-                    if sub == "exists":
-                        needed.add("tcl_array_exists")
-                    elif sub == "size":
-                        needed.add("tcl_array_size")
-                    elif sub == "unset":
-                        needed.add("tcl_array_unset")
-                    elif sub == "names":
-                        needed.add("tcl_array_names")
-                        # ``array names arr $pat*`` interpolates the
-                        # pattern; pull in ``tcl_append`` so the
-                        # codegen's interpolation emitter can build
-                        # the pattern string at runtime instead of
-                        # degrading to a raw literal (which would
-                        # disable the glob filter).
-                        needed.add("tcl_append")
-                    elif sub == "set":
-                        needed.add("tcl_array_set")
-                    elif sub == "get":
-                        needed.add("tcl_array_get")
-                elif cmd == "namespace" and len(parts) > 1 and parts[1] == "eval":
-                    # ``[namespace eval ns arg1 arg2 ...]`` with dynamic
-                    # script args: needs tcl_eval to run the assembled
-                    # script and tcl_append to join multiple args.
-                    needed.add("tcl_eval")
-                    needed.add("tcl_append")
-                elif cmd == "expr":
-                    if len(parts) > 1:
-                        # Extract the whole expr body (not using split, which
-                        # breaks braced content like {"a" < "b"}).
-                        rest = cmd_text[len(cmd) :].lstrip()
-                        if rest.startswith("{") and rest.endswith("}"):
-                            rest = rest[1:-1]
-                        _scan_expr_body_imports(rest, needed)
-                elif cmd == "catch":
-                    # ``[catch {body} ?var?]`` as a command substitution
-                    # compiles via the real catch codegen path (see
-                    # ``_emit_command_subst``/``_emit_command_subst_value``);
-                    # that path needs the catch runtime imports whose
-                    # top-level scan only adds them when ``catch`` is a
-                    # statement command.
-                    needed.add("tcl_catch_enter")
-                    needed.add("tcl_catch_leave")
-                    needed.add("tcl_catch_result")
-                    needed.add("tcl_catch_has_error")
-                    needed.add("tcl_catch_set_ok_result")
-                # Recurse into the command text for nested substitutions
-                if len(parts) > 1:
-                    _scan_text_for_cmd_subst(parts[-1], needed)
-            i = j
-        else:
-            i += 1
-
-
-def _scan_needed_imports(
-    cfg_module: CFGModule,
-    ir_module: IRModule,
-) -> set[str]:
-    """Pre-scan IR to find which runtime imports the compiled module needs."""
-    needed: set[str] = set()
-
-    def _scan_script(script: IRScript) -> None:
-        for stmt in script.statements:
-            _scan_stmt(stmt)
-
-    def _scan_value(value: str, *, is_body_text: bool = False) -> None:
-        """Scan a value string for embedded command substitutions.
-
-        ``is_body_text=True`` means the string is source text that the
-        lowerer will re-parse (e.g. a proc body) rather than a value
-        that the codegen will emit at runtime.  In that case we skip
-        the interpolated-string scan — otherwise a proc body containing
-        ``$a`` / ``$b`` would spuriously pull in ``tcl_append``, since
-        the body is never emitted via the concat-chain path.
-        """
-        if "[" in value:
-            _scan_text_for_cmd_subst(value, needed)
-        if is_body_text:
-            return
-        # Interpolated strings ("hello $x" / "$x[foo]" etc.) need tcl_append
-        # at codegen time to concatenate the parts.
-        if _has_embedded_subst_scan(value):
-            needed.add("tcl_append")
-        # ``$arr(key)`` references need tcl_array_get at codegen time.
-        _scan_value_for_array_refs(value)
-        # Pure ``$::ns::var`` / ``${::ns::var}`` references read through
-        # the global table.
-        if "::" in value and ("$" in value or value.startswith("::")):
-            # Conservative: request global_get whenever the value might
-            # resolve to a ``::``-qualified name.  False positives just
-            # over-import; they don't break correctness.
-            inner = value
-            if inner.startswith("${") and inner.endswith("}"):
-                inner = inner[2:-1]
-            elif inner.startswith("$"):
-                inner = inner[1:]
-            if inner.startswith("::"):
-                needed.add("tcl_global_get")
-
-    def _scan_expr(expr: object) -> None:
-        """Walk an expression AST and scan ExprCommand nodes."""
-        from ..expr_ast import (
-            ExprBinary,
-            ExprCall,
-            ExprCommand,
-            ExprTernary,
-            ExprUnary,
-            ExprVar,
-        )
-
-        match expr:
-            case ExprCommand(text=text):
-                _scan_text_for_cmd_subst(text, needed)
-            case ExprVar(name=name, text=text):
-                # ``$::ns::var`` in an expression reads from the global
-                # table; ``$arr(key)`` reads via tcl_array_get.
-                if name.startswith("::"):
-                    needed.add("tcl_global_get")
-                if "(" in text and text.endswith(")"):
-                    needed.add("tcl_array_get")
-            case ExprBinary(op=op, left=left, right=right):
-                if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
-                    needed.add("tcl_string_equal")
-                if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
-                    needed.add("tcl_string_compare")
-                if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
-                    needed.add("tcl_expr_order_cmp")
-                _scan_expr(left)
-                _scan_expr(right)
-            case ExprUnary(operand=operand):
-                _scan_expr(operand)
-            case ExprTernary(cond=cond, true_expr=t, false_expr=f):
-                _scan_expr(cond)
-                _scan_expr(t)
-                _scan_expr(f)
-            case ExprCall(args=args):
-                for arg in args:
-                    _scan_expr(arg)
-
-    def _scan_qualified_name(name: str | None) -> None:
-        """``::``-prefixed variable names route reads/writes through the
-        global table.  Pull in the matching runtime hooks eagerly so the
-        code emission paths can rely on them being registered.
-
-        Also handles array-element writes: ``set arr(key) val`` lowers
-        with ``name='arr(key)'``, which needs ``tcl_array_set``.
-        """
-        if not name:
-            return
-        if _parse_array_ref(name) is not None:
-            needed.add("tcl_array_set")
-            needed.add("tcl_array_get")
-            return
-        if name.startswith("::"):
-            needed.add("tcl_global_get")
-            needed.add("tcl_global_set")
-
-    def _scan_value_for_array_refs(value: str | None) -> None:
-        """Pull in array-get for ``$arr(key)`` references inside a value
-        string.  The read path routes through tcl_array_get whenever the
-        name parses as an array reference.
-        """
-        if not value or "(" not in value:
-            return
-        # Conservative: scan for ``$name(`` or ``${name(`` substrings.
-        i = 0
-        n = len(value)
-        while i < n:
-            if value[i] == "$" and i + 1 < n:
-                # Advance over bare name or ${...} with parens.
-                j = i + 1
-                if value[j] == "{":
-                    # ``${arr(key)}`` — the lowerer emits this form
-                    # when the surface syntax was a quoted-string
-                    # ``$arr(key)``.  Check for ``(`` *inside* the
-                    # braced content, not just after the closing
-                    # brace.  Without this, the import-scan misses
-                    # ``tcl_array_get`` and ``_emit_array_element_read``
-                    # silently emits ``i32.const 0`` at run time —
-                    # making every ``puts "v=$arr(key)"`` read come
-                    # back as empty string.
-                    inner_start = j + 1
-                    k = inner_start
-                    while k < n and value[k] != "}":
-                        k += 1
-                    # scan the inner for ``(``
-                    ii = inner_start
-                    while ii < k:
-                        if value[ii] == "(":
-                            needed.add("tcl_array_get")
-                            break
-                        ii += 1
-                    else:
-                        pass
-                    if "tcl_array_get" in needed:
-                        break
-                    j = k
-                else:
-                    while j < n and (
-                        value[j].isalnum()
-                        or value[j] == "_"
-                        or (value[j] == ":" and j + 1 < n and value[j + 1] == ":")
-                    ):
-                        j += 1
-                if j < n and value[j] == "(":
-                    needed.add("tcl_array_get")
-                    break
-                i = j
-            else:
-                i += 1
-
-    def _scan_array_subcmd(args: tuple[str, ...]) -> None:
-        if not args:
-            return
-        sub = args[0]
-        if sub == "exists":
-            needed.add("tcl_array_exists")
-        elif sub == "size":
-            needed.add("tcl_array_size")
-        elif sub == "unset":
-            needed.add("tcl_array_unset")
-        elif sub == "names":
-            needed.add("tcl_array_names")
-            # ``array names arr ?pattern?`` — the pattern may be an
-            # interpolated string (``$option*``); scan it so
-            # ``tcl_append`` / ``tcl_array_get`` make it into the
-            # module imports and the pattern is emitted literally,
-            # not as a null TclObj that disables the filter.
-            if len(args) >= 3:
-                _scan_value(args[2])
-        elif sub == "set":
-            needed.add("tcl_array_set")
-
-    def _scan_stmt(stmt: IRStatement) -> None:
-        match stmt:
-            case IRCall(command=command, args=args):
-                if command in _CMD_RUNTIME:
-                    needed.add(_CMD_RUNTIME[command][0])
-                elif command == "string" and args and args[0] in _STRING_SUBCMD_IMPORT:
-                    needed.add(_STRING_SUBCMD_IMPORT[args[0]])
-                elif command == "string" and args and args[0] == "is" and len(args) >= 3:
-                    is_key = _STRING_IS_IMPORT.get(args[1])
-                    if is_key:
-                        needed.add(is_key)
-                elif command == "list":
-                    # ``list $a $b ...`` with variable args uses tcl_lappend
-                    # internally in _emit_list_value to quote each element.
-                    needed.add("tcl_lappend")
-                elif command == "dict" and args and args[0] in _DICT_SUBCMD_IMPORT:
-                    needed.add(_DICT_SUBCMD_IMPORT[args[0]])
-                elif command == "global":
-                    needed.add("tcl_global_get")
-                    needed.add("tcl_global_set")
-                elif command == "upvar":
-                    # upvar #0 resolves to a global alias — reads/writes go
-                    # through the global table. The target name is computed
-                    # at runtime (may be an interpolated string).
-                    needed.add("tcl_global_get")
-                    needed.add("tcl_global_set")
-                elif command == "variable":
-                    # variable inside a proc aliases local → ::ns::local in
-                    # the enclosing namespace. Same runtime path as upvar #0.
-                    needed.add("tcl_global_get")
-                    needed.add("tcl_global_set")
-                    # Dynamic ``variable $name ?value?`` (tcltest's
-                    # ``Default`` / ``Option``) needs runtime string
-                    # concatenation + existence probe to build the
-                    # qualified target and honour the Tcl semantics
-                    # of initialising only when unset.
-                    if args and (args[0].startswith("$") or args[0].startswith("[")):
-                        needed.add("tcl_append")
-                        needed.add("tcl_global_exists")
-                        needed.add("tcl_obj_get_int")
-                elif command == "info" and args:
-                    # info exists — resolves via tcl_global_exists for
-                    # aliased / ``::`` names; plain locals are boxed to
-                    # TclObj via tcl_obj_new_int.  Other subcommands go
-                    # through tcl_info_dispatch.
-                    if args[0] == "exists":
-                        needed.add("tcl_global_exists")
-                        needed.add("tcl_obj_new_int")
-                        # ``info exists arr(key)`` — probe the array table.
-                        if len(args) >= 2:
-                            raw = args[1]
-                            # ``info exists $dynamicName`` — dispatch
-                            # to runtime ``info_exists`` which resolves
-                            # the name's value at runtime.
-                            if raw.startswith("$") or raw.startswith("["):
-                                stripped = raw
-                                if raw.startswith("${") and raw.endswith("}"):
-                                    stripped = raw[2:-1]
-                                elif raw.startswith("$"):
-                                    stripped = raw[1:]
-                                if _parse_array_ref(stripped) is None:
-                                    needed.add("tcl_info_exists")
-                            # Strip a ``$`` / ``${...}`` sigil if present.
-                            if raw.startswith("${") and raw.endswith("}"):
-                                raw = raw[2:-1]
-                            elif raw.startswith("$"):
-                                raw = raw[1:]
-                            if _parse_array_ref(raw) is not None:
-                                needed.add("tcl_array_element_exists")
-                    if args[0] in ("body", "args", "exists"):
-                        needed.add("tcl_info_dispatch")
-                    elif args[0] == "level":
-                        # Inline ``info level 0`` builds a list via
-                        # the ``tcl_append`` concat-chain; see
-                        # ``_emit_info_value``.
-                        needed.add("tcl_append")
-                elif command == "lassign":
-                    needed.add("tcl_list_index")
-                    needed.add("tcl_list_tail")
-                elif command == "clock" and args:
-                    key = _CLOCK_SUBCMD_IMPORT.get(args[0])
-                    if key is not None:
-                        needed.add(key)
-                elif command == "array" and args:
-                    _scan_array_subcmd(args)
-                elif command == "uplevel":
-                    needed.add("tcl_eval")
-                    needed.add("tcl_frame_depth_stash")
-                    needed.add("tcl_frame_depth_restore")
-                    # Multi-word bodies concat with spaces; also each body
-                    # part is run through _emit_value which may need
-                    # tcl_append for interpolated strings.
-                    for arg in args:
-                        _scan_value(arg)
-                    if len(args) > 2 or (
-                        len(args) > 1
-                        and not args[0].startswith(("#", "-"))
-                        and not args[0].lstrip("-").isdigit()
-                    ):
-                        needed.add("tcl_append")
-                elif command == "namespace" and args and args[0] == "eval" and len(args) > 2:
-                    # ``namespace eval ns arg1 arg2 ...`` with dynamic
-                    # script args: evaluated through WASM, not fallback.
-                    needed.add("tcl_eval")
-                    needed.add("tcl_append")
-                    # Scan each script arg as a runtime value (not body text)
-                    # so array-element refs ($arr($key)) pull in tcl_array_get.
-                    for a in args[2:]:
-                        _scan_value(a)
-                elif command == "unset":
-                    for a in args:
-                        if _parse_array_ref(a) is not None:
-                            needed.add("tcl_array_unset_element")
-                            break
-                elif command == "catch":
-                    needed.add("tcl_catch_enter")
-                    needed.add("tcl_catch_leave")
-                    needed.add("tcl_catch_result")
-                    needed.add("tcl_catch_has_error")
-                    needed.add("tcl_catch_set_ok_result")
-                # Scan all arguments for command substitutions.  For
-                # body-taking commands (``proc``, ``namespace eval``,
-                # ``catch``, etc.) the args are source text re-parsed
-                # by the lowerer, not values emitted at runtime — mark
-                # them so the scan doesn't over-import tcl_append.
-                is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
-                for arg in args:
-                    _scan_value(arg, is_body_text=is_body)
-            case IRAssignValue(name=name, value=value):
-                _scan_qualified_name(name)
-                _scan_value(value)
-                _scan_value_for_array_refs(value)
-            case IRAssignConst(name=name):
-                _scan_qualified_name(name)
-            case IRIncr(name=name, amount=amount):
-                _scan_qualified_name(name)
-                if isinstance(amount, str):
-                    _scan_value(amount)
-                    _scan_value_for_array_refs(amount)
-            case IRExprEval(expr=expr):
-                _scan_expr(expr)
-            case IRAssignExpr(name=name, expr=expr):
-                _scan_qualified_name(name)
-                _scan_expr(expr)
-            case IRReturn(value=value, expr=expr):
-                if value is not None:
-                    _scan_value(value)
-                if expr is not None:
-                    _scan_expr(expr)
-            case IRBarrier(command=barrier_cmd, args=barrier_args):
-                # Eval-fallback path always needs tcl_eval.
-                needed.add("tcl_eval")
-                if barrier_cmd == "uplevel":
-                    needed.add("tcl_frame_depth_stash")
-                    needed.add("tcl_frame_depth_restore")
-                    # The body may contain ``$var``/``[cmd]`` references
-                    # that have to be resolved BEFORE eval — scan for
-                    # interpolation helpers.
-                    for arg in barrier_args:
-                        _scan_value(arg)
-                elif (
-                    barrier_cmd == "namespace"
-                    and barrier_args
-                    and barrier_args[0] == "eval"
-                    and len(barrier_args) > 2
-                ):
-                    # ``namespace eval ns arg1 arg2 ...`` with dynamic script
-                    # args: emitted via WASM assembly (not fallback), so each
-                    # script arg is evaluated through ``_emit_value`` and may
-                    # need ``tcl_append``, ``tcl_array_get``, etc.
-                    needed.add("tcl_append")
-                    for a in barrier_args[2:]:
-                        _scan_value(a)
-                elif (
-                    barrier_cmd == "return"
-                    and barrier_args
-                    and len(barrier_args) == 3
-                    and barrier_args[0] == "-code"
-                    and barrier_args[1] == "error"
-                ):
-                    # ``return -code error <msg>`` emits the message
-                    # inline via ``_emit_value``; scan it so the
-                    # interpolation helpers (``tcl_append``, maybe
-                    # ``tcl_array_get`` for ``$arr(key)`` references)
-                    # show up in the module's import list.
-                    _scan_value(barrier_args[2])
-            case IRBlock(body=body):
-                # ``namespace eval`` body inlined; recurse into its
-                # statements so any runtime helpers they need (e.g.
-                # tcl_append for interpolated strings) show up in
-                # the module's import list.
-                _scan_script(body)
-            case IRIf(clauses=clauses, else_body=else_body):
-                for clause in clauses:
-                    _scan_expr(clause.condition)
-                    _scan_script(clause.body)
-                if else_body:
-                    _scan_script(else_body)
-            case IRFor(init=init, condition=condition, body=body, next=next_s):
-                _scan_script(init)
-                _scan_expr(condition)
-                _scan_script(body)
-                _scan_script(next_s)
-            case IRWhile(condition=condition, body=body):
-                _scan_expr(condition)
-                _scan_script(body)
-            case IRForeach(body=body):
-                needed.add("tcl_list_length")
-                needed.add("tcl_list_index")
-                _scan_script(body)
-            case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
-                if mode == "glob":
-                    needed.add("tcl_string_match")
-                else:
-                    needed.add("tcl_string_equal")
-                # The subject may be a command substitution or
-                # interpolated string — scan it so the codegen's
-                # ``_emit_value`` call in ``_emit_str_value``
-                # (which now routes ``ExprRaw`` through the full
-                # value-emitter) can reach ``tcl_append`` /
-                # ``tcl_list_length`` / etc.  Without this the
-                # interpolation emitter degrades to
-                # ``_emit_obj_literal`` and the subject compares
-                # against its raw source text rather than its
-                # runtime value.
-                _scan_value(subject)
-                for arm in arms:
-                    if arm.body:
-                        _scan_script(arm.body)
-                if default_body:
-                    _scan_script(default_body)
-            case IRCatch(body=body):
-                needed.add("tcl_catch_enter")
-                needed.add("tcl_catch_leave")
-                needed.add("tcl_catch_result")
-                needed.add("tcl_catch_has_error")
-                needed.add("tcl_catch_set_ok_result")
-                _scan_script(body)
-            case IRTry(body=body, finally_body=finally_body):
-                _scan_script(body)
-                if finally_body:
-                    _scan_script(finally_body)
-
-    # Scan top-level
-    _scan_script(ir_module.top_level)
-
-    # Scan procedures
-    for proc in ir_module.procedures.values():
-        _scan_script(proc.body)
-
-    # Scan methods
-    if ir_module.methods:
-        for method in ir_module.methods.values():
-            _scan_script(method.body)
-
-    # Always include TclObj lifecycle imports — every non-trivial module
-    # needs them for value creation, storage, and arithmetic unboxing.
-    needed.update(_OBJ_LIFECYCLE_IMPORTS)
-
-    # Always include error and eval — error for traps, eval for
-    # interpreter fallback on uncompiled commands.  tcl_diag_set is
-    # also always imported so trap messages can be resolved against
-    # the sidecar source-location map.  tcl_global_set / get cover
-    # the top-level-var-mirror path in ``_emit_var_write_obj_impl``
-    # that keeps ``::top`` writes visible to eval fallbacks.
-    needed.add("tcl_error")
-    needed.add("tcl_eval")
-    needed.add("tcl_ns_set")
-    needed.add("tcl_ns_restore")
-    needed.add("tcl_diag_set")
-    needed.add("tcl_global_set")
-    needed.add("tcl_global_get")
-    # Register each compiled proc by name so the interpreter's
-    # host-bridge dispatch can find it when an interpreted caller
-    # (a Tcl-source proc body walked by eval_script) invokes a
-    # compiled helper.  The frame helpers are also pulled in so
-    # compiled procs can push a frame + bind params (necessary for
-    # eval-fallbacks inside a proc body to resolve ``$var`` via
-    # ``var_resolve``).  Only needed when the module has any procs.
-    if ir_module.procedures:
-        needed.add("tcl_proc_register_compiled")
-        needed.add("tcl_frame_push")
-        needed.add("tcl_frame_pop")
-        needed.add("tcl_local_set")
-        needed.add("tcl_local_get")
-
-    return needed
-
+from ._ir import (
+    _BLOCK_I64,
+    _BLOCK_VOID,
+    DiagMap,
+    DiagSite,
+    ValType,
+    WasmData,
+    WasmFunction,
+    WasmInstruction,
+    WasmOp,
+    _decode_leb128_signed,
+)
+from ._parsing import (
+    _derive_proc_namespace,
+    _parse_array_ref,
+)
 
 # Maps Tcl binary expression operators to WASM i64 opcodes
 _BINOP_WASM: dict[BinOp, int] = {
@@ -2090,6 +160,7 @@ class _WasmEmitter:
         shared_string_offset: list[int] | None = None,
         proc_qname: str | None = None,
         diag_map: DiagMap | None = None,
+        escape_summary: "ProcEscapeSummary | None" = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -2210,8 +281,27 @@ class _WasmEmitter:
         self._current_command: str = ""
         self._current_args: tuple[str, ...] = ()
 
+        # Per-proc var-escape summary.  When provided, _iter_sync_locals
+        # uses it to skip variables the analysis proved cannot be seen by
+        # name from the interpreter — trimming the frame-sync set below
+        # what ``vars_used`` alone would allow.  ``None`` means "no
+        # analysis run" and falls back to conservative behaviour.
+        self._escape_summary: ProcEscapeSummary | None = escape_summary
+
     def _intern_local(self, name: str) -> int:
-        """Register a Tcl variable as an i32 local (TclObj pointer)."""
+        """Register a Tcl variable as an i32 local (TclObj pointer).
+
+        Parameters always get a WASM local slot and stay in the sync
+        map — they come in as function args and the prologue mirrors
+        them into the frame when ``wants_frame`` is set.
+
+        Non-parameter FRAME-tagged vars skip ``_tcl_var_locals``: the
+        runtime frame is their authoritative storage, so keeping them
+        out of the sync map means the narrow-sync and readback paths
+        ignore them entirely.  The slot itself is still allocated in
+        case a stale index gets emitted on a fallback path that
+        bypasses the escape-aware routing.
+        """
         idx = self._local_index.get(name)
         if idx is not None:
             return idx
@@ -2219,7 +309,8 @@ class _WasmEmitter:
         self._local_names.append(name)
         self._local_types.append(ValType.I32)
         self._local_index[name] = idx
-        self._tcl_var_locals[name] = idx
+        if name in self._params or not self._is_frame_only_var(name):
+            self._tcl_var_locals[name] = idx
         return idx
 
     def _add_extra_local(self, prefix: str = "_tmp", val_type: ValType = ValType.I64) -> int:
@@ -2551,7 +642,7 @@ class _WasmEmitter:
             expr_arg = cmd_args[0]
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
-            from ...parsing.expr_parser import parse_expr
+            from ....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)
@@ -3030,7 +1121,7 @@ class _WasmEmitter:
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
             # Parse and emit the nested expression
-            from ...parsing.expr_parser import parse_expr
+            from ....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)
@@ -3443,7 +1534,7 @@ class _WasmEmitter:
         For ExprLiteral, creates a boxed string/int.
         For other nodes, evaluates as i64 and boxes.
         """
-        from ..expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
+        from ...expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
 
         match node:
             case ExprVar(text=text):
@@ -4821,6 +2912,18 @@ class _WasmEmitter:
                 self._emit_obj_literal(qname)
                 self._emit_call(gget_idx)
                 return
+        # Var-escape FRAME branch: the escape analysis proved this
+        # name is observed by the interpreter or a callee upvar, so
+        # its authoritative value lives in the runtime frame.  Read
+        # through ``tcl_local_get`` (frame-scoped; does NOT fall through
+        # to globals — that would alias with top-level vars of the same
+        # name).
+        if self._is_frame_only_var(name):
+            lget_idx = self._shared_imports.get("tcl_local_get")
+            if lget_idx is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(lget_idx)
+                return
         idx = self._intern_local(name)
         self._emit_local_get(idx)
 
@@ -4872,6 +2975,32 @@ class _WasmEmitter:
             qname = f"{self._block_namespace}::{name}"
             self._emit_global_set_via_literal(qname, keep_on_stack=keep_on_stack)
             return
+        # Var-escape FRAME branch: the escape analysis proved this
+        # name is observed by the interpreter or a callee upvar, so
+        # its authoritative value must live in the runtime frame.
+        # Route the write through ``tcl_local_set``.  Also mirror to a
+        # WASM local so subsequent reads of this name in the same
+        # basic block could fast-path — but we conservatively skip the
+        # mirror today because ``_emit_var_read_obj`` already goes
+        # through the frame for FRAME-tagged names.
+        if self._is_frame_only_var(name):
+            lset_idx = self._shared_imports.get("tcl_local_set")
+            if lset_idx is not None:
+                # Stack holds [value].  Need [name_obj, value] for
+                # tcl_local_set.  Stash value in a scratch local so we
+                # can push name_obj first.
+                tmp = self._add_extra_local(prefix="_frame_set_tmp", val_type=ValType.I32)
+                self._emit_local_set(tmp)
+                self._emit_obj_literal(name)
+                self._emit_local_get(tmp)
+                self._emit_call(lset_idx)
+                if keep_on_stack:
+                    self._emit(WasmOp.DROP)  # drop tcl_local_set return
+                    self._emit_local_get(tmp)  # leave value on stack
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+
         # At the top level (``::top``) there's no ``proc`` scope — every
         # variable is in the global namespace.  Route writes through
         # ``tcl_global_set`` AND keep a WASM local mirror so later reads
@@ -5064,6 +3193,39 @@ class _WasmEmitter:
         self._emit_frame_readback()
         return True
 
+    def _is_frame_only_var(self, name: str) -> bool:
+        """True when the escape analysis says ``name`` must live in the runtime frame.
+
+        Only returns True for non-pessimistic procs where analysis
+        specifically proved the var escapes.  Pessimistic procs
+        (``dynamic_barrier=True``) keep today's WASM-local-with-sync
+        behaviour — routing every var through the frame primitives
+        would be a much larger change and the sync path is already
+        correct for that case.
+
+        Vars already handled by other routing mechanisms are excluded:
+        ``::``-qualified globals go through ``tcl_global_*``;
+        ``global`` / ``variable`` declared names go through the globals
+        table too; upvar aliases have their own binding.  Those paths
+        own the interpreter-visible storage and must not be short-
+        circuited by the frame-only branch.
+        """
+        summary = self._escape_summary
+        if summary is None or summary.dynamic_barrier:
+            return False
+        if not self._is_proc:
+            # At top level there's no frame; FRAME tags are meaningless
+            # and the writer already routes ``::``-prefixed and
+            # block-namespace writes through ``tcl_global_set``.
+            return False
+        if name in self._globals:
+            return False
+        if name in self._aliases:
+            return False
+        if name.startswith("::"):
+            return False
+        return summary.is_frame(name)
+
     def _iter_sync_locals(self, vars_used: set[str] | None = None) -> "list[tuple[str, int]]":
         """Return the ``(name, local_idx)`` pairs that should take part
         in a frame sync / readback at the current emit site, sorted by
@@ -5074,7 +3236,24 @@ class _WasmEmitter:
         interpreter call could observe.  ``None`` means "unknown — sync
         every Tcl local".  An empty set also means the caller
         explicitly knows nothing is referenced (no sync needed).
+
+        When a per-proc var-escape summary is available, the caller
+        passes ``vars_used`` (the fallback's statically known reference
+        set), and the proc is not in the dynamic-barrier pessimistic
+        state, vars the analysis proved the interpreter cannot observe
+        by name (``LOCAL`` tag) are excluded from the sync set.
+
+        The ``vars_used is not None`` guard is a soundness gate: an
+        unknown fallback body could reference any var by name, so we
+        still sync every tcl-visible local in that case.  The
+        interprocedural pass only bounds *static* ``upvar`` sources;
+        it can't constrain what a runtime eval body touches.
         """
+        summary = self._escape_summary
+        narrow_to_frame = (
+            summary is not None and not summary.dynamic_barrier and vars_used is not None
+        )
+
         pairs: list[tuple[str, int]] = []
         for name, idx in self._tcl_var_locals.items():
             if name in self._aliases:
@@ -5084,6 +3263,10 @@ class _WasmEmitter:
             if name.startswith("::"):
                 continue
             if vars_used is not None and name not in vars_used:
+                continue
+            if narrow_to_frame and summary is not None and not summary.is_frame(name):
+                # Analysis proved this var cannot be observed by name
+                # from the interpreter — no sync needed.
                 continue
             pairs.append((name, idx))
         pairs.sort(key=lambda p: p[0])
@@ -5580,7 +3763,7 @@ class _WasmEmitter:
         Leaves an empty string TclObj on the stack as the command's
         return value.
         """
-        from ._helpers import _split_list_simple
+        from .._helpers import _split_list_simple
 
         fidx = self._shared_imports.get("tcl_array_set")
         if fidx is None:
@@ -6039,6 +4222,18 @@ class _WasmEmitter:
                 self._emit_obj_literal(resolved)
                 self._emit_call(gexist_idx)
                 return
+            # FRAME-only vars (routed through tcl_local_set by the
+            # escape-aware writer) don't land in a WASM local, so the
+            # pointer-nullness check below would always say "no".
+            # Dispatch through the runtime ``tcl_info_exists`` helper,
+            # which probes the frame table by name and returns a
+            # boxed TclObj 0/1 (matching the other existence paths).
+            if self._is_frame_only_var(resolved):
+                info_exists_idx = self._shared_imports.get("tcl_info_exists")
+                if info_exists_idx is not None:
+                    self._emit_obj_literal(resolved)
+                    self._emit_call(info_exists_idx)
+                    return
             # Plain proc-local: the compiled proc uses WASM locals
             # that are zero-initialised, so "exists" is approximated
             # as "value pointer is non-null" — matches writes that
@@ -6675,7 +4870,7 @@ class _WasmEmitter:
         For statements that naturally produce no value (declarations,
         ``unset``, etc.) we push a null TclObj (0) as the result.
         """
-        from ..ir import (
+        from ...ir import (
             IRBarrier,
             IRCall,
             IRExprEval,
@@ -6767,7 +4962,7 @@ class _WasmEmitter:
                 self._emit_i32_const(0)
             return
 
-        from ...compiler.lowering import lower_to_ir
+        from ....compiler.lowering import lower_to_ir
 
         try:
             ir_module = lower_to_ir(body_text)
@@ -7433,6 +5628,19 @@ class _WasmEmitter:
             and "tcl_local_set" in self._shared_imports
             and "tcl_frame_pop" in self._shared_imports
         )
+        # Escape-aware frame elision: a proc the analysis proved has
+        # no FRAME vars and no interpreter fallback path doesn't need
+        # a runtime frame at all.  Skip frame_push / param mirrors /
+        # frame_pop entirely in that case.  Falls back to "push the
+        # frame" whenever the analysis is missing or indefinite.
+        summary = self._escape_summary
+        if (
+            wants_frame
+            and summary is not None
+            and not summary.frame_needed
+            and not summary.has_fallback
+        ):
+            wants_frame = False
         if wants_frame:
             push_idx = self._shared_imports["tcl_frame_push"]
             self._emit_call(push_idx)
@@ -7517,210 +5725,3 @@ class _WasmEmitter:
             data = len(encoded).to_bytes(4, "little") + encoded
             segments.append(WasmData(offset=offset, data=data))
         return segments
-
-
-# Public API
-
-
-def wasm_codegen_function(
-    cfg: CFGFunction,
-    params: tuple[str, ...] = (),
-    *,
-    optimise: bool = False,
-    is_proc: bool = False,
-    shared_imports: dict[str, int] | None = None,
-    proc_index: dict[str, tuple[int, int]] | None = None,
-) -> WasmFunction:
-    """Generate a WASM function from a CFG function.
-
-    When *optimise* is ``True``, constant folding, peephole
-    optimisation, and dead-code elimination are applied.
-    """
-    emitter = _WasmEmitter(
-        cfg,
-        params=params,
-        optimise=optimise,
-        is_proc=is_proc,
-        shared_imports=shared_imports,
-        proc_index=proc_index,
-    )
-    return emitter.generate()
-
-
-def wasm_codegen_module(
-    cfg_module: CFGModule,
-    ir_module: IRModule,
-    *,
-    optimise: bool = False,
-    filename: str | None = None,
-    diag_map: DiagMap | None = None,
-) -> WasmModule:
-    """Generate a complete WASM module from a CFG module.
-
-    Args:
-        cfg_module: The control-flow-graph module to compile.
-        ir_module: The IR module (for procedure metadata).
-        optimise: When ``True``, enable optimisation passes
-            (constant folding, peephole, dead-code elimination).
-            When ``False``, emit straightforward unoptimised code.
-        filename: Source filename recorded on every diag site.
-            Passing this without a ``diag_map`` allocates a fresh
-            map; passing neither disables diag instrumentation
-            entirely (no ``tcl_diag_set`` calls, no ``site=<id>``
-            prefix on traps).
-        diag_map: Optional pre-allocated :class:`DiagMap` to populate.
-            Pass one when the caller wants to serialise the sidecar
-            alongside the WASM bytes.  Leave as ``None`` (and omit
-            *filename*) when diagnostics aren't needed — callers
-            that can't resolve ``site=<id>`` prefixes shouldn't see
-            them at all.
-
-    Returns:
-        A ``WasmModule`` that can be serialised to ``.wasm`` binary
-        or inspected as WAT text.  Diag data (when enabled) is
-        recorded on the supplied *diag_map* (or on the fresh one
-        allocated when a *filename* was passed).
-    """
-    # Only instrument with diag sites when the caller explicitly
-    # asks for them — either by passing a ``DiagMap`` to populate,
-    # or by providing a ``filename`` (which is useless without a
-    # map to record it in, so we interpret it as an implicit
-    # request).  Without a map the emitter skips ``tcl_diag_set``
-    # calls entirely — avoids emitting ``site=<id>`` prefixes the
-    # caller has no way to resolve.
-    if diag_map is None and filename is not None:
-        diag_map = DiagMap(filename=filename)
-    elif diag_map is not None and filename is not None:
-        diag_map.filename = filename
-
-    module = WasmModule()
-
-    # Phase 1: Pre-scan IR to find which runtime imports are needed
-    needed_imports = _scan_needed_imports(cfg_module, ir_module)
-
-    # Phase 2: Register needed imports (these occupy the first function indices)
-    shared_imports: dict[str, int] = {}
-    for import_key in sorted(needed_imports):
-        spec = _RUNTIME_IMPORTS.get(import_key)
-        if spec is None:
-            continue
-        mod_name, func_name, params, results = spec
-        type_idx = module._intern_type(params, results)
-        func_idx = len(module.imports)
-        module.imports.append(WasmImport(module=mod_name, name=func_name, type_idx=type_idx))
-        shared_imports[import_key] = func_idx
-
-    num_imports = len(module.imports)
-
-    # Phase 3: Build a single ordered list of callables (procs + methods)
-    # and the proc name → (func_idx, n_params) map.  This avoids
-    # double-indexing methods that appear in cfg_module.procedures but
-    # are defined in ir_module.methods rather than ir_module.procedures.
-    proc_index: dict[str, tuple[int, int]] = {}
-    # Parallel map of proc qname → tuple of default-value strings
-    # (or ``None`` per slot without a default).  Used by the codegen
-    # to pad missing call-site args with the declared default instead
-    # of a boxed zero.
-    from ..lowering import _parse_params_with_defaults
-
-    proc_defaults: dict[str, tuple[str | None, ...]] = {}
-    callables: list[tuple[str, CFGFunction, tuple[str, ...]]] = []
-
-    for qname, cfg_func in cfg_module.procedures.items():
-        ir_proc = ir_module.procedures.get(qname)
-        if ir_proc is not None:
-            callables.append((qname, cfg_func, ir_proc.params))
-            if ir_proc.params_raw:
-                defs = _parse_params_with_defaults(ir_proc.params_raw)
-                proc_defaults[qname] = tuple(d for _, d in defs)
-        elif ir_module.methods and qname in ir_module.methods:
-            ir_method = ir_module.methods[qname]
-            callables.append((qname, cfg_func, ir_method.params))
-        else:
-            callables.append((qname, cfg_func, ()))
-
-    # Assign function indices: ::top is at num_imports, callables follow
-    func_idx = num_imports + 1  # +1 for ::top
-    # Also track which procs have a variadic ``args`` tail parameter.
-    proc_args_tail: set[str] = set()
-    for qname, _, params in callables:
-        proc_index[qname] = (func_idx, len(params))
-        if params and params[-1] == "args":
-            proc_args_tail.add(qname)
-        func_idx += 1
-
-    # Shared string table so data segments from different functions
-    # don't collide at offset 0. All emitters share a single list,
-    # index dict, and offset counter.
-    shared_strings: list[tuple[str, int]] = []
-    shared_string_index: dict[str, int] = {}
-    shared_string_offset: list[int] = [0]
-
-    # Phase 4: Compile top-level with shared state
-    emitter = _WasmEmitter(
-        cfg_module.top_level,
-        optimise=optimise,
-        is_proc=False,
-        shared_imports=shared_imports,
-        proc_index=proc_index,
-        proc_defaults=proc_defaults,
-        proc_args_tail=proc_args_tail,
-        shared_strings=shared_strings,
-        shared_string_index=shared_string_index,
-        shared_string_offset=shared_string_offset,
-        diag_map=diag_map,
-    )
-    # Register every compiled proc in the runtime proc table with a
-    # non-zero func_idx marker so the interpreter knows to dispatch
-    # via the host bridge (``call_compiled_proc`` → wasmtime
-    # lookup).  We don't ship the Tcl source body — the compiled
-    # WASM function IS the body, and the host bridge invokes it by
-    # name.  This lets a dynamically-registered proc (``proc
-    # $varName {body}``) whose body references a compiled helper
-    # like ``Configure`` actually execute instead of trapping with
-    # "unknown command".
-    emitter.set_compiled_proc_registrations(ir_module)
-    top_func = emitter.generate()
-    top_func.name = "::top"
-    module.functions.append(top_func)
-    # ::top occupies the first function index after imports.
-    if diag_map is not None:
-        diag_map.procs.append((num_imports, "::top"))
-
-    # Phase 5: Compile callables (procedures and methods)
-    for qname, cfg_func, params in callables:
-        callable_emitter = _WasmEmitter(
-            cfg_func,
-            params=params,
-            optimise=optimise,
-            is_proc=True,
-            shared_imports=shared_imports,
-            proc_index=proc_index,
-            proc_defaults=proc_defaults,
-            proc_args_tail=proc_args_tail,
-            shared_strings=shared_strings,
-            shared_string_index=shared_string_index,
-            shared_string_offset=shared_string_offset,
-            proc_qname=qname,
-            diag_map=diag_map,
-        )
-        callable_func = callable_emitter.generate()
-        callable_func.name = qname
-        module.functions.append(callable_func)
-        # Record the proc's WASM function index so the sidecar can
-        # resolve ``<wasm function N>`` backtraces to proc names.
-        if diag_map is not None:
-            f_idx, _ = proc_index[qname]
-            diag_map.procs.append((f_idx, qname))
-
-    # Emit a single set of data segments from the shared string table.
-    for value, offset in shared_strings:
-        encoded = value.encode("utf-8")
-        data = len(encoded).to_bytes(4, "little") + encoded
-        module.data_segments.append(WasmData(offset=offset, data=data))
-
-    # Ensure types are registered
-    for func in module.functions:
-        module._intern_type(func.params, func.results)
-
-    return module
