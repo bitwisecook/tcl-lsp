@@ -124,12 +124,16 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     subcmd = parts[1]
                     if subcmd in _DICT_SUBCMD_IMPORT:
                         needed.add(_DICT_SUBCMD_IMPORT[subcmd])
-                    if subcmd == "create":
+                    elif subcmd == "create":
                         # ``dict create`` with non-literal k/v args
-                        # folds at runtime via ``tcl_concat``; always
-                        # register it so the compiler's fast path
-                        # can't silently drop args.
-                        needed.add("tcl_concat")
+                        # folds at runtime via ``tcl_lappend`` so each
+                        # element is properly list-quoted (concat
+                        # trims whitespace — wrong for dict values).
+                        needed.add("tcl_lappend")
+                    elif subcmd == "merge":
+                        # ``dict merge`` is chained at the compiler
+                        # level; the runtime helper takes pairs.
+                        needed.add("tcl_dict_merge_pair")
                 elif cmd == "string" and len(parts) > 1:
                     subcmd = parts[1]
                     if subcmd in _STRING_SUBCMD_IMPORT:
@@ -435,10 +439,14 @@ def _scan_needed_imports(
                     needed.add("tcl_lappend")
                 elif command == "dict" and args and args[0] in _DICT_SUBCMD_IMPORT:
                     needed.add(_DICT_SUBCMD_IMPORT[args[0]])
-                    if args[0] == "create":
-                        # ``dict create`` with non-literal k/v args
-                        # folds at runtime via ``tcl_concat``.
-                        needed.add("tcl_concat")
+                elif command == "dict" and args and args[0] == "create":
+                    # ``dict create`` with non-literal k/v args
+                    # folds at runtime via ``tcl_lappend`` so
+                    # values with whitespace / braces survive
+                    # (concat would trim them).
+                    needed.add("tcl_lappend")
+                elif command == "dict" and args and args[0] == "merge":
+                    needed.add("tcl_dict_merge_pair")
                 elif command == "global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")

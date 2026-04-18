@@ -14,7 +14,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, "/home/user/tcl-lsp")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 from tests.external.run_tcl9_tests import (  # noqa: E402
     _bundle,
@@ -29,12 +30,14 @@ from tests.test_wasm_real_tcl import (  # noqa: E402
     _run_wasm,
 )
 
+_TESTS_DIR = _REPO_ROOT / "tmp" / "tcl9.0.3" / "tests"
+
 
 def main() -> int:
     stem = sys.argv[1]
     subsystem = sys.argv[2]
     filename = f"{stem}.test"
-    test_path = Path(f"/home/user/tcl-lsp/tmp/tcl9.0.3/tests/{filename}")
+    test_path = _TESTS_DIR / filename
     bundle = _bundle(test_path)
 
     compiled = False

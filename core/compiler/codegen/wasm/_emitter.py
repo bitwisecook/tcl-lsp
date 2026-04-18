@@ -763,8 +763,14 @@ class _WasmEmitter:
                     self._emit_call(merge_idx)
                 return
             # ``dict create`` — the runtime helper returns empty and
-            # ignores its args, so fold the k/v pairs at compile time
-            # (or chain tcl_concat for non-literal values).
+            # ignores its args, so build the k/v pair list at the
+            # compiler level.  Pure literals fold to a compile-time
+            # string; anything else chains ``tcl_lappend`` which
+            # re-quotes each element canonically.  Using ``tcl_concat``
+            # here was wrong — concat trims leading/trailing whitespace
+            # from every argument, so ``dict create $k $v`` with
+            # whitespace-containing values would silently discard the
+            # outer spaces (and fail to brace-wrap list-valued keys).
             if subcmd == "create":
                 kv = cmd_args[1:]
                 if not kv:
@@ -780,20 +786,15 @@ class _WasmEmitter:
                 ):
                     self._emit_obj_literal(" ".join(kv))
                     return
-                # Non-literal path: chain ``tcl_concat`` to assemble
-                # the k/v list at runtime.  The scan pass registers
-                # the import whenever ``dict create`` appears, so
-                # ``concat_idx`` is expected to be present — but if
-                # somehow it isn't we fall back to the full eval
-                # path rather than silently truncating arguments.
-                concat_idx = self._shared_imports.get("tcl_concat")
-                if concat_idx is None:
+                lappend_idx = self._shared_imports.get("tcl_lappend")
+                if lappend_idx is None:
                     self._emit_eval_fallback(cmd_name, tuple(cmd_args))
                     return
-                self._emit_value(kv[0])
-                for rest in kv[1:]:
-                    self._emit_value(rest)
-                    self._emit_call(concat_idx)
+                # Start with empty list; lappend each k/v in order.
+                self._emit_obj_literal("")
+                for elem in kv:
+                    self._emit_value(elem)
+                    self._emit_call(lappend_idx)
                 return
             import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
             if import_key is not None and import_key in self._shared_imports:
@@ -3906,9 +3907,12 @@ class _WasmEmitter:
             return
         # ``dict create k1 v1 k2 v2 ...`` — the runtime helper ignores
         # arguments (always returns the empty dict), so assemble the
-        # key/value pairs at the compiler level.  When every k/v is a
-        # plain literal we fold to a static list; otherwise chain
-        # ``tcl_concat`` calls at runtime.
+        # key/value pairs at the compiler level.  Literal args fold
+        # to a compile-time list; non-literals chain ``tcl_lappend``
+        # which re-quotes each element canonically.  Using
+        # ``tcl_concat`` was incorrect: concat trims whitespace and
+        # doesn't list-quote, so keys/values containing spaces or
+        # braces would be silently mangled.
         if subcmd == "create":
             kv = args[1:]
             if not kv:
@@ -3934,13 +3938,8 @@ class _WasmEmitter:
                 else:
                     self._emit(WasmOp.DROP)
                 return
-            # Non-literal path — chain ``tcl_concat`` calls.  The scan
-            # pass registers the import whenever ``dict create``
-            # appears, so ``concat_idx`` should be present; if it
-            # somehow isn't, fall through to the full eval fallback
-            # rather than silently dropping arguments.
-            concat_idx = self._shared_imports.get("tcl_concat")
-            if concat_idx is None:
+            lappend_idx = self._shared_imports.get("tcl_lappend")
+            if lappend_idx is None:
                 self._emit_eval_fallback("dict", args)
                 if defs:
                     def_idx = self._intern_local(defs[0])
@@ -3948,10 +3947,11 @@ class _WasmEmitter:
                 else:
                     self._emit(WasmOp.DROP)
                 return
-            self._emit_value(kv[0])
-            for rest in kv[1:]:
-                self._emit_value(rest)
-                self._emit_call(concat_idx)
+            # Start with empty list, lappend each k/v in order.
+            self._emit_obj_literal("")
+            for elem in kv:
+                self._emit_value(elem)
+                self._emit_call(lappend_idx)
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
@@ -5206,8 +5206,12 @@ class _WasmEmitter:
         ``unset``, etc.) we push a null TclObj (0) as the result.
         """
         from ...ir import (
+            IRAssignConst,
+            IRAssignExpr,
+            IRAssignValue,
             IRBarrier,
             IRCall,
+            IRCatch,
             IRExprEval,
             IRIncr,
         )
@@ -5241,6 +5245,16 @@ class _WasmEmitter:
             case IRExprEval(expr=expr):
                 self._emit_expr(expr)
                 self._emit_box_int()
+            case IRCatch(body=inner_body, result_var=inner_result_var):
+                # Nested ``catch`` as the last stmt of the outer body —
+                # emit with ``keep_on_stack=True`` so the inner catch's
+                # return code (0 or 1) lands on the stack for the outer
+                # catch_set_ok_result to latch.  Without this branch the
+                # default case below would fall through to _emit_stmt
+                # (which drops the inner result) and then push a null,
+                # turning ``catch {catch {error x} m1} m2`` into
+                # ``m2 == ""``.
+                self._emit_catch(inner_body, inner_result_var, keep_on_stack=True)
             case IRIncr(name=name, amount=amount):
                 # Mimic the incr emitter (keep value on stack)
                 self._emit_var_read_obj(name)
@@ -5259,8 +5273,32 @@ class _WasmEmitter:
                     self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
                 self._emit_var_write_obj_keep(name)
+            case IRAssignConst(name=name, value=value):
+                # ``set x 42`` in tail position — store + keep the
+                # assigned object on the stack so ``catch_set_ok_result``
+                # records the new value.  Without this, ``catch {set x
+                # 42} msg`` emitted a null and ``msg`` came back empty.
+                self._emit_obj_literal(value)
+                self._emit_var_write_obj_keep(name)
+                if self._optimise and name not in self._aliases:
+                    try:
+                        self._const_map[name] = int(value)
+                    except ValueError:
+                        self._const_map.pop(name, None)
+            case IRAssignValue(name=name, value=value):
+                # ``set x $something`` — evaluate the RHS, store, keep.
+                self._emit_value(value)
+                self._emit_var_write_obj_keep(name)
+                if self._optimise:
+                    self._const_map.pop(name, None)
+            case IRAssignExpr(name=name, expr=expr):
+                self._emit_expr(expr)
+                self._emit_box_int()
+                self._emit_var_write_obj_keep(name)
+                if self._optimise:
+                    self._const_map.pop(name, None)
             case _:
-                # All other statement types (assign, scoping, etc.):
+                # All other statement types (declarations, scoping, etc.):
                 # emit normally, then push a null result.
                 self._emit_stmt(stmt)
                 self._emit_i32_const(0)
