@@ -1393,9 +1393,16 @@ class _WasmEmitter:
         return parts
 
     def _emit_literal(self, value: str) -> None:
-        """Emit a literal as a raw i64 constant (for expression context)."""
+        """Emit a literal as a raw i64 constant (for expression context).
+
+        ``int(value, 0)`` (not bare ``int(value)``) handles Tcl's
+        ``0x``/``0o``/``0b`` prefixes as well as decimal integers.  The
+        old ``int(value)`` path raised ``ValueError`` on ``0x10`` and
+        fell through to ``float("0x10")`` (also an error) and finally
+        to ``0`` — so ``expr {0x10 + 1}`` evaluated to ``1``.
+        """
         try:
-            int_val = int(value)
+            int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
             self._emit_i64_const(int_val)
         except ValueError:
             try:
@@ -1833,7 +1840,9 @@ class _WasmEmitter:
         match node:
             case ExprLiteral(text=value):
                 try:
-                    return int(value)
+                    # ``int(value, 0)`` handles the Tcl ``0x``/``0o``/``0b``
+                    # prefixes alongside plain decimals.
+                    return int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
                 except ValueError:
                     return None
             case ExprVar(name=name, text=text):
