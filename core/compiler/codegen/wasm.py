@@ -20,6 +20,7 @@ via :meth:`WasmModule.to_bytes` or inspected via :meth:`WasmModule.to_wat`.
 from __future__ import annotations
 
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
 
@@ -2811,7 +2812,12 @@ class _WasmEmitter:
         self._emit_i64_const(0)
         self._emit_box_int()
 
-    def _emit_args_list(self, tail_args: tuple[str, ...]) -> None:
+    def _emit_args_list(
+        self,
+        tail_args: tuple[str, ...],
+        *,
+        was_braced_fn: "Callable[[int], bool] | None" = None,
+    ) -> None:
         """Emit a Tcl list TclObj containing *tail_args*.
 
         Used when calling a proc whose last formal parameter is ``args``
@@ -2824,11 +2830,24 @@ class _WasmEmitter:
         at compile time and emit it as a single object literal.
         Otherwise build the list at runtime by starting with an empty
         list and calling ``tcl_cmd_lappend`` for each element.
+
+        *was_braced_fn* tells us for each tail index whether the source
+        token was a braced ``{…}`` word.  Braced content is protected
+        from backslash substitution per Tcl semantics, so when the
+        call-site word was braced the arg's bytes must pass through
+        unchanged even if they contain ``\\{`` / ``\\n`` / ``\\$`` /
+        etc.  Without this flag a test body like
+        ``{set x "a\\{"; lappend x abc}`` would have its ``\\{`` folded
+        to ``{`` before reaching the proc's ``args``, breaking later
+        reparsing.
         """
         if not tail_args:
             # ``args`` formal receives the empty list ``{}``
             self._emit_obj_literal("")
             return
+
+        def _was_braced(i: int) -> bool:
+            return was_braced_fn(i) if was_braced_fn is not None else False
 
         # Check whether all elements are plain literals.
         def _is_literal(a: str) -> bool:
@@ -2846,14 +2865,18 @@ class _WasmEmitter:
             # braces already stripped by the lexer, so treat brace-looking
             # values (e.g. "{}" from source "{{}}") as literal data and let
             # _tcl_list_quote encode them correctly.  Non-braced values may
-            # have raw backslash sequences that need expansion first.
-            def _prep(a: str) -> str:
+            # have raw backslash sequences that need expansion first; braced
+            # values carry their exact source bytes and must pass through
+            # unchanged.
+            def _prep(a: str, braced: bool) -> str:
+                if braced:
+                    return a
                 if a.startswith("{") and a.endswith("}"):
                     return a  # brace chars are part of the value, not quoting
                 return _tcl_backslash_subst(a) if "\\" in a else a
 
             list_str = " ".join(
-                _tcl_list_quote(_prep(a), first=(i == 0))
+                _tcl_list_quote(_prep(a, _was_braced(i)), first=(i == 0))
                 for i, a in enumerate(tail_args)
             )
             self._emit_obj_literal(list_str)
@@ -2863,15 +2886,21 @@ class _WasmEmitter:
         lappend_idx = self._shared_imports.get("tcl_lappend")
         if lappend_idx is not None:
             self._emit_obj_literal("")  # empty list seed
-            for a in tail_args:
-                self._emit_value(a)
+            for i, a in enumerate(tail_args):
+                self._emit_value(a, was_braced=_was_braced(i))
                 self._emit_call(lappend_idx)
         else:
             # No lappend available — fall back to compile-time join.
             # IR values are already de-braced by the lexer; _tcl_list_quote
             # handles proper list encoding.
+            def _prep2(a: str, braced: bool) -> str:
+                if braced:
+                    return a
+                return _tcl_backslash_subst(a) if "\\" in a else a
+
             list_str = " ".join(
-                _tcl_list_quote(a, first=(i == 0)) for i, a in enumerate(tail_args)
+                _tcl_list_quote(_prep2(a, _was_braced(i)), first=(i == 0))
+                for i, a in enumerate(tail_args)
             )
             self._emit_obj_literal(list_str)
 
@@ -6281,9 +6310,15 @@ class _WasmEmitter:
                     self._emit_default_arg()
                 else:
                     self._emit_obj_literal(default)
-            # Last slot: list of all remaining call args
+            # Last slot: list of all remaining call args.  Pass a
+            # per-tail-arg ``was_braced`` probe so braced tokens in
+            # the args tail keep their exact source bytes (no
+            # backslash subst) when packed into the list.
             tail_args = args[fixed:]
-            self._emit_args_list(tail_args)
+            self._emit_args_list(
+                tail_args,
+                was_braced_fn=lambda i, base=fixed: _was_braced(base + i),
+            )
         else:
             # Push arguments up to the callee's parameter count
             for i in range(min(n_params, len(args))):
