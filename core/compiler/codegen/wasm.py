@@ -20,6 +20,7 @@ via :meth:`WasmModule.to_bytes` or inspected via :meth:`WasmModule.to_wat`.
 from __future__ import annotations
 
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
 
@@ -127,64 +128,141 @@ def _tcl_token_value(token: str) -> str:
     return token
 
 
-def _tcl_list_quote(s: str) -> str:
-    """Return *s* encoded as a single Tcl list element.
+_LIST_ELEM_WHITESPACE = frozenset(" \t\n\x0b\x0c\r")
 
-    The result can be concatenated with a single space against
-    other ``_tcl_list_quote`` outputs and re-parsed as a list with
-    one element per input.  Matches (a subset of) ``Tcl_ConvertElement``:
 
-      - Empty strings become ``{}`` so they aren't collapsed by
-        whitespace-split re-parsing.
-      - Strings containing whitespace, ``{`` / ``}`` / ``[`` / ``]``
-        / ``"`` / ``\\`` / ``$`` / ``;`` and no unbalanced braces
-        are wrapped in ``{}``.
-      - Strings with unbalanced braces would need backslash escaping
-        (full ``Tcl_ConvertElement``); we fall back to double-quoting
-        with ``\\``-escaped special chars as a best-effort — rare in
-        practice because most such strings come from user code that
-        already brace-encloses them.
+# Flag bits for :func:`_tcl_scan_element` / :func:`_tcl_convert_element`.
+# Names and semantics mirror ``enum ConvertFlags`` in ``tclUtil.c`` so the
+# port is 1:1 with the Zig runtime (``runtime/zig/tcl_obj.zig``) and with
+# reference Tcl 9.0's ``TclScanElement`` / ``TclConvertElement``.
+_FLAG_CONVERT_NONE = 0
+_FLAG_DONT_USE_BRACES = 1
+_FLAG_CONVERT_BRACE = 2
+_FLAG_CONVERT_ESCAPE = 4
+_FLAG_DONT_QUOTE_HASH = 8
+_FLAG_CONVERT_MASK = _FLAG_CONVERT_BRACE | _FLAG_CONVERT_ESCAPE
 
-    Plain words with no special chars pass through unchanged.
+
+def _tcl_scan_element(s: str, flag_in: int = 0) -> int:
+    """Port of ``TclScanElement`` (tclUtil.c, Tcl 9.0, COMPAT=1).
+
+    Chooses the ``CONVERT_*`` mode appropriate for *s* so that
+    :func:`_tcl_convert_element` produces a valid list-element
+    representation.  Pass ``_FLAG_DONT_QUOTE_HASH`` to skip the
+    leading-``#`` quoting rule — matches ``UpdateStringOfList``'s
+    ``i ? TCL_DONT_QUOTE_HASH : 0`` convention for non-first elements.
     """
     if s == "":
+        return (flag_in & _FLAG_DONT_QUOTE_HASH) | _FLAG_CONVERT_BRACE
+    forbid_none = False
+    require_escape = False
+    prefer_escape = False
+    prefer_brace = False
+    nesting = 0
+    if s[0] == "{" or s[0] == '"':
+        forbid_none = True
+        prefer_brace = True
+    if s[0] == "#" and (flag_in & _FLAG_DONT_QUOTE_HASH) == 0:
+        prefer_brace = True
+    i = 0
+    n = len(s)
+    while i < n:
+        ch = s[i]
+        if ch == "{":
+            nesting += 1
+        elif ch == "}":
+            nesting -= 1
+            if nesting < 0:
+                require_escape = True
+        elif ch == "]" or ch == '"':
+            forbid_none = True
+            prefer_escape = True
+        elif ch == "[" or ch == "$" or ch == ";":
+            forbid_none = True
+            prefer_brace = True
+        elif ch == "\\":
+            if i + 1 >= n:
+                require_escape = True
+            elif s[i + 1] == "\n":
+                require_escape = True
+                i += 1
+            elif s[i + 1] == "{" or s[i + 1] == "}" or s[i + 1] == "\\":
+                i += 1
+            forbid_none = True
+            prefer_brace = True
+        elif ch in _LIST_ELEM_WHITESPACE:
+            forbid_none = True
+            prefer_brace = True
+        i += 1
+    if nesting > 0:
+        require_escape = True
+    out_hash = flag_in & _FLAG_DONT_QUOTE_HASH
+    if require_escape:
+        return out_hash | _FLAG_CONVERT_ESCAPE
+    if forbid_none:
+        if prefer_escape and not prefer_brace:
+            return out_hash | _FLAG_CONVERT_MASK
+        return out_hash | _FLAG_CONVERT_BRACE
+    return out_hash | _FLAG_CONVERT_NONE
+
+
+_ESCAPE_ONE_CHAR = frozenset('][$; \\"')
+_ESCAPE_CTL_MAP = {
+    "\n": "\\n",
+    "\t": "\\t",
+    "\r": "\\r",
+    "\x0b": "\\v",
+    "\x0c": "\\f",
+}
+
+
+def _tcl_convert_element(s: str, flags: int) -> str:
+    """Port of ``TclConvertElement`` (tclUtil.c, Tcl 9.0, COMPAT=1)."""
+    conversion = flags & _FLAG_CONVERT_MASK
+    if (flags & _FLAG_DONT_USE_BRACES) and (conversion & _FLAG_CONVERT_BRACE):
+        conversion = _FLAG_CONVERT_ESCAPE
+    if s == "":
         return "{}"
-    needs_quoting = False
-    brace_depth = 0
-    unbalanced = False
-    prev_backslash = False
+    prefix = ""
+    if s[0] == "#" and (flags & _FLAG_DONT_QUOTE_HASH) == 0:
+        if conversion == _FLAG_CONVERT_ESCAPE:
+            prefix = "\\#"
+            s = s[1:]
+        else:
+            conversion = _FLAG_CONVERT_BRACE
+    if conversion == _FLAG_CONVERT_NONE:
+        return prefix + s
+    if conversion == _FLAG_CONVERT_BRACE:
+        return prefix + "{" + s + "}"
+    # CONVERT_ESCAPE or CONVERT_MASK.
+    out: list[str] = [prefix] if prefix else []
     for ch in s:
-        if ch in ' \t\n\r{}[]"\\$;':
-            needs_quoting = True
-        # Per Tcl brace-matching rules, \{ and \} are not counted toward
-        # depth — only unescaped braces matter.  Track whether the previous
-        # character was a (non-doubled) backslash.
-        if not prev_backslash:
-            if ch == "{":
-                brace_depth += 1
-            elif ch == "}":
-                brace_depth -= 1
-                if brace_depth < 0:
-                    unbalanced = True
-                    break
-        # Toggle: \\ → next char is NOT preceded by backslash
-        prev_backslash = (ch == "\\") and not prev_backslash
-    if brace_depth != 0:
-        unbalanced = True
-    if not needs_quoting:
-        return s
-    if not unbalanced:
-        return "{" + s + "}"
-    # Fallback: backslash-escape the special chars.  This is the
-    # "convert everything to literal bytes" form from
-    # Tcl_ConvertElement — correct for every input but uglier than
-    # the braced form for most real code.
-    out: list[str] = []
-    for ch in s:
-        if ch in '{}\\$[] \t\n\r;"':
+        if ch in _ESCAPE_ONE_CHAR:
             out.append("\\")
-        out.append(ch)
+            out.append(ch)
+        elif ch == "{" or ch == "}":
+            if conversion == _FLAG_CONVERT_ESCAPE:
+                out.append("\\")
+            out.append(ch)
+        elif ch in _ESCAPE_CTL_MAP:
+            out.append(_ESCAPE_CTL_MAP[ch])
+        else:
+            out.append(ch)
     return "".join(out)
+
+
+def _tcl_list_quote(s: str, first: bool = True) -> str:
+    """Return *s* encoded as a single Tcl list element.
+
+    ``first=True`` — the element is position 0 of the output list, so a
+    leading ``#`` is quoted (``{#}`` or ``\\#``) to prevent later
+    ``eval`` re-parses from treating it as a comment.
+    ``first=False`` — adds ``TCL_DONT_QUOTE_HASH``, matching the
+    second-and-later-element rule in ``UpdateStringOfList``.
+    """
+    flag_in = 0 if first else _FLAG_DONT_QUOTE_HASH
+    flags = _tcl_scan_element(s, flag_in)
+    return _tcl_convert_element(s, flags)
 
 
 def _encode_string(s: str) -> bytes:
@@ -2734,7 +2812,12 @@ class _WasmEmitter:
         self._emit_i64_const(0)
         self._emit_box_int()
 
-    def _emit_args_list(self, tail_args: tuple[str, ...]) -> None:
+    def _emit_args_list(
+        self,
+        tail_args: tuple[str, ...],
+        *,
+        was_braced_fn: "Callable[[int], bool] | None" = None,
+    ) -> None:
         """Emit a Tcl list TclObj containing *tail_args*.
 
         Used when calling a proc whose last formal parameter is ``args``
@@ -2747,11 +2830,24 @@ class _WasmEmitter:
         at compile time and emit it as a single object literal.
         Otherwise build the list at runtime by starting with an empty
         list and calling ``tcl_cmd_lappend`` for each element.
+
+        *was_braced_fn* tells us for each tail index whether the source
+        token was a braced ``{…}`` word.  Braced content is protected
+        from backslash substitution per Tcl semantics, so when the
+        call-site word was braced the arg's bytes must pass through
+        unchanged even if they contain ``\\{`` / ``\\n`` / ``\\$`` /
+        etc.  Without this flag a test body like
+        ``{set x "a\\{"; lappend x abc}`` would have its ``\\{`` folded
+        to ``{`` before reaching the proc's ``args``, breaking later
+        reparsing.
         """
         if not tail_args:
             # ``args`` formal receives the empty list ``{}``
             self._emit_obj_literal("")
             return
+
+        def _was_braced(i: int) -> bool:
+            return was_braced_fn(i) if was_braced_fn is not None else False
 
         # Check whether all elements are plain literals.
         def _is_literal(a: str) -> bool:
@@ -2769,13 +2865,20 @@ class _WasmEmitter:
             # braces already stripped by the lexer, so treat brace-looking
             # values (e.g. "{}" from source "{{}}") as literal data and let
             # _tcl_list_quote encode them correctly.  Non-braced values may
-            # have raw backslash sequences that need expansion first.
-            def _prep(a: str) -> str:
+            # have raw backslash sequences that need expansion first; braced
+            # values carry their exact source bytes and must pass through
+            # unchanged.
+            def _prep(a: str, braced: bool) -> str:
+                if braced:
+                    return a
                 if a.startswith("{") and a.endswith("}"):
                     return a  # brace chars are part of the value, not quoting
                 return _tcl_backslash_subst(a) if "\\" in a else a
 
-            list_str = " ".join(_tcl_list_quote(_prep(a)) for a in tail_args)
+            list_str = " ".join(
+                _tcl_list_quote(_prep(a, _was_braced(i)), first=(i == 0))
+                for i, a in enumerate(tail_args)
+            )
             self._emit_obj_literal(list_str)
             return
 
@@ -2783,14 +2886,22 @@ class _WasmEmitter:
         lappend_idx = self._shared_imports.get("tcl_lappend")
         if lappend_idx is not None:
             self._emit_obj_literal("")  # empty list seed
-            for a in tail_args:
-                self._emit_value(a)
+            for i, a in enumerate(tail_args):
+                self._emit_value(a, was_braced=_was_braced(i))
                 self._emit_call(lappend_idx)
         else:
             # No lappend available — fall back to compile-time join.
             # IR values are already de-braced by the lexer; _tcl_list_quote
             # handles proper list encoding.
-            list_str = " ".join(_tcl_list_quote(a) for a in tail_args)
+            def _prep2(a: str, braced: bool) -> str:
+                if braced:
+                    return a
+                return _tcl_backslash_subst(a) if "\\" in a else a
+
+            list_str = " ".join(
+                _tcl_list_quote(_prep2(a, _was_braced(i)), first=(i == 0))
+                for i, a in enumerate(tail_args)
+            )
             self._emit_obj_literal(list_str)
 
     def _intern_string(self, value: str) -> int:
@@ -4277,7 +4388,9 @@ class _WasmEmitter:
                         # unbalanced brace (rare — ``{a{b}`` style).
                         if "{" in a or "}" in a:
                             # Use list-quote to get balanced/escaped form.
-                            parts.append(_tcl_list_quote(a))
+                            # Args are never at command-start so a leading
+                            # ``#`` does not need quoting.
+                            parts.append(_tcl_list_quote(a, first=False))
                         else:
                             parts.append("{" + a + "}")
                     else:
@@ -4309,10 +4422,12 @@ class _WasmEmitter:
                                 prepped = candidate
                         else:
                             prepped = a
+                        # Script args never sit at command-start — pass
+                        # ``first=False`` so a leading ``#`` is left alone.
                         if prepped is None:
-                            parts.append(_tcl_list_quote(a))
+                            parts.append(_tcl_list_quote(a, first=False))
                         else:
-                            parts.append(_tcl_list_quote(prepped))
+                            parts.append(_tcl_list_quote(prepped, first=False))
                 script = " ".join(parts)
             # Sync all live proc-locals into the frame so the
             # interpreter can see them via var_resolve.  We sync
@@ -4628,11 +4743,19 @@ class _WasmEmitter:
                 if mutates_var and len(args) >= 2:
                     var_name = args[0]
                     var_idx = self._intern_local(var_name)
-                    self._emit_local_get(var_idx)
-                    self._emit_value(args[1])
-                    self._emit_call(fidx)
-                    # Tee: store back into var AND keep on stack (i32)
-                    self._emit_local_tee(var_idx)
+                    # Loop: each value_arg gets concatenated / appended
+                    # in order.  After the last one we tee — the final
+                    # updated value is left on the stack for implicit
+                    # return.
+                    last = len(args) - 1
+                    for i, value_arg in enumerate(args[1:], start=1):
+                        self._emit_local_get(var_idx)
+                        self._emit_value(value_arg)
+                        self._emit_call(fidx)
+                        if i == last:
+                            self._emit_local_tee(var_idx)
+                        else:
+                            self._emit_local_set(var_idx)
                 elif command == "puts":
                     if args:
                         self._emit_value(args[-1])
@@ -5541,7 +5664,11 @@ class _WasmEmitter:
         # braces, applies backslash subst), then _tcl_list_quote encodes
         # the value as a list element.
         if all(not a.startswith("$") and not a.startswith("[") for a in args):
-            self._emit_obj_literal(" ".join(_tcl_list_quote(_tcl_token_value(a)) for a in args))
+            self._emit_obj_literal(
+                " ".join(
+                    _tcl_list_quote(_tcl_token_value(a), first=(i == 0)) for i, a in enumerate(args)
+                )
+            )
             return
         # Mixed: start with an empty list, lappend each arg so that
         # runtime values containing spaces are properly quoted as
@@ -5968,17 +6095,21 @@ class _WasmEmitter:
         param_count = len(spec[2])
 
         # For commands like append/lappend that mutate a variable,
-        # the first arg is the variable name and the second is the value.
-        # The runtime receives the current variable value + new value.
+        # the first arg is the variable name; the runtime receives the
+        # current variable value + one new value and returns the
+        # updated value.  ``append x a b c`` concatenates a, b, c onto
+        # x in order; ``lappend x a b c`` appends each as a separate
+        # element.  Both loop per-value and store the running result
+        # back between each call.
         mutates_var = command in ("append", "lappend")
         if mutates_var and len(args) >= 2:
             var_name = args[0]
             var_idx = self._intern_local(var_name)
-            self._emit_local_get(var_idx)  # current value
-            self._emit_value(args[1])  # value to append
-            self._emit_call(func_idx)
-            # Store result back into the variable
-            self._emit_local_set(var_idx)
+            for value_arg in args[1:]:
+                self._emit_local_get(var_idx)  # current value
+                self._emit_value(value_arg)  # value to append
+                self._emit_call(func_idx)
+                self._emit_local_set(var_idx)
             return
 
         # ``list`` handled outside _emit_cmd_runtime — see
@@ -6178,9 +6309,15 @@ class _WasmEmitter:
                     self._emit_default_arg()
                 else:
                     self._emit_obj_literal(default)
-            # Last slot: list of all remaining call args
+            # Last slot: list of all remaining call args.  Pass a
+            # per-tail-arg ``was_braced`` probe so braced tokens in
+            # the args tail keep their exact source bytes (no
+            # backslash subst) when packed into the list.
             tail_args = args[fixed:]
-            self._emit_args_list(tail_args)
+            self._emit_args_list(
+                tail_args,
+                was_braced_fn=lambda i, base=fixed: _was_braced(base + i),
+            )
         else:
             # Push arguments up to the callee's parameter count
             for i in range(min(n_params, len(args))):

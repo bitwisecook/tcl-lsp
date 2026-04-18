@@ -25,13 +25,7 @@ const obj_new_string = obj.obj_new_string;
 const frames = @import("tcl_frames.zig");
 const procs = @import("tcl_procs.zig");
 
-fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
-    if (alen != b.len) return false;
-    inline for (0..b.len) |i| {
-        if (a[i] != b[i]) return false;
-    }
-    return true;
-}
+const str_eq = @import("tcl_chars.zig").str_eq;
 
 /// info exists varName — returns 1 if variable is defined, 0 otherwise.
 /// Checks current frame locals first, then globals.

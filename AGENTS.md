@@ -300,6 +300,49 @@ is a structural brace, not a stray character.
 See `docs/design/compiler/lexing-segmentation.md` for the full token type
 table and lexer contracts.
 
+## Zig runtime layering
+
+The WASM runtime under `runtime/zig/` is organised as a stack of
+small modules, each with one responsibility.  Callers should import
+the specific module they need — the old "everything in `tcl_obj.zig`"
+shape is dead.  `tcl_obj.zig` still re-exports the migrated symbols
+(`obj.is_space`, `obj.list_elem_quote`, …) as a compat layer so older
+callers don't break, but new code should go to the canonical module.
+
+| Module | Owns | Reference Tcl 9 analogue |
+|---|---|---|
+| `tcl_chars.zig` | character classification (`is_space`, `is_scan_space`, `is_bareword`, `is_digit`, …) + byte-span comparators (`str_eq`, `str_cmp`, `mem_eq`) | `tclParse.c` `CHAR_TYPE` / `TclIsSpaceProc` / `TclIsBareword` |
+| `tcl_bs.zig` | backslash decoder — `consume_bs_escape` for one ``\x`` escape; `decode_into` for whole-span decode; `encode_utf8` helper | `tclParse.c` `TclParseBackslash` / `Tcl_UtfBackslash` / `TclCopyAndCollapse` |
+| `tcl_list_quote.zig` | output side of the list-string contract — `scan_element` + `convert_element` (COMPAT=1), `list_elem_quote` / `list_elem_quote_nth` | `tclUtil.c` `TclScanElement` / `TclConvertElement` / `Tcl_Merge` |
+| `tcl_list_parse.zig` | input side — `count_elements`, `element_at`, `copy_unbraced_elem` | `tclUtil.c` `TclFindElement` / `Tcl_SplitList` |
+| `tcl_parse.zig` | script / word tokeniser — `parse_command` (flat-array legacy API) and `ParseCommand` (Token-tree API with per-word `braced` flag) | `tclParse.c` `Tcl_ParseCommand` / `Tcl_ParseBraces` / `Tcl_ParseQuotedString` |
+| `tcl_obj.zig` | TclObj memory model, type dispatch, `try_parse_int` / `try_parse_bool` | `tclObj.c` |
+| `tcl_interp.zig` | eval loop + built-in command dispatch + proc frames (consumer) | `tclBasic.c` / `tclExecute.c` |
+| `tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
+
+A few invariants to preserve when adding features:
+
+- **One canonical implementation per algorithm.**  List-element
+  quoting, backslash decoding, whitespace classification — each
+  lives in exactly one module.  The "third copy in `tcl_dispatch.zig`"
+  bug that stripped newlines from braced proc bodies was exactly the
+  kind of hazard this layering exists to prevent.
+- **Character classification goes through `tcl_chars.zig`.**  Don't
+  spell out `c == ' ' or c == '\t' …` inline — use `chars.is_space` /
+  `chars.is_scan_space`.  Likewise for `is_digit`, `is_hex_digit`,
+  `is_bareword`.
+- **Braced-vs-unbraced is first-class.**  When a parser produces a
+  word, callers must get the `braced` flag (either from
+  `parse.Token.braced` or, in callers that still use the flat-array
+  form, the old `word_braced[i]`).  Losing that flag along the path
+  from parse to substitute is what causes ``\{`` / newline bugs in
+  proc bodies passed through `uplevel`.
+
+Reference Tcl source is fetched to `tmp/tcl9.0.3/` via
+`bash .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`;
+`/tmp/tcl9-generic/generic/` carries the C parser / util files the
+Zig ports mirror.
+
 ## Codegen and lowering fallback
 
 Lowering hooks in `core/compiler/lowering_hooks/` convert high-level Tcl
