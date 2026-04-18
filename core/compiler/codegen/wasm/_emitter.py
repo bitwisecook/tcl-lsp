@@ -1761,8 +1761,13 @@ class _WasmEmitter:
         self._emit(WasmOp.END)
 
     def _emit_func_call(self, func: str, args: tuple[ExprNode, ...]) -> None:
-        """Emit a math function call."""
-        # For now, inline simple math functions
+        """Emit a math function call.
+
+        Integer-valued built-ins are inlined.  Float-valued ones
+        (sqrt, log, sin, ...) still need float infrastructure through
+        the IR; they fall through to the ``0`` placeholder and will
+        be picked up in a follow-up.
+        """
         if func == "abs" and len(args) == 1:
             # abs(x) = x < 0 ? -x : x
             tmp = self._add_extra_local("_abs_tmp")
@@ -1777,36 +1782,54 @@ class _WasmEmitter:
             self._emit(WasmOp.ELSE)
             self._emit_local_get(tmp)
             self._emit(WasmOp.END)
-        elif func == "min" and len(args) == 2:
-            tmp_a = self._add_extra_local("_min_a")
-            tmp_b = self._add_extra_local("_min_b")
+        elif func == "min" and len(args) >= 2:
+            # Variadic min: fold over args by pairwise I64_LT_S compare.
+            running = self._add_extra_local("_min_acc")
             self._emit_expr(args[0])
-            self._emit_local_set(tmp_a)
-            self._emit_expr(args[1])
-            self._emit_local_set(tmp_b)
-            self._emit_local_get(tmp_a)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.I64_LT_S)
-            self._emit(WasmOp.IF, bytes([_BLOCK_I64]))
-            self._emit_local_get(tmp_a)
-            self._emit(WasmOp.ELSE)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.END)
-        elif func == "max" and len(args) == 2:
-            tmp_a = self._add_extra_local("_max_a")
-            tmp_b = self._add_extra_local("_max_b")
+            self._emit_local_set(running)
+            for arg in args[1:]:
+                candidate = self._add_extra_local("_min_cand")
+                self._emit_expr(arg)
+                self._emit_local_tee(candidate)
+                self._emit_local_get(running)
+                self._emit(WasmOp.I64_LT_S)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit_local_get(candidate)
+                self._emit_local_set(running)
+                self._emit(WasmOp.END)
+            self._emit_local_get(running)
+        elif func == "max" and len(args) >= 2:
+            running = self._add_extra_local("_max_acc")
             self._emit_expr(args[0])
-            self._emit_local_set(tmp_a)
-            self._emit_expr(args[1])
-            self._emit_local_set(tmp_b)
-            self._emit_local_get(tmp_a)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.I64_GT_S)
-            self._emit(WasmOp.IF, bytes([_BLOCK_I64]))
-            self._emit_local_get(tmp_a)
-            self._emit(WasmOp.ELSE)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.END)
+            self._emit_local_set(running)
+            for arg in args[1:]:
+                candidate = self._add_extra_local("_max_cand")
+                self._emit_expr(arg)
+                self._emit_local_tee(candidate)
+                self._emit_local_get(running)
+                self._emit(WasmOp.I64_GT_S)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit_local_get(candidate)
+                self._emit_local_set(running)
+                self._emit(WasmOp.END)
+            self._emit_local_get(running)
+        elif func in ("int", "entier", "wide") and len(args) == 1:
+            # Integer cast is a no-op at the i64 level — the operand is
+            # already evaluated to i64.  Tcl's ``int`` / ``entier`` /
+            # ``wide`` all produce a platform-native integer from a
+            # numeric value; in our i64 VM they're identity.
+            self._emit_expr(args[0])
+        elif func == "bool" and len(args) == 1:
+            # bool(x) == x != 0
+            self._emit_expr(args[0])
+            self._emit_i64_const(0)
+            self._emit(WasmOp.I64_NE)
+            self._emit(WasmOp.I64_EXTEND_I32_S)
+        elif func == "pow" and len(args) == 2:
+            # Delegate to the existing integer-power loop.  Float pow
+            # isn't covered; callers with float operands hit this path
+            # and get truncated-integer power.
+            self._emit_power(args[0], args[1])
         else:
             # Unknown function — push 0
             self._emit_i64_const(0)
