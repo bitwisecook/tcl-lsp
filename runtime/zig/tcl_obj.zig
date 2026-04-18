@@ -317,111 +317,27 @@ pub const is_space = chars.is_space;
 const is_scan_space = chars.is_scan_space;
 pub const str_cmp = chars.str_cmp;
 
-// Count elements in a Tcl list string.
-pub fn list_count_elements(ptr: u32, len: u32) i64 {
-    if (len == 0) return 0;
-    const src: [*]const u8 = @ptrFromInt(ptr);
-    var count: i64 = 0;
-    var i: u32 = 0;
-    while (i < len) {
-        while (i < len and is_space(src[i])) i += 1;
-        if (i >= len) break;
-        count += 1;
-        if (src[i] == '{') {
-            i += 1;
-            var depth: u32 = 1;
-            while (i < len and depth > 0) {
-                // Tcl list parsing: a backslash escapes the next
-                // character so ``\{`` / ``\}`` do NOT affect the
-                // brace-nesting depth.  Consume both bytes and
-                // continue without touching depth.
-                if (src[i] == '\\' and i + 1 < len) {
-                    i += 2;
-                    continue;
-                }
-                if (src[i] == '{') {
-                    depth += 1;
-                } else if (src[i] == '}') {
-                    depth -= 1;
-                }
-                i += 1;
-            }
-        } else {
-            while (i < len and !is_space(src[i])) {
-                if (src[i] == '\\' and i + 1 < len) {
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-            }
-        }
-    }
-    return count;
-}
-
-// Get the start and length of the nth element (0-based) in a Tcl list.
-pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u32, braced: bool } {
-    if (len == 0) return .{ .start = 0, .len = 0, .braced = false };
-    const src: [*]const u8 = @ptrFromInt(ptr);
-    var count: i64 = 0;
-    var i: u32 = 0;
-    while (i < len) {
-        while (i < len and is_space(src[i])) i += 1;
-        if (i >= len) break;
-        if (src[i] == '{') {
-            i += 1;
-            const inner_start = i;
-            var depth: u32 = 1;
-            while (i < len and depth > 0) {
-                // Backslash escapes the next char — ``\{`` / ``\}``
-                // inside a braced list element are NOT depth-changing.
-                if (src[i] == '\\' and i + 1 < len) {
-                    i += 2;
-                    continue;
-                }
-                if (src[i] == '{') {
-                    depth += 1;
-                } else if (src[i] == '}') {
-                    depth -= 1;
-                }
-                i += 1;
-            }
-            if (count == idx) {
-                return .{ .start = inner_start, .len = i - 1 - inner_start, .braced = true };
-            }
-        } else {
-            const elem_start = i;
-            while (i < len and !is_space(src[i])) {
-                if (src[i] == '\\' and i + 1 < len) {
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-            }
-            if (count == idx) {
-                return .{ .start = elem_start, .len = i - elem_start, .braced = false };
-            }
-        }
-        count += 1;
-    }
-    return .{ .start = 0, .len = 0, .braced = false };
-}
-
-// Backslash-decoding helpers live in ``tcl_bs.zig``; ``copy_unbraced_elem``
-// here becomes a thin wrapper around :func:`tcl_bs.decode_into` so the
-// list-parse path and the script-word ``subst_flagged`` path share one
-// canonical decoder.  Re-exports keep existing ``obj.encode_utf8`` /
-// ``obj.consume_bs_escape`` / ``obj.copy_unbraced_elem`` callers working
-// during migration.
+// Backslash-decoding and list-parsing helpers live in their own
+// modules.  Re-exports here keep existing ``obj.encode_utf8`` /
+// ``obj.consume_bs_escape`` / ``obj.list_count_elements`` /
+// ``obj.list_element_at`` / ``obj.copy_unbraced_elem`` callers
+// working during migration — new code should import ``tcl_bs.zig``
+// or ``tcl_list_parse.zig`` directly.
 const bs = @import("tcl_bs.zig");
+const list_parse = @import("tcl_list_parse.zig");
 pub const encode_utf8 = bs.encode_utf8;
 pub const consume_bs_escape = bs.consume_bs_escape;
+pub const list_count_elements = list_parse.count_elements;
+pub const copy_unbraced_elem = list_parse.copy_unbraced_elem;
 
-/// Copy an unbraced list-element's bytes, expanding backslash sequences
-/// via :func:`tcl_bs.decode_into`.  Returns number of output bytes
-/// written to ``dst``.
-pub fn copy_unbraced_elem(dst: u32, src_ptr: u32, src_len: u32) u32 {
-    return bs.decode_into(src_ptr, src_len, dst);
+/// Re-export of :func:`tcl_list_parse.element_at` with the legacy
+/// anonymous-struct return type so existing ``obj.list_element_at``
+/// callers don't have to switch to the named ``Element`` struct in
+/// the same change as the file move.  New code should prefer the
+/// named type.
+pub fn list_element_at(ptr: u32, len: u32, idx: i64) struct { start: u32, len: u32, braced: bool } {
+    const e = list_parse.element_at(ptr, len, idx);
+    return .{ .start = e.start, .len = e.len, .braced = e.braced };
 }
 
 // List-element scan / convert / quote helpers live in
