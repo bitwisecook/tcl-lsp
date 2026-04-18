@@ -547,9 +547,15 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
 }
 
 // Exported: join — join a Tcl list with a separator string.
+// ``separator == 0`` means the caller omitted the optional argument
+// (``join list``), in which case Tcl defaults to a single space.  The
+// compiler fills missing runtime-call args with 0 so we have to
+// recover the default here rather than at the call site.
 pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
     const sl = obj_ensure_string(list);
-    const ss = obj_ensure_string(separator);
+    const default_sep = " ";
+    const ss_len: u32 = if (separator == 0) @intCast(default_sep.len) else obj_ensure_string(separator).len;
+    const ss_ptr: u32 = if (separator == 0) @intCast(@intFromPtr(default_sep.ptr)) else obj_ensure_string(separator).ptr;
     if (sl.len == 0) return obj_new_string(0, 0);
     const n = list_count_elements(sl.ptr, sl.len);
     if (n <= 0) return obj_new_string(0, 0);
@@ -558,13 +564,13 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
         return obj_new_string_copy(sl.ptr + elem.start, elem.len);
     }
     // Estimate output: sum of element lengths + (n-1) * sep_len
-    const buf = alloc(sl.len + @as(u32, @intCast(n)) * ss.len + 1);
+    const buf = alloc(sl.len + @as(u32, @intCast(n)) * ss_len + 1);
     var out: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
-        if (idx > 0 and ss.len > 0) {
-            memcpy(buf + out, ss.ptr, ss.len);
-            out += ss.len;
+        if (idx > 0 and ss_len > 0) {
+            memcpy(buf + out, ss_ptr, ss_len);
+            out += ss_len;
         }
         const elem = list_element_at(sl.ptr, sl.len, idx);
         if (elem.len > 0) {
