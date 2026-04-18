@@ -550,6 +550,15 @@ proc fibonacci {n} {
 # IR → CFG → SSA → SCCP → liveness → type inference → bytecode
 ```
 
+The WASM code generator uses a per-proc **var-escape analysis** to decide
+which Tcl variables can stay in fast WASM locals and which must spill to
+the runtime frame so `uplevel`, `upvar`, `eval`, and dynamic `set $name`
+can see them by name. Procs that provably never let a variable escape pay
+zero frame-sync overhead on interpreter fallbacks. See the
+[design doc](docs/design/compiler/var-escape-analysis.md) and the
+[KCS note](docs/kcs/features/kcs-feature-var-escape-analysis.md) for the
+rules and the interprocedural propagation of callee `upvar` sources.
+
 ### Static optimiser
 
 Twenty-plus optimisation passes detect constant propagation, dead code,

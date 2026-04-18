@@ -95,9 +95,8 @@ class ProcEscapeSummary:
         for name in extra_escaped:
             new_tags[name] = EscapeTag.FRAME
         new_pessimistic = self.dynamic_barrier or pessimistic
-        new_frame_needed = (
-            new_pessimistic
-            or any(tag is EscapeTag.FRAME for tag in new_tags.values())
+        new_frame_needed = new_pessimistic or any(
+            tag is EscapeTag.FRAME for tag in new_tags.values()
         )
         return ProcEscapeSummary(
             tags=new_tags,

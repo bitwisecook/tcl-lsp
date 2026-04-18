@@ -30,9 +30,14 @@ Source:
 [`_api.py`](../../../core/compiler/var_escape/_api.py).
 
 Consumers:
-[`core/compiler/codegen/wasm.py`](../../../core/compiler/codegen/wasm.py)
-— the emitter is being carved into a package; see the file for the
-current shape.
+[`core/compiler/codegen/wasm/`](../../../core/compiler/codegen/wasm/)
+— the emitter package. Encoding helpers live in
+[`_encoding.py`](../../../core/compiler/codegen/wasm/_encoding.py);
+parsing helpers in
+[`_parsing.py`](../../../core/compiler/codegen/wasm/_parsing.py);
+the `_WasmEmitter` class and module-level code generation entry
+points live in
+[`__init__.py`](../../../core/compiler/codegen/wasm/__init__.py).
 
 ## Content
 

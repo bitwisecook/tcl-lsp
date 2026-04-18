@@ -87,6 +87,7 @@ combine them when more than one form helps:
 
 - [kcs-feature-optimiser.md](kcs-feature-optimiser.md)
 - [kcs-feature-compiler-explorer.md](kcs-feature-compiler-explorer.md)
+- [kcs-feature-var-escape-analysis.md](kcs-feature-var-escape-analysis.md)
 - [kcs-feature-tk-preview.md](kcs-feature-tk-preview.md)
 - [kcs-feature-runtime-validation.md](kcs-feature-runtime-validation.md)
 - [kcs-feature-dialect-selection.md](kcs-feature-dialect-selection.md)
