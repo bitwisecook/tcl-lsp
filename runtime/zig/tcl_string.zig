@@ -5,6 +5,7 @@
 // string_is_space, string_trimleft, string_trimright, concat.
 
 const obj = @import("tcl_obj.zig");
+const list_mod = @import("tcl_list.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const obj_ensure_string = obj.obj_ensure_string;
@@ -84,8 +85,12 @@ pub export fn string_length(value: i32) i32 {
 // Exported: string index — extract the character at a byte index.
 pub export fn string_index(value: i32, idx: i32) i32 {
     const s = obj_ensure_string(value);
-    const i_val = obj_get_int(idx);
-    if (i_val < 0 or i_val >= @as(i64, s.len)) return obj_new_string(0, 0);
+    // Accept ``end`` / ``end-N`` / ``end+N`` as well as plain integers —
+    // the same arithmetic list indexing uses.  Previously only plain
+    // integers parsed, so ``string index foo end`` resolved to 0.
+    const slen_i64: i64 = @intCast(s.len);
+    const i_val = list_mod.resolve_list_index(idx, slen_i64);
+    if (i_val < 0 or i_val >= slen_i64) return obj_new_string(0, 0);
     const pos: u32 = @intCast(i_val);
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     const buf = alloc(1);
@@ -97,9 +102,9 @@ pub export fn string_index(value: i32, idx: i32) i32 {
 // Exported: string range — extract a substring [first..last] (inclusive).
 pub export fn string_range(value: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(value);
-    var f = obj_get_int(first);
-    var l = obj_get_int(last);
     const slen: i64 = @intCast(s.len);
+    var f = list_mod.resolve_list_index(first, slen);
+    var l = list_mod.resolve_list_index(last, slen);
     if (f < 0) f = 0;
     if (l >= slen) l = slen - 1;
     if (f > l or f >= slen) return obj_new_string(0, 0);

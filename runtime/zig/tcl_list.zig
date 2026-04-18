@@ -115,9 +115,12 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
-// Parse a list index that may be "end", "end-N", or a plain integer.
-// Returns the resolved 0-based index, or -1 for out-of-range.
-fn resolve_list_index(idx: i32, n: i64) i64 {
+// Parse an index that may be "end", "end-N", "end+N", or a plain
+// integer.  Returns the resolved 0-based index (may be negative for
+// under-range or >= n for over-range; callers clamp as they see fit).
+// Exported as ``pub`` so string-index helpers in ``tcl_string.zig``
+// reuse the same "end" arithmetic.
+pub fn resolve_list_index(idx: i32, n: i64) i64 {
     const sv = obj_ensure_string(idx);
     if (sv.len >= 3) {
         const sp: [*]const u8 = @ptrFromInt(sv.ptr);
