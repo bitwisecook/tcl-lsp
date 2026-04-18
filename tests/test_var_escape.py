@@ -179,6 +179,44 @@ class TestDynamicVarRefs:
         )
         assert not summary.frame_needed
 
+    def test_single_literal_alias_inference_escapes_only_target(self):
+        # ``set n foo`` then ``set $n 1`` is treated as ``set foo 1``;
+        # only ``foo`` spills, not ``other``.
+        summary = _summary(
+            """
+            proc f {} {
+                set n foo
+                set foo 0
+                set other 2
+                set $n 1
+            }
+            """,
+            qname="::f",
+        )
+        assert summary.is_frame("foo")
+        assert not summary.is_frame("other")
+
+    def test_dual_writer_invalidates_alias_inference(self):
+        # Two writers to ``n`` — the cheap inference must not trust it
+        # any more and spill everything known.
+        summary = _summary(
+            """
+            proc f {} {
+                set n foo
+                set n bar
+                set foo 0
+                set bar 0
+                set other 2
+                set $n 1
+            }
+            """,
+            qname="::f",
+        )
+        # Both plausible targets plus ``other`` spill.
+        assert summary.is_frame("foo")
+        assert summary.is_frame("bar")
+        assert summary.is_frame("other")
+
 
 # Rule 3 — eval body
 
@@ -353,6 +391,40 @@ class TestInfoSubcommand:
             proc foo {} {
                 set x 1
                 set c [info commands]
+            }
+            """
+        )
+        assert not summary.dynamic_barrier
+
+    def test_info_errorstack_is_pessimistic(self):
+        # ``info errorstack`` exposes caller frames; treat as pessimistic.
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set s [info errorstack]
+            }
+            """
+        )
+        assert summary.dynamic_barrier
+
+    def test_info_cmdtype_is_safe(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set t [info cmdtype set]
+            }
+            """
+        )
+        assert not summary.dynamic_barrier
+
+    def test_info_globals_is_safe(self):
+        summary = _summary(
+            """
+            proc foo {} {
+                set x 1
+                set g [info globals]
             }
             """
         )
