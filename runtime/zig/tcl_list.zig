@@ -311,6 +311,128 @@ pub export fn tcl_cmd_list_reverse(list: i32) i32 {
     return obj_new_string(@intCast(result_buf), @intCast(result_len));
 }
 
+// Exported: list insert — ``linsert list index value1 ?value2 ...?``.
+// Two-argument form: ``tcl_cmd_list_insert(list, index, value)`` —
+// inserts *value* before position *index*, clamping negative indices
+// to 0 and beyond-end indices to ``len``.  Multi-value ``linsert``
+// calls into this per extra value; for now the common single-value
+// case covers the test corpus.
+pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
+    const s = obj_ensure_string(list);
+    const sv = obj_ensure_string(value);
+    const n_i64 = list_count_elements(s.ptr, s.len);
+    const n: u32 = @intCast(n_i64);
+    var pos: i64 = obj_get_int(index);
+    if (pos < 0) pos = 0;
+    if (pos > n_i64) pos = n_i64;
+    const upos: u32 = @intCast(pos);
+
+    const buf = alloc(s.len + sv.len * 2 + 4);
+    var off: u32 = 0;
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        if (i == upos) {
+            if (off > 0) {
+                const d: [*]u8 = @ptrFromInt(buf + off);
+                d[0] = ' ';
+                off += 1;
+            }
+            if (sv.len > 0) {
+                memcpy(buf + off, sv.ptr, sv.len);
+                off += sv.len;
+            }
+        }
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const elem = list_element_at(s.ptr, s.len, @intCast(i));
+        if (elem.len > 0) {
+            memcpy(buf + off, s.ptr + elem.start, elem.len);
+            off += elem.len;
+        }
+    }
+    if (upos >= n) {
+        if (off > 0 and sv.len > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        if (sv.len > 0) {
+            memcpy(buf + off, sv.ptr, sv.len);
+            off += sv.len;
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
+// Exported: list replace — ``lreplace list first last ?value1 ...?``.
+// Single-replacement form: ``tcl_cmd_list_replace(list, first, last,
+// value)`` — replaces elements [first, last] with *value*.  If
+// ``value == 0``, deletes the range.  Clamps first<0 to 0 and
+// last>=n to n-1; when first>last after clamping the command becomes
+// a pure insert before *first* (reference Tcl semantics).
+pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32) i32 {
+    const s = obj_ensure_string(list);
+    const n_i64 = list_count_elements(s.ptr, s.len);
+    const n: u32 = @intCast(n_i64);
+    var f: i64 = obj_get_int(first);
+    var l: i64 = obj_get_int(last);
+    if (f < 0) f = 0;
+    if (l >= n_i64) l = n_i64 - 1;
+    if (f > n_i64) f = n_i64;
+
+    const sv_len: u32 = if (value == 0) 0 else obj_ensure_string(value).len;
+    const sv_ptr: u32 = if (value == 0 or sv_len == 0) 0 else obj_ensure_string(value).ptr;
+
+    const buf = alloc(s.len + sv_len + 2);
+    var off: u32 = 0;
+    var i: u32 = 0;
+    const uf: u32 = @intCast(if (f < 0) 0 else f);
+    const ul: i64 = l;
+
+    while (i < n) : (i += 1) {
+        if (i == uf) {
+            if (sv_len > 0) {
+                if (off > 0) {
+                    const d: [*]u8 = @ptrFromInt(buf + off);
+                    d[0] = ' ';
+                    off += 1;
+                }
+                memcpy(buf + off, sv_ptr, sv_len);
+                off += sv_len;
+            }
+        }
+        if (@as(i64, i) >= f and @as(i64, i) <= ul) {
+            // skip — replaced
+            continue;
+        }
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const elem = list_element_at(s.ptr, s.len, @intCast(i));
+        if (elem.len > 0) {
+            memcpy(buf + off, s.ptr + elem.start, elem.len);
+            off += elem.len;
+        }
+    }
+    // If first == n (append) and we never hit the insertion branch
+    // above, drop the value at the end instead.
+    if (uf >= n and sv_len > 0) {
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        memcpy(buf + off, sv_ptr, sv_len);
+        off += sv_len;
+    }
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
 // Exported: list repeat — ``lrepeat count value1 ?value2 ...?``.
 //
 // ``count`` is a non-negative integer.  With N value arguments the

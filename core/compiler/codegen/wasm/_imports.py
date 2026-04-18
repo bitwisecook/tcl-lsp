@@ -101,6 +101,18 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    "tcl_list_insert": (
+        "tcl",
+        "tcl_cmd_list_insert",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_list_replace": (
+        "tcl",
+        "tcl_cmd_list_replace",
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_search": ("tcl", "tcl_cmd_list_search", [ValType.I32, ValType.I32], [ValType.I32]),
     # Dict commands
     "tcl_dict_create": ("tcl", "dict_create", [], [ValType.I32]),
@@ -312,6 +324,8 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "lsort": ("tcl_list_sort", 1),
     "lreverse": ("tcl_list_reverse", 1),
     "lrepeat": ("tcl_list_repeat", 2),
+    "linsert": ("tcl_list_insert", 3),
+    "lreplace": ("tcl_list_replace", 4),
     "lsearch": ("tcl_list_search", 2),
     "concat": ("tcl_concat", 2),
     "error": ("tcl_error", 1),
