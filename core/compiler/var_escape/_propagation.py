@@ -182,6 +182,7 @@ class _EscapeState:
         "unbounded_upvar_source",
         "direct_callees",
         "has_fallback",
+        "has_call_fallback",
         "literal_assigns",
     )
 
@@ -202,10 +203,20 @@ class _EscapeState:
         # Statically-resolvable callees — qualified proc names this proc
         # invokes with a known command word.
         self.direct_callees: set[str] = set()
-        # True if this proc could dispatch to the interpreter at
-        # runtime (IRBarrier, dynamic eval, unknown-command fallback).
+        # True if this proc definitely dispatches to the interpreter
+        # at runtime regardless of what its callees look like —
+        # IRBarrier, non-frameless command substitution in a value
+        # string, ``{*}`` expansion, or a dynamic command word.
         # Codegen uses it to decide whether to emit frame_push / pop.
         self.has_fallback: bool = False
+        # True if a non-frameless ``IRCall`` (with a statically
+        # resolvable command word) was seen. Whether that actually
+        # reaches the eval fallback depends on whether the callee is
+        # itself a compiled proc — which only the interprocedural
+        # pass can determine. The IR-only path treats this as a
+        # fallback too (conservative); the CU-driven path downgrades
+        # to ``False`` when every such callee resolves.
+        self.has_call_fallback: bool = False
         # Sequential single-literal alias tracking.  Maps a var name to
         # the most recent literal identifier it was assigned, or to the
         # sentinel ``None`` once the var has been reassigned, had a
@@ -243,8 +254,17 @@ class _EscapeState:
             self.direct_callees.add(qname)
 
     def record_fallback(self) -> None:
-        """Record that this proc can dispatch to the interpreter."""
+        """Record a definite interpreter dispatch (barrier-shaped)."""
         self.has_fallback = True
+
+    def record_call_fallback(self) -> None:
+        """Record a non-frameless ``IRCall`` with a static command word.
+
+        Whether this really reaches the eval fallback is decided by
+        the interprocedural pass; if the callee resolves to a
+        compiled proc the downgrade there drops the flag.
+        """
+        self.has_call_fallback = True
 
     def note_literal_assign(self, name: str, value: str) -> None:
         """Record that ``name`` was assigned ``value`` via ``IRAssignConst``.
@@ -659,7 +679,16 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
     # / etc.) are dispatched to pure runtime helpers and don't need
     # a frame on the caller side.
     if cmd not in _FRAMELESS_RUNTIME_COMMANDS:
-        state.record_fallback()
+        # A dynamic command word can't be resolved interprocedurally —
+        # treat it as a definite fallback.  Static command words
+        # (bare names or ``::``-qualified identifiers) go into the
+        # downgradable call-fallback bucket instead, so the
+        # interprocedural pass can drop the flag when the callee
+        # turns out to be a compiled proc.
+        if not cmd or _is_dynamic_token(cmd):
+            state.record_fallback()
+        else:
+            state.record_call_fallback()
 
     # ``{*}``-expansion in an unknown call defeats argument-index-based
     # analysis (we can't tell where the name arg landed).
@@ -692,7 +721,24 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
         state.record_callee(cmd)
 
 
-_CMD_SUBST_HEAD_RE = re.compile(r"\[\s*(\w+)")
+# Match the leading command word of a ``[cmd …]`` substitution.
+# ``[a-zA-Z_][\w:]*`` accepts namespace-qualified heads (``::set``,
+# ``::ns::cmd``) as well as bare identifiers; missing them would
+# leave ``[::set …]`` looking like a frameless call and let the codegen
+# elide the frame even though ``set`` is going to dispatch through the
+# eval fallback.  The leading-character class rejects digits so we don't
+# match accidental ``[0`` sequences (which can't be commands anyway).
+_CMD_SUBST_HEAD_RE = re.compile(r"\[\s*((?:::)?[a-zA-Z_][\w:]*)")
+
+
+def _normalise_cmd_subst_head(head: str) -> str:
+    """Strip the leading ``::`` from a substitution head for allow-list lookup.
+
+    The frameless allow-list keys commands by their bare identifier
+    (``set``, ``list``, …); a substitution writing ``[::set foo 1]``
+    is the same command, just qualified.
+    """
+    return head.removeprefix("::") if head.startswith("::") else head
 
 
 def _apply_value_scan(value: str, state: _EscapeState) -> None:
@@ -706,7 +752,7 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
     # keeps the runtime frame around.
     if "[" in value:
         for match in _CMD_SUBST_HEAD_RE.finditer(value):
-            head = match.group(1)
+            head = _normalise_cmd_subst_head(match.group(1))
             if head not in _FRAMELESS_RUNTIME_COMMANDS:
                 state.record_fallback()
                 break
@@ -851,5 +897,12 @@ def analyse_script(
         upvar_source_names=frozenset(state.upvar_source_names),
         unbounded_upvar_source=state.unbounded_upvar_source,
         direct_callees=frozenset(state.direct_callees),
+        # ``has_fallback`` records definite intraprocedural fallback
+        # reasons only (IRBarrier, non-frameless cmd substitutions,
+        # ``{*}`` expansion, dynamic command words).  Non-frameless
+        # static-name IRCalls go in ``has_call_fallback`` instead so
+        # the interprocedural pass can downgrade when each callee
+        # resolves to a compiled proc.
         has_fallback=state.has_fallback,
+        has_call_fallback=state.has_call_fallback,
     )

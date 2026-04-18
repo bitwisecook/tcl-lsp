@@ -20,7 +20,6 @@ which is the join over every SSA version of each name.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Iterable
 
@@ -44,10 +43,12 @@ from ._info_subcommands import (
     is_safe_info_subcommand,
 )
 from ._propagation import (
+    _CMD_SUBST_HEAD_RE,
     _FRAMELESS_RUNTIME_COMMANDS,
     _NAME_FIRST_COMMANDS,
     _is_dynamic_name,
     _is_dynamic_token,
+    _normalise_cmd_subst_head,
     _scan_value_for_info_hazards,
 )
 from ._types import EscapeTag
@@ -69,6 +70,7 @@ class CfgEscapeResult:
     unbounded_upvar_source: bool = False
     direct_callees: set[str] = field(default_factory=set)
     has_fallback: bool = False
+    has_call_fallback: bool = False
     known_names: set[str] = field(default_factory=set)
 
 
@@ -87,6 +89,7 @@ class _CfgState:
         "unbounded_upvar_source",
         "direct_callees",
         "has_fallback",
+        "has_call_fallback",
         "literal_assigns",
         "_ssa_for_name",
     )
@@ -99,6 +102,7 @@ class _CfgState:
         self.unbounded_upvar_source: bool = False
         self.direct_callees: set[str] = set()
         self.has_fallback: bool = False
+        self.has_call_fallback: bool = False
         # Maps a var name to the literal it was last assigned, for the
         # cheap single-writer alias inference. ``None`` once invalidated.
         self.literal_assigns: dict[str, str | None] = {}
@@ -165,6 +169,9 @@ class _CfgState:
     def record_fallback(self) -> None:
         self.has_fallback = True
 
+    def record_call_fallback(self) -> None:
+        self.has_call_fallback = True
+
     def note_literal_assign(self, name: str, value: str) -> None:
         if not name or _is_dynamic_name(name):
             return
@@ -214,15 +221,12 @@ def _has_expand_word(call: IRCall) -> bool:
     return any(toks.expand_word)
 
 
-_CMD_SUBST_HEAD_RE = re.compile(r"\[\s*(\w+)")
-
-
 def _apply_value_scan(value: str, state: _CfgState, defs: dict[str, int]) -> None:
     if not value:
         return
     if "[" in value:
         for match in _CMD_SUBST_HEAD_RE.finditer(value):
-            head = match.group(1)
+            head = _normalise_cmd_subst_head(match.group(1))
             if head not in _FRAMELESS_RUNTIME_COMMANDS:
                 state.record_fallback()
                 break
@@ -445,7 +449,10 @@ def _handle_barrier(
 def _handle_call(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
     cmd = call.command
     if cmd not in _FRAMELESS_RUNTIME_COMMANDS:
-        state.record_fallback()
+        if not cmd or _is_dynamic_token(cmd):
+            state.record_fallback()
+        else:
+            state.record_call_fallback()
 
     if _has_expand_word(call) and cmd not in ("list", "concat"):
         state.mark_pessimistic()
@@ -621,5 +628,6 @@ def analyse_cfg_function(
         unbounded_upvar_source=state.unbounded_upvar_source,
         direct_callees=set(state.direct_callees),
         has_fallback=state.has_fallback,
+        has_call_fallback=state.has_call_fallback,
         known_names=state.known_names,
     )

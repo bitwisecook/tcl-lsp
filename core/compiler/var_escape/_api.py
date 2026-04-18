@@ -37,6 +37,7 @@ def _cfg_result_to_summary(result: CfgEscapeResult) -> ProcEscapeSummary:
         unbounded_upvar_source=result.unbounded_upvar_source,
         direct_callees=frozenset(result.direct_callees),
         has_fallback=result.has_fallback,
+        has_call_fallback=result.has_call_fallback,
         ssa_tags=dict(result.ssa_tags),
     )
 
@@ -64,6 +65,12 @@ def analyse_var_escape(
     escapes are folded into each caller's summary. Set it False to
     inspect the raw per-proc result (useful for tests).
     """
+    provided = sum(x is not None for x in (source, cu, ir_module))
+    if provided == 0:
+        raise ValueError("analyse_var_escape requires source, cu, or ir_module")
+    if provided > 1:
+        raise ValueError("analyse_var_escape requires exactly one of source, cu, or ir_module")
+
     result: dict[str, ProcEscapeSummary] = {}
 
     if cu is None and source is not None:
@@ -80,10 +87,9 @@ def analyse_var_escape(
             proc_result = analyse_cfg_function(fu.cfg, fu.ssa, params=params)
             result[qname] = _cfg_result_to_summary(proc_result)
     else:
-        if ir_module is None:
-            raise ValueError("analyse_var_escape requires source, cu, or ir_module")
         # Fallback: IR-only tree walk.  The tree walk produces the
         # same per-name tags; it just can't populate ``ssa_tags``.
+        assert ir_module is not None  # ir_module set by the mutex check above
         result[TOP_LEVEL_QNAME] = analyse_script(ir_module.top_level)
         for qname, proc in ir_module.procedures.items():
             result[qname] = analyse_script(proc.body, params=proc.params)
