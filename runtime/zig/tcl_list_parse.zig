@@ -108,7 +108,13 @@ pub fn element_at(ptr: u32, len: u32, idx: i64) Element {
                 i += 1;
             }
             if (count == idx) {
-                return .{ .start = inner_start, .len = i - 1 - inner_start, .braced = true };
+                // Balanced close — subtract the trailing ``}`` from
+                // the content span.  Unterminated input (``depth > 0``)
+                // leaves no trailing ``}``, so ``i`` points past the
+                // last consumed byte; skipping this guard would
+                // u32-underflow when ``i == inner_start``.
+                const elem_len = if (depth == 0) i - 1 - inner_start else i - inner_start;
+                return .{ .start = inner_start, .len = elem_len, .braced = true };
             }
         } else {
             const elem_start = i;

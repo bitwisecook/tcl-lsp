@@ -314,7 +314,6 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
 // ``obj.is_space`` / ``obj.str_cmp`` keep working, but new code should
 // import ``tcl_chars.zig`` directly.
 pub const is_space = chars.is_space;
-const is_scan_space = chars.is_scan_space;
 pub const str_cmp = chars.str_cmp;
 
 // Backslash-decoding and list-parsing helpers live in their own

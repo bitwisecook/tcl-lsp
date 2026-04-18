@@ -42,18 +42,14 @@ fn has_signal() bool {
 //
 // The actual parsers live in ``tcl_parse.zig`` so both the interpreter
 // and any future Tcl-Parse-tree consumer see one canonical tokeniser.
-// The flat-array API (``parse_command`` with out-parameter arrays) is
-// what this eval loop still uses; a richer Token-tree API is exposed
-// from the same module.
+// ``eval_script`` consumes the Token-tree API (``parse.ParseCommand``);
+// the legacy flat-array helpers (``parse_command`` / ``parse_braced``
+// / …) are still exported from ``tcl_parse.zig`` for callers that
+// want them, but nothing inside ``tcl_interp.zig`` uses them directly
+// any more — so no local aliases here.
 
 const parse = @import("tcl_parse.zig");
 const MAX_WORDS: u32 = parse.MAX_WORDS;
-const skip_space = parse.skip_space;
-const parse_braced = parse.parse_braced;
-const parse_quoted = parse.parse_quoted;
-const parse_bare = parse.parse_bare;
-const skip_command_subst = parse.skip_command_subst;
-const parse_command = parse.parse_command;
 
 // -- Variable substitution --
 
