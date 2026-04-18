@@ -1,7 +1,7 @@
 # WASM runtime — compiler-to-interpreter bridge primitives
 
 The Zig runtime (`runtime/zig/tcl_runtime.wasm`) is the execution
-partner of the WASM code we emit from `core/compiler/codegen/wasm.py`.
+partner of the WASM code we emit from `core/compiler/codegen/wasm/`.
 Compiled code calls Zig-exported helpers for the primitives it cannot
 statically compile (list parsing, string operations, the full Tcl
 interpreter for untypable constructs).  This doc lists the boundary
@@ -9,7 +9,7 @@ primitives added to support Tcl 9 compatibility, grouped by the
 contract each one encodes.
 
 Source: [`runtime/zig/`](../../../runtime/zig/),
-[`core/compiler/codegen/wasm.py`](../../../core/compiler/codegen/wasm.py)
+[`core/compiler/codegen/wasm/`](../../../core/compiler/codegen/wasm/)
 
 ## Expression evaluation
 

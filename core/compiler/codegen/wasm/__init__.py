@@ -24,17 +24,17 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from ...analysis.semantic_model import Range
-from ...parsing.substitution import backslash_subst as _tcl_backslash_subst
-from ...parsing.tokens import TokenType
-from ..cfg import (
+from ....analysis.semantic_model import Range
+from ....parsing.substitution import backslash_subst as _tcl_backslash_subst
+from ....parsing.tokens import TokenType
+from ...cfg import (
     CFGBranch,
     CFGFunction,
     CFGGoto,
     CFGModule,
     CFGReturn,
 )
-from ..expr_ast import (
+from ...expr_ast import (
     BinOp,
     ExprBinary,
     ExprCall,
@@ -48,7 +48,7 @@ from ..expr_ast import (
     ExprVar,
     UnaryOp,
 )
-from ..ir import (
+from ...ir import (
     CommandTokens,
     IRAssignConst,
     IRAssignExpr,
@@ -71,211 +71,27 @@ from ..ir import (
     IRTry,
     IRWhile,
 )
-from ..var_escape import ProcEscapeSummary, analyse_var_escape
+from ...var_escape import ProcEscapeSummary, analyse_var_escape
 
-# WASM binary encoding helpers
-
-
-def _leb128_unsigned(value: int) -> bytes:
-    """Encode an unsigned integer as LEB128."""
-    if value < 0:
-        msg = f"unsigned LEB128 requires non-negative value, got {value}"
-        raise ValueError(msg)
-    result = bytearray()
-    while True:
-        byte = value & 0x7F
-        value >>= 7
-        if value:
-            byte |= 0x80
-        result.append(byte)
-        if not value:
-            break
-    return bytes(result)
-
-
-def _leb128_signed(value: int) -> bytes:
-    """Encode a signed integer as LEB128."""
-    result = bytearray()
-    while True:
-        byte = value & 0x7F
-        value >>= 7
-        if (value == 0 and not (byte & 0x40)) or (value == -1 and (byte & 0x40)):
-            result.append(byte)
-            break
-        result.append(byte | 0x80)
-    return bytes(result)
-
-
-def _tcl_token_value(token: str) -> str:
-    """Return the runtime VALUE of a Tcl source token (word).
-
-    Mirrors the C Tcl parser's substitution rules:
-    - Braced words ``{content}``: strip outer braces; content is literal
-      (no substitution of any kind).
-    - All other words: apply backslash substitution (``\\n`` → newline,
-      ``\\\\`` → ``\\``, etc.).  Variable and command substitutions are
-      left as-is because they must be resolved at runtime.
-
-    Use this before ``_tcl_list_quote`` whenever *token* comes directly
-    from IR source tokens rather than from a previously-evaluated value.
-
-    Inverse: ``_tcl_list_quote(_tcl_token_value(token))`` gives the
-    canonical list-element representation of the word's value.
-    """
-    if token.startswith("{") and token.endswith("}") and len(token) >= 2:
-        return token[1:-1]
-    if "\\" in token:
-        return _tcl_backslash_subst(token)
-    return token
-
-
-_LIST_ELEM_WHITESPACE = frozenset(" \t\n\x0b\x0c\r")
-
-
-# Flag bits for :func:`_tcl_scan_element` / :func:`_tcl_convert_element`.
-# Names and semantics mirror ``enum ConvertFlags`` in ``tclUtil.c`` so the
-# port is 1:1 with the Zig runtime (``runtime/zig/tcl_obj.zig``) and with
-# reference Tcl 9.0's ``TclScanElement`` / ``TclConvertElement``.
-_FLAG_CONVERT_NONE = 0
-_FLAG_DONT_USE_BRACES = 1
-_FLAG_CONVERT_BRACE = 2
-_FLAG_CONVERT_ESCAPE = 4
-_FLAG_DONT_QUOTE_HASH = 8
-_FLAG_CONVERT_MASK = _FLAG_CONVERT_BRACE | _FLAG_CONVERT_ESCAPE
-
-
-def _tcl_scan_element(s: str, flag_in: int = 0) -> int:
-    """Port of ``TclScanElement`` (tclUtil.c, Tcl 9.0, COMPAT=1).
-
-    Chooses the ``CONVERT_*`` mode appropriate for *s* so that
-    :func:`_tcl_convert_element` produces a valid list-element
-    representation.  Pass ``_FLAG_DONT_QUOTE_HASH`` to skip the
-    leading-``#`` quoting rule — matches ``UpdateStringOfList``'s
-    ``i ? TCL_DONT_QUOTE_HASH : 0`` convention for non-first elements.
-    """
-    if s == "":
-        return (flag_in & _FLAG_DONT_QUOTE_HASH) | _FLAG_CONVERT_BRACE
-    forbid_none = False
-    require_escape = False
-    prefer_escape = False
-    prefer_brace = False
-    nesting = 0
-    if s[0] == "{" or s[0] == '"':
-        forbid_none = True
-        prefer_brace = True
-    if s[0] == "#" and (flag_in & _FLAG_DONT_QUOTE_HASH) == 0:
-        prefer_brace = True
-    i = 0
-    n = len(s)
-    while i < n:
-        ch = s[i]
-        if ch == "{":
-            nesting += 1
-        elif ch == "}":
-            nesting -= 1
-            if nesting < 0:
-                require_escape = True
-        elif ch == "]" or ch == '"':
-            forbid_none = True
-            prefer_escape = True
-        elif ch == "[" or ch == "$" or ch == ";":
-            forbid_none = True
-            prefer_brace = True
-        elif ch == "\\":
-            if i + 1 >= n:
-                require_escape = True
-            elif s[i + 1] == "\n":
-                require_escape = True
-                i += 1
-            elif s[i + 1] == "{" or s[i + 1] == "}" or s[i + 1] == "\\":
-                i += 1
-            forbid_none = True
-            prefer_brace = True
-        elif ch in _LIST_ELEM_WHITESPACE:
-            forbid_none = True
-            prefer_brace = True
-        i += 1
-    if nesting > 0:
-        require_escape = True
-    out_hash = flag_in & _FLAG_DONT_QUOTE_HASH
-    if require_escape:
-        return out_hash | _FLAG_CONVERT_ESCAPE
-    if forbid_none:
-        if prefer_escape and not prefer_brace:
-            return out_hash | _FLAG_CONVERT_MASK
-        return out_hash | _FLAG_CONVERT_BRACE
-    return out_hash | _FLAG_CONVERT_NONE
-
-
-_ESCAPE_ONE_CHAR = frozenset('][$; \\"')
-_ESCAPE_CTL_MAP = {
-    "\n": "\\n",
-    "\t": "\\t",
-    "\r": "\\r",
-    "\x0b": "\\v",
-    "\x0c": "\\f",
-}
-
-
-def _tcl_convert_element(s: str, flags: int) -> str:
-    """Port of ``TclConvertElement`` (tclUtil.c, Tcl 9.0, COMPAT=1)."""
-    conversion = flags & _FLAG_CONVERT_MASK
-    if (flags & _FLAG_DONT_USE_BRACES) and (conversion & _FLAG_CONVERT_BRACE):
-        conversion = _FLAG_CONVERT_ESCAPE
-    if s == "":
-        return "{}"
-    prefix = ""
-    if s[0] == "#" and (flags & _FLAG_DONT_QUOTE_HASH) == 0:
-        if conversion == _FLAG_CONVERT_ESCAPE:
-            prefix = "\\#"
-            s = s[1:]
-        else:
-            conversion = _FLAG_CONVERT_BRACE
-    if conversion == _FLAG_CONVERT_NONE:
-        return prefix + s
-    if conversion == _FLAG_CONVERT_BRACE:
-        return prefix + "{" + s + "}"
-    # CONVERT_ESCAPE or CONVERT_MASK.
-    out: list[str] = [prefix] if prefix else []
-    for ch in s:
-        if ch in _ESCAPE_ONE_CHAR:
-            out.append("\\")
-            out.append(ch)
-        elif ch == "{" or ch == "}":
-            if conversion == _FLAG_CONVERT_ESCAPE:
-                out.append("\\")
-            out.append(ch)
-        elif ch in _ESCAPE_CTL_MAP:
-            out.append(_ESCAPE_CTL_MAP[ch])
-        else:
-            out.append(ch)
-    return "".join(out)
-
-
-def _tcl_list_quote(s: str, first: bool = True) -> str:
-    """Return *s* encoded as a single Tcl list element.
-
-    ``first=True`` — the element is position 0 of the output list, so a
-    leading ``#`` is quoted (``{#}`` or ``\\#``) to prevent later
-    ``eval`` re-parses from treating it as a comment.
-    ``first=False`` — adds ``TCL_DONT_QUOTE_HASH``, matching the
-    second-and-later-element rule in ``UpdateStringOfList``.
-    """
-    flag_in = 0 if first else _FLAG_DONT_QUOTE_HASH
-    flags = _tcl_scan_element(s, flag_in)
-    return _tcl_convert_element(s, flags)
-
-
-def _encode_string(s: str) -> bytes:
-    """Encode a UTF-8 string with length prefix."""
-    encoded = s.encode("utf-8")
-    return _leb128_unsigned(len(encoded)) + encoded
-
-
-def _encode_vector(items: list[bytes]) -> bytes:
-    """Encode a WASM vector (count + concatenated items)."""
-    return _leb128_unsigned(len(items)) + b"".join(items)
-
+# Encoding helpers extracted to _encoding.py.  Re-exported here for
+# back-compat with callers that import these symbols from the
+# top-level ``wasm`` package (and for internal use by this module).
+from ._encoding import (  # noqa: E402
+    _FLAG_CONVERT_BRACE,
+    _FLAG_CONVERT_ESCAPE,
+    _FLAG_CONVERT_MASK,
+    _FLAG_CONVERT_NONE,
+    _FLAG_DONT_QUOTE_HASH,
+    _FLAG_DONT_USE_BRACES,
+    _encode_string,
+    _encode_vector,
+    _leb128_signed,
+    _leb128_unsigned,
+    _tcl_convert_element,
+    _tcl_list_quote,
+    _tcl_scan_element,
+    _tcl_token_value,
+)
 
 # WASM type constants
 
@@ -1299,116 +1115,19 @@ _SCOPE_NOP_COMMANDS = frozenset(
 _UNSUPPORTED_COMMANDS: frozenset[str] = frozenset()
 
 
-def _parse_array_ref(name: str) -> tuple[str, str] | None:
-    """Return ``(array_name, key_text)`` if *name* looks like ``arr(key)``.
-
-    Returns ``None`` for scalar names.  The key may be a literal, a
-    variable reference (``$i``), an interpolated string
-    (``counter-$tag``), or a command substitution — the caller is
-    responsible for emitting it as a TclObj value via ``_emit_value``.
-
-    Array names can themselves contain ``::`` (``::ns::arr(key)``) and
-    the key may contain ``)``-balanced nested parens — we require
-    properly nested parens with the final ``)`` matching the first
-    unescaped ``(``.
-    """
-    # Strip Tcl's ``$=`` scalar-disambiguator prefix that the lowerer
-    # sometimes applies to braced ``${x(1)}`` scalars so we don't
-    # misidentify those as array refs.
-    if not name or "(" not in name or not name.endswith(")"):
-        return None
-    if name.startswith("$={"):
-        return None
-    # Find the first '(' that isn't escaped.
-    i = 0
-    n = len(name)
-    while i < n:
-        if name[i] == "\\" and i + 1 < n:
-            i += 2
-            continue
-        if name[i] == "(":
-            break
-        i += 1
-    else:
-        return None
-    arr = name[:i]
-    if not arr:
-        return None
-    # The key runs from i+1 to the matching ')', which is the last char.
-    key = name[i + 1 : -1]
-    return (arr, key)
-
-
-def _derive_proc_namespace(qname: str) -> str:
-    """Return the namespace containing *qname*.
-
-    ``::counter::init`` → ``::counter``; ``::main`` → ``::``. Used to
-    resolve ``variable x`` inside a proc to ``::counter::x``.
-    """
-    if not qname:
-        return "::"
-    # Strip leading ``::`` for the search, then re-add.
-    bare = qname[2:] if qname.startswith("::") else qname
-    idx = bare.rfind("::")
-    if idx < 0:
-        return "::"
-    return "::" + bare[:idx]
-
-
-def _has_embedded_subst_scan(value: str) -> bool:
-    """Detect embedded $var / ${var} / [cmd] substitutions mixed with literal text.
-
-    Returns True when *value* contains both literal characters and a
-    substitution — a pure ``$x`` / ``${x}`` / ``[cmd]`` reference returns
-    False (handled by the single-token paths in _emit_value).
-    """
-    # Strip off a pure variable or command substitution to see if there's
-    # anything else present.
-    if value.startswith("${") and value.endswith("}"):
-        # A single ``${name}`` is pure only when the inner text has no
-        # further substitutions or braces.  ``${a}${b}`` starts with
-        # ``${`` and ends with ``}`` but is NOT pure.
-        inner = value[2:-1]
-        if "$" not in inner and "[" not in inner and "}" not in inner:
-            return False
-    if value.startswith("$") and not value.startswith("$["):
-        # Check whether the entire string is just $name (possibly with
-        # :: namespace separators, e.g. $::ns::var).
-        j = 1
-        n = len(value)
-        while j < n:
-            ch = value[j]
-            if ch.isalnum() or ch == "_":
-                j += 1
-            elif ch == ":" and j + 1 < n and value[j + 1] == ":":
-                j += 2
-            else:
-                break
-        if j == n:
-            return False
-    if value.startswith("[") and value.endswith("]"):
-        return False
-    i = 0
-    n = len(value)
-    while i < n:
-        c = value[i]
-        if c == "\\" and i + 1 < n:
-            i += 2
-            continue
-        if c == "$" and i + 1 < n:
-            nxt = value[i + 1]
-            if nxt == "{" or nxt.isalpha() or nxt == "_" or nxt == ":":
-                return True
-        if c == "[":
-            return True
-        i += 1
-    return False
+# Parsing helpers extracted to _parsing.py — re-exported here for
+# back-compat and internal use.
+from ._parsing import (  # noqa: E402
+    _derive_proc_namespace,
+    _has_embedded_subst_scan,
+    _parse_array_ref,
+)
 
 
 def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     """Parse an expression body and add any runtime imports it needs."""
-    from ...parsing.expr_parser import parse_expr
-    from ..expr_ast import BinOp, ExprBinary, ExprCall, ExprTernary, ExprUnary
+    from ....parsing.expr_parser import parse_expr
+    from ...expr_ast import BinOp, ExprBinary, ExprCall, ExprTernary, ExprUnary
 
     try:
         node = parse_expr(expr_text)
@@ -1617,7 +1336,7 @@ def _scan_needed_imports(
 
     def _scan_expr(expr: object) -> None:
         """Walk an expression AST and scan ExprCommand nodes."""
-        from ..expr_ast import (
+        from ...expr_ast import (
             ExprBinary,
             ExprCall,
             ExprCommand,
@@ -2567,7 +2286,7 @@ class _WasmEmitter:
             expr_arg = cmd_args[0]
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
-            from ...parsing.expr_parser import parse_expr
+            from ....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)
@@ -3046,7 +2765,7 @@ class _WasmEmitter:
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
             # Parse and emit the nested expression
-            from ...parsing.expr_parser import parse_expr
+            from ....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)
@@ -3459,7 +3178,7 @@ class _WasmEmitter:
         For ExprLiteral, creates a boxed string/int.
         For other nodes, evaluates as i64 and boxes.
         """
-        from ..expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
+        from ...expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
 
         match node:
             case ExprVar(text=text):
@@ -5188,7 +4907,7 @@ class _WasmEmitter:
                 continue
             if vars_used is not None and name not in vars_used:
                 continue
-            if narrow_to_frame and not summary.is_frame(name):
+            if narrow_to_frame and summary is not None and not summary.is_frame(name):
                 # Analysis proved this var cannot be observed by name
                 # from the interpreter — no sync needed.
                 continue
@@ -5687,7 +5406,7 @@ class _WasmEmitter:
         Leaves an empty string TclObj on the stack as the command's
         return value.
         """
-        from ._helpers import _split_list_simple
+        from .._helpers import _split_list_simple
 
         fidx = self._shared_imports.get("tcl_array_set")
         if fidx is None:
@@ -6794,7 +6513,7 @@ class _WasmEmitter:
         For statements that naturally produce no value (declarations,
         ``unset``, etc.) we push a null TclObj (0) as the result.
         """
-        from ..ir import (
+        from ...ir import (
             IRBarrier,
             IRCall,
             IRExprEval,
@@ -6886,7 +6605,7 @@ class _WasmEmitter:
                 self._emit_i32_const(0)
             return
 
-        from ...compiler.lowering import lower_to_ir
+        from ....compiler.lowering import lower_to_ir
 
         try:
             ir_module = lower_to_ir(body_text)
@@ -7751,7 +7470,7 @@ def wasm_codegen_module(
     # (or ``None`` per slot without a default).  Used by the codegen
     # to pad missing call-site args with the declared default instead
     # of a boxed zero.
-    from ..lowering import _parse_params_with_defaults
+    from ...lowering import _parse_params_with_defaults
 
     proc_defaults: dict[str, tuple[str | None, ...]] = {}
     callables: list[tuple[str, CFGFunction, tuple[str, ...]]] = []

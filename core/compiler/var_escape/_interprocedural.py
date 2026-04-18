@@ -77,12 +77,10 @@ def solve_interprocedural_escape(
     # Transitive closure per proc: union own + callees'.
     # Worklist seeded with every proc; iterate to a fixpoint.
     transitive_sources: dict[str, set[str]] = {
-        qname: set(summary.upvar_source_names)
-        for qname, summary in summaries.items()
+        qname: set(summary.upvar_source_names) for qname, summary in summaries.items()
     }
     transitive_unbounded: dict[str, bool] = {
-        qname: summary.unbounded_upvar_source
-        for qname, summary in summaries.items()
+        qname: summary.unbounded_upvar_source for qname, summary in summaries.items()
     }
 
     # Reverse edges: qname → set of qnames that call it.
