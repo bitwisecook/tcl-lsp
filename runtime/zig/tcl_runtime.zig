@@ -52,6 +52,7 @@ pub const global_exists = tcl_globals.global_exists;
 pub const tcl_incr = tcl_globals.tcl_incr;
 
 pub const tcl_cmd_puts = tcl_io.tcl_cmd_puts;
+pub const tcl_cmd_puts_nonewline = tcl_io.tcl_cmd_puts_nonewline;
 
 pub const tcl_cmd_append = tcl_string.tcl_cmd_append;
 pub const string_length = tcl_string.string_length;
@@ -170,6 +171,7 @@ comptime {
     _ = &tcl_globals.tcl_incr;
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
+    _ = &tcl_io.tcl_cmd_puts_nonewline;
     // tcl_string exports
     _ = &tcl_string.tcl_cmd_append;
     _ = &tcl_string.string_compare;

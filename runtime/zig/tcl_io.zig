@@ -53,11 +53,15 @@ pub fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
     _ = std.os.wasi.fd_write(@intCast(fd), &iov, 1, &written);
 }
 
-// Exported: puts — write value to stdout via WASI fd_write.
-pub export fn tcl_cmd_puts(value: i32) i32 {
+// Internal: emit the rendered string of *value* to stdout, with or
+// without a trailing newline.  ``tcl_cmd_puts`` / ``tcl_cmd_puts_
+// nonewline`` share this helper.  Previously ``tcl_cmd_puts`` only
+// emitted the newline for string-typed TclObjs, so integer results
+// printed without a newline — surprising and inconsistent with Tcl.
+fn puts_raw(value: i32, want_newline: bool) void {
     if (value == 0) {
-        fd_write_all(1, "\n", 1);
-        return 0;
+        if (want_newline) fd_write_all(1, "\n", 1);
+        return;
     }
     const addr: u32 = @intCast(value);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
@@ -67,11 +71,22 @@ pub export fn tcl_cmd_puts(value: i32) i32 {
         if (slen > 0) {
             fd_write_all(1, @ptrFromInt(@as(u32, @intCast(sptr))), @intCast(slen));
         }
-        fd_write_all(1, "\n", 1);
     } else {
         const int_val = read_i64(addr + OBJ_INT_CACHE);
         const result = itoa(int_val);
         fd_write_all(1, result.ptr, result.len);
     }
+    if (want_newline) fd_write_all(1, "\n", 1);
+}
+
+// Exported: puts — write value to stdout via WASI fd_write.
+pub export fn tcl_cmd_puts(value: i32) i32 {
+    puts_raw(value, true);
+    return 0;
+}
+
+// Exported: puts -nonewline — write value without appending a newline.
+pub export fn tcl_cmd_puts_nonewline(value: i32) i32 {
+    puts_raw(value, false);
     return 0;
 }
