@@ -725,6 +725,32 @@ class _WasmEmitter:
         # dict sub-command in value context — returns i32 TclObj
         if cmd_name == "dict" and cmd_args:
             subcmd = cmd_args[0]
+            # ``dict create`` — the runtime helper returns empty and
+            # ignores its args, so fold the k/v pairs at compile time
+            # (or chain tcl_concat for non-literal values).
+            if subcmd == "create":
+                kv = cmd_args[1:]
+                if not kv:
+                    self._emit_obj_literal("")
+                    return
+                if all(
+                    not a.startswith("$")
+                    and not a.startswith("[")
+                    and not self._has_embedded_subst(a)
+                    and a not in self._aliases
+                    and a not in self._local_index
+                    for a in kv
+                ):
+                    self._emit_obj_literal(" ".join(kv))
+                else:
+                    concat_idx = self._shared_imports.get("tcl_concat")
+                    self._emit_value(kv[0])
+                    for rest in kv[1:]:
+                        if concat_idx is None:
+                            break
+                        self._emit_value(rest)
+                        self._emit_call(concat_idx)
+                return
             import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
             if import_key is not None and import_key in self._shared_imports:
                 func_idx = self._shared_imports[import_key]
@@ -3744,6 +3770,44 @@ class _WasmEmitter:
             self._emit_unsupported_trap("dict (no subcommand)")
             return
         subcmd = args[0]
+        # ``dict create k1 v1 k2 v2 ...`` — the runtime helper ignores
+        # arguments (always returns the empty dict), so assemble the
+        # key/value pairs at the compiler level.  When every k/v is a
+        # plain literal we fold to a static list; otherwise chain
+        # ``tcl_concat`` calls at runtime.
+        if subcmd == "create":
+            kv = args[1:]
+            if not kv:
+                self._emit_obj_literal("")
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+            if all(
+                not a.startswith("$")
+                and not a.startswith("[")
+                and not self._has_embedded_subst(a)
+                and a not in self._aliases
+                and a not in self._local_index
+                for a in kv
+            ):
+                self._emit_obj_literal(" ".join(kv))
+            else:
+                concat_idx = self._shared_imports.get("tcl_concat")
+                self._emit_value(kv[0])
+                for rest in kv[1:]:
+                    if concat_idx is None:
+                        break
+                    self._emit_value(rest)
+                    self._emit_call(concat_idx)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
         import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
         if import_key is not None and import_key in self._shared_imports:
             func_idx = self._shared_imports[import_key]
