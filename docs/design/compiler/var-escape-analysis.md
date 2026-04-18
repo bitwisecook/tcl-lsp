@@ -26,7 +26,9 @@ Source:
 [`core/compiler/var_escape/`](../../../core/compiler/var_escape/) —
 [`_types.py`](../../../core/compiler/var_escape/_types.py),
 [`_propagation.py`](../../../core/compiler/var_escape/_propagation.py),
+[`_cfg_propagation.py`](../../../core/compiler/var_escape/_cfg_propagation.py),
 [`_info_subcommands.py`](../../../core/compiler/var_escape/_info_subcommands.py),
+[`_interprocedural.py`](../../../core/compiler/var_escape/_interprocedural.py),
 [`_api.py`](../../../core/compiler/var_escape/_api.py).
 
 Consumers:
@@ -57,9 +59,28 @@ Join operator: `FRAME` dominates. A var is `FRAME` if **any** CFG path
 escapes it.
 
 The analysis is flow-sensitive over the per-proc CFG+SSA: keyed by
-`SSAValueKey = (var_name, ssa_version)`. Codegen collapses this to per-name
-storage (a single physical slot per Tcl variable) by taking the join over all
-SSA versions — a variable is `FRAME` if any of its definitions escapes.
+`SSAValueKey = (var_name, ssa_version)`. Codegen collapses this to
+per-name storage (a single physical slot per Tcl variable) by taking
+the join over all SSA versions — a variable is `FRAME` if any of its
+definitions escapes. The per-SSA-version map stays on the
+``ProcEscapeSummary`` as ``ssa_tags`` so future consumers (for
+example a register allocator) can read the finer-grained result.
+
+Two propagation drivers are available:
+
+- ``_cfg_propagation.analyse_cfg_function(cfg, ssa, params)`` — the
+  primary path. Walks the per-proc CFG in reverse-postorder, visits
+  each ``SSABlock``, and tags specific ``(name, version)`` pairs at
+  the statement that forces the escape. ``if`` / ``while`` branch
+  conditions come off the ``CFGBranch`` terminator and get scanned
+  for embedded ``[info …]`` hazards. Runs whenever a ``CompilationUnit``
+  is available.
+
+- ``_propagation.analyse_script(body, params)`` — the fallback tree
+  walk used when only an ``IRModule`` is supplied. Produces identical
+  per-name tags but cannot populate ``ssa_tags`` (no SSA versions
+  available). Kept for tests and for callers that avoid compiling
+  a full CFG.
 
 ### Proc-level pessimistic fallback
 

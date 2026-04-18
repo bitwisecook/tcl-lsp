@@ -658,3 +658,69 @@ class TestInterproceduralUpvar:
         assert not result["::foo"].is_frame("shared")
         # ``bar`` still has the raw source-name set recorded though.
         assert "shared" in result["::bar"].upvar_source_names
+
+
+# Flow-sensitive per-SSA-version tagging
+
+
+class TestSSATagging:
+    def test_ssa_tags_populated_when_cu_available(self):
+        # Driving the analysis from source triggers compile_source ->
+        # CompilationUnit -> CFG+SSA pass, which populates ssa_tags.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {} {
+                    upvar 1 src x
+                    set x 1
+                }
+                """
+            )
+        )
+        summary = result["::f"]
+        # The per-name result survives.
+        assert summary.is_frame("x")
+        # And the per-SSA-version map has an entry for ``x`` at the
+        # version produced by the upvar declaration / set.
+        assert any(name == "x" for (name, _v) in summary.ssa_tags)
+
+    def test_ssa_tags_empty_when_driven_from_ir_only(self):
+        # The IR-only fallback path does a tree walk and doesn't have
+        # access to SSA, so ssa_tags stays empty.  Per-name ``tags``
+        # still reflect the escape.
+        from core.compiler.lowering import lower_to_ir
+
+        ir_module = lower_to_ir(
+            textwrap.dedent(
+                """
+                proc f {} {
+                    upvar 1 src x
+                    set x 1
+                }
+                """
+            )
+        )
+        result = analyse_var_escape(ir_module=ir_module)
+        summary = result["::f"]
+        assert summary.is_frame("x")
+        assert summary.ssa_tags == {}
+
+    def test_multiple_ssa_versions_of_same_name_collapse_frame(self):
+        # Two writes to ``x`` before an upvar aliases it; both SSA
+        # versions collapse to FRAME in the per-name result.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {} {
+                    set x 1
+                    set x 2
+                    upvar 1 outer x
+                }
+                """
+            )
+        )
+        summary = result["::f"]
+        assert summary.is_frame("x")
+        # At least one SSA-version entry for ``x`` was tagged FRAME.
+        x_versions = [v for (n, v) in summary.ssa_tags if n == "x"]
+        assert x_versions
