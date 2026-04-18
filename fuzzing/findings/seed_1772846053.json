@@ -1,0 +1,24 @@
+{
+  "seed": 1772846053,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$data > 5} {\n        foreach data {-603 921 1 295} {\n            append data false\n        }\n        string repeat \"9,fojbpx;p62.ra\" 3\n        lse...\"\n    (\"while\" body line 6)\n    invoked from within\n\"while {$data < 2} {\n    if {(round(-13) & $data)} {\n        lsearch {-122 -63.70 34.28 -470 -396} \"-:?\"\n        lassign {} data\n    }\n    if {$data > ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpwpn9v5xj.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

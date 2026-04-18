@@ -1,0 +1,24 @@
+{
+  "seed": 1772875086,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag < -7} {\n                    set buf {}\n                } else {\n                    set buf \"4kg9_zkb#_\"\n                    append idx \"q8p...\"\n    (\"for\" body line 48)\n    invoked from within\n\"for {set result 0} {$result < 2} {incr result} {\n    set result 0\n    while {$result < 5} {\n        switch -- 0 {\n            \"#o?9@c9la.7a\" {\n       ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpq7h7xg0r.tcl\" line 4"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable\n    while executing\n\"if {$flag < -7} {\n                    set buf {}\n                } else {\n                    set buf \"4kg9_zkb#_\"\n                    append idx \"q8p...\"\n    (\"for\" body line 48)\n    invoked from within\n\"for {set result 0} {$result < 2} {incr result} {\n    set result 0\n    while {$result < 5} {\n        switch -- 0 {\n            \"#o?9@c9la.7a\" {\n       ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpq7h7xg0r.tcl\" line 4"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

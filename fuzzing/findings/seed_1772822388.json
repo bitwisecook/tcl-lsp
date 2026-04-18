@@ -1,0 +1,32 @@
+{
+  "seed": 1772822388,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "missing close-brace"
+    },
+    {
+      "kind": "crash",
+      "description": "both vm and tclsh(tclsh9.0) crashed",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm_opt did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "missing close-brace",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "fixed": true,
+  "fix": "not a bug: parse divergence on corrupted input",
+  "category": "parse-divergence"
+}

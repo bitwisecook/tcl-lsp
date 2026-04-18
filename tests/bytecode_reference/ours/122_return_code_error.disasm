@@ -1,0 +1,49 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "safediv"
+    2: "a b"
+    3: "\n    if {$b == 0} {\n        return ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "safediv"
+    (4) push1 2	# "a b"
+    (6) push1 3	# "\n    if {$b == 0} {\n        return ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::safediv, 17 instructions, 50 bytes, 4 literals, 2 variables
+  Literals:
+    0: "0"
+    1: "division by zero"
+    2: ""
+    3: ""
+  Local variables:
+    %v0: "a"
+    %v1: "b"
+  Instructions:
+  # entry_1:
+    (0) loadScalar1 %v1	# var "b"
+    (2) push1 0	# "0"
+    (4) eq
+    (5) jumpFalse1 +26	# pc 31
+  # if_then_3:
+    (7) startCommand +22 1	# next cmd at pc 29, 1 cmds start here
+    (16) push1 1	# "division by zero"
+    (18) push1 2	# ""
+    (20) returnImm +1 1
+  # cmd_end_1:
+    (29) jump1 +4	# pc 33
+  # if_next_4:
+    (31) push1 3	# ""
+  # if_end_2:
+    (33) pop
+    (34) startCommand +15 2	# next cmd at pc 49, 2 cmds start here
+    (43) loadScalar1 %v0	# var "a"
+    (45) loadScalar1 %v1	# var "b"
+    (47) div
+    (48) done
+  # ret_end_2:
+    (49) done

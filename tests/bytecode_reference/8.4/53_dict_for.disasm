@@ -1,0 +1,37 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x3d0f0180, refCt 1, epoch 0, interp 0x3cc0d000 (epoch 0)
+  Source "set d [dict create a 1 b 2 c 3]\nset sum 0\ndict for {k v"
+  Cmds 4, src 80, inst 39, litObjs 12, aux 0, stkDepth 8, code/src 3.90
+  Code 312 = header 160+inst 39+litObj 96+exc 0+aux 0+cmdMap 16
+  Proc 0x3d0c9c80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "d"
+      slot 1, scalar, "sum"
+  Commands 4:
+      1: pc 0-20, src 0-30   	   2: pc 0-17, src 7-29
+      3: pc 21-25, src 32-40   	   4: pc 26-37, src 42-78
+  Command 1: "set d [dict create a 1 b 2 c 3]"
+  Command 2: "dict create a 1 b 2 c 3"
+    (0) push1 0  	# "dict"
+    (2) push1 1  	# "create"
+    (4) push1 2  	# "a"
+    (6) push1 3  	# "1"
+    (8) push1 4  	# "b"
+    (10) push1 5  	# "2"
+    (12) push1 6  	# "c"
+    (14) push1 7  	# "3"
+    (16) invokeStk1 8 
+    (18) storeScalar1 0	# var "d"
+    (20) pop 
+  Command 3: "set sum 0"
+    (21) push1 8  	# "0"
+    (23) storeScalar1 1	# var "sum"
+    (25) pop 
+  Command 4: "dict for {k v} $d {\n    incr sum $v\n}"
+    (26) push1 0  	# "dict"
+    (28) push1 9  	# "for"
+    (30) push1 10  	# "k v"
+    (32) loadScalar1 0	# var "d"
+    (34) push1 11  	# "\n    incr sum $v\n"
+    (36) invokeStk1 5 
+    (38) done 

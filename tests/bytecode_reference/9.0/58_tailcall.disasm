@@ -1,0 +1,52 @@
+ByteCode 0x94f195210, refCt 1, epoch 21, interp 0x94f01c010 (epoch 21)
+  Source "proc helper {x} {\n    return [expr {$x + 1}]\n}\nproc ..."
+  Cmds 2, src 90, inst 22, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-45        2: pc 11-20, src 47-88
+  Command 1: "proc helper {x} {\n    return [expr {$x + 1}]\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "helper"
+    (4) push1 2 	# "x"
+    (6) push1 3 	# "\n    return [expr {$x + 1}]..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc caller {x} {\n    tailcall helper $x\n..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "caller"
+    (15) push1 2 	# "x"
+    (17) push1 5 	# "\n    tailcall helper $x..."
+    (19) invokeStk1 4 
+    (21) done 
+
+
+ByteCode 0x94f195210, refCt 1, epoch 95, interp 0x94f1b0010 (epoch 95)
+  Source "\n    tailcall helper $x..."
+  File "scripts/reference_disasm.tcl" Line 33
+  Cmds 1, src 24, inst 9, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x94f200810, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "x"
+  Commands 1:
+      1: pc 0-7, src 5-22
+  Command 1: "tailcall helper $x..."
+    (0) push1 0 	# "tailcall"
+    (2) push1 1 	# "helper"
+    (4) loadScalar1 %v0 	# var "x"
+    (6) tailcall 3 
+    (8) done 
+
+
+ByteCode 0x94f191910, refCt 1, epoch 95, interp 0x94f1b0010 (epoch 95)
+  Source "\n    return [expr {$x + 1}]..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 2, src 28, inst 6, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x94f10dd10, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "x"
+  Commands 2:
+      1: pc 0-5, src 5-26        2: pc 0-4, src 13-25
+  Command 1: "return [expr {$x + 1}]..."
+  Command 2: "expr {$x + 1}..."
+    (0) loadScalar1 %v0 	# var "x"
+    (2) push1 0 	# "1"
+    (4) add 
+    (5) done 
+

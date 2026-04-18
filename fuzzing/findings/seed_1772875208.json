@@ -1,0 +1,24 @@
+{
+  "seed": 1772875208,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got a list\n    while executing\n\"if {$val} {\n        for {set val 0} {$val < 4} {incr val} {\n            set result 56\n            incr result 7\n            for {set acc 0} {$acc < 5}...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$idx < 4} {\n    set val \"vau:+? 7m@?1;34\"\n    if {$val} {\n        for {set val 0} {$val < 4} {incr val} {\n            set result 56\n           ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgxshoa1r.tcl\" lin"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected boolean value but got a list\n    while executing\n\"if {$val} {\n        for {set val 0} {$val < 4} {incr val} {\n            set result 56\n            incr result 7\n            for {set acc 0} {$acc < 5}...\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$idx < 4} {\n    set val \"vau:+? 7m@?1;34\"\n    if {$val} {\n        for {set val 0} {$val < 4} {incr val} {\n            set result 56\n           ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpgxshoa1r.tcl\" lin"
+    }
+  ],
+  "fixed": true,
+  "fix": "boolean parsing errors propagate correctly",
+  "category": "expected-boolean"
+}

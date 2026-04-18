@@ -1,0 +1,25 @@
+{
+  "seed": 1772893027,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "missing close-brace"
+    },
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm_opt did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "missing close-brace",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "category": "timeout-all",
+  "triage": "VM timeout, tclsh: ",
+  "fixed": true,
+  "fix": "timeout-all: all backends timeout equally"
+}

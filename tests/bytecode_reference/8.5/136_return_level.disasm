@@ -1,0 +1,69 @@
+ByteCode 0x0x77acfa210, refCt 1, epoch 3, interp 0x0x77ac20010 (epoch 3)
+  Source "proc inner {} {\n    return -code error -level 0 \"local "
+  Cmds 2, src 135, inst 22, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-62   	   2: pc 11-20, src 64-133
+  Command 1: "proc inner {} {\n    return -code error -level 0 \"local "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "inner"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    return -code error -level 0 \"local "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc outer {} {\n    set code [catch {inner} msg]\n    li"
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "outer"
+    (15) push1 2 	# ""
+    (17) push1 5 	# "\n    set code [catch {inner} msg]\n    li"
+    (19) invokeStk1 4 
+    (21) done 
+
+
+ByteCode 0x0x77ac32310, refCt 1, epoch 3, interp 0x0x77ad4a010 (epoch 3)
+  Source "\n    return -code error -level 0 \"local error\"\n"
+  Cmds 1, src 47, inst 14, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x77acf5310, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-12, src 5-45
+  Command 1: "return -code error -level 0 \"local error\""
+    (0) push1 0 	# "local error"
+    (2) push1 1 	# ""
+    (4) returnImm +1 0 
+    (13) done 
+
+
+ByteCode 0x0x77acfa810, refCt 1, epoch 3, interp 0x0x77ad4a010 (epoch 3)
+  Source "\n    set code [catch {inner} msg]\n    list $code $msg\n"
+  Cmds 4, src 54, inst 44, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x77ad12190, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "code"
+      slot 1, scalar, "msg"
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 5-8, catch 16
+  Commands 4:
+      1: pc 0-24, src 5-32   	   2: pc 0-21, src 15-31
+      3: pc 5-8, src 22-26   	   4: pc 25-42, src 38-52
+  Command 1: "set code [catch {inner} msg]"
+  Command 2: "catch {inner} msg"
+    (0) beginCatch4 0 
+  Command 3: "inner"
+    (5) push1 0 	# "inner"
+    (7) invokeStk1 1 
+    (9) storeScalar1 %v1 	# var "msg"
+    (11) pop 
+    (12) push1 1 	# "0"
+    (14) jump1 +7 	# pc 21
+    (16) pushResult 
+    (17) storeScalar1 %v1 	# var "msg"
+    (19) pop 
+    (20) pushReturnCode 
+    (21) endCatch 
+    (22) storeScalar1 %v0 	# var "code"
+    (24) pop 
+  Command 4: "list $code $msg"
+    (25) startCommand +18 1 	# next cmd at pc 43
+    (34) loadScalar1 %v0 	# var "code"
+    (36) loadScalar1 %v1 	# var "msg"
+    (38) list 2 
+    (43) done 
+

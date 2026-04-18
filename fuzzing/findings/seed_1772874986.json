@@ -1,0 +1,24 @@
+{
+  "seed": 1772874986,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0ziro\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0ziro\"\n    while executing\n\"incr i\"\n    (\"for\" loop-end command)\n    invoked from within\n\"for {set i 0} {$i < 1} {incr i} {\n    set flag \"j7m,ami+urf\"\n    append i ziro\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpqtnzj9wk.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

@@ -1,0 +1,31 @@
+ByteCode 0xc814e0410, refCt 1, epoch 21, interp 0xc8101c010 (epoch 21)
+  Source "set d [dict create a 1 b 2 c 3]\nset sum 0\ndict for {k..."
+  Cmds 4, src 80, inst 53, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 4:
+      1: pc 0-16, src 0-30        2: pc 2-14, src 7-29
+      3: pc 17-31, src 32-40        4: pc 32-51, src 42-78
+  Command 1: "set d [dict create a 1 b 2 c 3]..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create a 1 b 2 c 3..."
+    (2) startCommand +13 1 	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1 	# "a 1 b 2 c 3"
+    (13) dup 
+    (14) verifyDict 
+    (15) storeStk 
+    (16) pop 
+  Command 3: "set sum 0..."
+    (17) startCommand +14 1 	# next cmd at pc 31, 1 cmds start here
+    (26) push1 2 	# "sum"
+    (28) push1 3 	# "0"
+    (30) storeStk 
+    (31) pop 
+  Command 4: "dict for {k v} $d {\n    incr sum $v\n..."
+    (32) startCommand +20 1 	# next cmd at pc 52, 1 cmds start here
+    (41) push1 4 	# "::tcl::dict::for"
+    (43) push1 5 	# "k v"
+    (45) push1 0 	# "d"
+    (47) loadStk 
+    (48) push1 6 	# "\n    incr sum $v..."
+    (50) invokeStk1 4 
+    (52) done 
+

@@ -1,0 +1,21 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xd8cb4600, refCt 1, epoch 0, interp 0x14aec60 (epoch 0)
+  Source "set done 0\ntry {\n    error \"fail\"\n} finally {\n    set d"
+  Cmds 2, src 63, inst 16, litObjs 5, aux 0, stkDepth 4, code/src 3.56
+  Code 224 = header 160+inst 16+litObj 40+exc 0+aux 0+cmdMap 8
+  Proc 0xd9800000, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "done"
+  Commands 2:
+      1: pc 0-4, src 0-9   	   2: pc 5-14, src 11-61
+  Command 1: "set done 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "done"
+    (4) pop 
+  Command 2: "try {\n    error \"fail\"\n} finally {\n    set done 1\n}"
+    (5) push1 1  	# "try"
+    (7) push1 2  	# "\n    error \"fail\"\n"
+    (9) push1 3  	# "finally"
+    (11) push1 4  	# "\n    set done 1\n"
+    (13) invokeStk1 4 
+    (15) done 

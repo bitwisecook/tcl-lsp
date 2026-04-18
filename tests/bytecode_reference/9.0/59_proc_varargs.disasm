@@ -1,0 +1,51 @@
+ByteCode 0x8911c6a10, refCt 1, epoch 21, interp 0x89101c010 (epoch 21)
+  Source "proc mysum {args} {\n    set total 0\n    foreach n $ar..."
+  Cmds 1, src 106, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-104
+  Command 1: "proc mysum {args} {\n    set total 0\n    foreach n $ar..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "mysum"
+    (4) push1 2 	# "args"
+    (6) push1 3 	# "\n    set total 0\n    foreach n $args {..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x8911c6a10, refCt 1, epoch 95, interp 0x891190810 (epoch 95)
+  Source "\n    set total 0\n    foreach n $args {\n        incr ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 4, src 85, inst 53, litObjs 2, aux 1, stkDepth 4, code/src 0.00
+  Proc 0x891159590, refCt 1, args 1, compiled locals 3
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, "total"
+      slot 2, scalar, "n"
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 21-33, continue 35, break 36
+  Commands 4:
+      1: pc 0-4, src 5-15        2: pc 5-39, src 21-65
+      3: pc 21-33, src 47-59        4: pc 40-51, src 71-83
+  Command 1: "set total 0..."
+    (0) push1 0 	# "0"
+    (2) storeScalar1 %v1 	# var "total"
+    (4) pop 
+  Command 2: "foreach n $args {\n        incr total $n\n   ..."
+    (5) startCommand +34 1 	# next cmd at pc 39, 1 cmds start here
+    (14) loadScalar1 %v0 	# var "args"
+    (16) foreach_start 0 
+		[jumpOffset=-14, vars=[%v2]]
+  Command 3: "incr total $n..."
+    (21) startCommand +13 1 	# next cmd at pc 34, 1 cmds start here
+    (30) loadScalar1 %v2 	# var "n"
+    (32) incrScalar1 %v1 	# var "total"
+    (34) pop 
+    (35) foreach_step 
+    (36) foreach_end 
+    (37) push1 1 	# ""
+    (39) pop 
+  Command 4: "return $total..."
+    (40) startCommand +12 1 	# next cmd at pc 52, 1 cmds start here
+    (49) loadScalar1 %v1 	# var "total"
+    (51) done 
+    (52) done 
+

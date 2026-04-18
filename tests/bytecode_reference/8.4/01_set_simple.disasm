@@ -1,0 +1,14 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x278741c0, refCt 1, epoch 0, interp 0x1422e20 (epoch 0)
+  Source "set x 42\n"
+  Cmds 1, src 9, inst 5, litObjs 1, aux 0, stkDepth 1, code/src 20.00
+  Code 180 = header 160+inst 5+litObj 8+exc 0+aux 0+cmdMap 4
+  Proc 0x278710c0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 1:
+      1: pc 0-3, src 0-7
+  Command 1: "set x 42"
+    (0) push1 0  	# "42"
+    (2) storeScalar1 0	# var "x"
+    (4) done 

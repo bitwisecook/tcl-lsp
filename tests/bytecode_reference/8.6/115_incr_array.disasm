@@ -1,0 +1,28 @@
+ByteCode 0x0x9f70b1410, refCt 1, epoch 17, interp 0x0x9f701c010 (epoch 17)
+  Source "set arr(count) 0\nincr arr(count)\nincr arr(count) 5\ni..."
+  Cmds 4, src 70, inst 29, litObjs 3, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-7, src 0-15        2: pc 8-14, src 17-31
+      3: pc 15-21, src 33-49        4: pc 22-27, src 51-68
+  Command 1: "set arr(count) 0..."
+    (0) push1 0 	# "arr"
+    (2) push1 1 	# "count"
+    (4) push1 2 	# "0"
+    (6) storeArrayStk 
+    (7) pop 
+  Command 2: "incr arr(count)..."
+    (8) push1 0 	# "arr"
+    (10) push1 1 	# "count"
+    (12) incrArrayStkImm +1 
+    (14) pop 
+  Command 3: "incr arr(count) 5..."
+    (15) push1 0 	# "arr"
+    (17) push1 1 	# "count"
+    (19) incrArrayStkImm +5 
+    (21) pop 
+  Command 4: "incr arr(count) -1..."
+    (22) push1 0 	# "arr"
+    (24) push1 1 	# "count"
+    (26) incrArrayStkImm -1 
+    (28) done 
+

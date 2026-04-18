@@ -1,0 +1,40 @@
+ByteCode 0x0x92ccfa410, refCt 1, epoch 3, interp 0x0x92cc20010 (epoch 3)
+  Source "set x [expr {2 + 3}]\nset y [expr {10 * 20}]\nset z [expr"
+  Cmds 8, src 89, inst 87, litObjs 8, aux 0, stkDepth 2, code/src 0.00
+  Commands 8:
+      1: pc 0-14, src 0-19   	   2: pc 2-12, src 7-18
+      3: pc 15-38, src 21-42   	   4: pc 26-36, src 28-41
+      5: pc 39-62, src 44-65   	   6: pc 50-60, src 51-64
+      7: pc 63-85, src 67-87   	   8: pc 74-84, src 74-86
+  Command 1: "set x [expr {2 + 3}]"
+    (0) push1 0 	# "x"
+  Command 2: "expr {2 + 3}"
+    (2) startCommand +11 1 	# next cmd at pc 13
+    (11) push1 1 	# "5"
+    (13) storeScalarStk 
+    (14) pop 
+  Command 3: "set y [expr {10 * 20}]"
+    (15) startCommand +23 1 	# next cmd at pc 38
+    (24) push1 2 	# "y"
+  Command 4: "expr {10 * 20}"
+    (26) startCommand +11 1 	# next cmd at pc 37
+    (35) push1 3 	# "200"
+    (37) storeScalarStk 
+    (38) pop 
+  Command 5: "set z [expr {100 / 4}]"
+    (39) startCommand +23 1 	# next cmd at pc 62
+    (48) push1 4 	# "z"
+  Command 6: "expr {100 / 4}"
+    (50) startCommand +11 1 	# next cmd at pc 61
+    (59) push1 5 	# "25"
+    (61) storeScalarStk 
+    (62) pop 
+  Command 7: "set w [expr {2 ** 8}]"
+    (63) startCommand +23 1 	# next cmd at pc 86
+    (72) push1 6 	# "w"
+  Command 8: "expr {2 ** 8}"
+    (74) startCommand +11 1 	# next cmd at pc 85
+    (83) push1 7 	# "256"
+    (85) storeScalarStk 
+    (86) done 
+

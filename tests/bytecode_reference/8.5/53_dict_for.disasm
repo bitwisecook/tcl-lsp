@@ -1,0 +1,36 @@
+ByteCode 0x0x732cfa210, refCt 1, epoch 3, interp 0x0x732c20010 (epoch 3)
+  Source "set d [dict create a 1 b 2 c 3]\nset sum 0\ndict for {k v"
+  Cmds 4, src 80, inst 51, litObjs 14, aux 0, stkDepth 9, code/src 0.00
+  Commands 4:
+      1: pc 0-21, src 0-30   	   2: pc 2-19, src 7-29
+      3: pc 22-36, src 32-40   	   4: pc 37-49, src 42-78
+  Command 1: "set d [dict create a 1 b 2 c 3]"
+    (0) push1 0 	# "d"
+  Command 2: "dict create a 1 b 2 c 3"
+    (2) push1 1 	# "dict"
+    (4) push1 2 	# "create"
+    (6) push1 3 	# "a"
+    (8) push1 4 	# "1"
+    (10) push1 5 	# "b"
+    (12) push1 6 	# "2"
+    (14) push1 7 	# "c"
+    (16) push1 8 	# "3"
+    (18) invokeStk1 8 
+    (20) storeScalarStk 
+    (21) pop 
+  Command 3: "set sum 0"
+    (22) startCommand +14 1 	# next cmd at pc 36
+    (31) push1 9 	# "sum"
+    (33) push1 10 	# "0"
+    (35) storeScalarStk 
+    (36) pop 
+  Command 4: "dict for {k v} $d {\n    incr sum $v\n}"
+    (37) push1 1 	# "dict"
+    (39) push1 11 	# "for"
+    (41) push1 12 	# "k v"
+    (43) push1 0 	# "d"
+    (45) loadScalarStk 
+    (46) push1 13 	# "\n    incr sum $v\n"
+    (48) invokeStk1 5 
+    (50) done 
+

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875300,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {(!($buf * 90))} {\n            lsort {false yra}\n            set n \"24c,r+9uk9\"\n            lassign {iwcce 0 -608} key key\n            set data [ex...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- -31 {\n    460 {\n        if {(!-31)} {\n            expr {(-75 <= ((--80.39) % max(1, abs(-53.19))))}\n            catch {myproc \";25 72-xbq\" d...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphnmm4mw5.tcl\" line "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {(!($buf * 90))} {\n            lsort {false yra}\n            set n \"24c,r+9uk9\"\n            lassign {iwcce 0 -608} key key\n            set data [ex...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- -31 {\n    460 {\n        if {(!-31)} {\n            expr {(-75 <= ((--80.39) % max(1, abs(-53.19))))}\n            catch {myproc \";25 72-xbq\" d...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphnmm4mw5.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

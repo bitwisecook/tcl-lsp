@@ -1,0 +1,229 @@
+"""The ``trace`` command — variable traces for tcltest support."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ..machine import _list_escape, _split_list
+from ..types import TclError, TclResult
+
+if TYPE_CHECKING:
+    from ..interp import TclInterp
+
+
+def _cmd_trace(interp: TclInterp, args: list[str]) -> TclResult:
+    """trace add|remove|info variable ..."""
+    if len(args) < 2:
+        raise TclError('wrong # args: should be "trace option ?arg ...?"')
+
+    action = args[0]
+    kind = args[1] if len(args) > 1 else ""
+
+    # Accept abbreviations of "variable" (e.g. "var", "vari", etc.)
+    is_variable = kind == "variable" or (len(kind) >= 1 and "variable".startswith(kind))
+    is_command = kind == "command" or (len(kind) >= 2 and "command".startswith(kind))
+    is_execution = kind == "execution" or (len(kind) >= 1 and "execution".startswith(kind))
+
+    match action:
+        case "add":
+            if is_variable:
+                if len(args) < 5:
+                    raise TclError('wrong # args: should be "trace add variable name ops command"')
+                var_name = args[2]
+                ops = _split_list(args[3])
+                script = args[4]
+                traces = interp.variable_traces.setdefault(var_name, [])
+                traces.append((ops, script))
+                return TclResult()
+            if is_command:
+                if len(args) < 5:
+                    raise TclError('wrong # args: should be "trace add command name ops command"')
+                cmd_name = args[2]
+                ops = _split_list(args[3])
+                script = args[4]
+                cmd_traces = interp.command_traces.setdefault(cmd_name, [])
+                cmd_traces.append((ops, script))
+                return TclResult()
+            if is_execution:
+                if len(args) < 5:
+                    raise TclError('wrong # args: should be "trace add execution name ops command"')
+                # Stub: accept but don't fire execution traces
+                return TclResult()
+            raise TclError(f'bad option "{kind}": must be command, execution, or variable')
+
+        case "remove":
+            if is_variable:
+                if len(args) < 5:
+                    raise TclError(
+                        'wrong # args: should be "trace remove variable name ops command"'
+                    )
+                var_name = args[2]
+                ops = _split_list(args[3])
+                script = args[4]
+                traces = interp.variable_traces.get(var_name, [])
+                for i, (t_ops, t_script) in enumerate(traces):
+                    if t_ops == ops and t_script == script:
+                        traces.pop(i)
+                        break
+                return TclResult()
+            if is_command:
+                if len(args) < 5:
+                    raise TclError(
+                        'wrong # args: should be "trace remove command name ops command"'
+                    )
+                cmd_name = args[2]
+                ops = _split_list(args[3])
+                script = args[4]
+                cmd_traces = interp.command_traces.get(cmd_name, [])
+                for i, (t_ops, t_script) in enumerate(cmd_traces):
+                    if t_ops == ops and t_script == script:
+                        cmd_traces.pop(i)
+                        break
+                return TclResult()
+            if is_execution:
+                if len(args) < 5:
+                    raise TclError(
+                        'wrong # args: should be "trace remove execution name ops command"'
+                    )
+                return TclResult()
+            raise TclError(f'bad option "{kind}": must be command, execution, or variable')
+
+        case "info":
+            if is_variable:
+                if len(args) < 3:
+                    raise TclError('wrong # args: should be "trace info variable name"')
+                var_name = args[2]
+                traces = interp.variable_traces.get(var_name, [])
+                items: list[str] = []
+                for ops, script in traces:
+                    ops_str = " ".join(ops)
+                    spec = f"{ops_str} {script}"
+                    items.append(_list_escape(spec))
+                return TclResult(value=" ".join(items))
+            if is_command:
+                if len(args) < 3:
+                    raise TclError('wrong # args: should be "trace info command name"')
+                cmd_name = args[2]
+                cmd_traces = interp.command_traces.get(cmd_name, [])
+                items2: list[str] = []
+                for ops, script in cmd_traces:
+                    ops_str = " ".join(ops)
+                    spec = f"{ops_str} {script}"
+                    items2.append(_list_escape(spec))
+                return TclResult(value=" ".join(items2))
+            if is_execution:
+                if len(args) < 3:
+                    raise TclError('wrong # args: should be "trace info execution name"')
+                return TclResult(value="")
+            raise TclError(f'bad option "{kind}": must be command, execution, or variable')
+
+        case _:
+            raise TclError(f'bad option "{action}": must be add, info, or remove')
+
+
+def fire_traces(
+    interp: TclInterp,
+    var_name: str,
+    op: str,
+    *,
+    lookup_key: str | None = None,
+) -> None:
+    """Fire any registered traces for *var_name* and *op* ('read'|'write'|'unset').
+
+    *var_name* may be a plain scalar (``x``), a qualified name
+    (``::tcltest::testConstraints``), or an array element
+    (``testConstraints(singleTestInterp)``).  Traces are registered on the
+    base array name, so we split out name1/name2 and look up by name1.
+
+    When *lookup_key* is provided, it is used to find the trace
+    registrations instead of *var_name*.  This is needed when a variable
+    is accessed through an upvar alias: the alias name is passed as
+    *var_name* (used in the callback) while the resolved target name is
+    passed as *lookup_key* (used to find traces).
+
+    Traces on a given variable are disabled while their callback is
+    executing (matching real Tcl behaviour) to prevent infinite recursion.
+    """
+    from ..scope import parse_array_ref
+
+    name1, name2 = parse_array_ref(var_name)
+
+    # Determine which key to use for trace lookup
+    if lookup_key is not None:
+        trace_base, _trace_elem = parse_array_ref(lookup_key)
+    else:
+        trace_base = name1
+
+    traces = interp.variable_traces.get(trace_base)
+    if traces is None:
+        return
+
+    # Guard against re-entrant trace firing (Tcl disables traces during
+    # callback execution for the same variable).
+    active: set[str] = getattr(interp, "_active_traces", None) or set()
+    if not hasattr(interp, "_active_traces"):
+        interp._active_traces = active  # type: ignore[attr-defined]
+    guard_key = f"{trace_base}\0{op}"
+    if guard_key in active:
+        return
+    active.add(guard_key)
+
+    name2_str = _list_escape(name2) if name2 is not None else "{}"
+    try:
+        for ops, script in list(traces):
+            if op in ops:
+                # Tcl trace callbacks receive: name1 name2 op
+                callback = f"{script} {_list_escape(name1)} {name2_str} {op}"
+                try:
+                    interp.eval(callback)
+                except Exception as exc:
+                    exc_msg = str(exc)
+                    if "invalid command name" in exc_msg:
+                        # Command no longer exists — treat as stale trace
+                        # and silently remove it to prevent cascading errors.
+                        traces.remove((ops, script))
+                        continue
+                    if op == "write":
+                        # Write trace errors reject the set — propagate
+                        # with the Tcl-standard "can't set" prefix.
+                        raise TclError(f'can\'t set "{var_name}": {exc}') from None
+                    # Read/unset trace errors are silently ignored
+    finally:
+        active.discard(guard_key)
+
+
+def fire_command_traces(
+    interp: TclInterp,
+    cmd_name: str,
+    old_name: str,
+    new_name: str,
+) -> None:
+    """Fire command traces for rename/delete operations.
+
+    *cmd_name* is the name used to register the trace.
+    *old_name* is the old command name, *new_name* is the new name
+    (empty string for deletion).
+    """
+    traces = interp.command_traces.get(cmd_name)
+    if not traces:
+        return
+
+    op = "rename" if new_name else "delete"
+    for ops, script in list(traces):
+        if op in ops:
+            callback = f"{script} {_list_escape(old_name)} {_list_escape(new_name)} {op}"
+            try:
+                interp.eval(callback)
+            except Exception:
+                pass  # Command trace errors are silently ignored
+
+    # Remove traces on delete
+    if not new_name:
+        interp.command_traces.pop(cmd_name, None)
+
+
+def register() -> None:
+    """Register trace command."""
+    from core.commands.registry import REGISTRY
+
+    REGISTRY.register_handler("trace", _cmd_trace)

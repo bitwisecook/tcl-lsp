@@ -1,0 +1,34 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x950e4500, refCt 1, epoch 0, interp 0x51aae10 (epoch 0)
+  Source "foreach {a b} {1 2 3 4 5 6} {\n    set sum [expr {$a + $"
+  Cmds 3, src 61, inst 30, litObjs 2, aux 1, stkDepth 2, code/src 4.39
+  Code 268 = header 160+inst 30+litObj 16+exc 28+aux 16+cmdMap 12
+  Proc 0x950e1d00, refCt 1, args 0, compiled locals 5
+      slot 0, scalar, temp
+      slot 1, scalar, temp
+      slot 2, scalar, "a"
+      slot 3, scalar, "b"
+      slot 4, scalar, "sum"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 17-23, continue 10, break 27
+  Commands 3:
+      1: pc 0-28, src 0-59   	   2: pc 17-23, src 34-57
+      3: pc 17-21, src 43-56
+  Command 1: "foreach {a b} {1 2 3 4 5 6} {\n    set sum [expr {$a + $"
+    (0) push1 0  	# "1 2 3 4 5 6"
+    (2) storeScalar1 0	# temp var 0
+    (4) pop 
+    (5) foreach_start4 0 
+    (10) foreach_step4 0 
+    (15) jumpFalse1 12  	# pc 27
+  Command 2: "set sum [expr {$a + $b}]"
+  Command 3: "expr {$a + $b}"
+    (17) loadScalar1 2	# var "a"
+    (19) loadScalar1 3	# var "b"
+    (21) add 
+    (22) storeScalar1 4	# var "sum"
+    (24) pop 
+    (25) jump1 -15  	# pc 10
+    (27) push1 1  	# ""
+    (29) done 

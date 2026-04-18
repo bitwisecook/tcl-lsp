@@ -1,0 +1,61 @@
+ByteCode 0x0xa394d9610, refCt 1, epoch 17, interp 0x0xa3901c010 (epoch 17)
+  Source "set i 0\nset sum 0\nwhile {$i < 10} {\n    incr i\n    ..."
+  Cmds 9, src 111, inst 71, litObjs 7, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 1, depth 1:
+      0: level 0, loop, pc 14-58, continue 60, break 68
+  Commands 9:
+      1: pc 0-5, src 0-6        2: pc 6-11, src 8-16
+      3: pc 12-69, src 18-109        4: pc 14-18, src 40-45
+      5: pc 19-36, src 51-71        6: pc 27-31, src 64-71
+      7: pc 37-54, src 77-94        8: pc 45-49, src 90-94
+      9: pc 55-58, src 100-107
+  Command 1: "set i 0..."
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set sum 0..."
+    (6) push1 2 	# "sum"
+    (8) push1 1 	# "0"
+    (10) storeStk 
+    (11) pop 
+  Command 3: "while {$i < 10} {\n    incr i\n    if {$i == 3} continu..."
+    (12) jump1 +48 	# pc 60
+  Command 4: "incr i..."
+    (14) push1 0 	# "i"
+    (16) incrStkImm +1 
+    (18) pop 
+  Command 5: "if {$i == 3} continue..."
+    (19) push1 0 	# "i"
+    (21) loadStk 
+    (22) push1 3 	# "3"
+    (24) eq 
+    (25) jumpFalse1 +9 	# pc 34
+  Command 6: "continue..."
+    (27) jump4 +33 	# pc 60
+    (32) jump1 +4 	# pc 36
+    (34) push1 4 	# ""
+    (36) pop 
+  Command 7: "if {$i == 7} break..."
+    (37) push1 0 	# "i"
+    (39) loadStk 
+    (40) push1 5 	# "7"
+    (42) eq 
+    (43) jumpFalse1 +9 	# pc 52
+  Command 8: "break..."
+    (45) jump4 +23 	# pc 68
+    (50) jump1 +4 	# pc 54
+    (52) push1 4 	# ""
+    (54) pop 
+  Command 9: "incr sum..."
+    (55) push1 2 	# "sum"
+    (57) incrStkImm +1 
+    (59) pop 
+    (60) push1 0 	# "i"
+    (62) loadStk 
+    (63) push1 6 	# "10"
+    (65) lt 
+    (66) jumpTrue1 -52 	# pc 14
+    (68) push1 4 	# ""
+    (70) done 
+

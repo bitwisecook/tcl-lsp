@@ -1,0 +1,24 @@
+{
+  "seed": 1772845986,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"-0.6172131147540983\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-0.6172131147540983\" as right operand of \"<<\"\n    while executing\n\"expr {((~($item & -81)) << (-(37.65 / max(1, abs(-61)))))}\"\n    (\"foreach\" body line 54)\n    invoked from within\n\"foreach b {-672} {\n        string trim \" ,.mz4gcyjzae:\"\n        join {9.41 1 1 -51.55 no 31} \"\"\n        for {set j 0} {$j < 6} {incr j} {\n            ...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach b {480 no no -481} {\n    set b -460\n    lassign {-951 744 -934 66.04 c"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

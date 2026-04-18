@@ -1,0 +1,36 @@
+TCLSH    /usr/local/bin/tclsh8.5
+VERSION  8.5.19
+FILE     linsert.test
+DATE     2026-03-03T12:53:32Z
+---
+PASS linsert-1.1
+PASS linsert-1.10
+PASS linsert-1.11
+PASS linsert-1.12
+PASS linsert-1.13
+PASS linsert-1.14
+PASS linsert-1.15
+PASS linsert-1.16
+PASS linsert-1.17
+PASS linsert-1.18
+PASS linsert-1.19
+PASS linsert-1.2
+PASS linsert-1.20
+PASS linsert-1.3
+PASS linsert-1.4
+PASS linsert-1.5
+PASS linsert-1.6
+PASS linsert-1.7
+PASS linsert-1.8
+PASS linsert-1.9
+PASS linsert-2.1
+PASS linsert-2.2
+PASS linsert-2.3
+PASS linsert-2.4
+PASS linsert-3.1
+PASS linsert-3.2
+---
+TOTAL   26
+PASSED  26
+SKIPPED 0
+FAILED  0

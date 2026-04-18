@@ -1,0 +1,19 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     for-old.test
+DATE     2026-03-03T12:54:48
+---
+PASS for-old-1.1
+PASS for-old-1.2
+PASS for-old-1.3
+PASS for-old-1.4
+PASS for-old-1.5
+PASS for-old-1.6
+PASS for-old-1.7
+PASS for-old-1.8
+PASS for-old-1.9
+---
+TOTAL   9
+PASSED  9
+SKIPPED 0
+FAILED  0

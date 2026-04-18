@@ -1,0 +1,56 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xb6cd8500, refCt 1, epoch 0, interp 0x15cec60 (epoch 0)
+  Source "set x 10\nset y 3\nexpr {($x + $y) * ($x - $y)}\nexpr {$x "
+  Cmds 5, src 94, inst 61, litObjs 5, aux 0, stkDepth 3, code/src 3.02
+  Code 284 = header 160+inst 61+litObj 40+exc 0+aux 0+cmdMap 20
+  Proc 0xb70d4c00, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "y"
+  Commands 5:
+      1: pc 0-4, src 0-7   	   2: pc 5-9, src 9-15
+      3: pc 10-21, src 17-44   	   4: pc 22-37, src 46-68
+      5: pc 38-59, src 70-92
+  Command 1: "set x 10"
+    (0) push1 0  	# "10"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "set y 3"
+    (5) push1 1  	# "3"
+    (7) storeScalar1 1	# var "y"
+    (9) pop 
+  Command 3: "expr {($x + $y) * ($x - $y)}"
+    (10) loadScalar1 0	# var "x"
+    (12) loadScalar1 1	# var "y"
+    (14) add 
+    (15) loadScalar1 0	# var "x"
+    (17) loadScalar1 1	# var "y"
+    (19) sub 
+    (20) mult 
+    (21) pop 
+  Command 4: "expr {$x > 5 ? $x : $y}"
+    (22) loadScalar1 0	# var "x"
+    (24) push1 2  	# "5"
+    (26) gt 
+    (27) jumpFalse1 7  	# pc 34
+    (29) loadScalar1 0	# var "x"
+    (31) tryCvtToNumeric 
+    (32) jump1 5  	# pc 37
+    (34) loadScalar1 1	# var "y"
+    (36) tryCvtToNumeric 
+    (37) pop 
+  Command 5: "expr {$x > 0 && $y > 0}"
+    (38) loadScalar1 0	# var "x"
+    (40) push1 3  	# "0"
+    (42) gt 
+    (43) jumpTrue1 6  	# pc 49
+    (45) push1 3  	# "0"
+    (47) jump1 4  	# pc 51
+    (49) push1 4  	# "1"
+    (51) dup 
+    (52) jumpFalse1 8  	# pc 60
+    (54) loadScalar1 1	# var "y"
+    (56) push1 3  	# "0"
+    (58) gt 
+    (59) land 
+    (60) done 
