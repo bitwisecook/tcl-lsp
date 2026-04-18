@@ -5367,15 +5367,26 @@ class _WasmEmitter:
     ) -> None:
         """Emit a WASM block/loop for a CFG for/while loop pattern.
 
-        Structure: ``block { loop { br_if(exit) ; body ; br(loop) } }``
-        The header block is the loop test; the body is everything
-        reachable from *body_start* that eventually loops back to *header*.
+        Structure: ``block { loop { br_if(exit); block { body };
+        step; br(loop) } }``.  The *step* block (for-loop
+        ``next_script``) is emitted **outside** the inner continue
+        block so ``continue`` — which ``br``s out of the inner block
+        — still runs the step before looping back to the header.
+        Without this, ``for {set i 0} {$i<5} {incr i} {if {$i==2}
+        continue; ...}`` would skip the incr and spin forever.
+
+        Detection: the step block is any CFG block that (a) is
+        reachable from *body_start* and (b) terminates with
+        ``CFGGoto(header)``.  For ``while`` loops no such block
+        exists, so the inner body is just the loop body as before.
         """
         # Mark the header as visited to prevent re-entry from the back-edge
         self._visited.add(header)
         # Track header so nested _is_loop_header walks don't confuse
         # outer back-edges with new nested loops.
         self._active_loop_headers.add(header)
+
+        step_block = self._find_step_block(body_start, header)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
@@ -5391,12 +5402,27 @@ class _WasmEmitter:
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
 
+        # Reserve the step block so ``_emit_loop_body`` stops before it
+        # (treating its incoming goto as a "back-edge via step").
+        if step_block is not None:
+            self._visited.add(step_block)
+
         # Emit body blocks
         self._emit_loop_body(body_start, header)
 
         self._loop_ctrl_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
+
+        # Emit the step block (if any) AFTER the continue block so
+        # `continue` still runs it.
+        if step_block is not None:
+            self._visited.discard(step_block)
+            step_blk = self._cfg.blocks.get(step_block)
+            if step_blk is not None:
+                self._visited.add(step_block)
+                for stmt in step_blk.statements:
+                    self._emit_stmt(stmt)
 
         # Loop back
         self._emit_br(0)
@@ -5407,6 +5433,41 @@ class _WasmEmitter:
 
         # Continue with the exit block
         self._emit_block(exit_block)
+
+    def _find_step_block(self, body_start: str, header: str) -> str | None:
+        """Return the for-loop step block (``next_script``) in the body
+        subgraph of a CFG loop, or ``None`` for while loops.
+
+        The CFG builder names for-loop step blocks ``for_step_N``; any
+        block with that prefix that (a) is reachable from *body_start*
+        and (b) ``CFGGoto``-s back to *header* is the step block.
+        Restricting to that name avoids mis-hoisting trailing body
+        blocks of while-loops (which also goto the header but run on
+        every iteration and must not be skipped by ``continue``).
+        """
+        visited: set[str] = set()
+        stack = [body_start]
+        while stack:
+            name = stack.pop()
+            if name in visited or name == header:
+                continue
+            visited.add(name)
+            blk = self._cfg.blocks.get(name)
+            if blk is None:
+                continue
+            term = blk.terminator
+            match term:
+                case CFGGoto(target=target):
+                    if (
+                        target == header
+                        and name.startswith("for_step_")
+                    ):
+                        return name
+                    stack.append(target)
+                case CFGBranch(true_target=tt, false_target=ft):
+                    stack.append(tt)
+                    stack.append(ft)
+        return None
 
     def _emit_loop_body(self, start: str, header: str) -> None:
         """Emit all blocks reachable from *start* until reaching *header*.
