@@ -64,11 +64,10 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             off += 1;
         }
         if (idx == target_idx + 1) {
-            if (idx == 0) {
-                off = list_elem_quote(buf, off, vp, vl);
-            } else {
-                off = list_elem_quote_nth(buf, off, vp, vl);
-            }
+            // A dict's value slots live at odd indices (1, 3, 5, …)
+            // — they are never element 0 — so ``DONT_QUOTE_HASH`` is
+            // always the right choice here.
+            off = list_elem_quote_nth(buf, off, vp, vl);
         } else {
             const elem = list_element_at(sd_ptr, sd_len, idx);
             if (elem.braced) {

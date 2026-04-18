@@ -86,11 +86,9 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
     return 0;
 }
 
-const chars = @import("tcl_chars.zig");
-const is_space = chars.is_space;
-const is_digit = chars.is_digit;
-const is_hex_digit = chars.is_hex_digit;
-const is_octal_digit = chars.is_octal_digit;
+// Digit classification happens inside :func:`digit_value` which is
+// base-parameterised — no need to import the per-class predicates.
+const is_space = @import("tcl_chars.zig").is_space;
 
 const INT64_MAX: i64 = 0x7FFF_FFFF_FFFF_FFFF;
 const INT64_MIN: i64 = -0x8000_0000_0000_0000;

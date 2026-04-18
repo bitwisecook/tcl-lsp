@@ -12,7 +12,6 @@ const obj_new_string_copy = obj.obj_new_string_copy;
 const copy_unbraced_elem = obj.copy_unbraced_elem;
 const list_elem_quote = obj.list_elem_quote;
 const list_elem_quote_nth = obj.list_elem_quote_nth;
-const is_space = obj.is_space;
 const str_cmp = obj.str_cmp;
 const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;

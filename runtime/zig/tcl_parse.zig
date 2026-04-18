@@ -23,11 +23,11 @@
 // substitutions.  ``parse_bare`` deliberately skips across ``[...]`` and
 // ``${...}`` without descending into them; the interpreter or the
 // compiler resolves their contents later via ``subst_flagged`` (script
-// context) or ``tcl_bs.consume_bs_escape`` (``\x`` decoding).  Shares
-// ``tcl_chars.zig`` for whitespace classification so list / script
-// parsers answer "what is whitespace" the same way.
-
-const chars = @import("tcl_chars.zig");
+// context) or ``tcl_bs.consume_bs_escape`` (``\x`` decoding).  Whitespace
+// classifiers live in ``tcl_chars.zig`` — the script parser here
+// inlines its own byte checks because it also treats ``;`` / ``\n``
+// specially (not whitespace per-se, but command terminators), so
+// importing ``chars.is_space`` wouldn't be a drop-in swap.
 
 pub const MAX_WORDS: u32 = 32;
 
@@ -63,7 +63,13 @@ pub fn parse_braced(src: [*]const u8, pos: u32, len: u32) BracedRange {
         if (src[p] == '{') depth += 1 else if (src[p] == '}') depth -= 1;
         if (depth > 0) p += 1 else p += 1;
     }
-    return .{ .end = p, .start = start, .wlen = p - 1 - start };
+    // Balanced close — ``p`` is now one past the ``}``, so the
+    // content span is [start, p-1).  Unterminated input
+    // (``depth > 0``) leaves no trailing ``}`` to subtract, so the
+    // content runs all the way to ``p`` (== len) — skipping this
+    // guard would u32-underflow when the source is a single ``{``.
+    const wlen = if (depth == 0) p - 1 - start else p - start;
+    return .{ .end = p, .start = start, .wlen = wlen };
 }
 
 pub fn parse_quoted(src: [*]const u8, pos: u32, len: u32) BracedRange {
@@ -289,11 +295,16 @@ pub const Parse = struct {
     /// 0`` (empty command).
     tokens_ptr: u32,
     tokens_len: u32,
-    /// Source offset where this command begins (after leading
-    /// whitespace / separator consumption).
+    /// Source offset where parsing of this command BEGAN — i.e. the
+    /// ``pos`` argument passed to :func:`ParseCommand`, which is
+    /// typically the byte right after the previous command's
+    /// terminator.  :func:`parse_command` internally consumes any
+    /// leading whitespace / semicolons / newlines; the first
+    /// ``Token``'s ``start`` gives the offset of the first actual
+    /// word, if a finer source range is needed for diagnostics.
     command_start: u32,
-    /// Source length covered by this command.  ``command_start +
-    /// command_len == next`` for non-comment commands.
+    /// Source length covered by this command, measured from
+    /// ``command_start``.  ``command_start + command_len == next``.
     command_len: u32,
     /// Where the caller should resume to parse the next command.
     next: u32,
@@ -316,7 +327,6 @@ pub fn ParseCommand(
     dst_tokens: [*]Token,
     dst_cap: u32,
 ) Parse {
-    _ = dst_cap;
     var word_ptrs: [MAX_WORDS]u32 = undefined;
     var word_lens: [MAX_WORDS]u32 = undefined;
     var word_braced: [MAX_WORDS]bool = undefined;
@@ -334,6 +344,13 @@ pub fn ParseCommand(
     var tok_count: u32 = 0;
     var i: u32 = 0;
     while (i < r.count) : (i += 1) {
+        // Worst case: a ``{*}`` marker plus its word.  Bail out early
+        // if the next write would exceed the caller-owned buffer —
+        // silently truncating is wrong (the eval loop would lose a
+        // word) but overwriting past the buffer is worse, so we stop
+        // at the last fully-written token pair.  Callers must size
+        // for the worst case: ``2 * MAX_WORDS``.
+        if (tok_count + 2 > dst_cap) break;
         if (word_expand[i]) {
             dst_tokens[tok_count] = .{
                 .kind = .EXPAND_WORD,
