@@ -4650,7 +4650,15 @@ class _WasmEmitter:
 
         Calls ``list_length`` to get the element count, then iterates
         with a counter calling ``list_index`` on each iteration to
-        extract the element and assign it to the loop variable.
+        extract each per-iteration element and assign it to the
+        corresponding loop variable.  ``foreach {a b} {1 2 3 4} …``
+        groups elements in pairs (or n-tuples when there are n vars);
+        the counter advances by ``len(first_vars)`` each iteration.
+
+        The body runs once more when the list length isn't a multiple
+        of the variable count, with the trailing variable(s) bound to
+        the empty string — matching reference Tcl semantics (see
+        ``foreach`` manual page).
 
         Internal counter/limit are i64; the loop variable and list
         are i32 TclObj pointers.
@@ -4660,6 +4668,7 @@ class _WasmEmitter:
         list_local = self._add_extra_local("_foreach_list", ValType.I32)
 
         first_vars, first_list = iterators[0]
+        step = max(len(first_vars), 1)
 
         # Store the list TclObj for repeated list_index calls
         self._emit_value(first_list)
@@ -4690,18 +4699,27 @@ class _WasmEmitter:
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # element = list_index(list, counter)
+        # For each loop variable: load list_index(list, counter+slot)
+        # and assign.  When ``counter + slot >= limit`` the runtime
+        # returns the empty-string TclObj, so trailing slots in the
+        # last iteration bind to "" as expected.
         lindex_idx = self._shared_imports.get("tcl_list_index")
-        if first_vars:
-            var_local = self._intern_local(first_vars[0])
+        for slot, var_name in enumerate(first_vars):
+            var_local = self._intern_local(var_name)
             if lindex_idx is not None:
                 self._emit_local_get(list_local)
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()  # index as TclObj
                 self._emit_call(lindex_idx)
             else:
                 # Fallback: use counter as element value
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
             self._emit_local_set(var_local)
 
@@ -4713,9 +4731,9 @@ class _WasmEmitter:
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
-        # counter++
+        # counter += step
         self._emit_local_get(counter)
-        self._emit_i64_const(1)
+        self._emit_i64_const(step)
         self._emit(WasmOp.I64_ADD)
         self._emit_local_set(counter)
 
@@ -5349,14 +5367,16 @@ class _WasmEmitter:
         Internal counter/limit are i64; the loop variable is i32 TclObj.
         """
         list_var: str | None = None
-        loop_var: str | None = None
+        loop_vars: tuple[str, ...] = ()
         for stmt in header_stmts:
             if isinstance(stmt, IRCall) and stmt.command == "foreach":
                 if stmt.args:
                     list_var = stmt.args[0]
                 if stmt.defs:
-                    loop_var = stmt.defs[0]
+                    loop_vars = stmt.defs
                 break
+
+        step = max(len(loop_vars), 1)
 
         counter = self._add_extra_local("_foreach_i")
         limit = self._add_extra_local("_foreach_n")
@@ -5393,17 +5413,26 @@ class _WasmEmitter:
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # element = list_index(list, counter)
+        # For each loop variable: load list_index(list, counter+slot)
+        # and assign.  Past-end slots in the final iteration receive
+        # empty-string TclObjs from the runtime, matching reference
+        # Tcl's ``foreach {a b} {1 2 3}`` semantics (b="" last iter).
         lindex_idx = self._shared_imports.get("tcl_list_index")
-        if loop_var is not None:
-            var_local = self._intern_local(loop_var)
+        for slot, var_name in enumerate(loop_vars):
+            var_local = self._intern_local(var_name)
             if lindex_idx is not None:
                 self._emit_local_get(list_local)
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
                 self._emit_call(lindex_idx)
             else:
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
             self._emit_local_set(var_local)
 
@@ -5425,9 +5454,9 @@ class _WasmEmitter:
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
-        # counter++
+        # counter += step (len(loop_vars), defaulting to 1 for single-var)
         self._emit_local_get(counter)
-        self._emit_i64_const(1)
+        self._emit_i64_const(step)
         self._emit(WasmOp.I64_ADD)
         self._emit_local_set(counter)
 
