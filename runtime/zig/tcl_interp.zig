@@ -1048,13 +1048,7 @@ fn eval_command(words: []const i32) i32 {
     return eval_proc_call(words);
 }
 
-fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
-    if (alen != b.len) return false;
-    inline for (0..b.len) |i| {
-        if (a[i] != b[i]) return false;
-    }
-    return true;
-}
+const str_eq = @import("tcl_chars.zig").str_eq;
 
 /// Namespace context for eval-fallback calls.  Compiled procs set
 /// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
