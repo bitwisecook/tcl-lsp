@@ -80,8 +80,51 @@ tcl9-triage` after any harness run.
 
 <!-- TRIAGE-BEGIN -->
 
-_No triage data yet. Run `make test-tcl9` then `make tcl9-triage` to
-populate this table._
+Totals: pass=15, A=13, B=10, C=0, D=0, E=3, files=41.
+
+| File | Subsystem | Category | Stage | Status | Passed/Total | Failed | First failing | Trap site |
+|---|---|---|---|---|---|---|---|---|
+| `lsetComp.test` | list | A | run | fail | 0/19 | 19 | `lsetComp-1.1` |  |
+| `proc-old.test` | proc | A | run | fail | 6/21 | 14 | `proc-old-1.2` |  |
+| `while-old.test` | control | A | run | fail | 6/15 | 9 | `while-old-1.3` |  |
+| `uplevel.test` | variable | A | run | fail | 5/13 | 7 | `uplevel-1.1` |  |
+| `for-old.test` | control | A | run | fail | 5/9 | 4 | `for-old-1.4` |  |
+| `eval.test` | eval | A | run | fail | 8/12 | 4 | `eval-2.1` |  |
+| `incr-old.test` | misc | A | run | fail | 5/10 | 4 | `incr-old-2.1` |  |
+| `split.test` | string | A | run | fail | 10/15 | 4 | `split-1.1` |  |
+| `llength.test` | list | A | run | fail | 3/6 | 3 | `llength-2.1` |  |
+| `join.test` | string | A | run | fail | 7/10 | 3 | `join-2.1` |  |
+| `if-old.test` | control | A | run | fail | 8/11 | 2 | `if-old-1.9` |  |
+| `list.test` | list | A | run | fail | 77/78 | 1 | `list-4.1` |  |
+| `unknown.test` | proc | A | run | fail | 0/2 | 1 | `unknown-1.1` |  |
+| `nre.test` | coroutine | B | run | fail | — | 0 | `` | tcl trap: wrong # args: should be "test name desc ?options?"   at nre.test:37… |
+| `tailcall.test` | coroutine | B | run | fail | — | 0 | `` | tcl trap: unknown command: Bug   at tailcall.test:4034:1 in test (site #52, f… |
+| `foreach.test` | list | B | run | fail | — | 0 | `` | tcl trap: preserveCore   at foreach.test:2155:5 in preserveCore (site #185, f… |
+| `lrange.test` | list | B | run | fail | — | 0 | `` | tcl trap: unsupported command: lrepeat   at lrange.test:3700:1 in test (site … |
+| `lrepeat.test` | list | B | run | fail | — | 0 | `` | tcl trap: regexp: unsupported or unknown option   at lrepeat.test:1813:5 in w… |
+| `lreplace.test` | list | B | run | fail | — | 0 | `` | tcl trap: unsupported command: apply   at lreplace.test:3819:1 in apply (site… |
+| `opt.test` | misc | B | run | fail | — | 0 | `` | tcl trap: wrong # args: should be "test name desc ?options?"   at opt.test:36… |
+| `proc.test` | proc | B | run | fail | — | 0 | `` | tcl trap: unknown command: 39fed4dae5   at proc.test:3927:1 in test (site #60… |
+| `rename.test` | proc | B | run | fail | — | 0 | `` | tcl trap: unknown command: l.new   at rename.test:3651:1 in l.new (site #32, … |
+| `get.test` | string | B | run | fail | — | 0 | `` | tcl trap: unsupported command: source   at get.test:3623:1 in info (site #28,… |
+| `safe-stock86.test` | interp | E | run | fail | — | 0 | `` |  |
+| `range.test` | misc | E | run | fail | — | 0 | `` |  |
+| `apply.test` | proc | E | run | fail | — | 0 | `` |  |
+| `while.test` | control | pass | run | pass | 0/1 | 0 | `` |  |
+| `source.test` | interp | pass | run | pass | 0/1 | 0 | `` |  |
+| `linsert.test` | list | pass | run | pass | 0/1 | 0 | `linsert-2.1` |  |
+| `lmap.test` | list | pass | run | pass | 0/1 | 0 | `lmap-7.9` |  |
+| `lpop.test` | list | pass | run | pass | 0/1 | 0 | `` |  |
+| `aaa_exit.test` | misc | pass | run | pass | 0/1 | 0 | `` |  |
+| `append.test` | misc | pass | run | pass | 4/5 | 0 | `` |  |
+| `appendComp.test` | misc | pass | run | pass | 0/1 | 0 | `appendComp-4.17` |  |
+| `concat.test` | misc | pass | run | pass | 9/9 | 0 | `` |  |
+| `dstring.test` | misc | pass | run | pass | 0/1 | 0 | `` |  |
+| `stack.test` | misc | pass | run | pass | 0/1 | 0 | `` |  |
+| `ooUtil.test` | object | pass | run | pass | 0/1 | 0 | `` |  |
+| `parseOld.test` | parsing | pass | run | pass | 1/2 | 0 | `parseOld-3.7` |  |
+| `word.test` | parsing | pass | run | pass | 0/1 | 0 | `` |  |
+| `resolver.test` | variable | pass | run | pass | 0/1 | 0 | `` |  |
 
 <!-- TRIAGE-END -->
 
