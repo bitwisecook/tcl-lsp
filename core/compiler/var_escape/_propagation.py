@@ -182,6 +182,7 @@ class _EscapeState:
         "unbounded_upvar_source",
         "direct_callees",
         "has_fallback",
+        "literal_assigns",
     )
 
     def __init__(self, known_names: Iterable[str]) -> None:
@@ -205,6 +206,13 @@ class _EscapeState:
         # runtime (IRBarrier, dynamic eval, unknown-command fallback).
         # Codegen uses it to decide whether to emit frame_push / pop.
         self.has_fallback: bool = False
+        # Sequential single-literal alias tracking.  Maps a var name to
+        # the most recent literal identifier it was assigned, or to the
+        # sentinel ``None`` once the var has been reassigned, had a
+        # non-literal value written, or been declared escaped.  Used
+        # by ``set $n`` alias inference to resolve ``$n`` back to the
+        # literal when one writer was observed.
+        self.literal_assigns: dict[str, str | None] = {}
 
     def escape(self, name: str) -> None:
         """Mark ``name`` as needing frame storage."""
@@ -237,6 +245,47 @@ class _EscapeState:
     def record_fallback(self) -> None:
         """Record that this proc can dispatch to the interpreter."""
         self.has_fallback = True
+
+    def note_literal_assign(self, name: str, value: str) -> None:
+        """Record that ``name`` was assigned ``value`` via ``IRAssignConst``.
+
+        Invalidates the tracked literal once a second writer appears:
+        only the single-writer case is trusted for alias inference.
+        """
+        if not name or _is_dynamic_name(name):
+            return
+        if name in self.literal_assigns:
+            # Second write — invalidate.
+            self.literal_assigns[name] = None
+            return
+        self.literal_assigns[name] = value
+
+    def invalidate_literal(self, name: str) -> None:
+        """Mark ``name``'s tracked literal invalid (subsequent writer)."""
+        if name:
+            self.literal_assigns[name] = None
+
+    def resolve_literal(self, token: str) -> str | None:
+        """Resolve a dynamic var-name token (``$n`` / ``${n}``) to the
+        literal it was assigned, if the single-writer rule holds.
+
+        Returns ``None`` when the token isn't a simple ``$name``
+        reference, when the tracked literal has been invalidated, or
+        when the tracked value isn't a valid Tcl identifier.
+        """
+        if not token or not token.startswith("$"):
+            return None
+        # Strip ``$`` or ``${name}`` sigil.
+        inner = token[2:-1] if token.startswith("${") and token.endswith("}") else token[1:]
+        if not inner or any(ch in inner for ch in "[]$"):
+            return None
+        literal = self.literal_assigns.get(inner)
+        if literal is None:
+            return None
+        # Guard against surprising values — only plain identifiers.
+        if not literal or not literal.replace("_", "").replace(":", "").isalnum():
+            return None
+        return literal
 
 
 def _collect_known_names(
@@ -407,8 +456,11 @@ def _handle_info(call: IRCall, state: _EscapeState) -> None:
 def _handle_dynamic_name_first(call: IRCall, state: _EscapeState) -> None:
     """Handle ``set`` / ``incr`` / ``append`` / ``lappend`` / ``unset``.
 
-    The first arg is the variable name. If it is dynamic we escape the
-    whole proc's known names (cheap over-approximation).
+    The first arg is the variable name. If the name is a ``$n``
+    reference and ``n`` was assigned exactly one literal identifier
+    earlier in the body, treat the call as targeting that literal
+    (escape just that name). Otherwise fall back to spilling every
+    known proc-local.
 
     Most of these forms are actually lowered to ``IRAssignValue`` /
     ``IRIncr`` / ``IRCall(command="append",...)`` before we see them;
@@ -419,8 +471,11 @@ def _handle_dynamic_name_first(call: IRCall, state: _EscapeState) -> None:
         return
     name = args[0]
     if _is_dynamic_name(name):
-        # No richer alias inference yet — spill all known names.
-        state.escape_all_known()
+        literal = state.resolve_literal(name)
+        if literal is not None:
+            state.escape(literal)
+        else:
+            state.escape_all_known()
 
 
 def _escape_every_name_touched(
@@ -684,20 +739,50 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             _handle_barrier(stmt, state)
         elif isinstance(stmt, IRAssignConst):
             if _is_dynamic_name(stmt.name):
-                # Dynamic-name ``set``: name was a $var — spill everything.
-                state.escape_all_known()
+                literal = state.resolve_literal(stmt.name)
+                if literal is not None:
+                    state.escape(literal)
+                else:
+                    state.escape_all_known()
+            else:
+                state.note_literal_assign(stmt.name, stmt.value)
             _apply_value_scan(stmt.value, state)
         elif isinstance(stmt, IRAssignValue):
             if _is_dynamic_name(stmt.name):
-                state.escape_all_known()
+                literal = state.resolve_literal(stmt.name)
+                if literal is not None:
+                    state.escape(literal)
+                else:
+                    state.escape_all_known()
+            else:
+                # A plain-literal value (no ``$var`` / ``[cmd]``) is
+                # still trusted as an alias literal for the single-
+                # writer case — lowering picks IRAssignValue over
+                # IRAssignConst for non-numeric barewords.
+                if stmt.value and not _is_dynamic_token(stmt.value):
+                    state.note_literal_assign(stmt.name, stmt.value)
+                else:
+                    state.invalidate_literal(stmt.name)
             _apply_value_scan(stmt.value, state)
         elif isinstance(stmt, IRAssignExpr):
             if _is_dynamic_name(stmt.name):
-                state.escape_all_known()
+                literal = state.resolve_literal(stmt.name)
+                if literal is not None:
+                    state.escape(literal)
+                else:
+                    state.escape_all_known()
+            else:
+                state.invalidate_literal(stmt.name)
             _apply_expr_scan(stmt.expr, state)
         elif isinstance(stmt, IRIncr):
             if _is_dynamic_name(stmt.name):
-                state.escape_all_known()
+                literal = state.resolve_literal(stmt.name)
+                if literal is not None:
+                    state.escape(literal)
+                else:
+                    state.escape_all_known()
+            else:
+                state.invalidate_literal(stmt.name)
             if stmt.amount:
                 _apply_value_scan(stmt.amount, state)
         elif isinstance(stmt, IRReturn):

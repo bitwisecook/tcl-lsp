@@ -1,5 +1,6 @@
 """Allow-list of ``info`` subcommands for the var-escape analysis.
 
+Audited against Tcl 9.0's ``info`` dispatch table (``tclCmdIL.c``).
 Most ``info`` subcommands reflect on the interpreter's global state
 (command table, version info, script path). A small set reads the
 current frame by name — those force the whole proc to the
@@ -14,17 +15,20 @@ from __future__ import annotations
 # containing proc to the pessimistic fallback.
 FRAME_INSPECTING_SUBCOMMANDS: frozenset[str] = frozenset(
     {
-        "level",
-        "frame",
-        "vars",
-        "locals",
-        "coroutine",  # Exposes the current coroutine frame
+        "level",  # Returns caller frame args or a depth int.
+        "frame",  # Returns a frame descriptor dict (file, line, cmd).
+        "vars",  # Enumerates vars visible in the current frame.
+        "locals",  # Enumerates locals of the current frame.
+        "coroutine",  # Exposes the current coroutine frame.
+        "errorstack",  # Exposes the error callstack — caller-frame data.
     }
 )
 
 # Subcommands that are purely interpreter-global — safe.
 INTERPRETER_GLOBAL_SUBCOMMANDS: frozenset[str] = frozenset(
     {
+        # Proc / method introspection (reads the global proc table, not
+        # the current frame).
         "body",
         "args",
         "default",
@@ -32,16 +36,29 @@ INTERPRETER_GLOBAL_SUBCOMMANDS: frozenset[str] = frozenset(
         "procs",
         "class",
         "functions",
+        "cmdtype",
+        # Version / build / environment.
         "patchlevel",
         "tclversion",
         "nameofexecutable",
-        "script",
+        "sharedlibextension",
         "library",
         "hostname",
-        "sharedlibextension",
+        "script",
+        # Runtime bookkeeping — no frame access.
         "cmdcount",
         "complete",
-        "exists",  # handled separately; see classify_info_subcommand
+        "cancel",
+        "loaded",
+        # TclOO object introspection — reads object metadata.
+        "object",
+        # Tcl 9 additions: constants and globals expose data by name
+        # but not via the current proc frame.
+        "constant",
+        "constants",
+        "globals",
+        # Handled separately; see classify_info_subcommand.
+        "exists",
     }
 )
 
