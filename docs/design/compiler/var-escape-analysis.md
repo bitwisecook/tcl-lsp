@@ -24,16 +24,15 @@ frame from the start, so no sync is needed.
 
 Source:
 [`core/compiler/var_escape/`](../../../core/compiler/var_escape/) —
-[`_lattice.py`](../../../core/compiler/var_escape/_lattice.py),
+[`_types.py`](../../../core/compiler/var_escape/_types.py),
 [`_propagation.py`](../../../core/compiler/var_escape/_propagation.py),
-[`_interprocedural.py`](../../../core/compiler/var_escape/_interprocedural.py),
 [`_info_subcommands.py`](../../../core/compiler/var_escape/_info_subcommands.py),
 [`_api.py`](../../../core/compiler/var_escape/_api.py).
 
 Consumers:
-[`core/compiler/codegen/wasm/emitter.py`](../../../core/compiler/codegen/wasm/emitter.py),
-[`core/compiler/codegen/wasm/var_emit.py`](../../../core/compiler/codegen/wasm/var_emit.py),
-[`core/compiler/codegen/wasm/frame_sync.py`](../../../core/compiler/codegen/wasm/frame_sync.py).
+[`core/compiler/codegen/wasm.py`](../../../core/compiler/codegen/wasm.py)
+— the emitter is being carved into a package; see the file for the
+current shape.
 
 ## Content
 

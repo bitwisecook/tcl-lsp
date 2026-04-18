@@ -71,6 +71,7 @@ from ..ir import (
     IRTry,
     IRWhile,
 )
+from ..var_escape import ProcEscapeSummary, analyse_var_escape
 
 # WASM binary encoding helpers
 
@@ -2090,6 +2091,7 @@ class _WasmEmitter:
         shared_string_offset: list[int] | None = None,
         proc_qname: str | None = None,
         diag_map: DiagMap | None = None,
+        escape_summary: "ProcEscapeSummary | None" = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -2209,6 +2211,13 @@ class _WasmEmitter:
         self._current_range: Range | None = None
         self._current_command: str = ""
         self._current_args: tuple[str, ...] = ()
+
+        # Per-proc var-escape summary.  When provided, _iter_sync_locals
+        # uses it to skip variables the analysis proved cannot be seen by
+        # name from the interpreter — trimming the frame-sync set below
+        # what ``vars_used`` alone would allow.  ``None`` means "no
+        # analysis run" and falls back to conservative behaviour.
+        self._escape_summary: ProcEscapeSummary | None = escape_summary
 
     def _intern_local(self, name: str) -> int:
         """Register a Tcl variable as an i32 local (TclObj pointer)."""
@@ -5074,7 +5083,23 @@ class _WasmEmitter:
         interpreter call could observe.  ``None`` means "unknown — sync
         every Tcl local".  An empty set also means the caller
         explicitly knows nothing is referenced (no sync needed).
+
+        When a per-proc var-escape summary is available, the caller
+        passes ``vars_used`` (the fallback's statically known reference
+        set), and the proc is not in the dynamic-barrier pessimistic
+        state, vars the analysis proved the interpreter cannot observe
+        by name (``LOCAL`` tag) are excluded from the sync set.
+
+        The ``vars_used is not None`` guard is a soundness gate: it
+        keeps the narrow-sync off the "unknown fallback" path until an
+        interprocedural extension propagates callee ``upvar 1`` source
+        sets back into the caller's summary.
         """
+        summary = self._escape_summary
+        narrow_to_frame = (
+            summary is not None and not summary.dynamic_barrier and vars_used is not None
+        )
+
         pairs: list[tuple[str, int]] = []
         for name, idx in self._tcl_var_locals.items():
             if name in self._aliases:
@@ -5084,6 +5109,10 @@ class _WasmEmitter:
             if name.startswith("::"):
                 continue
             if vars_used is not None and name not in vars_used:
+                continue
+            if narrow_to_frame and not summary.is_frame(name):
+                # Analysis proved this var cannot be observed by name
+                # from the interpreter — no sync needed.
                 continue
             pairs.append((name, idx))
         pairs.sort(key=lambda p: p[0])
@@ -7554,6 +7583,7 @@ def wasm_codegen_module(
     optimise: bool = False,
     filename: str | None = None,
     diag_map: DiagMap | None = None,
+    escape_summaries: dict[str, ProcEscapeSummary] | None = None,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -7592,6 +7622,16 @@ def wasm_codegen_module(
         diag_map = DiagMap(filename=filename)
     elif diag_map is not None and filename is not None:
         diag_map.filename = filename
+
+    # Phase 0: Run per-proc var-escape analysis so the emitter can narrow
+    # frame-sync work to vars the analysis couldn't prove LOCAL-safe.
+    # Runs unconditionally — the analysis is a cheap tree walk, and callers
+    # that pre-computed it can pass ``escape_summaries`` to skip the work.
+    if escape_summaries is None:
+        try:
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
+        except Exception:  # noqa: BLE001 — analysis failure falls back
+            escape_summaries = None
 
     module = WasmModule()
 
@@ -7657,6 +7697,7 @@ def wasm_codegen_module(
     shared_string_offset: list[int] = [0]
 
     # Phase 4: Compile top-level with shared state
+    top_escape = escape_summaries.get("::top") if escape_summaries is not None else None
     emitter = _WasmEmitter(
         cfg_module.top_level,
         optimise=optimise,
@@ -7669,6 +7710,7 @@ def wasm_codegen_module(
         shared_string_index=shared_string_index,
         shared_string_offset=shared_string_offset,
         diag_map=diag_map,
+        escape_summary=top_escape,
     )
     # Register every compiled proc in the runtime proc table with a
     # non-zero func_idx marker so the interpreter knows to dispatch
@@ -7689,6 +7731,7 @@ def wasm_codegen_module(
 
     # Phase 5: Compile callables (procedures and methods)
     for qname, cfg_func, params in callables:
+        proc_escape = escape_summaries.get(qname) if escape_summaries is not None else None
         callable_emitter = _WasmEmitter(
             cfg_func,
             params=params,
@@ -7703,6 +7746,7 @@ def wasm_codegen_module(
             shared_string_offset=shared_string_offset,
             proc_qname=qname,
             diag_map=diag_map,
+            escape_summary=proc_escape,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
