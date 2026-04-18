@@ -82,6 +82,9 @@ def solve_interprocedural_escape(
     transitive_unbounded: dict[str, bool] = {
         qname: summary.unbounded_upvar_source for qname, summary in summaries.items()
     }
+    transitive_fallback: dict[str, bool] = {
+        qname: summary.has_fallback for qname, summary in summaries.items()
+    }
 
     # Reverse edges: qname → set of qnames that call it.
     callers_of: dict[str, set[str]] = {qname: set() for qname in summaries}
@@ -97,6 +100,7 @@ def solve_interprocedural_escape(
         # Propagate this proc's current sources into its callers.
         current_sources = transitive_sources[qname]
         current_unbounded = transitive_unbounded[qname]
+        current_fallback = transitive_fallback[qname]
         for caller in callers_of.get(qname, ()):
             changed = False
             if not current_sources.issubset(transitive_sources[caller]):
@@ -104,6 +108,9 @@ def solve_interprocedural_escape(
                 changed = True
             if current_unbounded and not transitive_unbounded[caller]:
                 transitive_unbounded[caller] = True
+                changed = True
+            if current_fallback and not transitive_fallback[caller]:
+                transitive_fallback[caller] = True
                 changed = True
             if changed and caller not in in_worklist:
                 worklist.append(caller)
@@ -123,6 +130,7 @@ def solve_interprocedural_escape(
     for qname, summary in summaries.items():
         sources = transitive_sources[qname]
         unbounded = transitive_unbounded[qname]
+        fallback = transitive_fallback[qname]
         # Spill any name in the caller's tags whose name is in the
         # callee source set. We spill conservatively: callers that
         # don't know their full local-name set (empty tags) gain the
@@ -140,6 +148,7 @@ def solve_interprocedural_escape(
             new_summary,
             upvar_source_names=frozenset(sources),
             unbounded_upvar_source=unbounded,
+            has_fallback=fallback,
         )
         result[qname] = new_summary
     return result
@@ -150,8 +159,9 @@ def _replace_transitive_fields(
     *,
     upvar_source_names: frozenset[str],
     unbounded_upvar_source: bool,
+    has_fallback: bool,
 ) -> ProcEscapeSummary:
-    """Return a copy of ``summary`` with the two transitive fields set.
+    """Return a copy of ``summary`` with the transitive fields set.
 
     ``ProcEscapeSummary`` is frozen; this helper avoids sprinkling
     ``dataclasses.replace`` calls throughout the fixpoint driver.
@@ -162,4 +172,5 @@ def _replace_transitive_fields(
         summary,
         upvar_source_names=upvar_source_names,
         unbounded_upvar_source=unbounded_upvar_source,
+        has_fallback=has_fallback,
     )

@@ -67,6 +67,7 @@ class ProcEscapeSummary:
     upvar_source_names: frozenset[str] = frozenset()
     unbounded_upvar_source: bool = False
     direct_callees: frozenset[str] = frozenset()
+    has_fallback: bool = False
 
     def tag(self, name: str) -> EscapeTag:
         """Return the tag for ``name`` (defaults to ``LOCAL``)."""
@@ -105,4 +106,5 @@ class ProcEscapeSummary:
             upvar_source_names=self.upvar_source_names,
             unbounded_upvar_source=self.unbounded_upvar_source,
             direct_callees=self.direct_callees,
+            has_fallback=self.has_fallback,
         )
