@@ -138,35 +138,34 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
 
 /// Build a Tcl list TclObj from ``words[fixed+1 ..]`` (skipping
 /// the command name at index 0 and the ``fixed`` positional args).
-/// Each element is individually list-element-quoted so that
-/// ``llength``, ``lindex``, ``foreach`` etc. see the correct
-/// element boundaries — critical when an element itself contains
-/// whitespace, braces, or is the empty string (without quoting,
-/// ``"a b"`` would split into two elements rather than stay as
-/// one).
+/// Each element is individually list-element-quoted via the shared
+/// :func:`obj.list_elem_quote` / :func:`obj.list_elem_quote_nth`
+/// helpers so that ``llength`` / ``lindex`` / ``foreach`` see the
+/// correct element boundaries.  Using the canonical helpers keeps
+/// this path consistent with the Python compiler, the interpreter's
+/// ``list`` / ``args`` collection, and ``lappend`` — a previous
+/// stand-alone implementation here treated ``\\{`` as depth-
+/// changing and escaped embedded newlines as literal ``\\<LF>``
+/// sequences, which Tcl's script parser then folds back into
+/// spaces — so a braced proc body ``{set x "a\\{"; lappend x abc}``
+/// arrived at ``[lindex $args 0]`` with all its newlines replaced.
 fn build_args_list(words: []const i32, fixed: u32) i32 {
-    const rt = @import("tcl_runtime.zig");
     const start: u32 = fixed + 1;
     if (words.len <= start) {
         return obj.obj_new_string(0, 0);
     }
-    // Two-pass: size then fill.  Each element contributes
-    // ``needs_quote_ext(s)`` extra bytes for brace-wrapping or
-    // per-byte backslash-escape, plus a space separator between
-    // elements.
+    const rt = @import("tcl_runtime.zig");
+    _ = rt; // referenced indirectly via obj.obj_ensure_string
+    // Worst-case expansion per element: 2x + 2 (full escape mode)
+    // plus one separator byte per gap.
     var total: u32 = 0;
     var i: u32 = start;
     while (i < words.len) : (i += 1) {
-        const s = rt.obj_ensure_string(words[i]);
-        total += encoded_element_len(s.ptr, s.len);
+        const s = obj.obj_ensure_string(words[i]);
+        total += s.len * 2 + 2;
         if (i > start) total += 1;
     }
-    if (total == 0) {
-        // All elements empty → list of N empties is N ``{}`` joined
-        // by space.  encoded_element_len for empty is 2 (``{}``) so
-        // we shouldn't hit here, but guard anyway.
-        return obj.obj_new_string(0, 0);
-    }
+    if (total == 0) return obj.obj_new_string(0, 0);
     const buf = obj.alloc(total);
     var off: u32 = 0;
     i = start;
@@ -176,108 +175,12 @@ fn build_args_list(words: []const i32, fixed: u32) i32 {
             d[0] = ' ';
             off += 1;
         }
-        const s = rt.obj_ensure_string(words[i]);
-        off += encode_element(buf + off, s.ptr, s.len);
+        const s = obj.obj_ensure_string(words[i]);
+        if (i == start) {
+            off = obj.list_elem_quote(buf, off, s.ptr, s.len);
+        } else {
+            off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
+        }
     }
     return obj.obj_new_string(@intCast(buf), @intCast(off));
-}
-
-/// Tcl list-element encoding length for a byte range.  Mirrors
-/// the Python-side ``_tcl_list_quote`` rules:
-///   - empty          →  2 (``{}``)
-///   - no special chr →  len (verbatim)
-///   - balanced braces, has whitespace/specials → len + 2 (``{...}``)
-///   - unbalanced     →  len + (specials-count) (backslash-escape
-///                       each special)
-/// "Specials" for our purposes are the characters that end a word
-/// or change parse mode: whitespace, ``{}[]"\$;``.
-fn encoded_element_len(ptr: u32, len: u32) u32 {
-    if (len == 0) return 2;
-    const p: [*]const u8 = @ptrFromInt(ptr);
-    var needs_quote = false;
-    var brace_depth: i32 = 0;
-    var unbalanced = false;
-    var specials: u32 = 0;
-    var i: u32 = 0;
-    while (i < len) : (i += 1) {
-        const c = p[i];
-        switch (c) {
-            ' ', '\t', '\n', '\r', '{', '}', '[', ']', '"', '\\', '$', ';' => {
-                needs_quote = true;
-                specials += 1;
-                if (c == '{') brace_depth += 1;
-                if (c == '}') {
-                    brace_depth -= 1;
-                    if (brace_depth < 0) unbalanced = true;
-                }
-            },
-            else => {},
-        }
-    }
-    if (brace_depth != 0) unbalanced = true;
-    if (!needs_quote) return len;
-    if (!unbalanced) return len + 2; // ``{...}``
-    return len + specials; // one backslash per special char
-}
-
-/// Write a Tcl list-element encoding of *src* into ``buf``;
-/// returns bytes written.  Paired with :func:`encoded_element_len`
-/// — callers size the destination buffer using the length function
-/// and then fill it with this encoder.
-fn encode_element(buf: u32, ptr: u32, len: u32) u32 {
-    const d: [*]u8 = @ptrFromInt(buf);
-    if (len == 0) {
-        d[0] = '{';
-        d[1] = '}';
-        return 2;
-    }
-    const p: [*]const u8 = @ptrFromInt(ptr);
-    var needs_quote = false;
-    var brace_depth: i32 = 0;
-    var unbalanced = false;
-    var i: u32 = 0;
-    while (i < len) : (i += 1) {
-        const c = p[i];
-        switch (c) {
-            ' ', '\t', '\n', '\r', '{', '}', '[', ']', '"', '\\', '$', ';' => {
-                needs_quote = true;
-                if (c == '{') brace_depth += 1;
-                if (c == '}') {
-                    brace_depth -= 1;
-                    if (brace_depth < 0) unbalanced = true;
-                }
-            },
-            else => {},
-        }
-    }
-    if (brace_depth != 0) unbalanced = true;
-
-    if (!needs_quote) {
-        const rt = @import("tcl_runtime.zig");
-        rt.memcpy(buf, ptr, len);
-        return len;
-    }
-    if (!unbalanced) {
-        d[0] = '{';
-        const rt = @import("tcl_runtime.zig");
-        rt.memcpy(buf + 1, ptr, len);
-        d[len + 1] = '}';
-        return len + 2;
-    }
-    // Fallback: backslash-escape every special character.
-    var out: u32 = 0;
-    i = 0;
-    while (i < len) : (i += 1) {
-        const c = p[i];
-        switch (c) {
-            ' ', '\t', '\n', '\r', '{', '}', '[', ']', '"', '\\', '$', ';' => {
-                d[out] = '\\';
-                out += 1;
-            },
-            else => {},
-        }
-        d[out] = c;
-        out += 1;
-    }
-    return out;
 }
