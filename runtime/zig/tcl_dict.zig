@@ -11,8 +11,8 @@ const obj_new_string_copy = obj.obj_new_string_copy;
 const str_cmp = obj.str_cmp;
 const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;
-const dict_needs_braces = obj.dict_needs_braces;
-const dict_append_elem = obj.dict_append_elem;
+const list_elem_quote = obj.list_elem_quote;
+const list_elem_quote_nth = obj.list_elem_quote_nth;
 
 // Exported: dict create — create an empty dict.
 pub export fn dict_create() i32 {
@@ -52,7 +52,9 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
 }
 
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
-    const buf = alloc(sd_len + vl + 10);
+    // Worst-case: each existing byte could double (backslash-escape) plus
+    // braces, plus the new value doubled, plus separator spaces.
+    const buf = alloc(sd_len * 2 + vl * 2 + 16);
     var off: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
@@ -62,7 +64,10 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             off += 1;
         }
         if (idx == target_idx + 1) {
-            off = dict_append_elem(buf, off, vp, vl);
+            // A dict's value slots live at odd indices (1, 3, 5, …)
+            // — they are never element 0 — so ``DONT_QUOTE_HASH`` is
+            // always the right choice here.
+            off = list_elem_quote_nth(buf, off, vp, vl);
         } else {
             const elem = list_element_at(sd_ptr, sd_len, idx);
             if (elem.braced) {
@@ -84,7 +89,7 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
 }
 
 fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {
-    const buf = alloc(sd_len + kl + vl + 10);
+    const buf = alloc(sd_len + kl * 2 + vl * 2 + 16);
     var off: u32 = 0;
     if (sd_len > 0) {
         memcpy(buf, sd_ptr, sd_len);
@@ -92,12 +97,15 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
         const d: [*]u8 = @ptrFromInt(buf + off);
         d[0] = ' ';
         off += 1;
+        // Key / value follow at least one prior element → hash-safe.
+        off = list_elem_quote_nth(buf, off, kp, kl);
+    } else {
+        off = list_elem_quote(buf, off, kp, kl);
     }
-    off = dict_append_elem(buf, off, kp, kl);
     const d: [*]u8 = @ptrFromInt(buf + off);
     d[0] = ' ';
     off += 1;
-    off = dict_append_elem(buf, off, vp, vl);
+    off = list_elem_quote_nth(buf, off, vp, vl);
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 

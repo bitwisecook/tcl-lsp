@@ -39,176 +39,17 @@ fn has_signal() bool {
 // Splits a Tcl script into commands, each command into words.
 // Handles: braces {}, quotes "", $var substitution, [cmd] substitution,
 // backslash escapes, semicolons, newlines.
+//
+// The actual parsers live in ``tcl_parse.zig`` so both the interpreter
+// and any future Tcl-Parse-tree consumer see one canonical tokeniser.
+// ``eval_script`` consumes the Token-tree API (``parse.ParseCommand``);
+// the legacy flat-array helpers (``parse_command`` / ``parse_braced``
+// / …) are still exported from ``tcl_parse.zig`` for callers that
+// want them, but nothing inside ``tcl_interp.zig`` uses them directly
+// any more — so no local aliases here.
 
-const MAX_WORDS: u32 = 32;
-
-fn skip_space(src: [*]const u8, pos: u32, len: u32) u32 {
-    var p = pos;
-    while (p < len and (src[p] == ' ' or src[p] == '\t')) p += 1;
-    return p;
-}
-
-fn parse_braced(src: [*]const u8, pos: u32, len: u32) struct { end: u32, start: u32, wlen: u32 } {
-    var p = pos + 1;
-    const start = p;
-    var depth: u32 = 1;
-    while (p < len and depth > 0) {
-        // Tcl brace parsing: ``\<anychar>`` inside a braced word
-        // consumes two bytes without affecting the brace depth —
-        // so ``\{`` / ``\}`` are NOT depth-changing sequences,
-        // matching Tcl's TclParseBraces.  Without this, a test body
-        // like ``{lappend x \{\  abc}`` would see the ``\{`` bump
-        // depth past the closing ``}`` and consume the rest of the
-        // script into the single word.
-        if (src[p] == '\\' and p + 1 < len) {
-            p += 2;
-            continue;
-        }
-        if (src[p] == '{') depth += 1 else if (src[p] == '}') depth -= 1;
-        if (depth > 0) p += 1 else p += 1;
-    }
-    return .{ .end = p, .start = start, .wlen = p - 1 - start };
-}
-
-fn parse_quoted(src: [*]const u8, pos: u32, len: u32) struct { end: u32, start: u32, wlen: u32 } {
-    var p = pos + 1;
-    const start = p;
-    while (p < len and src[p] != '"') {
-        if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
-    }
-    const wlen = p - start;
-    if (p < len) p += 1;
-    return .{ .end = p, .start = start, .wlen = wlen };
-}
-
-fn parse_bare(src: [*]const u8, pos: u32, len: u32) struct { end: u32, start: u32, wlen: u32 } {
-    const start = pos;
-    var p = pos;
-    // Scan until a top-level terminator.  Crucially, nested ``[...]``
-    // command substitutions and ``${...}`` variable references must
-    // be kept inside the same word — splitting on the space inside
-    // ``[clock seconds]`` would truncate the inner command when
-    // subst_word later runs it through eval_script (the observed
-    // "unknown command: cloc" off-by-one).
-    while (p < len and src[p] != ' ' and src[p] != '\t' and
-        src[p] != '\n' and src[p] != ';' and src[p] != '\r')
-    {
-        if (src[p] == '\\' and p + 1 < len) {
-            p += 2;
-        } else if (src[p] == '[') {
-            // Skip a balanced ``[...]`` subscript in one gulp so
-            // whitespace inside a command substitution does not
-            // terminate the outer word.
-            var depth: u32 = 1;
-            p += 1;
-            while (p < len and depth > 0) {
-                if (src[p] == '\\' and p + 1 < len) {
-                    p += 2;
-                    continue;
-                }
-                if (src[p] == '[') depth += 1;
-                if (src[p] == ']') depth -= 1;
-                p += 1;
-            }
-        } else if (src[p] == '$' and p + 1 < len and src[p + 1] == '{') {
-            // ``${...}`` keeps its braces together — normal $name
-            // refs terminate on the first non-identifier char which
-            // is handled by the outer loop already.
-            p += 2;
-            while (p < len and src[p] != '}') p += 1;
-            if (p < len) p += 1;
-        } else {
-            p += 1;
-        }
-    }
-    return .{ .end = p, .start = start, .wlen = p - start };
-}
-
-fn parse_command(
-    src: [*]const u8,
-    pos: u32,
-    len: u32,
-    word_ptrs: *[MAX_WORDS]u32,
-    word_lens: *[MAX_WORDS]u32,
-    word_braced: *[MAX_WORDS]bool,
-    word_expand: *[MAX_WORDS]bool,
-) struct { count: u32, next: u32 } {
-    var p = pos;
-    var count: u32 = 0;
-
-    while (p < len and (src[p] == ' ' or src[p] == '\t' or src[p] == '\n' or src[p] == '\r' or src[p] == ';')) p += 1;
-
-    if (p < len and src[p] == '#') {
-        while (p < len and src[p] != '\n') p += 1;
-        if (p < len) p += 1;
-        return .{ .count = 0, .next = p };
-    }
-
-    while (p < len and count < MAX_WORDS) {
-        p = skip_space(src, p, len);
-        if (p >= len or src[p] == '\n' or src[p] == ';' or src[p] == '\r') {
-            if (p < len) p += 1;
-            break;
-        }
-        if (src[p] == '#' and count == 0) {
-            while (p < len and src[p] != '\n') p += 1;
-            if (p < len) p += 1;
-            break;
-        }
-
-        // Detect ``{*}`` argument-expansion prefix (Tcl 8.5+).
-        // The three-character sequence ``{*}`` immediately before a
-        // word signals that the word should be evaluated and then
-        // split as a Tcl list, with each element inserted as a
-        // separate argument.  Strip the prefix here and record the
-        // expansion flag; the actual splitting happens in eval_script.
-        var expand = false;
-        if (src[p] == '{' and p + 2 < len and src[p + 1] == '*' and src[p + 2] == '}') {
-            expand = true;
-            p += 3;
-            // Skip any whitespace between {*} and the word (rare but
-            // valid in Tcl: ``cmd {*} $args`` is the same as
-            // ``cmd {*}$args``).
-            p = skip_space(src, p, len);
-            if (p >= len or src[p] == '\n' or src[p] == ';') {
-                // bare {*} with nothing following — treat as empty expansion
-                word_ptrs[count] = 0;
-                word_lens[count] = 0;
-                word_braced[count] = false;
-                word_expand[count] = true;
-                count += 1;
-                break;
-            }
-        }
-
-        if (src[p] == '{') {
-            const r = parse_braced(src, p, len);
-            word_ptrs[count] = @intFromPtr(src) + r.start;
-            word_lens[count] = r.wlen;
-            word_braced[count] = true;
-            word_expand[count] = expand;
-            count += 1;
-            p = r.end;
-        } else if (src[p] == '"') {
-            const r = parse_quoted(src, p, len);
-            word_ptrs[count] = @intFromPtr(src) + r.start;
-            word_lens[count] = r.wlen;
-            word_braced[count] = false;
-            word_expand[count] = expand;
-            count += 1;
-            p = r.end;
-        } else {
-            const r = parse_bare(src, p, len);
-            word_ptrs[count] = @intFromPtr(src) + r.start;
-            word_lens[count] = r.wlen;
-            word_braced[count] = false;
-            word_expand[count] = expand;
-            count += 1;
-            p = r.end;
-        }
-    }
-    return .{ .count = count, .next = p };
-}
+const parse = @import("tcl_parse.zig");
+const MAX_WORDS: u32 = parse.MAX_WORDS;
 
 // -- Variable substitution --
 
@@ -959,7 +800,13 @@ fn eval_command(words: []const i32) i32 {
                 off += 1;
             }
             const s = obj_ensure_string(words[ei]);
-            off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
+            // ei starts at 1 (words[0] is the command name); ei==1 is
+            // element 0 of the output list and gets hash-quoting.
+            if (ei == 1) {
+                off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
+            } else {
+                off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
+            }
         }
         return obj_new_string(@bitCast(buf), @bitCast(off));
     }
@@ -1042,13 +889,7 @@ fn eval_command(words: []const i32) i32 {
     return eval_proc_call(words);
 }
 
-fn str_eq(a: [*]const u8, alen: u32, comptime b: []const u8) bool {
-    if (alen != b.len) return false;
-    inline for (0..b.len) |i| {
-        if (a[i] != b[i]) return false;
-    }
-    return true;
-}
+const str_eq = @import("tcl_chars.zig").str_eq;
 
 /// Namespace context for eval-fallback calls.  Compiled procs set
 /// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
@@ -1421,7 +1262,14 @@ fn eval_proc_call(words: []const i32) i32 {
                             off += 1;
                         }
                         const sv = obj_ensure_string(words[ai]);
-                        off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                        // ai starts at ``arg_idx`` (first element of the
+                        // ``args`` list) and increases; only that first
+                        // element gets leading-# quoting.
+                        if (ai == arg_idx) {
+                            off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                        } else {
+                            off = obj_mod.list_elem_quote_nth(buf, off, sv.ptr, sv.len);
+                        }
                     }
                     _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
                 }
@@ -1748,20 +1596,15 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     const src: [*]const u8 = @ptrFromInt(script_ptr);
     var pos: u32 = 0;
     var result: i32 = 0;
-    var wp: [MAX_WORDS]u32 = undefined;
-    var wl: [MAX_WORDS]u32 = undefined;
-    // ``wb[i] == true`` means word i was parsed as ``{braced}``
-    // — subst_word must skip ``$var`` / ``[cmd]`` substitution
-    // because braces protect their contents in Tcl.  Without this
-    // flag a braced word's ``$option`` would be resolved at
-    // command-dispatch time rather than preserved literally, which
-    // is wrong for e.g. ``proc foo args {body-with-$var}`` where
-    // the body must stay unsubstituted until the proc runs.
-    var wb: [MAX_WORDS]bool = undefined;
-    // ``we[i] == true`` means word i was prefixed with ``{*}`` and
-    // should be split as a Tcl list, expanding its elements into
-    // individual arguments at the call site.
-    var we: [MAX_WORDS]bool = undefined;
+    // Token-tree scratch for each parsed command.  A command contributes
+    // at most MAX_WORDS ``.WORD`` / ``.SIMPLE_WORD`` tokens plus one
+    // ``.EXPAND_WORD`` marker per ``{*}`` — so 2 * MAX_WORDS is the
+    // worst-case slot count.  The tree is shallow today (no
+    // sub-tokens); ``Token.braced`` carries the same info the old
+    // ``wb[]`` array carried, and the marker walk below reconstructs
+    // the old ``we[]`` per-word expansion flag from the placement of
+    // ``.EXPAND_WORD`` tokens in the stream.
+    var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
@@ -1785,46 +1628,64 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
 
-        const cmd = parse_command(src, pos, script_len, &wp, &wl, &wb, &we);
+        const cmd = parse.ParseCommand(src, pos, script_len, &tok_buf, tok_buf.len);
         pos = cmd.next;
-        if (cmd.count == 0) continue;
+        if (cmd.n_words == 0) continue;
 
-        // Build the evaluated word list.  When no word has the
-        // expansion flag set we use the fast path (fixed-size array
-        // indexed directly).  When expansion is needed we copy into
-        // a larger buffer so each ``{*}`` word can contribute
-        // multiple elements without an allocation.
+        // Walk the Token stream: EXPAND_WORD is a marker that sets the
+        // expansion flag on the next WORD / SIMPLE_WORD.  Everything
+        // else is a direct word.  The absolute byte pointer comes
+        // from ``Parse.src_ptr + Token.start``.
+        const tokens: [*]parse.Token = @ptrFromInt(cmd.tokens_ptr);
         var has_expand = false;
-        var i: u32 = 0;
-        while (i < cmd.count) : (i += 1) {
-            if (we[i]) { has_expand = true; break; }
+        {
+            var t: u32 = 0;
+            while (t < cmd.tokens_len) : (t += 1) {
+                if (tokens[t].kind == .EXPAND_WORD) {
+                    has_expand = true;
+                    break;
+                }
+            }
         }
 
         if (!has_expand) {
-            // Fast path: no expansion.
+            // Fast path: no expansion.  Every token is a WORD /
+            // SIMPLE_WORD describing one script word.
             var word_objs: [MAX_WORDS]i32 = undefined;
-            i = 0;
-            while (i < cmd.count) : (i += 1) {
-                if (wb[i]) {
-                    // Braced word — preserve the content literally.
-                    word_objs[i] = obj_new_string(@intCast(wp[i]), @intCast(wl[i]));
+            var wi: u32 = 0;
+            var t: u32 = 0;
+            while (t < cmd.tokens_len) : (t += 1) {
+                const tok = tokens[t];
+                if (tok.kind == .EXPAND_WORD) continue;
+                const wptr_abs: u32 = cmd.src_ptr + tok.start;
+                if (tok.braced) {
+                    word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
                 } else {
-                    word_objs[i] = subst_word(wp[i], wl[i]);
+                    word_objs[wi] = subst_word(wptr_abs, tok.len);
                 }
+                wi += 1;
             }
-            result = eval_command(word_objs[0..cmd.count]);
+            result = eval_command(word_objs[0..wi]);
         } else {
             // Slow path: at least one {*} expansion.
             var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
             var ecount: u32 = 0;
-            i = 0;
-            while (i < cmd.count) : (i += 1) {
-                const word_obj: i32 = if (wb[i])
-                    obj_new_string(@intCast(wp[i]), @intCast(wl[i]))
+            var pending_expand = false;
+            var t: u32 = 0;
+            while (t < cmd.tokens_len) : (t += 1) {
+                const tok = tokens[t];
+                if (tok.kind == .EXPAND_WORD) {
+                    pending_expand = true;
+                    continue;
+                }
+                const wptr_abs: u32 = cmd.src_ptr + tok.start;
+                const word_obj: i32 = if (tok.braced)
+                    obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
                 else
-                    subst_word(wp[i], wl[i]);
+                    subst_word(wptr_abs, tok.len);
 
-                if (we[i]) {
+                if (pending_expand) {
+                    pending_expand = false;
                     // Expansion: split word_obj as a Tcl list and
                     // insert each element as a separate argument.
                     const s = obj_ensure_string(word_obj);

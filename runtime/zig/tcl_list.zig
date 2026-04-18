@@ -11,12 +11,10 @@ const obj_get_int = obj.obj_get_int;
 const obj_new_string_copy = obj.obj_new_string_copy;
 const copy_unbraced_elem = obj.copy_unbraced_elem;
 const list_elem_quote = obj.list_elem_quote;
-const is_space = obj.is_space;
+const list_elem_quote_nth = obj.list_elem_quote_nth;
 const str_cmp = obj.str_cmp;
 const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;
-const dict_needs_braces = obj.dict_needs_braces;
-const dict_append_elem = obj.dict_append_elem;
 const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 
@@ -27,63 +25,31 @@ pub export fn tcl_cmd_list_length(list: i32) i32 {
     return obj_new_int(n);
 }
 
-// Exported: list append — append element to list with proper quoting.
+// Exported: list append — append a single element to a list, with
+// proper Tcl quoting of every element.  Matches ``lappend`` semantics
+// in reference Tcl: the existing value is parsed as a list, each
+// element is re-rendered in canonical form (``TclScanElement`` /
+// ``TclConvertElement``), then the new value is appended.  The
+// canonical rep is what tests like ``append-4.7`` observe — e.g.
+// ``lappend x abc`` where ``x`` = ``a{`` must produce ``a\{ abc``,
+// not ``a{ abc``, because ``a{`` (as a list element) canonicalises
+// to ``a\{``.
 //
-// Fast path (the common case): the existing list representation is kept
-// verbatim — we only trim trailing whitespace, append a single space,
-// and append the quoted new element.  Existing elements retain
-// whatever canonical form they already had (braced / backslash-escaped),
-// so repeated lappend is O(n) per call instead of the O(existing_elems)
-// re-parse + re-quote the two-pass approach used before.
-//
-// Slow path: if the existing list's last non-whitespace byte is an
-// unpaired backslash, the simple concat would turn the appended space
-// into a literal character (``\ ``) and merge our new element into
-// the last existing one.  In that rare case we fall back to the
-// parse / re-quote path that guarantees correct element boundaries.
+// Performance note: repeated lappend walks the full existing list
+// each call (``O(n)``).  This matches tclsh's behaviour when the
+// value doesn't carry a cached list internal rep — which is always
+// the case in this runtime, since values are plain strings.
 pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
-    // Worst-case buffer: existing content verbatim + separator + new element (2x+2).
-    const max_buf: u32 = sc.len + sv.len * 2 + 8;
-    const buf = alloc(max_buf);
-    var off: u32 = 0;
-
-    if (sc.len > 0) {
-        // Strip trailing whitespace from the existing representation.
-        const cp: [*]const u8 = @ptrFromInt(sc.ptr);
-        var end: u32 = sc.len;
-        while (end > 0 and is_space(cp[end - 1])) end -= 1;
-        if (end > 0) {
-            // Count trailing backslashes — odd means the next space
-            // would be eaten as a ``\<space>`` escape.  Fall back to
-            // re-parse if so.
-            var bs_count: u32 = 0;
-            var ei: u32 = end;
-            while (ei > 0 and cp[ei - 1] == '\\') : (ei -= 1) {
-                bs_count += 1;
-            }
-            if ((bs_count & 1) == 1) {
-                return lappend_reparse(sc.ptr, sc.len, sv.ptr, sv.len);
-            }
-            memcpy(buf, sc.ptr, end);
-            off = end;
-            const d: [*]u8 = @ptrFromInt(buf + off);
-            d[0] = ' ';
-            off += 1;
-        }
-    }
-
-    off = list_elem_quote(buf, off, sv.ptr, sv.len);
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return lappend_canonical(sc.ptr, sc.len, sv.ptr, sv.len);
 }
 
-/// Fallback for :func:`tcl_cmd_lappend`: parse the existing list into
-/// elements, re-quote each, then append the new element.  Only invoked
-/// when the fast concat path would misplace the element boundary
-/// (existing rep ends with an unpaired ``\``).
-fn lappend_reparse(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
-    const max_buf: u32 = sc_len * 3 + sv_len * 2 + 8;
+/// Parse the existing list, re-quote each element canonically, then
+/// append the new value.  Shared by :func:`tcl_cmd_lappend` and the
+/// interpreter's multi-arg lappend loop.
+fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
+    const max_buf: u32 = sc_len * 2 + sv_len * 2 + 16;
     const buf = alloc(max_buf);
     var off: u32 = 0;
     const n = list_count_elements(sc_ptr, sc_len);
@@ -95,42 +61,56 @@ fn lappend_reparse(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
             off += 1;
         }
         const elem = list_element_at(sc_ptr, sc_len, idx);
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (idx == 0)
+            list_elem_quote
+        else
+            list_elem_quote_nth;
         if (elem.braced) {
-            off = list_elem_quote(buf, off, sc_ptr + elem.start, elem.len);
+            off = quoter(buf, off, sc_ptr + elem.start, elem.len);
         } else {
             const tmp = alloc(elem.len + 1);
             const actual_len = copy_unbraced_elem(tmp, sc_ptr + elem.start, elem.len);
-            off = list_elem_quote(buf, off, tmp, actual_len);
+            off = quoter(buf, off, tmp, actual_len);
         }
     }
     if (n > 0) {
         const d: [*]u8 = @ptrFromInt(buf + off);
         d[0] = ' ';
         off += 1;
+        off = list_elem_quote_nth(buf, off, sv_ptr, sv_len);
+    } else {
+        off = list_elem_quote(buf, off, sv_ptr, sv_len);
     }
-    off = list_elem_quote(buf, off, sv_ptr, sv_len);
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
-// Exported: list — create a list from individual elements.
+// Exported: list — append one value to a list accumulator.  The
+// Python codegen starts with an empty accumulator and chains this
+// call per input element, so on entry ``a`` is either an empty
+// string (first element) or an already-canonical list string.
+//
+// Fast path: when ``a`` is non-empty we preserve its bytes verbatim.
+// Re-quoting would doubly-escape previously-canonicalised elements
+// (e.g. an element ``a\{`` would turn into ``a\\\{`` on the second
+// iteration).  Only the new element ``b`` is run through
+// :func:`list_elem_quote_nth` (hash-quoting is disabled because it
+// cannot be the first element).  When ``a`` is empty, ``b`` IS the
+// first element and gets full :func:`list_elem_quote`.
 pub export fn tcl_list(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
-    if (sa.len == 0 and sb.len == 0) return obj_new_string(0, 0);
-    if (sa.len == 0) return b;
-    if (sb.len == 0) return a;
-    const a_braces = dict_needs_braces(sa.ptr, sa.len);
-    const b_braces = dict_needs_braces(sb.ptr, sb.len);
-    const a_extra: u32 = if (a_braces) sa.len + 2 else sa.len;
-    const b_extra: u32 = if (b_braces) sb.len + 2 else sb.len;
-    const total = a_extra + 1 + b_extra;
-    const buf = alloc(total);
-    var off: u32 = 0;
-    off = dict_append_elem(buf, off, sa.ptr, sa.len);
+    if (sa.len == 0) {
+        const buf = alloc(sb.len * 2 + 4);
+        const off = list_elem_quote(buf, 0, sb.ptr, sb.len);
+        return obj_new_string(@intCast(buf), @intCast(off));
+    }
+    const buf = alloc(sa.len + sb.len * 2 + 8);
+    memcpy(buf, sa.ptr, sa.len);
+    var off: u32 = sa.len;
     const d: [*]u8 = @ptrFromInt(buf + off);
     d[0] = ' ';
     off += 1;
-    off = dict_append_elem(buf, off, sb.ptr, sb.len);
+    off = list_elem_quote_nth(buf, off, sb.ptr, sb.len);
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 

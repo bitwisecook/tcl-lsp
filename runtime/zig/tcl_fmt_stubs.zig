@@ -76,102 +76,97 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
         return obj_new_int(cp);
     }
 
-    if (spec == 'd' or spec == 'i') {
-        // Parse a decimal (or 0x-prefixed hex) integer with overflow guard.
-        if (ss.len == 0) return obj_new_int(0);
-        const sp: [*]const u8 = @ptrFromInt(ss.ptr);
-        var i: u32 = 0;
-        while (i < ss.len and is_space(sp[i])) i += 1;
-        var neg: bool = false;
-        if (i < ss.len and sp[i] == '-') { neg = true; i += 1; }
-        else if (i < ss.len and sp[i] == '+') { i += 1; }
-        // Check for 0x prefix
-        if (spec == 'i' and i + 1 < ss.len and sp[i] == '0' and
-            (sp[i + 1] == 'x' or sp[i + 1] == 'X'))
-        {
-            i += 2;
-            var val: i64 = 0;
-            while (i < ss.len) : (i += 1) {
-                const c = sp[i];
-                var digit: i64 = 0;
-                if (c >= '0' and c <= '9') digit = @as(i64, c - '0')
-                else if (c >= 'a' and c <= 'f') digit = @as(i64, c - 'a' + 10)
-                else if (c >= 'A' and c <= 'F') digit = @as(i64, c - 'A' + 10)
-                else break;
-                val = accumulate_i64(val, 16, digit) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
-            }
-            return obj_new_int(if (neg) -val else val);
-        }
-        var val: i64 = 0;
-        while (i < ss.len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
-            val = accumulate_i64(val, 10, @as(i64, sp[i] - '0')) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
-        }
-        return obj_new_int(if (neg) -val else val);
-    }
-
-    if (spec == 'x' or spec == 'X') {
-        // Parse a hexadecimal integer with overflow guard.
-        if (ss.len == 0) return obj_new_int(0);
-        const sp: [*]const u8 = @ptrFromInt(ss.ptr);
-        var i: u32 = 0;
-        while (i < ss.len and is_space(sp[i])) i += 1;
-        var neg: bool = false;
-        if (i < ss.len and sp[i] == '-') { neg = true; i += 1; }
-        else if (i < ss.len and sp[i] == '+') { i += 1; }
-        // Optional 0x prefix
-        if (i + 1 < ss.len and sp[i] == '0' and (sp[i + 1] == 'x' or sp[i + 1] == 'X'))
-            i += 2;
-        var val: i64 = 0;
-        while (i < ss.len) : (i += 1) {
-            const c = sp[i];
-            var digit: i64 = 0;
-            if (c >= '0' and c <= '9') digit = @as(i64, c - '0')
-            else if (c >= 'a' and c <= 'f') digit = @as(i64, c - 'a' + 10)
-            else if (c >= 'A' and c <= 'F') digit = @as(i64, c - 'A' + 10)
-            else break;
-            val = accumulate_i64(val, 16, digit) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
-        }
-        return obj_new_int(if (neg) -val else val);
-    }
-
-    if (spec == 'o') {
-        // Parse an octal integer with overflow guard.
-        if (ss.len == 0) return obj_new_int(0);
-        const sp: [*]const u8 = @ptrFromInt(ss.ptr);
-        var i: u32 = 0;
-        while (i < ss.len and is_space(sp[i])) i += 1;
-        var neg: bool = false;
-        if (i < ss.len and sp[i] == '-') { neg = true; i += 1; }
-        else if (i < ss.len and sp[i] == '+') { i += 1; }
-        var val: i64 = 0;
-        while (i < ss.len and sp[i] >= '0' and sp[i] <= '7') : (i += 1) {
-            val = accumulate_i64(val, 8, @as(i64, sp[i] - '0')) orelse return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
-        }
-        return obj_new_int(if (neg) -val else val);
-    }
+    if (spec == 'd') return scan_int_saturating(ss.ptr, ss.len, 10, false);
+    if (spec == 'i') return scan_int_saturating(ss.ptr, ss.len, 0, false);
+    if (spec == 'x' or spec == 'X') return scan_int_saturating(ss.ptr, ss.len, 16, true);
+    if (spec == 'o') return scan_int_saturating(ss.ptr, ss.len, 8, false);
 
     // Unknown format specifier — unsupported.
     stubs.unsupported("scan");
     return 0;
 }
 
-fn is_space(c: u8) bool {
-    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
-}
+// Digit classification happens inside :func:`digit_value` which is
+// base-parameterised — no need to import the per-class predicates.
+const is_space = @import("tcl_chars.zig").is_space;
 
 const INT64_MAX: i64 = 0x7FFF_FFFF_FFFF_FFFF;
 const INT64_MIN: i64 = -0x8000_0000_0000_0000;
 
-/// Return ``val * base + digit`` saturated on overflow — ``null`` signals
-/// the caller should clamp to ``INT64_MAX``/``INT64_MIN``.  Used by the
-/// ``scan`` integer parsers so a 30-digit input doesn't silently wrap
-/// into a negative value.
+/// Return ``val * base + digit``; ``null`` signals overflow so the
+/// caller can clamp to ``INT64_MAX``/``INT64_MIN``.  Shared by every
+/// ``scan`` integer parser so a 30-digit input doesn't silently wrap.
 fn accumulate_i64(val: i64, base: i64, digit: i64) ?i64 {
     const mul = @mulWithOverflow(val, base);
     if (mul[1] != 0) return null;
     const add = @addWithOverflow(mul[0], digit);
     if (add[1] != 0) return null;
     return add[0];
+}
+
+/// Resolve a single base-*base* digit character.  Returns ``-1`` if
+/// *c* is not a valid digit for the base.  ``base==16`` accepts
+/// ``a``-``f`` / ``A``-``F`` as 10-15.
+fn digit_value(c: u8, base: i64) i64 {
+    if (base == 16) {
+        if (c >= '0' and c <= '9') return @as(i64, c - '0');
+        if (c >= 'a' and c <= 'f') return @as(i64, c - 'a' + 10);
+        if (c >= 'A' and c <= 'F') return @as(i64, c - 'A' + 10);
+        return -1;
+    }
+    if (c < '0') return -1;
+    const d: i64 = @as(i64, c - '0');
+    if (d >= base) return -1;
+    return d;
+}
+
+/// Parse a saturating integer from the *str* argument of ``scan``.
+/// Skips leading whitespace, consumes an optional ``+`` / ``-`` sign,
+/// and then parses digits in *base* (``0`` means auto-detect from a
+/// ``0x`` prefix).  When *accept_0x_prefix* is true, a leading ``0x`` /
+/// ``0X`` (after the sign) is also consumed for base-16 inputs — this
+/// matches how ``scan`` accepts ``%x`` with or without the prefix.
+///
+/// Returns the parsed value as a TclObj int — ``INT64_MAX`` /
+/// ``INT64_MIN`` on overflow (signed by *neg*), ``0`` on no-digits.
+/// Consolidates the three per-base copies that used to live inline.
+fn scan_int_saturating(src_ptr: u32, src_len: u32, base_in: i64, accept_0x_prefix: bool) i32 {
+    if (src_len == 0) return obj_new_int(0);
+    const sp: [*]const u8 = @ptrFromInt(src_ptr);
+    var i: u32 = 0;
+    while (i < src_len and is_space(sp[i])) i += 1;
+    var neg: bool = false;
+    if (i < src_len and sp[i] == '-') {
+        neg = true;
+        i += 1;
+    } else if (i < src_len and sp[i] == '+') {
+        i += 1;
+    }
+
+    // Resolve the final base, consuming ``0x`` when allowed.
+    var base: i64 = base_in;
+    if (base == 0) {
+        // ``%i`` — auto-detect decimal vs hex.  No octal auto-detect
+        // (Tcl 9 dropped leading-0-means-octal).
+        base = 10;
+        if (i + 1 < src_len and sp[i] == '0' and (sp[i + 1] == 'x' or sp[i + 1] == 'X')) {
+            base = 16;
+            i += 2;
+        }
+    } else if (accept_0x_prefix and i + 1 < src_len and sp[i] == '0' and
+        (sp[i + 1] == 'x' or sp[i + 1] == 'X'))
+    {
+        i += 2;
+    }
+
+    var val: i64 = 0;
+    while (i < src_len) : (i += 1) {
+        const d = digit_value(sp[i], base);
+        if (d < 0) break;
+        val = accumulate_i64(val, base, d) orelse
+            return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
+    }
+    return obj_new_int(if (neg) -val else val);
 }
 
 pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {
