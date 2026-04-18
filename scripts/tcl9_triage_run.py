@@ -19,7 +19,6 @@ sys.path.insert(0, "/home/user/tcl-lsp")
 
 from tests.external.run_tcl9_tests import _IN_SCOPE  # noqa: E402
 
-
 _WORKER = Path("/home/user/tcl-lsp/scripts/tcl9_triage_worker.py")
 
 

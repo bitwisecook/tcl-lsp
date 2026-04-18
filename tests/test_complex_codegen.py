@@ -421,8 +421,17 @@ proc classify {x} {
         fa = _proc_asm(source, "::classify")
         assert Op.DONE in _opcodes(fa)
 
-    def test_switch_glob_becomes_barrier(self):
-        """Switch -glob compiles as a barrier (generic invoke)."""
+    def test_switch_glob_stays_as_irswitch(self):
+        """Switch -glob stays as IRSwitch so codegen's _emit_switch can
+        emit an inline ``tcl_string_match``-driven if/else chain.
+
+        Previously -glob lowered to an ``IRBarrier`` that routed through
+        the interpreter, but the runtime has no ``switch`` command so
+        every -glob call trapped with ``unknown command: switch``.  The
+        CFG now keeps the ``IRSwitch`` in the block's statement list
+        for both ``exact`` and ``glob`` modes (``regexp`` still becomes
+        a barrier pending a runtime regex pass).
+        """
         source = """\
 proc ext {filename} {
     switch -glob $filename {
@@ -435,12 +444,21 @@ proc ext {filename} {
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::ext"]
-        # -glob switch is lowered to barrier, not inline dispatch
+        # -glob switch stays as IRSwitch in the block's statement list;
+        # no barrier is emitted.
         has_barrier = any(
-            any(isinstance(s, IRBarrier) and "switch -glob" in s.reason for s in b.statements)
+            any(
+                isinstance(s, IRBarrier) and "switch -glob" in (s.reason or "")
+                for s in b.statements
+            )
             for b in proc_cfg.blocks.values()
         )
-        assert has_barrier
+        assert not has_barrier, "-glob should no longer lower to IRBarrier"
+        has_switch = any(
+            any(s.__class__.__name__ == "IRSwitch" for s in b.statements)
+            for b in proc_cfg.blocks.values()
+        )
+        assert has_switch, "-glob should keep IRSwitch for inline codegen"
 
     def test_switch_regexp_becomes_barrier(self):
         """Switch -regexp compiles as a barrier."""

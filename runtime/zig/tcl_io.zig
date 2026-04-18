@@ -55,9 +55,11 @@ pub fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
 
 // Internal: emit the rendered string of *value* to stdout, with or
 // without a trailing newline.  ``tcl_cmd_puts`` / ``tcl_cmd_puts_
-// nonewline`` share this helper.  Previously ``tcl_cmd_puts`` only
-// emitted the newline for string-typed TclObjs, so integer results
-// printed without a newline — surprising and inconsistent with Tcl.
+// nonewline`` share this helper.  Use the no-newline variant of
+// itoa for the integer path so we can append (or skip) the newline
+// uniformly at the end — ``itoa`` itself embeds a trailing newline
+// for the common ``puts <int>`` fast path, which would double up
+// with our own newline and break ``puts -nonewline <int>``.
 fn puts_raw(value: i32, want_newline: bool) void {
     if (value == 0) {
         if (want_newline) fd_write_all(1, "\n", 1);
@@ -73,7 +75,7 @@ fn puts_raw(value: i32, want_newline: bool) void {
         }
     } else {
         const int_val = read_i64(addr + OBJ_INT_CACHE);
-        const result = itoa(int_val);
+        const result = itoa_no_nl(int_val);
         fd_write_all(1, result.ptr, result.len);
     }
     if (want_newline) fd_write_all(1, "\n", 1);
