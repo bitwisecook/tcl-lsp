@@ -6,6 +6,7 @@ import logging
 
 from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..ir import IRModule
+from ._interprocedural import solve_interprocedural_escape
 from ._propagation import analyse_script
 from ._types import ProcEscapeSummary
 
@@ -19,6 +20,7 @@ def analyse_var_escape(
     cu: CompilationUnit | None = None,
     *,
     ir_module: IRModule | None = None,
+    interprocedural: bool = True,
 ) -> dict[str, ProcEscapeSummary]:
     """Return per-proc escape summaries, keyed by qualified name.
 
@@ -28,6 +30,10 @@ def analyse_var_escape(
     Exactly one of ``source``, ``cu``, or ``ir_module`` must be supplied.
     ``ir_module`` is the cheapest path — the analysis is a pure tree walk
     over already-lowered IR and does not need CFG / SSA.
+
+    When ``interprocedural`` is True (the default) callee-induced
+    escapes are folded into each caller's summary. Set it False to
+    inspect the raw per-proc result (useful for tests).
     """
     if ir_module is None:
         if cu is None:
@@ -42,4 +48,7 @@ def analyse_var_escape(
     result[TOP_LEVEL_QNAME] = analyse_script(ir_module.top_level)
     for qname, proc in ir_module.procedures.items():
         result[qname] = analyse_script(proc.body, params=proc.params)
+
+    if interprocedural:
+        result = solve_interprocedural_escape(result)
     return result

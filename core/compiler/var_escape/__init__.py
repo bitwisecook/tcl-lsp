@@ -13,6 +13,7 @@ from qualified proc name to :class:`ProcEscapeSummary`.
 from __future__ import annotations
 
 from ._api import TOP_LEVEL_QNAME, analyse_var_escape
+from ._interprocedural import solve_interprocedural_escape
 from ._types import EscapeTag, ProcEscapeSummary
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "ProcEscapeSummary",
     "TOP_LEVEL_QNAME",
     "analyse_var_escape",
+    "solve_interprocedural_escape",
 ]
