@@ -177,44 +177,67 @@ Lives in
 
 ```python
 # core/compiler/var_escape/_api.py
-def analyse_var_escape(cu: CompilationUnit) -> dict[str, ProcEscapeSummary]:
-    """Return per-proc escape summaries, keyed by qualified name."""
+def analyse_var_escape(
+    source: str | None = None,
+    cu: CompilationUnit | None = None,
+    *,
+    ir_module: IRModule | None = None,
+    interprocedural: bool = True,
+) -> dict[str, ProcEscapeSummary]:
+    """Return per-proc escape summaries, keyed by qualified name.
+
+    Exactly one of ``source``, ``cu``, or ``ir_module`` must be supplied
+    (a ValueError is raised otherwise). When ``cu`` (or ``source``) is
+    available the analysis runs the flow-sensitive CFG+SSA pass; the
+    ``ir_module``-only path falls back to the IR tree walk.
+    """
 ```
 
-Cached on `CompilationUnit` alongside the per-procedure analysis slot used by
-taint and memory-SSA. Reuses the interprocedural fixed-point driver pattern
-from `core/compiler/taint/_interprocedural.py`.
+The result is not cached on `CompilationUnit`. The pass is cheap (a tree
+walk plus a worklist fixpoint) and runs once per `wasm_codegen_module`
+call. Callers that want to avoid re-running it can pass a pre-built
+`escape_summaries` dict to `wasm_codegen_module`.
 
 ```python
 @dataclass(frozen=True)
 class ProcEscapeSummary:
-    tags: dict[str, EscapeTag]          # per-var-name, collapsed over SSA versions
-    dynamic_barrier: bool               # proc-pessimistic flag
-    frame_needed: bool                  # True if any FRAME var exists or dynamic_barrier is set
+    tags: dict[str, EscapeTag]               # per-var-name, collapsed over SSA versions
+    dynamic_barrier: bool                    # proc-pessimistic flag
+    frame_needed: bool                       # any FRAME var, or dynamic_barrier
+    upvar_source_names: frozenset[str]       # transitive callee-upvar source set
+    unbounded_upvar_source: bool             # any callee uses dynamic-source upvar
+    direct_callees: frozenset[str]           # statically resolvable callees
+    has_fallback: bool                       # codegen will dispatch to tcl_eval
+    has_call_fallback: bool                  # raw call-shaped reasons (interproc-downgradable)
+    ssa_tags: dict[SSAValueKey, EscapeTag]   # per-version, populated on the CFG path
 ```
 
 ### Emit-time contract
 
 Codegen consumes `ProcEscapeSummary` through these rewired hooks:
 
-- **`_intern_local(name)`** (`wasm/emitter.py`): if
-  `summary.tags[name] is FRAME`, record the var in `self._frame_only_vars`
-  and do not allocate a WASM local slot.
-- **`_emit_var_read_obj(name)`** (`wasm/var_emit.py`): if the var is
-  frame-only, emit `frames.var_resolve(name_obj)` (or `frames.local_get` for
-  proc-private lookups that skip the global fallthrough). Otherwise take the
-  existing fast path (`local.get <slot>`).
-- **`_emit_var_write_obj(name)`** (`wasm/var_emit.py`): symmetric — emit
-  `frames.var_set(name_obj, val_obj)` for frame-only vars, `local.set <slot>`
-  for the fast path.
-- **`_emit_frame_sync()`** (`wasm/frame_sync.py`): sync only vars tagged
-  `LOCAL`. Frame-only vars are already in the frame; the fallback reads and
-  writes them in place.
-- **`_emit_frame_readback()`** (`wasm/frame_sync.py`): readback only vars
-  tagged `LOCAL`. Frame-only vars need no readback.
-- **Proc prelude** (`wasm/emitter.py`): if `summary.frame_needed` is False
-  and the proc body has no IRBarrier or unknown IRCall, skip `frame_push` /
-  `frame_pop` entirely. (Second-phase optimisation, flag-gated.)
+Every hook lives in the emitter
+([`core/compiler/codegen/wasm/_emitter.py`](../../../core/compiler/codegen/wasm/_emitter.py));
+the package layout is a single large class split only for readability.
+
+- **`_intern_local(name)`**: non-parameter FRAME-tagged vars skip the
+  ``_tcl_var_locals`` sync map entirely — their authoritative storage is
+  the runtime frame, and keeping them out of the sync map means the
+  narrow-sync and readback paths ignore them.
+- **`_emit_var_read_obj(name)`** / **`_emit_var_write_obj(name)`**: FRAME
+  vars route through the existing alias / frame-resolution helpers
+  (``tcl_global_get``/``tcl_global_set`` via a stashed name object for
+  upvar/variable aliases; future ``frames.var_set`` / ``frames.var_get``
+  paths for caller-frame upvar). LOCAL vars take the WASM ``local.get`` /
+  ``local.set`` fast path.
+- **`_emit_frame_sync()`** / **`_emit_frame_readback()`**: iterate only
+  the LOCAL-tagged entries of ``_tcl_var_locals``. FRAME vars are already
+  in the frame, so no mirror or readback is needed.
+- **Proc prelude** (``_WasmEmitter.generate``): when
+  ``summary.frame_needed`` is False AND ``summary.has_fallback`` is False,
+  skip ``frame_push``, the per-param ``tcl_local_set`` mirrors, and the
+  ``frame_pop`` epilogue entirely — pristine procs pay zero frame
+  overhead.
 
 ### Pessimistic degradation
 

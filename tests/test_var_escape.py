@@ -705,6 +705,102 @@ class TestSSATagging:
         assert summary.is_frame("x")
         assert summary.ssa_tags == {}
 
+    def test_namespace_qualified_cmd_subst_triggers_fallback(self):
+        # ``[::set foo 1]`` has the same fallback implications as
+        # ``[set foo 1]``; the scanner used to miss ``::``-prefixed
+        # heads because its regex only matched ``\w+``.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {} {
+                    set x [::foo::bar 1]
+                }
+                """
+            ),
+        )
+        summary = result["::f"]
+        # ``::foo::bar`` isn't in the frameless allow-list, so the
+        # substitution MUST flag has_fallback.
+        assert summary.has_fallback
+
+    def test_namespace_qualified_frameless_still_pristine(self):
+        # ``[::list …]`` (explicitly qualified) should be recognised
+        # as the frameless ``list`` primitive and NOT set has_fallback.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc f {xs} {
+                    set y [::list $xs 1]
+                    return $y
+                }
+                """
+            ),
+        )
+        summary = result["::f"]
+        assert not summary.has_fallback
+
+
+class TestInterproceduralHasFallback:
+    def test_pristine_caller_keeps_has_fallback_false(self):
+        # ``caller`` has no barriers or unknown commands itself. Its
+        # callee ``leaf`` does. ``has_fallback`` must stay
+        # intraprocedural — otherwise frame elision is defeated in
+        # every non-leaf proc.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                proc leaf {} {
+                    eval {set x 1}
+                }
+                proc caller {} {
+                    leaf
+                }
+                """
+            ),
+        )
+        assert result["::leaf"].has_fallback
+        assert not result["::caller"].has_fallback
+
+
+class TestNamespaceCalleeResolution:
+    def test_bare_call_resolves_to_caller_namespace(self):
+        # ``leaf`` called from ``::ns::caller`` should resolve to
+        # ``::ns::leaf`` — so its upvar source propagates back.
+        result = analyse_var_escape(
+            source=textwrap.dedent(
+                """
+                namespace eval ::ns {
+                    proc leaf {} {
+                        upvar 1 shared local
+                        set local 1
+                    }
+                    proc caller {} {
+                        set shared 2
+                        leaf
+                    }
+                }
+                """
+            ),
+        )
+        assert result["::ns::caller"].is_frame("shared")
+
+
+class TestApiMutualExclusivity:
+    def test_no_argument_raises(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            analyse_var_escape()
+
+    def test_source_plus_ir_module_raises(self):
+        import pytest
+
+        from core.compiler.lowering import lower_to_ir
+
+        ir = lower_to_ir("proc f {} {}")
+        with pytest.raises(ValueError):
+            analyse_var_escape(source="proc f {} {}", ir_module=ir)
+
     def test_multiple_ssa_versions_of_same_name_collapse_frame(self):
         # Two writes to ``x`` before an upvar aliases it; both SSA
         # versions collapse to FRAME in the per-name result.

@@ -19,15 +19,23 @@ What does the var-escape analysis do, and when does it fire?
 
 ## How to use
 
-The analysis runs automatically inside the WASM code generator
-(`core/compiler/codegen/wasm/`). Every time a module is compiled,
-`analyse_var_escape` walks the IR for each procedure, tags each
-variable as `LOCAL` or `FRAME`, and publishes a
+By default, the WASM code generator (`core/compiler/codegen/wasm/`)
+attempts to run this analysis during module compilation. When it
+succeeds, `analyse_var_escape` walks the IR for each procedure, tags
+each variable as `LOCAL` or `FRAME`, and publishes a
 [`ProcEscapeSummary`](../../design/compiler/var-escape-analysis.md) that
 the emitter consults at `_intern_local`, `_emit_var_read_obj`,
 `_emit_var_write_obj`, and `_emit_frame_sync` sites.
 
-There is no user-facing flag to toggle the analysis — it's always on.
+There is no user-facing flag to toggle the analysis. Internally,
+`wasm_codegen_module` runs it on a best-effort basis: if
+`analyse_var_escape` raises (for example, because the source can't be
+compiled to a `CompilationUnit`), codegen falls back to the
+pre-analysis sync-everything behaviour and continues. Callers that
+have already computed the summaries can also pass them in directly
+via `wasm_codegen_module(..., escape_summaries=...)` to skip the
+analysis run.
+
 Contributors extending it should read the design doc for the lattice,
 the transfer-function table, and the `info` subcommand allow-list.
 

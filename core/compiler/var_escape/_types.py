@@ -68,6 +68,13 @@ class ProcEscapeSummary:
     unbounded_upvar_source: bool = False
     direct_callees: frozenset[str] = frozenset()
     has_fallback: bool = False
+    # True if the intraprocedural pass saw a non-frameless ``IRCall``
+    # with a statically resolvable command word.  Whether that reaches
+    # the eval fallback depends on whether the callee is a compiled
+    # proc — only the interprocedural pass can tell.  Codegen does
+    # NOT read this field directly; it reads ``has_fallback`` after
+    # the interprocedural downgrade has run.
+    has_call_fallback: bool = False
     # Per-SSA-version escape tags, populated by the flow-sensitive
     # CFG+SSA propagation.  Empty when the analysis was driven from
     # an IR-only source (no CompilationUnit).  ``ssa_tags`` is keyed
@@ -114,5 +121,6 @@ class ProcEscapeSummary:
             unbounded_upvar_source=self.unbounded_upvar_source,
             direct_callees=self.direct_callees,
             has_fallback=self.has_fallback,
+            has_call_fallback=self.has_call_fallback,
             ssa_tags=dict(self.ssa_tags),
         )
