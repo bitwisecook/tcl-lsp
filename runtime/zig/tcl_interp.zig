@@ -1600,20 +1600,15 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     const src: [*]const u8 = @ptrFromInt(script_ptr);
     var pos: u32 = 0;
     var result: i32 = 0;
-    var wp: [MAX_WORDS]u32 = undefined;
-    var wl: [MAX_WORDS]u32 = undefined;
-    // ``wb[i] == true`` means word i was parsed as ``{braced}``
-    // — subst_word must skip ``$var`` / ``[cmd]`` substitution
-    // because braces protect their contents in Tcl.  Without this
-    // flag a braced word's ``$option`` would be resolved at
-    // command-dispatch time rather than preserved literally, which
-    // is wrong for e.g. ``proc foo args {body-with-$var}`` where
-    // the body must stay unsubstituted until the proc runs.
-    var wb: [MAX_WORDS]bool = undefined;
-    // ``we[i] == true`` means word i was prefixed with ``{*}`` and
-    // should be split as a Tcl list, expanding its elements into
-    // individual arguments at the call site.
-    var we: [MAX_WORDS]bool = undefined;
+    // Token-tree scratch for each parsed command.  A command contributes
+    // at most MAX_WORDS ``.WORD`` / ``.SIMPLE_WORD`` tokens plus one
+    // ``.EXPAND_WORD`` marker per ``{*}`` — so 2 * MAX_WORDS is the
+    // worst-case slot count.  The tree is shallow today (no
+    // sub-tokens); ``Token.braced`` carries the same info the old
+    // ``wb[]`` array carried, and the marker walk below reconstructs
+    // the old ``we[]`` per-word expansion flag from the placement of
+    // ``.EXPAND_WORD`` tokens in the stream.
+    var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
@@ -1637,46 +1632,64 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
 
-        const cmd = parse_command(src, pos, script_len, &wp, &wl, &wb, &we);
+        const cmd = parse.ParseCommand(src, pos, script_len, &tok_buf, tok_buf.len);
         pos = cmd.next;
-        if (cmd.count == 0) continue;
+        if (cmd.n_words == 0) continue;
 
-        // Build the evaluated word list.  When no word has the
-        // expansion flag set we use the fast path (fixed-size array
-        // indexed directly).  When expansion is needed we copy into
-        // a larger buffer so each ``{*}`` word can contribute
-        // multiple elements without an allocation.
+        // Walk the Token stream: EXPAND_WORD is a marker that sets the
+        // expansion flag on the next WORD / SIMPLE_WORD.  Everything
+        // else is a direct word.  The absolute byte pointer comes
+        // from ``Parse.src_ptr + Token.start``.
+        const tokens: [*]parse.Token = @ptrFromInt(cmd.tokens_ptr);
         var has_expand = false;
-        var i: u32 = 0;
-        while (i < cmd.count) : (i += 1) {
-            if (we[i]) { has_expand = true; break; }
+        {
+            var t: u32 = 0;
+            while (t < cmd.tokens_len) : (t += 1) {
+                if (tokens[t].kind == .EXPAND_WORD) {
+                    has_expand = true;
+                    break;
+                }
+            }
         }
 
         if (!has_expand) {
-            // Fast path: no expansion.
+            // Fast path: no expansion.  Every token is a WORD /
+            // SIMPLE_WORD describing one script word.
             var word_objs: [MAX_WORDS]i32 = undefined;
-            i = 0;
-            while (i < cmd.count) : (i += 1) {
-                if (wb[i]) {
-                    // Braced word — preserve the content literally.
-                    word_objs[i] = obj_new_string(@intCast(wp[i]), @intCast(wl[i]));
+            var wi: u32 = 0;
+            var t: u32 = 0;
+            while (t < cmd.tokens_len) : (t += 1) {
+                const tok = tokens[t];
+                if (tok.kind == .EXPAND_WORD) continue;
+                const wptr_abs: u32 = cmd.src_ptr + tok.start;
+                if (tok.braced) {
+                    word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
                 } else {
-                    word_objs[i] = subst_word(wp[i], wl[i]);
+                    word_objs[wi] = subst_word(wptr_abs, tok.len);
                 }
+                wi += 1;
             }
-            result = eval_command(word_objs[0..cmd.count]);
+            result = eval_command(word_objs[0..wi]);
         } else {
             // Slow path: at least one {*} expansion.
             var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
             var ecount: u32 = 0;
-            i = 0;
-            while (i < cmd.count) : (i += 1) {
-                const word_obj: i32 = if (wb[i])
-                    obj_new_string(@intCast(wp[i]), @intCast(wl[i]))
+            var pending_expand = false;
+            var t: u32 = 0;
+            while (t < cmd.tokens_len) : (t += 1) {
+                const tok = tokens[t];
+                if (tok.kind == .EXPAND_WORD) {
+                    pending_expand = true;
+                    continue;
+                }
+                const wptr_abs: u32 = cmd.src_ptr + tok.start;
+                const word_obj: i32 = if (tok.braced)
+                    obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
                 else
-                    subst_word(wp[i], wl[i]);
+                    subst_word(wptr_abs, tok.len);
 
-                if (we[i]) {
+                if (pending_expand) {
+                    pending_expand = false;
                     // Expansion: split word_obj as a Tcl list and
                     // insert each element as a separate argument.
                     const s = obj_ensure_string(word_obj);
