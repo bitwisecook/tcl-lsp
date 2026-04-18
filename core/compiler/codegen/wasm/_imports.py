@@ -438,6 +438,11 @@ _STRING_IS_IMPORT: dict[str, str] = {
 }
 
 # Dict sub-command → (import key, additional_arg_count after dict_var)
+# ``create`` and ``merge`` are intentionally NOT in this map — the
+# compiler specialises them in ``_emit_cmd_dict`` (and the
+# value-context equivalent) to fold/chain at compile time with
+# ``tcl_lappend`` / ``tcl_dict_merge_pair`` respectively, bypassing
+# the generic dispatch below.
 _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "get": "tcl_dict_get",
     "set": "tcl_dict_set",
@@ -445,8 +450,6 @@ _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "keys": "tcl_dict_keys",
     "values": "tcl_dict_values",
     "size": "tcl_dict_size",
-    "create": "tcl_dict_create",
-    "merge": "tcl_dict_merge_pair",
 }
 
 # ``clock <subcmd>`` → import key.  Only subcommands that map to a

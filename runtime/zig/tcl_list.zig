@@ -115,6 +115,32 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
+// Copy one list element into *buf* at offset *off*, re-adding the
+// surrounding braces if the element came from a braced source word
+// (``{a b}``).  Without this, building a result list by raw
+// ``memcpy`` of the element span flattens nested lists — e.g.
+// ``lreverse {{a b} c}`` would emit ``c a b`` instead of
+// ``c {a b}``, silently promoting sub-list content to siblings.
+fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype) u32 {
+    var off = off_in;
+    if (elem.braced) {
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = '{';
+        off += 1;
+        if (elem.len > 0) {
+            memcpy(buf + off, sd_ptr + elem.start, elem.len);
+            off += elem.len;
+        }
+        const d2: [*]u8 = @ptrFromInt(buf + off);
+        d2[0] = '}';
+        off += 1;
+    } else if (elem.len > 0) {
+        memcpy(buf + off, sd_ptr + elem.start, elem.len);
+        off += elem.len;
+    }
+    return off;
+}
+
 // Parse an index that may be "end", "end-N", "end+N", or a plain
 // integer.  Returns the resolved 0-based index (may be negative for
 // under-range or >= n for over-range; callers clamp as they see fit).
@@ -306,15 +332,10 @@ pub export fn tcl_cmd_list_reverse(list: i32) i32 {
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
     const n: u32 = @intCast(n_i64);
-    // Grab (ptr, len) for each element so we can walk backwards.
-    const arr_buf = alloc(n * 8);
-    var idx: u32 = 0;
-    while (idx < n) : (idx += 1) {
-        const elem = list_element_at(s.ptr, s.len, @intCast(idx));
-        write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
-        write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
-    }
-    const result_buf = alloc(s.len + n);
+    // Over-allocate to fit braces around every element (2 extra bytes
+    // each) in the worst case; the bump allocator makes over-alloc
+    // free.
+    const result_buf = alloc(s.len + n * 3 + 4);
     var result_len: u32 = 0;
     var i: i32 = @as(i32, @intCast(n)) - 1;
     while (i >= 0) : (i -= 1) {
@@ -323,11 +344,12 @@ pub export fn tcl_cmd_list_reverse(list: i32) i32 {
             d[0] = ' ';
             result_len += 1;
         }
-        const iu: u32 = @intCast(i);
-        const e_ptr: u32 = @intCast(read_i32(arr_buf + iu * 8));
-        const e_len: u32 = @intCast(read_i32(arr_buf + iu * 8 + 4));
-        memcpy(result_buf + result_len, e_ptr, e_len);
-        result_len += e_len;
+        const elem = list_element_at(s.ptr, s.len, @intCast(i));
+        // ``append_list_element`` re-adds ``{...}`` when the source
+        // word was braced so nested lists (e.g. ``{a b}`` inside
+        // ``{{a b} c}``) keep their grouping instead of flattening
+        // into siblings.
+        result_len = append_list_element(result_buf, result_len, s.ptr, elem);
     }
     return obj_new_string(@intCast(result_buf), @intCast(result_len));
 }
@@ -355,7 +377,9 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
     if (pos > n_i64) pos = n_i64;
     const upos: u32 = @intCast(pos);
 
-    const buf = alloc(s.len + sv.len * 2 + 4);
+    // Over-allocate to fit worst-case brace-wrapping on every
+    // existing element plus the inserted value.
+    const buf = alloc(s.len + n * 3 + sv.len * 2 + 8);
     var off: u32 = 0;
     var i: u32 = 0;
     while (i < n) : (i += 1) {
@@ -376,10 +400,10 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
             off += 1;
         }
         const elem = list_element_at(s.ptr, s.len, @intCast(i));
-        if (elem.len > 0) {
-            memcpy(buf + off, s.ptr + elem.start, elem.len);
-            off += elem.len;
-        }
+        // Preserve braces so nested lists keep their grouping: without
+        // this ``linsert {{a b} c} 1 X`` flattens to ``a b X c``
+        // instead of ``{a b} X c``.
+        off = append_list_element(buf, off, s.ptr, elem);
     }
     if (upos >= n) {
         if (off > 0 and sv.len > 0) {
@@ -417,7 +441,9 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
     const sv_len: u32 = if (value == 0) 0 else obj_ensure_string(value).len;
     const sv_ptr: u32 = if (value == 0 or sv_len == 0) 0 else obj_ensure_string(value).ptr;
 
-    const buf = alloc(s.len + sv_len + 2);
+    // Over-allocate to fit worst-case brace-wrapping on every
+    // preserved element plus the inserted value.
+    const buf = alloc(s.len + n * 3 + sv_len + 4);
     var off: u32 = 0;
     var i: u32 = 0;
     const uf: u32 = @intCast(if (f < 0) 0 else f);
@@ -445,10 +471,9 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
             off += 1;
         }
         const elem = list_element_at(s.ptr, s.len, @intCast(i));
-        if (elem.len > 0) {
-            memcpy(buf + off, s.ptr + elem.start, elem.len);
-            off += elem.len;
-        }
+        // Preserve source braces so nested lists keep their
+        // grouping through ``lreplace``.
+        off = append_list_element(buf, off, s.ptr, elem);
     }
     // If first == n (append) and we never hit the insertion branch
     // above, drop the value at the end instead.

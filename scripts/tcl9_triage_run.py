@@ -15,16 +15,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/home/user/tcl-lsp")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 from tests.external.run_tcl9_tests import _IN_SCOPE  # noqa: E402
 
-_WORKER = Path("/home/user/tcl-lsp/scripts/tcl9_triage_worker.py")
+_WORKER = _REPO_ROOT / "scripts" / "tcl9_triage_worker.py"
+_TESTS_DIR = _REPO_ROOT / "tmp" / "tcl9.0.3" / "tests"
 
 
 def _run_one(stem: str, subsystem: str, *, timeout: int) -> dict:
     filename = f"{stem}.test"
-    test_path = Path(f"/home/user/tcl-lsp/tmp/tcl9.0.3/tests/{filename}")
+    test_path = _TESTS_DIR / filename
     if not test_path.exists():
         return {
             "file": filename,
@@ -96,10 +98,8 @@ def main() -> int:
     # Sort by source-file size so the quick wins land in the report
     # first — a crash or timeout late in the run still leaves useful
     # triage data from the small files.
-    tests_dir = Path("/home/user/tcl-lsp/tmp/tcl9.0.3/tests")
-
     def _size(entry: tuple[str, str]) -> int:
-        p = tests_dir / f"{entry[0]}.test"
+        p = _TESTS_DIR / f"{entry[0]}.test"
         return p.stat().st_size if p.exists() else 0
 
     ordered = sorted(_IN_SCOPE, key=_size)
