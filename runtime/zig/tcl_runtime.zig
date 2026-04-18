@@ -98,6 +98,7 @@ pub const dict_exists = tcl_dict.dict_exists;
 pub const dict_keys = tcl_dict.dict_keys;
 pub const dict_values = tcl_dict.dict_values;
 pub const dict_size = tcl_dict.dict_size;
+pub const dict_merge_pair = tcl_dict.dict_merge_pair;
 
 pub const catch_enter = tcl_catch.catch_enter;
 pub const catch_leave = tcl_catch.catch_leave;
@@ -217,6 +218,7 @@ comptime {
     _ = &tcl_dict.dict_create;
     _ = &tcl_dict.dict_get;
     _ = &tcl_dict.dict_set;
+    _ = &tcl_dict.dict_merge_pair;
     _ = &tcl_dict.dict_exists;
     _ = &tcl_dict.dict_keys;
     _ = &tcl_dict.dict_values;

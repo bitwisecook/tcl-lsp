@@ -109,6 +109,37 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
+// Exported: dict merge — merge *source* into *target*; for duplicate
+// keys the source value wins.  Variadic ``dict merge d1 d2 d3`` is
+// implemented at the compiler level by chaining pair-merges.
+pub export fn dict_merge_pair(target: i32, source: i32) i32 {
+    const ss = obj_ensure_string(source);
+    if (ss.len == 0) return target;
+    const n = list_count_elements(ss.ptr, ss.len);
+    if (n <= 0) return target;
+    var current = target;
+    var idx: i64 = 0;
+    while (idx + 1 < n) : (idx += 2) {
+        const k = list_element_at(ss.ptr, ss.len, idx);
+        const v = list_element_at(ss.ptr, ss.len, idx + 1);
+        current = dict_set_pair(current, ss.ptr + k.start, k.len, ss.ptr + v.start, v.len);
+    }
+    return current;
+}
+
+fn dict_set_pair(d: i32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {
+    const sd = obj_ensure_string(d);
+    const n = list_count_elements(sd.ptr, sd.len);
+    var idx: i64 = 0;
+    while (idx + 1 < n) : (idx += 2) {
+        const k = list_element_at(sd.ptr, sd.len, idx);
+        if (str_cmp(sd.ptr + k.start, k.len, kp, kl) == 0) {
+            return dict_rebuild_with_value(sd.ptr, sd.len, n, idx, vp, vl);
+        }
+    }
+    return dict_append_pair(sd.ptr, sd.len, kp, kl, vp, vl);
+}
+
 // Exported: dict exists — check if key exists in dict, return 1 or 0.
 pub export fn dict_exists(dict: i32, key: i32) i32 {
     const sd = obj_ensure_string(dict);
