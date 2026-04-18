@@ -206,7 +206,7 @@ def _tcl_scan_element(s: str, flag_in: int = 0) -> int:
     return out_hash | _FLAG_CONVERT_NONE
 
 
-_ESCAPE_ONE_CHAR = frozenset("][$; \\\"")
+_ESCAPE_ONE_CHAR = frozenset('][$; \\"')
 _ESCAPE_CTL_MAP = {
     "\n": "\\n",
     "\t": "\\t",
@@ -5666,8 +5666,7 @@ class _WasmEmitter:
         if all(not a.startswith("$") and not a.startswith("[") for a in args):
             self._emit_obj_literal(
                 " ".join(
-                    _tcl_list_quote(_tcl_token_value(a), first=(i == 0))
-                    for i, a in enumerate(args)
+                    _tcl_list_quote(_tcl_token_value(a), first=(i == 0)) for i, a in enumerate(args)
                 )
             )
             return
