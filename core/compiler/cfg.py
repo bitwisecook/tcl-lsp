@@ -810,16 +810,26 @@ class _CFGBuilder:
         return end_block
 
     def _lower_switch(self, stmt: IRSwitch, block_name: str) -> str | None:
-        # Tcl 9.0 compiles -glob/-regexp switches as generic invokeStk1
-        # calls, not inline jumpTable dispatch.
-        if stmt.mode in ("glob", "regexp"):
+        # ``-regexp`` still needs a runtime regex engine pass we haven't
+        # plumbed through the CFG, so keep it as a barrier and route
+        # through the interpreter.
+        if stmt.mode == "regexp":
             barrier = IRBarrier(
                 range=stmt.range,
-                reason=f"switch -{stmt.mode}",
+                reason="switch -regexp",
                 command="switch",
                 args=stmt.raw_args,
             )
             self._block(block_name).statements.append(barrier)
+            return block_name
+        # ``-glob`` dispatch: the CFG's STR_EQ branch chain can't
+        # represent glob matching.  Keep the ``IRSwitch`` in the
+        # block's statement list so ``_emit_stmt`` (via
+        # ``_emit_switch``) can emit a ``tcl_string_match``-driven
+        # if/else chain.  ``-exact`` continues to use the optimised
+        # branch-per-arm CFG lowering below.
+        if stmt.mode == "glob":
+            self._block(block_name).statements.append(stmt)
             return block_name
 
         end_block = self._new_block("switch_end")
