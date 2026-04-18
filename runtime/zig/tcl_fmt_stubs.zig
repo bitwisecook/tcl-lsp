@@ -155,9 +155,7 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
     return 0;
 }
 
-fn is_space(c: u8) bool {
-    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
-}
+const is_space = @import("tcl_chars.zig").is_space;
 
 const INT64_MAX: i64 = 0x7FFF_FFFF_FFFF_FFFF;
 const INT64_MIN: i64 = -0x8000_0000_0000_0000;

@@ -7,6 +7,16 @@
 //   offset 16: str_ptr  (i32)  pointer to UTF-8 data in linear memory
 //   offset 20: str_len  (i32)  byte length of the string representation
 //   Total: 24 bytes per TclObj
+//
+// Layering: character classification and byte-span comparison are in
+// ``tcl_chars.zig``; list-quoting / list-parsing / backslash decoding
+// live in their own modules.  This file owns the TclObj memory model
+// and integer / boolean scalar parsers.  ``pub const`` re-exports of
+// ``is_space`` / ``is_scan_space`` / ``str_cmp`` are kept as
+// compatibility shims so existing ``obj.is_space`` callers work —
+// new code should import ``tcl_chars.zig`` directly.
+
+const chars = @import("tcl_chars.zig");
 
 // Type tags
 pub const TYPE_STRING: i32 = 0;
@@ -161,13 +171,7 @@ pub fn try_parse_bool(ptr: u32, len: u32) ?i64 {
     return null;
 }
 
-fn std_eq(a: []const u8, b: []const u8) bool {
-    if (a.len != b.len) return false;
-    for (a, b) |ca, cb| {
-        if (ca != cb) return false;
-    }
-    return true;
-}
+const std_eq = chars.slice_eq;
 
 pub fn try_parse_int(ptr: u32, len: u32) ?i64 {
     if (len == 0) return null;
@@ -306,36 +310,12 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     return .{ .ptr = buf, .len = result.len };
 }
 
-/// ASCII whitespace set used by Tcl list parsing / scanning.
-/// Matches the byte set on which ``TclFindElement`` splits — space,
-/// tab, LF, CR.  (Tcl's ``TclIsSpaceProcM`` also includes vertical
-/// tab / form feed, but this runtime's list parser has never
-/// classified them as separators; broadening here without auditing
-/// every caller would change tokenisation mid-pipeline.)
-pub fn is_space(c: u8) bool {
-    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
-}
-
-/// Extended whitespace set used by scan/convert — includes VT / FF
-/// so braceable-whitespace detection in :func:`scan_element` matches
-/// reference Tcl's ``TclScanElement``.
-fn is_scan_space(c: u8) bool {
-    return c == ' ' or c == '\t' or c == '\n' or c == 0x0B or c == 0x0C or c == '\r';
-}
-
-// Compare two byte spans lexicographically. Returns <0, 0, or >0.
-pub fn str_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) i32 {
-    const pa: [*]const u8 = @ptrFromInt(a_ptr);
-    const pb: [*]const u8 = @ptrFromInt(b_ptr);
-    const min_len = if (a_len < b_len) a_len else b_len;
-    for (0..min_len) |k| {
-        if (pa[k] < pb[k]) return -1;
-        if (pa[k] > pb[k]) return 1;
-    }
-    if (a_len < b_len) return -1;
-    if (a_len > b_len) return 1;
-    return 0;
-}
+// Character classification re-exports: callers that already say
+// ``obj.is_space`` / ``obj.str_cmp`` keep working, but new code should
+// import ``tcl_chars.zig`` directly.
+pub const is_space = chars.is_space;
+const is_scan_space = chars.is_scan_space;
+pub const str_cmp = chars.str_cmp;
 
 // Count elements in a Tcl list string.
 pub fn list_count_elements(ptr: u32, len: u32) i64 {
