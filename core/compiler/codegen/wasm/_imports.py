@@ -139,6 +139,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_dict_keys": ("tcl", "dict_keys", [ValType.I32], [ValType.I32]),
     "tcl_dict_values": ("tcl", "dict_values", [ValType.I32], [ValType.I32]),
     "tcl_dict_size": ("tcl", "dict_size", [ValType.I32], [ValType.I32]),
+    "tcl_dict_merge_pair": (
+        "tcl",
+        "dict_merge_pair",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_error": ("tcl", "tcl_cmd_error", [ValType.I32], []),
     "tcl_format": (
         "tcl",
@@ -440,6 +446,7 @@ _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "values": "tcl_dict_values",
     "size": "tcl_dict_size",
     "create": "tcl_dict_create",
+    "merge": "tcl_dict_merge_pair",
 }
 
 # ``clock <subcmd>`` → import key.  Only subcommands that map to a

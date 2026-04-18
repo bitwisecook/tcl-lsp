@@ -745,6 +745,23 @@ class _WasmEmitter:
         # dict sub-command in value context — returns i32 TclObj
         if cmd_name == "dict" and cmd_args:
             subcmd = cmd_args[0]
+            # ``dict merge ?d1 d2 ...?`` — variadic.  Chain
+            # pairwise merges via the runtime helper; source always
+            # wins on duplicate keys.  Zero args → empty dict.
+            if subcmd == "merge":
+                sub_args = cmd_args[1:]
+                merge_idx = self._shared_imports.get("tcl_dict_merge_pair")
+                if not sub_args:
+                    self._emit_obj_literal("")
+                    return
+                if merge_idx is None:
+                    self._emit_value(sub_args[0])
+                    return
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(merge_idx)
+                return
             # ``dict create`` — the runtime helper returns empty and
             # ignores its args, so fold the k/v pairs at compile time
             # (or chain tcl_concat for non-literal values).
@@ -3848,6 +3865,25 @@ class _WasmEmitter:
             self._emit_unsupported_trap("dict (no subcommand)")
             return
         subcmd = args[0]
+        # ``dict merge`` — chain pair-merges in statement context too.
+        if subcmd == "merge":
+            sub_args = args[1:]
+            merge_idx = self._shared_imports.get("tcl_dict_merge_pair")
+            if not sub_args:
+                self._emit_obj_literal("")
+            elif merge_idx is None:
+                self._emit_value(sub_args[0])
+            else:
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(merge_idx)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
         # ``dict create k1 v1 k2 v2 ...`` — the runtime helper ignores
         # arguments (always returns the empty dict), so assemble the
         # key/value pairs at the compiler level.  When every k/v is a
