@@ -323,7 +323,19 @@ class _WasmEmitter:
         self._escape_summary: ProcEscapeSummary | None = escape_summary
 
     def _intern_local(self, name: str) -> int:
-        """Register a Tcl variable as an i32 local (TclObj pointer)."""
+        """Register a Tcl variable as an i32 local (TclObj pointer).
+
+        Parameters always get a WASM local slot and stay in the sync
+        map — they come in as function args and the prologue mirrors
+        them into the frame when ``wants_frame`` is set.
+
+        Non-parameter FRAME-tagged vars skip ``_tcl_var_locals``: the
+        runtime frame is their authoritative storage, so keeping them
+        out of the sync map means the narrow-sync and readback paths
+        ignore them entirely.  The slot itself is still allocated in
+        case a stale index gets emitted on a fallback path that
+        bypasses the escape-aware routing.
+        """
         idx = self._local_index.get(name)
         if idx is not None:
             return idx
@@ -331,7 +343,8 @@ class _WasmEmitter:
         self._local_names.append(name)
         self._local_types.append(ValType.I32)
         self._local_index[name] = idx
-        self._tcl_var_locals[name] = idx
+        if name in self._params or not self._is_frame_only_var(name):
+            self._tcl_var_locals[name] = idx
         return idx
 
     def _add_extra_local(self, prefix: str = "_tmp", val_type: ValType = ValType.I64) -> int:
@@ -3264,14 +3277,17 @@ class _WasmEmitter:
         state, vars the analysis proved the interpreter cannot observe
         by name (``LOCAL`` tag) are excluded from the sync set.
 
-        The ``vars_used is not None`` guard is a soundness gate: it
-        keeps the narrow-sync off the "unknown fallback" path until an
-        interprocedural extension propagates callee ``upvar 1`` source
-        sets back into the caller's summary.
+        The ``vars_used is not None`` guard is a soundness gate: an
+        unknown fallback body could reference any var by name, so we
+        still sync every tcl-visible local in that case.  The
+        interprocedural pass only bounds *static* ``upvar`` sources;
+        it can't constrain what a runtime eval body touches.
         """
         summary = self._escape_summary
         narrow_to_frame = (
-            summary is not None and not summary.dynamic_barrier and vars_used is not None
+            summary is not None
+            and not summary.dynamic_barrier
+            and vars_used is not None
         )
 
         pairs: list[tuple[str, int]] = []
@@ -5648,6 +5664,19 @@ class _WasmEmitter:
             and "tcl_local_set" in self._shared_imports
             and "tcl_frame_pop" in self._shared_imports
         )
+        # Escape-aware frame elision: a proc the analysis proved has
+        # no FRAME vars and no interpreter fallback path doesn't need
+        # a runtime frame at all.  Skip frame_push / param mirrors /
+        # frame_pop entirely in that case.  Falls back to "push the
+        # frame" whenever the analysis is missing or indefinite.
+        summary = self._escape_summary
+        if (
+            wants_frame
+            and summary is not None
+            and not summary.frame_needed
+            and not summary.has_fallback
+        ):
+            wants_frame = False
         if wants_frame:
             push_idx = self._shared_imports["tcl_frame_push"]
             self._emit_call(push_idx)

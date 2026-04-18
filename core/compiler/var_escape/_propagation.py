@@ -49,6 +49,54 @@ from ._types import EscapeTag, ProcEscapeSummary
 _NAME_FIRST_COMMANDS: frozenset[str] = frozenset({"set", "incr", "append", "lappend", "unset"})
 
 
+# Commands whose codegen always uses a dedicated runtime helper and
+# never falls back to the interpreter.  Calls to these commands do
+# NOT require a runtime frame on the WASM side — they're straight-
+# line primitives with no ``$var`` resolution needed at the callee.
+# Keep this list audited: adding a command that secretly falls back
+# will break eval-inside-proc semantics in escape-free procs.
+_FRAMELESS_RUNTIME_COMMANDS: frozenset[str] = frozenset(
+    {
+        # List primitives
+        "list",
+        "lindex",
+        "lrange",
+        "linsert",
+        "llength",
+        "lsort",
+        "lsearch",
+        "lappend",
+        "lreverse",
+        "lreplace",
+        "lrepeat",
+        "lassign",
+        "concat",
+        # String primitives
+        "split",
+        "join",
+        "string",
+        # Arithmetic wrappers
+        "expr",
+        # Locally-handled scope declarations — no runtime frame needed.
+        "global",
+        "variable",
+        "upvar",
+        "namespace",
+        # Self-assignment shapes already covered by IRAssign* / IRIncr.
+        "set",
+        "incr",
+        "append",
+        "unset",
+        # I/O and diagnostics
+        "puts",
+        "return",
+        "error",
+        "continue",
+        "break",
+    }
+)
+
+
 def _is_literal_name(arg: str) -> bool:
     """True if ``arg`` is a plain identifier, not a substituted ref.
 
@@ -133,6 +181,7 @@ class _EscapeState:
         "upvar_source_names",
         "unbounded_upvar_source",
         "direct_callees",
+        "has_fallback",
     )
 
     def __init__(self, known_names: Iterable[str]) -> None:
@@ -152,6 +201,10 @@ class _EscapeState:
         # Statically-resolvable callees — qualified proc names this proc
         # invokes with a known command word.
         self.direct_callees: set[str] = set()
+        # True if this proc could dispatch to the interpreter at
+        # runtime (IRBarrier, dynamic eval, unknown-command fallback).
+        # Codegen uses it to decide whether to emit frame_push / pop.
+        self.has_fallback: bool = False
 
     def escape(self, name: str) -> None:
         """Mark ``name`` as needing frame storage."""
@@ -180,6 +233,10 @@ class _EscapeState:
         """Record a statically-resolvable callee."""
         if qname:
             self.direct_callees.add(qname)
+
+    def record_fallback(self) -> None:
+        """Record that this proc can dispatch to the interpreter."""
+        self.has_fallback = True
 
 
 def _collect_known_names(
@@ -524,6 +581,9 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
 
 def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
     """Dispatch on the barrier command."""
+    # Any IRBarrier means the codegen can dispatch to the interpreter;
+    # the proc prologue must push a frame so the fallback sees locals.
+    state.record_fallback()
     cmd = barrier.command
     if cmd == "eval":
         _handle_eval(barrier, state)
@@ -537,6 +597,15 @@ def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
 def _handle_call(call: IRCall, state: _EscapeState) -> None:
     """Dispatch on a normal ``IRCall``."""
     cmd = call.command
+    # Commands outside the frameless-runtime allow-list could reach
+    # the eval fallback via ``_emit_eval_fallback``; the proc must
+    # keep its runtime frame so the fallback can resolve ``$var``
+    # against our locals.  Frameless commands (list / string / expr
+    # / etc.) are dispatched to pure runtime helpers and don't need
+    # a frame on the caller side.
+    if cmd not in _FRAMELESS_RUNTIME_COMMANDS:
+        state.record_fallback()
+
     # ``{*}``-expansion in an unknown call defeats argument-index-based
     # analysis (we can't tell where the name arg landed).
     if _has_expand_word(call) and cmd not in ("list", "concat"):
@@ -568,10 +637,24 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
         state.record_callee(cmd)
 
 
+_CMD_SUBST_HEAD_RE = re.compile(r"\[\s*(\w+)")
+
+
 def _apply_value_scan(value: str, state: _EscapeState) -> None:
     """Apply the info-hazard scan to an embedded value string."""
     if not value:
         return
+    # Walk every ``[cmd …]`` substitution's leading command word.
+    # Substitutions whose head isn't in the frameless allow-list may
+    # reach the eval fallback (or a command that needs a frame for
+    # ``$var`` resolution) — flag ``has_fallback`` so the codegen
+    # keeps the runtime frame around.
+    if "[" in value:
+        for match in _CMD_SUBST_HEAD_RE.finditer(value):
+            head = match.group(1)
+            if head not in _FRAMELESS_RUNTIME_COMMANDS:
+                state.record_fallback()
+                break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
         state.mark_pessimistic()
@@ -683,4 +766,5 @@ def analyse_script(
         upvar_source_names=frozenset(state.upvar_source_names),
         unbounded_upvar_source=state.unbounded_upvar_source,
         direct_callees=frozenset(state.direct_callees),
+        has_fallback=state.has_fallback,
     )
