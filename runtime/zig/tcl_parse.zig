@@ -40,7 +40,20 @@ pub const BracedRange = struct { end: u32, start: u32, wlen: u32 };
 
 pub fn skip_space(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos;
-    while (p < len and (src[p] == ' ' or src[p] == '\t')) p += 1;
+    while (p < len) {
+        if (src[p] == ' ' or src[p] == '\t') {
+            p += 1;
+        } else if (src[p] == '\\' and p + 1 < len and src[p + 1] == '\n') {
+            // Tcl line continuation: ``\<newline>`` collapses to a
+            // single space (TclParseAllWhiteSpace, TIP #9).  Treat
+            // it as inter-word whitespace so ``cmd arg1 \<NL>arg2``
+            // parses as ``cmd arg1 arg2`` rather than giving concat
+            // a spurious ``\`` element.
+            p += 2;
+        } else {
+            break;
+        }
+    }
     return p;
 }
 
@@ -96,6 +109,12 @@ pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
         src[p] != '\n' and src[p] != ';' and src[p] != '\r')
     {
         if (src[p] == '\\' and p + 1 < len) {
+            // ``\<newline>`` terminates the word — the line-continuation
+            // sequence collapses to a single space (a word separator),
+            // matching reference Tcl's TclParseAllWhiteSpace.  Without
+            // this the backslash-newline pair would be swallowed into
+            // the word span and leak through as a literal backslash.
+            if (src[p + 1] == '\n') break;
             p += 2;
         } else if (src[p] == '[') {
             p = skip_command_subst(src, p, len);
@@ -147,7 +166,20 @@ pub fn parse_command(
     var p = pos;
     var count: u32 = 0;
 
-    while (p < len and (src[p] == ' ' or src[p] == '\t' or src[p] == '\n' or src[p] == '\r' or src[p] == ';')) p += 1;
+    // Skip leading whitespace + command terminators.  ``\<newline>`` is
+    // also whitespace here (Tcl line continuation) so consecutive
+    // command-terminators separated by continuations don't strand the
+    // parser on a lonely backslash.
+    while (p < len) {
+        const c = src[p];
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+            p += 1;
+        } else if (c == '\\' and p + 1 < len and src[p + 1] == '\n') {
+            p += 2;
+        } else {
+            break;
+        }
+    }
 
     if (p < len and src[p] == '#') {
         while (p < len and src[p] != '\n') p += 1;

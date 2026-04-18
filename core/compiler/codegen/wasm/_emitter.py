@@ -1296,14 +1296,24 @@ class _WasmEmitter:
         as atomic units.  Braces and quotes are stripped from the
         resulting word so downstream emission sees the raw content
         (e.g. ``{5}`` becomes ``5``).
+
+        ``\\<newline>`` is Tcl line-continuation whitespace — it
+        collapses to a single space between words (TclParseAllWhiteSpace).
+        Without treating it as whitespace here a bare backslash would
+        leak into the argv as its own word.
         """
         parts: list[str] = []
         i = 0
         n = len(text)
         while i < n:
-            # Skip whitespace
-            while i < n and text[i] in " \t\n":
-                i += 1
+            # Skip whitespace, including ``\<newline>`` line-continuation.
+            while i < n:
+                if text[i] in " \t\n":
+                    i += 1
+                elif text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
+                    i += 2
+                else:
+                    break
             if i >= n:
                 break
             # Braced argument — keep outer braces so _emit_value can
@@ -1352,6 +1362,12 @@ class _WasmEmitter:
             else:
                 start = i
                 while i < n and text[i] not in " \t\n":
+                    # ``\<newline>`` terminates the word — the
+                    # line-continuation collapses to a space which is a
+                    # word separator.  Without this the backslash is
+                    # captured as a literal byte in the word span.
+                    if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
+                        break
                     # Handle nested brackets within bare words
                     if text[i] == "[":
                         depth = 1
