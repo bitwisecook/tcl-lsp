@@ -110,8 +110,7 @@ class TestPristineProc:
         body = _proc_body_without_prologue(body_full)
         local_set_call = _import_call_site(wat, "local_set")
         assert local_set_call not in body, (
-            "pristine arithmetic proc should not mirror any var to the frame:\n"
-            + body_full
+            "pristine arithmetic proc should not mirror any var to the frame:\n" + body_full
         )
 
     def test_list_proc_emits_no_local_set(self):
@@ -128,8 +127,7 @@ class TestPristineProc:
         body = _proc_body_without_prologue(body_full)
         local_set_call = _import_call_site(wat, "local_set")
         assert local_set_call not in body, (
-            "list-manipulation proc with no escape should not touch the frame:\n"
-            + body_full
+            "list-manipulation proc with no escape should not touch the frame:\n" + body_full
         )
 
 
