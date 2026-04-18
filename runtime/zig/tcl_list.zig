@@ -343,7 +343,14 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
     const sv = obj_ensure_string(value);
     const n_i64 = list_count_elements(s.ptr, s.len);
     const n: u32 = @intCast(n_i64);
-    var pos: i64 = obj_get_int(index);
+    // ``linsert`` uses a different ``end`` semantic from ``lindex`` /
+    // ``string index`` / ``lrange``: the ``end`` marker denotes the
+    // position *after* the last element (n), not n-1.  So
+    // ``linsert L end x`` appends x rather than inserting before the
+    // last element.  Resolve as if the list had n+1 positions so
+    // ``end`` → n, ``end-1`` → n-1, ``end-N`` → n-N, matching the
+    // Tcl ``linsert`` manual page.
+    var pos: i64 = resolve_list_index(index, n_i64 + 1);
     if (pos < 0) pos = 0;
     if (pos > n_i64) pos = n_i64;
     const upos: u32 = @intCast(pos);
@@ -398,8 +405,11 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     const n: u32 = @intCast(n_i64);
-    var f: i64 = obj_get_int(first);
-    var l: i64 = obj_get_int(last);
+    // Accept ``end`` / ``end-N`` / ``end+N`` for both bounds.  Bare
+    // ``obj_get_int`` would treat ``end`` as 0 and replace the wrong
+    // slice.
+    var f: i64 = resolve_list_index(first, n_i64);
+    var l: i64 = resolve_list_index(last, n_i64);
     if (f < 0) f = 0;
     if (l >= n_i64) l = n_i64 - 1;
     if (f > n_i64) f = n_i64;

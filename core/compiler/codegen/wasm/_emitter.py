@@ -779,14 +779,21 @@ class _WasmEmitter:
                     for a in kv
                 ):
                     self._emit_obj_literal(" ".join(kv))
-                else:
-                    concat_idx = self._shared_imports.get("tcl_concat")
-                    self._emit_value(kv[0])
-                    for rest in kv[1:]:
-                        if concat_idx is None:
-                            break
-                        self._emit_value(rest)
-                        self._emit_call(concat_idx)
+                    return
+                # Non-literal path: chain ``tcl_concat`` to assemble
+                # the k/v list at runtime.  The scan pass registers
+                # the import whenever ``dict create`` appears, so
+                # ``concat_idx`` is expected to be present — but if
+                # somehow it isn't we fall back to the full eval
+                # path rather than silently truncating arguments.
+                concat_idx = self._shared_imports.get("tcl_concat")
+                if concat_idx is None:
+                    self._emit_eval_fallback(cmd_name, tuple(cmd_args))
+                    return
+                self._emit_value(kv[0])
+                for rest in kv[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(concat_idx)
                 return
             import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
             if import_key is not None and import_key in self._shared_imports:
@@ -823,11 +830,15 @@ class _WasmEmitter:
                 ):
                     self._emit_obj_literal("".join(sub_args))
                     return
+                # Non-literal path — chain ``tcl_append``.  The scan
+                # pass registers the import whenever ``string cat``
+                # appears, so the fall-through below is defensive.
                 append_idx = self._shared_imports.get("tcl_append")
+                if append_idx is None:
+                    self._emit_eval_fallback("string", cmd_args)
+                    return
                 self._emit_value(sub_args[0])
                 for rest in sub_args[1:]:
-                    if append_idx is None:
-                        break
                     self._emit_value(rest)
                     self._emit_call(append_idx)
                 return
@@ -3806,11 +3817,20 @@ class _WasmEmitter:
             ):
                 self._emit_obj_literal("".join(sub_args))
             else:
+                # Non-literal path — chain ``tcl_append``.  The scan
+                # pass registers the import when ``string cat``
+                # appears; defensive fall-through to eval otherwise.
                 append_idx = self._shared_imports.get("tcl_append")
+                if append_idx is None:
+                    self._emit_eval_fallback("string", args)
+                    if defs:
+                        def_idx = self._intern_local(defs[0])
+                        self._emit_local_set(def_idx)
+                    else:
+                        self._emit(WasmOp.DROP)
+                    return
                 self._emit_value(sub_args[0])
                 for rest in sub_args[1:]:
-                    if append_idx is None:
-                        break
                     self._emit_value(rest)
                     self._emit_call(append_idx)
             if defs:
@@ -3908,14 +3928,30 @@ class _WasmEmitter:
                 for a in kv
             ):
                 self._emit_obj_literal(" ".join(kv))
-            else:
-                concat_idx = self._shared_imports.get("tcl_concat")
-                self._emit_value(kv[0])
-                for rest in kv[1:]:
-                    if concat_idx is None:
-                        break
-                    self._emit_value(rest)
-                    self._emit_call(concat_idx)
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+            # Non-literal path — chain ``tcl_concat`` calls.  The scan
+            # pass registers the import whenever ``dict create``
+            # appears, so ``concat_idx`` should be present; if it
+            # somehow isn't, fall through to the full eval fallback
+            # rather than silently dropping arguments.
+            concat_idx = self._shared_imports.get("tcl_concat")
+            if concat_idx is None:
+                self._emit_eval_fallback("dict", args)
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+            self._emit_value(kv[0])
+            for rest in kv[1:]:
+                self._emit_value(rest)
+                self._emit_call(concat_idx)
             if defs:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
@@ -5585,10 +5621,7 @@ class _WasmEmitter:
             term = blk.terminator
             match term:
                 case CFGGoto(target=target):
-                    if (
-                        target == header
-                        and name.startswith("for_step_")
-                    ):
+                    if target == header and name.startswith("for_step_"):
                         return name
                     stack.append(target)
                 case CFGBranch(true_target=tt, false_target=ft):

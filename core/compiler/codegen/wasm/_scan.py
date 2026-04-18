@@ -124,10 +124,21 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     subcmd = parts[1]
                     if subcmd in _DICT_SUBCMD_IMPORT:
                         needed.add(_DICT_SUBCMD_IMPORT[subcmd])
+                    if subcmd == "create":
+                        # ``dict create`` with non-literal k/v args
+                        # folds at runtime via ``tcl_concat``; always
+                        # register it so the compiler's fast path
+                        # can't silently drop args.
+                        needed.add("tcl_concat")
                 elif cmd == "string" and len(parts) > 1:
                     subcmd = parts[1]
                     if subcmd in _STRING_SUBCMD_IMPORT:
                         needed.add(_STRING_SUBCMD_IMPORT[subcmd])
+                    elif subcmd == "cat":
+                        # ``string cat`` is variadic no-trim concat.
+                        # Register ``tcl_append`` so the runtime path
+                        # is always reachable.
+                        needed.add("tcl_append")
                     elif subcmd == "is":
                         # "string is <class> <value>" — extract class name
                         rest = parts[2] if len(parts) > 2 else ""
@@ -413,12 +424,21 @@ def _scan_needed_imports(
                     is_key = _STRING_IS_IMPORT.get(args[1])
                     if is_key:
                         needed.add(is_key)
+                elif command == "string" and args and args[0] == "cat":
+                    # ``string cat`` is variadic no-trim concat; the
+                    # runtime path leans on ``tcl_append`` when any arg
+                    # isn't a pure literal.
+                    needed.add("tcl_append")
                 elif command == "list":
                     # ``list $a $b ...`` with variable args uses tcl_lappend
                     # internally in _emit_list_value to quote each element.
                     needed.add("tcl_lappend")
                 elif command == "dict" and args and args[0] in _DICT_SUBCMD_IMPORT:
                     needed.add(_DICT_SUBCMD_IMPORT[args[0]])
+                    if args[0] == "create":
+                        # ``dict create`` with non-literal k/v args
+                        # folds at runtime via ``tcl_concat``.
+                        needed.add("tcl_concat")
                 elif command == "global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
