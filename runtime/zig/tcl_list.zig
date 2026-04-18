@@ -279,6 +279,24 @@ pub export fn tcl_cmd_list_search(list: i32, value: i32) i32 {
     return obj_new_int(-1);
 }
 
+// Exported: ``expr {x in list}`` / ``ni`` support — return 1 when
+// *value* is string-equal to any element of *list*, 0 otherwise.
+// Separate from ``tcl_cmd_list_search`` because ``in`` and ``ni`` use
+// exact string match, not glob matching.
+pub export fn tcl_cmd_list_contains(list: i32, value: i32) i32 {
+    const s = obj_ensure_string(list);
+    const sv = obj_ensure_string(value);
+    const n = list_count_elements(s.ptr, s.len);
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        const elem = list_element_at(s.ptr, s.len, idx);
+        if (str_cmp(s.ptr + elem.start, elem.len, sv.ptr, sv.len) == 0) {
+            return obj_new_int(1);
+        }
+    }
+    return obj_new_int(0);
+}
+
 // Exported: list reverse — return a new list with elements in reverse order.
 pub export fn tcl_cmd_list_reverse(list: i32) i32 {
     const s = obj_ensure_string(list);

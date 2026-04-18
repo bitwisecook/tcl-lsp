@@ -1471,11 +1471,32 @@ class _WasmEmitter:
             self._emit(WasmOp.I64_XOR)
         elif op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
             self._emit_str_cmp(op, left, right)
+        elif op in (BinOp.IN, BinOp.NI):
+            self._emit_in(op, left, right)
         else:
             # Unsupported binary op — emit operands and drop
             self._emit_expr(left)
             self._emit_expr(right)
             self._emit(WasmOp.I64_ADD)  # placeholder
+
+    def _emit_in(self, op: BinOp, left: ExprNode, right: ExprNode) -> None:
+        """Emit ``expr {x in list}`` / ``x ni list``.
+
+        Evaluates each operand as a TclObj, calls ``tcl_cmd_list_contains``,
+        and unboxes to i64. For ``ni`` the result is XORed with 1.
+        """
+        contains_idx = self._shared_imports.get("tcl_list_contains")
+        if contains_idx is None:
+            # Runtime helper missing — best effort: always false.
+            self._emit_i64_const(0)
+            return
+        self._emit_str_value(right)  # list
+        self._emit_str_value(left)  # value
+        self._emit_call(contains_idx)
+        self._emit_unbox_int()
+        if op == BinOp.NI:
+            self._emit_i64_const(1)
+            self._emit(WasmOp.I64_XOR)
 
     def _emit_str_eq(self, left: ExprNode, right: ExprNode) -> None:
         """Emit string equality comparison — result is i64 (0 or 1).

@@ -72,6 +72,8 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.IN, BinOp.NI):
+                    needed.add("tcl_list_contains")
                 _walk(left)
                 _walk(right)
             case ExprUnary(operand=operand):

@@ -95,6 +95,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_sort": ("tcl", "tcl_cmd_list_sort", [ValType.I32], [ValType.I32]),
     "tcl_list_reverse": ("tcl", "tcl_cmd_list_reverse", [ValType.I32], [ValType.I32]),
+    "tcl_list_contains": (
+        "tcl",
+        "tcl_cmd_list_contains",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_repeat": (
         "tcl",
         "tcl_cmd_list_repeat",

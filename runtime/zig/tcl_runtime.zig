@@ -87,6 +87,7 @@ pub const tcl_cmd_list_reverse = tcl_list_mod.tcl_cmd_list_reverse;
 pub const tcl_cmd_list_repeat = tcl_list_mod.tcl_cmd_list_repeat;
 pub const tcl_cmd_list_insert = tcl_list_mod.tcl_cmd_list_insert;
 pub const tcl_cmd_list_replace = tcl_list_mod.tcl_cmd_list_replace;
+pub const tcl_cmd_list_contains = tcl_list_mod.tcl_cmd_list_contains;
 pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
 
 pub const dict_create = tcl_dict.dict_create;
@@ -208,6 +209,7 @@ comptime {
     _ = &tcl_list_mod.tcl_cmd_list_repeat;
     _ = &tcl_list_mod.tcl_cmd_list_insert;
     _ = &tcl_list_mod.tcl_cmd_list_replace;
+    _ = &tcl_list_mod.tcl_cmd_list_contains;
     _ = &tcl_list_mod.tcl_cmd_list_search;
     // tcl_dict exports
     _ = &tcl_dict.dict_create;
