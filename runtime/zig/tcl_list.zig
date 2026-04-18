@@ -278,3 +278,70 @@ pub export fn tcl_cmd_list_search(list: i32, value: i32) i32 {
     }
     return obj_new_int(-1);
 }
+
+// Exported: list reverse — return a new list with elements in reverse order.
+pub export fn tcl_cmd_list_reverse(list: i32) i32 {
+    const s = obj_ensure_string(list);
+    const n_i64 = list_count_elements(s.ptr, s.len);
+    if (n_i64 <= 1) return list;
+    const n: u32 = @intCast(n_i64);
+    // Grab (ptr, len) for each element so we can walk backwards.
+    const arr_buf = alloc(n * 8);
+    var idx: u32 = 0;
+    while (idx < n) : (idx += 1) {
+        const elem = list_element_at(s.ptr, s.len, @intCast(idx));
+        write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
+        write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
+    }
+    const result_buf = alloc(s.len + n);
+    var result_len: u32 = 0;
+    var i: i32 = @as(i32, @intCast(n)) - 1;
+    while (i >= 0) : (i -= 1) {
+        if (result_len > 0) {
+            const d: [*]u8 = @ptrFromInt(result_buf + result_len);
+            d[0] = ' ';
+            result_len += 1;
+        }
+        const iu: u32 = @intCast(i);
+        const e_ptr: u32 = @intCast(read_i32(arr_buf + iu * 8));
+        const e_len: u32 = @intCast(read_i32(arr_buf + iu * 8 + 4));
+        memcpy(result_buf + result_len, e_ptr, e_len);
+        result_len += e_len;
+    }
+    return obj_new_string(@intCast(result_buf), @intCast(result_len));
+}
+
+// Exported: list repeat — ``lrepeat count value1 ?value2 ...?``.
+//
+// ``count`` is a non-negative integer.  With N value arguments the
+// result is ``count * N`` elements, cycling through the values.  The
+// runtime export here only supports the common one-value form
+// (``lrepeat 3 foo`` → ``foo foo foo``); multi-value lrepeat falls
+// through to the interpreter via the compiler's arg-count bridge.
+pub export fn tcl_cmd_list_repeat(count: i32, value: i32) i32 {
+    const cnt = obj_get_int(count);
+    if (cnt <= 0) return obj_new_string(0, 0);
+    const sv = obj_ensure_string(value);
+    // Each element is the rendered string of *value*; join with spaces.
+    // Quoting of embedded whitespace / braces is left to the caller —
+    // matches the compiler's other list-building helpers.
+    const per_elem: u32 = sv.len;
+    const ucnt: u32 = @intCast(cnt);
+    const total: u32 = if (ucnt == 0) 0 else per_elem * ucnt + (ucnt - 1);
+    if (total == 0) return obj_new_string(0, 0);
+    const buf = alloc(total);
+    var off: u32 = 0;
+    var i: u32 = 0;
+    while (i < ucnt) : (i += 1) {
+        if (i > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        if (per_elem > 0) {
+            memcpy(buf + off, sv.ptr, per_elem);
+            off += per_elem;
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(total));
+}

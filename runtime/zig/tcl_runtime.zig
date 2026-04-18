@@ -83,6 +83,8 @@ pub const tcl_list = tcl_list_mod.tcl_list;
 pub const tcl_cmd_list_index = tcl_list_mod.tcl_cmd_list_index;
 pub const tcl_cmd_list_range = tcl_list_mod.tcl_cmd_list_range;
 pub const tcl_cmd_list_sort = tcl_list_mod.tcl_cmd_list_sort;
+pub const tcl_cmd_list_reverse = tcl_list_mod.tcl_cmd_list_reverse;
+pub const tcl_cmd_list_repeat = tcl_list_mod.tcl_cmd_list_repeat;
 pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
 
 pub const dict_create = tcl_dict.dict_create;
@@ -200,6 +202,8 @@ comptime {
     _ = &tcl_list_mod.tcl_cmd_list_index;
     _ = &tcl_list_mod.tcl_cmd_list_range;
     _ = &tcl_list_mod.tcl_cmd_list_sort;
+    _ = &tcl_list_mod.tcl_cmd_list_reverse;
+    _ = &tcl_list_mod.tcl_cmd_list_repeat;
     _ = &tcl_list_mod.tcl_cmd_list_search;
     // tcl_dict exports
     _ = &tcl_dict.dict_create;
