@@ -2,6 +2,7 @@
 // list_sort, list_search, tcl_list.
 
 const obj = @import("tcl_obj.zig");
+const str = @import("tcl_string.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const obj_ensure_string = obj.obj_ensure_string;
@@ -259,7 +260,11 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     return obj_new_string(@intCast(result_buf), @intCast(result_len));
 }
 
-// Exported: list search — linear search for exact match, returns index or -1.
+// Exported: list search — default Tcl ``lsearch`` semantics, which
+// glob-match (``*``, ``?``, ``[...]``) the pattern against each list
+// element and return the first matching index, or ``-1``.  Our
+// previous implementation did exact matching only, so ``lsearch $x
+// *5`` always returned ``-1`` even when elements matched the glob.
 pub export fn tcl_cmd_list_search(list: i32, value: i32) i32 {
     const s = obj_ensure_string(list);
     const sv = obj_ensure_string(value);
@@ -267,7 +272,7 @@ pub export fn tcl_cmd_list_search(list: i32, value: i32) i32 {
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
         const elem = list_element_at(s.ptr, s.len, idx);
-        if (str_cmp(s.ptr + elem.start, elem.len, sv.ptr, sv.len) == 0) {
+        if (str.glob_match(sv.ptr, sv.len, s.ptr + elem.start, elem.len)) {
             return obj_new_int(idx);
         }
     }

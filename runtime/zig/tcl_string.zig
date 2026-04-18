@@ -164,7 +164,7 @@ pub export fn string_match(pattern: i32, value: i32) i32 {
     return obj_new_int(if (matched) @as(i64, 1) else @as(i64, 0));
 }
 
-fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
     // Guard against null/zero pointers produced by obj_ensure_string(0).
     if (plen == 0) return vlen == 0;
     const pat: [*]const u8 = @ptrFromInt(pp);
