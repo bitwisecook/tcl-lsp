@@ -67,6 +67,7 @@ from ...ir import (
     IRStatement,
     IRSwitch,
     IRTry,
+    IRUpFrame,
     IRWhile,
 )
 from ...var_escape import ProcEscapeSummary
@@ -2219,6 +2220,60 @@ class _WasmEmitter:
                         self._emit_stmt(stmt)
                 finally:
                     self._block_namespace = prev_ns
+                if self._optimise:
+                    self._const_map.clear()
+
+            case IRUpFrame(frame_shift=shift, body=_body, source_tokens=src_toks):
+                # ``uplevel ?level? {static-body}`` — barrier-relaxed
+                # form.  At runtime we still route the body through
+                # ``tcl_eval`` with the frame-depth stash/restore
+                # wrapper, matching ``_emit_cmd_uplevel``'s semantics.
+                # Inline-IR execution in the compiled callee's frame
+                # is not yet correct because the WASM compile-to-
+                # compile call chain does not push runtime frames —
+                # caller WASM-locals are invisible to the runtime
+                # frame table regardless of what shift we apply.  A
+                # follow-up pass (whole-callee ``uplevel``-passthrough
+                # inlining) eliminates the frame boundary entirely by
+                # splicing the callee body into the caller's IR, at
+                # which point this codegen case can emit ``body.statements``
+                # inline.  Until then, IRUpFrame is a semantically-
+                # richer IRBarrier: optimiser passes can inspect the
+                # parsed body even though codegen still defers to the
+                # interpreter.
+                stash_idx = self._shared_imports.get("tcl_frame_depth_stash")
+                restore_idx = self._shared_imports.get("tcl_frame_depth_restore")
+                eval_idx = self._shared_imports.get("tcl_eval")
+                body_text = ""
+                if src_toks is not None and src_toks.argv_texts:
+                    # argv[0] is ``uplevel``; the trailing word is the
+                    # braced body.  Use the raw source text so the
+                    # interpreter parses it exactly as the user wrote.
+                    body_text = src_toks.argv_texts[-1]
+                if eval_idx is None:
+                    # No interpreter linked (standalone test compile
+                    # without the runtime) — emit nothing.  Callers
+                    # that check for this case handle the absence.
+                    pass
+                elif stash_idx is None or restore_idx is None:
+                    # Frame helpers missing — run the body without a
+                    # shift.  Same degraded behaviour as the existing
+                    # ``_emit_cmd_uplevel`` fallback.
+                    self._emit_obj_literal(body_text)
+                    self._emit_call(eval_idx)
+                    self._emit(WasmOp.DROP)
+                else:
+                    saved_local = self._add_extra_local(
+                        prefix="_upframe_saved", val_type=ValType.I32
+                    )
+                    self._emit_i32_const(shift)
+                    self._emit_call(stash_idx)
+                    self._emit_local_set(saved_local)
+                    self._emit_obj_literal(body_text)
+                    self._emit_call(eval_idx)
+                    self._emit(WasmOp.DROP)
+                    self._emit_local_get(saved_local)
+                    self._emit_call(restore_idx)
                 if self._optimise:
                     self._const_map.clear()
 
