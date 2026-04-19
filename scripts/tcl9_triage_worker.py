@@ -23,6 +23,7 @@ from tests.external.run_tcl9_tests import (  # noqa: E402
     _infer_category,
     _parse_summary,
     _stderr_tail,
+    _summarise_diag,
 )
 from tests.test_wasm_real_tcl import (  # noqa: E402
     _compile_tcl_with_diag,
@@ -61,6 +62,7 @@ def main() -> int:
             "trap_site": None,
             "stderr_tail": str(exc)[-400:],
             "category": "B",
+            **_summarise_diag(None),
         }
         print(json.dumps(result))
         return 0
@@ -103,6 +105,7 @@ def main() -> int:
         "trap_site": trap_site,
         "stderr_tail": _stderr_tail(stderr),
         "category": category,
+        **_summarise_diag(diag),
     }
     print(json.dumps(result))
     return 0

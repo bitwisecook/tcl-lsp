@@ -334,6 +334,25 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
                     finish_chain(var_key)
                 continue
 
+            # TODO(kcs-tcl9-barrier-relaxation): IRUpFrame and
+            # eval-shape IRBlock are scoped barriers — the body runs
+            # inline in the (caller's / current) frame, so static-set
+            # chaining could chase through with frame-aware analysis.
+            # For now, treat conservatively as hard barriers so the
+            # first-wave relaxation does not regress SCCP/DCE.
+            from ..ir import IRBlock as _IRBlock
+            from ..ir import IRUpFrame
+
+            if isinstance(stmt, IRUpFrame) or (
+                isinstance(stmt, _IRBlock)
+                and stmt.source_tokens is not None
+                and stmt.source_tokens.argv_texts
+                and stmt.source_tokens.argv_texts[0] == "eval"
+            ):
+                for var_key in list(active):
+                    finish_chain(var_key)
+                continue
+
             cmd_name = argv_texts[0]
             if cmd_name in _DYNAMIC_BARRIER_COMMANDS:
                 for var_key in list(active):
@@ -499,6 +518,21 @@ def optimise_multi_set_packing(ctx: PassContext, cfg, ssa) -> None:
                 barrier_indices.add(idx)
             elif isinstance(stmt, IRCall) and stmt.command in _DYNAMIC_BARRIER_COMMANDS:
                 barrier_indices.add(idx)
+            else:
+                # TODO(kcs-tcl9-barrier-relaxation): IRUpFrame and
+                # eval-shape IRBlock are scoped barriers; treat them
+                # the same here so set-packing cannot pack across
+                # the relaxed boundary.
+                from ..ir import IRBlock as _IRBlock
+                from ..ir import IRUpFrame
+
+                if isinstance(stmt, IRUpFrame) or (
+                    isinstance(stmt, _IRBlock)
+                    and stmt.source_tokens is not None
+                    and stmt.source_tokens.argv_texts
+                    and stmt.source_tokens.argv_texts[0] == "eval"
+                ):
+                    barrier_indices.add(idx)
 
         if len(candidates) < _SET_PACK_MIN_GROUP:
             continue

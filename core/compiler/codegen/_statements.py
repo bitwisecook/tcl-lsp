@@ -319,25 +319,29 @@ class _StatementsMixin:
                     self._emit(Op.NOP, comment=f"barrier: {reason}")
 
             case IRBlock(source_args=source_args, source_tokens=source_tokens):
-                # ``namespace eval`` inlined for the WASM backend,
-                # but the stack-VM doesn't inline — its runtime
-                # handles namespaces with proper semantics, so we
-                # dispatch the original ``namespace eval NS body``
-                # call and let the interpreter / VM enter the
-                # namespace, evaluate the body, and leave.  The
-                # source args were captured at lower time precisely
-                # for this fallback.
+                # Inlined helper for ``namespace eval`` and ``eval``.
+                # The WASM backend splices the body in-line; the
+                # stack-VM's runtime already handles both commands
+                # with proper semantics, so we dispatch the original
+                # call and let the interpreter evaluate.  The source
+                # command word (``namespace`` or ``eval``) was
+                # captured at lower time and drives dispatch here.
                 if source_args:
+                    # argv[0] is the command name.  Default to
+                    # ``namespace`` for back-compat with existing
+                    # namespace-eval-derived blocks that may not have
+                    # tokens (explorer fallbacks, hand-crafted IR).
+                    source_cmd = "namespace"
+                    if source_tokens and source_tokens.argv_texts:
+                        source_cmd = source_tokens.argv_texts[0] or "namespace"
                     if (
                         source_tokens
                         and source_tokens.expand_word
                         and any(source_tokens.expand_word)
                     ):
-                        self._emit_expanded_call(
-                            "namespace", source_args, source_tokens.expand_word
-                        )
+                        self._emit_expanded_call(source_cmd, source_args, source_tokens.expand_word)
                     else:
-                        self._emit_call("namespace", source_args)
+                        self._emit_call(source_cmd, source_args)
                     if source_tokens and source_tokens.argv_texts:
                         self._tag_last_invoke_source(source_tokens.argv_texts, source_tokens)
                 else:

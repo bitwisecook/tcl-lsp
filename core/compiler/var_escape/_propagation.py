@@ -581,7 +581,27 @@ def _escape_every_name_touched(
             if stmt.default_body is not None:
                 _escape_every_name_touched(stmt.default_body.statements, state)
         elif isinstance(stmt, IRBlock):
-            _escape_every_name_touched(stmt.body.statements, state)
+            if _is_eval_block(stmt):
+                # Eval-shape IRBlock (barrier-relaxed ``eval {…}``)
+                # — treat with the same escape pessimism as the
+                # pre-relaxation :class:`IRBarrier` path.
+                _handle_barrier(_synthesise_eval_barrier(stmt), state)
+            else:
+                _escape_every_name_touched(stmt.body.statements, state)
+
+
+def _is_eval_block(stmt) -> bool:
+    """True when an :class:`IRBlock` was produced by relaxing ``eval``.
+
+    The two IRBlock shapes — ``namespace eval`` and ``eval`` — are
+    distinguished by the leading command word recorded in
+    ``source_tokens.argv_texts[0]``.  When tokens are missing (hand-
+    crafted IR), default to the namespace-eval shape for back-compat.
+    """
+    tokens = getattr(stmt, "source_tokens", None)
+    if tokens is None or not tokens.argv_texts:
+        return False
+    return tokens.argv_texts[0] == "eval"
 
 
 def _handle_eval(barrier: IRBarrier, state: _EscapeState) -> None:
@@ -652,6 +672,44 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
         # globals that shadow our names, which is safe — but the body
         # might also reference our locals via arg-subst; safer to spill.
         state.mark_pessimistic()
+
+
+def _synthesise_eval_barrier(stmt) -> IRBarrier:
+    """Reconstitute an IRBarrier view of an eval-shape :class:`IRBlock`.
+
+    See :func:`_synthesise_uplevel_barrier` for the rationale.
+    ``source_args`` preserves the original eval word sequence (the
+    braced body as the single argument), so ``_handle_eval`` can
+    treat it the same way it does on the classic IRBarrier path.
+    """
+    return IRBarrier(
+        range=stmt.range,
+        reason="eval relaxed",
+        command="eval",
+        args=tuple(stmt.source_args) if stmt.source_args else (),
+        tokens=stmt.source_tokens,
+    )
+
+
+def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
+    """Reconstitute an IRBarrier from an :class:`IRUpFrame` for analysis.
+
+    Only used by the escape-propagation walk — the resulting barrier
+    is discarded after the dispatch.  ``source_tokens.argv_texts``
+    preserves the original ``uplevel ?level? body`` word sequence, so
+    ``_handle_uplevel`` sees the same shape as before the relaxation.
+    """
+    tokens = stmt.source_tokens
+    args: tuple[str, ...] = ()
+    if tokens is not None and tokens.argv_texts:
+        args = tuple(tokens.argv_texts[1:])
+    return IRBarrier(
+        range=stmt.range,
+        reason="uplevel relaxed",
+        command="uplevel",
+        args=args,
+        tokens=tokens,
+    )
 
 
 def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
@@ -774,6 +832,8 @@ def _apply_expr_scan(expr: ExprNode | None, state: _EscapeState) -> None:
 
 def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
     """Recurse into structured IR, visiting every statement."""
+    from ..ir import IRUpFrame
+
     for stmt in stmts:
         if state.dynamic_barrier:
             # Short-circuit: once pessimistic, the rest of the walk is
@@ -783,6 +843,14 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             _handle_call(stmt, state)
         elif isinstance(stmt, IRBarrier):
             _handle_barrier(stmt, state)
+        elif isinstance(stmt, IRUpFrame):
+            # Barrier-relaxed ``uplevel`` — reconstitute an IRBarrier
+            # view of the original call so ``_handle_uplevel`` can
+            # apply the same pessimism rules it always did.  The
+            # parsed body we carry in IRUpFrame.body is an
+            # optimisation for future passes; for escape analysis
+            # the classic barrier logic is still the source of truth.
+            _handle_barrier(_synthesise_uplevel_barrier(stmt), state)
         elif isinstance(stmt, IRAssignConst):
             if _is_dynamic_name(stmt.name):
                 literal = state.resolve_literal(stmt.name)
@@ -870,7 +938,10 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             if stmt.default_body is not None:
                 _walk(stmt.default_body.statements, state)
         elif isinstance(stmt, IRBlock):
-            _walk(stmt.body.statements, state)
+            if _is_eval_block(stmt):
+                _handle_barrier(_synthesise_eval_barrier(stmt), state)
+            else:
+                _walk(stmt.body.statements, state)
 
 
 def analyse_script(

@@ -369,6 +369,14 @@ def _escape_every_name_touched_tree(
             _handle_call(stmt, state, defs)
         elif isinstance(stmt, IRBarrier):
             _handle_barrier(stmt, state, defs)
+        else:
+            from ..ir import IRBlock as _IRBlock
+            from ..ir import IRUpFrame
+
+            if isinstance(stmt, IRUpFrame):
+                _handle_barrier(_synthesise_uplevel_barrier(stmt), state, defs)
+            elif isinstance(stmt, _IRBlock) and _is_eval_block(stmt):
+                _handle_barrier(_synthesise_eval_barrier(stmt), state, defs)
 
 
 def _handle_eval(
@@ -431,6 +439,44 @@ def _handle_uplevel(
         state.mark_pessimistic()
 
 
+def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
+    """Reconstitute an IRBarrier from an :class:`IRUpFrame`.
+
+    Mirrors the propagation-side helper; see
+    :func:`core.compiler.var_escape._propagation._synthesise_uplevel_barrier`.
+    """
+    tokens = stmt.source_tokens
+    args: tuple[str, ...] = ()
+    if tokens is not None and tokens.argv_texts:
+        args = tuple(tokens.argv_texts[1:])
+    return IRBarrier(
+        range=stmt.range,
+        reason="uplevel relaxed",
+        command="uplevel",
+        args=args,
+        tokens=tokens,
+    )
+
+
+def _is_eval_block(stmt) -> bool:
+    """True when an :class:`IRBlock` was produced by relaxing ``eval``."""
+    tokens = getattr(stmt, "source_tokens", None)
+    if tokens is None or not tokens.argv_texts:
+        return False
+    return tokens.argv_texts[0] == "eval"
+
+
+def _synthesise_eval_barrier(stmt) -> IRBarrier:
+    """Reconstitute an IRBarrier view of an eval-shape :class:`IRBlock`."""
+    return IRBarrier(
+        range=stmt.range,
+        reason="eval relaxed",
+        command="eval",
+        args=tuple(stmt.source_args) if stmt.source_args else (),
+        tokens=stmt.source_tokens,
+    )
+
+
 def _handle_barrier(
     barrier: IRBarrier,
     state: _CfgState,
@@ -483,10 +529,17 @@ def _handle_statement(
     defs = ssa_stmt.defs
     state.remember_versions(ssa_stmt)
 
+    from ..ir import IRBlock as _IRBlock
+    from ..ir import IRUpFrame
+
     if isinstance(stmt, IRCall):
         _handle_call(stmt, state, defs)
     elif isinstance(stmt, IRBarrier):
         _handle_barrier(stmt, state, defs)
+    elif isinstance(stmt, IRUpFrame):
+        _handle_barrier(_synthesise_uplevel_barrier(stmt), state, defs)
+    elif isinstance(stmt, _IRBlock) and _is_eval_block(stmt):
+        _handle_barrier(_synthesise_eval_barrier(stmt), state, defs)
     elif isinstance(stmt, IRAssignConst):
         if _is_dynamic_name(stmt.name):
             literal = state.resolve_literal(stmt.name)

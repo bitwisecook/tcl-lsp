@@ -891,6 +891,23 @@ def optimise_load_forwarding(
                 unsafe = True
                 break
 
+            # Barrier-relaxed eval / uplevel still count as kills —
+            # their bodies run with full side-effect potential, just
+            # with inline IR rather than a string round-trip.  Treat
+            # them conservatively so O127 load-forwarding does not
+            # chase through a scope that may mutate arbitrary names.
+            from ..ir import IRBlock as _IRBlock
+            from ..ir import IRUpFrame as _IRUpFrame
+
+            if isinstance(between_stmt, _IRUpFrame) or (
+                isinstance(between_stmt, _IRBlock)
+                and between_stmt.source_tokens is not None
+                and between_stmt.source_tokens.argv_texts
+                and between_stmt.source_tokens.argv_texts[0] == "eval"
+            ):
+                unsafe = True
+                break
+
             # Assignments with command substitutions execute side effects;
             # forwarding past them could reorder observable behaviour.
             if isinstance(between_stmt, IRAssignValue) and "[" in between_stmt.value:

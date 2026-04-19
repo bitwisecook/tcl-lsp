@@ -28,7 +28,7 @@ from ..analysis.var_scoping import (
     upvar_local_declaration_indices,
     variable_declaration_indices,
 )
-from .ir import IRBarrier, IRCall, IRStatement
+from .ir import IRBarrier, IRBlock, IRCall, IRStatement, IRUpFrame
 from .ssa import BlockName, SSAFunction
 
 # Memory location model
@@ -234,6 +234,21 @@ def _is_clobber(stmt: IRStatement) -> bool:
     """True if the statement may clobber arbitrary memory locations."""
     if isinstance(stmt, IRBarrier):
         return True
+    if isinstance(stmt, IRUpFrame):
+        # Barrier-relaxed ``uplevel`` — the body runs in a caller's
+        # frame and can touch arbitrary caller locals or globals, so
+        # from this proc's memory-SSA view it is still a clobber.
+        return True
+    if isinstance(stmt, IRBlock):
+        # Barrier-relaxed ``eval`` — the body's IR statements run
+        # inline in the current scope, but for memory-SSA purposes
+        # we preserve the classic ``eval`` barrier pessimism: the
+        # body may touch names the outer analysis cannot enumerate.
+        # Distinguished from a ``namespace eval`` IRBlock (which has
+        # scoped semantics) by ``source_tokens.argv_texts[0]``.
+        tokens = stmt.source_tokens
+        if tokens is not None and tokens.argv_texts and tokens.argv_texts[0] == "eval":
+            return True
     if isinstance(stmt, IRCall):
         # Commands that can modify arbitrary variables
         if stmt.command in ("eval", "uplevel", "interp eval", "namespace eval"):

@@ -125,6 +125,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    "tcl_list_set": (
+        "tcl",
+        "tcl_cmd_list_set",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_search": ("tcl", "tcl_cmd_list_search", [ValType.I32, ValType.I32], [ValType.I32]),
     # Dict commands
     "tcl_dict_create": ("tcl", "dict_create", [], [ValType.I32]),
@@ -344,6 +350,16 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "lrepeat": ("tcl_list_repeat", 2),
     "linsert": ("tcl_list_insert", 3),
     "lreplace": ("tcl_list_replace", 4),
+    # ``lset`` is intentionally NOT here.  Placing it in
+    # ``_CMD_RUNTIME`` would also register a generic value-context
+    # dispatch path (``_emit_command_expr``) that passes the varname
+    # as a literal list operand — which produces the wrong result for
+    # ``set ret [lset lst 1 X]`` (lst is a var, not a literal list).
+    # ``lset`` has a dedicated statement-context emitter
+    # (``_emit_cmd_lset``); the import ``tcl_list_set`` is registered
+    # explicitly by the scan phase (see ``_scan.py``) whenever an
+    # ``IRCall(command="lset")`` appears.  Value-context
+    # ``[lset …]`` falls through to the generic eval fallback.
     "lsearch": ("tcl_list_search", 2),
     "concat": ("tcl_concat", 2),
     "error": ("tcl_error", 1),

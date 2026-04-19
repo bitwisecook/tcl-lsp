@@ -216,11 +216,15 @@ test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files throu
 	@echo "==> Running VM tcltest tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
 
-test-tcl9: $(UV_STAMP) ## Run Tcl 9 correctness harness + emit tmp/tcl9-report.json
+test-tcl9: $(UV_STAMP) test-tcl9-samples ## Run Tcl 9 correctness harness + emit tmp/tcl9-report.json
 	@echo "==> Running Tcl 9 correctness harness"
 	@mkdir -p $(ROOT)tmp
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
 		--tcl9-report=tmp/tcl9-report.json
+
+test-tcl9-samples: $(UV_STAMP) ## Run tcltest-free primitive smoke samples
+	@echo "==> Running Tcl 9 smoke samples"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_samples.py -q
 
 test-tcl9-full: $(UV_STAMP) ## Full Tcl 9 suite; requires upstream source (nightly)
 	@echo "==> Running full Tcl 9 correctness harness"
