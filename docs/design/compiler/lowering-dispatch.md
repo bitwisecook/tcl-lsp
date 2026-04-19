@@ -78,9 +78,61 @@ IRCall(
 
 ### Barrier commands
 
-Commands in `_DYNAMIC_BARRIER_COMMANDS` (`eval`, `uplevel`, `upvar`) always
-produce `IRBarrier` — telling all downstream passes to stop reasoning about
-variable state at that point.
+Commands in `_DYNAMIC_BARRIER_COMMANDS` (`eval`, `uplevel`, `upvar`) default
+to producing `IRBarrier`, telling all downstream passes to stop reasoning
+about variable state at that point.
+
+#### Barrier relaxation (static-body `eval` / `uplevel`)
+
+A subset of `eval` and `uplevel` shapes is statically decidable from tokens
+and lowers to richer IR nodes instead of the generic `IRBarrier`:
+
+| Source shape | Lowered to | Gate |
+|---|---|---|
+| `eval {...}` (single braced-literal body) | `IRBlock` with `source_tokens.argv_texts[0] == "eval"` | body is `TokenType.STR` and contains no nested dynamic-shape barriers |
+| `uplevel ?level? {...}` (static level, braced-literal body) | `IRUpFrame(frame_shift=..., body=IRScript(...))` | level is absent, a bare integer, or `#N`; body is `TokenType.STR` and contains no nested dynamic-shape barriers |
+
+**Gate — statically decidable from tokens:**
+
+1. Body argument's word-token type is `TokenType.STR` (braced literal).
+   Anything else (ESC, VAR, CMD) stays on the barrier path.
+2. The body does not contain any nested `_DYNAMIC_BARRIER_COMMANDS` whose
+   own body is still dynamic. A braced `eval {uplevel 1 $x}` stays a
+   barrier because the inner `uplevel` has a dynamic body. See
+   `core/compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
+3. For `uplevel`, the level specifier must be absent, a bare integer, or
+   `#N` with a plain `TokenType.ESC` level token. `uplevel $lvl {...}`
+   stays a barrier.
+
+The gate is token-level. **No SSA or escape analysis is required** at
+lowering time; we look only at the lexed word structure.
+
+**Architectural win (IR-level):** downstream optimiser passes can inspect
+the parsed body without re-parsing the source text. The runtime behaviour
+is unchanged from the pre-relaxation barrier path: both `IRBlock`
+(eval-shape) and `IRUpFrame` are treated as barriers by every analysis
+pass (memory-SSA, var-escape, interprocedural, SCCP, load-forwarding).
+The codegen benefit is avoiding a `tcl_eval` string round-trip when the
+body is inlined directly. The runtime-level win (caller-local visibility
+for `uplevel 1 {...}`) requires follow-up work that either inlines the
+callee entirely or pushes real frames on proc-to-proc WASM calls — both
+out of scope for the first relaxation wave.
+
+**Follow-up: `uplevel`-passthrough inlining.** When proc B's body is
+essentially `uplevel 1 {body}` plus trivial prologue/epilogue, a caller
+A that calls B can inline B's body directly and collapse the
+`IRUpFrame(frame_shift=1)` into `IRBlock(shift=0)` — no frame
+manipulation needed because there is no frame boundary to shift across.
+The heuristic is: callee body is a single `IRUpFrame(shift=1)` plus at
+most literal parameter setup, callee is not recursive, and size(body_IR)
+is under a small budget (or single call site). This is a distinct
+optimiser pass, enabled by IRUpFrame's existence but not implemented in
+the first relaxation wave.
+
+**Follow-up: `eval [list …]`** expression forms. Still statically
+decidable because the list builder has all-literal arguments, but
+doubles the coverage and is deferred to keep the first relaxation
+commit focused on the braced-literal case.
 
 ### Fallback-to-runtime pattern
 
