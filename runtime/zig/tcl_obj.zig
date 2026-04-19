@@ -257,30 +257,30 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
 }
 
 // Scratch buffer for integer-to-string conversion (no newline)
-var itoa_buf2: [21]u8 = undefined;
+var itoa_buf: [21]u8 = undefined;
 
-pub fn itoa_no_nl(value: i64) struct { ptr: [*]u8, len: u32 } {
+pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     var v = value;
     var negative = false;
     if (v < 0) {
         negative = true;
         v = -v;
     }
-    var i: u32 = itoa_buf2.len - 1;
+    var i: u32 = itoa_buf.len - 1;
     if (v == 0) {
-        itoa_buf2[i] = '0';
+        itoa_buf[i] = '0';
     } else {
         while (v > 0) {
-            itoa_buf2[i] = @as(u8, @intCast(@rem(v, 10))) + '0';
+            itoa_buf[i] = @as(u8, @intCast(@rem(v, 10))) + '0';
             v = @divTrunc(v, 10);
             if (v > 0) i -= 1;
         }
     }
     if (negative) {
         i -= 1;
-        itoa_buf2[i] = '-';
+        itoa_buf[i] = '-';
     }
-    return .{ .ptr = @as([*]u8, &itoa_buf2) + i, .len = itoa_buf2.len - i };
+    return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
 }
 
 /// Render an integer TclObj to its string representation.
@@ -302,7 +302,7 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         };
     }
     const val = read_i64(addr + OBJ_INT_CACHE);
-    const result = itoa_no_nl(val);
+    const result = itoa(val);
     const buf = alloc(result.len);
     memcpy(buf, @intFromPtr(result.ptr), result.len);
     write_i32(addr + OBJ_STR_PTR, @intCast(buf));
