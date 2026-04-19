@@ -58,6 +58,34 @@ class TestEvalRelaxation:
         mod = lower_to_ir("set v 1\neval [list set x $v]")
         assert any(isinstance(s, IRBarrier) for s in mod.top_level.statements)
 
+    def test_list_with_whitespace_value_stays_barrier(self):
+        # ``eval [list puts "a b"]`` — synthesising ``puts a b`` as
+        # the body would reparse as two args (``a``, ``b``) instead
+        # of one (``a b``).  Refuse to relax rather than produce a
+        # body with different argument-structure from the source.
+        stmt = _first_stmt('eval [list puts "a b"]')
+        assert isinstance(stmt, IRBarrier)
+
+    def test_list_with_semicolon_stays_barrier(self):
+        # ``;`` is a command separator in Tcl; a bareword containing
+        # one would split the synthesised body into multiple
+        # commands.  Stay conservative.
+        stmt = _first_stmt('eval [list puts ";"]')
+        assert isinstance(stmt, IRBarrier)
+
+    def test_list_with_backslash_stays_barrier(self):
+        # A backslash escape inside a bareword needs canonical list
+        # quoting to round-trip correctly.  Refuse to relax.
+        stmt = _first_stmt("eval [list puts a\\nb]")
+        assert isinstance(stmt, IRBarrier)
+
+    def test_list_with_leading_hash_stays_barrier(self):
+        # ``#`` at the start of a list element needs brace-wrap in
+        # canonical Tcl list format so the reparse treats it as an
+        # element rather than a comment.  Refuse to relax.
+        stmt = _first_stmt("eval [list set x #hash]")
+        assert isinstance(stmt, IRBarrier)
+
     def test_multi_arg_eval_stays_barrier(self):
         stmt = _first_stmt("eval set x 1")
         assert isinstance(stmt, IRBarrier)
@@ -110,6 +138,21 @@ class TestUplevelRelaxation:
         stmt = _first_stmt("uplevel 2 {set x 1}")
         assert isinstance(stmt, IRUpFrame)
         assert stmt.frame_shift == 2
+
+    def test_multi_word_body_stays_barrier(self):
+        # ``uplevel 1 puts hello`` — Tcl concatenates the words
+        # after the level into a single script ``puts hello``.
+        # Synthesising that concat at compile time requires
+        # per-token list-quoting we don't reproduce; bail rather
+        # than relax only the last word (which would drop ``puts``).
+        stmt = _first_stmt("uplevel 1 puts hello")
+        assert isinstance(stmt, IRBarrier)
+
+    def test_multi_word_body_no_level_stays_barrier(self):
+        # ``uplevel puts hello`` — default level, two body words.
+        # Same concat issue.
+        stmt = _first_stmt("uplevel puts hello")
+        assert isinstance(stmt, IRBarrier)
 
 
 class TestBarrierGateSafety:

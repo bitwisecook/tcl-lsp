@@ -4511,18 +4511,24 @@ class _WasmEmitter:
             # a two-arg list concat (see ``tcl_list.zig::tcl_list``).
             tcl_list_idx = self._shared_imports.get("tcl_list_create")
             if tcl_list_idx is None:
-                # No list-pair helper — degraded path: space-join the
-                # index args at compile time if they are all literals.
-                # Runtime quoting may differ from canonical Tcl list
-                # format, but the common ``lset v 1 1 val`` case keeps
-                # working.
-                joined = " ".join(str(a) for a in index_args)
-                self._emit_obj_literal(joined)
-            else:
-                self._emit_value(index_args[0])
-                for arg in index_args[1:]:
-                    self._emit_value(arg)
-                    self._emit_call(tcl_list_idx)
+                # The scan phase registers ``tcl_list_create`` whenever
+                # it sees an ``lset`` with 2+ index args (see
+                # ``_scan.py``).  Reaching this branch means an
+                # upstream caller constructed IR without going through
+                # that scan — a bug in the pipeline, not a runtime
+                # condition we should paper over.  The previous
+                # fallback space-joined the index args into a string
+                # literal, which silently produced wrong behaviour
+                # when any index was dynamic (``$i``, ``[expr ...]``).
+                raise RuntimeError(
+                    "internal error: lset multi-index requires "
+                    "tcl_list_create import; scan phase should have "
+                    "registered it.  Check _scan.py's IRCall path."
+                )
+            self._emit_value(index_args[0])
+            for arg in index_args[1:]:
+                self._emit_value(arg)
+                self._emit_call(tcl_list_idx)
 
         # Evaluate the new value.
         self._emit_value(new_value)

@@ -426,6 +426,18 @@ def _scan_needed_imports(
     def _scan_stmt(stmt: IRStatement) -> None:
         match stmt:
             case IRCall(command=command, args=args):
+                if command == "lset":
+                    # ``lset`` is emitter-resident, not in _CMD_RUNTIME
+                    # (see the comment in _imports.py).  Register the
+                    # runtime import here so the shared-imports table
+                    # has ``tcl_list_set`` ready for ``_emit_cmd_lset``.
+                    needed.add("tcl_list_set")
+                    if len(args) > 3:
+                        # Multi-index ``lset v i j k newval`` builds an
+                        # indices TclObj by chaining ``tcl_list`` pairs
+                        # in ``_emit_cmd_lset``.  Without this import,
+                        # the emitter raises an internal error.
+                        needed.add("tcl_list_create")
                 if command in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[command][0])
                     if command == "puts":
