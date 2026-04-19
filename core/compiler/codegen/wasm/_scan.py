@@ -72,6 +72,8 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.IN, BinOp.NI):
+                    needed.add("tcl_list_contains")
                 _walk(left)
                 _walk(right)
             case ExprUnary(operand=operand):
@@ -106,6 +108,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 cmd = parts[0]
                 if cmd in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[cmd][0])
+                    if cmd == "puts":
+                        # ``puts -nonewline …`` dispatches to a
+                        # second helper; include the import whenever
+                        # ``puts`` appears so the dispatch path can
+                        # pick it up.  Cheap (one import slot) and
+                        # avoids a second scan.
+                        needed.add("tcl_puts_nonewline")
                 elif cmd == "list":
                     # ``[list $a $b ...]`` with variable/command args uses
                     # tcl_lappend internally in _emit_list_value to properly
@@ -115,10 +124,25 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     subcmd = parts[1]
                     if subcmd in _DICT_SUBCMD_IMPORT:
                         needed.add(_DICT_SUBCMD_IMPORT[subcmd])
+                    elif subcmd == "create":
+                        # ``dict create`` with non-literal k/v args
+                        # folds at runtime via ``tcl_lappend`` so each
+                        # element is properly list-quoted (concat
+                        # trims whitespace — wrong for dict values).
+                        needed.add("tcl_lappend")
+                    elif subcmd == "merge":
+                        # ``dict merge`` is chained at the compiler
+                        # level; the runtime helper takes pairs.
+                        needed.add("tcl_dict_merge_pair")
                 elif cmd == "string" and len(parts) > 1:
                     subcmd = parts[1]
                     if subcmd in _STRING_SUBCMD_IMPORT:
                         needed.add(_STRING_SUBCMD_IMPORT[subcmd])
+                    elif subcmd == "cat":
+                        # ``string cat`` is variadic no-trim concat.
+                        # Register ``tcl_append`` so the runtime path
+                        # is always reachable.
+                        needed.add("tcl_append")
                     elif subcmd == "is":
                         # "string is <class> <value>" — extract class name
                         rest = parts[2] if len(parts) > 2 else ""
@@ -394,18 +418,35 @@ def _scan_needed_imports(
             case IRCall(command=command, args=args):
                 if command in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[command][0])
+                    if command == "puts":
+                        # Include the -nonewline helper alongside tcl_puts
+                        # so the dispatch path can choose between them.
+                        needed.add("tcl_puts_nonewline")
                 elif command == "string" and args and args[0] in _STRING_SUBCMD_IMPORT:
                     needed.add(_STRING_SUBCMD_IMPORT[args[0]])
                 elif command == "string" and args and args[0] == "is" and len(args) >= 3:
                     is_key = _STRING_IS_IMPORT.get(args[1])
                     if is_key:
                         needed.add(is_key)
+                elif command == "string" and args and args[0] == "cat":
+                    # ``string cat`` is variadic no-trim concat; the
+                    # runtime path leans on ``tcl_append`` when any arg
+                    # isn't a pure literal.
+                    needed.add("tcl_append")
                 elif command == "list":
                     # ``list $a $b ...`` with variable args uses tcl_lappend
                     # internally in _emit_list_value to quote each element.
                     needed.add("tcl_lappend")
                 elif command == "dict" and args and args[0] in _DICT_SUBCMD_IMPORT:
                     needed.add(_DICT_SUBCMD_IMPORT[args[0]])
+                elif command == "dict" and args and args[0] == "create":
+                    # ``dict create`` with non-literal k/v args
+                    # folds at runtime via ``tcl_lappend`` so
+                    # values with whitespace / braces survive
+                    # (concat would trim them).
+                    needed.add("tcl_lappend")
+                elif command == "dict" and args and args[0] == "merge":
+                    needed.add("tcl_dict_merge_pair")
                 elif command == "global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")

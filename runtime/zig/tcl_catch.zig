@@ -47,10 +47,20 @@ pub export fn catch_set_ok_result(val: i32) void {
     }
 }
 
+// ``catch_leave`` clears ``error_flag`` so surrounding (non-catch)
+// code doesn't see a stale pending error.  But ``catch_result`` is
+// called AFTER ``catch_leave`` to populate the result variable, so it
+// needs its own snapshot of "did this catch fire?".  Without the
+// snapshot, ``catch_result`` saw ``error_flag == 0`` and returned
+// ``catch_ok_result`` (0) for every error-catching case, so
+// ``catch {error boom} msg`` produced ``msg == ""``.
+pub var last_catch_had_error: u32 = 0;
+
 // Exported: leave a catch scope. Returns 0 (TCL_OK) or 1 (TCL_ERROR).
 pub export fn catch_leave() i32 {
     if (catch_depth > 0) catch_depth -= 1;
     const had_error = error_flag;
+    last_catch_had_error = had_error;
     error_flag = 0;
     return obj_new_int(@intCast(had_error));
 }
@@ -59,7 +69,7 @@ pub export fn catch_leave() i32 {
 // Returns the error message when an error occurred, or the body's
 // last-command result (set by ``catch_set_ok_result``) on success.
 pub export fn catch_result() i32 {
-    if (error_flag != 0) return error_msg;
+    if (last_catch_had_error != 0) return error_msg;
     return catch_ok_result;
 }
 

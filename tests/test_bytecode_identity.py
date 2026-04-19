@@ -391,10 +391,33 @@ _REF_DIR = _find_reference_dir()
 # Snippets where our instruction stream does not yet match tclsh 9.0.
 # As our compiler improves, remove entries and the tests will enforce
 # the match going forward (any unexpected regression becomes a failure).
-_KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(set())
+_KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
+    {
+        # tclsh emits a generic ``invokeStk`` fallback for ``switch
+        # -glob`` and lets the ``switch`` command do runtime glob
+        # matching.  We compile it inline via ``_emit_switch`` +
+        # ``tcl_string_match`` so every -glob dispatch stays in the
+        # compiled frame (the runtime interpreter has no ``switch``
+        # command; the old tclsh-shape barrier trapped with
+        # ``unknown command: switch``).  Correctness over
+        # bytecode-identity: the inline path produces the right
+        # answer but diverges from tclsh's instruction stream.
+        "61_switch_glob",
+        "171_switch_glob_patterns",
+    }
+)
 
 # Snippets where our literal table does not yet match tclsh 9.0.
-_KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(set())
+_KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
+    {
+        # ``switch -glob`` inline dispatch doesn't emit ``switch`` /
+        # ``-glob`` / the raw body as separate literals — tclsh does
+        # because it uses a generic runtime invoke.  Paired with the
+        # same snippets in _KNOWN_INSTRUCTION_MISMATCHES.
+        "61_switch_glob",
+        "171_switch_glob_patterns",
+    }
+)
 
 
 def _maybe_xfail(

@@ -701,6 +701,26 @@ class _WasmEmitter:
             func_idx, n_params = proc_info
             qname = self._resolve_proc_qname(cmd_name)
             defaults = self._proc_defaults.get(qname, ()) if qname else ()
+            has_args_tail = qname is not None and qname in self._proc_args_tail
+            if has_args_tail and n_params > 0:
+                # ``proc p {... args}``: pack all surplus call-site args
+                # into a list TclObj for the trailing slot.  Without
+                # this branch the value-context dispatcher emitted the
+                # first argument into the ``args`` slot and silently
+                # dropped the rest (so ``p 1 2 3`` arrived as
+                # ``args == 1``).
+                fixed = n_params - 1
+                for i in range(min(fixed, len(cmd_args))):
+                    self._emit_value(cmd_args[i])
+                for slot in range(len(cmd_args), fixed):
+                    default = defaults[slot] if slot < len(defaults) else None
+                    if default is None:
+                        self._emit_default_arg()
+                    else:
+                        self._emit_obj_literal(default)
+                self._emit_args_list(tuple(cmd_args[fixed:]))
+                self._emit_call(func_idx)
+                return
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
             # Missing args: emit the declared default (as a string
@@ -725,6 +745,57 @@ class _WasmEmitter:
         # dict sub-command in value context — returns i32 TclObj
         if cmd_name == "dict" and cmd_args:
             subcmd = cmd_args[0]
+            # ``dict merge ?d1 d2 ...?`` — variadic.  Chain
+            # pairwise merges via the runtime helper; source always
+            # wins on duplicate keys.  Zero args → empty dict.
+            if subcmd == "merge":
+                sub_args = cmd_args[1:]
+                merge_idx = self._shared_imports.get("tcl_dict_merge_pair")
+                if not sub_args:
+                    self._emit_obj_literal("")
+                    return
+                if merge_idx is None:
+                    self._emit_value(sub_args[0])
+                    return
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(merge_idx)
+                return
+            # ``dict create`` — the runtime helper returns empty and
+            # ignores its args, so build the k/v pair list at the
+            # compiler level.  Pure literals fold to a compile-time
+            # string; anything else chains ``tcl_lappend`` which
+            # re-quotes each element canonically.  Using ``tcl_concat``
+            # here was wrong — concat trims leading/trailing whitespace
+            # from every argument, so ``dict create $k $v`` with
+            # whitespace-containing values would silently discard the
+            # outer spaces (and fail to brace-wrap list-valued keys).
+            if subcmd == "create":
+                kv = cmd_args[1:]
+                if not kv:
+                    self._emit_obj_literal("")
+                    return
+                if all(
+                    not a.startswith("$")
+                    and not a.startswith("[")
+                    and not self._has_embedded_subst(a)
+                    and a not in self._aliases
+                    and a not in self._local_index
+                    for a in kv
+                ):
+                    self._emit_obj_literal(" ".join(kv))
+                    return
+                lappend_idx = self._shared_imports.get("tcl_lappend")
+                if lappend_idx is None:
+                    self._emit_eval_fallback(cmd_name, tuple(cmd_args))
+                    return
+                # Start with empty list; lappend each k/v in order.
+                self._emit_obj_literal("")
+                for elem in kv:
+                    self._emit_value(elem)
+                    self._emit_call(lappend_idx)
+                return
             import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
             if import_key is not None and import_key in self._shared_imports:
                 func_idx = self._shared_imports[import_key]
@@ -743,6 +814,35 @@ class _WasmEmitter:
         # string sub-command in value context
         if cmd_name == "string" and cmd_args:
             subcmd = cmd_args[0]
+            # ``string cat`` — variadic, no-trim concat.  Fold pure
+            # literals; chain ``tcl_append`` for mixed cases.
+            if subcmd == "cat":
+                sub_args = cmd_args[1:]
+                if not sub_args:
+                    self._emit_obj_literal("")
+                    return
+                if all(
+                    not a.startswith("$")
+                    and not a.startswith("[")
+                    and not self._has_embedded_subst(a)
+                    and a not in self._aliases
+                    and a not in self._local_index
+                    for a in sub_args
+                ):
+                    self._emit_obj_literal("".join(sub_args))
+                    return
+                # Non-literal path — chain ``tcl_append``.  The scan
+                # pass registers the import whenever ``string cat``
+                # appears, so the fall-through below is defensive.
+                append_idx = self._shared_imports.get("tcl_append")
+                if append_idx is None:
+                    self._emit_eval_fallback("string", cmd_args)
+                    return
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(append_idx)
+                return
             import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
             if import_key is not None and import_key in self._shared_imports:
                 func_idx = self._shared_imports[import_key]
@@ -815,10 +915,19 @@ class _WasmEmitter:
             if func_idx is not None:
                 spec = _RUNTIME_IMPORTS[import_key]
                 param_count = len(spec[2])
-                for i in range(min(param_count, len(cmd_args))):
-                    self._emit_value(cmd_args[i])
-                for _ in range(param_count - len(cmd_args)):
-                    self._emit_i32_const(0)
+                if cmd_name in ("lsort",) and len(cmd_args) > param_count:
+                    # ``lsort ?-switches? list`` — runtime export is
+                    # the no-switch form; grab the trailing positional
+                    # list rather than treating ``-integer`` as the list
+                    # itself and returning the single-element result.
+                    self._emit_value(cmd_args[-1])
+                    for _ in range(param_count - 1):
+                        self._emit_i32_const(0)
+                else:
+                    for i in range(min(param_count, len(cmd_args))):
+                        self._emit_value(cmd_args[i])
+                    for _ in range(param_count - len(cmd_args)):
+                        self._emit_i32_const(0)
                 self._emit_call(func_idx)
                 if not spec[3]:
                     self._emit_i32_const(0)
@@ -1296,14 +1405,24 @@ class _WasmEmitter:
         as atomic units.  Braces and quotes are stripped from the
         resulting word so downstream emission sees the raw content
         (e.g. ``{5}`` becomes ``5``).
+
+        ``\\<newline>`` is Tcl line-continuation whitespace — it
+        collapses to a single space between words (TclParseAllWhiteSpace).
+        Without treating it as whitespace here a bare backslash would
+        leak into the argv as its own word.
         """
         parts: list[str] = []
         i = 0
         n = len(text)
         while i < n:
-            # Skip whitespace
-            while i < n and text[i] in " \t\n":
-                i += 1
+            # Skip whitespace, including ``\<newline>`` line-continuation.
+            while i < n:
+                if text[i] in " \t\n":
+                    i += 1
+                elif text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
+                    i += 2
+                else:
+                    break
             if i >= n:
                 break
             # Braced argument — keep outer braces so _emit_value can
@@ -1352,6 +1471,12 @@ class _WasmEmitter:
             else:
                 start = i
                 while i < n and text[i] not in " \t\n":
+                    # ``\<newline>`` terminates the word — the
+                    # line-continuation collapses to a space which is a
+                    # word separator.  Without this the backslash is
+                    # captured as a literal byte in the word span.
+                    if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
+                        break
                     # Handle nested brackets within bare words
                     if text[i] == "[":
                         depth = 1
@@ -1368,9 +1493,16 @@ class _WasmEmitter:
         return parts
 
     def _emit_literal(self, value: str) -> None:
-        """Emit a literal as a raw i64 constant (for expression context)."""
+        """Emit a literal as a raw i64 constant (for expression context).
+
+        ``int(value, 0)`` (not bare ``int(value)``) handles Tcl's
+        ``0x``/``0o``/``0b`` prefixes as well as decimal integers.  The
+        old ``int(value)`` path raised ``ValueError`` on ``0x10`` and
+        fell through to ``float("0x10")`` (also an error) and finally
+        to ``0`` — so ``expr {0x10 + 1}`` evaluated to ``1``.
+        """
         try:
-            int_val = int(value)
+            int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
             self._emit_i64_const(int_val)
         except ValueError:
             try:
@@ -1439,11 +1571,32 @@ class _WasmEmitter:
             self._emit(WasmOp.I64_XOR)
         elif op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
             self._emit_str_cmp(op, left, right)
+        elif op in (BinOp.IN, BinOp.NI):
+            self._emit_in(op, left, right)
         else:
             # Unsupported binary op — emit operands and drop
             self._emit_expr(left)
             self._emit_expr(right)
             self._emit(WasmOp.I64_ADD)  # placeholder
+
+    def _emit_in(self, op: BinOp, left: ExprNode, right: ExprNode) -> None:
+        """Emit ``expr {x in list}`` / ``x ni list``.
+
+        Evaluates each operand as a TclObj, calls ``tcl_cmd_list_contains``,
+        and unboxes to i64. For ``ni`` the result is XORed with 1.
+        """
+        contains_idx = self._shared_imports.get("tcl_list_contains")
+        if contains_idx is None:
+            # Runtime helper missing — best effort: always false.
+            self._emit_i64_const(0)
+            return
+        self._emit_str_value(right)  # list
+        self._emit_str_value(left)  # value
+        self._emit_call(contains_idx)
+        self._emit_unbox_int()
+        if op == BinOp.NI:
+            self._emit_i64_const(1)
+            self._emit(WasmOp.I64_XOR)
 
     def _emit_str_eq(self, left: ExprNode, right: ExprNode) -> None:
         """Emit string equality comparison — result is i64 (0 or 1).
@@ -1708,8 +1861,13 @@ class _WasmEmitter:
         self._emit(WasmOp.END)
 
     def _emit_func_call(self, func: str, args: tuple[ExprNode, ...]) -> None:
-        """Emit a math function call."""
-        # For now, inline simple math functions
+        """Emit a math function call.
+
+        Integer-valued built-ins are inlined.  Float-valued ones
+        (sqrt, log, sin, ...) still need float infrastructure through
+        the IR; they fall through to the ``0`` placeholder and will
+        be picked up in a follow-up.
+        """
         if func == "abs" and len(args) == 1:
             # abs(x) = x < 0 ? -x : x
             tmp = self._add_extra_local("_abs_tmp")
@@ -1724,36 +1882,54 @@ class _WasmEmitter:
             self._emit(WasmOp.ELSE)
             self._emit_local_get(tmp)
             self._emit(WasmOp.END)
-        elif func == "min" and len(args) == 2:
-            tmp_a = self._add_extra_local("_min_a")
-            tmp_b = self._add_extra_local("_min_b")
+        elif func == "min" and len(args) >= 2:
+            # Variadic min: fold over args by pairwise I64_LT_S compare.
+            running = self._add_extra_local("_min_acc")
             self._emit_expr(args[0])
-            self._emit_local_set(tmp_a)
-            self._emit_expr(args[1])
-            self._emit_local_set(tmp_b)
-            self._emit_local_get(tmp_a)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.I64_LT_S)
-            self._emit(WasmOp.IF, bytes([_BLOCK_I64]))
-            self._emit_local_get(tmp_a)
-            self._emit(WasmOp.ELSE)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.END)
-        elif func == "max" and len(args) == 2:
-            tmp_a = self._add_extra_local("_max_a")
-            tmp_b = self._add_extra_local("_max_b")
+            self._emit_local_set(running)
+            for arg in args[1:]:
+                candidate = self._add_extra_local("_min_cand")
+                self._emit_expr(arg)
+                self._emit_local_tee(candidate)
+                self._emit_local_get(running)
+                self._emit(WasmOp.I64_LT_S)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit_local_get(candidate)
+                self._emit_local_set(running)
+                self._emit(WasmOp.END)
+            self._emit_local_get(running)
+        elif func == "max" and len(args) >= 2:
+            running = self._add_extra_local("_max_acc")
             self._emit_expr(args[0])
-            self._emit_local_set(tmp_a)
-            self._emit_expr(args[1])
-            self._emit_local_set(tmp_b)
-            self._emit_local_get(tmp_a)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.I64_GT_S)
-            self._emit(WasmOp.IF, bytes([_BLOCK_I64]))
-            self._emit_local_get(tmp_a)
-            self._emit(WasmOp.ELSE)
-            self._emit_local_get(tmp_b)
-            self._emit(WasmOp.END)
+            self._emit_local_set(running)
+            for arg in args[1:]:
+                candidate = self._add_extra_local("_max_cand")
+                self._emit_expr(arg)
+                self._emit_local_tee(candidate)
+                self._emit_local_get(running)
+                self._emit(WasmOp.I64_GT_S)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit_local_get(candidate)
+                self._emit_local_set(running)
+                self._emit(WasmOp.END)
+            self._emit_local_get(running)
+        elif func in ("int", "entier", "wide") and len(args) == 1:
+            # Integer cast is a no-op at the i64 level — the operand is
+            # already evaluated to i64.  Tcl's ``int`` / ``entier`` /
+            # ``wide`` all produce a platform-native integer from a
+            # numeric value; in our i64 VM they're identity.
+            self._emit_expr(args[0])
+        elif func == "bool" and len(args) == 1:
+            # bool(x) == x != 0
+            self._emit_expr(args[0])
+            self._emit_i64_const(0)
+            self._emit(WasmOp.I64_NE)
+            self._emit(WasmOp.I64_EXTEND_I32_S)
+        elif func == "pow" and len(args) == 2:
+            # Delegate to the existing integer-power loop.  Float pow
+            # isn't covered; callers with float operands hit this path
+            # and get truncated-integer power.
+            self._emit_power(args[0], args[1])
         else:
             # Unknown function — push 0
             self._emit_i64_const(0)
@@ -1808,7 +1984,9 @@ class _WasmEmitter:
         match node:
             case ExprLiteral(text=value):
                 try:
-                    return int(value)
+                    # ``int(value, 0)`` handles the Tcl ``0x``/``0o``/``0b``
+                    # prefixes alongside plain decimals.
+                    return int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
                 except ValueError:
                     return None
             case ExprVar(name=name, text=text):
@@ -3620,6 +3798,48 @@ class _WasmEmitter:
             self._emit_unsupported_trap("string (no subcommand)")
             return
         subcmd = args[0]
+        # ``string cat ?arg ...?`` — variadic concatenation.  No runtime
+        # helper exists; fold pure literal args at compile time and
+        # chain ``tcl_concat`` for the mixed case.  Note: Tcl's
+        # ``string cat`` does NOT trim whitespace, unlike ``concat`` —
+        # reimplement the loop by hand (``tcl_append`` is the closest
+        # no-trim runtime helper).
+        if subcmd == "cat":
+            sub_args = args[1:]
+            if not sub_args:
+                self._emit_obj_literal("")
+            elif all(
+                not a.startswith("$")
+                and not a.startswith("[")
+                and not self._has_embedded_subst(a)
+                and a not in self._aliases
+                and a not in self._local_index
+                for a in sub_args
+            ):
+                self._emit_obj_literal("".join(sub_args))
+            else:
+                # Non-literal path — chain ``tcl_append``.  The scan
+                # pass registers the import when ``string cat``
+                # appears; defensive fall-through to eval otherwise.
+                append_idx = self._shared_imports.get("tcl_append")
+                if append_idx is None:
+                    self._emit_eval_fallback("string", args)
+                    if defs:
+                        def_idx = self._intern_local(defs[0])
+                        self._emit_local_set(def_idx)
+                    else:
+                        self._emit(WasmOp.DROP)
+                    return
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(append_idx)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
         # Handle "string is <class> ?-strict? <value>"
         if subcmd == "is" and len(args) >= 3:
             class_name = args[1]
@@ -3666,6 +3886,78 @@ class _WasmEmitter:
             self._emit_unsupported_trap("dict (no subcommand)")
             return
         subcmd = args[0]
+        # ``dict merge`` — chain pair-merges in statement context too.
+        if subcmd == "merge":
+            sub_args = args[1:]
+            merge_idx = self._shared_imports.get("tcl_dict_merge_pair")
+            if not sub_args:
+                self._emit_obj_literal("")
+            elif merge_idx is None:
+                self._emit_value(sub_args[0])
+            else:
+                self._emit_value(sub_args[0])
+                for rest in sub_args[1:]:
+                    self._emit_value(rest)
+                    self._emit_call(merge_idx)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
+        # ``dict create k1 v1 k2 v2 ...`` — the runtime helper ignores
+        # arguments (always returns the empty dict), so assemble the
+        # key/value pairs at the compiler level.  Literal args fold
+        # to a compile-time list; non-literals chain ``tcl_lappend``
+        # which re-quotes each element canonically.  Using
+        # ``tcl_concat`` was incorrect: concat trims whitespace and
+        # doesn't list-quote, so keys/values containing spaces or
+        # braces would be silently mangled.
+        if subcmd == "create":
+            kv = args[1:]
+            if not kv:
+                self._emit_obj_literal("")
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+            if all(
+                not a.startswith("$")
+                and not a.startswith("[")
+                and not self._has_embedded_subst(a)
+                and a not in self._aliases
+                and a not in self._local_index
+                for a in kv
+            ):
+                self._emit_obj_literal(" ".join(kv))
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+            lappend_idx = self._shared_imports.get("tcl_lappend")
+            if lappend_idx is None:
+                self._emit_eval_fallback("dict", args)
+                if defs:
+                    def_idx = self._intern_local(defs[0])
+                    self._emit_local_set(def_idx)
+                else:
+                    self._emit(WasmOp.DROP)
+                return
+            # Start with empty list, lappend each k/v in order.
+            self._emit_obj_literal("")
+            for elem in kv:
+                self._emit_value(elem)
+                self._emit_call(lappend_idx)
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
+            return
         import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
         if import_key is not None and import_key in self._shared_imports:
             func_idx = self._shared_imports[import_key]
@@ -4381,6 +4673,19 @@ class _WasmEmitter:
 
         # For puts, handle optional channel argument: puts ?-nonewline? ?channelId? string
         if command == "puts":
+            # ``puts -nonewline <string>`` dispatches to a newline-
+            # suppressing runtime helper.  Channel-id forms (e.g.
+            # ``puts stdout foo``) still fall through to the default
+            # tcl_cmd_puts call.
+            nonewline = len(args) >= 2 and args[0] == "-nonewline"
+            if nonewline:
+                no_nl_idx = self._shared_imports.get("tcl_puts_nonewline")
+                if no_nl_idx is not None:
+                    self._emit_value(args[-1])
+                    self._emit_call(no_nl_idx)
+                    if spec[3]:
+                        self._emit(WasmOp.DROP)
+                    return
             # Use the last argument as the string value
             if args:
                 self._emit_value(args[-1])
@@ -4427,12 +4732,24 @@ class _WasmEmitter:
                 self._emit(WasmOp.DROP)
             return
 
-        # Generic: push args up to param_count (all i32 TclObj pointers)
-        for i in range(min(param_count, len(args))):
-            self._emit_value(args[i])
-        # Pad missing args with null TclObj
-        for _ in range(param_count - len(args)):
-            self._emit_i32_const(0)
+        # ``lsort``/``lsearch``/``lindex``-style commands accept a
+        # trailing positional ``list`` preceded by optional ``-switches``.
+        # The runtime export is the no-switch form, so when extra args
+        # are present pick the trailing positional as the list rather
+        # than the leading ``-option`` token — otherwise ``lsort
+        # -integer {3 1 2}`` would dispatch with the list ``-integer``
+        # and produce the single-element result ``-integer``.
+        if command in ("lsort",) and len(args) > param_count:
+            self._emit_value(args[-1])
+            for _ in range(param_count - 1):
+                self._emit_i32_const(0)
+        else:
+            # Generic: push args up to param_count (all i32 TclObj pointers)
+            for i in range(min(param_count, len(args))):
+                self._emit_value(args[i])
+            # Pad missing args with null TclObj
+            for _ in range(param_count - len(args)):
+                self._emit_i32_const(0)
 
         self._emit_call(func_idx)
 
@@ -4634,7 +4951,15 @@ class _WasmEmitter:
 
         Calls ``list_length`` to get the element count, then iterates
         with a counter calling ``list_index`` on each iteration to
-        extract the element and assign it to the loop variable.
+        extract each per-iteration element and assign it to the
+        corresponding loop variable.  ``foreach {a b} {1 2 3 4} …``
+        groups elements in pairs (or n-tuples when there are n vars);
+        the counter advances by ``len(first_vars)`` each iteration.
+
+        The body runs once more when the list length isn't a multiple
+        of the variable count, with the trailing variable(s) bound to
+        the empty string — matching reference Tcl semantics (see
+        ``foreach`` manual page).
 
         Internal counter/limit are i64; the loop variable and list
         are i32 TclObj pointers.
@@ -4644,6 +4969,7 @@ class _WasmEmitter:
         list_local = self._add_extra_local("_foreach_list", ValType.I32)
 
         first_vars, first_list = iterators[0]
+        step = max(len(first_vars), 1)
 
         # Store the list TclObj for repeated list_index calls
         self._emit_value(first_list)
@@ -4674,18 +5000,27 @@ class _WasmEmitter:
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # element = list_index(list, counter)
+        # For each loop variable: load list_index(list, counter+slot)
+        # and assign.  When ``counter + slot >= limit`` the runtime
+        # returns the empty-string TclObj, so trailing slots in the
+        # last iteration bind to "" as expected.
         lindex_idx = self._shared_imports.get("tcl_list_index")
-        if first_vars:
-            var_local = self._intern_local(first_vars[0])
+        for slot, var_name in enumerate(first_vars):
+            var_local = self._intern_local(var_name)
             if lindex_idx is not None:
                 self._emit_local_get(list_local)
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()  # index as TclObj
                 self._emit_call(lindex_idx)
             else:
                 # Fallback: use counter as element value
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
             self._emit_local_set(var_local)
 
@@ -4697,9 +5032,9 @@ class _WasmEmitter:
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
-        # counter++
+        # counter += step
         self._emit_local_get(counter)
-        self._emit_i64_const(1)
+        self._emit_i64_const(step)
         self._emit(WasmOp.I64_ADD)
         self._emit_local_set(counter)
 
@@ -4871,8 +5206,12 @@ class _WasmEmitter:
         ``unset``, etc.) we push a null TclObj (0) as the result.
         """
         from ...ir import (
+            IRAssignConst,
+            IRAssignExpr,
+            IRAssignValue,
             IRBarrier,
             IRCall,
+            IRCatch,
             IRExprEval,
             IRIncr,
         )
@@ -4906,6 +5245,16 @@ class _WasmEmitter:
             case IRExprEval(expr=expr):
                 self._emit_expr(expr)
                 self._emit_box_int()
+            case IRCatch(body=inner_body, result_var=inner_result_var):
+                # Nested ``catch`` as the last stmt of the outer body —
+                # emit with ``keep_on_stack=True`` so the inner catch's
+                # return code (0 or 1) lands on the stack for the outer
+                # catch_set_ok_result to latch.  Without this branch the
+                # default case below would fall through to _emit_stmt
+                # (which drops the inner result) and then push a null,
+                # turning ``catch {catch {error x} m1} m2`` into
+                # ``m2 == ""``.
+                self._emit_catch(inner_body, inner_result_var, keep_on_stack=True)
             case IRIncr(name=name, amount=amount):
                 # Mimic the incr emitter (keep value on stack)
                 self._emit_var_read_obj(name)
@@ -4924,8 +5273,32 @@ class _WasmEmitter:
                     self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
                 self._emit_var_write_obj_keep(name)
+            case IRAssignConst(name=name, value=value):
+                # ``set x 42`` in tail position — store + keep the
+                # assigned object on the stack so ``catch_set_ok_result``
+                # records the new value.  Without this, ``catch {set x
+                # 42} msg`` emitted a null and ``msg`` came back empty.
+                self._emit_obj_literal(value)
+                self._emit_var_write_obj_keep(name)
+                if self._optimise and name not in self._aliases:
+                    try:
+                        self._const_map[name] = int(value)
+                    except ValueError:
+                        self._const_map.pop(name, None)
+            case IRAssignValue(name=name, value=value):
+                # ``set x $something`` — evaluate the RHS, store, keep.
+                self._emit_value(value)
+                self._emit_var_write_obj_keep(name)
+                if self._optimise:
+                    self._const_map.pop(name, None)
+            case IRAssignExpr(name=name, expr=expr):
+                self._emit_expr(expr)
+                self._emit_box_int()
+                self._emit_var_write_obj_keep(name)
+                if self._optimise:
+                    self._const_map.pop(name, None)
             case _:
-                # All other statement types (assign, scoping, etc.):
+                # All other statement types (declarations, scoping, etc.):
                 # emit normally, then push a null result.
                 self._emit_stmt(stmt)
                 self._emit_i32_const(0)
@@ -5195,15 +5568,26 @@ class _WasmEmitter:
     ) -> None:
         """Emit a WASM block/loop for a CFG for/while loop pattern.
 
-        Structure: ``block { loop { br_if(exit) ; body ; br(loop) } }``
-        The header block is the loop test; the body is everything
-        reachable from *body_start* that eventually loops back to *header*.
+        Structure: ``block { loop { br_if(exit); block { body };
+        step; br(loop) } }``.  The *step* block (for-loop
+        ``next_script``) is emitted **outside** the inner continue
+        block so ``continue`` — which ``br``s out of the inner block
+        — still runs the step before looping back to the header.
+        Without this, ``for {set i 0} {$i<5} {incr i} {if {$i==2}
+        continue; ...}`` would skip the incr and spin forever.
+
+        Detection: the step block is any CFG block that (a) is
+        reachable from *body_start* and (b) terminates with
+        ``CFGGoto(header)``.  For ``while`` loops no such block
+        exists, so the inner body is just the loop body as before.
         """
         # Mark the header as visited to prevent re-entry from the back-edge
         self._visited.add(header)
         # Track header so nested _is_loop_header walks don't confuse
         # outer back-edges with new nested loops.
         self._active_loop_headers.add(header)
+
+        step_block = self._find_step_block(body_start, header)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
@@ -5219,12 +5603,27 @@ class _WasmEmitter:
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
 
+        # Reserve the step block so ``_emit_loop_body`` stops before it
+        # (treating its incoming goto as a "back-edge via step").
+        if step_block is not None:
+            self._visited.add(step_block)
+
         # Emit body blocks
         self._emit_loop_body(body_start, header)
 
         self._loop_ctrl_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
+
+        # Emit the step block (if any) AFTER the continue block so
+        # `continue` still runs it.
+        if step_block is not None:
+            self._visited.discard(step_block)
+            step_blk = self._cfg.blocks.get(step_block)
+            if step_blk is not None:
+                self._visited.add(step_block)
+                for stmt in step_blk.statements:
+                    self._emit_stmt(stmt)
 
         # Loop back
         self._emit_br(0)
@@ -5235,6 +5634,38 @@ class _WasmEmitter:
 
         # Continue with the exit block
         self._emit_block(exit_block)
+
+    def _find_step_block(self, body_start: str, header: str) -> str | None:
+        """Return the for-loop step block (``next_script``) in the body
+        subgraph of a CFG loop, or ``None`` for while loops.
+
+        The CFG builder names for-loop step blocks ``for_step_N``; any
+        block with that prefix that (a) is reachable from *body_start*
+        and (b) ``CFGGoto``-s back to *header* is the step block.
+        Restricting to that name avoids mis-hoisting trailing body
+        blocks of while-loops (which also goto the header but run on
+        every iteration and must not be skipped by ``continue``).
+        """
+        visited: set[str] = set()
+        stack = [body_start]
+        while stack:
+            name = stack.pop()
+            if name in visited or name == header:
+                continue
+            visited.add(name)
+            blk = self._cfg.blocks.get(name)
+            if blk is None:
+                continue
+            term = blk.terminator
+            match term:
+                case CFGGoto(target=target):
+                    if target == header and name.startswith("for_step_"):
+                        return name
+                    stack.append(target)
+                case CFGBranch(true_target=tt, false_target=ft):
+                    stack.append(tt)
+                    stack.append(ft)
+        return None
 
     def _emit_loop_body(self, start: str, header: str) -> None:
         """Emit all blocks reachable from *start* until reaching *header*.
@@ -5333,14 +5764,16 @@ class _WasmEmitter:
         Internal counter/limit are i64; the loop variable is i32 TclObj.
         """
         list_var: str | None = None
-        loop_var: str | None = None
+        loop_vars: tuple[str, ...] = ()
         for stmt in header_stmts:
             if isinstance(stmt, IRCall) and stmt.command == "foreach":
                 if stmt.args:
                     list_var = stmt.args[0]
                 if stmt.defs:
-                    loop_var = stmt.defs[0]
+                    loop_vars = stmt.defs
                 break
+
+        step = max(len(loop_vars), 1)
 
         counter = self._add_extra_local("_foreach_i")
         limit = self._add_extra_local("_foreach_n")
@@ -5377,17 +5810,26 @@ class _WasmEmitter:
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # element = list_index(list, counter)
+        # For each loop variable: load list_index(list, counter+slot)
+        # and assign.  Past-end slots in the final iteration receive
+        # empty-string TclObjs from the runtime, matching reference
+        # Tcl's ``foreach {a b} {1 2 3}`` semantics (b="" last iter).
         lindex_idx = self._shared_imports.get("tcl_list_index")
-        if loop_var is not None:
-            var_local = self._intern_local(loop_var)
+        for slot, var_name in enumerate(loop_vars):
+            var_local = self._intern_local(var_name)
             if lindex_idx is not None:
                 self._emit_local_get(list_local)
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
                 self._emit_call(lindex_idx)
             else:
                 self._emit_local_get(counter)
+                if slot > 0:
+                    self._emit_i64_const(slot)
+                    self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
             self._emit_local_set(var_local)
 
@@ -5409,9 +5851,9 @@ class _WasmEmitter:
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
-        # counter++
+        # counter += step (len(loop_vars), defaulting to 1 for single-var)
         self._emit_local_get(counter)
-        self._emit_i64_const(1)
+        self._emit_i64_const(step)
         self._emit(WasmOp.I64_ADD)
         self._emit_local_set(counter)
 

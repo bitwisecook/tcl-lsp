@@ -52,6 +52,7 @@ pub const global_exists = tcl_globals.global_exists;
 pub const tcl_incr = tcl_globals.tcl_incr;
 
 pub const tcl_cmd_puts = tcl_io.tcl_cmd_puts;
+pub const tcl_cmd_puts_nonewline = tcl_io.tcl_cmd_puts_nonewline;
 
 pub const tcl_cmd_append = tcl_string.tcl_cmd_append;
 pub const string_length = tcl_string.string_length;
@@ -69,6 +70,7 @@ pub const string_first = tcl_string.string_first;
 pub const string_last = tcl_string.string_last;
 pub const string_toupper = tcl_string.string_toupper;
 pub const string_tolower = tcl_string.string_tolower;
+pub const string_totitle = tcl_string.string_totitle;
 pub const string_reverse = tcl_string.string_reverse;
 pub const string_repeat = tcl_string.string_repeat;
 pub const string_replace = tcl_string.string_replace;
@@ -82,6 +84,11 @@ pub const tcl_list = tcl_list_mod.tcl_list;
 pub const tcl_cmd_list_index = tcl_list_mod.tcl_cmd_list_index;
 pub const tcl_cmd_list_range = tcl_list_mod.tcl_cmd_list_range;
 pub const tcl_cmd_list_sort = tcl_list_mod.tcl_cmd_list_sort;
+pub const tcl_cmd_list_reverse = tcl_list_mod.tcl_cmd_list_reverse;
+pub const tcl_cmd_list_repeat = tcl_list_mod.tcl_cmd_list_repeat;
+pub const tcl_cmd_list_insert = tcl_list_mod.tcl_cmd_list_insert;
+pub const tcl_cmd_list_replace = tcl_list_mod.tcl_cmd_list_replace;
+pub const tcl_cmd_list_contains = tcl_list_mod.tcl_cmd_list_contains;
 pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
 
 pub const dict_create = tcl_dict.dict_create;
@@ -91,6 +98,7 @@ pub const dict_exists = tcl_dict.dict_exists;
 pub const dict_keys = tcl_dict.dict_keys;
 pub const dict_values = tcl_dict.dict_values;
 pub const dict_size = tcl_dict.dict_size;
+pub const dict_merge_pair = tcl_dict.dict_merge_pair;
 
 pub const catch_enter = tcl_catch.catch_enter;
 pub const catch_leave = tcl_catch.catch_leave;
@@ -164,6 +172,7 @@ comptime {
     _ = &tcl_globals.tcl_incr;
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
+    _ = &tcl_io.tcl_cmd_puts_nonewline;
     // tcl_string exports
     _ = &tcl_string.tcl_cmd_append;
     _ = &tcl_string.string_compare;
@@ -183,6 +192,7 @@ comptime {
     _ = &tcl_string.string_reverse;
     _ = &tcl_string.string_toupper;
     _ = &tcl_string.string_tolower;
+    _ = &tcl_string.string_totitle;
     _ = &tcl_string.string_replace;
     _ = &tcl_string.string_is_integer;
     _ = &tcl_string.string_is_alpha;
@@ -198,11 +208,17 @@ comptime {
     _ = &tcl_list_mod.tcl_cmd_list_index;
     _ = &tcl_list_mod.tcl_cmd_list_range;
     _ = &tcl_list_mod.tcl_cmd_list_sort;
+    _ = &tcl_list_mod.tcl_cmd_list_reverse;
+    _ = &tcl_list_mod.tcl_cmd_list_repeat;
+    _ = &tcl_list_mod.tcl_cmd_list_insert;
+    _ = &tcl_list_mod.tcl_cmd_list_replace;
+    _ = &tcl_list_mod.tcl_cmd_list_contains;
     _ = &tcl_list_mod.tcl_cmd_list_search;
     // tcl_dict exports
     _ = &tcl_dict.dict_create;
     _ = &tcl_dict.dict_get;
     _ = &tcl_dict.dict_set;
+    _ = &tcl_dict.dict_merge_pair;
     _ = &tcl_dict.dict_exists;
     _ = &tcl_dict.dict_keys;
     _ = &tcl_dict.dict_values;
