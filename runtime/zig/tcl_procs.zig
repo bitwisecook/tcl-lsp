@@ -34,6 +34,43 @@ var proc_buf: u32 = 0;
 var proc_cap: u32 = 0;
 var proc_count: u32 = 0;
 
+// -- Proc lookup LRU cache --
+// Small MRU cache keyed by (hash, len, first_byte).  ``proc_lookup``
+// dominates dispatch-heavy bundles — tcltest bundles resolve the
+// same handful of procs (``test``, ``set``, ``if``, ``expr``,
+// ``lassign``, etc.) hundreds of times per file.  Caching skips the
+// hash-table probe (and the ``::name`` + linear-suffix namespace
+// fallback for unqualified names) when we've just seen the same
+// name.
+//
+// Correctness:
+// * ``(hash, len, first_byte)`` match → fall through to ``proc_find``
+//   with the cached bucket's saved key content for a final memcmp
+//   (the hash probe already does this, but with a bucket-pointer
+//   fast path we avoid the hash probe's ``read_i32`` per field).
+//   Collisions are rare; the miss cost is a second ``proc_find``
+//   call which is what we'd do without the cache anyway.
+// * Any registration / grow invalidates the cache — those paths
+//   zero the array.
+const LRU_SIZE: u32 = 4;
+var lru_hash: [LRU_SIZE]u32 = [_]u32{0} ** LRU_SIZE;
+var lru_len: [LRU_SIZE]u32 = [_]u32{0} ** LRU_SIZE;
+var lru_first_byte: [LRU_SIZE]u8 = [_]u8{0} ** LRU_SIZE;
+var lru_bucket: [LRU_SIZE]u32 = [_]u32{0} ** LRU_SIZE;
+
+/// Clear the LRU cache.  Called from every registration / grow path
+/// so the cache never returns a stale pointer after the hash table
+/// moves or a proc is redefined.
+fn lru_invalidate() void {
+    var i: u32 = 0;
+    while (i < LRU_SIZE) : (i += 1) {
+        lru_hash[i] = 0;
+        lru_len[i] = 0;
+        lru_first_byte[i] = 0;
+        lru_bucket[i] = 0;
+    }
+}
+
 fn proc_init() void {
     if (proc_buf != 0) return;
     proc_cap = PROC_INITIAL_CAP;
@@ -73,6 +110,9 @@ fn proc_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
 }
 
 fn proc_grow() void {
+    // Every bucket's address changes under the growth — anything
+    // in the LRU pointing at ``old_buf`` would become invalid.
+    lru_invalidate();
     const old_buf = proc_buf;
     const old_cap = proc_cap;
     proc_cap = old_cap * 2;
@@ -114,6 +154,11 @@ fn proc_grow() void {
 pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const sn = obj_ensure_string(name);
     proc_init();
+    // Any registration — whether a fresh insert, an update, or a
+    // trigger for ``proc_grow`` — could move or redefine a bucket
+    // the LRU points at.  Invalidate unconditionally; the cache is
+    // rebuilt on the next ``proc_lookup``.
+    lru_invalidate();
     const hash = fnv1a(sn.ptr, sn.len);
 
     // Count parameters from the params list
@@ -171,6 +216,7 @@ pub export fn proc_register_compiled(
 ) i32 {
     const sn = obj_ensure_string(name);
     proc_init();
+    lru_invalidate();
     const hash = fnv1a(sn.ptr, sn.len);
 
     // Update if exists
@@ -229,7 +275,67 @@ pub export fn proc_lookup(name: i32) i32 {
     if (proc_buf == 0) return 0;
     // 1. Exact match.
     const hash = fnv1a(sn.ptr, sn.len);
+
+    // LRU fast path.  Match on (hash, len, first_byte) to cheaply
+    // reject most misses before the memcmp; on a tentative hit do
+    // a ``proc_find`` against the same bucket to confirm under the
+    // rare hash+len+byte collision.  The LRU is entirely elided on
+    // a ``proc_buf == 0`` early-return above.
+    const first_byte: u8 = if (sn.len > 0) blk: {
+        const src: [*]const u8 = @ptrFromInt(sn.ptr);
+        break :blk src[0];
+    } else 0;
+    var slot: u32 = 0;
+    while (slot < LRU_SIZE) : (slot += 1) {
+        if (lru_bucket[slot] == 0) continue; // empty slot
+        if (lru_hash[slot] != hash) continue;
+        if (lru_len[slot] != sn.len) continue;
+        if (lru_first_byte[slot] != first_byte) continue;
+        // Tentative hit — verify the stored bucket still has a
+        // matching name.  ``proc_find`` walks the probe chain from
+        // the hash bucket; if the cache is stale (invalidated on
+        // any register/grow) we'll get a miss and fall through to
+        // the slow path.
+        if (proc_find(sn.ptr, sn.len, hash)) |base| {
+            if (base == lru_bucket[slot]) {
+                // Promote to slot 0.
+                if (slot != 0) {
+                    const h = lru_hash[slot];
+                    const l = lru_len[slot];
+                    const f = lru_first_byte[slot];
+                    const b = lru_bucket[slot];
+                    var j: u32 = slot;
+                    while (j > 0) : (j -= 1) {
+                        lru_hash[j] = lru_hash[j - 1];
+                        lru_len[j] = lru_len[j - 1];
+                        lru_first_byte[j] = lru_first_byte[j - 1];
+                        lru_bucket[j] = lru_bucket[j - 1];
+                    }
+                    lru_hash[0] = h;
+                    lru_len[0] = l;
+                    lru_first_byte[0] = f;
+                    lru_bucket[0] = b;
+                }
+                return @bitCast(base);
+            }
+        }
+        // Stale / collision — fall through to the slow path below.
+        break;
+    }
+
     if (proc_find(sn.ptr, sn.len, hash)) |base| {
+        // Insert at slot 0, shift others down.
+        var j: u32 = LRU_SIZE - 1;
+        while (j > 0) : (j -= 1) {
+            lru_hash[j] = lru_hash[j - 1];
+            lru_len[j] = lru_len[j - 1];
+            lru_first_byte[j] = lru_first_byte[j - 1];
+            lru_bucket[j] = lru_bucket[j - 1];
+        }
+        lru_hash[0] = hash;
+        lru_len[0] = sn.len;
+        lru_first_byte[0] = first_byte;
+        lru_bucket[0] = base;
         return @bitCast(base);
     }
     // Only fall through to namespace search for UNQUALIFIED names.
