@@ -2511,6 +2511,13 @@ class _WasmEmitter:
             self._emit_cmd_lassign(args, defs, keep_on_stack=False)
             return
 
+        # lset varName ?index ...? newValue — mutate a list element.
+        # Routed directly to the emitter so the generic fallback never
+        # sees ``lset`` (the runtime dispatch traps it as diagnostic).
+        if command == "lset" and len(args) >= 2:
+            self._emit_cmd_lset(args)
+            return
+
         # clock seconds / clicks / milliseconds — WASI-backed timer.
         if command == "clock" and args:
             self._emit_clock_value(args)
@@ -4373,6 +4380,94 @@ class _WasmEmitter:
                 return
         # Fall back to the interpreter for unsupported subcommands.
         self._emit_eval_fallback("clock", args)
+
+    def _emit_cmd_lset(self, args: tuple[str, ...]) -> None:
+        """``lset varName ?index ...? newValue`` — replace a list element.
+
+        Loads the current value of *varName*, builds an indices list
+        from the intermediate args, calls :func:`tcl_cmd_list_set` with
+        the source list / indices / new value, and writes the returned
+        list back into *varName*.  The result is also the new value,
+        matching Tcl's ``lset`` semantics ("returns the new value").
+
+        Arg shape:
+
+        * ``lset v newval``          — no indices (replace the whole
+          variable). The compiler normalises this to a plain ``set``
+          higher up, but the emitter still accepts it as a safety net.
+        * ``lset v i newval``        — single index (flat access).
+        * ``lset v i j k newval``    — multiple flat indices (nested).
+        * ``lset v {i j} newval``    — index list (nested).
+
+        The runtime helper expects the indices as a single TclObj list;
+        for the multi-arg shape we build that list at runtime with
+        ``tcl_list`` chaining (mirroring ``_emit_list_value``).  The
+        ``{i j}`` form arrives as a single braced arg and is passed
+        straight through.
+        """
+        if len(args) < 2:
+            # Safety net: malformed call — trap with diagnostic.
+            self._emit_unsupported_trap("lset (too few args)")
+            return
+
+        var_name = args[0]
+        new_value = args[-1]
+        index_args = args[1:-1]
+
+        list_set_idx = self._shared_imports.get("tcl_list_set")
+        if list_set_idx is None:
+            self._emit_unsupported_trap("lset (missing tcl_list_set)")
+            return
+
+        # Load current list value.
+        self._emit_var_read_obj(var_name)
+
+        # Build the indices TclObj.  Zero intermediate args means the
+        # indices list is empty; the runtime treats this as "replace
+        # the whole value" which matches ``lset v newval`` semantics.
+        # For a single index arg we emit it directly; for multiple
+        # args we build a list with ``tcl_list`` (two-arg concat).
+        if not index_args:
+            self._emit_obj_literal("")
+        elif len(index_args) == 1:
+            self._emit_value(index_args[0])
+        else:
+            # Chain tcl_list(a, b, c, …) as left-folded pairs:
+            # tcl_list(tcl_list(a, b), c), etc.  The runtime export is
+            # a two-arg list concat (see ``tcl_list.zig::tcl_list``).
+            tcl_list_idx = self._shared_imports.get("tcl_list_create")
+            if tcl_list_idx is None:
+                # No list-pair helper — degraded path: space-join the
+                # index args at compile time if they are all literals.
+                # Runtime quoting may differ from canonical Tcl list
+                # format, but the common ``lset v 1 1 val`` case keeps
+                # working.
+                joined = " ".join(str(a) for a in index_args)
+                self._emit_obj_literal(joined)
+            else:
+                self._emit_value(index_args[0])
+                for arg in index_args[1:]:
+                    self._emit_value(arg)
+                    self._emit_call(tcl_list_idx)
+
+        # Evaluate the new value.
+        self._emit_value(new_value)
+
+        # Call the runtime helper — result is the new list on the stack.
+        self._emit_call(list_set_idx)
+
+        # Stash + write back to the variable + keep the new value on
+        # the stack for value-context callers (lset returns the new
+        # value).  We use ``_emit_var_write_obj`` which consumes from
+        # the stack and writes; wrap with a stash so the value is not
+        # lost.
+        result_local = self._add_extra_local(prefix="_lset_result", val_type=ValType.I32)
+        self._emit_local_tee(result_local)
+        self._emit_var_write_obj(var_name)
+        # Clear const-tracking of *var_name* — we just mutated it to
+        # a non-constant value.
+        if self._optimise:
+            self._const_map.pop(var_name, None)
 
     def _emit_cmd_lassign(
         self,

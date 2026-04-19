@@ -350,6 +350,7 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "lrepeat": ("tcl_list_repeat", 2),
     "linsert": ("tcl_list_insert", 3),
     "lreplace": ("tcl_list_replace", 4),
+    "lset": ("tcl_list_set", 3),
     "lsearch": ("tcl_list_search", 2),
     "concat": ("tcl_concat", 2),
     "error": ("tcl_error", 1),
