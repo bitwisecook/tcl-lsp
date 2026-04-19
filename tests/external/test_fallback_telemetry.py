@@ -34,6 +34,42 @@ def test_summary_empty_for_pure_compile() -> None:
     assert summary["top_fallback_commands"] == []
 
 
+def test_nontrapping_runtime_command_skips_diag_site() -> None:
+    """``puts`` / ``append`` are classified non-trapping — no diag site.
+
+    Pure ``puts hello`` compiles through the runtime dispatch path
+    (``_emit_cmd_runtime``), which now skips the per-call
+    ``tcl_diag_set`` preamble for commands in
+    ``_CMD_RUNTIME_NONTRAPPING``.  The emitted DiagMap must have zero
+    sites for the compile.
+    """
+    _wasm, diag = _compile_tcl_with_diag("puts hello\n", "puts.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+    # ``append x "one"`` is statement-context mutate-var path — also
+    # goes through runtime dispatch without a diag site now.
+    _wasm, diag = _compile_tcl_with_diag('append x "one"\n', "append.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+
+def test_trapping_runtime_command_keeps_diag_site() -> None:
+    """Stub commands that raise ``unsupported command: X`` still
+    record a diag site so the stderr trap line resolves to source.
+
+    ``fconfigure`` routes through ``_CMD_RUNTIME`` but is NOT in
+    ``_CMD_RUNTIME_NONTRAPPING``: the compile emits a single
+    ``runtime``-kind diag site for it.
+    """
+    _wasm, diag = _compile_tcl_with_diag("fconfigure stdin -blocking 0\n", "trap_fconfigure.tcl")
+    runtime_sites = [s for s in diag.sites if s.kind == "runtime"]
+    assert any(s.command == "fconfigure" for s in runtime_sites), (
+        "fconfigure must keep its diag site (stub raises unsupported "
+        "command and stderr trap line needs to resolve)"
+    )
+
+
 def test_summary_none_diag_returns_zeroes() -> None:
     """Compile failed before a DiagMap could be produced — all zeroes."""
     summary = _summarise_diag(None)

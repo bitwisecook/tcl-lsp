@@ -80,6 +80,7 @@ from ._encoding import (
 from ._imports import (
     _CLOCK_SUBCMD_IMPORT,
     _CMD_RUNTIME,
+    _CMD_RUNTIME_NONTRAPPING,
     _DICT_SUBCMD_IMPORT,
     _RUNTIME_IMPORTS,
     _SCOPE_NOP_COMMANDS,
@@ -4800,13 +4801,18 @@ class _WasmEmitter:
             self._emit_unsupported_trap(command)
             return
 
-        # Record a diag site for *every* runtime-dispatched command so
-        # a trap inside the runtime (stubs raising ``unsupported
-        # command: X``, ``lappend`` erroring on a non-list value, etc.)
-        # is attributable to the right source location.  Three WASM
-        # bytes per call; negligible against the alternative of
-        # silent misattribution.
-        self._emit_diag_site(command, args=args, kind="runtime")
+        # Record a diag site for runtime-dispatched commands whose
+        # stubs can trap (``unsupported command: X`` from I/O / FS /
+        # event / coroutine stubs, ``regexp`` on bad patterns, dict /
+        # clock error paths, etc.) so stderr's ``tcl trap: site=<id>``
+        # line resolves to the right source location.  Commands in
+        # ``_CMD_RUNTIME_NONTRAPPING`` are total for every arg shape
+        # the codegen emits — ``puts``/``append``/``lappend``/``lindex``
+        # and friends never raise into ``tcl_diag``, so the per-call
+        # ``tcl_diag_set`` preamble (~4 WASM bytes + one DiagSite
+        # record) is pure overhead for them.
+        if command not in _CMD_RUNTIME_NONTRAPPING:
+            self._emit_diag_site(command, args=args, kind="runtime")
 
         spec = _RUNTIME_IMPORTS[import_key]
         param_count = len(spec[2])
