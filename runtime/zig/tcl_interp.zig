@@ -598,6 +598,109 @@ fn eval_command(words: []const i32) i32 {
         }
         return 0;
     }
+    if (str_eq(cmd, cmd_s.len, "lset")) {
+        // ``lset varName ?index ...? newValue``.  Shapes:
+        //   2 words:  ``lset v``         — error (handled by tcltest
+        //                                 with a normal "wrong # args"
+        //                                 that we don't synthesise yet).
+        //   3 words:  ``lset v newval``  — no indices; replace the
+        //                                 whole variable.
+        //   4 words:  ``lset v idx nv``  — single index.
+        //   N words:  ``lset v i1 i2 … nv`` — multiple indices.  Build a
+        //                                 combined indices list on the
+        //                                 fly via ``tcl_list`` pairs.
+        if (words.len >= 3) {
+            const current = frames.var_resolve(words[1]);
+            const newval = words[words.len - 1];
+            const indices: i32 = if (words.len == 3)
+                obj_new_string(0, 0)
+            else if (words.len == 4)
+                words[2]
+            else blk: {
+                var acc: i32 = rt.tcl_list(words[2], words[3]);
+                var wi3: u32 = 4;
+                while (wi3 + 1 < words.len) : (wi3 += 1) {
+                    acc = rt.tcl_list(acc, words[wi3]);
+                }
+                break :blk acc;
+            };
+            const result = rt.tcl_cmd_list_set(current, indices, newval);
+            _ = frames.var_set(words[1], result);
+            return result;
+        }
+        return 0;
+    }
+    if (str_eq(cmd, cmd_s.len, "linsert")) {
+        // ``linsert list index value1 ?value2 …?``.  The runtime's
+        // fixed-arity ``tcl_cmd_list_insert`` takes a single value, so
+        // for the multi-value form we chain calls with an index-ordering
+        // strategy that mirrors the compiler's ``_emit_cmd_runtime``:
+        // forward iteration for ``end`` / ``end-N`` (position re-
+        // resolves against the growing list) and reverse iteration for
+        // numeric indices (same index means same insertion point).
+        if (words.len >= 4) {
+            const list_arg = words[1];
+            const idx_arg = words[2];
+            const idx_s = obj_ensure_string(idx_arg);
+            var forward = false;
+            if (idx_s.len >= 3) {
+                const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
+                if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
+            }
+            var result: i32 = list_arg;
+            if (forward) {
+                var wi4: u32 = 3;
+                while (wi4 < words.len) : (wi4 += 1) {
+                    result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi4]);
+                }
+            } else {
+                var wi4: u32 = words.len;
+                while (wi4 > 3) {
+                    wi4 -= 1;
+                    result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi4]);
+                }
+            }
+            return result;
+        }
+        return 0;
+    }
+    if (str_eq(cmd, cmd_s.len, "lreplace")) {
+        // ``lreplace list first last ?value1 …?``.  Multi-value shape
+        // chains the base call with ``tcl_cmd_list_insert`` per
+        // additional value, same index-ordering strategy as linsert.
+        if (words.len >= 4) {
+            const list_arg = words[1];
+            const first_arg = words[2];
+            const last_arg = words[3];
+            if (words.len == 4) {
+                // ``lreplace list first last`` — delete the range.
+                return rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
+            }
+            const idx_s = obj_ensure_string(first_arg);
+            var forward = false;
+            if (idx_s.len >= 3) {
+                const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
+                if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
+            }
+            if (forward) {
+                var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[4]);
+                var wi5: u32 = 5;
+                while (wi5 < words.len) : (wi5 += 1) {
+                    result = rt.tcl_cmd_list_insert(result, first_arg, words[wi5]);
+                }
+                return result;
+            } else {
+                var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[words.len - 1]);
+                var wi5: u32 = words.len - 1;
+                while (wi5 > 4) {
+                    wi5 -= 1;
+                    result = rt.tcl_cmd_list_insert(result, first_arg, words[wi5]);
+                }
+                return result;
+            }
+        }
+        return 0;
+    }
     if (str_eq(cmd, cmd_s.len, "string")) return eval_string_cmd(words);
     if (str_eq(cmd, cmd_s.len, "dict")) return eval_dict_cmd(words);
     if (str_eq(cmd, cmd_s.len, "array")) return eval_array_cmd(words);
