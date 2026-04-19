@@ -378,7 +378,9 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
     const upos: u32 = @intCast(pos);
 
     // Over-allocate to fit worst-case brace-wrapping on every
-    // existing element plus the inserted value.
+    // existing element plus the inserted value.  Inserted-value
+    // worst-case is ``2 * len + 2`` because list_elem_quote_*
+    // may brace-wrap.
     const buf = alloc(s.len + n * 3 + sv.len * 2 + 8);
     var off: u32 = 0;
     var i: u32 = 0;
@@ -389,10 +391,12 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
                 d[0] = ' ';
                 off += 1;
             }
-            if (sv.len > 0) {
-                memcpy(buf + off, sv.ptr, sv.len);
-                off += sv.len;
-            }
+            // Quote the inserted value canonically so values
+            // containing whitespace, braces, or backslashes still
+            // form a single list element instead of splitting into
+            // multiple elements when the result is reparsed.
+            const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
+            off = quoter(buf, off, sv.ptr, sv.len);
         }
         if (off > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);
@@ -406,15 +410,13 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
         off = append_list_element(buf, off, s.ptr, elem);
     }
     if (upos >= n) {
-        if (off > 0 and sv.len > 0) {
+        if (off > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';
             off += 1;
         }
-        if (sv.len > 0) {
-            memcpy(buf + off, sv.ptr, sv.len);
-            off += sv.len;
-        }
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
+        off = quoter(buf, off, sv.ptr, sv.len);
     }
     return obj_new_string(@intCast(buf), @intCast(off));
 }
@@ -442,8 +444,8 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
     const sv_ptr: u32 = if (value == 0 or sv_len == 0) 0 else obj_ensure_string(value).ptr;
 
     // Over-allocate to fit worst-case brace-wrapping on every
-    // preserved element plus the inserted value.
-    const buf = alloc(s.len + n * 3 + sv_len + 4);
+    // preserved element plus the canonically-quoted value.
+    const buf = alloc(s.len + n * 3 + sv_len * 2 + 8);
     var off: u32 = 0;
     var i: u32 = 0;
     const uf: u32 = @intCast(if (f < 0) 0 else f);
@@ -457,8 +459,9 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
                     d[0] = ' ';
                     off += 1;
                 }
-                memcpy(buf + off, sv_ptr, sv_len);
-                off += sv_len;
+                // Quote canonically — see linsert above.
+                const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
+                off = quoter(buf, off, sv_ptr, sv_len);
             }
         }
         if (@as(i64, i) >= f and @as(i64, i) <= ul) {
@@ -483,8 +486,8 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
             d[0] = ' ';
             off += 1;
         }
-        memcpy(buf + off, sv_ptr, sv_len);
-        off += sv_len;
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
+        off = quoter(buf, off, sv_ptr, sv_len);
     }
     return obj_new_string(@intCast(buf), @intCast(off));
 }
@@ -500,26 +503,38 @@ pub export fn tcl_cmd_list_repeat(count: i32, value: i32) i32 {
     const cnt = obj_get_int(count);
     if (cnt <= 0) return obj_new_string(0, 0);
     const sv = obj_ensure_string(value);
-    // Each element is the rendered string of *value*; join with spaces.
-    // Quoting of embedded whitespace / braces is left to the caller —
-    // matches the compiler's other list-building helpers.
-    const per_elem: u32 = sv.len;
     const ucnt: u32 = @intCast(cnt);
-    const total: u32 = if (ucnt == 0) 0 else per_elem * ucnt + (ucnt - 1);
+
+    // Quote *value* canonically once for the first-element form and
+    // once for the nth-element form (the only difference is leading-
+    // ``#`` handling per ``UpdateStringOfList``).  Values containing
+    // whitespace, braces or backslashes must be brace-wrapped so the
+    // result parses back as ``count`` elements rather than splitting
+    // on the literal whitespace.  Worst-case quoted length is
+    // ``2 * sv.len + 2``.
+    const first_buf = alloc(sv.len * 2 + 4);
+    const first_len = list_elem_quote(first_buf, 0, sv.ptr, sv.len);
+    const next_buf = alloc(sv.len * 2 + 4);
+    const next_len = list_elem_quote_nth(next_buf, 0, sv.ptr, sv.len);
+
+    const sep_count: u32 = if (ucnt == 0) 0 else ucnt - 1;
+    const total: u32 = first_len + sep_count * (1 + next_len);
     if (total == 0) return obj_new_string(0, 0);
     const buf = alloc(total);
     var off: u32 = 0;
-    var i: u32 = 0;
+    if (first_len > 0) {
+        memcpy(buf + off, first_buf, first_len);
+        off += first_len;
+    }
+    var i: u32 = 1;
     while (i < ucnt) : (i += 1) {
-        if (i > 0) {
-            const d: [*]u8 = @ptrFromInt(buf + off);
-            d[0] = ' ';
-            off += 1;
-        }
-        if (per_elem > 0) {
-            memcpy(buf + off, sv.ptr, per_elem);
-            off += per_elem;
+        const sep: [*]u8 = @ptrFromInt(buf + off);
+        sep[0] = ' ';
+        off += 1;
+        if (next_len > 0) {
+            memcpy(buf + off, next_buf, next_len);
+            off += next_len;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(total));
+    return obj_new_string(@intCast(buf), @intCast(off));
 }

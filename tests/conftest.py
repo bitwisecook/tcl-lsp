@@ -26,10 +26,10 @@ _GITHUB_REPO = "https://github.com/tcltk/tcl.git"
 _TMP_DIR = Path(__file__).resolve().parent.parent / "tmp"
 
 
-# Module-level flag flipped by ``tests/external/conftest.py`` when the
-# session runs with ``--tcl9-required``. Kept module-level (not a
-# fixture) so ``ensure_tcl_source`` can consult it from non-fixture
-# call sites.
+# Module-level flag flipped to True by :func:`pytest_configure` below
+# when the session runs with ``--tcl9-required``. Kept module-level
+# (not a fixture) so ``ensure_tcl_source`` can consult it from
+# non-fixture call sites such as test-class setup helpers.
 TCL9_REQUIRED: bool = False
 
 
