@@ -161,6 +161,38 @@ class IRBlock:
 
 
 @dataclass(frozen=True, slots=True)
+class IRUpFrame:
+    """Frame-shifted inline execution of a static ``uplevel`` body.
+
+    Produced by the ``uplevel`` lowering hook when both the level
+    (default 1, bare integer, or ``#N``) and body (braced literal
+    free of nested dynamic barriers) are statically decidable from
+    tokens.  Codegen emits a ``tcl_frame_depth_stash`` around the
+    inlined body IR, then ``tcl_frame_depth_restore`` afterwards —
+    the same pattern today's ``_emit_cmd_uplevel`` uses around a
+    ``tcl_eval`` call, except the body runs as compiled IR so the
+    caller's locals remain visible.
+
+    ``frame_shift`` encodes the stash argument:
+    ``0`` means inline execution at the current frame (used for
+    ``eval {…}`` if ever routed through this node — currently the
+    ``eval`` hook emits :class:`IRBlock` instead, but the encoding
+    leaves the door open).  ``1`` means one frame up.  The sentinel
+    ``0x3FFF_FFFF`` mirrors ``_emit_cmd_uplevel``'s shift for
+    ``uplevel #0`` — stash clamps to global regardless of depth.
+
+    ``source_tokens`` preserves the original parsed tokens so
+    non-inlining codegen targets can fall back to the string-level
+    ``uplevel`` dispatch when they cannot emit inline IR.
+    """
+
+    range: Range
+    frame_shift: int
+    body: IRScript
+    source_tokens: CommandTokens | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class IRIfClause:
     condition: ExprNode
     condition_range: Range
@@ -344,4 +376,5 @@ IRStatement = (
     | IRTry
     | IRSwitch
     | IRBlock
+    | IRUpFrame
 )

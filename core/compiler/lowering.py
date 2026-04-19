@@ -950,6 +950,237 @@ class _Lowerer:
                     range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens
                 )
 
+    # ---------------------------------------------------------------
+    # Barrier relaxation — static-body ``eval`` / ``uplevel``
+    #
+    # Recognise call shapes whose body is a pure braced literal with
+    # no nested dynamic-shape barriers, and lower them to inline IR
+    # (:class:`IRBlock` for ``eval``, :class:`IRUpFrame` for
+    # ``uplevel``) rather than the generic :class:`IRBarrier` →
+    # runtime ``tcl_eval`` path.  Keeps the compiled frame visible
+    # to the body so caller locals, aliases, and ``variable``
+    # declarations resolve via compiled lookups.  Anything that
+    # fails the gate returns False / None so the dispatcher falls
+    # through to the existing barrier case.
+    #
+    # ``eval`` shares :class:`IRBlock` with ``namespace eval`` for
+    # codegen reuse; the two are distinguished by
+    # ``source_tokens.argv_texts[0]`` ("eval" vs "namespace") at
+    # consumer sites (VM dispatch, literal processing).
+    # ---------------------------------------------------------------
+
+    def _can_relax_eval(self, cmd: _Command) -> bool:
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        if cmd.expand_word is not None and any(cmd.expand_word):
+            return False
+        # Two recognised shapes:
+        #   (a) single braced-literal argument — covered by the first
+        #       branch below.  Dominant tcltest shape.
+        #   (b) single command-substitution argument of the form
+        #       ``eval [list <literal> <literal> ...]`` — a common
+        #       idiom for "safely build and evaluate a command from
+        #       known literal parts".  Covered by the second branch.
+        if len(args) != 1 or not arg_single or not arg_single[0]:
+            return False
+        body_tok = arg_tokens[0]
+        if body_tok.type is TokenType.STR:
+            from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
+
+            return not body_has_dynamic_barrier(args[0], body_tok)
+        if body_tok.type is TokenType.CMD:
+            return self._eval_list_literal_body(body_tok.text) is not None
+        return False
+
+    @staticmethod
+    def _eval_list_literal_body(cmd_text: str) -> str | None:
+        """If *cmd_text* is ``list lit1 lit2 ...`` with all-literal
+        arguments, return the body text the list would evaluate to —
+        otherwise ``None``.
+
+        Literal means ``TokenType.ESC`` / ``TokenType.STR`` only: no
+        ``$var`` substitution, no nested command substitution.
+
+        The synthesised body must be a string whose re-parse yields
+        the same argument sequence as the original ``[list …]`` call.
+        ``list`` applies canonical Tcl list quoting (brace-wrap for
+        whitespace / braces / unbalanced brackets, leading-``#``
+        escaping, etc.); we do NOT attempt to reproduce that full
+        canonicalisation here.  Instead we only relax when every arg
+        is already list-safe as-is: a bareword ESC arg with no
+        whitespace / braces / backslashes, or a STR token (which we
+        re-brace).  Anything that would need canonical requoting
+        (spaces, ``;``, ``\\``, leading ``#``, empty, etc.) falls
+        back to the runtime eval path.
+        """
+        try:
+            inner = segment_commands(cmd_text, None)
+        except TclParseError:
+            return None
+        if len(inner) != 1:
+            return None
+        inner_cmd = inner[0]
+        if not inner_cmd.texts or inner_cmd.texts[0] != "list":
+            return None
+        # Each element after ``list`` must be a single-token literal.
+        for i, tok in enumerate(inner_cmd.argv[1:], start=1):
+            if not inner_cmd.single_token_word[i]:
+                return None
+            if tok.type not in (TokenType.ESC, TokenType.STR):
+                return None
+            if tok.type is TokenType.ESC and ("$" in tok.text or "[" in tok.text):
+                return None
+            text = inner_cmd.texts[i]
+            if tok.type is TokenType.ESC:
+                # A bareword ESC is list-safe only when it has no
+                # characters that would change its parse when joined
+                # with spaces.  Whitespace, backslashes, braces,
+                # unbalanced brackets, leading ``#``, and empty all
+                # need canonical Tcl list quoting which we refuse to
+                # reproduce — bail so the body stays on the eval
+                # path.
+                if text == "" or text[0] == "#":
+                    return None
+                for ch in text:
+                    if ch in ' \t\n\r\\{}";':
+                        return None
+        # Body is the args joined with spaces — safe because every
+        # arg has passed the bareword gate above.
+        parts: list[str] = []
+        for i, arg in enumerate(inner_cmd.texts[1:], start=1):
+            tok = inner_cmd.argv[i]
+            if tok.type is TokenType.STR:
+                # STR tokens arrive without their outer braces; re-brace
+                # so the re-parse groups the element as one word.  The
+                # STR content itself cannot contain unescaped braces at
+                # the outer level (the lexer would have rejected that).
+                parts.append("{" + arg + "}")
+            else:
+                parts.append(arg)
+        return " ".join(parts)
+
+    def _relax_eval(self, cmd: _Command, *, namespace: str) -> IRBlock:
+        args = cmd.args
+        body_tok = cmd.arg_tokens[0]
+        if body_tok.type is TokenType.STR:
+            body_text = args[0]
+            body_script = self._lower_body_arg(body_text, body_tok, namespace=namespace)
+        else:
+            # CMD token — body_text synthesised from ``[list ...]`` args.
+            body_text = self._eval_list_literal_body(body_tok.text) or ""
+            body_script = self._lower_script(body_text, namespace=namespace)
+        return IRBlock(
+            range=cmd.range,
+            body=body_script,
+            namespace=namespace,
+            source_args=tuple(args),
+            source_tokens=cmd.cmd_tokens,
+        )
+
+    def _can_relax_uplevel(self, cmd: _Command) -> bool:
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        if cmd.expand_word is not None and any(cmd.expand_word):
+            return False
+        if not args:
+            return False
+        # Either ``uplevel body`` (implicit level=1) or
+        # ``uplevel LEVEL body`` with LEVEL statically parsable.  The
+        # final word is the body.
+        body_idx = self._uplevel_body_index(args, arg_tokens)
+        if body_idx is None:
+            return False
+        if body_idx >= len(arg_single) or not arg_single[body_idx]:
+            return False
+        body_tok = arg_tokens[body_idx]
+        if body_tok.type is not TokenType.STR:
+            return False
+        from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
+
+        return not body_has_dynamic_barrier(args[body_idx], body_tok)
+
+    def _relax_uplevel(self, cmd: _Command, *, namespace: str):
+        from .ir import IRUpFrame
+
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        body_idx = self._uplevel_body_index(args, arg_tokens)
+        assert body_idx is not None  # gated by _can_relax_uplevel
+        body_tok = arg_tokens[body_idx]
+        shift = self._uplevel_shift(args, body_idx)
+        body_script = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+        return IRUpFrame(
+            range=cmd.range,
+            frame_shift=shift,
+            body=body_script,
+            source_tokens=cmd.cmd_tokens,
+        )
+
+    @staticmethod
+    def _uplevel_body_index(args: list[str], arg_tokens: list[Token]) -> int | None:
+        """Return the index of the body arg in an ``uplevel`` call.
+
+        ``uplevel ?level? body`` — level is absent, a bare integer, or
+        ``#N``.  When level is present the body is the trailing arg;
+        otherwise the body is ``args[0]``.  Returns ``None`` when the
+        call is malformed or the level is dynamic (``$lvl`` / ``[cmd]``).
+        """
+        if not args:
+            return None
+        first = args[0]
+        first_tok = arg_tokens[0]
+        is_level = first.lstrip("-").isdigit() or first.startswith("#")
+        if is_level:
+            # Level must be a plain (ESC) token — braced levels and
+            # substituted levels are uncommon and dynamic.
+            if first_tok.type is not TokenType.ESC:
+                return None
+            # Require exactly one body word after the level.  Tcl
+            # concatenates multiple body words into a single script
+            # (``uplevel 1 puts hello`` → body is ``puts hello``);
+            # synthesising a correct body string from separate words
+            # at compile time requires per-token list-quoting that
+            # matches Tcl's canonical concat rules.  Rather than
+            # reproduce that, bail and let the runtime eval path
+            # handle the concat semantics.
+            if len(args) != 2:
+                return None
+            return 1
+        # No level — body is the first arg.  Require exactly one arg
+        # (multi-word concat deferred, same rationale as above).
+        if len(args) != 1:
+            return None
+        return 0
+
+    @staticmethod
+    def _uplevel_shift(args: list[str], body_idx: int) -> int:
+        """Decode the ``uplevel`` level into a frame-depth-stash shift.
+
+        Mirrors the encoding ``_emit_cmd_uplevel`` uses today:
+        ``#0`` → large sentinel (``0x3FFF_FFFF``) so stash clamps to
+        global regardless of current depth; bare integer N → N.
+        Absent level defaults to 1.
+        """
+        if body_idx == 0:
+            return 1
+        level = args[0]
+        if level == "#0":
+            return 0x3FFF_FFFF
+        if level.startswith("#"):
+            try:
+                # ``#N`` with N > 0 — approximate as a single-frame
+                # shift; codegen already clamps.
+                abs_level = int(level[1:])
+                return 0 if abs_level == 0 else 1
+            except ValueError:
+                return 1
+        try:
+            return int(level)
+        except ValueError:
+            return 1
+
     def _lower_command(self, cmd: _Command, *, namespace: str) -> IRStatement | None:
         if not cmd.texts:
             return None
@@ -1223,6 +1454,12 @@ class _Lowerer:
             case "dict" if args:
                 return self._lower_dict(cmd, namespace=namespace)
 
+            case "eval" if self._can_relax_eval(cmd):
+                return self._relax_eval(cmd, namespace=namespace)
+
+            case "uplevel" if self._can_relax_uplevel(cmd):
+                return self._relax_uplevel(cmd, namespace=namespace)
+
             case _ if cmd_name in _DYNAMIC_BARRIER_COMMANDS:
                 return IRBarrier(
                     range=cmd.range,
@@ -1292,9 +1529,19 @@ def lower_to_ir(
     (non-``None``) are reused and only ``None`` entries are lowered
     fresh.  This is the incremental path: unchanged chunks skip
     re-segmentation and re-lowering.
+
+    A post-lowering inlining pass runs after every fresh lower:
+    whole-callee ``uplevel``-passthrough procs (whose body is a
+    single ``uplevel 1 {…}``) have their bodies spliced into every
+    call site as :class:`IRBlock` nodes.  See
+    :mod:`core.compiler.inline_uplevel` for the recognition gate.
     """
+    from .inline_uplevel import inline_uplevel_passthrough
+
     if chunk_ir is None or chunks is None:
-        return _Lowerer().lower(source)
+        mod = _Lowerer().lower(source)
+        inline_uplevel_passthrough(mod)
+        return mod
 
     lowerer = _Lowerer()
     all_stmts: list[IRStatement] = []
@@ -1318,6 +1565,7 @@ def lower_to_ir(
             # procs already on lowerer.module via lower_commands
 
     lowerer.module.top_level = IRScript(statements=tuple(all_stmts))
+    inline_uplevel_passthrough(lowerer.module)
     return lowerer.module
 
 

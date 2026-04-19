@@ -104,6 +104,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 j += 1
             cmd_text = text[i + 1 : j - 1].strip()
             parts = cmd_text.split(None, 2)
+            # Full split to count args when we need to decide whether a
+            # multi-value linsert/lreplace shape is in play.
+            full_parts = cmd_text.split()
             if parts:
                 cmd = parts[0]
                 if cmd in _CMD_RUNTIME:
@@ -115,6 +118,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         # pick it up.  Cheap (one import slot) and
                         # avoids a second scan.
                         needed.add("tcl_puts_nonewline")
+                    elif cmd == "lreplace" and len(full_parts) > 5:
+                        # ``[lreplace list first last v1 v2 …]`` —
+                        # more than 4 args triggers the multi-value
+                        # chain in ``_emit_cmd_runtime`` which needs
+                        # ``tcl_list_insert`` to thread earlier values
+                        # before the replaced slot.
+                        needed.add("tcl_list_insert")
                 elif cmd == "list":
                     # ``[list $a $b ...]`` with variable/command args uses
                     # tcl_lappend internally in _emit_list_value to properly
@@ -416,12 +426,31 @@ def _scan_needed_imports(
     def _scan_stmt(stmt: IRStatement) -> None:
         match stmt:
             case IRCall(command=command, args=args):
+                if command == "lset":
+                    # ``lset`` is emitter-resident, not in _CMD_RUNTIME
+                    # (see the comment in _imports.py).  Register the
+                    # runtime import here so the shared-imports table
+                    # has ``tcl_list_set`` ready for ``_emit_cmd_lset``.
+                    needed.add("tcl_list_set")
+                    if len(args) > 3:
+                        # Multi-index ``lset v i j k newval`` builds an
+                        # indices TclObj by chaining ``tcl_list`` pairs
+                        # in ``_emit_cmd_lset``.  Without this import,
+                        # the emitter raises an internal error.
+                        needed.add("tcl_list_create")
                 if command in _CMD_RUNTIME:
                     needed.add(_CMD_RUNTIME[command][0])
                     if command == "puts":
                         # Include the -nonewline helper alongside tcl_puts
                         # so the dispatch path can choose between them.
                         needed.add("tcl_puts_nonewline")
+                    elif command == "lreplace" and len(args) > 4:
+                        # Multi-value ``lreplace list first last v1 v2 …``
+                        # chains successive ``tcl_list_insert`` calls at
+                        # ``first`` to position earlier values before the
+                        # one the base call replaced.  See
+                        # ``_emit_cmd_runtime`` for the emit shape.
+                        needed.add("tcl_list_insert")
                 elif command == "string" and args and args[0] in _STRING_SUBCMD_IMPORT:
                     needed.add(_STRING_SUBCMD_IMPORT[args[0]])
                 elif command == "string" and args and args[0] == "is" and len(args) >= 3:

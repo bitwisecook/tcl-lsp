@@ -30,7 +30,9 @@ from __future__ import annotations
 
 import re
 import tempfile
+from collections import Counter
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -41,6 +43,9 @@ from tests.test_wasm_real_tcl import (
     _resolve_trap,
     _run_wasm,
 )
+
+if TYPE_CHECKING:
+    from core.compiler.codegen.wasm._ir import DiagMap
 
 _EXTERNAL = Path(__file__).resolve().parent
 
@@ -128,6 +133,45 @@ def _stderr_tail(stderr: str, max_chars: int = 400) -> str:
     if len(stderr) <= max_chars:
         return stderr
     return "…" + stderr[-max_chars:]
+
+
+def _summarise_diag(diag: "DiagMap | None") -> dict:
+    """Aggregate fallback-site telemetry from a populated :class:`DiagMap`.
+
+    Returns a dict with three fields the triage harness records alongside
+    per-file pass/fail data:
+
+    * ``fallback_sites_total`` — total number of diag sites registered
+      (every ``tcl_eval`` fallback, unsupported-command trap, or unknown
+      dispatch emits one).
+    * ``fallback_sites_by_kind`` — counts bucketed by ``DiagSite.kind``
+      (e.g. ``fallback``, ``unsupported``, ``unknown``, ``runtime``).
+    * ``top_fallback_commands`` — the five most common commands that
+      triggered a fallback, as ``(command, count)`` pairs.  Only sites
+      with ``kind == "fallback"`` are counted; unsupported/unknown sites
+      are architectural dead-ends and show up in the kind histogram.
+
+    Returns all zeroes / empty when ``diag`` is ``None`` (compile never
+    produced a map) so callers can unconditionally merge the result into
+    the per-file report dict.
+    """
+    if diag is None or not diag.sites:
+        return {
+            "fallback_sites_total": 0,
+            "fallback_sites_by_kind": {},
+            "top_fallback_commands": [],
+        }
+    by_kind: Counter[str] = Counter()
+    by_cmd: Counter[str] = Counter()
+    for site in diag.sites:
+        by_kind[site.kind] += 1
+        if site.kind == "fallback" and site.command:
+            by_cmd[site.command] += 1
+    return {
+        "fallback_sites_total": len(diag.sites),
+        "fallback_sites_by_kind": dict(by_kind),
+        "top_fallback_commands": by_cmd.most_common(5),
+    }
 
 
 def _infer_category(
@@ -298,7 +342,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             test_path = _tcl9_test_file(filename)
             src = _bundle(test_path)
             try:
-                _compile_tcl(src)
+                _wasm, diag = _compile_tcl_with_diag(src, filename)
             except Exception as exc:
                 record_tcl9_result(
                     request.config,
@@ -320,6 +364,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                     "stage": "compile",
                     "status": "pass",
                     "category": "pass",
+                    **_summarise_diag(diag),
                 },
             )
 
@@ -334,6 +379,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             stdout = ""
             stderr = ""
             summary: tuple[int, int, int, int] | None = None
+            diag = None
 
             try:
                 wasm, diag = _compile_tcl_with_diag(src, filename)
@@ -350,7 +396,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                 stderr = result[2] if len(result) >= 3 else ""
                 summary = _parse_summary(stdout)
             except Exception as exc:
-                if compiled and "wasm" in locals():
+                if compiled and diag is not None:
                     trap_site = _resolve_trap(exc, getattr(exc, "tcl_stderr", ""), diag)
                     stderr = getattr(exc, "tcl_stderr", "")
                 else:
@@ -380,6 +426,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                     "trap_site": trap_site,
                     "stderr_tail": _stderr_tail(stderr),
                     "category": category,
+                    **_summarise_diag(diag),
                 },
             )
 

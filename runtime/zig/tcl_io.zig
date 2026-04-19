@@ -11,38 +11,11 @@ const OBJ_STR_PTR = obj.OBJ_STR_PTR;
 const OBJ_STR_LEN = obj.OBJ_STR_LEN;
 const OBJ_INT_CACHE = obj.OBJ_INT_CACHE;
 
-// Scratch buffer for integer-to-string conversion (max 20 digits + sign + newline)
-var itoa_buf: [22]u8 = undefined;
-
-pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
-    var v = value;
-    var negative = false;
-    if (v < 0) {
-        negative = true;
-        v = -v;
-    }
-    var i: u32 = itoa_buf.len - 1;
-    // Add trailing newline (puts appends newline in Tcl)
-    itoa_buf[i] = '\n';
-    i -= 1;
-    if (v == 0) {
-        itoa_buf[i] = '0';
-    } else {
-        while (v > 0) {
-            itoa_buf[i] = @as(u8, @intCast(@rem(v, 10))) + '0';
-            v = @divTrunc(v, 10);
-            if (v > 0) i -= 1;
-        }
-    }
-    if (negative) {
-        i -= 1;
-        itoa_buf[i] = '-';
-    }
-    return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
-}
-
-// Re-export itoa_no_nl from tcl_obj (it lives there to avoid circular deps)
-pub const itoa_no_nl = obj.itoa_no_nl;
+// Re-export ``itoa`` from tcl_obj (it lives there to avoid circular deps).
+// The canonical implementation renders an integer *without* a trailing
+// newline; callers that want one (``tcl_cmd_puts``) append it
+// explicitly via ``fd_write_all(1, "\n", 1)`` after writing the digits.
+pub const itoa = obj.itoa;
 
 pub fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
     const iov = [_]std.os.wasi.ciovec_t{.{
@@ -55,11 +28,9 @@ pub fn fd_write_all(fd: i32, data: [*]const u8, len: u32) void {
 
 // Internal: emit the rendered string of *value* to stdout, with or
 // without a trailing newline.  ``tcl_cmd_puts`` / ``tcl_cmd_puts_
-// nonewline`` share this helper.  Use the no-newline variant of
-// itoa for the integer path so we can append (or skip) the newline
-// uniformly at the end — ``itoa`` itself embeds a trailing newline
-// for the common ``puts <int>`` fast path, which would double up
-// with our own newline and break ``puts -nonewline <int>``.
+// nonewline`` share this helper.  ``itoa`` renders digits without a
+// newline so we can append (or skip) it uniformly at the end,
+// matching Tcl's ``puts`` / ``puts -nonewline`` contract.
 fn puts_raw(value: i32, want_newline: bool) void {
     if (value == 0) {
         if (want_newline) fd_write_all(1, "\n", 1);
@@ -75,7 +46,7 @@ fn puts_raw(value: i32, want_newline: bool) void {
         }
     } else {
         const int_val = read_i64(addr + OBJ_INT_CACHE);
-        const result = itoa_no_nl(int_val);
+        const result = itoa(int_val);
         fd_write_all(1, result.ptr, result.len);
     }
     if (want_newline) fd_write_all(1, "\n", 1);

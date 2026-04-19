@@ -67,6 +67,7 @@ from ...ir import (
     IRStatement,
     IRSwitch,
     IRTry,
+    IRUpFrame,
     IRWhile,
 )
 from ...var_escape import ProcEscapeSummary
@@ -130,6 +131,28 @@ _UNARYOP_WASM: dict[UnaryOp, int | None] = {
     UnaryOp.BIT_NOT: None,  # implemented as x ^ -1
     UnaryOp.NOT: WasmOp.I64_EQZ,
 }
+
+
+def _is_end_relative_index(idx: str) -> bool:
+    """True if *idx* is an ``end`` / ``end-N`` / ``end+N`` index literal.
+
+    Used by the multi-value linsert/lreplace chain to choose between
+    forward-order iteration (for ``end``-family indices, whose position
+    re-resolves after each insert) and reverse-order (for numeric
+    indices, whose position stays pinned).  The check is textual and
+    conservative: only plain ``end``-prefixed words are treated as
+    end-relative; variable refs and command substitutions fall through
+    to the reverse-order path.
+    """
+    if not idx:
+        return False
+    # Direct ``end`` / ``end-N`` / ``end+N`` — the three shapes
+    # ``resolve_list_index`` handles in the Zig runtime.
+    if idx == "end":
+        return True
+    if idx.startswith("end-") or idx.startswith("end+"):
+        return True
+    return False
 
 
 class _WasmEmitter:
@@ -915,6 +938,58 @@ class _WasmEmitter:
             if func_idx is not None:
                 spec = _RUNTIME_IMPORTS[import_key]
                 param_count = len(spec[2])
+                if cmd_name == "linsert" and len(cmd_args) > param_count:
+                    # Multi-value ``[linsert list idx v1 v2 …]`` — see
+                    # ``_emit_cmd_runtime`` for the index-ordering
+                    # rationale.  Value-context variant leaves the
+                    # final running-result on the stack.
+                    list_arg = cmd_args[0]
+                    index_arg = cmd_args[1]
+                    values = cmd_args[2:]
+                    self._emit_value(list_arg)
+                    iter_values = (
+                        values if _is_end_relative_index(index_arg) else tuple(reversed(values))
+                    )
+                    for v in iter_values:
+                        self._emit_value(index_arg)
+                        self._emit_value(v)
+                        self._emit_call(func_idx)
+                    return
+                if cmd_name == "lreplace" and len(cmd_args) > param_count:
+                    # Multi-value ``[lreplace list first last v1 v2 …]``
+                    # — see ``_emit_cmd_runtime`` for ordering rationale.
+                    list_arg = cmd_args[0]
+                    first_arg = cmd_args[1]
+                    last_arg = cmd_args[2]
+                    values = cmd_args[3:]
+                    list_insert_idx = self._shared_imports.get("tcl_list_insert")
+                    if list_insert_idx is None or not values:
+                        self._emit_value(list_arg)
+                        self._emit_value(first_arg)
+                        self._emit_value(last_arg)
+                        self._emit_value(values[0] if values else "")
+                        self._emit_call(func_idx)
+                    elif _is_end_relative_index(first_arg):
+                        self._emit_value(list_arg)
+                        self._emit_value(first_arg)
+                        self._emit_value(last_arg)
+                        self._emit_value(values[0])
+                        self._emit_call(func_idx)
+                        for v in values[1:]:
+                            self._emit_value(first_arg)
+                            self._emit_value(v)
+                            self._emit_call(list_insert_idx)
+                    else:
+                        self._emit_value(list_arg)
+                        self._emit_value(first_arg)
+                        self._emit_value(last_arg)
+                        self._emit_value(values[-1])
+                        self._emit_call(func_idx)
+                        for v in reversed(values[:-1]):
+                            self._emit_value(first_arg)
+                            self._emit_value(v)
+                            self._emit_call(list_insert_idx)
+                    return
                 if cmd_name in ("lsort",) and len(cmd_args) > param_count:
                     # ``lsort ?-switches? list`` — runtime export is
                     # the no-switch form; grab the trailing positional
@@ -2222,6 +2297,60 @@ class _WasmEmitter:
                 if self._optimise:
                     self._const_map.clear()
 
+            case IRUpFrame(frame_shift=shift, body=_body, source_tokens=src_toks):
+                # ``uplevel ?level? {static-body}`` — barrier-relaxed
+                # form.  At runtime we still route the body through
+                # ``tcl_eval`` with the frame-depth stash/restore
+                # wrapper, matching ``_emit_cmd_uplevel``'s semantics.
+                # Inline-IR execution in the compiled callee's frame
+                # is not yet correct because the WASM compile-to-
+                # compile call chain does not push runtime frames —
+                # caller WASM-locals are invisible to the runtime
+                # frame table regardless of what shift we apply.  A
+                # follow-up pass (whole-callee ``uplevel``-passthrough
+                # inlining) eliminates the frame boundary entirely by
+                # splicing the callee body into the caller's IR, at
+                # which point this codegen case can emit ``body.statements``
+                # inline.  Until then, IRUpFrame is a semantically-
+                # richer IRBarrier: optimiser passes can inspect the
+                # parsed body even though codegen still defers to the
+                # interpreter.
+                stash_idx = self._shared_imports.get("tcl_frame_depth_stash")
+                restore_idx = self._shared_imports.get("tcl_frame_depth_restore")
+                eval_idx = self._shared_imports.get("tcl_eval")
+                body_text = ""
+                if src_toks is not None and src_toks.argv_texts:
+                    # argv[0] is ``uplevel``; the trailing word is the
+                    # braced body.  Use the raw source text so the
+                    # interpreter parses it exactly as the user wrote.
+                    body_text = src_toks.argv_texts[-1]
+                if eval_idx is None:
+                    # No interpreter linked (standalone test compile
+                    # without the runtime) — emit nothing.  Callers
+                    # that check for this case handle the absence.
+                    pass
+                elif stash_idx is None or restore_idx is None:
+                    # Frame helpers missing — run the body without a
+                    # shift.  Same degraded behaviour as the existing
+                    # ``_emit_cmd_uplevel`` fallback.
+                    self._emit_obj_literal(body_text)
+                    self._emit_call(eval_idx)
+                    self._emit(WasmOp.DROP)
+                else:
+                    saved_local = self._add_extra_local(
+                        prefix="_upframe_saved", val_type=ValType.I32
+                    )
+                    self._emit_i32_const(shift)
+                    self._emit_call(stash_idx)
+                    self._emit_local_set(saved_local)
+                    self._emit_obj_literal(body_text)
+                    self._emit_call(eval_idx)
+                    self._emit(WasmOp.DROP)
+                    self._emit_local_get(saved_local)
+                    self._emit_call(restore_idx)
+                if self._optimise:
+                    self._const_map.clear()
+
             case IRIf(clauses=clauses, else_body=else_body):
                 self._emit_if(clauses, else_body)
 
@@ -2454,6 +2583,13 @@ class _WasmEmitter:
         # lassign list ?varName ...? — destructure a list.
         if command == "lassign" and args:
             self._emit_cmd_lassign(args, defs, keep_on_stack=False)
+            return
+
+        # lset varName ?index ...? newValue — mutate a list element.
+        # Routed directly to the emitter so the generic fallback never
+        # sees ``lset`` (the runtime dispatch traps it as diagnostic).
+        if command == "lset" and len(args) >= 2:
+            self._emit_cmd_lset(args)
             return
 
         # clock seconds / clicks / milliseconds — WASI-backed timer.
@@ -4319,6 +4455,100 @@ class _WasmEmitter:
         # Fall back to the interpreter for unsupported subcommands.
         self._emit_eval_fallback("clock", args)
 
+    def _emit_cmd_lset(self, args: tuple[str, ...]) -> None:
+        """``lset varName ?index ...? newValue`` — replace a list element.
+
+        Loads the current value of *varName*, builds an indices list
+        from the intermediate args, calls :func:`tcl_cmd_list_set` with
+        the source list / indices / new value, and writes the returned
+        list back into *varName*.  The result is also the new value,
+        matching Tcl's ``lset`` semantics ("returns the new value").
+
+        Arg shape:
+
+        * ``lset v newval``          — no indices (replace the whole
+          variable). The compiler normalises this to a plain ``set``
+          higher up, but the emitter still accepts it as a safety net.
+        * ``lset v i newval``        — single index (flat access).
+        * ``lset v i j k newval``    — multiple flat indices (nested).
+        * ``lset v {i j} newval``    — index list (nested).
+
+        The runtime helper expects the indices as a single TclObj list;
+        for the multi-arg shape we build that list at runtime with
+        ``tcl_list`` chaining (mirroring ``_emit_list_value``).  The
+        ``{i j}`` form arrives as a single braced arg and is passed
+        straight through.
+        """
+        if len(args) < 2:
+            # Safety net: malformed call — trap with diagnostic.
+            self._emit_unsupported_trap("lset (too few args)")
+            return
+
+        var_name = args[0]
+        new_value = args[-1]
+        index_args = args[1:-1]
+
+        list_set_idx = self._shared_imports.get("tcl_list_set")
+        if list_set_idx is None:
+            self._emit_unsupported_trap("lset (missing tcl_list_set)")
+            return
+
+        # Load current list value.
+        self._emit_var_read_obj(var_name)
+
+        # Build the indices TclObj.  Zero intermediate args means the
+        # indices list is empty; the runtime treats this as "replace
+        # the whole value" which matches ``lset v newval`` semantics.
+        # For a single index arg we emit it directly; for multiple
+        # args we build a list with ``tcl_list`` (two-arg concat).
+        if not index_args:
+            self._emit_obj_literal("")
+        elif len(index_args) == 1:
+            self._emit_value(index_args[0])
+        else:
+            # Chain tcl_list(a, b, c, …) as left-folded pairs:
+            # tcl_list(tcl_list(a, b), c), etc.  The runtime export is
+            # a two-arg list concat (see ``tcl_list.zig::tcl_list``).
+            tcl_list_idx = self._shared_imports.get("tcl_list_create")
+            if tcl_list_idx is None:
+                # The scan phase registers ``tcl_list_create`` whenever
+                # it sees an ``lset`` with 2+ index args (see
+                # ``_scan.py``).  Reaching this branch means an
+                # upstream caller constructed IR without going through
+                # that scan — a bug in the pipeline, not a runtime
+                # condition we should paper over.  The previous
+                # fallback space-joined the index args into a string
+                # literal, which silently produced wrong behaviour
+                # when any index was dynamic (``$i``, ``[expr ...]``).
+                raise RuntimeError(
+                    "internal error: lset multi-index requires "
+                    "tcl_list_create import; scan phase should have "
+                    "registered it.  Check _scan.py's IRCall path."
+                )
+            self._emit_value(index_args[0])
+            for arg in index_args[1:]:
+                self._emit_value(arg)
+                self._emit_call(tcl_list_idx)
+
+        # Evaluate the new value.
+        self._emit_value(new_value)
+
+        # Call the runtime helper — result is the new list on the stack.
+        self._emit_call(list_set_idx)
+
+        # Stash + write back to the variable + keep the new value on
+        # the stack for value-context callers (lset returns the new
+        # value).  We use ``_emit_var_write_obj`` which consumes from
+        # the stack and writes; wrap with a stash so the value is not
+        # lost.
+        result_local = self._add_extra_local(prefix="_lset_result", val_type=ValType.I32)
+        self._emit_local_tee(result_local)
+        self._emit_var_write_obj(var_name)
+        # Clear const-tracking of *var_name* — we just mutated it to
+        # a non-constant value.
+        if self._optimise:
+            self._const_map.pop(var_name, None)
+
     def _emit_cmd_lassign(
         self,
         args: tuple[str, ...],
@@ -4725,6 +4955,99 @@ class _WasmEmitter:
                 for a in args[1:]:
                     self._emit_value(a)
                     self._emit_call(func_idx)
+            if defs and spec[3]:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            elif spec[3]:
+                self._emit(WasmOp.DROP)
+            return
+
+        # ``linsert list index v1 ?v2 ...?`` with multiple values —
+        # ``tcl_cmd_list_insert`` is a single-value export, so we chain
+        # per-value inserts at the same index.  The iteration order
+        # depends on how the index resolves against the growing list:
+        #
+        #   * Numeric indices stay pinned to the same position through
+        #     each insert, so inserting in *reverse* value order
+        #     produces the correct forward layout
+        #     (``{before} v1 v2 … vN {after}``).
+        #   * ``end`` / ``end-N`` indices re-resolve after every insert
+        #     (``end`` moves as the list grows).  Here *forward* value
+        #     order is correct because each iteration's index lands at
+        #     ``end-N + (i-1)`` — right after the previously inserted
+        #     value.
+        #
+        # The textual shape of the index tells us which strategy to
+        # use at compile time; a ``$var`` index whose runtime value is
+        # an ``end-N`` string would be mis-ordered, but that is an
+        # uncommon shape we accept for now.
+        if command == "linsert" and len(args) > param_count:
+            list_arg = args[0]
+            index_arg = args[1]
+            values = args[2:]
+            self._emit_value(list_arg)
+            if _is_end_relative_index(index_arg):
+                iter_values = values
+            else:
+                iter_values = tuple(reversed(values))
+            for v in iter_values:
+                self._emit_value(index_arg)
+                self._emit_value(v)
+                self._emit_call(func_idx)
+            if defs and spec[3]:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            elif spec[3]:
+                self._emit(WasmOp.DROP)
+            return
+
+        # ``lreplace list first last v1 ?v2 ...?`` with multiple values —
+        # emit one ``lreplace`` for one value (consumes the range
+        # [first..last] and drops it in that slot), then chain inserts
+        # for the remaining values.  Same index-type-dependent ordering
+        # as linsert above: numeric ``first`` uses reverse value order
+        # after the base replace; ``end``-family uses forward.
+        if command == "lreplace" and len(args) > param_count:
+            list_arg = args[0]
+            first_arg = args[1]
+            last_arg = args[2]
+            values = args[3:]
+            list_insert_idx = self._shared_imports.get("tcl_list_insert")
+            if list_insert_idx is None or not values:
+                self._emit_value(list_arg)
+                self._emit_value(first_arg)
+                self._emit_value(last_arg)
+                self._emit_value(values[0] if values else "")
+                self._emit_call(func_idx)
+            elif _is_end_relative_index(first_arg):
+                # ``end-N`` — replace the range with the *first* value,
+                # then forward-insert the rest at ``first+1``.  Because
+                # ``end-N`` grows with the list, each subsequent insert
+                # lands immediately after the previous.  Note we use
+                # ``first`` (not ``first+1`` as compile-time arithmetic)
+                # because ``end-N`` has already moved forward by one
+                # after the replace grew the list.
+                self._emit_value(list_arg)
+                self._emit_value(first_arg)
+                self._emit_value(last_arg)
+                self._emit_value(values[0])
+                self._emit_call(func_idx)
+                for v in values[1:]:
+                    self._emit_value(first_arg)
+                    self._emit_value(v)
+                    self._emit_call(list_insert_idx)
+            else:
+                # Numeric index — replace with the *last* value, then
+                # insert the earlier values in reverse at ``first``.
+                self._emit_value(list_arg)
+                self._emit_value(first_arg)
+                self._emit_value(last_arg)
+                self._emit_value(values[-1])
+                self._emit_call(func_idx)
+                for v in reversed(values[:-1]):
+                    self._emit_value(first_arg)
+                    self._emit_value(v)
+                    self._emit_call(list_insert_idx)
             if defs and spec[3]:
                 def_idx = self._intern_local(defs[0])
                 self._emit_local_set(def_idx)
