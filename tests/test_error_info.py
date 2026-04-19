@@ -1,0 +1,64 @@
+"""Runtime tests for ``::errorInfo`` / ``::errorCode`` propagation.
+
+Before this wave the runtime only propagated the error *message*
+(available via ``catch { … } msg``); scripts that inspected
+``$::errorInfo`` or ``$::errorCode`` after a caught error got an
+empty string.  Now the runtime stamps both globals when
+``tcl_cmd_error`` fires, covering the common shape:
+
+    catch { error boom } msg
+    puts $::errorInfo       ;# boom
+    puts $::errorCode       ;# NONE
+
+A full Tcl-compatible traceback (``"\n    invoked from within
+\"…\"\n    (\"…\" body line N)"``) is a follow-up; for now
+``::errorInfo`` holds the error message verbatim, which matches
+the observable behaviour for tests that don't introspect frames.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+
+def _run(src: str) -> str:
+    wasm, _ = _compile_tcl_with_diag(src)
+    _, stdout = _run_wasm(wasm, capture_stdout=True)
+    return stdout
+
+
+class TestErrorInfoBasic:
+    def test_caught_error_sets_error_info(self) -> None:
+        out = _run("catch { error boom } msg\nputs $::errorInfo\n")
+        assert out == "boom\n"
+
+    def test_caught_error_sets_error_code_to_none(self) -> None:
+        out = _run("catch { error boom } msg\nputs $::errorCode\n")
+        assert out == "NONE\n"
+
+    def test_error_msg_available_as_catch_result(self) -> None:
+        # The ``msg`` catch-variable still receives the error text —
+        # the new globals are in addition, not replacing.
+        out = _run("catch { error widget } msg\nputs $msg\n")
+        assert out == "widget\n"
+
+
+class TestErrorInfoMultipleErrors:
+    def test_later_error_overwrites_error_info(self) -> None:
+        # Each error stamps fresh; only the most recent sticks.
+        out = _run("catch { error first } msg\ncatch { error second } msg\nputs $::errorInfo\n")
+        assert out == "second\n"
+
+
+class TestErrorInfoGlobalReadback:
+    def test_error_info_is_a_real_global(self) -> None:
+        # Reading through ``set`` (no subcommand) should work just
+        # like any other global — regression against a specialised
+        # handler that only tracks errorInfo internally.
+        out = _run("catch { error widget } msg\nputs [set ::errorInfo]\n")
+        assert out == "widget\n"

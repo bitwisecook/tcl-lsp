@@ -8,8 +8,11 @@
 const obj = @import("tcl_obj.zig");
 const io = @import("tcl_io.zig");
 const diag = @import("tcl_diag.zig");
+const globals = @import("tcl_globals.zig");
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
+const obj_new_string = obj.obj_new_string;
+const obj_new_string_copy = obj.obj_new_string_copy;
 const fd_write_all = io.fd_write_all;
 
 // Control flow signals — picol-style return codes as mutable flags.
@@ -78,12 +81,65 @@ pub export fn catch_has_error() i32 {
     return @as(i32, @intCast(error_flag));
 }
 
+// Stamp the error-context globals that Tcl scripts inspect after a
+// caught error: ``::errorInfo`` (traceback) and ``::errorCode``
+// (error class).  We don't yet maintain a real traceback — the
+// message itself is used as the info text, which matches the
+// observable behaviour for scripts that do ``catch … msg; puts
+// $::errorInfo`` without introspecting call frames.  ``::errorCode``
+// defaults to ``NONE`` for ``error msg`` with no explicit code.
+fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
+    const info_name = obj_new_string_copy(
+        @intFromPtr(@as([*]const u8, "::errorInfo")),
+        11,
+    );
+    const info_val = if (info != 0) info else msg;
+    _ = globals.global_set(info_name, info_val);
+
+    const code_name = obj_new_string_copy(
+        @intFromPtr(@as([*]const u8, "::errorCode")),
+        11,
+    );
+    const code_val = if (code != 0)
+        code
+    else
+        obj_new_string_copy(@intFromPtr(@as([*]const u8, "NONE")), 4);
+    _ = globals.global_set(code_name, code_val);
+}
+
 // Exported: error — write message to stderr and trap, OR set error flag in catch.
 //
 // On an out-of-catch error we prefix the stderr line with
 // ``tcl trap: site=<id> `` when the codegen has registered a site;
 // a companion sidecar map resolves the site to a source location.
+//
+// ``::errorInfo`` and ``::errorCode`` are stamped on every error so
+// ``catch { error boom } msg; puts $::errorInfo`` observes the
+// message even though we don't construct a full traceback yet.
 pub export fn tcl_cmd_error(msg: i32) void {
+    stamp_error_globals(msg, 0, 0);
+    if (catch_depth > 0) {
+        error_flag = 1;
+        error_msg = msg;
+        return;
+    }
+    fd_write_all(2, "tcl trap: ", 10);
+    _ = diag.write_prefix(2);
+    const s = obj_ensure_string(msg);
+    if (s.len > 0) {
+        fd_write_all(2, @ptrFromInt(s.ptr), s.len);
+    }
+    fd_write_all(2, "\n", 1);
+    diag.write_eval_ctx(2);
+    @trap();
+}
+
+// Exported: error with explicit ``info`` / ``code`` arguments —
+// matches the full 3-arg ``error`` command form
+// (``error msg ?info? ?code?``).  Either or both extras may be
+// ``0`` to use the defaults.
+pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
+    stamp_error_globals(msg, info, code);
     if (catch_depth > 0) {
         error_flag = 1;
         error_msg = msg;
