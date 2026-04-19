@@ -654,6 +654,27 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
         state.mark_pessimistic()
 
 
+def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
+    """Reconstitute an IRBarrier from an :class:`IRUpFrame` for analysis.
+
+    Only used by the escape-propagation walk — the resulting barrier
+    is discarded after the dispatch.  ``source_tokens.argv_texts``
+    preserves the original ``uplevel ?level? body`` word sequence, so
+    ``_handle_uplevel`` sees the same shape as before the relaxation.
+    """
+    tokens = stmt.source_tokens
+    args: tuple[str, ...] = ()
+    if tokens is not None and tokens.argv_texts:
+        args = tuple(tokens.argv_texts[1:])
+    return IRBarrier(
+        range=stmt.range,
+        reason="uplevel relaxed",
+        command="uplevel",
+        args=args,
+        tokens=tokens,
+    )
+
+
 def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
     """Dispatch on the barrier command."""
     # Any IRBarrier means the codegen can dispatch to the interpreter;
@@ -774,6 +795,8 @@ def _apply_expr_scan(expr: ExprNode | None, state: _EscapeState) -> None:
 
 def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
     """Recurse into structured IR, visiting every statement."""
+    from ..ir import IRUpFrame
+
     for stmt in stmts:
         if state.dynamic_barrier:
             # Short-circuit: once pessimistic, the rest of the walk is
@@ -783,6 +806,14 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             _handle_call(stmt, state)
         elif isinstance(stmt, IRBarrier):
             _handle_barrier(stmt, state)
+        elif isinstance(stmt, IRUpFrame):
+            # Barrier-relaxed ``uplevel`` — reconstitute an IRBarrier
+            # view of the original call so ``_handle_uplevel`` can
+            # apply the same pessimism rules it always did.  The
+            # parsed body we carry in IRUpFrame.body is an
+            # optimisation for future passes; for escape analysis
+            # the classic barrier logic is still the source of truth.
+            _handle_barrier(_synthesise_uplevel_barrier(stmt), state)
         elif isinstance(stmt, IRAssignConst):
             if _is_dynamic_name(stmt.name):
                 literal = state.resolve_literal(stmt.name)

@@ -950,6 +950,122 @@ class _Lowerer:
                     range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens
                 )
 
+    # ---------------------------------------------------------------
+    # Barrier relaxation — static-body ``uplevel``
+    #
+    # Recognise ``uplevel ?level? {static-body}`` shapes where the
+    # level is statically decidable and the body is a pure braced
+    # literal free of nested dynamic-shape barriers.  Produce
+    # :class:`IRUpFrame` so downstream optimiser passes can see the
+    # parsed body; codegen still routes through ``tcl_eval`` with a
+    # frame_depth stash/restore wrapper — matching the existing
+    # ``_emit_cmd_uplevel`` semantics.  The win is IR-level
+    # (inspectable body) not runtime-level (caller-local visibility
+    # still requires a whole-module inlining pass to eliminate the
+    # frame boundary).
+    #
+    # ``eval`` relaxation is deferred: the VM's ``IRBlock`` handler
+    # assumes a ``namespace eval`` source shape, which an
+    # ``eval {…}``-derived IRBlock would not satisfy.  Until the VM
+    # path handles the two shapes distinctly, ``eval {…}`` remains
+    # an :class:`IRBarrier` (the existing tcl_eval fallback path).
+    # ---------------------------------------------------------------
+
+    def _can_relax_uplevel(self, cmd: _Command) -> bool:
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        if cmd.expand_word is not None and any(cmd.expand_word):
+            return False
+        if not args:
+            return False
+        # Either ``uplevel body`` (implicit level=1) or
+        # ``uplevel LEVEL body`` with LEVEL statically parsable.  The
+        # final word is the body.
+        body_idx = self._uplevel_body_index(args, arg_tokens)
+        if body_idx is None:
+            return False
+        if body_idx >= len(arg_single) or not arg_single[body_idx]:
+            return False
+        body_tok = arg_tokens[body_idx]
+        if body_tok.type is not TokenType.STR:
+            return False
+        from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
+
+        return not body_has_dynamic_barrier(args[body_idx], body_tok)
+
+    def _relax_uplevel(self, cmd: _Command, *, namespace: str):
+        from .ir import IRUpFrame
+
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        body_idx = self._uplevel_body_index(args, arg_tokens)
+        assert body_idx is not None  # gated by _can_relax_uplevel
+        body_tok = arg_tokens[body_idx]
+        shift = self._uplevel_shift(args, body_idx)
+        body_script = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+        return IRUpFrame(
+            range=cmd.range,
+            frame_shift=shift,
+            body=body_script,
+            source_tokens=cmd.cmd_tokens,
+        )
+
+    @staticmethod
+    def _uplevel_body_index(args: list[str], arg_tokens: list[Token]) -> int | None:
+        """Return the index of the body arg in an ``uplevel`` call.
+
+        ``uplevel ?level? body`` — level is absent, a bare integer, or
+        ``#N``.  When level is present the body is the trailing arg;
+        otherwise the body is ``args[0]``.  Returns ``None`` when the
+        call is malformed or the level is dynamic (``$lvl`` / ``[cmd]``).
+        """
+        if not args:
+            return None
+        first = args[0]
+        first_tok = arg_tokens[0]
+        is_level = first.lstrip("-").isdigit() or first.startswith("#")
+        if is_level:
+            # Level must be a plain (ESC) token — braced levels and
+            # substituted levels are uncommon and dynamic.
+            if first_tok.type is not TokenType.ESC:
+                return None
+            if len(args) < 2:
+                return None
+            return len(args) - 1
+        # No level — body is the first arg.  Require exactly one arg
+        # (multi-word concat deferred).
+        if len(args) != 1:
+            return None
+        return 0
+
+    @staticmethod
+    def _uplevel_shift(args: list[str], body_idx: int) -> int:
+        """Decode the ``uplevel`` level into a frame-depth-stash shift.
+
+        Mirrors the encoding ``_emit_cmd_uplevel`` uses today:
+        ``#0`` → large sentinel (``0x3FFF_FFFF``) so stash clamps to
+        global regardless of current depth; bare integer N → N.
+        Absent level defaults to 1.
+        """
+        if body_idx == 0:
+            return 1
+        level = args[0]
+        if level == "#0":
+            return 0x3FFF_FFFF
+        if level.startswith("#"):
+            try:
+                # ``#N`` with N > 0 — approximate as a single-frame
+                # shift; codegen already clamps.
+                abs_level = int(level[1:])
+                return 0 if abs_level == 0 else 1
+            except ValueError:
+                return 1
+        try:
+            return int(level)
+        except ValueError:
+            return 1
+
     def _lower_command(self, cmd: _Command, *, namespace: str) -> IRStatement | None:
         if not cmd.texts:
             return None
@@ -1222,6 +1338,9 @@ class _Lowerer:
 
             case "dict" if args:
                 return self._lower_dict(cmd, namespace=namespace)
+
+            case "uplevel" if self._can_relax_uplevel(cmd):
+                return self._relax_uplevel(cmd, namespace=namespace)
 
             case _ if cmd_name in _DYNAMIC_BARRIER_COMMANDS:
                 return IRBarrier(

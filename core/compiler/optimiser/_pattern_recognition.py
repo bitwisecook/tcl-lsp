@@ -334,6 +334,19 @@ def optimise_string_build_chains(ctx: PassContext, cfg, ssa) -> None:
                     finish_chain(var_key)
                 continue
 
+            # TODO(kcs-tcl9-barrier-relaxation): IRUpFrame is a
+            # scoped barrier — the body runs inline in the caller's
+            # frame, so static-set chaining could chase through with
+            # frame-aware analysis.  For now, treat conservatively as
+            # a hard barrier so the first-wave relaxation does not
+            # regress SCCP/DCE correctness.
+            from ..ir import IRUpFrame
+
+            if isinstance(stmt, IRUpFrame):
+                for var_key in list(active):
+                    finish_chain(var_key)
+                continue
+
             cmd_name = argv_texts[0]
             if cmd_name in _DYNAMIC_BARRIER_COMMANDS:
                 for var_key in list(active):
@@ -499,6 +512,15 @@ def optimise_multi_set_packing(ctx: PassContext, cfg, ssa) -> None:
                 barrier_indices.add(idx)
             elif isinstance(stmt, IRCall) and stmt.command in _DYNAMIC_BARRIER_COMMANDS:
                 barrier_indices.add(idx)
+            else:
+                # TODO(kcs-tcl9-barrier-relaxation): IRUpFrame is a
+                # scoped barrier; conservatively treat it the same
+                # here so set-packing cannot pack across a frame
+                # shift.
+                from ..ir import IRUpFrame
+
+                if isinstance(stmt, IRUpFrame):
+                    barrier_indices.add(idx)
 
         if len(candidates) < _SET_PACK_MIN_GROUP:
             continue

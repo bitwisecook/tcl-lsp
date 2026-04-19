@@ -498,12 +498,22 @@ def _desugar_script(source: str, script: IRScript) -> IRScript:
 
 
 def _desugar_stmt(source: str, stmt: IRStatement) -> IRStatement:
-    """Replace IRForeach/IRCatch with IRBarrier; recurse into nested scripts."""
+    """Replace IRForeach/IRCatch/IRUpFrame with IRBarrier; recurse into nested scripts."""
     if isinstance(stmt, IRForeach):
         return _foreach_to_barrier(source, stmt)
 
     if isinstance(stmt, IRCatch):
         return _catch_to_barrier(source, stmt)
+
+    # IRUpFrame — barrier-relaxed uplevel.  The VM's eval loop already
+    # handles ``uplevel`` as a built-in command; recover its original
+    # source args (``uplevel ?level? {body}``) from source_tokens and
+    # emit as IRBarrier so the VM's command dispatcher receives the
+    # same shape as before the barrier relaxation.
+    from core.compiler.ir import IRUpFrame as _IRUpFrame
+
+    if isinstance(stmt, _IRUpFrame):
+        return _upframe_to_barrier(stmt)
 
     if isinstance(stmt, IRIf):
         new_clauses: list[IRIfClause] = []
@@ -717,6 +727,46 @@ def _while_to_barrier(source: str, stmt: IRWhile) -> IRBarrier:
             _BRACE_OPEN + cond_text + _BRACE_CLOSE,
             _BRACE_OPEN + body_text + _BRACE_CLOSE,
         ),
+    )
+
+
+def _upframe_to_barrier(stmt) -> IRBarrier:
+    """Convert an IRUpFrame back to an ``uplevel`` IRBarrier.
+
+    The VM's command dispatcher handles ``uplevel`` as a built-in.
+    IRUpFrame is a barrier-relaxed form introduced for downstream
+    optimiser passes; the VM never benefits from the parsed body, so
+    we reconstitute the original ``uplevel ?level? {body}`` call from
+    ``source_tokens`` and hand it off to the barrier path.
+    """
+    tokens = stmt.source_tokens
+    if tokens is None or not tokens.argv_texts:
+        # No source recorded — fall back to a minimal shape.  This
+        # branch is only reachable when IR is synthesised directly,
+        # which the lowering pass never does.
+        return IRBarrier(
+            range=stmt.range,
+            reason="uplevel runtime",
+            command="uplevel",
+            args=(),
+        )
+    # argv_texts[0] is the command name (``uplevel``); the rest are
+    # the original args.  Brace-protect the body word so PUSH-time
+    # substitution is suppressed, matching how ``_catch_to_barrier``
+    # handles its body.
+    args: list[str] = []
+    for i, text in enumerate(tokens.argv_texts[1:], start=1):
+        tok = tokens.argv[i] if i < len(tokens.argv) else None
+        if tok is not None and tok.type is TokenType.STR:
+            args.append(_BRACE_OPEN + text + _BRACE_CLOSE)
+        else:
+            args.append(text)
+    return IRBarrier(
+        range=stmt.range,
+        reason="uplevel runtime",
+        command="uplevel",
+        args=tuple(args),
+        tokens=tokens,
     )
 
 
