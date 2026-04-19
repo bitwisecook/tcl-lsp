@@ -1443,9 +1443,19 @@ def lower_to_ir(
     (non-``None``) are reused and only ``None`` entries are lowered
     fresh.  This is the incremental path: unchanged chunks skip
     re-segmentation and re-lowering.
+
+    A post-lowering inlining pass runs after every fresh lower:
+    whole-callee ``uplevel``-passthrough procs (whose body is a
+    single ``uplevel 1 {…}``) have their bodies spliced into every
+    call site as :class:`IRBlock` nodes.  See
+    :mod:`core.compiler.inline_uplevel` for the recognition gate.
     """
+    from .inline_uplevel import inline_uplevel_passthrough
+
     if chunk_ir is None or chunks is None:
-        return _Lowerer().lower(source)
+        mod = _Lowerer().lower(source)
+        inline_uplevel_passthrough(mod)
+        return mod
 
     lowerer = _Lowerer()
     all_stmts: list[IRStatement] = []
@@ -1469,6 +1479,7 @@ def lower_to_ir(
             # procs already on lowerer.module via lower_commands
 
     lowerer.module.top_level = IRScript(statements=tuple(all_stmts))
+    inline_uplevel_passthrough(lowerer.module)
     return lowerer.module
 
 
