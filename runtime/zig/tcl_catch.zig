@@ -89,21 +89,15 @@ pub export fn catch_has_error() i32 {
 // $::errorInfo`` without introspecting call frames.  ``::errorCode``
 // defaults to ``NONE`` for ``error msg`` with no explicit code.
 fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
-    const info_name = obj_new_string_copy(
-        @intFromPtr(@as([*]const u8, "::errorInfo")),
-        11,
-    );
+    const info_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
     const info_val = if (info != 0) info else msg;
     _ = globals.global_set(info_name, info_val);
 
-    const code_name = obj_new_string_copy(
-        @intFromPtr(@as([*]const u8, "::errorCode")),
-        11,
-    );
+    const code_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
     const code_val = if (code != 0)
         code
     else
-        obj_new_string_copy(@intFromPtr(@as([*]const u8, "NONE")), 4);
+        obj_new_string_copy(@intFromPtr("NONE".ptr), 4);
     _ = globals.global_set(code_name, code_val);
 }
 
