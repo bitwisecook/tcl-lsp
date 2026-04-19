@@ -43,6 +43,9 @@ from ..parsing.lexer import TclLexer, TclParseError
 from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
+    IRAssignConst,
+    IRAssignExpr,
+    IRAssignValue,
     IRBarrier,
     IRBlock,
     IRCall,
@@ -51,6 +54,7 @@ from .ir import (
     IRForeach,
     IRIf,
     IRIfClause,
+    IRIncr,
     IRModule,
     IRProcedure,
     IRScript,
@@ -59,6 +63,7 @@ from .ir import (
     IRSwitchArm,
     IRTry,
     IRTryHandler,
+    IRUpFrame,
     IRWhile,
 )
 from .lowering_hooks import register_all as _register_lowering_hooks
@@ -279,6 +284,28 @@ class _Lowerer:
         # Command aliases: alias_name -> (target_cmd, prepended_args).
         # Populated from ``interp alias {} name {} target ?arg ...?``.
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # Per-script const-map stack: each scope tracks proc-local
+        # variables assigned a braced-literal value.  Populated at
+        # ``set var {literal}`` sites and consulted by the
+        # ``uplevel`` / ``eval`` barrier-relaxation gates so a later
+        # ``uplevel 1 $var`` can fold in the literal body.  Cleared on
+        # any re-assignment to the tracked variable, on any
+        # :class:`IRBarrier`, or on entry to structured IR whose body
+        # could write unknown variables.  Only populated when the
+        # variable name is a plain proc-local bareword — parameters,
+        # globals, namespace-qualified names, and array refs are
+        # excluded so upvar-aliased names never pollute the map.
+        #
+        # Lookups and updates are gated on ``self._proc_depth > 0``
+        # so that top-level and ``namespace eval`` scopes stay out of
+        # the map.  Names written at those scopes are globals /
+        # namespace vars which other code can read and mutate, so
+        # const-propagating them would be unsound.
+        self._const_map_stack: list[dict[str, str]] = []
+        # Depth of ``proc`` bodies we are currently lowering.  A
+        # positive depth enables the const-map.  Incremented at the
+        # entry of a proc body lowering, decremented on exit.
+        self._proc_depth = 0
 
     def expr_alias_names(self) -> frozenset[str]:
         """Return names that are aliases for ``expr`` (no prepended args)."""
@@ -305,7 +332,11 @@ class _Lowerer:
         chunk without re-segmenting the entire source.
         """
         procs_before = set(self.module.procedures)
-        stmts = self._lower_segmented(commands, namespace=namespace)
+        self._const_map_stack.append({})
+        try:
+            stmts = self._lower_segmented(commands, namespace=namespace)
+        finally:
+            self._const_map_stack.pop()
         new_procs = {k: v for k, v in self.module.procedures.items() if k not in procs_before}
         return stmts, new_procs
 
@@ -317,7 +348,11 @@ class _Lowerer:
         body_token: Token | None = None,
     ) -> IRScript:
         commands = segment_commands(source, body_token)
-        return IRScript(statements=self._lower_segmented(commands, namespace=namespace))
+        self._const_map_stack.append({})
+        try:
+            return IRScript(statements=self._lower_segmented(commands, namespace=namespace))
+        finally:
+            self._const_map_stack.pop()
 
     def _lower_segmented(
         self,
@@ -364,7 +399,122 @@ class _Lowerer:
             stmt = self._lower_command(cmd, namespace=namespace)
             if stmt is not None:
                 statements.append(stmt)
+            self._update_const_map(cmd, stmt)
         return tuple(statements)
+
+    # ---------------------------------------------------------------
+    # Const-map bookkeeping for barrier-relaxation gate
+    # ---------------------------------------------------------------
+    def _update_const_map(self, cmd: _Command, stmt: IRStatement | None) -> None:
+        """Fold *cmd*/*stmt* into the current scope's const-map.
+
+        Populates a ``name → braced-literal`` entry when *cmd* is
+        ``set var {literal}`` with a plain-bareword LHS; otherwise
+        invalidates entries that *stmt* may have written.
+        Gated on ``self._proc_depth > 0`` — globals / namespace vars
+        at top-level or inside ``namespace eval`` cannot be safely
+        const-propagated because arbitrary other code may read or
+        write them between the ``set`` and the consuming barrier.
+        """
+        if self._proc_depth <= 0 or not self._const_map_stack:
+            return
+        cur = self._const_map_stack[-1]
+
+        literal = self._set_literal_body(cmd)
+        if literal is not None:
+            name, value = literal
+            cur[name] = value
+            return
+
+        self._invalidate_const_map_for(stmt, cur)
+
+    @staticmethod
+    def _set_literal_body(cmd: _Command) -> tuple[str, str] | None:
+        """Return ``(name, literal)`` when *cmd* is ``set name {literal}``.
+
+        The LHS must be a plain bareword ESC token (no substitutions,
+        no array index, no namespace qualifier) so we only ever track
+        proc-local scalars.  The RHS must be a single braced-literal
+        STR token — decimal-int ESC values are excluded because
+        scripts that look like bare integers are rarely useful as
+        ``eval``/``uplevel`` bodies and admitting them would widen the
+        trust surface without payoff.
+        """
+        if cmd.name != "set" or len(cmd.args) != 2:
+            return None
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        if len(arg_tokens) < 2 or len(arg_single) < 2:
+            return None
+        if not (arg_single[0] and arg_single[1]):
+            return None
+        name_tok = arg_tokens[0]
+        value_tok = arg_tokens[1]
+        if value_tok.type is not TokenType.STR:
+            return None
+        if name_tok.type is not TokenType.ESC:
+            return None
+        name = cmd.args[0]
+        if not name or "$" in name or "[" in name or "(" in name or "::" in name:
+            return None
+        return (_normalise_var_name(name), cmd.args[1])
+
+    @staticmethod
+    def _invalidate_const_map_for(stmt: IRStatement | None, cur: dict[str, str]) -> None:
+        """Drop const-map entries that *stmt* may have overwritten.
+
+        Straight-line assignments pop just the named variable;
+        structured IR and barriers conservatively clear the whole map
+        because their child scopes (or runtime side effects) could
+        touch any of the tracked names — including via ``upvar`` /
+        ``global`` aliasing we cannot enumerate here.
+        """
+        if stmt is None:
+            return
+        if isinstance(stmt, IRAssignConst):
+            cur.pop(_normalise_var_name(stmt.name), None)
+            return
+        if isinstance(stmt, (IRAssignExpr, IRAssignValue, IRIncr)):
+            cur.pop(_normalise_var_name(stmt.name), None)
+            return
+        if isinstance(stmt, IRCall):
+            for var in stmt.defs:
+                cur.pop(_normalise_var_name(var), None)
+            return
+        if isinstance(
+            stmt,
+            (
+                IRBarrier,
+                IRIf,
+                IRFor,
+                IRWhile,
+                IRForeach,
+                IRCatch,
+                IRTry,
+                IRSwitch,
+                IRBlock,
+                IRUpFrame,
+            ),
+        ):
+            cur.clear()
+            return
+        # IRReturn / IRExprEval don't write variables.
+
+    def _const_map_lookup(self, var_tok: Token) -> str | None:
+        """Return the tracked literal for a ``$name`` VAR token, or ``None``.
+
+        Rejects array references (``$a(idx)``) and namespace-qualified
+        names so we only ever hit the plain proc-local scalars
+        populated by :meth:`_set_literal_body`.  Returns ``None`` when
+        we are not inside a proc body (top-level / ``namespace eval``
+        globals are out of scope for this optimisation).
+        """
+        if self._proc_depth <= 0 or not self._const_map_stack:
+            return None
+        name = var_tok.text
+        if not name or "(" in name or name.startswith(":"):
+            return None
+        return self._const_map_stack[-1].get(_normalise_var_name(name))
 
     @staticmethod
     def _collapse_continuations(text: str) -> str:
@@ -991,6 +1141,16 @@ class _Lowerer:
             return not body_has_dynamic_barrier(args[0], body_tok)
         if body_tok.type is TokenType.CMD:
             return self._eval_list_literal_body(body_tok.text) is not None
+        if body_tok.type is TokenType.VAR:
+            # ``eval $var`` where *var* is const-mapped to a braced
+            # literal — treat as an inline body.  Same gate as the
+            # STR case.
+            literal = self._const_map_lookup(body_tok)
+            if literal is None:
+                return False
+            from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
+
+            return not body_has_dynamic_barrier(literal, None)
         return False
 
     @staticmethod
@@ -1066,6 +1226,11 @@ class _Lowerer:
         if body_tok.type is TokenType.STR:
             body_text = args[0]
             body_script = self._lower_body_arg(body_text, body_tok, namespace=namespace)
+        elif body_tok.type is TokenType.VAR:
+            # Const-mapped ``$var`` body — re-lower the recorded literal.
+            literal = self._const_map_lookup(body_tok)
+            assert literal is not None  # gated by _can_relax_eval
+            body_script = self._lower_script(literal, namespace=namespace)
         else:
             # CMD token — body_text synthesised from ``[list ...]`` args.
             body_text = self._eval_list_literal_body(body_tok.text) or ""
@@ -1095,22 +1260,39 @@ class _Lowerer:
         if body_idx >= len(arg_single) or not arg_single[body_idx]:
             return False
         body_tok = arg_tokens[body_idx]
-        if body_tok.type is not TokenType.STR:
-            return False
         from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
 
-        return not body_has_dynamic_barrier(args[body_idx], body_tok)
+        if body_tok.type is TokenType.STR:
+            return not body_has_dynamic_barrier(args[body_idx], body_tok)
+        if body_tok.type is TokenType.VAR:
+            # Body is a single ``$var`` reference — relax when the
+            # const-map has recorded a braced literal for *var* and
+            # that literal is itself free of nested dynamic barriers.
+            literal = self._const_map_lookup(body_tok)
+            if literal is None:
+                return False
+            return not body_has_dynamic_barrier(literal, None)
+        return False
 
     def _relax_uplevel(self, cmd: _Command, *, namespace: str):
-        from .ir import IRUpFrame
-
         args = cmd.args
         arg_tokens = cmd.arg_tokens
         body_idx = self._uplevel_body_index(args, arg_tokens)
         assert body_idx is not None  # gated by _can_relax_uplevel
         body_tok = arg_tokens[body_idx]
         shift = self._uplevel_shift(args, body_idx)
-        body_script = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+        if body_tok.type is TokenType.VAR:
+            # Fold in the const-mapped literal.  The re-lowered body
+            # loses the original source range, so passes that rely on
+            # token-accurate diagnostics inside the body will see the
+            # uplevel's own range instead — acceptable because the
+            # original text lived in a separate ``set`` command whose
+            # body-source range is retained on the ``IRAssignConst``.
+            literal = self._const_map_lookup(body_tok)
+            assert literal is not None  # gated by _can_relax_uplevel
+            body_script = self._lower_script(literal, namespace=namespace)
+        else:
+            body_script = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
         return IRUpFrame(
             range=cmd.range,
             frame_shift=shift,
@@ -1294,7 +1476,11 @@ class _Lowerer:
                     params = ()
                 qualified = _qualify_proc_name(namespace, proc_name)
                 body_tok = arg_tokens[2]
-                body = self._lower_body_arg(args[2], body_tok, namespace=namespace)
+                self._proc_depth += 1
+                try:
+                    body = self._lower_body_arg(args[2], body_tok, namespace=namespace)
+                finally:
+                    self._proc_depth -= 1
                 # Register the IR proc for compilation (bytecode
                 # generation) but ALWAYS emit a runtime ``proc`` call
                 # too.  This ensures ``define_proc`` runs at the
@@ -1326,7 +1512,11 @@ class _Lowerer:
                 event_name = args[0]
                 body_idx = len(args) - 1
                 body_tok = arg_tokens[body_idx]
-                body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+                self._proc_depth += 1
+                try:
+                    body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+                finally:
+                    self._proc_depth -= 1
 
                 # Extract priority from ``when EVENT priority N { body }``
                 base_priority = 500
