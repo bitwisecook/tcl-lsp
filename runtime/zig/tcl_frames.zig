@@ -86,12 +86,17 @@ pub export fn frame_push() i32 {
         // Allocate frame on first use
         frame_stack[idx] = alloc(FRAME_SIZE);
     }
-    // Zero out all buckets
+    // Zero the whole bucket array in one go.  Under
+    // ``-Doptimize=ReleaseFast`` with Zig 0.13's bulk-memory default
+    // this lowers to a single ``memory.fill`` instruction, replacing
+    // the 64-iteration ``write_i32`` loop that dominated
+    // ``proc_call`` cost on dispatch-heavy bundles (tcltest's
+    // ``test`` proc alone invokes this once per test-case).  A
+    // zero ``name_ptr`` at the start of each 16-byte bucket marks
+    // the bucket empty, matching the per-bucket write above.
     const base = frame_stack[idx];
-    var i: u32 = 0;
-    while (i < FRAME_BUCKET_COUNT) : (i += 1) {
-        write_i32(base + i * FRAME_BUCKET_SIZE, 0); // name_ptr = 0 means empty
-    }
+    const slice: [*]u8 = @ptrFromInt(base);
+    @memset(slice[0..FRAME_SIZE], 0);
     frame_depth += 1;
     return @intCast(idx);
 }
