@@ -24,13 +24,7 @@ class TestEvalListLiteralRuntime:
         # ``eval [list set x 42]`` — compiler synthesises the body
         # ``set x 42`` and inlines it, so the compiled proc's ``$x``
         # reads the updated value without a ``tcl_eval`` round-trip.
-        src = (
-            "proc run {} {\n"
-            "    eval [list set x 42]\n"
-            "    return $x\n"
-            "}\n"
-            "puts [run]\n"
-        )
+        src = "proc run {} {\n    eval [list set x 42]\n    return $x\n}\nputs [run]\n"
         wasm, _ = _compile_tcl_with_diag(src)
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "42\n"
