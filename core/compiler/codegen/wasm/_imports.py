@@ -125,6 +125,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    "tcl_list_set": (
+        "tcl",
+        "tcl_cmd_list_set",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_search": ("tcl", "tcl_cmd_list_search", [ValType.I32, ValType.I32], [ValType.I32]),
     # Dict commands
     "tcl_dict_create": ("tcl", "dict_create", [], [ValType.I32]),

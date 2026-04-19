@@ -492,6 +492,122 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
     return obj_new_string(@intCast(buf), @intCast(off));
 }
 
+// Exported: list set — ``lset varName ?index ...? newValue``.
+//
+// Takes a source list, an *indices* TclObj whose string form is a
+// list of index words (a single integer / ``end[-N]`` / ``end+N``,
+// or multiple space-separated index words for nested access), and
+// a new *value*.  Returns a freshly-rendered list with the element
+// at the nested index replaced.  Does not mutate the source.
+//
+// The emitter always passes *indices* as a TclObj list; a call of
+// the shape ``lset v i newval`` uses a single-element indices list,
+// ``lset v {i j} newval`` passes the braced list verbatim, and
+// ``lset v i j k newval`` builds a three-element indices list
+// via ``tcl_list``.  Unifying the shapes at runtime keeps the
+// caller simple and matches the C Tcl ``Tcl_LsetFlat`` semantics.
+//
+// On out-of-range index or malformed indices list, returns a copy
+// of the source unchanged and sets the error flag via
+// ``tcl_cmd_error``.  The compiled caller can inspect the flag
+// through the usual catch machinery.
+pub export fn tcl_cmd_list_set(list: i32, indices: i32, value: i32) i32 {
+    const s_list = obj_ensure_string(list);
+    const s_indices = obj_ensure_string(indices);
+
+    const n_indices = list_count_elements(s_indices.ptr, s_indices.len);
+    if (n_indices == 0) {
+        // ``lset v newval`` — the indices list is empty, so the
+        // new value replaces the whole variable's value.  The
+        // compiler-side ``_emit_cmd_lset`` handles the zero-index
+        // arity shape directly (simple ``set``) so this branch is
+        // a safety net.
+        const sv = obj_ensure_string(value);
+        return obj_new_string_copy(sv.ptr, sv.len);
+    }
+
+    return lset_recurse(s_list.ptr, s_list.len, s_indices.ptr, s_indices.len, 0, n_indices, value);
+}
+
+/// Rebuild a list with its ``depth``-th nested element replaced by
+/// the recursive result of setting at the remaining indices.  At
+/// the deepest level (``depth == n_indices - 1``), the element is
+/// replaced by the raw *value* itself; at shallower levels we
+/// recurse into the element (treated as a sublist).
+fn lset_recurse(
+    src_ptr: u32,
+    src_len: u32,
+    indices_ptr: u32,
+    indices_len: u32,
+    depth: i64,
+    n_indices: i64,
+    value: i32,
+) i32 {
+    const n_src_i64 = list_count_elements(src_ptr, src_len);
+    const n_src: u32 = @intCast(n_src_i64);
+
+    // Resolve this depth's index word against the source list's length.
+    const idx_elem = list_element_at(indices_ptr, indices_len, depth);
+    // ``list_element_at`` returns a slice whose ``start``/``len`` are
+    // relative to the *indices* text.  Build a TclObj wrapping the
+    // single index word so ``resolve_list_index`` (which takes a
+    // TclObj) can parse ``end[-N]`` / ``end+N`` / integer forms.
+    const idx_obj = obj_new_string_copy(indices_ptr + idx_elem.start, idx_elem.len);
+    const idx = resolve_list_index(idx_obj, n_src_i64);
+    if (idx < 0 or idx >= n_src_i64) {
+        // Out of range — return a copy of the source unchanged.
+        // The compiler-level caller is expected to treat the result
+        // as a no-op on error; a future change can thread an error
+        // message through ``tcl_cmd_error`` for closer Tcl parity.
+        return obj_new_string_copy(src_ptr, src_len);
+    }
+    const uidx: u32 = @intCast(idx);
+
+    // Determine the replacement for the element at this depth:
+    //   - At the deepest level, the replacement is *value* itself.
+    //   - Otherwise, recurse into the element treated as a sublist.
+    var replacement: i32 = value;
+    if (depth + 1 < n_indices) {
+        const elem = list_element_at(src_ptr, src_len, idx);
+        replacement = lset_recurse(
+            src_ptr + elem.start,
+            elem.len,
+            indices_ptr,
+            indices_len,
+            depth + 1,
+            n_indices,
+            value,
+        );
+    }
+    const s_rep = obj_ensure_string(replacement);
+
+    // Build the result list by copying elements, substituting the
+    // replacement at ``uidx``.  Over-allocate to fit worst-case
+    // brace-wrapping on every element.
+    const buf = alloc(src_len + n_src * 3 + s_rep.len * 2 + 8);
+    var off: u32 = 0;
+    var i: u32 = 0;
+    while (i < n_src) : (i += 1) {
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        if (i == uidx) {
+            // Quote the replacement canonically so values containing
+            // whitespace, braces, or backslashes form a single list
+            // element when the result is reparsed.
+            const quoter: *const fn (u32, u32, u32, u32) u32 =
+                if (off == 0) &list_elem_quote else &list_elem_quote_nth;
+            off = quoter(buf, off, s_rep.ptr, s_rep.len);
+        } else {
+            const elem = list_element_at(src_ptr, src_len, @intCast(i));
+            off = append_list_element(buf, off, src_ptr, elem);
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
 // Exported: list repeat — ``lrepeat count value1 ?value2 ...?``.
 //
 // ``count`` is a non-negative integer.  With N value arguments the
