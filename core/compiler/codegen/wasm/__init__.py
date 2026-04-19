@@ -290,6 +290,33 @@ def wasm_codegen_module(
     shared_string_index: dict[str, int] = {}
     shared_string_offset: list[int] = [0]
 
+    # Resolve ``namespace import`` patterns against the now-complete
+    # proc index so the emitter can dispatch unqualified calls
+    # (``test name desc body``) directly to the compiled proc
+    # (``::tcltest::test``) instead of falling back to ``tcl_eval``.
+    # ``namespace_imports`` is ordered; later imports shadow earlier
+    # ones (matches Tcl resolution).  Pattern matching supports only
+    # the two real-world shapes: absolute glob (``::ns::*``) and
+    # absolute single name (``::ns::proc``).  More elaborate globs
+    # would need ``string match`` semantics — deferred until a test
+    # in the wild trips it.
+    proc_imports: dict[str, dict[str, str]] = {}
+    for context_ns, pattern in ir_module.namespace_imports:
+        table = proc_imports.setdefault(context_ns, {})
+        ns_part, _, name_part = pattern.rpartition("::")
+        if not ns_part:
+            continue
+        prefix = f"{ns_part}::"
+        if name_part == "*":
+            for qname in proc_index:
+                if qname.startswith(prefix):
+                    short = qname[len(prefix) :]
+                    if "::" not in short:
+                        table[short] = qname
+        else:
+            if pattern in proc_index:
+                table[name_part] = pattern
+
     # Phase 4: Compile top-level with shared state
     top_escape = escape_summaries.get("::top") if escape_summaries is not None else None
     emitter = _WasmEmitter(
@@ -305,6 +332,7 @@ def wasm_codegen_module(
         shared_string_offset=shared_string_offset,
         diag_map=diag_map,
         escape_summary=top_escape,
+        proc_imports=proc_imports,
     )
     # Register every compiled proc in the runtime proc table with a
     # non-zero func_idx marker so the interpreter knows to dispatch
@@ -341,6 +369,7 @@ def wasm_codegen_module(
             proc_qname=qname,
             diag_map=diag_map,
             escape_summary=proc_escape,
+            proc_imports=proc_imports,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
@@ -352,8 +381,11 @@ def wasm_codegen_module(
             diag_map.procs.append((f_idx, qname))
 
     # Emit a single set of data segments from the shared string table.
+    # ``surrogatepass`` mirrors ``_intern_string`` — the runtime reads
+    # strings as opaque byte sequences; preserving WTF-8 lets test
+    # bundles with lone-surrogate test-result literals compile.
     for value, offset in shared_strings:
-        encoded = value.encode("utf-8")
+        encoded = value.encode("utf-8", errors="surrogatepass")
         data = len(encoded).to_bytes(4, "little") + encoded
         module.data_segments.append(WasmData(offset=offset, data=data))
 

@@ -135,6 +135,71 @@ def test_triage_table_totals_sum_fallback_sites() -> None:
     assert "fallback_sites=10" in rendered
 
 
+def test_namespace_import_resolves_unqualified_calls() -> None:
+    """``namespace import ::foo::*`` eliminates the fallback for bare calls.
+
+    Compiling ``namespace eval ::foo { proc bar {} {...} }; namespace
+    import ::foo::*; bar`` used to emit a ``tcl_eval`` fallback for
+    the bare ``bar`` call because the compiler couldn't see that
+    ``bar`` was imported from ``::foo``.  With the import table
+    wired through, the call resolves to ``::foo::bar`` at compile
+    time and dispatches directly — zero diag sites.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "    namespace export bar baz\n"
+        "}\n"
+        "namespace import ::foo::*\n"
+        "bar\n"
+        "baz\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0, (
+        f"expected zero fallback sites after namespace import, got "
+        f"{summary['fallback_sites_total']}: {summary['top_fallback_commands']}"
+    )
+
+
+def test_namespace_import_single_name_resolves() -> None:
+    """Single-name import (``namespace import ::foo::bar``) also works."""
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "bar\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_single.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+
+def test_unimported_name_still_falls_back() -> None:
+    """``baz`` was not imported, so bare ``baz`` must still fall back.
+
+    Guards against the import table being too permissive — only
+    names present in a recorded ``namespace import`` directive
+    should dispatch directly.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "baz\n"  # not imported — must fall back
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_partial.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] >= 1
+    commands = [c for c, _ in summary["top_fallback_commands"]]
+    assert "baz" in commands
+
+
 def test_kind_bucketing_distinguishes_fallback_from_unsupported() -> None:
     """Kind histogram must separate fallback from unsupported sites.
 

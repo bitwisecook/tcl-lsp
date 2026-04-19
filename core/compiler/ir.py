@@ -346,6 +346,16 @@ class IRModule:
     procedures: dict[str, IRProcedure] = field(default_factory=dict)
     methods: dict[str, IRMethodDef] = field(default_factory=dict)
     redefined_procedures: set[str] = field(default_factory=set)
+    # Static ``namespace import`` directives captured at lowering time.
+    # Each entry is ``(context_namespace, pattern)`` — the namespace
+    # that executed the import and the raw pattern argument (either a
+    # fully-qualified single name like ``::tcltest::test`` or a glob
+    # like ``::tcltest::*``).  Codegen resolves patterns against the
+    # final ``procedures`` table to build the compile-time import
+    # lookup so unqualified calls (``test name desc body``) dispatch
+    # directly to ``::tcltest::test`` instead of falling back to
+    # ``tcl_eval``.
+    namespace_imports: tuple[tuple[str, str], ...] = ()
 
 
 def when_event_name(qualified_name: str) -> str:

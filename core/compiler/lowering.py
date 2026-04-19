@@ -284,6 +284,13 @@ class _Lowerer:
         # Command aliases: alias_name -> (target_cmd, prepended_args).
         # Populated from ``interp alias {} name {} target ?arg ...?``.
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # ``namespace import`` directives captured at lowering time,
+        # as ``(context_namespace, absolute_pattern)`` pairs.  Codegen
+        # pattern-matches each against the final ``module.procedures``
+        # table to decide which unqualified calls can dispatch
+        # directly.  Order preserved because later imports shadow
+        # earlier ones in Tcl's resolution model.
+        self._namespace_imports: list[tuple[str, str]] = []
         # Per-script const-map stack: each scope tracks proc-local
         # variables assigned a braced-literal value.  Populated at
         # ``set var {literal}`` sites and consulted by the
@@ -317,6 +324,7 @@ class _Lowerer:
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
+        self.module.namespace_imports = tuple(self._namespace_imports)
         return self.module
 
     def lower_commands(
@@ -1385,6 +1393,28 @@ class _Lowerer:
             qualified, target_cmd_name, prepended_args = detected
             self._command_aliases[qualified] = (target_cmd_name, prepended_args)
 
+        # Detect ``namespace import ?-force? pattern ...`` and record
+        # each pattern against the current namespace.  Codegen resolves
+        # the patterns against ``module.procedures`` to build the
+        # compile-time import table so unqualified calls dispatch
+        # directly instead of falling back to the interpreter.  We
+        # only track absolute patterns (``::foo::*`` / ``::foo::bar``)
+        # — relative patterns require runtime namespace-path walking
+        # that we don't reproduce at compile time.
+        if (
+            cmd_name == "namespace"
+            and len(args) >= 2
+            and args[0] == "import"
+            and (cmd.expand_word is None or not any(cmd.expand_word))
+        ):
+            i = 1
+            # Skip option flags (``-force`` and any future ``-foo``).
+            while i < len(args) and args[i].startswith("-"):
+                i += 1
+            for pat in args[i:]:
+                if pat.startswith("::") and "::" in pat[2:]:
+                    self._namespace_imports.append((namespace, pat))
+
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
         # If the command itself has no lowering hook, try the alias target.
@@ -1762,6 +1792,7 @@ def lower_to_ir(
             # procs already on lowerer.module via lower_commands
 
     lowerer.module.top_level = IRScript(statements=tuple(all_stmts))
+    lowerer.module.namespace_imports = tuple(lowerer._namespace_imports)
     inline_uplevel_passthrough(lowerer.module)
     return lowerer.module
 
