@@ -420,6 +420,21 @@ fn eval_command(words: []const i32) i32 {
     if (cmd_s.len == 0) return 0;
     const cmd: [*]const u8 = @ptrFromInt(cmd_s.ptr);
 
+    // Fast path: probe the proc registry first.  Tcl semantics say a
+    // user-defined proc shadows a built-in, and for dispatch-heavy
+    // test bundles (tcltest calling ::tcltest::preserveCore,
+    // ::tcltest::temporaryDirectory, etc. — and the test body itself
+    // calling ``test`` which resolves to ``::tcltest::test``) the proc
+    // path wins 10× more often than a builtin would.  ``proc_lookup``
+    // is O(1) via the MRU cache + open-addressed hash and short-
+    // circuits on ``proc_buf == 0``, so the miss cost on a bundle
+    // with no procs is a single ``i32`` load.  The builtin chain
+    // below still runs on miss so nothing else changes.
+    if (procs.proc_buf_nonzero()) {
+        const bucket = procs.proc_lookup(words[0]);
+        if (bucket != 0) return eval_proc_call_bucket(words, bucket);
+    }
+
     if (str_eq(cmd, cmd_s.len, "set")) {
         if (words.len >= 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
         else if (words.len >= 2) { return frames.var_resolve(words[1]); }
@@ -1300,6 +1315,13 @@ fn eval_proc_call(words: []const i32) i32 {
         catch_mod.error_unknown_command(words[0]);
         return 0;
     }
+    return eval_proc_call_bucket(words, bucket);
+}
+
+/// Internal: dispatch once the proc bucket is already resolved.
+/// Shared between ``eval_proc_call`` (legacy path) and the proc-first
+/// fast path in ``eval_command``.
+fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
     // because pure WASM can't call across modules.  The bridge

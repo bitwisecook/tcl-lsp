@@ -34,6 +34,15 @@ var proc_buf: u32 = 0;
 var proc_cap: u32 = 0;
 var proc_count: u32 = 0;
 
+/// Cheap check used by ``eval_command``'s proc-first fast path to
+/// skip the lookup machinery entirely when the registry is empty
+/// (e.g. a bundle with no procs defined yet).  Inlined ``i32`` load;
+/// the branch predictor keeps the "has procs" path free in the
+/// common case.
+pub fn proc_buf_nonzero() bool {
+    return proc_buf != 0;
+}
+
 // -- Proc lookup LRU cache --
 // Small MRU cache keyed by (hash, len, first_byte).  ``proc_lookup``
 // dominates dispatch-heavy bundles — tcltest bundles resolve the
