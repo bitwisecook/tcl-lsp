@@ -138,10 +138,12 @@ fn match_stub(c: []const u8) bool {
     // ``unknown`` handler just means the stock "unknown command" error
     // triggers, which is exactly what we want here.
 
-    // List commands that aren't in eval_command's hot path.
-    if (eql(c, "lreplace")) return trap("lreplace");
-    if (eql(c, "linsert")) return trap("linsert");
-    if (eql(c, "lset")) return trap("lset");
+    // List commands — ``lreplace`` / ``linsert`` / ``lset`` are now
+    // handled directly in ``eval_command`` (see tcl_interp.zig) and
+    // so never reach this dispatch table.  If we do get here for one
+    // of them, something routed around the hot path — treat as
+    // unhandled so the generic ``unknown command`` error fires with
+    // a useful diagnostic.
     if (eql(c, "lreverse")) return trap("lreverse");
     if (eql(c, "lrepeat")) return trap("lrepeat");
     if (eql(c, "lmap")) return trap("lmap");
