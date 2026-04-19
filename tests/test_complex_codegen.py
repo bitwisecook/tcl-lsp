@@ -1332,26 +1332,41 @@ proc fail {} {
         has_barrier = any(isinstance(s, IRBarrier) for s in proc.body.statements)
         assert has_barrier
 
-    def test_eval_becomes_barrier(self):
-        """eval is an analysis barrier."""
-        ir = lower_to_ir("eval {set x 1}")
+    def test_eval_dynamic_body_stays_barrier(self):
+        """``eval $body`` with a dynamic body still produces IRBarrier.
+
+        Static-body ``eval {…}`` is relaxed to :class:`IRBlock` by the
+        barrier-relaxation gate (see ``core/compiler/lowering.py``);
+        dynamic-body forms remain barriers because the interpreter
+        must evaluate the runtime value.
+        """
+        from core.compiler.ir import IRBlock
+
+        ir = lower_to_ir("set body {set x 1}\neval $body")
         stmts = ir.top_level.statements
         has_barrier = any(isinstance(s, IRBarrier) for s in stmts)
-        has_call = any(isinstance(s, IRCall) and s.command == "eval" for s in stmts)
-        assert has_barrier or has_call
+        assert has_barrier
+        # And the static-body form relaxes to IRBlock.
+        ir2 = lower_to_ir("eval {set x 1}")
+        assert any(isinstance(s, IRBlock) for s in ir2.top_level.statements)
 
-    def test_uplevel_becomes_barrier(self):
-        """uplevel is an analysis barrier."""
-        source = """\
-proc up {} {
-    uplevel 1 {set x 1}
-}
-"""
-        ir = lower_to_ir(source)
+    def test_uplevel_dynamic_body_stays_barrier(self):
+        """``uplevel 1 $body`` with a dynamic body still produces IRBarrier.
+
+        Static-body ``uplevel 1 {…}`` is relaxed to :class:`IRUpFrame`
+        (see ``core/compiler/lowering.py::_relax_uplevel``); dynamic
+        bodies remain barriers.
+        """
+        from core.compiler.ir import IRUpFrame
+
+        ir = lower_to_ir("proc up {body} {\n    uplevel 1 $body\n}\n")
         proc = ir.procedures["::up"]
         has_barrier = any(isinstance(s, IRBarrier) for s in proc.body.statements)
-        has_call = any(isinstance(s, IRCall) for s in proc.body.statements)
-        assert has_barrier or has_call
+        assert has_barrier
+        # Static-body form relaxes to IRUpFrame.
+        ir2 = lower_to_ir("proc up {} {\n    uplevel 1 {set x 1}\n}\n")
+        proc2 = ir2.procedures["::up"]
+        assert any(isinstance(s, IRUpFrame) for s in proc2.body.statements)
 
     def test_standalone_expr_becomes_expr_eval(self):
         """Standalone expr command → IRExprEval."""
