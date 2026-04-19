@@ -61,9 +61,10 @@ pub export fn diag_set(site_id: i32) void {
 pub fn write_prefix(fd: i32) bool {
     if (current_site_id == 0) return false;
     io.fd_write_all(fd, "site=", 5);
-    // Reuse the integer formatter; strip its trailing newline by
-    // using the no-newline variant.
-    const buf = io.itoa_no_nl(@as(i64, @intCast(current_site_id)));
+    // ``itoa`` renders digits without a trailing newline; the caller
+    // appends any separator (a space here, matching the trailing
+    // ``" "`` below).
+    const buf = io.itoa(@as(i64, @intCast(current_site_id)));
     io.fd_write_all(fd, buf.ptr, buf.len);
     io.fd_write_all(fd, " ", 1);
     return true;
@@ -78,7 +79,7 @@ pub fn write_prefix(fd: i32) bool {
 pub fn write_eval_ctx(fd: i32) void {
     if (current_eval_ptr == 0 or current_eval_len == 0) return;
     io.fd_write_all(fd, "  in eval-script at offset ", 27);
-    const off = io.itoa_no_nl(@as(i64, @intCast(current_eval_pos)));
+    const off = io.itoa(@as(i64, @intCast(current_eval_pos)));
     io.fd_write_all(fd, off.ptr, off.len);
     io.fd_write_all(fd, ": ", 2);
     // Print a 60-char (or rest-of-script) snippet starting at the
