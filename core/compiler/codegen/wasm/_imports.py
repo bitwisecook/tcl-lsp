@@ -24,6 +24,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
     # Command runtime — all parameters/results are i32 TclObj pointers
     "tcl_puts": ("tcl", "tcl_cmd_puts", [ValType.I32], [ValType.I32]),
+    "tcl_puts_nonewline": (
+        "tcl",
+        "tcl_cmd_puts_nonewline",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_append": ("tcl", "tcl_cmd_append", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_length": ("tcl", "tcl_cmd_list_length", [ValType.I32], [ValType.I32]),
     "tcl_lappend": ("tcl", "tcl_cmd_lappend", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -72,6 +78,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_string_reverse": ("tcl", "string_reverse", [ValType.I32], [ValType.I32]),
     "tcl_string_toupper": ("tcl", "string_toupper", [ValType.I32], [ValType.I32]),
     "tcl_string_tolower": ("tcl", "string_tolower", [ValType.I32], [ValType.I32]),
+    "tcl_string_totitle": ("tcl", "string_totitle", [ValType.I32], [ValType.I32]),
     "tcl_string_replace": (
         "tcl",
         "string_replace",
@@ -93,6 +100,31 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     ),
     "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_sort": ("tcl", "tcl_cmd_list_sort", [ValType.I32], [ValType.I32]),
+    "tcl_list_reverse": ("tcl", "tcl_cmd_list_reverse", [ValType.I32], [ValType.I32]),
+    "tcl_list_contains": (
+        "tcl",
+        "tcl_cmd_list_contains",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_list_repeat": (
+        "tcl",
+        "tcl_cmd_list_repeat",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_list_insert": (
+        "tcl",
+        "tcl_cmd_list_insert",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_list_replace": (
+        "tcl",
+        "tcl_cmd_list_replace",
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_search": ("tcl", "tcl_cmd_list_search", [ValType.I32, ValType.I32], [ValType.I32]),
     # Dict commands
     "tcl_dict_create": ("tcl", "dict_create", [], [ValType.I32]),
@@ -107,6 +139,12 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_dict_keys": ("tcl", "dict_keys", [ValType.I32], [ValType.I32]),
     "tcl_dict_values": ("tcl", "dict_values", [ValType.I32], [ValType.I32]),
     "tcl_dict_size": ("tcl", "dict_size", [ValType.I32], [ValType.I32]),
+    "tcl_dict_merge_pair": (
+        "tcl",
+        "dict_merge_pair",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_error": ("tcl", "tcl_cmd_error", [ValType.I32], []),
     "tcl_format": (
         "tcl",
@@ -302,6 +340,10 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "lindex": ("tcl_list_index", 2),
     "lrange": ("tcl_list_range", 3),
     "lsort": ("tcl_list_sort", 1),
+    "lreverse": ("tcl_list_reverse", 1),
+    "lrepeat": ("tcl_list_repeat", 2),
+    "linsert": ("tcl_list_insert", 3),
+    "lreplace": ("tcl_list_replace", 4),
     "lsearch": ("tcl_list_search", 2),
     "concat": ("tcl_concat", 2),
     "error": ("tcl_error", 1),
@@ -383,6 +425,7 @@ _STRING_SUBCMD_IMPORT: dict[str, str] = {
     "reverse": "tcl_string_reverse",
     "toupper": "tcl_string_toupper",
     "tolower": "tcl_string_tolower",
+    "totitle": "tcl_string_totitle",
     "replace": "tcl_string_replace",
 }
 
@@ -395,6 +438,11 @@ _STRING_IS_IMPORT: dict[str, str] = {
 }
 
 # Dict sub-command → (import key, additional_arg_count after dict_var)
+# ``create`` and ``merge`` are intentionally NOT in this map — the
+# compiler specialises them in ``_emit_cmd_dict`` (and the
+# value-context equivalent) to fold/chain at compile time with
+# ``tcl_lappend`` / ``tcl_dict_merge_pair`` respectively, bypassing
+# the generic dispatch below.
 _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "get": "tcl_dict_get",
     "set": "tcl_dict_set",
@@ -402,7 +450,6 @@ _DICT_SUBCMD_IMPORT: dict[str, str] = {
     "keys": "tcl_dict_keys",
     "values": "tcl_dict_values",
     "size": "tcl_dict_size",
-    "create": "tcl_dict_create",
 }
 
 # ``clock <subcmd>`` → import key.  Only subcommands that map to a

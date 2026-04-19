@@ -216,6 +216,22 @@ test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files throu
 	@echo "==> Running VM tcltest tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
 
+test-tcl9: $(UV_STAMP) ## Run Tcl 9 correctness harness + emit tmp/tcl9-report.json
+	@echo "==> Running Tcl 9 correctness harness"
+	@mkdir -p $(ROOT)tmp
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
+		--tcl9-report=tmp/tcl9-report.json
+
+test-tcl9-full: $(UV_STAMP) ## Full Tcl 9 suite; requires upstream source (nightly)
+	@echo "==> Running full Tcl 9 correctness harness"
+	@mkdir -p $(ROOT)tmp
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
+		--tcl9-required --tcl9-report=tmp/tcl9-report-full.json
+
+tcl9-triage: $(UV_STAMP) ## Refresh docs/kcs/kcs-tcl9-triage.md from tmp/tcl9-report.json
+	@echo "==> Refreshing Tcl 9 triage table"
+	cd $(ROOT) && $(UV) run python scripts/tcl9_triage_report.py tmp/tcl9-report.json
+
 lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 	@echo "==> Checking KCS docs index links"
 	cd $(ROOT) && $(UV) run python scripts/check_kcs_index_links.py

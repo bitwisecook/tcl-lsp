@@ -5,6 +5,7 @@
 // string_is_space, string_trimleft, string_trimright, concat.
 
 const obj = @import("tcl_obj.zig");
+const list_mod = @import("tcl_list.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const obj_ensure_string = obj.obj_ensure_string;
@@ -84,8 +85,12 @@ pub export fn string_length(value: i32) i32 {
 // Exported: string index — extract the character at a byte index.
 pub export fn string_index(value: i32, idx: i32) i32 {
     const s = obj_ensure_string(value);
-    const i_val = obj_get_int(idx);
-    if (i_val < 0 or i_val >= @as(i64, s.len)) return obj_new_string(0, 0);
+    // Accept ``end`` / ``end-N`` / ``end+N`` as well as plain integers —
+    // the same arithmetic list indexing uses.  Previously only plain
+    // integers parsed, so ``string index foo end`` resolved to 0.
+    const slen_i64: i64 = @intCast(s.len);
+    const i_val = list_mod.resolve_list_index(idx, slen_i64);
+    if (i_val < 0 or i_val >= slen_i64) return obj_new_string(0, 0);
     const pos: u32 = @intCast(i_val);
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     const buf = alloc(1);
@@ -97,9 +102,9 @@ pub export fn string_index(value: i32, idx: i32) i32 {
 // Exported: string range — extract a substring [first..last] (inclusive).
 pub export fn string_range(value: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(value);
-    var f = obj_get_int(first);
-    var l = obj_get_int(last);
     const slen: i64 = @intCast(s.len);
+    var f = list_mod.resolve_list_index(first, slen);
+    var l = list_mod.resolve_list_index(last, slen);
     if (f < 0) f = 0;
     if (l >= slen) l = slen - 1;
     if (f > l or f >= slen) return obj_new_string(0, 0);
@@ -164,7 +169,7 @@ pub export fn string_match(pattern: i32, value: i32) i32 {
     return obj_new_int(if (matched) @as(i64, 1) else @as(i64, 0));
 }
 
-fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
     // Guard against null/zero pointers produced by obj_ensure_string(0).
     if (plen == 0) return vlen == 0;
     const pat: [*]const u8 = @ptrFromInt(pp);
@@ -391,6 +396,32 @@ pub export fn string_tolower(value: i32) i32 {
     return obj_new_string(@intCast(buf), @intCast(sv.len));
 }
 
+// Exported: string totitle — uppercase the first alphabetic byte and
+// lowercase every other byte.  Tcl's reference totitle walks the
+// whole string by Unicode codepoint; this ASCII-only approximation
+// covers the tcltest / tcllib patterns we see in the 9.0 corpus and
+// keeps parity with ``string toupper`` / ``string tolower`` above.
+pub export fn string_totitle(value: i32) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const buf = alloc(sv.len);
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var first_alpha_seen = false;
+    for (0..sv.len) |i| {
+        const c = src[i];
+        if (!first_alpha_seen and ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z'))) {
+            dst[i] = if (c >= 'a' and c <= 'z') c - 32 else c;
+            first_alpha_seen = true;
+        } else if (c >= 'A' and c <= 'Z') {
+            dst[i] = c + 32;
+        } else {
+            dst[i] = c;
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(sv.len));
+}
+
 // Exported: string replace — replace characters in range [first..last] with new string.
 pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i32 {
     const sv = obj_ensure_string(value);
@@ -547,9 +578,15 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
 }
 
 // Exported: join — join a Tcl list with a separator string.
+// ``separator == 0`` means the caller omitted the optional argument
+// (``join list``), in which case Tcl defaults to a single space.  The
+// compiler fills missing runtime-call args with 0 so we have to
+// recover the default here rather than at the call site.
 pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
     const sl = obj_ensure_string(list);
-    const ss = obj_ensure_string(separator);
+    const default_sep = " ";
+    const ss_len: u32 = if (separator == 0) @intCast(default_sep.len) else obj_ensure_string(separator).len;
+    const ss_ptr: u32 = if (separator == 0) @intCast(@intFromPtr(default_sep.ptr)) else obj_ensure_string(separator).ptr;
     if (sl.len == 0) return obj_new_string(0, 0);
     const n = list_count_elements(sl.ptr, sl.len);
     if (n <= 0) return obj_new_string(0, 0);
@@ -558,13 +595,13 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
         return obj_new_string_copy(sl.ptr + elem.start, elem.len);
     }
     // Estimate output: sum of element lengths + (n-1) * sep_len
-    const buf = alloc(sl.len + @as(u32, @intCast(n)) * ss.len + 1);
+    const buf = alloc(sl.len + @as(u32, @intCast(n)) * ss_len + 1);
     var out: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
-        if (idx > 0 and ss.len > 0) {
-            memcpy(buf + out, ss.ptr, ss.len);
-            out += ss.len;
+        if (idx > 0 and ss_len > 0) {
+            memcpy(buf + out, ss_ptr, ss_len);
+            out += ss_len;
         }
         const elem = list_element_at(sl.ptr, sl.len, idx);
         if (elem.len > 0) {
