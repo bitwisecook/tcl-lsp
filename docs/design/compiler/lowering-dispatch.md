@@ -129,10 +129,16 @@ is under a small budget (or single call site). This is a distinct
 optimiser pass, enabled by IRUpFrame's existence but not implemented in
 the first relaxation wave.
 
-**Follow-up: `eval [list …]`** expression forms. Still statically
-decidable because the list builder has all-literal arguments, but
-doubles the coverage and is deferred to keep the first relaxation
-commit focused on the braced-literal case.
+**Implemented: `eval [list …]`** expression forms. Also
+statically decidable when the inner `list` command's arguments
+are all plain literals (`TokenType.ESC` with no `$` / `[`, or
+`TokenType.STR`). The gate synthesises the body by joining the
+list arguments — `STR` tokens get re-braced — and lowers the
+result as `IRBlock`. See `_Lowerer._eval_list_literal_body` in
+`core/compiler/lowering.py`. Shapes that stay as `IRBarrier`:
+`eval [foo …]` (inner command isn't `list`), `eval [list $v w]`
+(dynamic substitution), and `eval [list {*}$args]` (`{*}`
+expansion).
 
 ### Fallback-to-runtime pattern
 

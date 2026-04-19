@@ -508,9 +508,12 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
 // caller simple and matches the C Tcl ``Tcl_LsetFlat`` semantics.
 //
 // On out-of-range index or malformed indices list, returns a copy
-// of the source unchanged and sets the error flag via
-// ``tcl_cmd_error``.  The compiled caller can inspect the flag
-// through the usual catch machinery.
+// of the source unchanged.  This function does not itself stamp
+// catch / error state; a caller that needs observable failure
+// (the ``lset`` Tcl command normally raises an error for
+// out-of-range indices) must wire that separately.  Deferred
+// until the broader error-context work lands — the current
+// corpus does not distinguish the two.
 pub export fn tcl_cmd_list_set(list: i32, indices: i32, value: i32) i32 {
     const s_list = obj_ensure_string(list);
     const s_indices = obj_ensure_string(indices);

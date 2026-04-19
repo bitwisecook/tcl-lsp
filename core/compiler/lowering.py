@@ -1001,6 +1001,18 @@ class _Lowerer:
 
         Literal means ``TokenType.ESC`` / ``TokenType.STR`` only: no
         ``$var`` substitution, no nested command substitution.
+
+        The synthesised body must be a string whose re-parse yields
+        the same argument sequence as the original ``[list …]`` call.
+        ``list`` applies canonical Tcl list quoting (brace-wrap for
+        whitespace / braces / unbalanced brackets, leading-``#``
+        escaping, etc.); we do NOT attempt to reproduce that full
+        canonicalisation here.  Instead we only relax when every arg
+        is already list-safe as-is: a bareword ESC arg with no
+        whitespace / braces / backslashes, or a STR token (which we
+        re-brace).  Anything that would need canonical requoting
+        (spaces, ``;``, ``\\``, leading ``#``, empty, etc.) falls
+        back to the runtime eval path.
         """
         try:
             inner = segment_commands(cmd_text, None)
@@ -1019,15 +1031,30 @@ class _Lowerer:
                 return None
             if tok.type is TokenType.ESC and ("$" in tok.text or "[" in tok.text):
                 return None
-        # Body is the args joined with spaces.  ``list`` canonicalises
-        # its result via list quoting, but for the all-bare-literal
-        # case here we trust the tokens' source text to be already
-        # list-safe (no whitespace, no braces) — anything else would
-        # have come in as a STR token with braces that we strip below.
+            text = inner_cmd.texts[i]
+            if tok.type is TokenType.ESC:
+                # A bareword ESC is list-safe only when it has no
+                # characters that would change its parse when joined
+                # with spaces.  Whitespace, backslashes, braces,
+                # unbalanced brackets, leading ``#``, and empty all
+                # need canonical Tcl list quoting which we refuse to
+                # reproduce — bail so the body stays on the eval
+                # path.
+                if text == "" or text[0] == "#":
+                    return None
+                for ch in text:
+                    if ch in ' \t\n\r\\{}";':
+                        return None
+        # Body is the args joined with spaces — safe because every
+        # arg has passed the bareword gate above.
         parts: list[str] = []
         for i, arg in enumerate(inner_cmd.texts[1:], start=1):
             tok = inner_cmd.argv[i]
             if tok.type is TokenType.STR:
+                # STR tokens arrive without their outer braces; re-brace
+                # so the re-parse groups the element as one word.  The
+                # STR content itself cannot contain unescaped braces at
+                # the outer level (the lexer would have rejected that).
                 parts.append("{" + arg + "}")
             else:
                 parts.append(arg)
@@ -1110,11 +1137,19 @@ class _Lowerer:
             # substituted levels are uncommon and dynamic.
             if first_tok.type is not TokenType.ESC:
                 return None
-            if len(args) < 2:
+            # Require exactly one body word after the level.  Tcl
+            # concatenates multiple body words into a single script
+            # (``uplevel 1 puts hello`` → body is ``puts hello``);
+            # synthesising a correct body string from separate words
+            # at compile time requires per-token list-quoting that
+            # matches Tcl's canonical concat rules.  Rather than
+            # reproduce that, bail and let the runtime eval path
+            # handle the concat semantics.
+            if len(args) != 2:
                 return None
-            return len(args) - 1
+            return 1
         # No level — body is the first arg.  Require exactly one arg
-        # (multi-word concat deferred).
+        # (multi-word concat deferred, same rationale as above).
         if len(args) != 1:
             return None
         return 0
