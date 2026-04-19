@@ -231,3 +231,38 @@ class TestConstMapBarrierRelaxation:
         mod = lower_to_ir("proc p {} { set body {eval $x}; uplevel 1 $body }")
         stmts = mod.procedures["::p"].body.statements
         assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
+
+    def test_catch_body_inherits_outer_const_map(self):
+        # ``set body {literal}; catch {uplevel 1 $body}`` — the catch's
+        # inner scope should inherit the outer proc's const-map so the
+        # nested uplevel can relax.  Mirrors tcltest's
+        # ``catch {uplevel 1 $setup}`` shape where ``setup`` is set to
+        # a literal earlier in the proc.
+        from core.compiler.ir import IRCatch
+
+        mod = lower_to_ir("proc p {} { set body {set x 1}; catch {uplevel 1 $body} err }")
+        stmts = mod.procedures["::p"].body.statements
+        catch_stmts = [s for s in stmts if isinstance(s, IRCatch)]
+        assert catch_stmts
+        inner = catch_stmts[0].body.statements
+        assert any(isinstance(s, IRUpFrame) for s in inner)
+
+    def test_if_body_inherits_outer_const_map(self):
+        from core.compiler.ir import IRIf
+
+        mod = lower_to_ir("proc p {c} { set body {set x 1}; if {$c} { uplevel 1 $body } }")
+        stmts = mod.procedures["::p"].body.statements
+        if_stmts = [s for s in stmts if isinstance(s, IRIf)]
+        assert if_stmts
+        inner = if_stmts[0].clauses[0].body.statements
+        assert any(isinstance(s, IRUpFrame) for s in inner)
+
+    def test_inner_reassignment_does_not_leak_to_parent(self):
+        # Child scope re-assigns ``body`` to something dynamic — the
+        # child's local const-map loses the entry, but the parent's
+        # map is only cleared because ``if`` itself is structured IR.
+        # The outer uplevel stays a barrier (the parent's invalidation
+        # is still in charge post-``if``).
+        mod = lower_to_ir("proc p {c} { set body {a}; if {$c} { set body $c } ; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)

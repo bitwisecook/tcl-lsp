@@ -348,7 +348,14 @@ class _Lowerer:
         body_token: Token | None = None,
     ) -> IRScript:
         commands = segment_commands(source, body_token)
-        self._const_map_stack.append({})
+        # Inherit the parent scope's const-map so a child body (e.g.
+        # the ``catch`` body in ``set body {literal}; catch {uplevel 1
+        # $body}``) can still relax.  The child's copy is independent,
+        # so mutations inside the child do not leak back to the parent
+        # — the parent's own invalidation on structured-IR entry stays
+        # in charge there.
+        parent: dict[str, str] | None = self._const_map_stack[-1] if self._const_map_stack else None
+        self._const_map_stack.append(dict(parent) if parent else {})
         try:
             return IRScript(statements=self._lower_segmented(commands, namespace=namespace))
         finally:
