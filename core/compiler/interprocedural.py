@@ -276,6 +276,23 @@ def _scan_local_facts(
             facts.effect_writes |= EffectRegion.UNKNOWN_STATE
             continue
 
+        # Barrier-relaxed ``uplevel`` / ``eval`` preserve barrier
+        # semantics for interprocedural analysis — the body may
+        # clobber arbitrary state, same as the classic ``uplevel``
+        # / ``eval`` IRBarrier it replaces.
+        from .ir import IRBlock as _IRBlock
+        from .ir import IRUpFrame as _IRUpFrame
+
+        if isinstance(stmt, _IRUpFrame) or (
+            isinstance(stmt, _IRBlock)
+            and stmt.source_tokens is not None
+            and stmt.source_tokens.argv_texts
+            and stmt.source_tokens.argv_texts[0] == "eval"
+        ):
+            facts.has_barrier = True
+            facts.effect_writes |= EffectRegion.UNKNOWN_STATE
+            continue
+
         if isinstance(stmt, IRCall):
             target = resolve_call_target(stmt.command, stmt.args, caller_qname, known_procs)
             if target is None:

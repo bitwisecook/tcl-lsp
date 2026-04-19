@@ -951,25 +951,54 @@ class _Lowerer:
                 )
 
     # ---------------------------------------------------------------
-    # Barrier relaxation — static-body ``uplevel``
+    # Barrier relaxation — static-body ``eval`` / ``uplevel``
     #
-    # Recognise ``uplevel ?level? {static-body}`` shapes where the
-    # level is statically decidable and the body is a pure braced
-    # literal free of nested dynamic-shape barriers.  Produce
-    # :class:`IRUpFrame` so downstream optimiser passes can see the
-    # parsed body; codegen still routes through ``tcl_eval`` with a
-    # frame_depth stash/restore wrapper — matching the existing
-    # ``_emit_cmd_uplevel`` semantics.  The win is IR-level
-    # (inspectable body) not runtime-level (caller-local visibility
-    # still requires a whole-module inlining pass to eliminate the
-    # frame boundary).
+    # Recognise call shapes whose body is a pure braced literal with
+    # no nested dynamic-shape barriers, and lower them to inline IR
+    # (:class:`IRBlock` for ``eval``, :class:`IRUpFrame` for
+    # ``uplevel``) rather than the generic :class:`IRBarrier` →
+    # runtime ``tcl_eval`` path.  Keeps the compiled frame visible
+    # to the body so caller locals, aliases, and ``variable``
+    # declarations resolve via compiled lookups.  Anything that
+    # fails the gate returns False / None so the dispatcher falls
+    # through to the existing barrier case.
     #
-    # ``eval`` relaxation is deferred: the VM's ``IRBlock`` handler
-    # assumes a ``namespace eval`` source shape, which an
-    # ``eval {…}``-derived IRBlock would not satisfy.  Until the VM
-    # path handles the two shapes distinctly, ``eval {…}`` remains
-    # an :class:`IRBarrier` (the existing tcl_eval fallback path).
+    # ``eval`` shares :class:`IRBlock` with ``namespace eval`` for
+    # codegen reuse; the two are distinguished by
+    # ``source_tokens.argv_texts[0]`` ("eval" vs "namespace") at
+    # consumer sites (VM dispatch, literal processing).
     # ---------------------------------------------------------------
+
+    def _can_relax_eval(self, cmd: _Command) -> bool:
+        args = cmd.args
+        arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
+        if cmd.expand_word is not None and any(cmd.expand_word):
+            return False
+        # Single braced-literal argument only.  Multi-arg ``eval a b c``
+        # concats the args into a script — still statically decidable
+        # but deferred to a follow-up; the dominant tcltest shape is
+        # the single-braced-body call.
+        if len(args) != 1 or not arg_single or not arg_single[0]:
+            return False
+        body_tok = arg_tokens[0]
+        if body_tok.type is not TokenType.STR:
+            return False
+        from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
+
+        return not body_has_dynamic_barrier(args[0], body_tok)
+
+    def _relax_eval(self, cmd: _Command, *, namespace: str) -> IRBlock:
+        args = cmd.args
+        body_tok = cmd.arg_tokens[0]
+        body_script = self._lower_body_arg(args[0], body_tok, namespace=namespace)
+        return IRBlock(
+            range=cmd.range,
+            body=body_script,
+            namespace=namespace,
+            source_args=tuple(args),
+            source_tokens=cmd.cmd_tokens,
+        )
 
     def _can_relax_uplevel(self, cmd: _Command) -> bool:
         args = cmd.args
@@ -1338,6 +1367,9 @@ class _Lowerer:
 
             case "dict" if args:
                 return self._lower_dict(cmd, namespace=namespace)
+
+            case "eval" if self._can_relax_eval(cmd):
+                return self._relax_eval(cmd, namespace=namespace)
 
             case "uplevel" if self._can_relax_uplevel(cmd):
                 return self._relax_uplevel(cmd, namespace=namespace)

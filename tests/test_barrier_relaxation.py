@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.compiler.ir import IRBarrier, IRUpFrame
+from core.compiler.ir import IRBarrier, IRBlock, IRUpFrame
 from core.compiler.lowering import lower_to_ir
 
 
@@ -23,6 +23,42 @@ def _first_stmt(source: str):
     stmts = mod.top_level.statements
     assert stmts, "expected at least one top-level statement"
     return stmts[0]
+
+
+class TestEvalRelaxation:
+    def test_static_body_lowers_to_irblock(self):
+        stmt = _first_stmt("eval {set x 1}")
+        assert isinstance(stmt, IRBlock)
+        assert len(stmt.body.statements) == 1
+        # source_tokens argv[0] discriminates eval-shape from
+        # namespace-eval-shape for VM codegen.
+        assert stmt.source_tokens is not None
+        assert stmt.source_tokens.argv_texts[0] == "eval"
+
+    def test_substituted_body_stays_barrier(self):
+        mod = lower_to_ir("set body {set x 1}\neval $body")
+        assert any(isinstance(s, IRBarrier) for s in mod.top_level.statements)
+
+    def test_command_substitution_body_stays_barrier(self):
+        stmt = _first_stmt("eval [list set x 1]")
+        assert isinstance(stmt, IRBarrier)
+
+    def test_multi_arg_eval_stays_barrier(self):
+        stmt = _first_stmt("eval set x 1")
+        assert isinstance(stmt, IRBarrier)
+
+    def test_nested_dynamic_barrier_poisons_relaxation(self):
+        # Braced body, but inside is an eval of a $var — the nested
+        # barrier has dynamic shape, so the whole outer relax is
+        # forbidden.
+        stmt = _first_stmt("eval {eval $body}")
+        assert isinstance(stmt, IRBarrier)
+
+    def test_nested_static_barrier_relaxes(self):
+        # Nested eval with a braced body is itself statically
+        # decidable — outer relax proceeds.
+        stmt = _first_stmt("eval {eval {set x 1}}")
+        assert isinstance(stmt, IRBlock)
 
 
 class TestUplevelRelaxation:

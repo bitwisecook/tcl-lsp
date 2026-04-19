@@ -370,10 +370,13 @@ def _escape_every_name_touched_tree(
         elif isinstance(stmt, IRBarrier):
             _handle_barrier(stmt, state, defs)
         else:
+            from ..ir import IRBlock as _IRBlock
             from ..ir import IRUpFrame
 
             if isinstance(stmt, IRUpFrame):
                 _handle_barrier(_synthesise_uplevel_barrier(stmt), state, defs)
+            elif isinstance(stmt, _IRBlock) and _is_eval_block(stmt):
+                _handle_barrier(_synthesise_eval_barrier(stmt), state, defs)
 
 
 def _handle_eval(
@@ -455,6 +458,25 @@ def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
     )
 
 
+def _is_eval_block(stmt) -> bool:
+    """True when an :class:`IRBlock` was produced by relaxing ``eval``."""
+    tokens = getattr(stmt, "source_tokens", None)
+    if tokens is None or not tokens.argv_texts:
+        return False
+    return tokens.argv_texts[0] == "eval"
+
+
+def _synthesise_eval_barrier(stmt) -> IRBarrier:
+    """Reconstitute an IRBarrier view of an eval-shape :class:`IRBlock`."""
+    return IRBarrier(
+        range=stmt.range,
+        reason="eval relaxed",
+        command="eval",
+        args=tuple(stmt.source_args) if stmt.source_args else (),
+        tokens=stmt.source_tokens,
+    )
+
+
 def _handle_barrier(
     barrier: IRBarrier,
     state: _CfgState,
@@ -507,6 +529,7 @@ def _handle_statement(
     defs = ssa_stmt.defs
     state.remember_versions(ssa_stmt)
 
+    from ..ir import IRBlock as _IRBlock
     from ..ir import IRUpFrame
 
     if isinstance(stmt, IRCall):
@@ -515,6 +538,8 @@ def _handle_statement(
         _handle_barrier(stmt, state, defs)
     elif isinstance(stmt, IRUpFrame):
         _handle_barrier(_synthesise_uplevel_barrier(stmt), state, defs)
+    elif isinstance(stmt, _IRBlock) and _is_eval_block(stmt):
+        _handle_barrier(_synthesise_eval_barrier(stmt), state, defs)
     elif isinstance(stmt, IRAssignConst):
         if _is_dynamic_name(stmt.name):
             literal = state.resolve_literal(stmt.name)
