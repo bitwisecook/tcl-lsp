@@ -975,23 +975,74 @@ class _Lowerer:
         arg_single = cmd.arg_single_token
         if cmd.expand_word is not None and any(cmd.expand_word):
             return False
-        # Single braced-literal argument only.  Multi-arg ``eval a b c``
-        # concats the args into a script — still statically decidable
-        # but deferred to a follow-up; the dominant tcltest shape is
-        # the single-braced-body call.
+        # Two recognised shapes:
+        #   (a) single braced-literal argument — covered by the first
+        #       branch below.  Dominant tcltest shape.
+        #   (b) single command-substitution argument of the form
+        #       ``eval [list <literal> <literal> ...]`` — a common
+        #       idiom for "safely build and evaluate a command from
+        #       known literal parts".  Covered by the second branch.
         if len(args) != 1 or not arg_single or not arg_single[0]:
             return False
         body_tok = arg_tokens[0]
-        if body_tok.type is not TokenType.STR:
-            return False
-        from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
+        if body_tok.type is TokenType.STR:
+            from .lowering_hooks._barrier_gate import body_has_dynamic_barrier
 
-        return not body_has_dynamic_barrier(args[0], body_tok)
+            return not body_has_dynamic_barrier(args[0], body_tok)
+        if body_tok.type is TokenType.CMD:
+            return self._eval_list_literal_body(body_tok.text) is not None
+        return False
+
+    @staticmethod
+    def _eval_list_literal_body(cmd_text: str) -> str | None:
+        """If *cmd_text* is ``list lit1 lit2 ...`` with all-literal
+        arguments, return the body text the list would evaluate to —
+        otherwise ``None``.
+
+        Literal means ``TokenType.ESC`` / ``TokenType.STR`` only: no
+        ``$var`` substitution, no nested command substitution.
+        """
+        try:
+            inner = segment_commands(cmd_text, None)
+        except TclParseError:
+            return None
+        if len(inner) != 1:
+            return None
+        inner_cmd = inner[0]
+        if not inner_cmd.texts or inner_cmd.texts[0] != "list":
+            return None
+        # Each element after ``list`` must be a single-token literal.
+        for i, tok in enumerate(inner_cmd.argv[1:], start=1):
+            if not inner_cmd.single_token_word[i]:
+                return None
+            if tok.type not in (TokenType.ESC, TokenType.STR):
+                return None
+            if tok.type is TokenType.ESC and ("$" in tok.text or "[" in tok.text):
+                return None
+        # Body is the args joined with spaces.  ``list`` canonicalises
+        # its result via list quoting, but for the all-bare-literal
+        # case here we trust the tokens' source text to be already
+        # list-safe (no whitespace, no braces) — anything else would
+        # have come in as a STR token with braces that we strip below.
+        parts: list[str] = []
+        for i, arg in enumerate(inner_cmd.texts[1:], start=1):
+            tok = inner_cmd.argv[i]
+            if tok.type is TokenType.STR:
+                parts.append("{" + arg + "}")
+            else:
+                parts.append(arg)
+        return " ".join(parts)
 
     def _relax_eval(self, cmd: _Command, *, namespace: str) -> IRBlock:
         args = cmd.args
         body_tok = cmd.arg_tokens[0]
-        body_script = self._lower_body_arg(args[0], body_tok, namespace=namespace)
+        if body_tok.type is TokenType.STR:
+            body_text = args[0]
+            body_script = self._lower_body_arg(body_text, body_tok, namespace=namespace)
+        else:
+            # CMD token — body_text synthesised from ``[list ...]`` args.
+            body_text = self._eval_list_literal_body(body_tok.text) or ""
+            body_script = self._lower_script(body_text, namespace=namespace)
         return IRBlock(
             range=cmd.range,
             body=body_script,

@@ -19,6 +19,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
 
 
+class TestEvalListLiteralRuntime:
+    def test_eval_list_literal_runs_compiled(self):
+        # ``eval [list set x 42]`` — compiler synthesises the body
+        # ``set x 42`` and inlines it, so the compiled proc's ``$x``
+        # reads the updated value without a ``tcl_eval`` round-trip.
+        src = (
+            "proc run {} {\n"
+            "    eval [list set x 42]\n"
+            "    return $x\n"
+            "}\n"
+            "puts [run]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "42\n"
+
+
 class TestUplevelBracedLiteralRuntime:
     # NOTE: The "uplevel 1 writes caller's compiled local" case is
     # not tested here.  Both the old IRBarrier → tcl_eval path and

@@ -39,9 +39,24 @@ class TestEvalRelaxation:
         mod = lower_to_ir("set body {set x 1}\neval $body")
         assert any(isinstance(s, IRBarrier) for s in mod.top_level.statements)
 
-    def test_command_substitution_body_stays_barrier(self):
+    def test_list_literal_command_subst_relaxes(self):
+        # ``eval [list set x 1]`` — the inner ``list`` with all-literal
+        # args is statically decidable, so the outer eval relaxes to
+        # IRBlock with the synthesised body ``set x 1``.
         stmt = _first_stmt("eval [list set x 1]")
+        assert isinstance(stmt, IRBlock)
+
+    def test_non_list_command_subst_stays_barrier(self):
+        # ``eval [foo ...]`` — ``foo`` is not ``list``, so the body
+        # cannot be synthesised statically.
+        stmt = _first_stmt("eval [foo a b]")
         assert isinstance(stmt, IRBarrier)
+
+    def test_list_with_var_subst_stays_barrier(self):
+        # ``eval [list set x $v]`` — ``$v`` is a dynamic substitution,
+        # so the body cannot be synthesised statically.
+        mod = lower_to_ir("set v 1\neval [list set x $v]")
+        assert any(isinstance(s, IRBarrier) for s in mod.top_level.statements)
 
     def test_multi_arg_eval_stays_barrier(self):
         stmt = _first_stmt("eval set x 1")
