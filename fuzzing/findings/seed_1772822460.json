@@ -1,0 +1,32 @@
+{
+  "seed": 1772822460,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-71} {\n    lassign {-33 -508 shcfnbe 93.20} tmp count\n    set tmp 0\n    while {$tmp < 2} {\n        set acc 37\n        incr acc 1\n        expr {(1 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpxy05ttjn.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {-71} {\n    lassign {-33 -508 shcfnbe 93.20} tmp count\n    set tmp 0\n    while {$tmp < 2} {\n        set acc 37\n        incr acc 1\n        expr {(1 ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpxy05ttjn.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

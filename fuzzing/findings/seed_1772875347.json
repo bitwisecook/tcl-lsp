@@ -1,0 +1,24 @@
+{
+  "seed": 1772875347,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach b {-66.50 268 1 0 b} {\n        expr {abs((-(!-66)))}\n        for {set z 0} {$z < 2} {incr z} {\n            regexp \"^[a-z]\" \"7tqid962b 7leqn\"\n ...\"\n    invoked from within\n\"if {2} {\n    expr {min((68 < (84 % max(1, abs(44)))), ((-9 ? 22 : -17) * 9))}\n    foreach b {-66.50 268 1 0 b} {\n        expr {abs((-(!-66)))}\n       ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach b {-66.50 268 1 0 b} {\n        expr {abs((-(!-66)))}\n        for {set z 0} {$z < 2} {incr z} {\n            regexp \"^[a-z]\" \"7tqid962b 7leqn\"\n ...\"\n    invoked from within\n\"if {2} {\n    expr {min((68 < (84 % max(1, abs(44)))), ((-9 ? 22 : -17) * 9))}\n    foreach b {-66.50 268 1 0 b} {\n        expr {abs((-(!-66)))}\n       ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

@@ -1,0 +1,58 @@
+ByteCode 0xc1113b810, refCt 1, epoch 21, interp 0xc1101c010 (epoch 21)
+  Source "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 3} co..."
+  Cmds 8, src 99, inst 67, litObjs 7, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 8-49, continue 51, break 64
+      1: level 0, loop, pc 51-54, continue -1, break 64
+  Commands 8:
+      1: pc 0-65, src 0-97        2: pc 0-4, src 5-11
+      3: pc 8-25, src 39-59        4: pc 16-20, src 52-59
+      5: pc 26-43, src 65-82        6: pc 34-38, src 78-82
+      7: pc 44-49, src 88-95        8: pc 51-54, src 25-30
+  Command 1: "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 3} co..."
+  Command 2: "set i 0..."
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+    (6) jump1 +50 	# pc 56
+  Command 3: "if {$i == 3} continue..."
+    (8) push1 0 	# "i"
+    (10) loadStk 
+    (11) push1 2 	# "3"
+    (13) eq 
+    (14) jumpFalse1 +9 	# pc 23
+  Command 4: "continue..."
+    (16) jump4 +35 	# pc 51
+    (21) jump1 +4 	# pc 25
+    (23) push1 3 	# ""
+    (25) pop 
+  Command 5: "if {$i == 7} break..."
+    (26) push1 0 	# "i"
+    (28) loadStk 
+    (29) push1 4 	# "7"
+    (31) eq 
+    (32) jumpFalse1 +9 	# pc 41
+  Command 6: "break..."
+    (34) jump4 +30 	# pc 64
+    (39) jump1 +4 	# pc 43
+    (41) push1 3 	# ""
+    (43) pop 
+  Command 7: "set x $i..."
+    (44) push1 5 	# "x"
+    (46) push1 0 	# "i"
+    (48) loadStk 
+    (49) storeStk 
+    (50) pop 
+  Command 8: "incr i..."
+    (51) push1 0 	# "i"
+    (53) incrStkImm +1 
+    (55) pop 
+    (56) push1 0 	# "i"
+    (58) loadStk 
+    (59) push1 6 	# "10"
+    (61) lt 
+    (62) jumpTrue1 -54 	# pc 8
+    (64) push1 3 	# ""
+    (66) done 
+

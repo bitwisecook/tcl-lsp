@@ -1,0 +1,32 @@
+{
+  "seed": 1772846012,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"item\": no such variable\n    while executing\n\"expr {((--49.95) ^ ($item <= wide(21)))}\"\n    (\"foreach\" body line 95)\n    invoked from within\n\"foreach buf {-74.03 -4.05 60.36 -545} {\n    switch -- \"0w0;wmhv 6+vo53\" {\n        -292 {\n            if {$buf != 9} {\n                set buf {1 17.23...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpl7fm01lv.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"item\": no such variable\n    while executing\n\"expr {((--49.95) ^ ($item <= wide(21)))}\"\n    (\"foreach\" body line 95)\n    invoked from within\n\"foreach buf {-74.03 -4.05 60.36 -545} {\n    switch -- \"0w0;wmhv 6+vo53\" {\n        -292 {\n            if {$buf != 9} {\n                set buf {1 17.23...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpl7fm01lv.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

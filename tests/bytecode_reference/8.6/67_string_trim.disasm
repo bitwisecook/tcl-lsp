@@ -1,0 +1,30 @@
+ByteCode 0x0xa6ad12e10, refCt 1, epoch 17, interp 0x0xa6ac28010 (epoch 17)
+  Source "set s \"  hello world  \"\nstring trim $s\nstring triml..."
+  Cmds 4, src 78, inst 27, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-22        2: pc 6-12, src 24-37
+      3: pc 13-19, src 39-56        4: pc 20-25, src 58-76
+  Command 1: "set s \"  hello world  ..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "  hello world  "
+    (4) storeStk 
+    (5) pop 
+  Command 2: "string trim $s..."
+    (6) push1 0 	# "s"
+    (8) loadStk 
+    (9) push1 2 	# "\t\n\v\f\r \u0000\u0085\u00a0\u1680\u180e..."
+    (11) strtrim 
+    (12) pop 
+  Command 3: "string trimleft $s..."
+    (13) push1 0 	# "s"
+    (15) loadStk 
+    (16) push1 2 	# "\t\n\v\f\r \u0000\u0085\u00a0\u1680\u180e..."
+    (18) strtrimLeft 
+    (19) pop 
+  Command 4: "string trimright $s..."
+    (20) push1 0 	# "s"
+    (22) loadStk 
+    (23) push1 2 	# "\t\n\v\f\r \u0000\u0085\u00a0\u1680\u180e..."
+    (25) strtrimRight 
+    (26) done 
+

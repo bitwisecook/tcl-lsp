@@ -1,0 +1,24 @@
+{
+  "seed": 1772875120,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"65.72k\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"65.72k\"\n    while executing\n\"incr i\"\n    (in namespace eval \"::baz\" script line 4)\n    invoked from within\n\"namespace eval baz {\n    set i -380\n    set i [expr {(81.05 > (min(70, -20) | (!14.40)))}]\n    for {set i 0} {$i < 5} {incr i} {\n        if {$i < 13} ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjql56pf7.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

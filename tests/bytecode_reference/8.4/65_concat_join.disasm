@@ -1,0 +1,39 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x850e4500, refCt 1, epoch 0, interp 0xa32e10 (epoch 0)
+  Source "set a [list x y]\nset b [list z w]\nconcat $a $b\njoin $a "
+  Cmds 6, src 59, inst 42, litObjs 7, aux 0, stkDepth 3, code/src 4.88
+  Code 288 = header 160+inst 42+litObj 56+exc 0+aux 0+cmdMap 24
+  Proc 0x850e1d40, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+  Commands 6:
+      1: pc 0-11, src 0-15   	   2: pc 0-8, src 7-14
+      3: pc 12-23, src 17-32   	   4: pc 12-20, src 24-31
+      5: pc 24-32, src 34-45   	   6: pc 33-40, src 47-57
+  Command 1: "set a [list x y]"
+  Command 2: "list x y"
+    (0) push1 0  	# "x"
+    (2) push1 1  	# "y"
+    (4) list 2 
+    (9) storeScalar1 0	# var "a"
+    (11) pop 
+  Command 3: "set b [list z w]"
+  Command 4: "list z w"
+    (12) push1 2  	# "z"
+    (14) push1 3  	# "w"
+    (16) list 2 
+    (21) storeScalar1 1	# var "b"
+    (23) pop 
+  Command 5: "concat $a $b"
+    (24) push1 4  	# "concat"
+    (26) loadScalar1 0	# var "a"
+    (28) loadScalar1 1	# var "b"
+    (30) invokeStk1 3 
+    (32) pop 
+  Command 6: "join $a \",\""
+    (33) push1 5  	# "join"
+    (35) loadScalar1 0	# var "a"
+    (37) push1 6  	# ","
+    (39) invokeStk1 3 
+    (41) done 

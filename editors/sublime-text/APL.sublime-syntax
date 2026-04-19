@@ -1,0 +1,11 @@
+%YAML 1.2
+---
+# F5 iApp APL dialect — selects f5-iapps for LSP analysis of presentation files
+name: APL
+scope: source.apl
+version: 2
+
+extends: Tcl.sublime-syntax
+
+file_extensions:
+  - apl

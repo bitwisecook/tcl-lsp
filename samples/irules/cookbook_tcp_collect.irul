@@ -1,0 +1,139 @@
+# iRules Cookbook: TCP::collect / TCP::payload / TCP::release
+#
+# The collect/payload/release cycle is the standard pattern for
+# inspecting and modifying raw TCP streams on the BIG-IP.
+#
+# Flow:
+#   1. CLIENT_ACCEPTED / SERVER_CONNECTED -> TCP::collect
+#   2. CLIENT_DATA    / SERVER_DATA      -> TCP::payload ... TCP::release
+#   3. Optionally re-collect for the next chunk
+
+# Basic TCP stream inspection
+
+when CLIENT_ACCEPTED priority 500 {
+    TCP::collect
+}
+
+when CLIENT_DATA priority 500 {
+    set data [TCP::payload]
+
+    # Inspect the first bytes for protocol detection
+    if {[string range $data 0 2] eq "GET"} {
+        log local0. "Looks like HTTP on a non-HTTP virtual"
+    }
+
+    TCP::release
+    TCP::collect
+}
+
+# Binary protocol header parsing
+
+# Collect exactly the header length, parse it, then collect the body.
+
+when RULE_INIT priority 500 {
+    set static::hdr_len 8
+}
+
+when SERVER_CONNECTED priority 500 {
+    TCP::collect $static::hdr_len
+}
+
+when SERVER_DATA priority 500 {
+    # Parse the 8-byte header
+    binary scan [TCP::payload] II msg_type body_len
+
+    if {$body_len > 1048576} {
+        # Reject oversized messages
+        reject
+        return
+    }
+
+    TCP::release
+    TCP::collect $body_len
+}
+
+# TLS ClientHello SNI extraction (TCP level)
+
+# Useful on a generic TCP virtual to route by SNI before HTTPS
+# processing begins.
+
+when CLIENT_ACCEPTED priority 500 {
+    TCP::collect
+}
+
+when CLIENT_DATA priority 500 {
+    set payload [TCP::payload]
+
+    # TLS record header: content_type (1) + version (2) + length (2)
+    binary scan $payload cSS content_type tls_ver record_len
+
+    if {$content_type != 22} {
+        # Not a handshake - pass through
+        TCP::release
+        return
+    }
+
+    # Skip to extensions and extract SNI (simplified)
+    # Real parsing walks the ClientHello structure
+    set sni ""
+    if {[regexp -- {(?s)\x00\x00..\x00..\x00(.+?)\x00} $payload -> sni]} {
+        log local0. "SNI: $sni"
+    }
+
+    TCP::release
+}
+
+# HTTP body collection for content inspection
+
+when HTTP_REQUEST priority 500 {
+    if {[HTTP::method] eq "POST"} {
+        set content_length [HTTP::header value "Content-Length"]
+        if {$content_length ne "" && $content_length <= 1048576} {
+            HTTP::collect [expr {int($content_length)}]
+        }
+    }
+}
+
+when HTTP_REQUEST_DATA priority 500 {
+    set body [HTTP::payload]
+
+    # Scan for sensitive data in POST body
+    if {[string match "*password=*" $body]} {
+        HTTP::header insert X-Password-Field 1
+    }
+
+    HTTP::release
+}
+
+# Payload modification: rewrite + release
+
+when CLIENT_ACCEPTED priority 400 {
+    TCP::collect
+}
+
+when CLIENT_DATA priority 400 {
+    # Replace all occurrences of the old hostname
+    set data [TCP::payload]
+    set new_data [string map {
+        "old.example.com" "new.example.com"
+    } $data]
+
+    if {$new_data ne $data} {
+        TCP::payload replace 0 [TCP::payload length] $new_data
+    }
+
+    TCP::release
+    TCP::collect
+}
+
+# SSL payload inspection (after decrypt)
+
+when CLIENTSSL_HANDSHAKE priority 500 {
+    SSL::collect
+}
+
+when CLIENTSSL_DATA priority 500 {
+    set ssl_data [SSL::payload]
+    log local0. "Decrypted client data: [string length $ssl_data] bytes"
+    SSL::release
+}

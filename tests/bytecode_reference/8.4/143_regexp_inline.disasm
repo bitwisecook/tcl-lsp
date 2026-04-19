@@ -1,0 +1,31 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x1830640, refCt 1, epoch 0, interp 0xc0d000 (epoch 0)
+  Source "set result [regexp -inline {(\w+)\s+(\w+)} \"hello world"
+  Cmds 4, src 106, inst 28, litObjs 7, aux 0, stkDepth 5, code/src 2.49
+  Code 264 = header 160+inst 28+litObj 56+exc 0+aux 0+cmdMap 16
+  Proc 0x1839c40, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "result"
+      slot 1, scalar, "all"
+  Commands 4:
+      1: pc 0-12, src 0-56   	   2: pc 0-9, src 12-55
+      3: pc 13-26, src 58-104   	   4: pc 13-24, src 67-103
+  Command 1: "set result [regexp -inline {(\w+)\s+(\w+)} \"hello world"
+  Command 2: "regexp -inline {(\w+)\s+(\w+)} \"hello world\""
+    (0) push1 0  	# "regexp"
+    (2) push1 1  	# "-inline"
+    (4) push1 2  	# "(\w+)\s+(\w+)"
+    (6) push1 3  	# "hello world"
+    (8) invokeStk1 4 
+    (10) storeScalar1 0	# var "result"
+    (12) pop 
+  Command 3: "set all [regexp -all -inline {\d+} \"a1b23c456\"]"
+  Command 4: "regexp -all -inline {\d+} \"a1b23c456\""
+    (13) push1 0  	# "regexp"
+    (15) push1 4  	# "-all"
+    (17) push1 1  	# "-inline"
+    (19) push1 5  	# "\d+"
+    (21) push1 6  	# "a1b23c456"
+    (23) invokeStk1 5 
+    (25) storeScalar1 1	# var "all"
+    (27) done 

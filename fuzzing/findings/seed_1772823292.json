@@ -1,0 +1,24 @@
+{
+  "seed": 1772823292,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-13.15\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-13.15\" as right operand of \"|\"\n    while executing\n\"expr {((!$b) | -13.15)}\"\n    invoked from within\n\"if {$b != 19} {\n    set key 0\n    while {$key < 3} {\n        string range \";6c\" 2 7\n        expr {max(((99 ? 8 : 91) ? (32 >= -28.48) : wide(-56.10)),...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpz7lptm5u.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "bitwise float rejection prevents infinite loop",
+  "category": "bitwise-float"
+}

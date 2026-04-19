@@ -1,0 +1,15 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xc78101c0, refCt 1, epoch 0, interp 0xafae20 (epoch 0)
+  Source "if {1} {\n    set x 1\n} else {\n    set x 2\n}\n"
+  Cmds 2, src 44, inst 5, litObjs 1, aux 0, stkDepth 1, code/src 4.18
+  Code 184 = header 160+inst 5+litObj 8+exc 0+aux 0+cmdMap 8
+  Proc 0xc701a300, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "x"
+  Commands 2:
+      1: pc 0-3, src 0-42   	   2: pc 0-3, src 13-19
+  Command 1: "if {1} {\n    set x 1\n} else {\n    set x 2\n}"
+  Command 2: "set x 1"
+    (0) push1 0  	# "1"
+    (2) storeScalar1 0	# var "x"
+    (4) done 

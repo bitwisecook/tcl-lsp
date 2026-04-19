@@ -1,0 +1,77 @@
+# KCS: feature — @tcl Chat Participant
+
+## Summary
+
+VS Code Copilot Chat participant for creating, explaining, fixing, validating, and optimising general Tcl code.
+
+## Applies to
+
+Copilot Chat
+
+## Availability
+
+| Context | How |
+|---------|-----|
+| VS Code Copilot Chat | Type `@tcl` then a slash command or question |
+
+## How to use
+
+Type `@tcl` in the Copilot Chat panel followed by a slash command:
+
+| Command | Description |
+|---------|-------------|
+| `/create` | Create Tcl code from a description |
+| `/explain` | Explain Tcl code |
+| `/fix` | Fix issues found by the LSP |
+| `/validate` | Run LSP diagnostics |
+| `/optimise` | Apply LSP optimiser suggestions |
+| `/help` | Show available features and commands |
+
+Or ask a free-form Tcl question without a slash command.
+
+## Operational context
+
+Uses the same analysis engine as `@irule` but with general Tcl system prompts and dialect settings. The agentic loop validates and iterates until diagnostics are clean.
+
+## File-path anchors
+
+- `editors/vscode/src/chat/tclParticipant.ts`
+- `editors/vscode/src/chat/commands/`
+
+## Failure modes
+
+- AI features disabled (`tclLsp.ai.enabled` is false).
+- Copilot extension not installed.
+
+## Test anchors
+
+- `editors/vscode/src/test/chatUtilities.test.ts`
+
+## Example
+
+Typing the following into the Copilot Chat panel asks `@tcl` to
+create a short proc and then iterate until the LSP reports no
+diagnostics:
+
+> `@tcl /create a proc that returns the sum of a list of integers`
+
+The participant replies with code similar to:
+
+```tcl
+proc sum_list {numbers} {
+    set total 0
+    foreach n $numbers {
+        incr total $n
+    }
+    return $total
+}
+```
+
+along with a short explanation and the list of LSP checks that
+passed. Follow-up messages such as `@tcl /explain` or `@tcl /fix`
+operate on the code already in the chat context.
+
+## Discoverability
+
+- [KCS feature index](README.md)
+- [VS Code extension contracts](../../../docs/design/contracts/vscode-extension.md)

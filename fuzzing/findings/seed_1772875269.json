@@ -1,0 +1,24 @@
+{
+  "seed": 1772875269,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"j\": no such variable\n    while executing\n\"expr {abs(((100 ? 27 : 48) / max(1, abs((-53 % max(1, abs($j)))))))}\"\n    (\"foreach\" body line 89)\n    invoked from within\n\"foreach result {41.02 99.46 -45.12 false wbti -40.54} {\n    set result \"_+6q3042sq.g+6zg\"\n    switch -- 0 {\n        \"mg!7@_vyckgh8;e86,q\" {\n          ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjg4nytc6.tcl\" line 48)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"j\": no such variable\n    while executing\n\"expr {abs(((100 ? 27 : 48) / max(1, abs((-53 % max(1, abs($j)))))))}\"\n    (\"foreach\" body line 89)\n    invoked from within\n\"foreach result {41.02 99.46 -45.12 false wbti -40.54} {\n    set result \"_+6q3042sq.g+6zg\"\n    switch -- 0 {\n        \"mg!7@_vyckgh8;e86,q\" {\n          ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjg4nytc6.tcl\" line 48)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

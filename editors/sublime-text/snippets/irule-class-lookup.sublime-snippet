@@ -1,0 +1,15 @@
+<snippet>
+	<content><![CDATA[when HTTP_REQUEST {
+    set host [string tolower [HTTP::host]]
+    set pool_name [class match -value \$host equals ${1:host_to_pool_dg}]
+    if {\$pool_name ne ""} {
+        pool \$pool_name
+        return
+    }
+
+    ${0:# fallback path}
+}]]></content>
+	<tabTrigger>irule-class-lookup</tabTrigger>
+	<scope>source.irule</scope>
+	<description>Lookup value from a data-group and route</description>
+</snippet>

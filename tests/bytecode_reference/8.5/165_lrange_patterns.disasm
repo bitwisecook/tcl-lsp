@@ -1,0 +1,50 @@
+ByteCode 0x0x740cfa210, refCt 1, epoch 3, interp 0x0x740c20010 (epoch 3)
+  Source "set lst {a b c d e f}\nset a [lrange $lst 1 3]\nset b [lr"
+  Cmds 7, src 104, inst 78, litObjs 12, aux 0, stkDepth 5, code/src 0.00
+  Commands 7:
+      1: pc 0-5, src 0-20   	   2: pc 6-29, src 22-44
+      3: pc 17-27, src 29-43   	   4: pc 30-53, src 46-72
+      5: pc 41-51, src 53-71   	   6: pc 54-76, src 74-102
+      7: pc 65-75, src 81-101
+  Command 1: "set lst {a b c d e f}"
+    (0) push1 0 	# "lst"
+    (2) push1 1 	# "a b c d e f"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set a [lrange $lst 1 3]"
+    (6) startCommand +23 1 	# next cmd at pc 29
+    (15) push1 2 	# "a"
+  Command 3: "lrange $lst 1 3"
+    (17) push1 3 	# "lrange"
+    (19) push1 0 	# "lst"
+    (21) loadScalarStk 
+    (22) push1 4 	# "1"
+    (24) push1 5 	# "3"
+    (26) invokeStk1 4 
+    (28) storeScalarStk 
+    (29) pop 
+  Command 4: "set b [lrange $lst 0 end-1]"
+    (30) startCommand +23 1 	# next cmd at pc 53
+    (39) push1 6 	# "b"
+  Command 5: "lrange $lst 0 end-1"
+    (41) push1 3 	# "lrange"
+    (43) push1 0 	# "lst"
+    (45) loadScalarStk 
+    (46) push1 7 	# "0"
+    (48) push1 8 	# "end-1"
+    (50) invokeStk1 4 
+    (52) storeScalarStk 
+    (53) pop 
+  Command 6: "set c [lrange $lst end-2 end]"
+    (54) startCommand +23 1 	# next cmd at pc 77
+    (63) push1 9 	# "c"
+  Command 7: "lrange $lst end-2 end"
+    (65) push1 3 	# "lrange"
+    (67) push1 0 	# "lst"
+    (69) loadScalarStk 
+    (70) push1 10 	# "end-2"
+    (72) push1 11 	# "end"
+    (74) invokeStk1 4 
+    (76) storeScalarStk 
+    (77) done 
+

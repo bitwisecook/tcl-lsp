@@ -1,0 +1,29 @@
+ByteCode 0xc9d1d8210, refCt 1, epoch 21, interp 0xc9d01c010 (epoch 21)
+  Source "set i 0\nincr i\nincr i 5\nincr i -1\nincr i ..."
+  Cmds 5, src 45, inst 26, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-6        2: pc 6-10, src 8-13
+      3: pc 11-15, src 15-22        4: pc 16-20, src 24-32
+      5: pc 21-24, src 34-43
+  Command 1: "set i 0..."
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "incr i..."
+    (6) push1 0 	# "i"
+    (8) incrStkImm +1 
+    (10) pop 
+  Command 3: "incr i 5..."
+    (11) push1 0 	# "i"
+    (13) incrStkImm +5 
+    (15) pop 
+  Command 4: "incr i -1..."
+    (16) push1 0 	# "i"
+    (18) incrStkImm -1 
+    (20) pop 
+  Command 5: "incr i -10..."
+    (21) push1 0 	# "i"
+    (23) incrStkImm -10 
+    (25) done 
+

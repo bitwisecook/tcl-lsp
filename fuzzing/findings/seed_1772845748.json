@@ -1,0 +1,24 @@
+{
+  "seed": 1772845748,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "can't read \"j\": no such variable",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"j\": no such variable\n    while executing\n\"if {$j > -1} {\n    expr {(((57 ? $tmp : -56) || (4.71 / max(1, abs(37.61)))) << (~-74))}\n} else {\n    set z \"ih?@u92bx2jf8=\"\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmphwb3w101.tcl\" line 19)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

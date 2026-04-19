@@ -1,0 +1,49 @@
+# KCS: feature — Workspace Symbols
+
+## Summary
+
+Search symbols across all open files in the workspace.
+
+## Applies to
+
+all-editors, analyser
+
+## How to use
+
+- **Editor**: Ctrl+T and type a symbol name.
+- **Settings**: Toggle with `tclLsp.features.workspaceSymbols`.
+
+## Operational context
+
+Searches the workspace index for procs, namespaces, and variables matching the query. Relies on the workspace scanner for cross-file indexing.
+
+## File-path anchors
+
+- `lsp/features/workspace_symbols.py`
+
+## Failure modes
+
+- Stale results if the workspace index is not refreshed.
+
+## Test anchors
+
+- `tests/test_workspace_symbols.py`
+
+## Example
+
+In a workspace containing `lib/http.tcl` with:
+
+```tcl
+proc http_get {url} { ... }
+proc http_post {url body} { ... }
+```
+
+Pressing Ctrl+T and typing `http_` lists `http_get` and
+`http_post` — each entry shows the containing file and line
+number, and selecting one jumps straight to its definition.
+
+## Discoverability
+
+- [KCS feature index](README.md)
+- [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
+- [Workspace indexing contracts](../../../docs/design/contracts/workspace-indexing.md)

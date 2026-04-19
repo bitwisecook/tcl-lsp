@@ -1,0 +1,28 @@
+ByteCode 0x0x7de862210, refCt 1, epoch 3, interp 0x0x7dec20010 (epoch 3)
+  Source "set d [dict create x 1 y 2 z 3]\ndict with d {\n    incr "
+  Cmds 3, src 73, inst 33, litObjs 11, aux 0, stkDepth 9, code/src 0.00
+  Commands 3:
+      1: pc 0-21, src 0-30   	   2: pc 2-19, src 7-29
+      3: pc 22-31, src 32-71
+  Command 1: "set d [dict create x 1 y 2 z 3]"
+    (0) push1 0 	# "d"
+  Command 2: "dict create x 1 y 2 z 3"
+    (2) push1 1 	# "dict"
+    (4) push1 2 	# "create"
+    (6) push1 3 	# "x"
+    (8) push1 4 	# "1"
+    (10) push1 5 	# "y"
+    (12) push1 6 	# "2"
+    (14) push1 7 	# "z"
+    (16) push1 8 	# "3"
+    (18) invokeStk1 8 
+    (20) storeScalarStk 
+    (21) pop 
+  Command 3: "dict with d {\n    incr x\n    incr y 10\n}"
+    (22) push1 1 	# "dict"
+    (24) push1 9 	# "with"
+    (26) push1 0 	# "d"
+    (28) push1 10 	# "\n    incr x\n    incr y 10\n"
+    (30) invokeStk1 4 
+    (32) done 
+

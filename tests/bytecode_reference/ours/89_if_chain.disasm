@@ -1,0 +1,88 @@
+ByteCode ::top, 53 instructions, 87 bytes, 13 literals, 0 variables
+  Literals:
+    0: "x"
+    1: "5"
+    2: "1"
+    3: "r"
+    4: "one"
+    5: "2"
+    6: "two"
+    7: "3"
+    8: "three"
+    9: "4"
+    10: "four"
+    11: "five"
+    12: "other"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "x"
+    (2) push1 1	# "5"
+    (4) storeStk
+    (5) pop
+    (6) push1 0	# "x"
+    (8) loadStk
+    (9) push1 2	# "1"
+    (11) eq
+    (12) jumpFalse1 +9	# pc 21
+  # if_then_3:
+    (14) push1 3	# "r"
+    (16) push1 4	# "one"
+    (18) storeStk
+  # cmd_end_1:
+    (19) jump1 +67	# pc 86
+  # if_next_4:
+    (21) push1 0	# "x"
+    (23) loadStk
+    (24) push1 5	# "2"
+    (26) eq
+    (27) jumpFalse1 +9	# pc 36
+  # if_then_5:
+    (29) push1 3	# "r"
+    (31) push1 6	# "two"
+    (33) storeStk
+  # cmd_end_2:
+    (34) jump1 +52	# pc 86
+  # if_next_6:
+    (36) push1 0	# "x"
+    (38) loadStk
+    (39) push1 7	# "3"
+    (41) eq
+    (42) jumpFalse1 +9	# pc 51
+  # if_then_7:
+    (44) push1 3	# "r"
+    (46) push1 8	# "three"
+    (48) storeStk
+  # cmd_end_3:
+    (49) jump1 +37	# pc 86
+  # if_next_8:
+    (51) push1 0	# "x"
+    (53) loadStk
+    (54) push1 9	# "4"
+    (56) eq
+    (57) jumpFalse1 +9	# pc 66
+  # if_then_9:
+    (59) push1 3	# "r"
+    (61) push1 10	# "four"
+    (63) storeStk
+  # cmd_end_4:
+    (64) jump1 +22	# pc 86
+  # if_next_10:
+    (66) push1 0	# "x"
+    (68) loadStk
+    (69) push1 1	# "5"
+    (71) eq
+    (72) jumpFalse1 +9	# pc 81
+  # if_then_11:
+    (74) push1 3	# "r"
+    (76) push1 11	# "five"
+    (78) storeStk
+  # cmd_end_5:
+    (79) jump1 +7	# pc 86
+  # if_next_12:
+    (81) push1 3	# "r"
+    (83) push1 12	# "other"
+    (85) storeStk
+  # cmd_end_6:
+  # if_end_2:
+  # exit_13:
+    (86) done

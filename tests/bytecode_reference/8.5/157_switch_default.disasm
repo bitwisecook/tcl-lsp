@@ -1,0 +1,49 @@
+ByteCode 0x0xc04c32310, refCt 1, epoch 3, interp 0x0xc04c20010 (epoch 3)
+  Source "proc classify {x} {\n    switch $x {\n        a { return "
+  Cmds 1, src 167, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-165
+  Command 1: "proc classify {x} {\n    switch $x {\n        a { return "
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "classify"
+    (4) push1 2 	# "x"
+    (6) push1 3 	# "\n    switch $x {\n        a { return \"alp"
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xc048bac10, refCt 1, epoch 3, interp 0x0xc048a4010 (epoch 3)
+  Source "\n    switch $x {\n        a { return \"alpha\" }\n        b"
+  Cmds 5, src 146, inst 76, litObjs 4, aux 1, stkDepth 1, code/src 0.00
+  Proc 0x0xc048b3990, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "x"
+  Commands 5:
+      1: pc 0-74, src 5-144   	   2: pc 12-23, src 29-43
+      3: pc 29-40, src 58-71   	   4: pc 46-57, src 86-100
+      5: pc 63-74, src 121-137
+  Command 1: "switch $x {\n        a { return \"alpha\" }\n        b { re"
+    (0) loadScalar1 %v0 	# var "x"
+    (2) jumpTable 0 
+		["a"->pc 12, "b"->pc 29, "c"->pc 46]
+    (7) jump4 +56 	# pc 63
+  Command 2: "return \"alpha\" "
+    (12) startCommand +12 1 	# next cmd at pc 24
+    (21) push1 0 	# "alpha"
+    (23) done 
+    (24) jump4 +51 	# pc 75
+  Command 3: "return \"beta\" "
+    (29) startCommand +12 1 	# next cmd at pc 41
+    (38) push1 1 	# "beta"
+    (40) done 
+    (41) jump4 +34 	# pc 75
+  Command 4: "return \"gamma\" "
+    (46) startCommand +12 1 	# next cmd at pc 58
+    (55) push1 2 	# "gamma"
+    (57) done 
+    (58) jump4 +17 	# pc 75
+  Command 5: "return \"unknown\" "
+    (63) startCommand +12 1 	# next cmd at pc 75
+    (72) push1 3 	# "unknown"
+    (74) done 
+    (75) done 
+

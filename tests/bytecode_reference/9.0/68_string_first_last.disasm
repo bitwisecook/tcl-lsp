@@ -1,0 +1,43 @@
+ByteCode 0xcb9569210, refCt 1, epoch 21, interp 0xcb9410010 (epoch 21)
+  Source "set s \"hello world hello\"\nstring first \"hello\" $s\n..."
+  Cmds 5, src 115, inst 76, litObjs 6, aux 0, stkDepth 3, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-24        2: pc 6-21, src 26-48
+      3: pc 22-37, src 50-71        4: pc 38-56, src 73-93
+      5: pc 57-74, src 95-113
+  Command 1: "set s \"hello world hello..."
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "hello world hello"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "string first \"hello\" ..."
+    (6) startCommand +15 1 	# next cmd at pc 21, 1 cmds start here
+    (15) push1 2 	# "hello"
+    (17) push1 0 	# "s"
+    (19) loadStk 
+    (20) strfind 
+    (21) pop 
+  Command 3: "string last \"hello\" ..."
+    (22) startCommand +15 1 	# next cmd at pc 37, 1 cmds start here
+    (31) push1 2 	# "hello"
+    (33) push1 0 	# "s"
+    (35) loadStk 
+    (36) strrfind 
+    (37) pop 
+  Command 4: "string wordstart $s 6..."
+    (38) startCommand +18 1 	# next cmd at pc 56, 1 cmds start here
+    (47) push1 3 	# "::tcl::string::wordstart"
+    (49) push1 0 	# "s"
+    (51) loadStk 
+    (52) push1 4 	# "6"
+    (54) invokeStk1 3 
+    (56) pop 
+  Command 5: "string wordend $s 6..."
+    (57) startCommand +18 1 	# next cmd at pc 75, 1 cmds start here
+    (66) push1 5 	# "::tcl::string::wordend"
+    (68) push1 0 	# "s"
+    (70) loadStk 
+    (71) push1 4 	# "6"
+    (73) invokeStk1 3 
+    (75) done 
+

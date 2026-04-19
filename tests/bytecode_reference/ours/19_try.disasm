@@ -1,0 +1,19 @@
+ByteCode ::top, 8 instructions, 15 bytes, 6 literals, 0 variables
+  Literals:
+    0: "try"
+    1: "\n    set x 42\n"
+    2: "on"
+    3: "error"
+    4: "msg"
+    5: "\n    set x 0\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "try"
+    (2) push1 1	# "\n    set x 42\n"
+    (4) push1 2	# "on"
+    (6) push1 3	# "error"
+    (8) push1 4	# "msg"
+    (10) push1 5	# "\n    set x 0\n"
+    (12) invokeStk1 6	# try
+  # exit_2:
+    (14) done

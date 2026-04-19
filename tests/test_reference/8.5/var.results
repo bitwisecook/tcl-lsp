@@ -1,0 +1,96 @@
+TCLSH    /usr/local/bin/tclsh8.5
+VERSION  8.5.19
+FILE     var.test
+DATE     2026-03-03T12:53:31Z
+---
+PASS var-1.1
+PASS var-1.10
+PASS var-1.11
+PASS var-1.12
+PASS var-1.13
+PASS var-1.14
+PASS var-1.15
+PASS var-1.16
+PASS var-1.17
+PASS var-1.18
+PASS var-1.19
+PASS var-1.2
+PASS var-1.3
+PASS var-1.4
+PASS var-1.5
+PASS var-1.6
+PASS var-1.7
+PASS var-1.8
+PASS var-1.9
+PASS var-10.1
+PASS var-10.2
+PASS var-11.1
+PASS var-11.2
+PASS var-11.3
+PASS var-12.1
+PASS var-13.1
+PASS var-14.1
+PASS var-14.2
+PASS var-15.1
+PASS var-16.1
+PASS var-17.1
+PASS var-18.1
+PASS var-19.1
+PASS var-2.1
+PASS var-3.1
+PASS var-3.10
+PASS var-3.11
+PASS var-3.2
+PASS var-3.5
+PASS var-3.6
+PASS var-3.7
+PASS var-3.8
+PASS var-3.9
+PASS var-5.1
+PASS var-5.2
+PASS var-5.3
+PASS var-6.1
+PASS var-6.2
+PASS var-6.3
+PASS var-6.4
+PASS var-7.1
+PASS var-7.10
+PASS var-7.11
+PASS var-7.12
+PASS var-7.13
+PASS var-7.14
+PASS var-7.15
+PASS var-7.16
+PASS var-7.17
+PASS var-7.2
+PASS var-7.3
+PASS var-7.4
+PASS var-7.5
+PASS var-7.6
+PASS var-7.7
+PASS var-7.8
+PASS var-7.9
+PASS var-8.1
+PASS var-8.2
+SKIP var-3.3 testupvar
+SKIP var-3.4 testupvar
+SKIP var-4.1 testgetvarfullname
+SKIP var-4.2 testgetvarfullname
+SKIP var-4.3 testgetvarfullname
+SKIP var-9.1 testsetnoerr
+SKIP var-9.10 testsetnoerr
+SKIP var-9.11 testsetnoerr
+SKIP var-9.12 testsetnoerr
+SKIP var-9.2 testsetnoerr
+SKIP var-9.3 testsetnoerr
+SKIP var-9.4 testsetnoerr
+SKIP var-9.5 testsetnoerr
+SKIP var-9.6 testsetnoerr
+SKIP var-9.7 testsetnoerr
+SKIP var-9.8 testsetnoerr
+SKIP var-9.9 testsetnoerr
+---
+TOTAL   86
+PASSED  69
+SKIPPED 17
+FAILED  0

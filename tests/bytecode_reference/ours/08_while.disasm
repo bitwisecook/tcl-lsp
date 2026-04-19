@@ -1,0 +1,28 @@
+ByteCode ::top, 15 instructions, 24 bytes, 4 literals, 0 variables
+  Literals:
+    0: "i"
+    1: "0"
+    2: "5"
+    3: ""
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "i"
+    (2) push1 1	# "0"
+    (4) storeStk
+    (5) pop
+    (6) jump1 +7	# pc 13
+  # while_body_3:
+    (8) push1 0	# "i"
+    (10) incrStkImm +1
+  # cmd_end_1:
+    (12) pop
+  # while_header_2:
+    (13) push1 0	# "i"
+    (15) loadStk
+    (16) push1 2	# "5"
+    (18) lt
+    (19) jumpTrue1 -11	# pc 8
+  # while_end_4:
+    (21) push1 3	# ""
+  # exit_5:
+    (23) done

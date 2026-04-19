@@ -1,0 +1,24 @@
+{
+  "seed": 1772875088,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"for\" body line 70)\n    invoked from within\n\"for {set item 0} {$item < 1} {incr item} {\n    expr {((!(7 - -27)) >= (77 * $item))}\n    set item 89\n    incr item -5\n    foreach item {-497 19.48 fal...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjgoj__s3.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"a-z\"\n    while executing\n\"a-z\"\n    (\"for\" body line 70)\n    invoked from within\n\"for {set item 0} {$item < 1} {incr item} {\n    expr {((!(7 - -27)) >= (77 * $item))}\n    set item 89\n    incr item -5\n    foreach item {-497 19.48 fal...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpjgoj__s3.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

@@ -1,0 +1,32 @@
+{
+  "seed": 1772845993,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 14)\n    invoked from within\n\"foreach idx {-413 56} {\n            lassign {zf 25.97 55.47 -755 -879} idx idx\n            foreach idx {-628 10.59 458} {\n                lreverse {74...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach idx {qhil 61.29} {\n        foreach idx {-413 56} {\n            lassign {zf 25.97 55.47 -755 -879} idx idx\n            foreach idx {-628 10.59 ...\"\n    (\"foreach\" body line 2)\n  "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"foreach\" body line 14)\n    invoked from within\n\"foreach idx {-413 56} {\n            lassign {zf 25.97 55.47 -755 -879} idx idx\n            foreach idx {-628 10.59 458} {\n                lreverse {74...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach idx {qhil 61.29} {\n        foreach idx {-413 56} {\n            lassign {zf 25.97 55.47 -755 -879} idx idx\n            foreach idx {-628 10.59 ...\"\n    (\"foreach\" body line 2)\n  "
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on invalid command",
+  "category": "vm-timeout-resolved"
+}

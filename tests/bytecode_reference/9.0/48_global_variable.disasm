@@ -1,0 +1,41 @@
+ByteCode 0x733174010, refCt 1, epoch 21, interp 0x733410010 (epoch 21)
+  Source "set ::gvar 100\nproc readglobal {} {\n    global gvar\n..."
+  Cmds 2, src 71, inst 17, litObjs 6, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-13        2: pc 6-15, src 15-69
+  Command 1: "set ::gvar 100..."
+    (0) push1 0 	# "::gvar"
+    (2) push1 1 	# "100"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "proc readglobal {} {\n    global gvar\n    return $gvar..."
+    (6) push1 2 	# "proc"
+    (8) push1 3 	# "readglobal"
+    (10) push1 4 	# ""
+    (12) push1 5 	# "\n    global gvar\n    return $gva..."
+    (14) invokeStk1 4 
+    (16) done 
+
+
+ByteCode 0x733174010, refCt 1, epoch 95, interp 0x733130810 (epoch 95)
+  Source "\n    global gvar\n    return $gva..."
+  File "scripts/reference_disasm.tcl" Line 31
+  Cmds 2, src 34, inst 26, litObjs 3, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x73316f510, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "gvar"
+  Commands 2:
+      1: pc 0-12, src 5-15        2: pc 13-24, src 21-32
+  Command 1: "global gvar..."
+    (0) push1 0 	# "::"
+    (2) push1 1 	# "gvar"
+    (4) nsupvar %v0 	# var "gvar"
+    (9) pop 
+    (10) nop 
+    (11) nop 
+    (12) nop 
+  Command 2: "return $gvar..."
+    (13) startCommand +12 1 	# next cmd at pc 25, 1 cmds start here
+    (22) loadScalar1 %v0 	# var "gvar"
+    (24) done 
+    (25) done 
+

@@ -1,0 +1,24 @@
+{
+  "seed": 1772874895,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {(-(60 / max(1, abs(69))))} {\n        if {-70} {\n            set val 936\n            regexp \"^[a-z]\" \"lk\"\n            regexp \".\" \"3f7jcs8\"\n        ...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach acc {-264 70.47 false -902} {\n    if {(-(60 / max(1, abs(69))))} {\n        if {-70} {\n            set val 936\n            regexp \"^[a-z]\" \"lk\"...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj0000"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "wrong # args: extra words after \"else\" clause in \"if\" command\n    while executing\n\"if {(-(60 / max(1, abs(69))))} {\n        if {-70} {\n            set val 936\n            regexp \"^[a-z]\" \"lk\"\n            regexp \".\" \"3f7jcs8\"\n        ...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"foreach acc {-264 70.47 false -902} {\n    if {(-(60 / max(1, abs(69))))} {\n        if {-70} {\n            set val 936\n            regexp \"^[a-z]\" \"lk\"...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj0000"
+    }
+  ],
+  "fixed": true,
+  "fix": "if-else-elseif pre-validation in _cmd_if",
+  "category": "if-else-elseif"
+}
