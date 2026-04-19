@@ -396,7 +396,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                 stderr = result[2] if len(result) >= 3 else ""
                 summary = _parse_summary(stdout)
             except Exception as exc:
-                if compiled and "wasm" in locals():
+                if compiled and diag is not None:
                     trap_site = _resolve_trap(exc, getattr(exc, "tcl_stderr", ""), diag)
                     stderr = getattr(exc, "tcl_stderr", "")
                 else:

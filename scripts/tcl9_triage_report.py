@@ -70,13 +70,14 @@ def _format_row(row: dict[str, Any]) -> str:
     passed = row.get("passed", 0) or 0
     failed = row.get("failed", 0) or 0
     first_fail = row.get("first_failing_test") or ""
+    fb_total = row.get("fallback_sites_total") or 0
     trap = (row.get("trap_site") or "").replace("|", "\\|").replace("\n", " ")
     if len(trap) > 80:
         trap = trap[:77] + "…"
     counts = f"{passed}/{total}" if total else "—"
     return (
         f"| `{file}` | {subsystem} | {category} | {stage} | {status} | "
-        f"{counts} | {failed} | `{first_fail}` | {trap} |"
+        f"{counts} | {failed} | {fb_total} | `{first_fail}` | {trap} |"
     )
 
 
@@ -92,21 +93,24 @@ def _render_table(entries: list[dict[str, Any]]) -> str:
     )
 
     counts: dict[str, int] = defaultdict(int)
+    fb_total = 0
     for r in rows:
         counts[r.get("category", "?")] += 1
+        fb_total += r.get("fallback_sites_total") or 0
 
     summary = (
         f"Totals: pass={counts.get('pass', 0)}, "
         f"A={counts.get('A', 0)}, B={counts.get('B', 0)}, "
         f"C={counts.get('C', 0)}, D={counts.get('D', 0)}, "
-        f"E={counts.get('E', 0)}, files={len(rows)}."
+        f"E={counts.get('E', 0)}, files={len(rows)}, "
+        f"fallback_sites={fb_total}."
     )
 
     lines = [
         summary,
         "",
-        "| File | Subsystem | Category | Stage | Status | Passed/Total | Failed | First failing | Trap site |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| File | Subsystem | Category | Stage | Status | Passed/Total | Failed | FB | First failing | Trap site |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     lines.extend(_format_row(r) for r in rows)
     return "\n".join(lines)

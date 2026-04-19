@@ -9,6 +9,7 @@ per-file coverage.
 
 from __future__ import annotations
 
+from scripts.tcl9_triage_report import _render_table
 from tests.external.run_tcl9_tests import _summarise_diag
 from tests.test_wasm_real_tcl import _compile_tcl_with_diag
 
@@ -41,6 +42,61 @@ def test_summary_none_diag_returns_zeroes() -> None:
         "fallback_sites_by_kind": {},
         "top_fallback_commands": [],
     }
+
+
+def test_triage_table_renders_fb_column() -> None:
+    """The rendered triage markdown must carry the FB column and value."""
+    entries = [
+        {
+            "file": "foo.test",
+            "subsystem": "string",
+            "stage": "run",
+            "status": "fail",
+            "category": "A",
+            "total": 10,
+            "passed": 7,
+            "failed": 3,
+            "first_failing_test": "foo-1.1",
+            "trap_site": None,
+            "fallback_sites_total": 42,
+        }
+    ]
+    rendered = _render_table(entries)
+    assert "| FB |" in rendered, "FB column header missing from rendered table"
+    assert "| 42 |" in rendered, "FB column value missing from rendered row"
+    assert "fallback_sites=42" in rendered, "totals line missing fallback_sites"
+
+
+def test_triage_table_totals_sum_fallback_sites() -> None:
+    """The totals line must sum fallback_sites across all rows."""
+    entries = [
+        {
+            "file": "a.test",
+            "subsystem": "list",
+            "stage": "run",
+            "status": "fail",
+            "category": "A",
+            "fallback_sites_total": 3,
+        },
+        {
+            "file": "b.test",
+            "subsystem": "list",
+            "stage": "run",
+            "status": "fail",
+            "category": "B",
+            "fallback_sites_total": 7,
+        },
+        {
+            "file": "c.test",
+            "subsystem": "list",
+            "stage": "run",
+            "status": "pass",
+            "category": "pass",
+            # Missing field — must be treated as zero.
+        },
+    ]
+    rendered = _render_table(entries)
+    assert "fallback_sites=10" in rendered
 
 
 def test_kind_bucketing_distinguishes_fallback_from_unsupported() -> None:
