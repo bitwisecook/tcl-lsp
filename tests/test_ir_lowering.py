@@ -403,6 +403,91 @@ class TestIRLowering:
         assert "unsupported body command" in stmts[0].reason
 
 
+class TestProcDynamicNameConstMap:
+    """P6.1 — ``proc $var body`` resolves to a static name when
+    ``$var`` is in the lowering const-map.  Tcltest's ``Option``
+    factory is the driving shape:
+
+        proc Configure {name ...} {
+            proc $name {{value {}}} [subst -nocommands {body}]
+        }
+        Configure verbose 0
+
+    Inside ``Configure``'s body, ``$name`` has a const value (``verbose``)
+    — the new lowering path substitutes it, creating a real
+    ``::verbose`` ``IRProcedure`` instead of an ``IRBarrier`` +
+    runtime dispatch.
+    """
+
+    def test_proc_dollar_name_bails_when_var_not_const_mapped(self):
+        # No preceding literal ``set`` — ``$name`` stays dynamic.
+        source = textwrap.dedent("""\
+            proc Factory {name body} {
+                proc $name {x} $body
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert "::Factory" in mod.procedures
+        body = mod.procedures["::Factory"].body.statements
+        # Without const-tracking, the inner ``proc $name …`` must
+        # fall through to a runtime dispatch barrier.
+        assert any(isinstance(s, IRBarrier) and "dynamic proc name" in s.reason for s in body)
+
+    def test_proc_dollar_name_resolves_when_var_is_literal(self):
+        # The const-map only tracks ``set var {braced-literal}`` shapes
+        # (see ``_set_literal_body``) — a bare ESC ``set name Verbose``
+        # would NOT be tracked because decimal / bareword values are
+        # out of scope for the const-map gate by design.
+        source = textwrap.dedent("""\
+            proc Factory {body} {
+                set name {Verbose}
+                proc $name {x} $body
+            }
+        """)
+        mod = lower_to_ir(source)
+        # The const-map tracks ``set name {Verbose}`` inside the
+        # proc body; the inner ``proc $name`` gets substituted so
+        # we end up with a real ``::Verbose`` IRProcedure.
+        assert "::Verbose" in mod.procedures
+        factory_body = mod.procedures["::Factory"].body.statements
+        # The factory's body contains an IRCall for the proc
+        # command (with the substituted name).
+        proc_calls = [s for s in factory_body if isinstance(s, IRCall) and s.command == "proc"]
+        assert len(proc_calls) == 1
+        # args[0] should be the resolved name, not ``$name``.
+        assert proc_calls[0].args[0] == "Verbose"
+
+    def test_proc_dollar_name_rejects_command_substitution(self):
+        # ``$name`` mixed with a ``[…]`` command substitution still
+        # bails — command subs could introduce side effects that the
+        # compiler can't reason about at lowering time.
+        source = textwrap.dedent("""\
+            proc Factory {body} {
+                set name {Verbose}
+                proc $name[suffix] {x} $body
+            }
+        """)
+        mod = lower_to_ir(source)
+        body = mod.procedures["::Factory"].body.statements
+        assert any(isinstance(s, IRBarrier) and "dynamic proc name" in s.reason for s in body)
+        # And no synthetic proc was registered.
+        assert not any(name.endswith("::Verbose") for name in mod.procedures)
+
+    def test_proc_dollar_name_respects_reassignment(self):
+        # A re-assignment before the ``proc $name`` swaps the literal —
+        # the substitution should pick up the latest value.
+        source = textwrap.dedent("""\
+            proc Factory {body} {
+                set name {First}
+                set name {Second}
+                proc $name {x} $body
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert "::Second" in mod.procedures
+        assert "::First" not in mod.procedures
+
+
 class TestNamespaceArrayScalarVariableForms:
     """Variable form edge cases: namespaced + array/scalar distinctions."""
 
