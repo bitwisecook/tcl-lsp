@@ -74,7 +74,7 @@ from .features.implementation import get_implementations
 from .features.inlay_hints import get_inlay_hints
 from .features.linked_editing_range import get_linked_editing_ranges
 from .features.package_suggestions import rank_package_suggestions
-from .features.references import get_references
+from .features.references import find_proc_call_sites, get_references
 from .features.rename import get_rename_edits, prepare_rename
 from .features.selection_range import get_selection_ranges
 from .features.semantic_tokens import (
@@ -1200,7 +1200,17 @@ def on_code_lens(
 
 @server.feature(types.CODE_LENS_RESOLVE)
 def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
-    return resolve_code_lens(lens, workspace_index)
+    def find_refs(uri: str, qname: str) -> list[types.Location]:
+        state = workspace_state.get(uri)
+        if state is None or state.analysis is None:
+            return []
+        proc = state.analysis.all_procs.get(qname)
+        if proc is None:
+            return []
+        ranges = find_proc_call_sites(proc.name, proc.qualified_name, state.analysis)
+        return [to_lsp_location(uri, r) for r in ranges]
+
+    return resolve_code_lens(lens, workspace_index, find_refs)
 
 
 # Pull diagnostics
