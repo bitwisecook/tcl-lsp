@@ -977,48 +977,75 @@ fn eval_command(words: []const i32) i32 {
         str_eq(cmd, cmd_s.len, "variable") or
         str_eq(cmd, cmd_s.len, "rename"))
     { return 0; }
-    // ``namespace eval <ns> <body>`` — execute the body script.
-    // We ignore the namespace argument (no namespace tracking in the
-    // interpreter's flat model) and just run the body so that commands
-    // like ``upvar 0 src local`` inside namespace-eval blocks take
-    // effect.  Other namespace sub-commands (import, exists, …) are
-    // silently treated as no-ops.
+    // ``namespace`` sub-command dispatch.  P4.1 adds ``export`` and
+    // makes ``eval`` actually switch ``current_ns`` for the body so
+    // ``namespace eval ::ctx { namespace export foo }`` records the
+    // pattern on ``::ctx`` rather than on root.
     if (str_eq(cmd, cmd_s.len, "namespace")) {
-        if (words.len >= 3) {
+        if (words.len >= 2) {
             const sub = obj_ensure_string(words[1]);
             if (sub.len == 4 and sub.ptr != 0) {
                 const sp: [*]const u8 = @ptrFromInt(sub.ptr);
                 if (sp[0] == 'e' and sp[1] == 'v' and sp[2] == 'a' and sp[3] == 'l') {
-                    // namespace eval <ns> script ?arg? ... — concatenate body args
-                    // with single spaces (matches Tcl semantics).
+                    if (words.len < 4) return 0;
+                    // Resolve / create the target ns and switch
+                    // ``current_ns`` for the duration of the body.
+                    const ns_obj_s = obj_ensure_string(words[2]);
+                    const target_ns = tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len);
+                    const saved_ns = tcl_ns.current_ns;
+                    tcl_ns.current_ns = target_ns;
+                    defer tcl_ns.current_ns = saved_ns;
+                    // Concatenate body args with single spaces
+                    // (matches Tcl semantics for >1 body part).
                     if (words.len == 4) {
                         const bs = obj_ensure_string(words[3]);
                         if (bs.len > 0) return eval_script(bs.ptr, bs.len);
                         return 0;
                     }
-                    if (words.len > 4) {
-                        var total: u32 = 0;
-                        var wi3: u32 = 3;
-                        while (wi3 < words.len) : (wi3 += 1) {
-                            const ws = obj_ensure_string(words[wi3]);
-                            total += ws.len;
-                            if (wi3 + 1 < words.len) total += 1; // space
-                        }
-                        const buf = alloc(total);
-                        var off: u32 = 0;
-                        wi3 = 3;
-                        while (wi3 < words.len) : (wi3 += 1) {
-                            const ws = obj_ensure_string(words[wi3]);
-                            memcpy(buf + off, ws.ptr, ws.len);
-                            off += ws.len;
-                            if (wi3 + 1 < words.len) {
-                                const d: [*]u8 = @ptrFromInt(buf + off);
-                                d[0] = ' ';
-                                off += 1;
-                            }
-                        }
-                        return eval_script(buf, total);
+                    var total: u32 = 0;
+                    var wi3: u32 = 3;
+                    while (wi3 < words.len) : (wi3 += 1) {
+                        const ws = obj_ensure_string(words[wi3]);
+                        total += ws.len;
+                        if (wi3 + 1 < words.len) total += 1;
                     }
+                    const buf = alloc(total);
+                    var off: u32 = 0;
+                    wi3 = 3;
+                    while (wi3 < words.len) : (wi3 += 1) {
+                        const ws = obj_ensure_string(words[wi3]);
+                        memcpy(buf + off, ws.ptr, ws.len);
+                        off += ws.len;
+                        if (wi3 + 1 < words.len) {
+                            const d: [*]u8 = @ptrFromInt(buf + off);
+                            d[0] = ' ';
+                            off += 1;
+                        }
+                    }
+                    return eval_script(buf, total);
+                }
+            }
+            // ``namespace export ?-clear? pat1 pat2 …`` — append
+            // each pattern to the current ns's export list.
+            // ``-clear`` (a documented but rarely-used flag) would
+            // wipe before appending; not implemented in P4.1.
+            if (sub.len == 6 and sub.ptr != 0) {
+                const sp6: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp6[0] == 'e' and sp6[1] == 'x' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
+                    var pi: u32 = 2;
+                    while (pi < words.len) : (pi += 1) {
+                        const ps = obj_ensure_string(words[pi]);
+                        // Skip the ``-clear`` flag rather than
+                        // recording it as a pattern (we don't
+                        // implement the wipe but we mustn't
+                        // pollute the pattern list either).
+                        if (ps.len == 6 and ps.ptr != 0) {
+                            const psp: [*]const u8 = @ptrFromInt(ps.ptr);
+                            if (psp[0] == '-' and psp[1] == 'c' and psp[2] == 'l' and psp[3] == 'e' and psp[4] == 'a' and psp[5] == 'r') continue;
+                        }
+                        tcl_ns.ns_export(tcl_ns.ns_current(), ps.ptr, ps.len);
+                    }
+                    return 0;
                 }
             }
         }

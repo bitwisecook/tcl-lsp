@@ -712,6 +712,67 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     v.value = obj_handle;
 }
 
+// -- Namespace export patterns (P4.1) --------------------------------------
+//
+// ``namespace export pat1 pat2 …`` records glob patterns on the
+// containing namespace.  ``namespace import ::src::pat`` (P4.2)
+// walks the source ns's ``cmd_table`` and matches each command's
+// simple name against these patterns to decide which redirects to
+// create in the importing ns.
+//
+// Storage: ``Namespace.export_patterns`` is the address of a u32
+// array of ``(pattern_ptr, pattern_len)`` pairs (8 bytes per
+// pattern).  We grow by re-allocating + copying — append-only with
+// no free, the bump allocator leaks the old buffer but namespace
+// export lists are tiny (~1-10 patterns) so the waste is bounded
+// and the code stays trivial.
+
+const tcl_string = @import("tcl_string.zig");
+
+/// Append ``(pattern_ptr, pattern_len)`` to ``ns.export_patterns``.
+/// Bytes are heap-copied so the source slab can be released.  Empty
+/// patterns are skipped — they'd match every name and aren't
+/// emitted by real Tcl programs.
+pub fn ns_export(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) void {
+    if (pattern_len == 0) return;
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    const old_count = ns.export_pattern_count;
+    const new_count = old_count + 1;
+
+    // Allocate the new array (8 bytes per entry) plus a heap copy
+    // of the pattern bytes.  We never reuse the old array — the
+    // bump allocator can't free, but namespace export lists are
+    // tiny so the leakage is bounded.
+    const new_buf = alloc(new_count * 8);
+    if (old_count > 0) {
+        memcpy(new_buf, ns.export_patterns, old_count * 8);
+    }
+    const pat_copy = alloc(pattern_len);
+    memcpy(pat_copy, pattern_ptr, pattern_len);
+    write_i32(new_buf + old_count * 8, @bitCast(pat_copy));
+    write_i32(new_buf + old_count * 8 + 4, @bitCast(pattern_len));
+
+    ns.export_patterns = new_buf;
+    ns.export_pattern_count = new_count;
+}
+
+/// Test whether ``name`` matches any of ``ns``'s registered export
+/// patterns.  Uses ``string match`` (Tcl glob) semantics via
+/// ``tcl_string.glob_match``.  Returns false when no patterns are
+/// registered — matches Tcl's "nothing exported by default" rule.
+pub fn ns_export_matches(ns_addr: u32, name_ptr: u32, name_len: u32) bool {
+    const ns: *const Namespace = @ptrFromInt(ns_addr);
+    if (ns.export_pattern_count == 0) return false;
+    var i: u32 = 0;
+    while (i < ns.export_pattern_count) : (i += 1) {
+        const off = ns.export_patterns + i * 8;
+        const pp: u32 = @bitCast(read_i32(off));
+        const pl: u32 = @bitCast(read_i32(off + 4));
+        if (tcl_string.glob_match(pp, pl, name_ptr, name_len)) return true;
+    }
+    return false;
+}
+
 // -- Public globals ABI (moved from the retired tcl_globals.zig in P3.4)
 //
 // These four exports are the long-standing names compiled WASM
