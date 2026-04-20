@@ -357,6 +357,18 @@ class IRModule:
     # ``tcl_eval``.
     namespace_imports: tuple[tuple[str, str], ...] = ()
 
+    # Captured ``namespace export`` directives.  Each entry is
+    # ``(source_namespace, pattern)`` — the namespace whose body ran
+    # ``namespace export pattern`` and the raw glob pattern.  Used
+    # by codegen to filter the ``namespace_imports``-derived
+    # compile-time shortcut so only commands explicitly exported by
+    # the source namespace are eligible for direct dispatch (matches
+    # C Tcl's ``Tcl_Import`` semantics).  An importing namespace
+    # with no matching export falls back to the runtime dispatch
+    # path, where the interpreter can apply the correct
+    # "unknown command" diagnostic.
+    namespace_exports: tuple[tuple[str, str], ...] = ()
+
 
 def when_event_name(qualified_name: str) -> str:
     """Extract the event name from a ``::when::`` qualified name.

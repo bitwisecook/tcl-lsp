@@ -291,6 +291,19 @@ class _Lowerer:
         # directly.  Order preserved because later imports shadow
         # earlier ones in Tcl's resolution model.
         self._namespace_imports: list[tuple[str, str]] = []
+        # Captured ``namespace export pattern …`` directives,
+        # keyed by the source namespace that ran the ``export``.
+        # Codegen uses these to filter
+        # ``namespace_imports``-derived compile-time dispatch so
+        # only commands the source ns explicitly exported are
+        # eligible for the shortcut (matches C Tcl's
+        # ``Tcl_Import`` rules).  Shares the
+        # "any syntactic occurrence counts" caveat with
+        # ``_namespace_imports`` — dead code still registers, but
+        # erring toward "more exports than reality" only loosens
+        # the import filter, so the worst case is the pre-fix
+        # behaviour (runtime would correctly reject the import).
+        self._namespace_exports: list[tuple[str, str]] = []
         # Per-script const-map stack: each scope tracks proc-local
         # variables assigned a braced-literal value.  Populated at
         # ``set var {literal}`` sites and consulted by the
@@ -324,6 +337,7 @@ class _Lowerer:
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
+        self.module.namespace_exports = tuple(self._namespace_exports)
         self.module.namespace_imports = tuple(self._namespace_imports)
         return self.module
 
@@ -1482,6 +1496,33 @@ class _Lowerer:
                 if pat.startswith("::") and "::" in pat[2:]:
                     self._namespace_imports.append((namespace, pat))
 
+        # Capture ``namespace export ?-clear? pattern …`` directives
+        # against the surrounding namespace.  Codegen pairs these
+        # with ``namespace_imports`` to filter the compile-time
+        # import shortcut — only exported names dispatch directly;
+        # unexported imports fall back to runtime dispatch (which
+        # produces the correct "unknown command" semantics).
+        # ``-clear`` would wipe previously-registered patterns but
+        # we don't implement that at compile time — any subsequent
+        # ``export`` still appends, which only broadens the filter
+        # (worst case loses some compile-time wins, never
+        # misresolves).
+        if (
+            cmd_name == "namespace"
+            and len(args) >= 2
+            and args[0] == "export"
+            and (cmd.expand_word is None or not any(cmd.expand_word))
+        ):
+            for pat in args[1:]:
+                if pat == "-clear":
+                    continue
+                if pat.startswith("-"):
+                    continue
+                # Export patterns are simple names / globs, never
+                # namespace-qualified — record as-is against the
+                # current namespace.
+                self._namespace_exports.append((namespace, pat))
+
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
         # If the command itself has no lowering hook, try the alias target.
@@ -1924,6 +1965,7 @@ def lower_to_ir(
 
     lowerer.module.top_level = IRScript(statements=tuple(all_stmts))
     lowerer.module.namespace_imports = tuple(lowerer._namespace_imports)
+    lowerer.module.namespace_exports = tuple(lowerer._namespace_exports)
     inline_uplevel_passthrough(lowerer.module)
     return lowerer.module
 
