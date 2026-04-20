@@ -139,6 +139,7 @@ class _CompilerCheckRunner:
         source: str,
         *,
         file_profiles: frozenset[str] | None = None,
+        user_procs: frozenset[str] = frozenset(),
     ) -> None:
         self._source = source
         self._seen_commands: set[tuple[int, int]] = set()
@@ -149,6 +150,7 @@ class _CompilerCheckRunner:
             if file_profiles is not None
             else EVENT_REGISTRY.compute_file_profiles(source)
         )
+        self._user_procs = user_procs
 
     def process_statement(self, stmt: IRStatement) -> None:
         """Process an IR statement, using carried tokens when available."""
@@ -201,6 +203,7 @@ class _CompilerCheckRunner:
                 self._source,
                 event=self._current_event,
                 file_profiles=self._file_profiles,
+                user_procs=self._user_procs,
             )
         )
 
@@ -251,6 +254,7 @@ class _CompilerCheckRunner:
                     self._source,
                     event=self._current_event,
                     file_profiles=self._file_profiles,
+                    user_procs=self._user_procs,
                 )
             )
 
@@ -841,7 +845,12 @@ def run_compiler_checks(
         stmts.extend(iter_ir_statements(proc.body))
     stmts.sort(key=lambda s: (s.range.start.offset, s.range.end.offset))
 
-    runner = _CompilerCheckRunner(source)
+    # Procs keyed in ``ir_module.procedures`` carry the fully-qualified
+    # ``::ns::name`` form used by W002 to suppress warnings when a
+    # user-defined proc shadows a command the active dialect disallows.
+    user_procs = frozenset(ir_module.procedures.keys())
+
+    runner = _CompilerCheckRunner(source, user_procs=user_procs)
     for stmt in stmts:
         runner.process_statement(stmt)
 

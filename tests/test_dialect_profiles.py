@@ -165,6 +165,28 @@ class TestDialectProfiles:
         result = analyse("open /tmp/x\ntime { puts ok }")
         assert all(d.code != "W002" for d in result.diagnostics)
 
+    def test_w002_suppressed_when_user_proc_shadows_disallowed_command(self):
+        # tcllib's installer.tcl defines its own ``::log`` proc, which
+        # shadows the iRules-only ``log`` built-in. W002 must not fire
+        # on calls to ``log`` when the user has defined it.
+        configure_signatures(dialect="tcl8.6")
+        src = 'proc ::log {text} { puts $text }\nlog "hello"\n'
+        result = analyse(src)
+        assert all(d.code != "W002" for d in result.diagnostics)
+
+    def test_w002_fires_without_user_proc(self):
+        configure_signatures(dialect="tcl8.6")
+        result = analyse('log "hello"\n')
+        w002 = [d for d in result.diagnostics if d.code == "W002"]
+        assert len(w002) == 1
+        assert "'log' is disabled" in w002[0].message
+
+    def test_w002_suppressed_for_namespaced_user_proc(self):
+        configure_signatures(dialect="tcl8.6")
+        src = 'namespace eval ::ns { proc log {text} { puts $text } }\n::ns::log "hi"\n'
+        result = analyse(src)
+        assert all(d.code != "W002" for d in result.diagnostics)
+
     def test_completion_hides_f5_irules_disabled_commands(self):
         configure_signatures(dialect="f5-irules")
         labels = {item.label for item in get_completions("", 0, 0)}

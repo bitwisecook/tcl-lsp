@@ -205,16 +205,26 @@ def run_all_checks(
     *,
     event: str | None = None,
     file_profiles: frozenset[str] = frozenset(),
+    user_procs: frozenset[str] = frozenset(),
 ) -> list[Diagnostic]:
     """Run all registered checks on a single command and return diagnostics.
 
     Uses command-name dispatch to skip checks that cannot apply to the
     current command, reducing the number of function calls from ~35 to
     ~8-12 per command on average.
+
+    ``user_procs`` is the set of qualified proc names defined in the
+    current translation unit; used by W002 to recognise user procs that
+    shadow commands the active dialect disallows.
     """
     diagnostics: list[Diagnostic] = []
     for check in _UNIVERSAL_CHECKS:
-        diagnostics.extend(check(cmd_name, args, arg_tokens, all_tokens, source))
+        if check is check_disabled_command:
+            diagnostics.extend(
+                check(cmd_name, args, arg_tokens, all_tokens, source, user_procs=user_procs)
+            )
+        else:
+            diagnostics.extend(check(cmd_name, args, arg_tokens, all_tokens, source))
     targeted = _get_targeted_checks().get(cmd_name)
     if targeted:
         for check in targeted:
