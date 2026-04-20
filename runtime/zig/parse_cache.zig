@@ -8,8 +8,12 @@
 //
 // Shape:
 //
-// * Storage is a ``hash_table.Table(16)`` keyed by ``(body_ptr,
-//   body_len)`` — the body's absolute address in linear memory.
+// * Storage is a ``hash_table.Table(16)`` keyed by the 8-byte
+//   ``(body_ptr, body_len)`` tuple — the body's absolute address
+//   in linear memory plus its length.  The tuple is staged into
+//   a small module-level scratch buffer on every ``lookup`` /
+//   ``insert`` and the hash-table primitive stores a fixed 8-byte
+//   heap copy as the bucket key (independent of body size).
 //   Bodies are TclObj string reprs pinned by the ``Command``
 //   struct that registered the proc, so the address stays valid
 //   for as long as the cache entry is live.
@@ -62,10 +66,25 @@ pub const OFF_SLAB_N_COMMANDS: u32 = 0;
 pub const OFF_SLAB_TOTAL_TOKENS: u32 = 4;
 pub const SLAB_HEADER_SIZE: u32 = 8;
 
-// The key in each bucket is just ``(body_ptr, body_len)`` — the
-// hash table's header already stores those as the bucket header's
-// ``name_ptr`` / ``name_len``.  The payload (bucket value at
-// offset ``HEADER_SIZE``) is the slab address.
+// The key in each bucket is the 8-byte ``(body_ptr, body_len)``
+// tuple — NOT the body bytes themselves.  Hashing the body bytes
+// would force ``Table.insert_header`` to heap-copy the entire
+// body (up to ``MAX_CACHED_BODY_LEN`` = 4 KB) as the bucket's
+// name slot, duplicating memory that's already pinned by the
+// ``Command`` struct that registered the proc.  Instead we stage
+// the tuple into a small module-level scratch and pass its
+// address + fixed length 8 to the hash-table primitive; the
+// copy it stores is 8 bytes per entry regardless of body size.
+const KEY_SIZE: u32 = 8;
+var key_scratch: [KEY_SIZE]u8 align(4) = undefined;
+
+fn stage_key(body_ptr: u32, body_len: u32) u32 {
+    const addr: u32 = @intFromPtr(&key_scratch[0]);
+    write_i32(addr, @bitCast(body_ptr));
+    write_i32(addr + 4, @bitCast(body_len));
+    return addr;
+}
+
 const OFF_SLAB_ADDR: u32 = ht.HEADER_SIZE;
 
 const CacheTable = ht.Table(BUCKET_SIZE);
@@ -74,15 +93,16 @@ var cache: CacheTable = .{};
 /// Find the cached slab address for a given body buffer, or 0 if
 /// absent.  Caller treats the return value as a ``*Slab`` whose
 /// header gives ``n_commands`` and ``total_tokens``.
+///
+/// Keyed on the 8-byte ``(body_ptr, body_len)`` tuple — distinct
+/// body_ptr values (e.g. re-allocated TclObj string reprs for a
+/// redefined proc body) always produce distinct entries even if
+/// the content happens to match byte-for-byte.
 pub fn lookup(body_ptr: u32, body_len: u32) u32 {
     if (cache.buf == 0) return 0;
-    // Quirk: hash_table.Table.find uses the name bytes as its key.
-    // We want to key on ``(body_ptr, body_len)``, where body_ptr
-    // is itself the absolute address of the key bytes — so we can
-    // hand the table ``body_ptr`` as the key pointer and the
-    // hash computed over those same bytes.  The bytes ARE the key.
-    const hash = ht.fnv1a(body_ptr, body_len);
-    if (cache.find(body_ptr, body_len, hash)) |bucket| {
+    const key = stage_key(body_ptr, body_len);
+    const hash = ht.fnv1a(key, KEY_SIZE);
+    if (cache.find(key, KEY_SIZE, hash)) |bucket| {
         return @bitCast(read_i32(bucket + OFF_SLAB_ADDR));
     }
     return 0;
@@ -95,13 +115,14 @@ pub fn lookup(body_ptr: u32, body_len: u32) u32 {
 /// :func:`alloc_slab_for_body`).
 pub fn insert(body_ptr: u32, body_len: u32, slab_addr: u32) void {
     cache.init(INITIAL_CAP);
-    const hash = ht.fnv1a(body_ptr, body_len);
-    if (cache.find(body_ptr, body_len, hash)) |bucket| {
+    const key = stage_key(body_ptr, body_len);
+    const hash = ht.fnv1a(key, KEY_SIZE);
+    if (cache.find(key, KEY_SIZE, hash)) |bucket| {
         write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));
         return;
     }
     if (cache.needs_grow()) cache.grow();
-    const bucket = cache.insert_header(body_ptr, body_len, hash);
+    const bucket = cache.insert_header(key, KEY_SIZE, hash);
     write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));
 }
 
