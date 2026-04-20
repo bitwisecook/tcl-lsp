@@ -39,6 +39,7 @@ const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
 const tcl_ns = @import("tcl_ns.zig");
+const parse_cache = @import("parse_cache.zig");
 
 // -- Command struct layout --
 //
@@ -224,6 +225,15 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     write_i32(cmd + OFF_N_PARAMS, @intCast(n_params));
     write_i32(cmd + OFF_FUNC_IDX, 0);
     write_i32(cmd + OFF_ARGS_TAIL, 0);
+    // P9.3: pre-parse the interpreted body into the parse cache
+    // so the first ``eval_script`` call on this body hits the
+    // warm path.  ``build_for_body`` no-ops on already-cached
+    // entries, so re-registrations of the same body bytes only
+    // parse once.  Redefinitions with different body bytes get
+    // a fresh cache entry automatically (keyed on ``body_ptr``,
+    // which moves when the TclObj string is re-allocated).
+    const body_s = obj_ensure_string(body_obj);
+    parse_cache.build_for_body(body_s.ptr, body_s.len);
     return obj_new_int(0);
 }
 
