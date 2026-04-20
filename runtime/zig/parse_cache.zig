@@ -164,3 +164,75 @@ pub fn token_at(slab_addr: u32, token_index: u32) u32 {
 pub fn slab_n_commands(slab_addr: u32) u32 {
     return @bitCast(read_i32(slab_addr + OFF_SLAB_N_COMMANDS));
 }
+
+/// Largest proc body we'll cache.  Bodies larger than this stay
+/// on the cold parse-on-every-eval path — building a slab for
+/// them would waste more bump-allocator memory than the saved
+/// parse cost is worth.  A 4 KB cap covers every tcltest body
+/// (largest is ~1.5 KB) with comfortable margin.
+const MAX_CACHED_BODY_LEN: u32 = 4096;
+
+/// Token buffer size for the pre-count pass.  Must exceed the
+/// maximum tokens any single command can produce (2 * MAX_WORDS
+/// on the interpreter side = 2 * 128 = 256).  We bump modestly
+/// above that so a generous command still parses cleanly.
+const SCAN_TOK_BUF: u32 = 384;
+
+/// Parse ``body`` twice — first to count commands + tokens,
+/// second to populate a cache slab — and insert the slab into
+/// the cache keyed on ``(body_ptr, body_len)``.  Called from
+/// ``proc_register`` / ``proc_register_compiled`` (P9.3) after a
+/// successful registration, so subsequent ``eval_script`` calls
+/// for the same body hit the warm path.
+///
+/// Bails silently on bodies larger than ``MAX_CACHED_BODY_LEN``,
+/// on bodies that fail to parse, or on bodies whose total token
+/// count exceeds the scratch buffer.  Either way the cold path
+/// keeps working — the cache is best-effort.
+pub fn build_for_body(body_ptr: u32, body_len: u32) void {
+    if (body_len == 0 or body_len > MAX_CACHED_BODY_LEN) return;
+    if (lookup(body_ptr, body_len) != 0) return; // already cached
+    const src: [*]const u8 = @ptrFromInt(body_ptr);
+
+    var tok_buf: [SCAN_TOK_BUF]parse.Token = undefined;
+
+    // Pass 1: count commands + total tokens.
+    var n_commands: u32 = 0;
+    var total_tokens: u32 = 0;
+    {
+        var pos: u32 = 0;
+        while (pos < body_len) {
+            const cmd = parse.ParseCommand(src, pos, body_len, &tok_buf, tok_buf.len);
+            pos = cmd.next;
+            if (cmd.n_words == 0) continue;
+            n_commands += 1;
+            total_tokens += cmd.tokens_len;
+        }
+    }
+    if (n_commands == 0) return;
+
+    // Pass 2: allocate + populate.
+    const slab = alloc_slab(n_commands, total_tokens);
+    var rec_idx: u32 = 0;
+    var tok_off: u32 = 0;
+    {
+        var pos: u32 = 0;
+        while (pos < body_len) {
+            const cmd = parse.ParseCommand(src, pos, body_len, &tok_buf, tok_buf.len);
+            pos = cmd.next;
+            if (cmd.n_words == 0) continue;
+            const rec = command_record(slab, rec_idx);
+            write_i32(rec + OFF_CR_TOKENS_OFFSET, @bitCast(tok_off));
+            write_i32(rec + OFF_CR_TOKENS_LEN, @bitCast(cmd.tokens_len));
+            write_i32(rec + OFF_CR_N_WORDS, @bitCast(cmd.n_words));
+            write_i32(rec + OFF_CR_NEXT_POS, @bitCast(cmd.next));
+            if (cmd.tokens_len > 0) {
+                const tok_dst = token_at(slab, tok_off);
+                memcpy(tok_dst, cmd.tokens_ptr, cmd.tokens_len * TOKEN_SIZE);
+            }
+            tok_off += cmd.tokens_len;
+            rec_idx += 1;
+        }
+    }
+    insert(body_ptr, body_len, slab);
+}
