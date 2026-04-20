@@ -34,9 +34,17 @@ WASMTIME_PREFIX="/opt/wasmtime-${WASMTIME_VERSION}"
 # 1. System packages (apt).
 # ---------------------------------------------------------------------------
 declare -A REQUIRED_PKGS=(
+    [curl]="curl"
     [rsync]="rsync"
     [xz]="xz-utils"
 )
+
+# ca-certificates is required for TLS verification on any HTTPS fetch
+# below but doesn't ship its own canonical binary, so check for the
+# bundle directly.
+if [ ! -f /etc/ssl/certs/ca-certificates.crt ]; then
+    REQUIRED_PKGS[ca-certificates]="ca-certificates"
+fi
 
 missing_pkgs=()
 for bin in "${!REQUIRED_PKGS[@]}"; do
@@ -153,16 +161,21 @@ install_zig() {
     fi
 
     local expected_sha=""
-    if [ "$zig_arch" = "x86_64-linux" ]; then
-        expected_sha="70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
+    case "$zig_arch" in
+        x86_64-linux)
+            expected_sha="70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00" ;;
+        aarch64-linux)
+            expected_sha="ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17" ;;
+    esac
+    if [ -z "$expected_sha" ]; then
+        echo "session-start: no pinned zig sha256 for ${zig_arch}" >&2
+        return 1
     fi
-    if [ -n "$expected_sha" ]; then
-        local actual_sha
-        actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
-        if [ "$actual_sha" != "$expected_sha" ]; then
-            echo "session-start: zig sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
-            return 1
-        fi
+    local actual_sha
+    actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+    if [ "$actual_sha" != "$expected_sha" ]; then
+        echo "session-start: zig sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
+        return 1
     fi
 
     rm -rf "$ZIG_PREFIX"
@@ -197,6 +210,27 @@ install_wasmtime() {
     echo "session-start: fetching wasmtime v${WASMTIME_VERSION}"
     if ! fetch_with_retry "$url" "${tmpdir}/${tarball}"; then
         echo "session-start: failed to download wasmtime v${WASMTIME_VERSION}" >&2
+        return 1
+    fi
+
+    # Wasmtime releases do not publish SHA-256 sidecars, so we pin the
+    # hashes here alongside the version.  Re-compute these when bumping
+    # WASMTIME_VERSION above.
+    local expected_sha=""
+    case "$wasm_arch" in
+        x86_64-linux)
+            expected_sha="9f3cf977fc29e2ccab2d198435265b066dce3d608fc6692d700ed1b9b74c35a1" ;;
+        aarch64-linux)
+            expected_sha="dbf36d4e9108df377ddfb88f2d8db4e07efce9726b68da53ae78ed5579293923" ;;
+    esac
+    if [ -z "$expected_sha" ]; then
+        echo "session-start: no pinned wasmtime sha256 for ${wasm_arch}" >&2
+        return 1
+    fi
+    local actual_sha
+    actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+    if [ "$actual_sha" != "$expected_sha" ]; then
+        echo "session-start: wasmtime sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
         return 1
     fi
 
@@ -264,15 +298,28 @@ install_tcllib() {
 #    Uses the official rust-lang.org installer so we get signed binaries.
 # ---------------------------------------------------------------------------
 install_rust() {
-    export RUSTUP_HOME="${RUSTUP_HOME:-/root/.rustup}"
-    export CARGO_HOME="${CARGO_HOME:-/root/.cargo}"
+    # Default RUSTUP_HOME/CARGO_HOME under the invoking user's $HOME so the
+    # hook works equally in root and non-root remote sandboxes.  If HOME is
+    # unset for some reason, fall back to the HOME field in /etc/passwd.
+    local user_home="${HOME:-}"
+    if [ -z "$user_home" ]; then
+        user_home="$(getent passwd "$(id -u)" 2>/dev/null | awk -F: '{print $6}')"
+    fi
+    user_home="${user_home:-/root}"
+    export RUSTUP_HOME="${RUSTUP_HOME:-${user_home}/.rustup}"
+    export CARGO_HOME="${CARGO_HOME:-${user_home}/.cargo}"
 
-    local need_install=0
-    if ! command -v rustup >/dev/null 2>&1; then
-        need_install=1
+    # Resolve the rustup binary we'll actually use.  Prefer one already on
+    # PATH (covers distro installs and pre-warmed containers) and fall
+    # back to the one we bootstrap under CARGO_HOME.  Never assume both
+    # paths exist — the install below may create only one of them.
+    local rustup_bin
+    rustup_bin="$(command -v rustup 2>/dev/null || true)"
+    if [ -z "$rustup_bin" ] && [ -x "${CARGO_HOME}/bin/rustup" ]; then
+        rustup_bin="${CARGO_HOME}/bin/rustup"
     fi
 
-    if [ "$need_install" -eq 1 ]; then
+    if [ -z "$rustup_bin" ]; then
         case "$ARCH" in
             x86_64)  local rust_arch="x86_64-unknown-linux-gnu" ;;
             aarch64) local rust_arch="aarch64-unknown-linux-gnu" ;;
@@ -283,11 +330,22 @@ install_rust() {
         tmpdir="$(mktemp -d)"
         trap 'rm -rf "$tmpdir"' RETURN
 
+        local rustup_url="https://static.rust-lang.org/rustup/dist/${rust_arch}/rustup-init"
+
         echo "session-start: fetching rustup-init (${rust_arch})"
-        if ! fetch_with_retry \
-                "https://static.rust-lang.org/rustup/dist/${rust_arch}/rustup-init" \
-                "${tmpdir}/rustup-init"; then
+        if ! fetch_with_retry "$rustup_url" "${tmpdir}/rustup-init"; then
             echo "session-start: failed to download rustup-init" >&2
+            return 1
+        fi
+        if ! fetch_with_retry "${rustup_url}.sha256" "${tmpdir}/rustup-init.sha256"; then
+            echo "session-start: failed to download rustup-init sha256 sidecar" >&2
+            return 1
+        fi
+        # sha256sum -c expects the referenced file to live next to the
+        # checksum file under the name recorded in it, so verify from
+        # within tmpdir.
+        if ! ( cd "$tmpdir" && sha256sum -c rustup-init.sha256 >/dev/null ); then
+            echo "session-start: rustup-init checksum verification failed" >&2
             return 1
         fi
         chmod +x "${tmpdir}/rustup-init"
@@ -299,13 +357,20 @@ install_rust() {
             --profile minimal \
             --default-toolchain "${RUST_VERSION}" \
             --component rustfmt,clippy
+
+        rustup_bin="${CARGO_HOME}/bin/rustup"
+    fi
+
+    if [ ! -x "$rustup_bin" ]; then
+        echo "session-start: rustup not executable at $rustup_bin" >&2
+        return 1
     fi
 
     # Make sure the requested toolchain is present even on warm containers.
     # static.rust-lang.org can 503 briefly, so retry with exponential backoff.
     local attempt
     for attempt in 1 2 3 4; do
-        if "${CARGO_HOME}/bin/rustup" toolchain install "${RUST_VERSION}" \
+        if "$rustup_bin" toolchain install "${RUST_VERSION}" \
                 --profile minimal --component rustfmt --component clippy \
                 --no-self-update; then
             break
@@ -319,16 +384,24 @@ install_rust() {
             return 1
         fi
     done
-    "${CARGO_HOME}/bin/rustup" default "${RUST_VERSION}"
+    "$rustup_bin" default "${RUST_VERSION}"
+
+    # Resolve the cargo/rustc binaries the active rustup is configured
+    # to front so symlinks always match the toolchain we just installed.
+    local cargo_bin rustc_bin rustfmt_bin clippy_bin
+    cargo_bin="$("$rustup_bin" which cargo)"
+    rustc_bin="$("$rustup_bin" which rustc)"
+    rustfmt_bin="$("$rustup_bin" which rustfmt)"
+    clippy_bin="$("$rustup_bin" which clippy-driver)"
 
     # Expose cargo/rustc without relying on PATH hacks in downstream shells.
-    ln -sfn "${CARGO_HOME}/bin/cargo"   /usr/local/bin/cargo
-    ln -sfn "${CARGO_HOME}/bin/rustc"   /usr/local/bin/rustc
-    ln -sfn "${CARGO_HOME}/bin/rustup"  /usr/local/bin/rustup
-    ln -sfn "${CARGO_HOME}/bin/rustfmt" /usr/local/bin/rustfmt
-    ln -sfn "${CARGO_HOME}/bin/clippy-driver" /usr/local/bin/clippy-driver
+    ln -sfn "$cargo_bin"   /usr/local/bin/cargo
+    ln -sfn "$rustc_bin"   /usr/local/bin/rustc
+    ln -sfn "$rustup_bin"  /usr/local/bin/rustup
+    ln -sfn "$rustfmt_bin" /usr/local/bin/rustfmt
+    ln -sfn "$clippy_bin"  /usr/local/bin/clippy-driver
 
-    echo "session-start: rust $(${CARGO_HOME}/bin/rustc --version) ready"
+    echo "session-start: rust $("$rustc_bin" --version) ready"
 }
 
 install_zig
