@@ -729,6 +729,41 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.copyFileAsBase64", copyFileAsBase64),
     commands.registerCommand("tclLsp.copyFileAsGzipBase64", copyFileAsGzipBase64),
     commands.registerCommand("tclLsp.translateXc", translateXc),
+    // Wrapper for the built-in editor.action.showReferences: the LSP server
+    // emits this command on its code lenses with URI/Position/Location args
+    // serialised as JSON primitives, but the built-in command validates its
+    // arguments against vscode.Uri/Position/Array constraints and rejects
+    // raw strings/plain objects. Convert here before delegating.
+    commands.registerCommand(
+      "tcl-lsp.showReferences",
+      async (
+        uriString: string,
+        position: { line: number; character: number },
+        locations: ReadonlyArray<{
+          uri: string;
+          range: {
+            start: { line: number; character: number };
+            end: { line: number; character: number };
+          };
+        }>,
+      ) => {
+        const uri = Uri.parse(uriString);
+        const pos = new vscode.Position(position.line, position.character);
+        const locs = locations.map(
+          (loc) =>
+            new vscode.Location(
+              Uri.parse(loc.uri),
+              new Range(
+                loc.range.start.line,
+                loc.range.start.character,
+                loc.range.end.line,
+                loc.range.end.character,
+              ),
+            ),
+        );
+        await commands.executeCommand("editor.action.showReferences", uri, pos, locs);
+      },
+    ),
   );
 
   context.subscriptions.push(

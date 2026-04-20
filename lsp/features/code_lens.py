@@ -27,9 +27,10 @@ class _WorkspaceLike(Protocol):
 
 
 # ``find_references(uri, qname) -> list[Location]`` — supplies the location
-# list for the VS Code built-in ``editor.action.showReferences`` command so
-# no client-side command has to exist. Optional for callers (e.g. unit
-# tests) that don't need a working peek.
+# list for the ``tcl-lsp.showReferences`` wrapper command, which converts
+# the arguments to vscode.Uri/Position/Location instances before delegating
+# to the built-in ``editor.action.showReferences``. Optional for callers
+# (e.g. unit tests) that don't need a working peek.
 FindReferences = Callable[[str, str], list[types.Location]]
 
 
@@ -89,8 +90,11 @@ def resolve_code_lens(
 ) -> types.CodeLens:
     """Populate ``title``/``command`` on ``lens`` using cached usage counts.
 
-    The command is VS Code's built-in ``editor.action.showReferences`` so
-    the peek opens without any client-side command registration. Passing
+    The command is ``tcl-lsp.showReferences``, a thin client-side wrapper
+    the VS Code extension registers to convert the URI, position, and
+    locations from their JSON-RPC shapes into the ``vscode.Uri``,
+    ``vscode.Position``, and ``vscode.Location`` instances that the
+    built-in ``editor.action.showReferences`` command requires. Passing
     ``find_references=None`` (e.g. in tests) yields an empty locations
     list but still produces a well-formed command.
     """
@@ -105,7 +109,7 @@ def resolve_code_lens(
             range=lens.range,
             command=types.Command(
                 title=title,
-                command="editor.action.showReferences",
+                command="tcl-lsp.showReferences",
                 arguments=[data.uri, lens.range.start, locations],
             ),
             data=lens.data,
