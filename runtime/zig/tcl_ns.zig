@@ -524,6 +524,68 @@ pub fn ns_cmd_find(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
     return 0;
 }
 
+/// Full command resolution mirroring ``Tcl_FindCommand``
+/// (``tclNamesp.c:2631``).  Returns the bucket value (flat
+/// proc_table bucket address while P2.x is dual-write — eventually
+/// a ``*Command`` once P2.4 retires the flat table) or 0 if not
+/// found.  See ``docs/design/runtime/namespace-tree.md`` §5.2.
+///
+/// Resolution order:
+///
+/// * If the name contains ``::`` (qualified or fully-qualified):
+///   walk ``ns_resolve_qualified`` and probe both the primary and
+///   alt target's ``cmd_table`` for the simple trailing name.
+/// * Otherwise (unqualified): probe ``cxt.cmd_table``, then fall
+///   back to root's.  P5 inserts the ``commandPathArray`` walk
+///   between these two steps.
+///
+/// Pure read — no mutation of the tree.  Safe to call from any
+/// resolution hot path.
+pub fn ns_find_command(cxt: u32, name_ptr: u32, name_len: u32) u32 {
+    const root = ns_root();
+    const start: u32 = if (cxt != 0) cxt else root;
+
+    // Detect qualification: any ``::`` substring, including a
+    // leading one.  Cheap linear scan — names are short.
+    var has_colons = false;
+    if (name_len >= 2) {
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        var i: u32 = 0;
+        while (i + 1 < name_len) : (i += 1) {
+            if (src[i] == ':' and src[i + 1] == ':') {
+                has_colons = true;
+                break;
+            }
+        }
+    }
+
+    if (has_colons) {
+        const r = ns_resolve_qualified(start, name_ptr, name_len);
+        if (r.simple_len == 0) return 0; // ``::``-only or trailing ``::``
+        if (r.target_ns != 0) {
+            const v = ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len);
+            if (v != 0) return v;
+        }
+        if (r.alt_ns != 0) {
+            const v = ns_cmd_find(r.alt_ns, r.simple_ptr, r.simple_len);
+            if (v != 0) return v;
+        }
+        return 0;
+    }
+
+    // Unqualified: context first, then root.  P5.2 will splice
+    // ``commandPathArray`` between these two.
+    if (start != 0) {
+        const v = ns_cmd_find(start, name_ptr, name_len);
+        if (v != 0) return v;
+    }
+    if (start != root) {
+        const v = ns_cmd_find(root, name_ptr, name_len);
+        if (v != 0) return v;
+    }
+    return 0;
+}
+
 /// Lower-level child lookup: returns the child handle, or 0 if not
 /// present.  Splits out so ``ns_resolve_qualified`` doesn't have to
 /// recompute the hash for every step (which it doesn't anyway, but

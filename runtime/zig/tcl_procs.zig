@@ -89,6 +89,24 @@ fn lru_invalidate() void {
     }
 }
 
+/// Promote a (hash, len, first_byte, bucket) tuple to MRU slot 0,
+/// shifting older entries down by one and dropping the oldest off
+/// the end.  Shared by every successful ``proc_lookup`` exit so
+/// the next lookup can fast-path through the cache.
+fn lru_insert(hash: u32, len: u32, first_byte: u8, base: u32) void {
+    var j: u32 = LRU_SIZE - 1;
+    while (j > 0) : (j -= 1) {
+        lru_hash[j] = lru_hash[j - 1];
+        lru_len[j] = lru_len[j - 1];
+        lru_first_byte[j] = lru_first_byte[j - 1];
+        lru_bucket[j] = lru_bucket[j - 1];
+    }
+    lru_hash[0] = hash;
+    lru_len[0] = len;
+    lru_first_byte[0] = first_byte;
+    lru_bucket[0] = base;
+}
+
 /// Grow with LRU invalidation: bucket addresses move on grow, so the
 /// LRU's cached bucket pointers would become dangling without this.
 fn maybe_grow() void {
@@ -199,16 +217,21 @@ pub export fn proc_register_compiled(
 ///   If found: returns pointer to the bucket (caller reads fields)
 ///   If not found: returns 0
 ///
-/// Resolution order for an unqualified name:
-///   1. Exact match (``name``).
-///   2. Global namespace (``::name``).
-///   3. Linear scan for an entry ending in ``::name`` — a best-
-///      effort stand-in for Tcl's namespace-path semantics when
-///      a dynamically-registered proc (``proc $varName …``) calls
-///      a helper that lives in the surrounding namespace.
-///      Non-ambiguous matches win; multiple matches take the
-///      first seen (deterministic because buckets are append-only
-///      until a grow).
+/// Resolution order:
+///   1. LRU cache (4-slot MRU on the flat ``proc_table``).
+///   2. Namespace-tree walk via ``ns_find_command`` — the new
+///      primary path (P2.2).  Handles qualified names through
+///      ``TclGetNamespaceForQualName``-style descent and
+///      unqualified names through context-ns + root cmd_table
+///      probes (P5 will add ``commandPathArray`` between).
+///   3. Flat exact match — belt-and-suspenders fallback for any
+///      bucket that somehow isn't dual-written (e.g. an early-
+///      bootstrap proc registered before ``ns_root()`` was
+///      reachable).  Removed in P2.4.
+///   4. Global ``::name`` prefix probe — same fallback rationale.
+///   5. Linear ``*::name`` suffix scan — the legacy hack.  Removed
+///      in P2.3 once we've confirmed the tree walk catches every
+///      previously-suffix-resolved call.
 pub export fn proc_lookup(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (proc_table.buf == 0) return 0;
@@ -253,18 +276,22 @@ pub export fn proc_lookup(name: i32) i32 {
         break;
     }
 
-    if (proc_table.find(sn.ptr, sn.len, hash)) |base| {
-        var j: u32 = LRU_SIZE - 1;
-        while (j > 0) : (j -= 1) {
-            lru_hash[j] = lru_hash[j - 1];
-            lru_len[j] = lru_len[j - 1];
-            lru_first_byte[j] = lru_first_byte[j - 1];
-            lru_bucket[j] = lru_bucket[j - 1];
+    // 2. Namespace-tree walk.  Returns the same flat-bucket address
+    //    the dual-write inserted, so LRU caching works unchanged.
+    {
+        const ns_hit = tcl_ns.ns_find_command(tcl_ns.ns_current(), sn.ptr, sn.len);
+        if (ns_hit != 0) {
+            lru_insert(hash, sn.len, first_byte, ns_hit);
+            return @bitCast(ns_hit);
         }
-        lru_hash[0] = hash;
-        lru_len[0] = sn.len;
-        lru_first_byte[0] = first_byte;
-        lru_bucket[0] = base;
+    }
+
+    // 3. Flat-table exact match — fallback for the rare case where
+    //    a proc bucket exists but somehow isn't reflected in the
+    //    tree (early bootstrap, unusual entry path).  Removed in
+    //    P2.4 once dual-write has been audited as exhaustive.
+    if (proc_table.find(sn.ptr, sn.len, hash)) |base| {
+        lru_insert(hash, sn.len, first_byte, base);
         return @bitCast(base);
     }
     // Only fall through to namespace search for UNQUALIFIED names.
