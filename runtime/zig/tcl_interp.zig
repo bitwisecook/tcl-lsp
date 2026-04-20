@@ -828,14 +828,35 @@ fn eval_command(words: []const i32) i32 {
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "variable")) {
-        // ``variable name ?value? ?name value …?`` — declare +
-        // optionally initialise a namespace variable.  We don't
-        // track namespace scopes in the interpreter, so treat it
-        // identically to ``set`` when a value is given, else a NOP.
+        // ``variable name ?value? ?name value …?`` — declare a
+        // namespace-scoped variable in the current namespace and
+        // create a frame-local VAR_LINK-style alias to it.  Matches
+        // C Tcl's ``Tcl_VariableObjCmd``: the var lives in the
+        // namespace's ``var_table``, and within the active proc
+        // body the local name reads / writes through the alias.
         var i: u32 = 1;
-        while (i < words.len) : (i += 2) {
+        while (i < words.len) : (i += 1) {
+            const name_obj = words[i];
+            const sn = obj_ensure_string(name_obj);
+            // Resolve to (target_ns, simple_name) — find-or-creates
+            // intermediates so ``variable ::deep::ns::v`` works
+            // before ``::deep::ns`` exists.
+            const r = tcl_ns.ns_resolve_qualified_creating(
+                tcl_ns.ns_current(),
+                sn.ptr,
+                sn.len,
+            );
+            if (r.target_ns == 0 or r.simple_len == 0) continue;
+            const var_ptr = tcl_ns.ns_var_create(r.target_ns, r.simple_ptr, r.simple_len);
+            // Alias the local *simple* name to the ns var so the
+            // proc body can refer to it unqualified.  C Tcl uses
+            // the trailing component for this; we do the same.
+            const local_name = obj_new_string(@bitCast(r.simple_ptr), @bitCast(r.simple_len));
+            frames.frame_alias_ns_var(local_name, var_ptr);
+            // Optional initialiser.
             if (i + 1 < words.len) {
-                _ = frames.var_set(words[i], words[i + 1]);
+                tcl_ns.var_set_scalar(var_ptr, @bitCast(words[i + 1]));
+                i += 1;
             }
         }
         return obj_new_string(0, 0);

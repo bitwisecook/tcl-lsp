@@ -35,6 +35,7 @@ const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 
 const globals = @import("tcl_globals.zig");
+const tcl_ns = @import("tcl_ns.zig");
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
@@ -85,6 +86,7 @@ inline fn alias_desc_ptr(v: i32) u32 {
 // -- Frame-alias descriptor kinds --
 const KIND_GLOBAL_NAMED: i32 = 0; // target_name is global var name
 const KIND_FRAME_VAR: i32 = 1; // param = abs frame depth, target_name = var
+const KIND_NS_VAR_PTR: i32 = 2; // descriptor.target = absolute *Var address (P3.3)
 
 const MAX_DEPTH: u32 = 64;
 
@@ -203,6 +205,11 @@ fn resolve_ext_get(desc: u32, local_name: i32) i32 {
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
     if (kind == KIND_GLOBAL_NAMED) return globals.global_get(tgt);
+    if (kind == KIND_NS_VAR_PTR) {
+        // tgt is an absolute *Var address.  ``var_get_scalar``
+        // follows VAR_LINK chains to the terminal storage.
+        return @bitCast(tcl_ns.var_get_scalar(@bitCast(tgt)));
+    }
     // KIND_FRAME_VAR
     const abs: u32 = @bitCast(read_i32(desc + 4));
     return frame_get_at_depth(abs, tgt, local_name);
@@ -213,6 +220,10 @@ fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
     if (kind == KIND_GLOBAL_NAMED) return globals.global_set(tgt, value);
+    if (kind == KIND_NS_VAR_PTR) {
+        tcl_ns.var_set_scalar(@bitCast(tgt), @bitCast(value));
+        return value;
+    }
     const abs: u32 = @bitCast(read_i32(desc + 4));
     frame_set_at_depth(abs, tgt, local_name, value);
     return value;
@@ -223,6 +234,12 @@ fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
     if (kind == KIND_GLOBAL_NAMED) return globals.global_exists(tgt);
+    if (kind == KIND_NS_VAR_PTR) {
+        // The Var entry exists once we've created it; existence
+        // checks return 1 even if the value was never written.
+        // Matches the long-standing ``global_exists`` semantics.
+        return if (tgt != 0) obj_new_int(1) else obj_new_int(0);
+    }
     const abs: u32 = @bitCast(read_i32(desc + 4));
     return if (frame_exists_at_depth(abs, tgt, local_name)) obj_new_int(1) else obj_new_int(0);
 }
@@ -343,6 +360,32 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
         } else {
             frame_insert(base, sn.ptr, sn.len, hash, encoded);
         }
+    }
+}
+
+/// Register *local_name* in the current frame as a VAR_LINK-style
+/// alias to a namespace variable identified by its absolute
+/// ``*Var`` address (P3.3 onwards).  Used by the interpreter's
+/// ``variable`` and ``global`` handlers.
+///
+/// The descriptor encoding follows the existing ALIAS_EXT shape:
+/// ``[kind | unused | *Var]`` packed into 12 bytes; the bucket
+/// value is the negated descriptor address.  Reads / writes go
+/// through ``var_get_scalar`` / ``var_set_scalar`` which transparently
+/// chase ``VAR_LINK`` chains on the target side.
+pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32) void {
+    const cur = current_frame() orelse return;
+    const desc = alloc(12);
+    write_i32(desc, KIND_NS_VAR_PTR);
+    write_i32(desc + 4, 0);
+    write_i32(desc + 8, @bitCast(var_ptr));
+    const encoded: i32 = -@as(i32, @intCast(desc));
+    const sn = obj_ensure_string(local_name);
+    const hash = fnv1a(sn.ptr, sn.len);
+    if (frame_find(cur, sn.ptr, sn.len, hash)) |bucket| {
+        write_i32(bucket + OFF_VALUE, encoded);
+    } else {
+        frame_insert(cur, sn.ptr, sn.len, hash, encoded);
     }
 }
 
