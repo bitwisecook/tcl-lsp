@@ -93,6 +93,19 @@ pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 /// payload.
 pub const CMD_IMPORTED: u32 = 0x80;
 
+// ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
+// above because it can't ``@import`` this module without a circular
+// dependency.  Pin the shadow to the canonical values here so any
+// drift is a compile error rather than a silent runtime corruption.
+comptime {
+    const shadow = tcl_ns.tcl_procs_constants;
+    if (shadow.COMMAND_SIZE != COMMAND_SIZE) @compileError("tcl_ns.tcl_procs_constants.COMMAND_SIZE out of sync with tcl_procs.COMMAND_SIZE");
+    if (shadow.OFF_FLAGS != OFF_FLAGS) @compileError("tcl_ns.tcl_procs_constants.OFF_FLAGS out of sync with tcl_procs.OFF_FLAGS");
+    if (shadow.OFF_PARAMS_OBJ != OFF_PARAMS_OBJ) @compileError("tcl_ns.tcl_procs_constants.OFF_PARAMS_OBJ out of sync with tcl_procs.OFF_PARAMS_OBJ");
+    if (shadow.OFF_IMPORT_REF_HEAD != OFF_IMPORT_REF_HEAD) @compileError("tcl_ns.tcl_procs_constants.OFF_IMPORT_REF_HEAD out of sync with tcl_procs.OFF_IMPORT_REF_HEAD");
+    if (shadow.CMD_IMPORTED != CMD_IMPORTED) @compileError("tcl_ns.tcl_procs_constants.CMD_IMPORTED out of sync with tcl_procs.CMD_IMPORTED");
+}
+
 /// Total number of registered procs.  Bumped on every fresh insert
 /// (not on update-in-place).  Used by ``proc_buf_nonzero`` as the
 /// fast-path "any procs at all?" check on ``eval_command``'s
