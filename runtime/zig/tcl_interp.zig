@@ -1013,48 +1013,67 @@ const str_eq = @import("tcl_chars.zig").str_eq;
 /// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
 /// commands like ``proc $varName body`` inside the fallback
 /// register in the enclosing namespace instead of the global scope.
-/// Zero means "no namespace context" — unqualified names stay
-/// unqualified.
-var current_ns_ptr: u32 = 0;
-var current_ns_len: u32 = 0;
+///
+/// Storage is a ``*Namespace`` handle (P1.3 onwards).  Zero means
+/// "no namespace context active" — equivalent to the root ns for
+/// resolution but treated as "leave names unqualified" by
+/// ``qualify_name`` so legacy callers that never call ``ns_set``
+/// keep their old behaviour.
+var current_ns: u32 = 0;
 
-/// Set the current namespace (pointer + length into UTF-8 bytes).
-/// Returns a packed save value the caller should pass back to
-/// ``ns_restore`` to unwind — supports nesting without a heap stack.
+const tcl_ns = @import("tcl_ns.zig");
+
+/// Set the current namespace.  ``name_ptr`` / ``name_len`` are a
+/// fully-qualified name like ``::tcltest`` that the runtime walks
+/// (find-or-create) to obtain the corresponding ``*Namespace``
+/// handle.
+///
+/// Returns the previously-active handle packed into the low 32 bits
+/// of an i64 — keeping the i64 ABI matching the compiler-side
+/// import declaration (``[I32, I32] -> I64`` in
+/// ``codegen/wasm/_imports.py``).  The high 32 bits are unused
+/// (always 0) to leave room for future flags without another ABI
+/// flip.
 pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
-    const saved: i64 = (@as(i64, current_ns_ptr) << 32) | @as(i64, current_ns_len);
-    current_ns_ptr = @intCast(name_ptr);
-    current_ns_len = @intCast(name_len);
-    return saved;
+    const saved: u32 = current_ns;
+    const ns = tcl_ns.ns_create_from_fqn(@bitCast(name_ptr), @bitCast(name_len));
+    current_ns = ns;
+    return @as(i64, saved);
 }
 
 /// Restore a saved namespace context, unwinding an ``ns_set`` pair.
 pub export fn ns_restore(saved: i64) void {
-    current_ns_ptr = @intCast((saved >> 32) & 0xFFFFFFFF);
-    current_ns_len = @intCast(saved & 0xFFFFFFFF);
+    current_ns = @intCast(saved & 0xFFFFFFFF);
 }
 
 /// If *name* (a TclObj) is unqualified (no leading ``::``) and a
-/// current namespace context is active, return a fresh TclObj
-/// holding ``<ns>::<name>``.  Otherwise return *name* unchanged.
-/// Used by the interpreter's ``proc`` / ``variable`` handlers to
-/// namespace-qualify dynamically constructed names.
+/// non-root current namespace context is active, return a fresh
+/// TclObj holding ``<ns_full_name>::<name>``.  Otherwise return
+/// *name* unchanged.  Used by the interpreter's ``proc`` /
+/// ``variable`` handlers to namespace-qualify dynamically
+/// constructed names.
 fn qualify_name(name: i32) i32 {
-    if (current_ns_ptr == 0 or current_ns_len == 0) return name;
+    if (current_ns == 0) return name;
+    // Root has full name ``::``; ``::name`` is the same as ``name``
+    // for resolution purposes, so don't bother prefixing — keeps
+    // the output stable for callers that previously got an
+    // unqualified name back when no ns was active.
+    const ns_full = tcl_ns.ns_full_name(current_ns);
+    if (ns_full.len == 2) return name;
     const s = obj_ensure_string(name);
     if (s.len == 0) return name;
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
     // Already qualified with ``::`` — leave alone.
     if (s.len >= 2 and sp[0] == ':' and sp[1] == ':') return name;
-    // Build ``<ns>::<name>`` in the bump allocator.
-    const ns_ptr: [*]const u8 = @ptrFromInt(current_ns_ptr);
-    const total: u32 = current_ns_len + 2 + s.len;
+    // Build ``<ns_full>::<name>`` in the bump allocator.
+    const ns_ptr: [*]const u8 = @ptrFromInt(ns_full.ptr);
+    const total: u32 = ns_full.len + 2 + s.len;
     const buf_addr: u32 = obj_mod.alloc(total);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
-    for (0..current_ns_len) |i| buf[i] = ns_ptr[i];
-    buf[current_ns_len] = ':';
-    buf[current_ns_len + 1] = ':';
-    for (0..s.len) |i| buf[current_ns_len + 2 + i] = sp[i];
+    for (0..ns_full.len) |i| buf[i] = ns_ptr[i];
+    buf[ns_full.len] = ':';
+    buf[ns_full.len + 1] = ':';
+    for (0..s.len) |i| buf[ns_full.len + 2 + i] = sp[i];
     return obj_mod.obj_new_string(@intCast(buf_addr), @intCast(total));
 }
 

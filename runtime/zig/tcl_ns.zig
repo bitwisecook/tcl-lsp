@@ -180,6 +180,101 @@ pub fn ns_create(parent: u32, name_ptr: u32, name_len: u32) u32 {
     return child_addr;
 }
 
+/// Walk a fully-qualified namespace name like ``::tcltest`` or
+/// ``::a::b::c`` and find-or-create each component starting from
+/// the root.  Returns the address of the deepest namespace.
+///
+/// This is a P1.3 precursor to the full
+/// ``TclGetNamespaceForQualName``-style resolver landing in P1.4 —
+/// it handles only fully-qualified inputs (the form compiled procs
+/// emit when stamping their enclosing namespace).  Non-``::``-
+/// prefixed input is treated as relative to root, matching the
+/// "stamped FQN" use case rather than the more general C semantics.
+///
+/// An empty name (or ``::`` alone) returns ``ns_root()``.
+pub fn ns_create_from_fqn(name_ptr: u32, name_len: u32) u32 {
+    var ns = ns_root();
+    if (name_len == 0) return ns;
+    const src: [*]const u8 = @ptrFromInt(name_ptr);
+
+    // Skip leading ``::`` (zero, one, or repeated colons all read
+    // as "anchor at root", matching Tcl's behaviour where two or
+    // more adjacent colons are treated as a single ns separator).
+    var i: u32 = 0;
+    while (i < name_len and src[i] == ':') : (i += 1) {}
+
+    // Walk components separated by one-or-more ``:``s.
+    while (i < name_len) {
+        // Find the end of this component (start of next ``:`` run
+        // or end of string).
+        var j: u32 = i;
+        while (j < name_len and src[j] != ':') : (j += 1) {}
+        const comp_len: u32 = j - i;
+        if (comp_len > 0) {
+            ns = ns_create(ns, name_ptr + i, comp_len);
+        }
+        // Skip the ``:`` run.
+        i = j;
+        while (i < name_len and src[i] == ':') : (i += 1) {}
+    }
+    return ns;
+}
+
+/// Materialise the namespace's fully-qualified name (``::a::b``) on
+/// demand and cache it in ``full_name_*``.  Root returns ``::``.
+/// Subsequent calls return the cached pointer + length.
+pub fn ns_full_name(ns_addr: u32) struct { ptr: u32, len: u32 } {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    if (ns.full_name_ptr != 0 or ns.full_name_len != 0) {
+        return .{ .ptr = ns.full_name_ptr, .len = ns.full_name_len };
+    }
+
+    if (ns.parent == 0) {
+        // Root namespace: full name is the literal ``::``.
+        const buf = alloc(2);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        dst[0] = ':';
+        dst[1] = ':';
+        ns.full_name_ptr = buf;
+        ns.full_name_len = 2;
+        return .{ .ptr = buf, .len = 2 };
+    }
+
+    // ``<parent_full>::<simple>``.  Materialise parent first; if
+    // parent is root, its full name is ``::`` and we'd produce
+    // ``::::name`` if we naively concatenated, so collapse the case.
+    const parent_full = ns_full_name(ns.parent);
+    const total: u32 = blk: {
+        if (parent_full.len == 2) {
+            // Parent is root → ``::name``.
+            break :blk 2 + ns.name_len;
+        }
+        // Parent is anything else → ``<parent>::<name>``.
+        break :blk parent_full.len + 2 + ns.name_len;
+    };
+    const buf = alloc(total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    if (parent_full.len == 2) {
+        dst[0] = ':';
+        dst[1] = ':';
+        off = 2;
+    } else {
+        const ps: [*]const u8 = @ptrFromInt(parent_full.ptr);
+        for (0..parent_full.len) |k| dst[k] = ps[k];
+        dst[parent_full.len] = ':';
+        dst[parent_full.len + 1] = ':';
+        off = parent_full.len + 2;
+    }
+    if (ns.name_len > 0) {
+        const np: [*]const u8 = @ptrFromInt(ns.name_ptr);
+        for (0..ns.name_len) |k| dst[off + k] = np[k];
+    }
+    ns.full_name_ptr = buf;
+    ns.full_name_len = total;
+    return .{ .ptr = buf, .len = total };
+}
+
 // -- WASM-exported wrappers -------------------------------------------------
 //
 // These give the Python-side runtime a stable ABI (i32 in / i32 out)
