@@ -414,12 +414,16 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     # only catches the other subcommands (current, qualifiers, which,
     # tail, code, delete, import, export, exists, parent, children,
     # inscope, origin, forget, path, ensemble) that route through
-    # this dispatch.  Likewise ``interp`` covers the commands the
-    # previous ``_UNSUPPORTED_COMMANDS`` entry used to hard-trap;
-    # the stub trap is equivalent but gives a sourced site.
+    # this dispatch.  ``interp`` used to live here too, pointing at
+    # the trapping ``tcl_cmd_interp_cmd`` stub — since the runtime
+    # added real ``interp alias`` support (see
+    # docs/design/runtime/rename-alias.md) the codegen now routes
+    # ``interp`` through the eval fallback so the interpreter's
+    # ``interp`` built-in handles the alias subcommands.  Other
+    # ``interp`` subcommands (create, hide, eval, …) still trap
+    # cleanly via ``tcl_env_stubs``.
     "package": ("tcl_package", 2),
     "trace": ("tcl_trace", 2),
-    "interp": ("tcl_interp", 2),
     "apply": ("tcl_apply", 2),
 }
 
@@ -507,12 +511,18 @@ _CLOCK_SUBCMD_IMPORT: dict[str, str] = {
 
 # Commands that are scope declarations, compile-time-only, or CFG
 # placeholders — NOPs in WASM.
+#
+# ``rename`` is explicitly NOT listed here even though it was treated
+# as a NOP by the pre-runtime-rename-alias wave — the runtime now
+# implements real rename semantics (``tcl_rename.rename_command`` via
+# the interpreter's ``rename`` built-in), so the codegen must route
+# every ``rename`` call through the eval fallback rather than dropping
+# it.  See docs/design/runtime/rename-alias.md.
 _SCOPE_NOP_COMMANDS = frozenset(
     {
         "namespace",
         "proc",
         "package",
-        "rename",
         # CFG placeholders — the actual logic is emitted by the loop/foreach
         # emitters; these IRCall nodes are just iteration-setup markers.
         "foreach",
