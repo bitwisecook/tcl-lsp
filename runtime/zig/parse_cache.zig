@@ -47,6 +47,20 @@ const parse = @import("tcl_parse.zig");
 const BUCKET_SIZE: u32 = 16;
 const INITIAL_CAP: u32 = 32;
 
+/// Hard cap on live cache entries.  ``insert`` bulk-wipes the cache
+/// when an attempted insert would push ``count`` past this value.
+/// Not a true LRU: the underlying open-addressed table doesn't
+/// support tombstones, so evicting one entry at a time would break
+/// probe chains.  Bulk wipe keeps the implementation simple and
+/// bounds memory against long-running embedders that build many
+/// short-lived procs.  At ~1.6 KB per slab, 256 entries cap the
+/// cache's own memory footprint at roughly 0.5 MB plus a small
+/// bucket table.
+///
+/// For tcltest and similar bundles (≈50–120 registered procs) the
+/// cap is never reached in practice.
+const MAX_ENTRIES: u32 = 256;
+
 // Offsets of the four u32s that make up a ``CommandRecord``.
 pub const OFF_CR_TOKENS_OFFSET: u32 = 0;
 pub const OFF_CR_TOKENS_LEN: u32 = 4;
@@ -121,6 +135,8 @@ pub fn insert(body_ptr: u32, body_len: u32, slab_addr: u32) void {
         write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));
         return;
     }
+    // Bulk eviction on overflow — see MAX_ENTRIES docstring.
+    if (cache.count >= MAX_ENTRIES) invalidate_all();
     if (cache.needs_grow()) cache.grow();
     const bucket = cache.insert_header(key, KEY_SIZE, hash);
     write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));

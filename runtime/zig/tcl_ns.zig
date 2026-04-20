@@ -955,17 +955,17 @@ pub const ImportedCmdData = extern struct {
     self_cmd: u32,
 };
 
-const tcl_procs_constants = struct {
-    // Mirror of the layout constants in ``tcl_procs.zig``.  We
-    // can't ``@import`` that module here without a circular
-    // dependency (procs imports ns), so we duplicate the offsets.
-    // The values are pinned by the design doc; update both
-    // together.
-    const COMMAND_SIZE: u32 = 40;
-    const OFF_FLAGS: u32 = 8;
-    const OFF_PARAMS_OBJ: u32 = 12;
-    const OFF_IMPORT_REF_HEAD: u32 = 32;
-    const CMD_IMPORTED: u32 = 0x80;
+/// Mirror of the ``Command`` layout constants in ``tcl_procs.zig``.
+/// Duplicated here because ``tcl_procs.zig`` imports this module, so
+/// importing it back would be circular.  ``tcl_procs.zig`` has a
+/// ``comptime`` block that asserts these values stay in sync with its
+/// own canonical ``pub const``s, so any drift becomes a compile error.
+pub const tcl_procs_constants = struct {
+    pub const COMMAND_SIZE: u32 = 40;
+    pub const OFF_FLAGS: u32 = 8;
+    pub const OFF_PARAMS_OBJ: u32 = 12;
+    pub const OFF_IMPORT_REF_HEAD: u32 = 32;
+    pub const CMD_IMPORTED: u32 = 0x80;
 };
 
 /// Singly-linked list node used to track every redirect Command
@@ -1130,6 +1130,17 @@ fn unlink_import_ref(source_cmd: u32, redirect: u32) void {
 /// support tombstones — but the now-dead redirects no longer
 /// resolve to anything callable and are invisible to subsequent
 /// imports / forgets that might re-overwrite them.
+///
+/// **Caveat for future cmd_table iterators** (e.g. ``info
+/// commands`` when it's wired to the ns tree): a forgotten
+/// redirect leaves a bucket whose ``OFF_HANDLE`` still points at
+/// the redirect ``Command``, whose ``OFF_FLAGS`` still has
+/// ``CMD_IMPORTED`` set, but whose ``ImportedCmdData.real_cmd``
+/// is ``0``.  Iterators must skip entries where
+/// ``(flags & CMD_IMPORTED) != 0`` and
+/// ``ImportedCmdData.real_cmd == 0`` to avoid returning ghost
+/// names.  The ``unwrap_imports`` helper already does this and
+/// returns ``0`` for such entries.
 pub fn ns_forget(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) u32 {
     if (pattern_len == 0) return 0;
     const ns: *const Namespace = @ptrFromInt(ns_addr);
