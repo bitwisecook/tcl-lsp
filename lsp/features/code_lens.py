@@ -11,6 +11,7 @@ Emits lenses in two phases:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -23,6 +24,13 @@ from core.common.lsp import to_lsp_range
 
 class _WorkspaceLike(Protocol):
     def proc_usage_counts(self) -> dict[str, int]: ...
+
+
+# ``find_references(uri, qname) -> list[Location]`` — supplies the location
+# list for the VS Code built-in ``editor.action.showReferences`` command so
+# no client-side command has to exist. Optional for callers (e.g. unit
+# tests) that don't need a working peek.
+FindReferences = Callable[[str, str], list[types.Location]]
 
 
 @dataclass(slots=True)
@@ -77,20 +85,28 @@ def get_code_lenses(
 def resolve_code_lens(
     lens: types.CodeLens,
     workspace_index: _WorkspaceLike,
+    find_references: FindReferences | None = None,
 ) -> types.CodeLens:
-    """Populate ``title``/``command`` on ``lens`` using cached usage counts."""
+    """Populate ``title``/``command`` on ``lens`` using cached usage counts.
+
+    The command is VS Code's built-in ``editor.action.showReferences`` so
+    the peek opens without any client-side command registration. Passing
+    ``find_references=None`` (e.g. in tests) yields an empty locations
+    list but still produces a well-formed command.
+    """
     payload = lens.data if isinstance(lens.data, dict) else {}
     data = _LensData.from_dict(payload)
     if data.kind == "proc_ref_count":
         counts = workspace_index.proc_usage_counts()
         count = counts.get(data.qname, 0)
         title = f"{count} reference" if count == 1 else f"{count} references"
+        locations = find_references(data.uri, data.qname) if find_references else []
         return types.CodeLens(
             range=lens.range,
             command=types.Command(
                 title=title,
-                command="tcl-lsp.findReferences",
-                arguments=[data.uri, data.qname],
+                command="editor.action.showReferences",
+                arguments=[data.uri, lens.range.start, locations],
             ),
             data=lens.data,
         )
