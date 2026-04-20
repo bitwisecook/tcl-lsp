@@ -1201,14 +1201,21 @@ def on_code_lens(
 @server.feature(types.CODE_LENS_RESOLVE)
 def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
     def find_refs(uri: str, qname: str) -> list[types.Location]:
-        state = workspace_state.get(uri)
-        if state is None or state.analysis is None:
-            return []
-        proc = state.analysis.all_procs.get(qname)
-        if proc is None:
-            return []
-        ranges = find_proc_call_sites(proc.name, proc.qualified_name, state.analysis)
-        return [to_lsp_location(uri, r) for r in ranges]
+        # The lens title comes from ``workspace_index.proc_usage_counts()``
+        # (workspace-wide), so the peek must sweep every indexed URI to
+        # stay consistent — scanning only the clicked document would
+        # under-report call sites in multi-file projects.
+        locations: list[types.Location] = []
+        proc_name = qname.rsplit("::", 1)[-1] or qname
+        for indexed_uri in workspace_index.all_uris():
+            analysis = workspace_index.get_analysis(indexed_uri)
+            if analysis is None:
+                continue
+            ranges = find_proc_call_sites(proc_name, qname, analysis)
+            if not ranges:
+                continue
+            locations.extend(to_lsp_location(indexed_uri, r) for r in ranges)
+        return locations
 
     return resolve_code_lens(lens, workspace_index, find_refs)
 
