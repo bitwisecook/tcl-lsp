@@ -4877,11 +4877,14 @@ class _WasmEmitter:
         # event / coroutine stubs, ``regexp`` on bad patterns, dict /
         # clock error paths, etc.) so stderr's ``tcl trap: site=<id>``
         # line resolves to the right source location.  Commands in
-        # ``_CMD_RUNTIME_NONTRAPPING`` are total for every arg shape
-        # the codegen emits — ``puts``/``append``/``lappend``/``lindex``
-        # and friends never raise into ``tcl_diag``, so the per-call
+        # ``_CMD_RUNTIME_NONTRAPPING`` (currently just ``puts`` and
+        # ``append`` — see the set definition in ``_imports.py``)
+        # are total for every arg shape the codegen emits and
+        # never raise into ``tcl_diag``, so the per-call
         # ``tcl_diag_set`` preamble (~4 WASM bytes + one DiagSite
-        # record) is pure overhead for them.
+        # record) is pure overhead for them.  ``lappend`` /
+        # ``lindex`` etc. still emit diag sites because they can
+        # trap on malformed list values.
         if command not in _CMD_RUNTIME_NONTRAPPING:
             self._emit_diag_site(command, args=args, kind="runtime")
 

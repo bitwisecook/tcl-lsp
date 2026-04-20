@@ -1,25 +1,33 @@
 // Proc registry — maps proc names to either compiled WASM functions or
 // interpreted bodies.  Storage now lives entirely inside the namespace
-// tree: each ``proc`` keyword allocates a 32-byte ``Command`` struct
+// tree: each ``proc`` keyword allocates a 40-byte ``Command`` struct
 // and inserts a pointer to it into the target namespace's ``cmd_table``
 // (a ``hash_table.Table(16)`` keyed by simple name).  The flat
 // ``proc_table`` that lived here through P2.3 has been retired —
 // dual-write was an audit step; the cmd_tables are now the single
 // source of truth (P2.4).
 //
-// The 32-byte ``Command`` layout is unchanged from the prior bucket
-// layout so the ``proc_get_*`` accessors keep reading at the same
-// offsets — the "bucket" handle they take is now a ``Command*``
-// rather than a flat-table bucket address, but field positions match.
+// The ``Command`` layout grew from 32 → 40 bytes in P4.3 to carry
+// the ``import_ref_head`` back-list for ``namespace forget``
+// invalidation, and offset 8 was repurposed from ``hash`` (never
+// read after construction) to ``flags`` in P4.2.  The ``proc_get_*``
+// accessors still read at the historical offsets:
 //
-//       [ 0..3]  name_ptr   : i32 (heap-copied FQN bytes; ``info procs``)
-//       [ 4..7]  name_len   : i32
-//       [ 8..11] hash       : i32 (FNV-1a of the FQN, kept for parity)
-//       [12..15] params_obj : i32 (TclObj for interpreted procs; 0 for compiled)
-//       [16..19] body_obj   : i32 (TclObj for interpreted procs; 0 for compiled)
-//       [20..23] n_params   : i32
-//       [24..27] func_idx   : i32 (>0 means AOT-compiled to a WASM fn)
-//       [28..31] args_tail  : i32 (1 if last param is "args"; compiled procs only)
+//       [ 0..3]  name_ptr        : i32 (heap-copied FQN bytes; ``info procs``)
+//       [ 4..7]  name_len        : i32
+//       [ 8..11] flags           : u32 (CMD_IMPORTED etc., was ``hash``)
+//       [12..15] params_obj      : i32 (TclObj for interpreted procs;
+//                                        ``*ImportedCmdData`` for imports;
+//                                        0 for compiled procs)
+//       [16..19] body_obj        : i32 (TclObj for interpreted procs; 0 otherwise)
+//       [20..23] n_params        : i32
+//       [24..27] func_idx        : i32 (>0 means AOT-compiled to a WASM fn)
+//       [28..31] args_tail       : i32 (1 if last param is "args")
+//       [32..35] import_ref_head : u32 (``ImportRef`` list head; P4.3)
+//       [36..39] reserved        : u32 (zero; kept for 8-byte alignment)
+//
+// See the detailed field-by-field layout block above the ``OFF_*``
+// constants further down for the canonical in-module description.
 //
 // Used by:
 //   - tcl_interp.zig: proc definition + dispatch
@@ -227,11 +235,13 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     write_i32(cmd + OFF_ARGS_TAIL, 0);
     // P9.3: pre-parse the interpreted body into the parse cache
     // so the first ``eval_script`` call on this body hits the
-    // warm path.  ``build_for_body`` no-ops on already-cached
-    // entries, so re-registrations of the same body bytes only
-    // parse once.  Redefinitions with different body bytes get
-    // a fresh cache entry automatically (keyed on ``body_ptr``,
-    // which moves when the TclObj string is re-allocated).
+    // warm path.  The cache is keyed on the 8-byte ``(body_ptr,
+    // body_len)`` tuple, so re-registrations that produce a
+    // fresh TclObj string (different ``body_ptr``) get a new
+    // cache entry automatically even when the content is
+    // identical.  ``build_for_body`` no-ops on an already-cached
+    // ``(body_ptr, body_len)`` tuple so re-registering the same
+    // TclObj doesn't re-parse.
     const body_s = obj_ensure_string(body_obj);
     parse_cache.build_for_body(body_s.ptr, body_s.len);
     return obj_new_int(0);
