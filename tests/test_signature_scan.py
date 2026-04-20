@@ -124,6 +124,87 @@ class TestItclClass:
         assert "::Widget" in result.all_classes
 
 
+class TestConditionalGuards:
+    """Procs defined under if / catch / try guards are still indexed."""
+
+    def test_proc_in_if_then_branch(self):
+        src = "if {$::tcl_version >= 9} { proc only9 {} {} }"
+        result = extract_signatures(src)
+        assert "::only9" in result.all_procs
+
+    def test_proc_in_if_else_branch(self):
+        src = "if {0} {} else { proc fallback {} {} }"
+        result = extract_signatures(src)
+        assert "::fallback" in result.all_procs
+
+    def test_proc_in_both_branches(self):
+        src = """
+        if {$::tcl_platform(platform) eq "windows"} {
+            proc path_sep {} { return \\; }
+        } else {
+            proc path_sep {} { return : }
+        }
+        """
+        result = extract_signatures(src)
+        # The second definition wins (dict overwrite), but it's still indexed.
+        assert "::path_sep" in result.all_procs
+
+    def test_proc_in_elseif_branch(self):
+        src = """
+        if {$a} { proc a_proc {} {} } elseif {$b} { proc b_proc {} {} } else { proc c_proc {} {} }
+        """
+        result = extract_signatures(src)
+        for name in ("::a_proc", "::b_proc", "::c_proc"):
+            assert name in result.all_procs
+
+    def test_proc_in_explicit_then(self):
+        src = "if {1} then { proc thenproc {} {} }"
+        result = extract_signatures(src)
+        assert "::thenproc" in result.all_procs
+
+    def test_proc_in_catch_body(self):
+        src = "catch { proc might_fail {} {} }"
+        result = extract_signatures(src)
+        assert "::might_fail" in result.all_procs
+
+    def test_proc_in_try_body(self):
+        src = "try { proc tried {} {} }"
+        result = extract_signatures(src)
+        assert "::tried" in result.all_procs
+
+    def test_proc_in_try_handlers_and_finally(self):
+        src = """
+        try {
+            proc main {} {}
+        } on error {msg opts} {
+            proc on_err {} {}
+        } trap {POSIX EACCES} {msg opts} {
+            proc on_eacces {} {}
+        } finally {
+            proc cleanup {} {}
+        }
+        """
+        result = extract_signatures(src)
+        for name in ("::main", "::on_err", "::on_eacces", "::cleanup"):
+            assert name in result.all_procs
+
+    def test_conditional_proc_respects_namespace(self):
+        src = """
+        namespace eval util {
+            if {$::tcl_version >= 9} { proc helper {} {} }
+        }
+        """
+        result = extract_signatures(src)
+        assert "::util::helper" in result.all_procs
+
+    def test_dynamic_body_is_skipped_not_crashed(self):
+        # ``if`` with a substituted body must not make the scanner crash.
+        src = "set body { proc x {} {} }\nif {1} $body"
+        result = extract_signatures(src)
+        # The body lived in a variable; we can't statically recurse into it.
+        assert "::x" not in result.all_procs
+
+
 class TestAbsenceOfHeavyFields:
     def test_no_diagnostics(self):
         # Even source that would normally produce diagnostics yields none.

@@ -25,7 +25,7 @@ from core.analysis.semantic_model import (
 )
 from core.common.ranges import range_from_token
 from core.parsing.command_segmenter import segment_commands
-from core.parsing.tokens import Token
+from core.parsing.tokens import Token, TokenType
 
 
 def extract_signatures(source: str) -> AnalysisResult:
@@ -72,6 +72,28 @@ def _scan(
                 _handle_oo_class(texts, argv, ns_prefix, result)
             case "itcl::class" | "::itcl::class":
                 _handle_itcl_class(texts, argv, ns_prefix, result)
+            case "if":
+                _handle_if(texts, argv, ns_prefix, result)
+            case "catch":
+                _handle_catch(texts, argv, ns_prefix, result)
+            case "try":
+                _handle_try(texts, argv, ns_prefix, result)
+
+
+def _maybe_recurse_body(
+    body_text: str,
+    body_tok: Token,
+    ns_prefix: str,
+    result: AnalysisResult,
+) -> None:
+    """Recurse into *body_tok* only when it is a braced script.
+
+    Unbraced / substituted body arguments (``$body``, ``[gen_body]``)
+    cannot be statically analysed, so we skip them rather than feed
+    non-script text to the segmenter.
+    """
+    if body_tok.type is TokenType.STR:
+        _scan(body_text, body_token=body_tok, ns_prefix=ns_prefix, result=result)
 
 
 def _handle_proc(
@@ -106,7 +128,7 @@ def _handle_namespace(
         return
     ns_name = texts[2].lstrip(":")
     inner_prefix = ns_name if not ns_prefix else f"{ns_prefix}::{ns_name}"
-    _scan(texts[3], body_token=argv[3], ns_prefix=inner_prefix, result=result)
+    _maybe_recurse_body(texts[3], argv[3], inner_prefix, result)
 
 
 def _handle_package(
@@ -191,6 +213,84 @@ def _handle_itcl_class(
     if len(texts) < 3:
         return
     _emit_class(texts[1], argv[1], argv[2], ns_prefix, result)
+
+
+def _handle_if(
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
+    result: AnalysisResult,
+) -> None:
+    """Descend into every branch of an ``if`` chain.
+
+    Tcl's ``if`` takes the shape ``if EXPR ?then? BODY
+    ?elseif EXPR ?then? BODY?... ?else? ?BODY?``. We alternate
+    between expecting an expression and expecting a body, resetting the
+    expectation whenever the optional ``then`` / ``elseif`` / ``else``
+    keywords appear.
+    """
+    i = 1
+    expect_body = False
+    while i < len(texts):
+        word = texts[i]
+        if word == "then":
+            expect_body = True
+            i += 1
+            continue
+        if word == "elseif":
+            expect_body = False
+            i += 1
+            continue
+        if word == "else":
+            expect_body = True
+            i += 1
+            continue
+        if expect_body:
+            _maybe_recurse_body(texts[i], argv[i], ns_prefix, result)
+            expect_body = False
+        else:
+            expect_body = True
+        i += 1
+
+
+def _handle_catch(
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
+    result: AnalysisResult,
+) -> None:
+    # ``catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?``
+    if len(texts) < 2:
+        return
+    _maybe_recurse_body(texts[1], argv[1], ns_prefix, result)
+
+
+def _handle_try(
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
+    result: AnalysisResult,
+) -> None:
+    """Descend into the main body, each ``on``/``trap`` handler, and ``finally``.
+
+    Handler clauses take the shape ``on CODE VARLIST BODY`` and
+    ``trap PATTERN VARLIST BODY`` — four words whose body is at offset
+    +3. A ``finally BODY`` clause is always last.
+    """
+    if len(texts) < 2:
+        return
+    _maybe_recurse_body(texts[1], argv[1], ns_prefix, result)
+    i = 2
+    while i < len(texts):
+        clause = texts[i]
+        if clause == "finally" and i + 1 < len(texts):
+            _maybe_recurse_body(texts[i + 1], argv[i + 1], ns_prefix, result)
+            return
+        if clause in ("on", "trap") and i + 3 < len(texts):
+            _maybe_recurse_body(texts[i + 3], argv[i + 3], ns_prefix, result)
+            i += 4
+        else:
+            i += 1
 
 
 def _emit_class(
