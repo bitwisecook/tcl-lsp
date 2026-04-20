@@ -205,6 +205,103 @@ class TestConditionalGuards:
         assert "::x" not in result.all_procs
 
 
+class TestAbsoluteNamesInsideNamespace:
+    def test_absolute_namespace_eval_rebases_prefix(self):
+        # ``namespace eval ::foo`` must index under ``::foo``, not nest
+        # under the enclosing namespace's prefix.
+        src = "namespace eval a { namespace eval ::foo { proc bar {} {} } }"
+        result = extract_signatures(src)
+        assert "::foo::bar" in result.all_procs
+        assert "::a::foo::bar" not in result.all_procs
+
+    def test_absolute_oo_class_name_rebases(self):
+        src = "namespace eval a { oo::class create ::Shape { method area {} {} } }"
+        result = extract_signatures(src)
+        assert "::Shape" in result.all_classes
+        assert "::a::Shape" not in result.all_classes
+
+    def test_absolute_itcl_class_name_rebases(self):
+        src = "namespace eval a { itcl::class ::Widget { method paint {} {} } }"
+        result = extract_signatures(src)
+        assert "::Widget" in result.all_classes
+        assert "::a::Widget" not in result.all_classes
+
+
+class TestInterpAliasFiltering:
+    def test_non_local_slave_alias_ignored(self):
+        # ``interp alias slave foo {} puts`` installs ``foo`` in a child
+        # interpreter and must not appear in the workspace alias table.
+        result = extract_signatures("interp alias slave foo {} puts")
+        assert result.command_aliases == {}
+
+    def test_non_local_target_interp_ignored(self):
+        # Target path other than ``{}`` means the alias points at a
+        # command in a different interpreter; skip it for the same reason.
+        result = extract_signatures("interp alias {} foo slave puts")
+        assert result.command_aliases == {}
+
+    def test_local_alias_still_recorded(self):
+        result = extract_signatures("interp alias {} myset {} set")
+        assert "::myset" in result.command_aliases
+
+
+class TestConditionalPackageRequire:
+    def test_if_body_require_marked_conditional(self):
+        src = "if {$::tcl_version >= 9} { package require Tcl 9 }"
+        result = extract_signatures(src)
+        assert len(result.package_requires) == 1
+        assert result.package_requires[0].conditional is True
+
+    def test_catch_body_require_marked_conditional(self):
+        src = "catch { package require Optional 1.0 }"
+        result = extract_signatures(src)
+        assert len(result.package_requires) == 1
+        assert result.package_requires[0].conditional is True
+
+    def test_try_body_and_handlers_marked_conditional(self):
+        src = "try { package require A 1 } on error {msg opts} { package require B 1 }"
+        result = extract_signatures(src)
+        assert {pr.name: pr.conditional for pr in result.package_requires} == {
+            "A": True,
+            "B": True,
+        }
+
+    def test_top_level_require_not_conditional(self):
+        result = extract_signatures("package require Tcl 8.6")
+        assert result.package_requires[0].conditional is False
+
+
+class TestCommandInvocations:
+    def test_invocations_populated_top_level(self):
+        result = extract_signatures("puts hello\nputs world\nset x 1\n")
+        names = [inv.name for inv in result.command_invocations]
+        assert names.count("puts") == 2
+        assert names.count("set") == 1
+
+    def test_invocations_populated_inside_namespace(self):
+        result = extract_signatures("namespace eval util { puts hi; puts bye }")
+        names = [inv.name for inv in result.command_invocations]
+        assert names.count("puts") == 2
+        # The ``namespace`` command itself is also an invocation.
+        assert "namespace" in names
+
+    def test_resolved_qualified_name_left_none(self):
+        # Signature scan intentionally skips scope resolution; downstream
+        # readers must tolerate ``resolved_qualified_name is None``.
+        result = extract_signatures("puts hi")
+        assert all(inv.resolved_qualified_name is None for inv in result.command_invocations)
+
+
+class TestSegmenterRecovery:
+    def test_unclosed_brace_does_not_swallow_later_procs(self):
+        # A stray open brace in a ``proc`` body should not hide ``late``:
+        # the segmenter's recovery heuristic finds the next top-level
+        # command and resumes there.
+        src = "proc early {} {\n    # intentionally missing close brace\n\nproc late {} {}\n"
+        result = extract_signatures(src)
+        assert "::late" in result.all_procs
+
+
 class TestAbsenceOfHeavyFields:
     def test_no_diagnostics(self):
         # Even source that would normally produce diagnostics yields none.
@@ -216,8 +313,3 @@ class TestAbsenceOfHeavyFields:
         assert result.stub_expr_defs == []
         assert result.all_variables == {}
         assert result.suppressed_lines == {}
-
-    def test_no_command_invocations(self):
-        # Signature scan intentionally skips invocation collection.
-        result = extract_signatures("puts hello\nmyproc arg1 arg2")
-        assert result.command_invocations == []
