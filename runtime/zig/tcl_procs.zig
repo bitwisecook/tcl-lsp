@@ -82,7 +82,7 @@ pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
 const OFF_BODY_OBJ: u32 = 16;
 const OFF_N_PARAMS: u32 = 20;
-const OFF_FUNC_IDX: u32 = 24;
+pub const OFF_FUNC_IDX: u32 = 24;
 const OFF_ARGS_TAIL: u32 = 28;
 pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 
@@ -92,6 +92,16 @@ pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 /// the chain on every lookup so callers always see the source's
 /// payload.
 pub const CMD_IMPORTED: u32 = 0x80;
+
+/// Set on ``interp alias`` redirect commands.  ``params_obj`` holds
+/// an ``*AliasRec`` (see ``tcl_alias.zig``) that names the target
+/// command and carries its frozen argv prefix.  Unlike
+/// ``CMD_IMPORTED``, the dispatcher does NOT unwrap aliases at
+/// lookup time — the redirect's identity is preserved so queries
+/// like ``interp alias {} foo`` can introspect it.  The proc
+/// dispatch fast path (``eval_proc_call_bucket``) checks this bit
+/// before treating the Command as a plain interpreted proc.
+pub const CMD_ALIAS: u32 = 0x100;
 
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
