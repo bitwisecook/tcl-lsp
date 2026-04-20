@@ -346,6 +346,28 @@ class IRModule:
     procedures: dict[str, IRProcedure] = field(default_factory=dict)
     methods: dict[str, IRMethodDef] = field(default_factory=dict)
     redefined_procedures: set[str] = field(default_factory=set)
+    # Static ``namespace import`` directives captured at lowering time.
+    # Each entry is ``(context_namespace, pattern)`` — the namespace
+    # that executed the import and the raw pattern argument (either a
+    # fully-qualified single name like ``::tcltest::test`` or a glob
+    # like ``::tcltest::*``).  Codegen resolves patterns against the
+    # final ``procedures`` table to build the compile-time import
+    # lookup so unqualified calls (``test name desc body``) dispatch
+    # directly to ``::tcltest::test`` instead of falling back to
+    # ``tcl_eval``.
+    namespace_imports: tuple[tuple[str, str], ...] = ()
+
+    # Captured ``namespace export`` directives.  Each entry is
+    # ``(source_namespace, pattern)`` — the namespace whose body ran
+    # ``namespace export pattern`` and the raw glob pattern.  Used
+    # by codegen to filter the ``namespace_imports``-derived
+    # compile-time shortcut so only commands explicitly exported by
+    # the source namespace are eligible for direct dispatch (matches
+    # C Tcl's ``Tcl_Import`` semantics).  An importing namespace
+    # with no matching export falls back to the runtime dispatch
+    # path, where the interpreter can apply the correct
+    # "unknown command" diagnostic.
+    namespace_exports: tuple[tuple[str, str], ...] = ()
 
 
 def when_event_name(qualified_name: str) -> str:

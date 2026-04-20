@@ -26,12 +26,11 @@ in the caller's scope.  Because the body already ran at the caller's
 scope semantically, the rewrite is a pure call-overhead elimination:
 same observable behaviour, fewer frame operations.
 
-### Gate
+### Gate — static (zero-param) shape
 
-A proc is a passthrough candidate when **all** hold:
+A proc is a static passthrough candidate when **all** hold:
 
-1. Zero parameters.  Non-zero params would require substituting
-   actual-argument IR into the body, which is deferred to a follow-up.
+1. Zero parameters.
 2. Body is exactly one :class:`IRUpFrame` statement.  No prologue, no
    epilogue, no ``return``.
 3. ``frame_shift == 1``.  ``#0`` (absolute global) or deeper shifts
@@ -39,8 +38,37 @@ A proc is a passthrough candidate when **all** hold:
    scope is not the target scope.
 4. The inner body (``IRUpFrame.body``) contains no nested
    ``uplevel`` / ``upvar`` / frame-inspecting ``info``.  Those can be
-   re-inlined by a future pass pass; for the first wave we conservatively
+   re-inlined by a future pass; for the first wave we conservatively
    bail.
+
+### Gate — single-body-param shape
+
+Covers the canonical "pass my caller's script body up a frame" helper::
+
+    proc dispatcher {body} {
+        uplevel 1 $body
+    }
+
+where the entire proc body is an :class:`IRBarrier` of the form
+``uplevel 1 $<param>`` referencing the sole proc parameter.  The
+``uplevel`` cannot be statically relaxed at lowering time (the body
+token is ``$var`` against an unknown parameter value), but every
+call site that passes a braced-literal argument **does** know the
+body, so we inline per-call.
+
+A proc is a param-body passthrough candidate when **all** hold:
+
+1. Exactly one parameter named *P*.
+2. Body is exactly one :class:`IRBarrier` whose ``command ==
+   "uplevel"`` and whose ``args`` shape is ``("$P",)`` (implicit
+   level 1) or ``("1", "$P")`` (explicit level 1).
+3. The body-arg token is a :class:`TokenType.VAR` whose ``text == P``.
+
+At each call site ``IRCall(command=<candidate>, args=(arg,))`` whose
+single argument is a ``TokenType.STR`` braced literal, the call is
+rewritten to an :class:`IRBlock` whose body is the parsed literal —
+identical to what the static case produces, but with the body coming
+from the call site instead of the callee.
 
 Non-static call shapes (``[proc_name]``, ``eval`` with a dynamic body)
 are unaffected because the pass rewrites only :class:`IRCall` nodes
@@ -60,7 +88,10 @@ body into the caller's IR.  Downstream:
 
 ### Non-goals
 
-* Parameter substitution — zero-param only for now.
+* Multi-parameter substitution — only the sole-param-is-body shape
+  is recognised.  Helpers like tcltest's ``Eval {script {ignoreOutput
+  1}}`` stay on the barrier path because their bodies have prologue
+  / epilogue beyond the ``uplevel``.
 * Inlining non-passthrough procs.  ``set x 1; uplevel 1 {…}`` is NOT a
   candidate because the ``set`` mutates the callee's frame, not the
   caller's.  Extending to "trivial prologue + uplevel" is a follow-up.
@@ -70,6 +101,10 @@ body into the caller's IR.  Downstream:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+from ..parsing.lexer import TclParseError
+from ..parsing.tokens import TokenType
 from .ir import (
     IRBarrier,
     IRBlock,
@@ -92,6 +127,38 @@ from .ir import (
 )
 
 _FRAME_ONE_SHIFT = 1
+
+
+@dataclass(frozen=True, slots=True)
+class _Candidate:
+    """Recognised passthrough proc shape used by the rewriter.
+
+    ``kind == "static"`` — body is pre-known; ``body`` holds the IR to
+    splice in directly (zero-param shape).
+
+    ``kind == "param_body"`` — body is the call site's single braced
+    literal arg; the rewriter parses the literal and splices it in
+    (single-body-param shape).  ``body`` is unused in this mode.
+    """
+
+    kind: str  # "static" | "param_body"
+    body: IRScript | None = None
+
+
+def _lower_literal_script(literal: str, *, namespace: str) -> IRScript | None:
+    """Lower a braced-literal script *literal* to an :class:`IRScript`.
+
+    Used by the param-body rewrite path to synthesize the call site's
+    inlined body from the single STR argument.  Returns ``None`` when
+    the literal cannot be parsed — callers keep the original call.
+    """
+    from .lowering import _Lowerer  # local import to avoid module-level cycle
+
+    lowerer = _Lowerer()
+    try:
+        return lowerer._lower_script(literal, namespace=namespace)
+    except TclParseError:
+        return None
 
 
 def inline_uplevel_passthrough(module: IRModule) -> None:
@@ -124,21 +191,33 @@ def inline_uplevel_passthrough(module: IRModule) -> None:
             )
 
 
-def _collect_candidates(module: IRModule) -> dict[str, IRScript]:
-    """Return ``{qname: inlined_body}`` for every passthrough proc in the module."""
-    out: dict[str, IRScript] = {}
+def _collect_candidates(module: IRModule) -> dict[str, _Candidate]:
+    """Return ``{qname: candidate}`` for every passthrough proc in the module."""
+    out: dict[str, _Candidate] = {}
     for qname, proc in module.procedures.items():
         if qname in module.redefined_procedures:
             # Runtime redefinition may swap the implementation — safer
             # not to inline.
             continue
-        body = _passthrough_body(proc)
-        if body is not None:
-            out[qname] = body
+        cand = _passthrough_candidate(proc)
+        if cand is not None:
+            out[qname] = cand
     return out
 
 
-def _passthrough_body(proc: IRProcedure) -> IRScript | None:
+def _passthrough_candidate(proc: IRProcedure) -> _Candidate | None:
+    """Classify *proc* as a passthrough candidate, or return ``None``."""
+    # Static (zero-param) shape.
+    static = _static_passthrough_body(proc)
+    if static is not None:
+        return _Candidate(kind="static", body=static)
+    # Single-body-param shape.
+    if _is_param_body_passthrough(proc):
+        return _Candidate(kind="param_body", body=None)
+    return None
+
+
+def _static_passthrough_body(proc: IRProcedure) -> IRScript | None:
     """Return the inner body if *proc* is a zero-param uplevel-1 passthrough."""
     if proc.params:
         return None
@@ -153,6 +232,52 @@ def _passthrough_body(proc: IRProcedure) -> IRScript | None:
     if _body_has_frame_reach(stmt.body):
         return None
     return stmt.body
+
+
+def _is_param_body_passthrough(proc: IRProcedure) -> bool:
+    """True if *proc* is ``proc NAME {P} { uplevel ?1? $P }``.
+
+    Recognises both the bare ``uplevel $body`` (implicit level 1) and
+    explicit ``uplevel 1 $body`` forms.  The body must be a single
+    :class:`IRBarrier` — the VM hasn't relaxed it to :class:`IRUpFrame`
+    because the body token is ``$var`` rather than a static literal.
+    """
+    if len(proc.params) != 1:
+        return False
+    param = proc.params[0]
+    stmts = proc.body.statements
+    if len(stmts) != 1:
+        return False
+    stmt = stmts[0]
+    if not isinstance(stmt, IRBarrier):
+        return False
+    if stmt.command != "uplevel":
+        return False
+    tokens = stmt.tokens
+    if tokens is None:
+        return False
+    # argv is the parsed token stream starting with "uplevel".  The
+    # body token is the last non-separator arg.  Recognise both
+    # single-arg (implicit level 1) and "1 $body" forms.
+    arg_tokens = tokens.argv[1:]
+    arg_texts = tokens.argv_texts[1:]
+    if len(arg_tokens) == 1:
+        level_explicit = False
+        body_tok = arg_tokens[0]
+    elif len(arg_tokens) == 2:
+        level_explicit = True
+        level_tok = arg_tokens[0]
+        if level_tok.type is not TokenType.ESC or arg_texts[0] != "1":
+            return False
+        body_tok = arg_tokens[1]
+    else:
+        return False
+    _ = level_explicit  # kept for future frame-shift widening
+    if body_tok.type is not TokenType.VAR:
+        return False
+    if body_tok.text != param:
+        return False
+    return True
 
 
 def _body_has_frame_reach(script: IRScript) -> bool:
@@ -246,7 +371,7 @@ def _resolve_call_target(command: str, caller_ns: str) -> str:
 
 
 def _rewrite_script(
-    script: IRScript, candidates: dict[str, IRScript], *, namespace: str
+    script: IRScript, candidates: dict[str, _Candidate], *, namespace: str
 ) -> IRScript:
     new_stmts: list[IRStatement] = []
     changed = False
@@ -261,30 +386,59 @@ def _rewrite_script(
 
 
 def _rewrite_stmt(
-    stmt: IRStatement, candidates: dict[str, IRScript], *, namespace: str
+    stmt: IRStatement, candidates: dict[str, _Candidate], *, namespace: str
 ) -> IRStatement:
     if isinstance(stmt, IRCall):
-        # Only rewrite zero-argument calls: a passthrough callee takes
-        # no params, so any args at the call site mean a different
-        # callee or a user arity error we should leave alone.
-        if stmt.args:
-            return stmt
         if not stmt.command:
             return stmt
         target = _resolve_call_target(stmt.command, namespace)
-        body = candidates.get(target) or candidates.get(f"::{stmt.command}")
-        if body is None:
+        cand = candidates.get(target) or candidates.get(f"::{stmt.command}")
+        if cand is None:
             return stmt
-        # Splice the callee's body in as an IRBlock at the call site.
-        # The namespace of the inlined block is the caller's namespace
-        # so unqualified commands inside resolve correctly at codegen.
-        return IRBlock(
-            range=stmt.range,
-            body=body,
-            namespace=namespace,
-            source_args=(),
-            source_tokens=stmt.tokens,
-        )
+
+        if cand.kind == "static":
+            # Zero-param: only rewrite zero-argument calls.
+            if stmt.args:
+                return stmt
+            assert cand.body is not None
+            return IRBlock(
+                range=stmt.range,
+                body=cand.body,
+                namespace=namespace,
+                source_args=(),
+                source_tokens=stmt.tokens,
+            )
+
+        if cand.kind == "param_body":
+            # Single-body-param: rewrite calls whose sole argument is a
+            # braced-literal STR token.  Dynamic args (``$var``, ``[cmd]``,
+            # ESC / double-quoted) stay on the call path — the runtime
+            # will still dispatch them to the proc and eval the body.
+            if len(stmt.args) != 1:
+                return stmt
+            tokens = stmt.tokens
+            if tokens is None or len(tokens.argv) < 2:
+                return stmt
+            arg_tok = tokens.argv[1]
+            if arg_tok.type is not TokenType.STR:
+                return stmt
+            if tokens.expand_word and any(tokens.expand_word):
+                return stmt
+            literal = stmt.args[0]
+            inlined = _lower_literal_script(literal, namespace=namespace)
+            if inlined is None:
+                return stmt
+            if _body_has_frame_reach(inlined):
+                return stmt
+            return IRBlock(
+                range=stmt.range,
+                body=inlined,
+                namespace=namespace,
+                source_args=(),
+                source_tokens=stmt.tokens,
+            )
+
+        return stmt
 
     # Recurse into structured IR so nested call sites get the same rewrite.
     if isinstance(stmt, IRIf):

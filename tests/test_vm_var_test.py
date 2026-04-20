@@ -85,12 +85,7 @@ KNOWN_FAILURES_UPVAR: set[str] = {
     "upvar-NS-3.3",
 }
 
-KNOWN_FAILURES_UPLEVEL: set[str] = {
-    # Namespace command resolution
-    "uplevel-6.1",  # uplevel in namespace eval doesn't resolve ns-shadowed commands
-    # Unimplemented introspection
-    "uplevel-8.0",  # ::tcl::unsupported::representation not implemented
-}
+KNOWN_FAILURES_UPLEVEL: set[str] = set()
 
 KNOWN_FAILURES_SET: set[str] = {
     # Trace handling
