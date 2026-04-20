@@ -38,8 +38,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ...parsing.command_segmenter import segment_commands
+from ...parsing.subst_nocommands import subst_nocommands
 from ...parsing.tokens import TokenType
-from ..ir import IRBarrier, IRProcedure
+from ..ir import (
+    IRBarrier,
+    IRBlock,
+    IRCall,
+    IRModule,
+    IRProcedure,
+    IRScript,
+    IRStatement,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +173,282 @@ def detect_factory_shape(proc: IRProcedure) -> FactoryShape | None:
         child_params=child_params,
         child_body_template=template,
     )
+
+
+def specialise_factories(module: IRModule) -> None:
+    """Mutate *module* in place, replacing each literal-args call to
+    an Option-shape factory with a synthesised child ``IRProcedure``
+    and a no-op ``IRBlock`` in the caller's script.
+
+    See :func:`detect_factory_shape` for what qualifies as a factory.
+    Call sites qualify when:
+
+    * The target resolves to a detected factory (unqualified name
+      resolves through ``::``; qualified name must match a factory
+      qname directly).
+    * The call has exactly ``len(factory.params)`` args.
+    * Every arg token is a literal (``ESC`` bareword with no
+      ``\\$`` / ``[``, or ``STR`` braced).
+    * The materialised template produced by
+      :func:`core.parsing.subst_nocommands.subst_nocommands` is
+      non-None (no unresolved ``\\$`` references, no refused
+      constructs).
+
+    Synthesised procs use the ``name_param`` arg's value as their
+    unqualified name, mangled to ``::<name>`` at module scope.  A
+    call-site that produces a duplicate name (same factory called
+    twice with the same name) overwrites the earlier synthesis —
+    matches Tcl's last-``proc``-wins semantics.
+    """
+    factories: dict[str, FactoryShape] = {}
+    for qname, proc in module.procedures.items():
+        if qname in module.redefined_procedures:
+            continue
+        shape = detect_factory_shape(proc)
+        if shape is not None:
+            factories[qname] = shape
+    if not factories:
+        return
+
+    # Deferred imports — pulling ``lower_to_ir`` at module load would
+    # cycle through ``compilation_unit.py``.
+    from ..lowering import lower_to_ir as _lower
+
+    module.top_level = _rewrite_script(
+        module.top_level,
+        factories,
+        module,
+        namespace="::",
+        lower=_lower,
+    )
+    for qname, proc in list(module.procedures.items()):
+        caller_ns = _namespace_of(qname)
+        new_body = _rewrite_script(
+            proc.body,
+            factories,
+            module,
+            namespace=caller_ns,
+            lower=_lower,
+        )
+        if new_body is not proc.body:
+            module.procedures[qname] = IRProcedure(
+                name=proc.name,
+                qualified_name=proc.qualified_name,
+                params=proc.params,
+                range=proc.range,
+                body=new_body,
+                params_raw=proc.params_raw,
+                body_source=proc.body_source,
+                namespace_scoped=proc.namespace_scoped,
+                base_priority=proc.base_priority,
+            )
+
+
+def _namespace_of(qname: str) -> str:
+    idx = qname.rfind("::")
+    if idx <= 0:
+        return "::"
+    return qname[:idx] or "::"
+
+
+def _resolve_target(command: str, caller_ns: str, factories: dict[str, FactoryShape]) -> str | None:
+    """Resolve ``command`` to a factory qname, or ``None`` if no match."""
+    if command.startswith("::"):
+        return command if command in factories else None
+    # Unqualified: try caller-ns-qualified first (factories live in
+    # the ns they're defined in), then root.
+    if caller_ns != "::":
+        candidate = f"{caller_ns}::{command}"
+        if candidate in factories:
+            return candidate
+    candidate_root = f"::{command}"
+    if candidate_root in factories:
+        return candidate_root
+    return None
+
+
+def _literal_arg(stmt: IRCall, i: int) -> str | None:
+    """Return the literal value of ``stmt``'s i-th argument, or
+    ``None`` if it isn't a single-token literal.  ESC barewords are
+    accepted as long as they have no ``$`` / ``[`` substitutions;
+    STR (braced) tokens are always accepted.  Dynamic args fail the
+    gate."""
+    tokens = stmt.tokens
+    if tokens is None:
+        return None
+    # tokens.argv[0] is the command name; argv[1:] are the args.
+    if i + 1 >= len(tokens.argv):
+        return None
+    if not tokens.single_token_word[i + 1]:
+        return None
+    if tokens.expand_word and tokens.expand_word[i + 1]:
+        return None
+    tok = tokens.argv[i + 1]
+    if tok.type is TokenType.STR:
+        return stmt.args[i]
+    if tok.type is TokenType.ESC:
+        text = stmt.args[i]
+        if "$" in text or "[" in text:
+            return None
+        return text
+    return None
+
+
+def _rewrite_script(
+    script: IRScript,
+    factories: dict[str, FactoryShape],
+    module: IRModule,
+    *,
+    namespace: str,
+    lower,
+) -> IRScript:
+    new_stmts: list[IRStatement] = []
+    changed = False
+    for stmt in script.statements:
+        rewritten = _rewrite_stmt(stmt, factories, module, namespace=namespace, lower=lower)
+        if rewritten is not stmt:
+            changed = True
+        new_stmts.append(rewritten)
+    if changed:
+        return IRScript(statements=tuple(new_stmts))
+    return script
+
+
+def _rewrite_stmt(
+    stmt: IRStatement,
+    factories: dict[str, FactoryShape],
+    module: IRModule,
+    *,
+    namespace: str,
+    lower,
+) -> IRStatement:
+    # Only two shapes qualify for rewriting in this first wave:
+    # direct ``IRCall`` to a factory, and ``IRBlock`` containers
+    # that might hold such a call.  Structured IR (``if``, ``for``,
+    # …) is left alone — factory calls inside control-flow branches
+    # are uncommon (tcltest's ``Configure`` calls sit at module
+    # scope) and the recursion cost isn't justified yet.
+    if isinstance(stmt, IRCall):
+        return _maybe_specialise_call(stmt, factories, module, namespace=namespace, lower=lower)
+    if isinstance(stmt, IRBlock):
+        inner_ns = stmt.namespace or namespace
+        new_body = _rewrite_script(stmt.body, factories, module, namespace=inner_ns, lower=lower)
+        if new_body is not stmt.body:
+            return IRBlock(
+                range=stmt.range,
+                body=new_body,
+                namespace=stmt.namespace,
+                source_args=stmt.source_args,
+                source_tokens=stmt.source_tokens,
+            )
+        return stmt
+    return stmt
+
+
+def _maybe_specialise_call(
+    stmt: IRCall,
+    factories: dict[str, FactoryShape],
+    module: IRModule,
+    *,
+    namespace: str,
+    lower,
+) -> IRStatement:
+    if not stmt.command:
+        return stmt
+    target = _resolve_target(stmt.command, namespace, factories)
+    if target is None:
+        return stmt
+    factory = factories[target]
+    if len(stmt.args) != len(factory.params):
+        return stmt
+    # Build the const-map from (param-name → literal-arg).  Bail on
+    # any non-literal arg.
+    const_map: dict[str, str] = {}
+    for i, pname in enumerate(factory.params):
+        lit = _literal_arg(stmt, i)
+        if lit is None:
+            return stmt
+        const_map[pname] = lit
+
+    materialised = subst_nocommands(factory.child_body_template, const_map)
+    if materialised is None:
+        return stmt
+    child_name = const_map[factory.name_param]
+    # Refuse names that contain ``::`` — the synthesised proc would
+    # need to live inside some namespace we may not have a path to,
+    # and mixing factory-namespace inference with top-level specs is
+    # more than this first wave wants to tackle.
+    if "::" in child_name or not child_name:
+        return stmt
+
+    qualified_child = f"::{child_name}"
+    child_body = lower(materialised).top_level
+    module.procedures[qualified_child] = IRProcedure(
+        name=child_name,
+        qualified_name=qualified_child,
+        params=_parse_child_params(factory.child_params),
+        range=stmt.range,
+        body=child_body,
+        params_raw=factory.child_params,
+        body_source=materialised,
+        namespace_scoped=False,
+    )
+    # Replace the original call with an empty IRBlock — the
+    # factory's side effects are captured entirely by the
+    # synthesised child proc (see the single-statement gate in
+    # ``detect_factory_shape``).  Keep the tokens so downstream
+    # passes that want the original source can still find it.
+    return IRBlock(
+        range=stmt.range,
+        body=IRScript(),
+        namespace=namespace,
+        source_args=stmt.args,
+        source_tokens=stmt.tokens,
+    )
+
+
+def _parse_child_params(params_raw: str) -> tuple[str, ...]:
+    """Parse a params-spec string into a tuple of parameter names.
+    Handles the single-token shapes we accept: bareword or braced
+    list.  ``{value {}}``-style default-value list elements are
+    reduced to just the name."""
+    text = params_raw.strip()
+    if not text:
+        return ()
+    # Very small-scope parser: split on whitespace / braces.  A
+    # full Tcl list parser would be ideal but the child params our
+    # factory-shape gate accepts are simple enough that a
+    # hand-rolled split handles them cleanly.
+    names: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i].isspace():
+            i += 1
+            continue
+        if text[i] == "{":
+            # ``{name default}`` element — extract the name only.
+            depth = 1
+            j = i + 1
+            while j < n and depth > 0:
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                j += 1
+            inner = text[i + 1 : j - 1].strip()
+            # Name is up to first space.
+            sp = inner.find(" ")
+            names.append(inner if sp < 0 else inner[:sp])
+            i = j
+            continue
+        # Bareword: read to next whitespace.
+        j = i
+        while j < n and not text[j].isspace():
+            j += 1
+        names.append(text[i:j])
+        i = j
+    return tuple(names)
 
 
 def _extract_subst_nocommands_template(cmd_text: str) -> str | None:
