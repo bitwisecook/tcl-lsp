@@ -928,6 +928,78 @@ fn link_import_ref(source_cmd: u32, redirect: u32) void {
     write_i32(source_cmd + c.OFF_IMPORT_REF_HEAD, @bitCast(node));
 }
 
+/// Splice the ``ImportRef`` for *redirect* out of ``source_cmd``'s
+/// back-list.  Walks the singly-linked list once; quietly succeeds
+/// if no matching node is present (defensive against forget-twice).
+fn unlink_import_ref(source_cmd: u32, redirect: u32) void {
+    const c = tcl_procs_constants;
+    var prev_link_addr: u32 = source_cmd + c.OFF_IMPORT_REF_HEAD;
+    var cur: u32 = @bitCast(read_i32(prev_link_addr));
+    while (cur != 0) {
+        const node: *ImportRef = @ptrFromInt(cur);
+        if (node.imported_cmd == redirect) {
+            // Patch ``prev.next`` (or the head, depending on
+            // where we are) to skip this node.
+            write_i32(prev_link_addr, @bitCast(node.next));
+            return;
+        }
+        // Advance: ``prev_link_addr`` becomes the address of the
+        // current node's ``next`` field, which is offset 4.
+        prev_link_addr = cur + 4;
+        cur = node.next;
+    }
+}
+
+/// ``namespace forget pat1 pat2 …`` semantics.  For each redirect
+/// in ``ns.cmd_table`` whose simple name matches one of the
+/// patterns, deactivate it: clear the ``ImportedCmdData.real_cmd``
+/// pointer (so ``unwrap_imports`` returns 0 → "not found") and
+/// splice the redirect's ``ImportRef`` out of the source's
+/// back-list.
+///
+/// Returns the count of redirects forgotten.  The cmd_table
+/// buckets stay populated — our open-addressed table doesn't
+/// support tombstones — but the now-dead redirects no longer
+/// resolve to anything callable and are invisible to subsequent
+/// imports / forgets that might re-overwrite them.
+pub fn ns_forget(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) u32 {
+    if (pattern_len == 0) return 0;
+    const ns: *const Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return 0;
+
+    const c = tcl_procs_constants;
+    const bucket_size: u32 = 16;
+    var forgotten: u32 = 0;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (!tcl_string.glob_match(pattern_ptr, pattern_len, name_ptr, name_len)) continue;
+
+        const redirect: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
+        if (redirect == 0) continue;
+        const flags: u32 = @bitCast(read_i32(redirect + c.OFF_FLAGS));
+        if ((flags & c.CMD_IMPORTED) == 0) continue; // not an import; leave alone
+
+        const desc: u32 = @bitCast(read_i32(redirect + c.OFF_PARAMS_OBJ));
+        if (desc == 0) continue;
+        const d: *ImportedCmdData = @ptrFromInt(desc);
+        const source_cmd = d.real_cmd;
+        // Unlink the back-pointer first so future imports of the
+        // same source under a different name don't see a stale
+        // entry pointing at the dead redirect.
+        if (source_cmd != 0) unlink_import_ref(source_cmd, redirect);
+        // Mark the redirect dead — ``unwrap_imports`` returns 0
+        // for ``real_cmd == 0``, so ``proc_lookup`` will start
+        // returning 0 on this name.
+        d.real_cmd = 0;
+        forgotten += 1;
+    }
+    return forgotten;
+}
+
 // -- Public globals ABI (moved from the retired tcl_globals.zig in P3.4)
 //
 // These four exports are the long-standing names compiled WASM

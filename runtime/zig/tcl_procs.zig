@@ -332,6 +332,12 @@ pub export fn proc_lookup(name: i32) i32 {
 /// the same shape, holding the descriptor at ``OFF_PARAMS_OBJ``
 /// (which is unused for redirect commands since they have no body).
 ///
+/// Returns 0 for a dead redirect — i.e. one whose
+/// ``ImportedCmdData.real_cmd`` was cleared to 0 by
+/// ``namespace forget`` (P4.4).  The cmd_table bucket stays
+/// populated (we don't tombstone) but the lookup result becomes
+/// "command not found", matching the C behaviour.
+///
 /// Capped at 64 hops as a defence against pathological cycles —
 /// the only way to create a cycle is `namespace import` aliasing
 /// in a loop, which Tcl itself rejects, but the cap is cheap and
@@ -344,13 +350,21 @@ fn unwrap_imports(cmd_in: u32) u32 {
         const flags: u32 = @bitCast(read_i32(cur + OFF_FLAGS));
         if ((flags & CMD_IMPORTED) == 0) return cur;
         const desc: u32 = @bitCast(read_i32(cur + OFF_PARAMS_OBJ));
-        if (desc == 0) return cur;
-        // ImportedCmdData layout: [real_cmd: u32 | self_cmd: u32]
+        if (desc == 0) return 0;
         const real: u32 = @bitCast(read_i32(desc));
-        if (real == 0) return cur;
+        if (real == 0) return 0; // P4.4: forgotten redirect
         cur = real;
     }
     return cur;
+}
+
+/// Public LRU clear for callers outside this module that need to
+/// invalidate the dispatch cache after they shadow / hide an
+/// existing command.  ``namespace forget`` (P4.4) calls this so a
+/// previously-cached redirect lookup doesn't keep serving the now-
+/// dead source.
+pub fn lru_invalidate_all() void {
+    lru_invalidate();
 }
 
 /// Get the func_idx field from a proc Command pointer.
