@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from lsp.features.folding import get_folding_ranges
+from lsp.features.folding import _normalise_overlaps, get_folding_ranges
 
 
 class TestFoldingRanges:
@@ -190,22 +190,44 @@ class TestFoldingRanges:
         # Start line should be the ``{`` line.
         assert any(r.start_line == 0 for r in region_ranges)
 
+    def test_elseif_chain_disjoint(self):
+        """``if/elseif/elseif/else`` yields four disjoint sibling folds."""
+        source = textwrap.dedent("""\
+            if {1} {
+                puts a
+            } elseif {2} {
+                puts b
+            } elseif {3} {
+                puts c
+            } else {
+                puts d
+            }
+        """)
+        ranges = get_folding_ranges(source)
+        region_ranges = sorted(
+            (r for r in ranges if r.kind == types.FoldingRangeKind.Region),
+            key=lambda r: (r.start_line, r.end_line),
+        )
+        # One fold per branch, each spanning two lines; must be pairwise disjoint.
+        assert len(region_ranges) == 4, region_ranges
+        for a, b in zip(region_ranges, region_ranges[1:]):
+            assert a.end_line < b.start_line, (
+                f"elseif sibling folds {a.start_line}..{a.end_line} and "
+                f"{b.start_line}..{b.end_line} still share a line"
+            )
+
     def test_normalise_overlaps_shared_boundary_trims_earlier(self):
         """Two sibling ranges sharing a boundary line must become disjoint."""
-        from lsprotocol import types as lsp_types
-
-        from lsp.features.folding import _normalise_overlaps
-
         ranges = [
-            lsp_types.FoldingRange(
+            types.FoldingRange(
                 start_line=0,
                 end_line=5,
-                kind=lsp_types.FoldingRangeKind.Region,
+                kind=types.FoldingRangeKind.Region,
             ),
-            lsp_types.FoldingRange(
+            types.FoldingRange(
                 start_line=5,
                 end_line=10,
-                kind=lsp_types.FoldingRangeKind.Region,
+                kind=types.FoldingRangeKind.Region,
             ),
         ]
         normalised = _normalise_overlaps(ranges)
@@ -216,28 +238,24 @@ class TestFoldingRanges:
 
     def test_normalise_overlaps_dedups_after_trimming(self):
         """Trimming must not leave duplicate ``(start, end, kind)`` entries."""
-        from lsprotocol import types as lsp_types
-
-        from lsp.features.folding import _normalise_overlaps
-
         # Parent [0, 10] with child [3, 8]; a sibling [3, 12] trims to [3, 10]
         # and another collector emitting [3, 10] natively would otherwise
         # survive as a duplicate.
         ranges = [
-            lsp_types.FoldingRange(
+            types.FoldingRange(
                 start_line=0,
                 end_line=10,
-                kind=lsp_types.FoldingRangeKind.Region,
+                kind=types.FoldingRangeKind.Region,
             ),
-            lsp_types.FoldingRange(
+            types.FoldingRange(
                 start_line=3,
                 end_line=10,
-                kind=lsp_types.FoldingRangeKind.Region,
+                kind=types.FoldingRangeKind.Region,
             ),
-            lsp_types.FoldingRange(
+            types.FoldingRange(
                 start_line=3,
                 end_line=12,
-                kind=lsp_types.FoldingRangeKind.Region,
+                kind=types.FoldingRangeKind.Region,
             ),
         ]
         normalised = _normalise_overlaps(ranges)

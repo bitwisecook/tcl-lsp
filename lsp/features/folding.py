@@ -212,10 +212,16 @@ def _normalise_overlaps(
     stack: list[int] = []
 
     for r in ordered:
-        # Close or trim ancestors that conflict with r's start.
+        # Close or trim ancestors that conflict with r's start.  Stack entries
+        # always reference a live (non-None) ``working`` slot: we only set an
+        # entry to None immediately before popping its index off the stack.
         while stack:
             parent = working[stack[-1]]
-            assert parent is not None  # stack entries are always live
+            if parent is None:
+                # Defensive: should never happen, but keep the loop safe under
+                # ``python -O`` where plain ``assert`` would be stripped.
+                stack.pop()
+                continue
             if parent.end_line < r.start_line:
                 stack.pop()
                 continue
@@ -238,8 +244,7 @@ def _normalise_overlaps(
         # Trim r down to fit inside its (new) parent, if any.
         if stack:
             parent = working[stack[-1]]
-            assert parent is not None
-            if parent.end_line < r.end_line:
+            if parent is not None and parent.end_line < r.end_line:
                 if parent.end_line <= r.start_line:
                     # Trim would leave r degenerate or inverted — drop it.
                     continue
