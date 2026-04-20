@@ -37,6 +37,8 @@ const tcl_fs = @import("tcl_fs.zig");
 const tcl_format = @import("tcl_format.zig");
 const tcl_dispatch = @import("tcl_dispatch.zig");
 const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
+const tcl_rename = @import("tcl_rename.zig");
+const tcl_alias = @import("tcl_alias.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -374,4 +376,84 @@ comptime {
     _ = &interp.tcl_eval;
     _ = &interp.ns_set;
     _ = &interp.ns_restore;
+
+    // tcl_rename / tcl_alias — new in the rename-alias wave.  No
+    // direct WASM export today (all access goes through the
+    // ``rename`` / ``interp alias`` built-ins in tcl_interp.zig and
+    // the runtime test harness), but the comptime refs keep
+    // wasm-ld from pruning symbols the tests reach through.
+    _ = &tcl_rename.rename_command;
+    _ = &tcl_alias.alias_alloc;
+    _ = &tcl_alias.alias_rec;
+    _ = &tcl_alias.alias_clear;
+    _ = &tcl_alias.alias_describe;
+    _ = &tcl_alias.is_alias;
+    _ = &tcl_ns.ns_cmd_clear;
+    // Runtime test scaffolding for rename + alias — exposed as
+    // WASM exports so the Python test harness can exercise the
+    // primitives without going through the full Tcl interpreter.
+    _ = &tcl_test_rename;
+    _ = &tcl_test_alias_create;
+}
+
+// -- Runtime test scaffolding (rename / alias) -----------------------------
+//
+// Exposed as plain WASM exports so ``tests/runtime/test_tcl_rename.py``
+// and ``tests/runtime/test_tcl_alias.py`` can drive the primitives
+// directly.  Not emitted by the compiler — the i32 in / out shape
+// matches the existing test exports (``tcl_test_alloc``,
+// ``tcl_ns_resolve_qualified``, …).
+
+/// Rename a command.  ``old_ns`` / ``new_ns`` are ``*Namespace``
+/// handles; name spans are (ptr, len) into linear memory.
+/// ``new_simple_len == 0`` is the delete form.  Returns the
+/// ``RenameResult`` enum value as an i32 (0 = ok, 1 = not_found,
+/// 2 = target_exists, 3 = builtin_protected).
+pub export fn tcl_test_rename(
+    old_ns: i32,
+    old_simple_ptr: i32,
+    old_simple_len: i32,
+    new_ns: i32,
+    new_simple_ptr: i32,
+    new_simple_len: i32,
+) i32 {
+    const r = tcl_rename.rename_command(
+        @bitCast(old_ns),
+        @bitCast(old_simple_ptr),
+        @bitCast(old_simple_len),
+        @bitCast(new_ns),
+        @bitCast(new_simple_ptr),
+        @bitCast(new_simple_len),
+    );
+    return @bitCast(@as(u32, @intFromEnum(r)));
+}
+
+/// Allocate an alias redirect Command + insert it under ``dest_ns``.
+/// Used by the runtime-test harness to construct aliases without
+/// the full ``interp alias`` parser.  Returns the Command address.
+pub export fn tcl_test_alias_create(
+    dest_ns: i32,
+    new_simple_ptr: i32,
+    new_simple_len: i32,
+    target_name_ptr: i32,
+    target_name_len: i32,
+    n_prefix: i32,
+    prefix_args_addr: i32,
+) i32 {
+    const cmd = tcl_alias.alias_alloc(
+        @bitCast(new_simple_ptr),
+        @bitCast(new_simple_len),
+        @bitCast(target_name_ptr),
+        @bitCast(target_name_len),
+        @bitCast(n_prefix),
+        @bitCast(prefix_args_addr),
+    );
+    _ = tcl_ns.ns_cmd_put(
+        @bitCast(dest_ns),
+        @bitCast(new_simple_ptr),
+        @bitCast(new_simple_len),
+        cmd,
+    );
+    tcl_procs.proc_count_bump();
+    return @bitCast(cmd);
 }
