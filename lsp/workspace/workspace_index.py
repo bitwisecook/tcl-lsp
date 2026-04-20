@@ -79,9 +79,13 @@ class WorkspaceIndex:
         source_kind: EntrySource = EntrySource.OPEN,
     ) -> None:
         """Update the index for a given document."""
+        # Non-OPEN entries only need the fields cross-file features read;
+        # strip the rest so tcllib-scale workspaces don't pin thousands of
+        # diagnostics, regex patterns, and stub-command lists.
+        stored = result if source_kind is EntrySource.OPEN else result.for_index()
         with self._lock:
             self._remove_unlocked(uri)
-            self._per_uri[uri] = result
+            self._per_uri[uri] = stored
             self._source_kinds[uri] = source_kind
 
             qnames_for_uri: set[str] = set()
