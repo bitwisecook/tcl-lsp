@@ -192,7 +192,7 @@ def _argv_with_word_spans(argv: list[Token], all_tokens: list[Token]) -> list[To
     return widen_argv_tokens_to_word_spans(argv, all_tokens)
 
 
-def _parse_param_list(param_str: str) -> list[ParamDef]:
+def parse_param_list(param_str: str) -> list[ParamDef]:
     """Parse a Tcl proc argument list string into ParamDef objects.
 
     Handles:  "a b c"  and  "a {b default} c"
@@ -2033,7 +2033,7 @@ class Analyser:
         param_str = args[1] if len(args) > 1 else ""
         body = args[2] if len(args) > 2 else ""
 
-        params = _parse_param_list(param_str)
+        params = parse_param_list(param_str)
 
         # Determine qualified name
         if scope.kind == "namespace":
@@ -2417,7 +2417,7 @@ class Analyser:
                 body_range = (
                     range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
                 )
-                params = _parse_param_list(param_str)
+                params = parse_param_list(param_str)
             elif kind == "destructor" and len(args) >= 1:
                 param_str = ""
                 body = args[0]
@@ -2436,7 +2436,7 @@ class Analyser:
             body = args[2]
             name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
             body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else Range.zero()
-            params = _parse_param_list(param_str)
+            params = parse_param_list(param_str)
 
         method_def = MethodDef(
             name=method_name,

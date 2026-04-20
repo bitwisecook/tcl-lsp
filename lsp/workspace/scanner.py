@@ -1,8 +1,10 @@
 """Background workspace scanner.
 
 Scans workspace directories and configured library paths for Tcl files,
-runs lightweight analysis (proc signature extraction only via ``analyse()``),
-and populates the WorkspaceIndex with background entries.
+runs the lightweight ``extract_signatures()`` pass (signature-only:
+procs, classes, package requires, source targets, command aliases, and a
+name-only invocation list), and populates the WorkspaceIndex with
+background entries.
 """
 
 from __future__ import annotations

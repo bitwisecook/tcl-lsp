@@ -16,19 +16,40 @@ from __future__ import annotations
 import argparse
 import gc
 import os
-import resource
 import sys
 import time
 import tracemalloc
 from pathlib import Path
 
+try:
+    import resource
+except ImportError:  # pragma: no cover - Windows
+    resource = None  # type: ignore[assignment]
 
-def rss_kb() -> int:
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+try:
+    import psutil  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - psutil not installed
+    psutil = None  # type: ignore[assignment]
 
 
 def rss_mb() -> float:
-    return rss_kb() / 1024.0
+    """Return the process's current RSS in megabytes.
+
+    Prefer ``psutil`` because it reports the same shape on every
+    platform. Fall back to ``resource.ru_maxrss`` (kilobytes on Linux,
+    bytes on macOS — we normalise via ``sys.platform``). When neither is
+    available (Windows without psutil), return 0 so the script still
+    runs and tracemalloc stays meaningful.
+    """
+    if psutil is not None:
+        return psutil.Process().memory_info().rss / (1024.0 * 1024.0)
+    if resource is None:
+        return 0.0
+    raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss is kilobytes on Linux and bytes on macOS.
+    if sys.platform == "darwin":
+        return raw / (1024.0 * 1024.0)
+    return raw / 1024.0
 
 
 def main() -> None:
@@ -40,9 +61,11 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    if args.cap_gb > 0:
+    if args.cap_gb > 0 and resource is not None:
         cap = int(args.cap_gb * 1024 * 1024 * 1024)
         resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
+    elif args.cap_gb > 0:
+        print("warning: --cap-gb requested but ``resource`` module is unavailable", file=sys.stderr)
 
     target = os.path.abspath(os.path.expanduser(args.target))
     if not os.path.isdir(target):

@@ -492,20 +492,21 @@ class AnalysisResult:
     def for_index(self) -> AnalysisResult:
         """Return a lightweight copy retaining only fields cross-file readers touch.
 
-        The workspace index and its callers read seven fields on non-OPEN
+        The workspace index and its callers read six fields on non-OPEN
         entries: ``all_procs`` / ``all_classes`` (symbol index),
-        ``global_scope`` (``find_var_in_scope``), ``command_invocations``
-        (usage counts), ``package_requires`` (workspace Tcl-version
-        upgrade and ``active_package_names``), ``command_aliases``
-        (workspace diagnostics context), and ``source_targets`` (rename
-        of a sourced file). Every other field is only consumed on
-        currently-open documents, so stripping them before storing keeps
-        thousands of scanned files from pinning diagnostics, regex
-        patterns, stub definitions, suppressed-line sets, and similar
-        per-file state.
+        ``command_invocations`` (workspace usage counts),
+        ``package_requires`` (workspace Tcl-version upgrade and
+        ``active_package_names``), ``command_aliases`` (workspace
+        diagnostics context), and ``source_targets`` (rename of a
+        sourced file). Every other field is only consumed on the
+        currently-open document, including ``global_scope``: its lone
+        cross-file reader is ``WorkspaceIndex.find_var_in_scope``, which
+        nothing outside the index itself calls, so retaining the scope
+        tree would just pin child scopes and variable references for
+        thousands of background-indexed files without observable
+        benefit.
         """
         return AnalysisResult(
-            global_scope=self.global_scope,
             all_procs=self.all_procs,
             all_classes=self.all_classes,
             command_invocations=self.command_invocations,
