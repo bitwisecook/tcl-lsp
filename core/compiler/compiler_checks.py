@@ -10,6 +10,7 @@ proc-call arity validation.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 
 from ..analysis.checks import run_all_checks
 from ..analysis.semantic_model import Diagnostic, Range, Severity
@@ -26,6 +27,7 @@ from ..commands.registry.runtime import (
 )
 from ..common.codes import diag
 from ..common.dialect import active_dialect
+from ..common.naming import normalise_qualified_name
 from ..common.ranges import position_from_relative, range_from_token
 from ..common.text import suggest_similar as _suggest_similar_impl
 from ..parsing.argv import widen_argv_tokens_to_word_spans
@@ -35,6 +37,7 @@ from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRFor,
@@ -139,7 +142,7 @@ class _CompilerCheckRunner:
         source: str,
         *,
         file_profiles: frozenset[str] | None = None,
-        user_procs: frozenset[str] = frozenset(),
+        user_procs: Mapping[str, int] | None = None,
     ) -> None:
         self._source = source
         self._seen_commands: set[tuple[int, int]] = set()
@@ -150,7 +153,7 @@ class _CompilerCheckRunner:
             if file_profiles is not None
             else EVENT_REGISTRY.compute_file_profiles(source)
         )
-        self._user_procs = user_procs
+        self._user_procs: Mapping[str, int] = user_procs if user_procs is not None else {}
 
     def process_statement(self, stmt: IRStatement) -> None:
         """Process an IR statement, using carried tokens when available."""
@@ -824,6 +827,52 @@ def _check_simple_arity(
         )
 
 
+def _qualify_proc_name(proc_name: str, namespace: str) -> str:
+    """Qualify a ``proc`` name against its enclosing namespace.
+
+    Mirrors the lowerer's ``_qualify_proc_name`` — an absolute name
+    (``::foo``) is returned as-is; a relative name is joined onto the
+    enclosing namespace (``::`` at top level, ``::ns`` inside
+    ``namespace eval ::ns { ... }``).
+    """
+    if proc_name.startswith("::"):
+        return normalise_qualified_name(proc_name)
+    if namespace == "::":
+        return normalise_qualified_name(f"::{proc_name}")
+    return normalise_qualified_name(f"{namespace}::{proc_name}")
+
+
+def _collect_unconditional_top_level_procs(ir_module: IRModule) -> dict[str, int]:
+    """Map qualified proc name → earliest unconditional top-level offset.
+
+    Walks ``ir_module.top_level`` and recurses into ``namespace eval``
+    bodies (``IRBlock``) which run unconditionally. Skips conditional and
+    looping constructs (``IRIf``/``IRWhile``/``IRFor``/``IRForeach``/
+    ``IRSwitch``/``IRCatch``/``IRTry``) and does not recurse into proc
+    bodies — a proc defined inside any of those is not guaranteed to
+    exist at an arbitrary call site, so W002 keeps its warning.
+
+    Each entry records the source offset of the defining ``proc``
+    command; W002 compares the call-site offset against this value to
+    decide whether the definition is statically known to precede the
+    call.
+    """
+    offsets: dict[str, int] = {}
+
+    def _walk(script: IRScript, namespace: str) -> None:
+        for stmt in script.statements:
+            if isinstance(stmt, IRBlock):
+                _walk(stmt.body, stmt.namespace)
+                continue
+            if isinstance(stmt, (IRCall, IRBarrier)) and stmt.command == "proc" and stmt.args:
+                qualified = _qualify_proc_name(stmt.args[0], namespace)
+                if qualified and qualified not in offsets:
+                    offsets[qualified] = stmt.range.start.offset
+
+    _walk(ir_module.top_level, "::")
+    return offsets
+
+
 def run_compiler_checks(
     source: str,
     *,
@@ -845,10 +894,11 @@ def run_compiler_checks(
         stmts.extend(iter_ir_statements(proc.body))
     stmts.sort(key=lambda s: (s.range.start.offset, s.range.end.offset))
 
-    # Procs keyed in ``ir_module.procedures`` carry the fully-qualified
-    # ``::ns::name`` form used by W002 to suppress warnings when a
-    # user-defined proc shadows a command the active dialect disallows.
-    user_procs = frozenset(ir_module.procedures.keys())
+    # Map qualified name → earliest unconditional top-level definition
+    # offset for W002. Restricting to unconditional definitions preserves
+    # the warning for call sites that would precede a (possibly
+    # conditional) proc at runtime.
+    user_procs = _collect_unconditional_top_level_procs(ir_module)
 
     runner = _CompilerCheckRunner(source, user_procs=user_procs)
     for stmt in stmts:
