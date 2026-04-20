@@ -67,8 +67,10 @@ class TestResolveCodeLens:
         resolved = resolve_code_lens(lenses[0], ws)
         assert resolved.command is not None
         assert resolved.command.title == "3 references"
-        # VS Code built-in, so no client-side command registration is required.
-        assert resolved.command.command == "editor.action.showReferences"
+        # Thin client-side wrapper: it converts the JSON-RPC argument
+        # shapes into the vscode.Uri/Position/Location instances that the
+        # built-in ``editor.action.showReferences`` command requires.
+        assert resolved.command.command == "tcl-lsp.showReferences"
         assert resolved.command.arguments is not None
         assert resolved.command.arguments[0] == TEST_URI
         # The second argument is the position to display in the peek header —
