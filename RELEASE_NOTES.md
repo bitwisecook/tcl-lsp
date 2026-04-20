@@ -1,28 +1,31 @@
-# v1.7.0
+# v1.7.1
 
 ## New Features
-- **Conf-wrapped iRule dialect mode**: Full LSP support for `ltm rule` / `gtm rule` stanza files — diagnostics, symbols, semantic tokens, and formatting all work across embedded rule bodies with correct position mapping
-- **Tcl package manager (`tclpkg`)**: New `tcl pkg` CLI with MVS-based dependency resolution, manifest files, lock support, `freeze` verb, and a pure-Tcl 8.6+ implementation alongside the Python one
-- **Dockerfile generation**: `tcl docker` CLI verb generates production-ready Dockerfiles for Tcl projects with automatic dependency detection
-- **W130–W134 diagnostics**: New warning codes for package management issues (missing manifests, unresolvable dependencies, version conflicts, stale lock files, unused dependencies)
-- **Safe interpreter support**: `interp create -safe` now creates properly sandboxed child interpreters with empty command whitelists
-- **VM opcodes**: `lset` command, `LSET_LIST`/`OVER` opcodes, `STR_CLASS` for `string is`, `TRY_CVT_TO_BOOLEAN`, and `chan` command family
+- WASM compiler: compile pure Tcl to standalone WebAssembly with an embedded Zig interpreter, supporting procs, namespaces, arrays, upvar/uplevel, real regexp via Tcl's Spencer engine, and WASI-backed file/clock operations
+- Runtime namespace tree: full hierarchical namespace resolution with `namespace eval`, `namespace import/export/forget`, `namespace path`, and per-namespace command/variable tables
+- Workspace signature scan: background indexing descends into if/catch/try bodies for broader symbol coverage
+- Runtime rename and interp alias support with dispatch trampolines and invalidation
+- Parse cache: sidecar storage keyed on body pointer/length, consulted during eval for faster proc lookups
+- Option-shape factory call-site specialisation in the compiler pass
+- Compile-time `subst -nocommands` evaluator and `proc $var body` resolution via lowering const-map
 
 ## Improvements
-- **VS Code formatting conventions**: Feature toggles now inherit from VS Code's `editor.*` globals by default instead of requiring custom settings, with tri-state (null/true/false) support
-- **KCS documentation**: Comprehensive diagnostic pages (E-codes, W-codes, S-codes, T-codes, IRULE-codes), all 28 O-code optimisation pages, compiler-pass glossary, feature pages, and Applies-to tag vocabulary
-- **Analyser accuracy**: Renamed `ArgRole.VAR_NAME` to `VAR_WRITE` with proper dual-shape resolver for `set`, fixing W210 false positives for `regexp`/`regsub` capture variable writes
-- **Real tcltest integration**: `package require tcltest` now sources the genuine `tcltest.tcl` library when available, giving full test framework behaviour
-- **External test suite runner** for pure-Tcl projects
+- LRU cache for `proc_lookup` and namespace-import call resolution at compile time
+- Resolve proc-locals into the call frame for interpreter visibility; pre-eval-sync replaces per-write frame-writeback
+- CodeLens uses `editor.action.showReferences` and walks the workspace index for peek locations
+- Folding: serve ranges immediately after `didOpen`; request `workspace/foldingRange/refresh` after analysis; keep if/else sibling folds disjoint
+- Zig runtime rebuilt with ReleaseFast and Zig 0.16 (`callconv(.C)` → `.c`)
+- AI diagnostics extended with W230–W242 warnings
+- VS Code extension test coverage for `tcl-lsp.showReferences` adapter
 
 ## Bug Fixes
-- Fix formatter corrupting `${variable}` and `{*}$variable` syntax
-- Fix backslash substitution in interpolated strings
-- Fix command substitution concatenation in bytecode compiler
-- Fix `eof` command and `info script` in test runner
-- Fix tcltest namespace import, `numTests` sync, `-output` handling, skip, and unknown guard
-- Fix inlayHints resolver for string values
-- Skip tcltest setup for safe interpreters to prevent `package` command errors
-
-## Breaking Changes
-- VS Code formatting settings (`tclLsp.format.*`) now default to `null` (inherit from editor globals) instead of explicit `true`/`false` — existing explicit settings are preserved
+- Fix IEEE 754 edge cases: `string is double`, `scan %f`, Inf literals, integer overflow, sign of `-0.0`, division by `±0.0`
+- Fix `&&`/`||` identity rewrites to preserve Tcl's boolean result
+- Fix `$arr(key)` / `[set arr(key)]` reads in value and interpolation contexts
+- Fix `subst_flagged` output-buffer overflow
+- Fix code folding seen-set type to match lsprotocol kind declaration
+- Suppress W002 dialect warning when a user proc shadows the command
+- Suppress namespace import/export in dead if branches
+- Fix CodeLens JSON-to-VS-Code type conversion for showReferences
+- Fix KCS diagnostic filename casing for W130–W134
+- Fix npm audit: pin lodash to ^4.18.1
