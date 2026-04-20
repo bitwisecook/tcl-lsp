@@ -1610,7 +1610,17 @@ class _Lowerer:
                 materialised_body: str | None = None
                 if body_tok.type is TokenType.CMD:
                     materialised_body = self._eval_subst_nocommands_body(body_tok.text)
+                # Fresh const-map frame for the nested proc body.
+                # Without this, ``_lower_script`` would inherit the
+                # enclosing scope's tracked scalars — which is
+                # correct for control-flow bodies (``if`` / ``catch``
+                # / loops run in the same frame) but wrong for
+                # ``proc`` bodies, which have their own runtime
+                # frame.  A ``set body {…}`` in the outer proc
+                # must not appear to a nested ``proc inner``'s
+                # barrier-relaxation gate as a tracked literal.
                 self._proc_depth += 1
+                self._const_map_stack.append({})
                 try:
                     if materialised_body is not None:
                         # Lower the substituted string as a fresh
@@ -1624,6 +1634,7 @@ class _Lowerer:
                     else:
                         body = self._lower_body_arg(args[2], body_tok, namespace=namespace)
                 finally:
+                    self._const_map_stack.pop()
                     self._proc_depth -= 1
                 # Register the IR proc for compilation (bytecode
                 # generation) but ALWAYS emit a runtime ``proc`` call
@@ -1663,10 +1674,16 @@ class _Lowerer:
                 event_name = args[0]
                 body_idx = len(args) - 1
                 body_tok = arg_tokens[body_idx]
+                # Same rationale as the ``proc`` case: ``when``
+                # handlers have their own runtime frame, so the
+                # outer scope's tracked scalars must not be
+                # visible to this body's barrier-relaxation gate.
                 self._proc_depth += 1
+                self._const_map_stack.append({})
                 try:
                     body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
                 finally:
+                    self._const_map_stack.pop()
                     self._proc_depth -= 1
 
                 # Extract priority from ``when EVENT priority N { body }``

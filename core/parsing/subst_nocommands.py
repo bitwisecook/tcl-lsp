@@ -112,8 +112,20 @@ def subst_nocommands(template: str, const_map: Mapping[str, str]) -> str | None:
                 out.append(const_map[name])
                 i = j
                 continue
-            # ``$`` followed by a non-name character — emit literal
-            # ``$`` and continue from the next character.
+            # ``$`` followed by a non-name character — ``$::name``
+            # is a namespace-qualified variable reference in Tcl,
+            # which we don't carry in the const-map, so refuse
+            # instead of emitting the ``$`` as literal text (which
+            # would diverge from ``subst -nocommands``'s actual
+            # substitute-at-runtime semantics).  Bare ``$:`` is
+            # also rejected by Tcl's parser as malformed; refusing
+            # is safe in either case.
+            if nxt == ":":
+                return None
+            # Any other ``$`` followed by a non-name character
+            # leaves the ``$`` literal and continues from the next
+            # character — matches Tcl's handling of e.g. ``$`` at
+            # end-of-string or ``$+`` (dollar + operator).
             out.append("$")
             i += 1
             continue
