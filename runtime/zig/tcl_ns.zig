@@ -573,11 +573,26 @@ pub fn ns_find_command(cxt: u32, name_ptr: u32, name_len: u32) u32 {
         return 0;
     }
 
-    // Unqualified: context first, then root.  P5.2 will splice
-    // ``commandPathArray`` between these two.
+    // Unqualified resolution (mirrors ``Tcl_FindCommand``):
+    //   1. Context ns ``cmd_table``.
+    //   2. Each entry of the context's ``commandPathArray`` in
+    //      declaration order (P5.2).
+    //   3. Root ns ``cmd_table``.
     if (start != 0) {
         const v = ns_cmd_find(start, name_ptr, name_len);
         if (v != 0) return v;
+
+        const plen = ns_path_len(start);
+        var pi: u32 = 0;
+        while (pi < plen) : (pi += 1) {
+            const e = ns_path_entry(start, pi);
+            if (e.target_ns == 0) continue;
+            // Skip the path entry pointing back at the context
+            // ns itself — already probed in step 1.
+            if (e.target_ns == start) continue;
+            const pv = ns_cmd_find(e.target_ns, name_ptr, name_len);
+            if (pv != 0) return pv;
+        }
     }
     if (start != root) {
         const v = ns_cmd_find(root, name_ptr, name_len);
