@@ -215,3 +215,52 @@ class TestIrulesGlobals:
         assert len(idx.find_proc("helper")) == 1
         idx.remove_background_entries()
         assert len(idx.find_proc("helper")) == 0
+
+
+class TestForIndexStripping:
+    """Non-OPEN entries are stored via ``AnalysisResult.for_index``."""
+
+    def test_open_entries_are_stored_verbatim(self):
+        idx = WorkspaceIndex()
+        full = analyse("proc foo {} {}")
+        idx.update("file:///a.tcl", full)  # default OPEN
+        assert idx.get_analysis("file:///a.tcl") is full
+
+    def test_background_entries_are_stripped(self):
+        idx = WorkspaceIndex()
+        # Source that produces diagnostics, a regex pattern, and a
+        # package_requires — so we can observe which fields survive.
+        src = "package require Tcl 8.6\nregexp {^\\d+$} $x\nproc foo {} {}\n"
+        full = analyse(src)
+        assert full.regex_patterns, "fixture should produce regex_patterns"
+        assert full.package_requires, "fixture should produce package_requires"
+        idx.update("file:///bg.tcl", full, EntrySource.BACKGROUND)
+        stored = idx.get_analysis("file:///bg.tcl")
+        assert stored is not None
+        assert stored is not full
+        # Kept fields: cross-file readers still work.
+        assert stored.all_procs == full.all_procs
+        assert stored.package_requires == full.package_requires
+        assert stored.command_invocations == full.command_invocations
+        # Stripped fields: per-document state is gone.
+        assert stored.diagnostics == []
+        assert stored.regex_patterns == []
+        assert stored.stub_commands == []
+        assert stored.all_variables == {}
+        assert stored.suppressed_lines == {}
+
+    def test_package_entries_are_stripped(self):
+        idx = WorkspaceIndex()
+        full = analyse("proc foo {} {}\nregexp a b")
+        idx.update("file:///pkg.tcl", full, EntrySource.PACKAGE)
+        stored = idx.get_analysis("file:///pkg.tcl")
+        assert stored is not None
+        assert stored.regex_patterns == []
+
+    def test_auto_index_entries_are_stripped(self):
+        idx = WorkspaceIndex()
+        full = analyse("proc foo {} {}\nregexp a b")
+        idx.update("file:///ai.tcl", full, EntrySource.AUTO_INDEX)
+        stored = idx.get_analysis("file:///ai.tcl")
+        assert stored is not None
+        assert stored.regex_patterns == []
