@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ...commands.registry import REGISTRY
 from ...commands.registry.models import DialectStatus, FormKind
 from ...commands.registry.runtime import (
@@ -11,6 +13,7 @@ from ...commands.registry.runtime import (
 )
 from ...common.codes import diag
 from ...common.dialect import active_dialect
+from ...common.naming import normalise_qualified_name
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
@@ -22,6 +25,8 @@ from ._helpers import (
 
 # W002: Disabled command in active dialect
 
+_EMPTY_USER_PROCS: Mapping[str, int] = {}
+
 
 @diag("W002", "Command is disabled in active dialect profile.", section="warning")
 def check_disabled_command(
@@ -30,16 +35,39 @@ def check_disabled_command(
     arg_tokens: list[Token],
     all_tokens: list[Token],
     source: str,
+    user_procs: Mapping[str, int] = _EMPTY_USER_PROCS,
 ) -> list[Diagnostic]:
-    """W002: Warn when a command is disabled in the active dialect profile."""
+    """W002: Warn when a command is disabled in the active dialect profile.
+
+    ``user_procs`` maps a qualified proc name to the source offset of its
+    earliest unconditional top-level definition. W002 is suppressed only
+    when the call site appears strictly after such a definition — this
+    mirrors Tcl's runtime command resolution, where a proc defined
+    earlier on the unconditional script path shadows the would-be
+    disallowed built-in. Procs defined inside conditionals, loops, or
+    another proc body are not counted, so their shadowing is not assumed.
+    """
+    if not cmd_name or not all_tokens:
+        return []
+
+    qualified = normalise_qualified_name(cmd_name)
+    def_offset = user_procs.get(qualified)
+    call_offset = all_tokens[0].start.offset
+    if def_offset is not None and def_offset < call_offset:
+        return []
+
+    # Registry is keyed without a leading ``::`` — strip it so both
+    # bare (``log``) and fully-qualified (``::log``) call sites
+    # resolve to the same spec.
+    lookup = qualified.lstrip(":")
+
     dialect = active_dialect()
-    status = REGISTRY.command_status(cmd_name, dialect)
+    status = REGISTRY.command_status(lookup, dialect)
     if status is DialectStatus.DISALLOWED:
         msg = f"'{cmd_name}' is disabled in the active dialect profile"
-        # If the command exists in iRules, suggest selecting that dialect.
-        if cmd_name == "when":
+        if lookup == "when":
             msg += ". Select iRules as the language to enable F5 iRules support"
-        elif REGISTRY.command_status(cmd_name, "f5-irules") is DialectStatus.EXISTS:
+        elif REGISTRY.command_status(lookup, "f5-irules") is DialectStatus.EXISTS:
             msg += " (available in the iRules dialect)"
         return [
             Diagnostic(
