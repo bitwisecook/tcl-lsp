@@ -1,4 +1,4 @@
-"""Option-shape factory proc specialisation (Phase 8).
+r"""Option-shape factory proc specialisation (Phase 8).
 
 Drives the tcltest ``Option`` pattern:
 
@@ -175,7 +175,24 @@ def detect_factory_shape(proc: IRProcedure) -> FactoryShape | None:
     )
 
 
-def specialise_factories(module: IRModule) -> None:
+_DEFAULT_FACTORY_CAP = 64
+"""P8.4 — per-factory specialisation cap.
+
+An upper bound on how many call sites of a single factory we will
+specialise.  Each specialisation synthesises a full ``IRProcedure``
+(body, params, tokens, range), so an unchecked factory with a
+thousand call sites would bloat bytecode without a matching
+runtime benefit (the same factory call-site dispatch cost dominates
+either way).  A cap of 64 covers tcltest (which defines ~20
+options) plus a comfortable margin, and bails cleanly on pathological
+inputs.
+
+Callers that want to override the default can pass ``cap`` to
+:func:`specialise_factories`.
+"""
+
+
+def specialise_factories(module: IRModule, *, cap: int = _DEFAULT_FACTORY_CAP) -> None:
     """Mutate *module* in place, replacing each literal-args call to
     an Option-shape factory with a synthesised child ``IRProcedure``
     and a no-op ``IRBlock`` in the caller's script.
@@ -193,6 +210,11 @@ def specialise_factories(module: IRModule) -> None:
       :func:`core.parsing.subst_nocommands.subst_nocommands` is
       non-None (no unresolved ``\\$`` references, no refused
       constructs).
+    * The per-factory specialisation count (tracked in
+      *counts* internally) hasn't reached *cap*.  Once the cap is
+      hit, subsequent call sites of the same factory stay on the
+      runtime dispatch path — matches the bytecode-bloat guard the
+      design doc calls for.
 
     Synthesised procs use the ``name_param`` arg's value as their
     unqualified name, mangled to ``::<name>`` at module scope.  A
@@ -214,12 +236,19 @@ def specialise_factories(module: IRModule) -> None:
     # cycle through ``compilation_unit.py``.
     from ..lowering import lower_to_ir as _lower
 
+    # Per-factory specialisation counter.  Bumped on each successful
+    # rewrite; once a factory's count reaches *cap* the rewriter
+    # leaves subsequent call sites alone.
+    counts: dict[str, int] = dict.fromkeys(factories.keys(), 0)
+
     module.top_level = _rewrite_script(
         module.top_level,
         factories,
         module,
         namespace="::",
         lower=_lower,
+        counts=counts,
+        cap=cap,
     )
     for qname, proc in list(module.procedures.items()):
         caller_ns = _namespace_of(qname)
@@ -229,6 +258,8 @@ def specialise_factories(module: IRModule) -> None:
             module,
             namespace=caller_ns,
             lower=_lower,
+            counts=counts,
+            cap=cap,
         )
         if new_body is not proc.body:
             module.procedures[qname] = IRProcedure(
@@ -301,11 +332,21 @@ def _rewrite_script(
     *,
     namespace: str,
     lower,
+    counts: dict[str, int],
+    cap: int,
 ) -> IRScript:
     new_stmts: list[IRStatement] = []
     changed = False
     for stmt in script.statements:
-        rewritten = _rewrite_stmt(stmt, factories, module, namespace=namespace, lower=lower)
+        rewritten = _rewrite_stmt(
+            stmt,
+            factories,
+            module,
+            namespace=namespace,
+            lower=lower,
+            counts=counts,
+            cap=cap,
+        )
         if rewritten is not stmt:
             changed = True
         new_stmts.append(rewritten)
@@ -321,6 +362,8 @@ def _rewrite_stmt(
     *,
     namespace: str,
     lower,
+    counts: dict[str, int],
+    cap: int,
 ) -> IRStatement:
     # Only two shapes qualify for rewriting in this first wave:
     # direct ``IRCall`` to a factory, and ``IRBlock`` containers
@@ -329,10 +372,26 @@ def _rewrite_stmt(
     # are uncommon (tcltest's ``Configure`` calls sit at module
     # scope) and the recursion cost isn't justified yet.
     if isinstance(stmt, IRCall):
-        return _maybe_specialise_call(stmt, factories, module, namespace=namespace, lower=lower)
+        return _maybe_specialise_call(
+            stmt,
+            factories,
+            module,
+            namespace=namespace,
+            lower=lower,
+            counts=counts,
+            cap=cap,
+        )
     if isinstance(stmt, IRBlock):
         inner_ns = stmt.namespace or namespace
-        new_body = _rewrite_script(stmt.body, factories, module, namespace=inner_ns, lower=lower)
+        new_body = _rewrite_script(
+            stmt.body,
+            factories,
+            module,
+            namespace=inner_ns,
+            lower=lower,
+            counts=counts,
+            cap=cap,
+        )
         if new_body is not stmt.body:
             return IRBlock(
                 range=stmt.range,
@@ -352,11 +411,18 @@ def _maybe_specialise_call(
     *,
     namespace: str,
     lower,
+    counts: dict[str, int],
+    cap: int,
 ) -> IRStatement:
     if not stmt.command:
         return stmt
     target = _resolve_target(stmt.command, namespace, factories)
     if target is None:
+        return stmt
+    # P8.4: per-factory cap.  Keeps pathological call-site counts
+    # from bloating bytecode — hit-the-cap means "leave further
+    # calls to runtime dispatch".
+    if counts.get(target, 0) >= cap:
         return stmt
     factory = factories[target]
     if len(stmt.args) != len(factory.params):
@@ -393,6 +459,7 @@ def _maybe_specialise_call(
         body_source=materialised,
         namespace_scoped=False,
     )
+    counts[target] = counts.get(target, 0) + 1
     # Replace the original call with an empty IRBlock — the
     # factory's side effects are captured entirely by the
     # synthesised child proc (see the single-statement gate in
