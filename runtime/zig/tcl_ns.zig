@@ -791,13 +791,22 @@ const tcl_procs_constants = struct {
     // Mirror of the layout constants in ``tcl_procs.zig``.  We
     // can't ``@import`` that module here without a circular
     // dependency (procs imports ns), so we duplicate the offsets.
-    // The values are pinned by the design doc + a static_assert in
-    // tcl_procs.zig (a comptime ``if`` would catch a mismatch on
-    // build).  Update both together.
-    const COMMAND_SIZE: u32 = 32;
+    // The values are pinned by the design doc; update both
+    // together.
+    const COMMAND_SIZE: u32 = 40;
     const OFF_FLAGS: u32 = 8;
     const OFF_PARAMS_OBJ: u32 = 12;
+    const OFF_IMPORT_REF_HEAD: u32 = 32;
     const CMD_IMPORTED: u32 = 0x80;
+};
+
+/// Singly-linked list node used to track every redirect Command
+/// that imports a given source Command.  ``namespace forget``
+/// (P4.4) walks this list to splice out the redirects.  Allocated
+/// on the bump allocator per import — never freed individually.
+pub const ImportRef = extern struct {
+    imported_cmd: u32,
+    next: u32,
 };
 
 /// Allocate a redirect ``Command`` shaped like a regular Command
@@ -870,12 +879,53 @@ pub fn ns_import(dest_ns: u32, import_spec_ptr: u32, import_spec_len: u32) u32 {
 
         const source_cmd: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
         if (source_cmd == 0) continue;
-        const redirect = alloc_import_redirect(name_ptr, name_len, source_cmd);
+        // P4.3: chained imports point at the *terminal* source so
+        // the back-pointer list always lives on the real command.
+        // Mirrors C Tcl's ``DoImport`` walking
+        // ``ImportedCmdData.realCmdPtr`` to its root.
+        const real_source = unwrap_imports_chain(source_cmd);
+        const redirect = alloc_import_redirect(name_ptr, name_len, real_source);
         _ = ns_cmd_put(dest_ns, name_ptr, name_len, redirect);
+        link_import_ref(real_source, redirect);
         imported += 1;
     }
 
     return imported;
+}
+
+/// Follow ``CMD_IMPORTED`` links to the terminal Command — local
+/// shadow of ``tcl_procs.unwrap_imports`` to avoid the circular
+/// dependency.  Capped the same way (64 hops).
+fn unwrap_imports_chain(cmd_in: u32) u32 {
+    const c = tcl_procs_constants;
+    var cur: u32 = cmd_in;
+    var hops: u32 = 0;
+    while (hops < 64) : (hops += 1) {
+        if (cur == 0) return 0;
+        const flags: u32 = @bitCast(read_i32(cur + c.OFF_FLAGS));
+        if ((flags & c.CMD_IMPORTED) == 0) return cur;
+        const desc: u32 = @bitCast(read_i32(cur + c.OFF_PARAMS_OBJ));
+        if (desc == 0) return cur;
+        const real: u32 = @bitCast(read_i32(desc));
+        if (real == 0) return cur;
+        cur = real;
+    }
+    return cur;
+}
+
+/// Prepend an ``ImportRef { imported_cmd: redirect, next: prev_head }``
+/// onto ``source_cmd.import_ref_head``.  Singly-linked, no
+/// duplicate detection (the same dest ns can't import the same
+/// source command twice without first ``namespace forget``-ting
+/// it, so duplicates would only arise from program bugs).
+fn link_import_ref(source_cmd: u32, redirect: u32) void {
+    const c = tcl_procs_constants;
+    const prev_head: u32 = @bitCast(read_i32(source_cmd + c.OFF_IMPORT_REF_HEAD));
+    const node = alloc(@sizeOf(ImportRef));
+    const r: *ImportRef = @ptrFromInt(node);
+    r.imported_cmd = redirect;
+    r.next = prev_head;
+    write_i32(source_cmd + c.OFF_IMPORT_REF_HEAD, @bitCast(node));
 }
 
 // -- Public globals ABI (moved from the retired tcl_globals.zig in P3.4)

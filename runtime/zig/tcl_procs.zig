@@ -45,27 +45,37 @@ const tcl_ns = @import("tcl_ns.zig");
 // Sizes are given as comptime constants so the accessors can keep
 // using the historical ``OFF_*`` names without changing call sites.
 //
-// Layout:
+// Layout (40 bytes after P4.3):
 //
-//     [ 0.. 3] name_ptr   : i32  (heap-copied FQN bytes; used by ``info procs``)
-//     [ 4.. 7] name_len   : i32
-//     [ 8..11] flags      : u32  (CMD_IMPORTED bit; was ``hash``, never
-//                                  read after construction so repurposed
-//                                  in P4.2 with no observable change)
-//     [12..15] params_obj : i32  (TclObj for interpreted procs;
-//                                  ``*ImportedCmdData`` for imports;
-//                                  0 for compiled procs)
-//     [16..19] body_obj   : i32  (TclObj for interpreted procs; 0 otherwise)
-//     [20..23] n_params   : i32
-//     [24..27] func_idx   : i32  (>0 means AOT-compiled to a WASM fn)
-//     [28..31] args_tail  : i32  (1 if last param is "args")
-pub const COMMAND_SIZE: u32 = 32;
+//     [ 0.. 3] name_ptr        : i32  (heap-copied FQN bytes; ``info procs``)
+//     [ 4.. 7] name_len        : i32
+//     [ 8..11] flags           : u32  (CMD_IMPORTED; was ``hash`` — never
+//                                       read after construction, repurposed
+//                                       in P4.2 with no observable change)
+//     [12..15] params_obj      : i32  (TclObj for interpreted procs;
+//                                       ``*ImportedCmdData`` for imports;
+//                                       0 for compiled procs)
+//     [16..19] body_obj        : i32  (TclObj for interpreted procs;
+//                                       0 otherwise)
+//     [20..23] n_params        : i32
+//     [24..27] func_idx        : i32  (>0 means AOT-compiled to a WASM fn)
+//     [28..31] args_tail       : i32  (1 if last param is "args")
+//     [32..35] import_ref_head : u32  (head of singly-linked ``ImportRef``
+//                                       list — every redirect that
+//                                       imports this Command, used by
+//                                       ``namespace forget`` to splice
+//                                       redirects out cleanly; P4.3)
+//     [36..39] reserved        : u32  (zero — kept so the struct is
+//                                       8-byte aligned for any future
+//                                       u64 field)
+pub const COMMAND_SIZE: u32 = 40;
 pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
 const OFF_BODY_OBJ: u32 = 16;
 const OFF_N_PARAMS: u32 = 20;
 const OFF_FUNC_IDX: u32 = 24;
 const OFF_ARGS_TAIL: u32 = 28;
+pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 
 /// Set on imported (redirect) commands.  ``params_obj`` holds an
 /// ``*ImportedCmdData`` pointing at the source ``*Command`` and
