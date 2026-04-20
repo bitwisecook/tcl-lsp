@@ -1881,18 +1881,6 @@ const MAX_EXPANDED_WORDS: u32 = 128;
 
 pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     if (script_len == 0) return 0;
-    const src: [*]const u8 = @ptrFromInt(script_ptr);
-    var pos: u32 = 0;
-    var result: i32 = 0;
-    // Token-tree scratch for each parsed command.  A command contributes
-    // at most MAX_WORDS ``.WORD`` / ``.SIMPLE_WORD`` tokens plus one
-    // ``.EXPAND_WORD`` marker per ``{*}`` — so 2 * MAX_WORDS is the
-    // worst-case slot count.  The tree is shallow today (no
-    // sub-tokens); ``Token.braced`` carries the same info the old
-    // ``wb[]`` array carried, and the marker walk below reconstructs
-    // the old ``we[]`` per-word expansion flag from the placement of
-    // ``.EXPAND_WORD`` tokens in the stream.
-    var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
@@ -1909,9 +1897,29 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         diag.current_eval_pos = saved_pos;
     }
 
+    // P9.2: fast path — if this body was pre-parsed by
+    // ``parse_cache.build_for_body`` (called from ``proc_register``
+    // in P9.3), replay the cached command list without re-parsing.
+    const parse_cache = @import("parse_cache.zig");
+    const slab = parse_cache.lookup(script_ptr, script_len);
+    if (slab != 0) {
+        return eval_cached_slab(slab, script_ptr, script_len);
+    }
+
+    // Cold path: no cache entry — parse + execute inline the way
+    // we always have.  The cache stays empty for bodies that
+    // weren't pre-parsed; non-proc scripts (``eval``, ``uplevel``,
+    // command subs) flow through here every call.
+    const src: [*]const u8 = @ptrFromInt(script_ptr);
+    var pos: u32 = 0;
+    var result: i32 = 0;
+    // Token-tree scratch for each parsed command.  A command contributes
+    // at most MAX_WORDS ``.WORD`` / ``.SIMPLE_WORD`` tokens plus one
+    // ``.EXPAND_WORD`` marker per ``{*}`` — so 2 * MAX_WORDS is the
+    // worst-case slot count.
+    var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
+
     while (pos < script_len) {
-        // Publish the current command's position so any trap that
-        // fires during dispatch includes a useful source snippet.
         diag.current_eval_ptr = script_ptr;
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
@@ -1920,89 +1928,122 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         pos = cmd.next;
         if (cmd.n_words == 0) continue;
 
-        // Walk the Token stream: EXPAND_WORD is a marker that sets the
-        // expansion flag on the next WORD / SIMPLE_WORD.  Everything
-        // else is a direct word.  The absolute byte pointer comes
-        // from ``Parse.src_ptr + Token.start``.
-        const tokens: [*]parse.Token = @ptrFromInt(cmd.tokens_ptr);
-        var has_expand = false;
-        {
-            var t: u32 = 0;
-            while (t < cmd.tokens_len) : (t += 1) {
-                if (tokens[t].kind == .EXPAND_WORD) {
-                    has_expand = true;
-                    break;
-                }
-            }
-        }
-
-        if (!has_expand) {
-            // Fast path: no expansion.  Every token is a WORD /
-            // SIMPLE_WORD describing one script word.
-            var word_objs: [MAX_WORDS]i32 = undefined;
-            var wi: u32 = 0;
-            var t: u32 = 0;
-            while (t < cmd.tokens_len) : (t += 1) {
-                const tok = tokens[t];
-                if (tok.kind == .EXPAND_WORD) continue;
-                const wptr_abs: u32 = cmd.src_ptr + tok.start;
-                if (tok.braced) {
-                    word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
-                } else {
-                    word_objs[wi] = subst_word(wptr_abs, tok.len);
-                }
-                wi += 1;
-            }
-            result = eval_command(word_objs[0..wi]);
-        } else {
-            // Slow path: at least one {*} expansion.
-            var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
-            var ecount: u32 = 0;
-            var pending_expand = false;
-            var t: u32 = 0;
-            while (t < cmd.tokens_len) : (t += 1) {
-                const tok = tokens[t];
-                if (tok.kind == .EXPAND_WORD) {
-                    pending_expand = true;
-                    continue;
-                }
-                const wptr_abs: u32 = cmd.src_ptr + tok.start;
-                const word_obj: i32 = if (tok.braced)
-                    obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
-                else
-                    subst_word(wptr_abs, tok.len);
-
-                if (pending_expand) {
-                    pending_expand = false;
-                    // Expansion: split word_obj as a Tcl list and
-                    // insert each element as a separate argument.
-                    const s = obj_ensure_string(word_obj);
-                    const n = list_count_elements(s.ptr, s.len);
-                    var j: i64 = 0;
-                    while (j < n) : (j += 1) {
-                        if (ecount >= MAX_EXPANDED_WORDS) break;
-                        const elem = list_element_at(s.ptr, s.len, j);
-                        if (elem.braced) {
-                            expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
-                        } else {
-                            const buf = alloc(elem.len);
-                            const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-                            expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
-                        }
-                        ecount += 1;
-                    }
-                } else {
-                    if (ecount < MAX_EXPANDED_WORDS) {
-                        expanded[ecount] = word_obj;
-                        ecount += 1;
-                    }
-                }
-            }
-            result = eval_command(expanded[0..ecount]);
-        }
+        result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
         if (has_signal()) return result;
     }
     return result;
+}
+
+/// Replay pre-parsed command records from a parse-cache slab.
+/// Exits on the first command that raises a signal (break /
+/// continue / return / error) — same semantics as the cold path.
+fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
+    const parse_cache = @import("parse_cache.zig");
+    const diag = @import("tcl_diag.zig");
+    const n_cmds = parse_cache.slab_n_commands(slab);
+    var result: i32 = 0;
+    var i: u32 = 0;
+    while (i < n_cmds) : (i += 1) {
+        const rec = parse_cache.command_record(slab, i);
+        const tok_offset: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_TOKENS_OFFSET));
+        const tok_len: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_TOKENS_LEN));
+        const next_pos: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_NEXT_POS));
+        diag.current_eval_ptr = body_ptr;
+        diag.current_eval_len = body_len;
+        // The per-record ``next_pos`` captures the byte offset the
+        // cold path would have advanced to after this command;
+        // publishing it as ``current_eval_pos`` keeps trap
+        // diagnostics pointing at the right source span for
+        // errors triggered inside the dispatched command.
+        diag.current_eval_pos = if (i == 0) 0 else @bitCast(obj_mod.read_i32(parse_cache.command_record(slab, i - 1) + parse_cache.OFF_CR_NEXT_POS));
+        const tokens_ptr = parse_cache.token_at(slab, tok_offset);
+        result = execute_parsed_command(body_ptr, tokens_ptr, tok_len);
+        if (has_signal()) return result;
+        _ = next_pos;
+    }
+    return result;
+}
+
+/// Execute the dispatch + eval_command body for a single parsed
+/// command.  Factored out of ``eval_script`` so both the cold
+/// (parse-on-demand) and warm (cached) paths share identical
+/// command-execution semantics.  ``body_ptr`` is the base of the
+/// original script bytes; ``parse.Token.start`` values are offsets
+/// relative to it.
+fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
+    const tokens: [*]parse.Token = @ptrFromInt(tokens_ptr);
+    var has_expand = false;
+    {
+        var t: u32 = 0;
+        while (t < tokens_len) : (t += 1) {
+            if (tokens[t].kind == .EXPAND_WORD) {
+                has_expand = true;
+                break;
+            }
+        }
+    }
+
+    if (!has_expand) {
+        // Fast path: no expansion.
+        var word_objs: [MAX_WORDS]i32 = undefined;
+        var wi: u32 = 0;
+        var t: u32 = 0;
+        while (t < tokens_len) : (t += 1) {
+            const tok = tokens[t];
+            if (tok.kind == .EXPAND_WORD) continue;
+            const wptr_abs: u32 = body_ptr + tok.start;
+            if (tok.braced) {
+                word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
+            } else {
+                word_objs[wi] = subst_word(wptr_abs, tok.len);
+            }
+            wi += 1;
+        }
+        return eval_command(word_objs[0..wi]);
+    }
+
+    // Slow path: at least one {*} expansion.
+    var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
+    var ecount: u32 = 0;
+    var pending_expand = false;
+    var t: u32 = 0;
+    while (t < tokens_len) : (t += 1) {
+        const tok = tokens[t];
+        if (tok.kind == .EXPAND_WORD) {
+            pending_expand = true;
+            continue;
+        }
+        const wptr_abs: u32 = body_ptr + tok.start;
+        const word_obj: i32 = if (tok.braced)
+            obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
+        else
+            subst_word(wptr_abs, tok.len);
+
+        if (pending_expand) {
+            pending_expand = false;
+            const s = obj_ensure_string(word_obj);
+            const n = list_count_elements(s.ptr, s.len);
+            var j: i64 = 0;
+            while (j < n) : (j += 1) {
+                if (ecount >= MAX_EXPANDED_WORDS) break;
+                const elem = list_element_at(s.ptr, s.len, j);
+                if (elem.braced) {
+                    expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
+                } else {
+                    const buf = alloc(elem.len);
+                    const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
+                    expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
+                }
+                ecount += 1;
+            }
+        } else {
+            if (ecount < MAX_EXPANDED_WORDS) {
+                expanded[ecount] = word_obj;
+                ecount += 1;
+            }
+        }
+    }
+    return eval_command(expanded[0..ecount]);
 }
 
 // Exported: evaluate a Tcl script string.
