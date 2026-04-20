@@ -974,9 +974,10 @@ fn eval_command(words: []const i32) i32 {
     if (str_eq(cmd, cmd_s.len, "upvar")) return eval_upvar(words);
     if (str_eq(cmd, cmd_s.len, "uplevel")) return eval_uplevel(words);
     if (str_eq(cmd, cmd_s.len, "package") or
-        str_eq(cmd, cmd_s.len, "variable") or
-        str_eq(cmd, cmd_s.len, "rename"))
+        str_eq(cmd, cmd_s.len, "variable"))
     { return 0; }
+    if (str_eq(cmd, cmd_s.len, "rename")) return eval_rename(words);
+    if (str_eq(cmd, cmd_s.len, "interp")) return eval_interp(words);
     // ``namespace`` sub-command dispatch.  P4.1 adds ``export`` and
     // makes ``eval`` actually switch ``current_ns`` for the body so
     // ``namespace eval ::ctx { namespace export foo }`` records the
@@ -1158,6 +1159,7 @@ fn eval_command(words: []const i32) i32 {
 const str_eq = @import("tcl_chars.zig").str_eq;
 
 const tcl_ns = @import("tcl_ns.zig");
+const alias_mod = @import("tcl_alias.zig");
 
 // Namespace context for eval-fallback calls.  Storage lives in
 // ``tcl_ns.current_ns`` (moved there in P2.1 so ``tcl_procs.zig``
@@ -1455,6 +1457,86 @@ fn eval_foreach(words: []const i32) i32 {
 //   5. Absorb RETURN signal (convert to OK)
 // If not found, raise an error.
 
+/// Alias dispatch trampoline.  An ``interp alias`` redirect Command
+/// has ``CMD_ALIAS`` set in its flags and stores an
+/// :type:`tcl_alias.AliasRec` in ``params_obj``.  On dispatch we:
+///
+///   1. Build a new argv: ``[target_name, prefix_args..., words[1..]]``.
+///   2. Resolve the target command by name (the alias tracks
+///      rename / deletion of its target automatically because
+///      resolution is by-string, not by-pointer).
+///   3. Recurse through ``eval_proc_call_bucket`` — this preserves
+///      all the compiled-proc / host-bridge paths the target might
+///      take.
+///
+/// Error surface: missing target produces ``unknown command: <target>``
+/// at dispatch time, matching C Tcl's behaviour where an alias to a
+/// since-deleted command fails only when invoked, not at delete time.
+///
+/// Argv cap: ``tcl_parse.MAX_WORDS`` bounds the words array the
+/// interpreter is allowed to construct.  If the prefix + caller argv
+/// would exceed it, we error out rather than truncating.
+fn dispatch_alias(words: []const i32, bucket: i32) i32 {
+    const rec = alias_mod.alias_rec(@bitCast(bucket));
+    if (rec.target_name_len == 0) {
+        // Cleared / deleted alias.  Raise ``unknown command: <self>``
+        // matching the behaviour of calling an undefined command.
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.error_unknown_command(words[0]);
+        return 0;
+    }
+
+    // Total argv length = target name + prefix + (caller argv minus
+    // words[0]).  Guard against MAX_WORDS overflow; Tcl traps with
+    // "too many nested evaluations" but we get a cleaner signal by
+    // raising an explicit error here.
+    const caller_tail: u32 = if (words.len > 1) @as(u32, @intCast(words.len - 1)) else 0;
+    const total: u32 = 1 + rec.n_prefix + caller_tail;
+    if (total > parse.MAX_WORDS) {
+        const catch_mod = @import("tcl_catch.zig");
+        const msg = rt.obj_new_string_copy(
+            @intFromPtr("alias argv exceeds MAX_WORDS".ptr),
+            28,
+        );
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
+    var new_words: [parse.MAX_WORDS]i32 = undefined;
+    // Slot 0: the target command name as a fresh TclObj.
+    new_words[0] = rt.obj_new_string(
+        @bitCast(rec.target_name_ptr),
+        @bitCast(rec.target_name_len),
+    );
+    // Slots 1..1+n_prefix: the frozen prefix args.  The AliasRec
+    // stores u32 TclObj handles but the interpreter runs on i32
+    // handles; @bitCast is the reinterpretation we want.
+    var i: u32 = 0;
+    while (i < rec.n_prefix) : (i += 1) {
+        new_words[1 + i] = read_i32(rec.prefix_args_addr + i * 4);
+    }
+    // Slots 1+n_prefix..total: the caller's argv past the command
+    // name.
+    i = 0;
+    while (i < caller_tail) : (i += 1) {
+        new_words[1 + rec.n_prefix + i] = words[1 + i];
+    }
+
+    // Resolve the target.  Use the current-ns context so an alias
+    // whose target is unqualified (rare, but valid) falls through
+    // the normal resolution chain.  On miss we do NOT fall through
+    // to ``eval_proc_call``'s stub dispatch — alias targets are
+    // user-defined by construction; a missing target is a clear
+    // "unknown command" diagnostic.
+    const target_bucket = procs.proc_lookup(new_words[0]);
+    if (target_bucket == 0) {
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.error_unknown_command(new_words[0]);
+        return 0;
+    }
+    return eval_proc_call_bucket(new_words[0..total], target_bucket);
+}
+
 fn eval_proc_call(words: []const i32) i32 {
     const bucket = procs.proc_lookup(words[0]);
     if (bucket == 0) {
@@ -1485,6 +1567,17 @@ fn eval_proc_call(words: []const i32) i32 {
 /// Shared between ``eval_proc_call`` (legacy path) and the proc-first
 /// fast path in ``eval_command``.
 fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
+    // ``interp alias`` redirect Commands carry the CMD_ALIAS flag bit
+    // and an ``AliasRec`` in their params_obj slot.  Route them
+    // through the alias trampoline BEFORE the generic proc body
+    // path, which would otherwise mistake the AliasRec pointer for
+    // a params TclObj.  Unlike CMD_IMPORTED (which proc_lookup
+    // unwraps), aliases are visible to the dispatcher so the
+    // trampoline can prepend the frozen prefix args.
+    const cmd_flags: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_FLAGS));
+    if ((cmd_flags & procs.CMD_ALIAS) != 0) {
+        return dispatch_alias(words, bucket);
+    }
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
     // because pure WASM can't call across modules.  The bridge
@@ -1593,6 +1686,401 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         rt.tcl_cmd_error(words[0]);
     }
     return result;
+}
+
+// -- ``rename`` built-in -------------------------------------------------------
+//
+// ``rename oldName newName``.  ``newName == ""`` deletes ``oldName``.
+// Semantics live in ``tcl_rename.zig``; this wrapper parses argv,
+// resolves the ``(old_ns, old_simple)`` / ``(new_ns, new_simple)``
+// pairs via the qualified-name walker, and formats the user-visible
+// error messages.
+
+const rename_mod = @import("tcl_rename.zig");
+
+/// Build an error message like ``can't rename "foo": command doesn't
+/// exist`` and route it through the standard error trap.  The
+/// per-case templates come from ``tclsh 9.0`` verbatim so tcltest's
+/// error-string matchers behave identically.
+fn rename_error(template_prefix: []const u8, name_ptr: u32, name_len: u32, template_suffix: []const u8) void {
+    const total: u32 = @intCast(template_prefix.len + name_len + template_suffix.len);
+    const buf = alloc(total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (template_prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |k| dst[off + k] = src[k];
+        off += name_len;
+    }
+    for (template_suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_new_string(@bitCast(buf), @bitCast(off));
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
+
+fn eval_rename(words: []const i32) i32 {
+    if (words.len < 3) {
+        const catch_mod = @import("tcl_catch.zig");
+        const msg = rt.obj_new_string_copy(
+            @intFromPtr("wrong # args: should be \"rename oldName newName\"".ptr),
+            50,
+        );
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const old_s = obj_ensure_string(words[1]);
+    const new_s = obj_ensure_string(words[2]);
+
+    const cxt = tcl_ns.ns_current();
+    const old_r = tcl_ns.ns_resolve_qualified(cxt, old_s.ptr, old_s.len);
+    // Resolve old name: prefer the primary target, fall back to alt
+    // (search-from-root when the primary context misses).
+    var old_ns: u32 = 0;
+    if (old_r.target_ns != 0 and
+        tcl_ns.ns_cmd_find(old_r.target_ns, old_r.simple_ptr, old_r.simple_len) != 0)
+    {
+        old_ns = old_r.target_ns;
+    } else if (old_r.alt_ns != 0 and
+        tcl_ns.ns_cmd_find(old_r.alt_ns, old_r.simple_ptr, old_r.simple_len) != 0)
+    {
+        old_ns = old_r.alt_ns;
+    } else {
+        rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
+        return 0;
+    }
+
+    // Deletion form: new name is empty.
+    if (new_s.len == 0) {
+        const r = rename_mod.rename_command(
+            old_ns,
+            old_r.simple_ptr,
+            old_r.simple_len,
+            0,
+            0,
+            0,
+        );
+        switch (r) {
+            .ok => return 0,
+            .not_found => {
+                rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
+                return 0;
+            },
+            .builtin_protected => {
+                rename_error("can't rename \"", old_s.ptr, old_s.len, "\": built-in command");
+                return 0;
+            },
+            .target_exists => return 0, // unreachable on delete form
+        }
+    }
+
+    // Move form: resolve new name, materialising missing intermediate
+    // namespaces the way ``proc`` does for its registration path.
+    const new_r = tcl_ns.ns_resolve_qualified_creating(cxt, new_s.ptr, new_s.len);
+    if (new_r.target_ns == 0 or new_r.simple_len == 0) {
+        rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": invalid name");
+        return 0;
+    }
+    const r = rename_mod.rename_command(
+        old_ns,
+        old_r.simple_ptr,
+        old_r.simple_len,
+        new_r.target_ns,
+        new_r.simple_ptr,
+        new_r.simple_len,
+    );
+    switch (r) {
+        .ok => return 0,
+        .not_found => {
+            rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
+            return 0;
+        },
+        .target_exists => {
+            rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": command already exists");
+            return 0;
+        },
+        .builtin_protected => {
+            rename_error("can't rename \"", old_s.ptr, old_s.len, "\": built-in command");
+            return 0;
+        },
+    }
+}
+
+// -- ``interp`` built-in -------------------------------------------------------
+//
+// Currently only ``interp alias`` is implemented, in its
+// single-interp form: ``interp alias {} newName {} target ?arg …?``
+// creates / queries / deletes an alias in the (only) interpreter.
+// Child-interp aliases and the other ``interp`` sub-commands (eval,
+// hide, expose, create, delete, …) remain trapping stubs via
+// :mod:`tcl_env_stubs`.
+
+fn eval_interp(words: []const i32) i32 {
+    if (words.len < 2) {
+        const catch_mod = @import("tcl_catch.zig");
+        const msg = rt.obj_new_string_copy(
+            @intFromPtr("wrong # args: should be \"interp subcommand ?arg ...?\"".ptr),
+            55,
+        );
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const sub = obj_ensure_string(words[1]);
+    if (!str_eq(@ptrFromInt(sub.ptr), sub.len, "alias") and
+        !str_eq(@ptrFromInt(sub.ptr), sub.len, "aliases"))
+    {
+        // Fall back to the existing trapping stub for unsupported
+        // ``interp`` subcommands.
+        const stubs = @import("tcl_stubs.zig");
+        stubs.unsupported("interp");
+        return 0;
+    }
+
+    // ``interp aliases {}``: list every alias in the (only) interp.
+    // We traverse the namespace tree and collect every Command with
+    // CMD_ALIAS set, emitting its simple name.
+    if (str_eq(@ptrFromInt(sub.ptr), sub.len, "aliases")) {
+        return interp_aliases_list();
+    }
+
+    // ``interp alias {}`` → 4-arg query / delete / create shapes:
+    //
+    //   interp alias {} newName                    (query)
+    //   interp alias {} newName {}                 (delete)
+    //   interp alias {} newName {} target ?arg…?   (create)
+    //
+    // The ``{}`` placeholders are the target interp path.  With
+    // single-interp we only honour the empty-list form.  Any other
+    // value is silently treated as "this interp" — good enough for
+    // tcltest which always passes ``{}``.
+    if (words.len < 4) {
+        const catch_mod = @import("tcl_catch.zig");
+        const msg = rt.obj_new_string_copy(
+            @intFromPtr("wrong # args: should be \"interp alias path ?arg ...?\"".ptr),
+            55,
+        );
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    // words[2] = target interp path (we require empty or a single
+    // ``{}``).  words[3] = alias name in that interp.  words[4] (if
+    // present) = second interp path.  words[5+] = target + prefix.
+    const new_name = obj_ensure_string(words[3]);
+    if (words.len == 4) {
+        // Query form: ``interp alias {} newName``.
+        return interp_alias_query(new_name.ptr, new_name.len);
+    }
+    // words[4] = source interp path (must also be empty for us).
+    if (words.len == 5) {
+        const src_path = obj_ensure_string(words[4]);
+        if (src_path.len == 0) {
+            // ``interp alias {} newName {}``: delete form.
+            return interp_alias_delete(new_name.ptr, new_name.len);
+        }
+    }
+    // words[5+] = target cmd + prefix args.
+    if (words.len < 6) {
+        const catch_mod = @import("tcl_catch.zig");
+        const msg = rt.obj_new_string_copy(
+            @intFromPtr("wrong # args: should be \"interp alias path srcCmd path targetCmd ?arg ...?\"".ptr),
+            74,
+        );
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const target_name = obj_ensure_string(words[5]);
+    // Pack prefix args into a bump-allocated u32 array.
+    const n_prefix: u32 = @as(u32, @intCast(words.len)) - 6;
+    var prefix_buf: u32 = 0;
+    if (n_prefix > 0) {
+        prefix_buf = alloc(n_prefix * 4);
+        var i: u32 = 0;
+        while (i < n_prefix) : (i += 1) {
+            write_i32(prefix_buf + i * 4, words[6 + i]);
+        }
+    }
+    return interp_alias_create(
+        new_name.ptr,
+        new_name.len,
+        target_name.ptr,
+        target_name.len,
+        n_prefix,
+        prefix_buf,
+    );
+}
+
+fn interp_alias_create(
+    new_name_ptr: u32,
+    new_name_len: u32,
+    target_name_ptr: u32,
+    target_name_len: u32,
+    n_prefix: u32,
+    prefix_buf: u32,
+) i32 {
+    // Resolve the alias-home ns + simple name.  Creating missing
+    // intermediates keeps parity with ``proc`` defines via FQN.
+    const cxt = tcl_ns.ns_current();
+    const r = tcl_ns.ns_resolve_qualified_creating(cxt, new_name_ptr, new_name_len);
+    if (r.target_ns == 0 or r.simple_len == 0) return 0;
+
+    // If an alias / command already lives under this name, replace
+    // it.  This matches C Tcl where ``interp alias {} foo {} bar``
+    // overwrites any previous ``foo`` (proc, alias, or otherwise).
+    // The previous Command stays in linear memory — leaked per the
+    // bump-allocator contract.
+    const cmd = alias_mod.alias_alloc(
+        r.simple_ptr,
+        r.simple_len,
+        target_name_ptr,
+        target_name_len,
+        n_prefix,
+        prefix_buf,
+    );
+    _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, cmd);
+    // Bump the proc counter so ``proc_buf_nonzero`` fires for
+    // bundles whose only commands are aliases.
+    procs.proc_count_bump();
+    return words_obj_new_string_dup(new_name_ptr, new_name_len);
+}
+
+fn interp_alias_query(new_name_ptr: u32, new_name_len: u32) i32 {
+    const cxt = tcl_ns.ns_current();
+    const cmd = tcl_ns.ns_find_command(cxt, new_name_ptr, new_name_len);
+    if (!alias_mod.is_alias(cmd)) return 0;
+    return alias_mod.alias_describe(cmd);
+}
+
+fn interp_alias_delete(new_name_ptr: u32, new_name_len: u32) i32 {
+    const cxt = tcl_ns.ns_current();
+    const r = tcl_ns.ns_resolve_qualified(cxt, new_name_ptr, new_name_len);
+    const host_ns: u32 = if (r.target_ns != 0 and
+        tcl_ns.ns_cmd_find(r.target_ns, r.simple_ptr, r.simple_len) != 0)
+        r.target_ns
+    else if (r.alt_ns != 0)
+        r.alt_ns
+    else
+        return 0;
+    const cmd = tcl_ns.ns_cmd_find(host_ns, r.simple_ptr, r.simple_len);
+    if (alias_mod.is_alias(cmd)) {
+        alias_mod.alias_clear(cmd);
+    }
+    _ = tcl_ns.ns_cmd_clear(host_ns, r.simple_ptr, r.simple_len);
+    procs.lru_invalidate_all();
+    return 0;
+}
+
+/// Return a TclObj wrapping a fresh string copy of the given bytes.
+/// Tiny helper to avoid pulling in ``obj_new_string_copy``'s ABI
+/// naming at every callsite.
+fn words_obj_new_string_dup(ptr: u32, len: u32) i32 {
+    const buf = alloc(len);
+    if (len > 0) memcpy(buf, ptr, len);
+    return obj_new_string(@bitCast(buf), @bitCast(len));
+}
+
+/// ``interp aliases {}`` — list every registered alias.  Walks every
+/// namespace in the tree, visiting each one's ``cmd_table`` once and
+/// emitting commands flagged ``CMD_ALIAS``.  Output is a Tcl list of
+/// simple alias names (not FQNs) — matches ``tclsh``'s default.
+fn interp_aliases_list() i32 {
+    // Accumulator: sum string lengths (plus separators) to size the
+    // output buffer.  We walk the tree twice: once to size, once to
+    // fill.  Single-pass grown allocation would require a realloc
+    // path the bump allocator doesn't support.
+    const root = tcl_ns.ns_root();
+    var ctx: AliasListCtx = .{ .total = 0, .count = 0, .buf = 0, .off = 0 };
+    walk_ns_for_aliases(root, &ctx);
+    if (ctx.total == 0) return obj_new_string(0, 0);
+
+    ctx.buf = alloc(ctx.total);
+    ctx.off = 0;
+    ctx.count = 0;
+    // Second pass fills the buffer.  ``fill = true``.
+    walk_ns_for_aliases_fill(root, &ctx);
+    return obj_new_string(@bitCast(ctx.buf), @bitCast(ctx.off));
+}
+
+const AliasListCtx = struct {
+    total: u32,
+    count: u32,
+    buf: u32,
+    off: u32,
+};
+
+fn walk_ns_for_aliases(ns: u32, ctx: *AliasListCtx) void {
+    const n: *const tcl_ns.Namespace = @ptrFromInt(ns);
+    if (n.cmd_table.buf != 0) {
+        var i: u32 = 0;
+        const bucket_size: u32 = 16;
+        while (i < n.cmd_table.cap) : (i += 1) {
+            const bucket = n.cmd_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (cmd == 0) continue;
+            if (!alias_mod.is_alias(cmd)) continue;
+            // Reserve space: leading sep if not first, then the name.
+            if (ctx.count > 0) ctx.total += 1;
+            ctx.total += name_len;
+            ctx.count += 1;
+        }
+    }
+    if (n.child_table.buf != 0) {
+        var i: u32 = 0;
+        const bucket_size: u32 = 16;
+        while (i < n.child_table.cap) : (i += 1) {
+            const bucket = n.child_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const child: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (child != 0) walk_ns_for_aliases(child, ctx);
+        }
+    }
+}
+
+fn walk_ns_for_aliases_fill(ns: u32, ctx: *AliasListCtx) void {
+    const n: *const tcl_ns.Namespace = @ptrFromInt(ns);
+    if (n.cmd_table.buf != 0) {
+        var i: u32 = 0;
+        const bucket_size: u32 = 16;
+        while (i < n.cmd_table.cap) : (i += 1) {
+            const bucket = n.cmd_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (cmd == 0) continue;
+            if (!alias_mod.is_alias(cmd)) continue;
+            if (ctx.count > 0) {
+                const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+                d[0] = ' ';
+                ctx.off += 1;
+            }
+            const src: [*]const u8 = @ptrFromInt(name_ptr);
+            const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+            for (0..name_len) |k| d[k] = src[k];
+            ctx.off += name_len;
+            ctx.count += 1;
+        }
+    }
+    if (n.child_table.buf != 0) {
+        var i: u32 = 0;
+        const bucket_size: u32 = 16;
+        while (i < n.child_table.cap) : (i += 1) {
+            const bucket = n.child_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const child: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (child != 0) walk_ns_for_aliases_fill(child, ctx);
+        }
+    }
 }
 
 fn eval_string_cmd(words: []const i32) i32 {
