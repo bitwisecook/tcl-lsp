@@ -36,6 +36,7 @@ import {
   runtimeValidationAdapterLabel,
   RuntimeValidationAdapterMode,
 } from "./runtimeValidation";
+import { convertShowReferencesArgs, JsonLocation, JsonPosition } from "./showReferences";
 import {
   buildPackageScaffold,
   packageDirectoryName,
@@ -736,32 +737,14 @@ export async function activate(context: ExtensionContext) {
     // raw strings/plain objects. Convert here before delegating.
     commands.registerCommand(
       "tcl-lsp.showReferences",
-      async (
-        uriString: string,
-        position: { line: number; character: number },
-        locations: ReadonlyArray<{
-          uri: string;
-          range: {
-            start: { line: number; character: number };
-            end: { line: number; character: number };
-          };
-        }>,
-      ) => {
-        const uri = Uri.parse(uriString);
-        const pos = new vscode.Position(position.line, position.character);
-        const locs = locations.map(
-          (loc) =>
-            new vscode.Location(
-              Uri.parse(loc.uri),
-              new Range(
-                loc.range.start.line,
-                loc.range.start.character,
-                loc.range.end.line,
-                loc.range.end.character,
-              ),
-            ),
+      async (uriString: string, position: JsonPosition, locations: ReadonlyArray<JsonLocation>) => {
+        const args = convertShowReferencesArgs(uriString, position, locations);
+        await commands.executeCommand(
+          "editor.action.showReferences",
+          args.uri,
+          args.position,
+          args.locations,
         );
-        await commands.executeCommand("editor.action.showReferences", uri, pos, locs);
       },
     ),
   );
