@@ -4666,6 +4666,7 @@
     "mocha": {
       "diff": "^8.0.3",
       "serialize-javascript": "^7.0.5"
-    }
+    },
+    "lodash": "^4.18.1"
   }
 }
