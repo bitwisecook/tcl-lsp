@@ -229,6 +229,36 @@ def test_unimported_name_still_falls_back() -> None:
     assert "baz" in commands
 
 
+def test_dead_code_namespace_import_falls_back() -> None:
+    """Regression for `#189 <https://github.com/bitwisecook/tcl-lsp/issues/189>`_.
+
+    A ``namespace import`` buried inside ``if {0} { ... }`` must
+    NOT arm the compile-time dispatch shortcut, because the
+    corresponding ``namespace eval`` in the same dead block never
+    runs at runtime — the imported command isn't defined.
+    Compiling the bare call ``evil`` must leave a runtime fallback
+    site so the interpreter surfaces "unknown command: evil".
+    """
+    src = (
+        "if {0} {\n"
+        "    namespace eval ::other {\n"
+        "        namespace export evil\n"
+        "        proc evil {} { return bad }\n"
+        "    }\n"
+        "    namespace import ::other::evil\n"
+        "}\n"
+        "evil\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_dead.tcl")
+    summary = _summarise_diag(diag)
+    # ``evil`` must retain a runtime-fallback site.
+    commands = [c for c, _ in summary["top_fallback_commands"]]
+    assert "evil" in commands, (
+        "dead-code namespace import incorrectly globalised ``evil``: "
+        f"{summary['top_fallback_commands']}"
+    )
+
+
 def test_kind_bucketing_distinguishes_fallback_from_unsupported() -> None:
     """Kind histogram must separate fallback from unsupported sites.
 
