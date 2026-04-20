@@ -177,6 +177,12 @@ comptime {
     _ = &tcl_ns.tcl_ns_root;
     _ = &tcl_ns.tcl_ns_lookup;
     _ = &tcl_ns.tcl_ns_create;
+    // P1.4 — ns_resolve_qualified test scaffolding
+    _ = &tcl_ns.tcl_ns_resolve_qualified;
+    _ = &tcl_ns.tcl_ns_last_simple_ptr;
+    _ = &tcl_ns.tcl_ns_last_simple_len;
+    _ = &tcl_ns.tcl_ns_last_alt;
+    _ = &tcl_ns.tcl_test_alloc;
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
     _ = &tcl_io.tcl_cmd_puts_nonewline;

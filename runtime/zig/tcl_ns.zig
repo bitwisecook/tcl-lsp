@@ -275,6 +275,194 @@ pub fn ns_full_name(ns_addr: u32) struct { ptr: u32, len: u32 } {
     return .{ .ptr = buf, .len = total };
 }
 
+/// Result of a qualified-name resolution.  Matches the four
+/// out-arguments of C Tcl's ``TclGetNamespaceForQualName`` minus
+/// ``actualCxtPtrPtr`` (always derivable as ``cxt`` after the
+/// global-anchoring shortcut).
+///
+/// ``target_ns`` and ``alt_ns`` use 0 as "not present" rather than
+/// option types so the struct is plain ``extern``-friendly.  Same
+/// for ``simple_*`` — zero pointer with zero length means "qualified
+/// name was ``::`` alone" (or trailing ``::``), the resolution
+/// landed on a namespace itself.
+pub const QualifiedResult = extern struct {
+    target_ns: u32,
+    simple_ptr: u32,
+    simple_len: u32,
+    alt_ns: u32,
+};
+
+/// Resolve a (possibly qualified) name within a context namespace
+/// — the find-only variant.  Mirrors ``TclGetNamespaceForQualName``
+/// (``tclNamesp.c:2272``) without the create-on-miss flag.
+///
+/// Inputs are byte ranges into linear memory; the returned
+/// ``simple_ptr`` is a pointer **into the caller's input buffer**,
+/// not a heap copy.  Callers must keep ``name_ptr`` alive while
+/// they consume the result.
+///
+/// Behaviour summary (see ``docs/design/runtime/namespace-tree.md``
+/// §5.1):
+///
+/// * ``::``-prefixed names anchor at root; non-prefixed names anchor
+///   at ``cxt``.
+/// * The "alt" search path runs in parallel from root whenever the
+///   primary path doesn't already start there — same use as
+///   ``Tcl_FindCommand`` looking up a partially-qualified name in
+///   both the current ns and the global ns.
+/// * Missing intermediates set the corresponding handle to 0; the
+///   walk still continues so we always report the trailing simple
+///   name in ``simple_*``.
+/// * ``::`` alone (or empty input) returns root with empty
+///   ``simple_*`` and ``alt_ns == 0``.
+pub fn ns_resolve_qualified(cxt: u32, name_ptr: u32, name_len: u32) QualifiedResult {
+    var result: QualifiedResult = .{
+        .target_ns = 0,
+        .simple_ptr = 0,
+        .simple_len = 0,
+        .alt_ns = 0,
+    };
+
+    const root = ns_root();
+
+    // 1. Anchor.  ``::``-prefixed → root; else ``cxt`` (or root if
+    //    no context was given).
+    var ns: u32 = if (cxt != 0) cxt else root;
+    var i: u32 = 0;
+    if (name_len >= 2) {
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        if (src[0] == ':' and src[1] == ':') {
+            ns = root;
+            i = 2;
+            // Skip any further ``:`` (Tcl treats two-or-more
+            // adjacent colons as a single separator).
+            while (i < name_len and src[i] == ':') : (i += 1) {}
+        }
+    }
+
+    // 2. Set up the alternate "from root" path — only meaningful
+    //    when the primary path is NOT already root.
+    var alt: u32 = if (ns == root) 0 else root;
+
+    // 3. Trivial case: no remaining content → resolution landed on
+    //    ``ns`` itself with an empty simple name.
+    if (i >= name_len) {
+        result.target_ns = ns;
+        // alt stays 0 — this matches C's "altNsPtrPtr = NULL" for
+        // the ``::``-only special case (tclNamesp.c:2370-2375).
+        return result;
+    }
+
+    // 4. Walk components.  Each iteration consumes one
+    //    ``::``-delimited component; the last component (no
+    //    trailing ``::``) becomes the simple name.
+    const src: [*]const u8 = @ptrFromInt(name_ptr);
+    while (i < name_len) {
+        // Find component end: position of the next ``::`` or end of
+        // input.  We look for a single ``:`` byte first, then
+        // confirm a second follows; a lone ``:`` inside a name is
+        // legal in Tcl (rare — usually appears in ensembled cmd
+        // names) and should NOT be treated as a separator.
+        var end: u32 = i;
+        var has_sep = false;
+        while (end < name_len) : (end += 1) {
+            if (src[end] == ':' and end + 1 < name_len and src[end + 1] == ':') {
+                has_sep = true;
+                break;
+            }
+        }
+        const comp_len: u32 = end - i;
+
+        if (!has_sep) {
+            // Last component — the simple name.
+            result.target_ns = ns;
+            result.simple_ptr = name_ptr + i;
+            result.simple_len = comp_len;
+            result.alt_ns = alt;
+            return result;
+        }
+
+        // Intermediate — descend in primary and alt paths.  A 0
+        // handle on either side means we're already off-tree; a
+        // ``find`` miss flips the side to 0 too.
+        if (comp_len > 0) {
+            if (ns != 0) {
+                ns = child_lookup(ns, name_ptr + i, comp_len);
+            }
+            if (alt != 0) {
+                alt = child_lookup(alt, name_ptr + i, comp_len);
+            }
+        }
+
+        // Advance past the ``::`` separator and any extra colons.
+        i = end + 2;
+        while (i < name_len and src[i] == ':') : (i += 1) {}
+    }
+
+    // 5. Trailing ``::`` — name was ``::a::`` or similar.  ``ns``
+    //    is the namespace itself; simple name is empty.
+    result.target_ns = ns;
+    result.alt_ns = alt;
+    return result;
+}
+
+/// Lower-level child lookup: returns the child handle, or 0 if not
+/// present.  Splits out so ``ns_resolve_qualified`` doesn't have to
+/// recompute the hash for every step (which it doesn't anyway, but
+/// the dedicated inline keeps the hot path tidy).
+inline fn child_lookup(parent: u32, name_ptr: u32, name_len: u32) u32 {
+    const ns: *Namespace = @ptrFromInt(parent);
+    if (ns.child_table.buf == 0) return 0;
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (ns.child_table.find(name_ptr, name_len, hash)) |bucket| {
+        return @bitCast(read_i32(bucket + OFF_HANDLE));
+    }
+    return 0;
+}
+
+// -- Test scaffolding -------------------------------------------------------
+//
+// The QualifiedResult struct is awkward to surface across a WASM
+// FFI (multi-value returns aren't universally supported by hosts),
+// so the test path stashes the result into module-level globals
+// and exposes per-field accessors.  Production callers use the
+// Zig-native ``ns_resolve_qualified`` directly.
+
+var last_target_ns: u32 = 0;
+var last_simple_ptr: u32 = 0;
+var last_simple_len: u32 = 0;
+var last_alt_ns: u32 = 0;
+
+pub export fn tcl_ns_resolve_qualified(cxt: i32, name_ptr: i32, name_len: i32) i32 {
+    const r = ns_resolve_qualified(@bitCast(cxt), @bitCast(name_ptr), @bitCast(name_len));
+    last_target_ns = r.target_ns;
+    last_simple_ptr = r.simple_ptr;
+    last_simple_len = r.simple_len;
+    last_alt_ns = r.alt_ns;
+    return @bitCast(r.target_ns);
+}
+
+pub export fn tcl_ns_last_simple_ptr() i32 {
+    return @bitCast(last_simple_ptr);
+}
+
+pub export fn tcl_ns_last_simple_len() i32 {
+    return @bitCast(last_simple_len);
+}
+
+pub export fn tcl_ns_last_alt() i32 {
+    return @bitCast(last_alt_ns);
+}
+
+/// Test-only: allocate ``len`` bytes via the bump allocator and
+/// return the address.  Python tests use this to stage name bytes
+/// into linear memory before calling resolution helpers.  Not
+/// emitted by the compiler — would otherwise be a subtle DOS
+/// vector if user code could call it directly.
+pub export fn tcl_test_alloc(len: i32) i32 {
+    return @bitCast(alloc(@bitCast(len)));
+}
+
 // -- WASM-exported wrappers -------------------------------------------------
 //
 // These give the Python-side runtime a stable ABI (i32 in / i32 out)
