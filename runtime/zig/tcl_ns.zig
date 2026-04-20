@@ -600,6 +600,118 @@ inline fn child_lookup(parent: u32, name_ptr: u32, name_len: u32) u32 {
     return 0;
 }
 
+// -- Variables (P3.x) -------------------------------------------------------
+
+/// Mirror of C Tcl 9's ``Var`` (``tclInt.h:637``), trimmed to the
+/// shapes our runtime needs.  See
+/// ``docs/design/runtime/namespace-tree.md`` §3 for the full field
+/// mapping and §4 for the deferred trace / hash-bookkeeping bits.
+///
+/// Tagged by ``flags``:
+///
+/// * default (no ``VAR_ARRAY`` / ``VAR_LINK``): scalar — ``value`` is
+///   a TclObj handle.  Uninitialised vars start with ``value == 0``.
+/// * ``VAR_ARRAY``: ``value`` is the address of an
+///   ``ArrayVarTable`` (``hash_table.Table(16)`` keyed by element
+///   name, value = ``*Var``).  P3+ wires this; not used in P3.1.
+/// * ``VAR_LINK``: ``value`` is the absolute address of another
+///   ``Var`` to redirect through.  Created by ``upvar`` / ``global``
+///   / ``variable`` (P3.3).  Always followed via
+///   ``var_resolve_link`` to reach the terminal storage.
+pub const Var = extern struct {
+    flags: u32,
+    value: u32,
+};
+
+const VAR_SIZE: u32 = @sizeOf(Var);
+
+pub const VAR_ARRAY: u32 = 0x1;
+pub const VAR_LINK: u32 = 0x2;
+pub const VAR_IN_HASHTABLE: u32 = 0x4;
+pub const VAR_NAMESPACE_VAR: u32 = 0x80;
+pub const VAR_ARRAY_ELEMENT: u32 = 0x1000;
+pub const VAR_CONSTANT: u32 = 0x10000;
+
+/// Find a variable in ``ns.var_table`` by simple name.  Returns the
+/// stored ``*Var`` (as a u32 handle) or 0 if absent.  Does not
+/// follow ``VAR_LINK`` — callers that want the terminal storage
+/// chain through ``var_resolve_link``.
+pub fn ns_var_find(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    if (ns.var_table.buf == 0) return 0;
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (ns.var_table.find(name_ptr, name_len, hash)) |bucket| {
+        return @bitCast(read_i32(bucket + OFF_HANDLE));
+    }
+    return 0;
+}
+
+/// Find-or-create.  When the entry is missing, allocates a fresh
+/// scalar ``Var`` (flags = ``VAR_IN_HASHTABLE | VAR_NAMESPACE_VAR``,
+/// value = 0) and inserts it under ``name``.  Returns the ``*Var``
+/// handle either way.  Bump-allocator backed; callers never free.
+pub fn ns_var_create(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
+    const existing = ns_var_find(ns_addr, name_ptr, name_len);
+    if (existing != 0) return existing;
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    ns.var_table.init(NS_INITIAL_CAP);
+    if (ns.var_table.needs_grow()) ns.var_table.grow();
+    const hash = ht.fnv1a(name_ptr, name_len);
+    const bucket = ns.var_table.insert_header(name_ptr, name_len, hash);
+
+    const var_addr = alloc(VAR_SIZE);
+    const v: *Var = @ptrFromInt(var_addr);
+    v.flags = VAR_IN_HASHTABLE | VAR_NAMESPACE_VAR;
+    v.value = 0;
+    write_i32(bucket + OFF_HANDLE, @bitCast(var_addr));
+    return var_addr;
+}
+
+/// Follow a chain of ``VAR_LINK`` redirects to reach the terminal
+/// ``*Var`` whose ``value`` slot actually holds the storage.  Loops
+/// are pathological (the only way to create one is through Tcl-level
+/// ``upvar`` cycles, which Tcl's variable layer also doesn't really
+/// guard against beyond depth-limit traps); we cap at 64 hops which
+/// is well above any sane variable-aliasing depth.
+pub fn var_resolve_link(v_addr: u32) u32 {
+    var cur = v_addr;
+    var hops: u32 = 0;
+    while (hops < 64) : (hops += 1) {
+        if (cur == 0) return 0;
+        const v: *const Var = @ptrFromInt(cur);
+        if ((v.flags & VAR_LINK) == 0) return cur;
+        cur = v.value;
+    }
+    return cur;
+}
+
+/// Read the scalar value (TclObj handle) from a Var, following
+/// ``VAR_LINK`` redirects.  Returns 0 for an uninitialised /
+/// missing Var or one that's currently shaped as an array (P3+
+/// callers handle arrays separately).
+pub fn var_get_scalar(v_addr: u32) u32 {
+    const t = var_resolve_link(v_addr);
+    if (t == 0) return 0;
+    const v: *const Var = @ptrFromInt(t);
+    if ((v.flags & VAR_ARRAY) != 0) return 0;
+    return v.value;
+}
+
+/// Write a scalar value (TclObj handle) into a Var, following
+/// ``VAR_LINK`` redirects.  Caller must already own the TclObj
+/// reference; we never retain.
+pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
+    const t = var_resolve_link(v_addr);
+    if (t == 0) return;
+    const v: *Var = @ptrFromInt(t);
+    // Clear the array bit if it was somehow set — this isn't a
+    // C-level "type promote", it's "treat this as a scalar slot
+    // now".  Real callers won't flip a real array into a scalar;
+    // this is just for the simple-globals replacement in P3.2.
+    v.flags &= ~VAR_ARRAY;
+    v.value = obj_handle;
+}
+
 // -- Test scaffolding -------------------------------------------------------
 //
 // The QualifiedResult struct is awkward to surface across a WASM
