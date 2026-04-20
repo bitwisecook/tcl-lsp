@@ -1075,6 +1075,27 @@ fn eval_command(words: []const i32) i32 {
                     }
                     return 0;
                 }
+                // ``namespace forget pat …`` — deactivate matching
+                // redirects in the current ns.  Patterns are
+                // ``string match`` globs against the simple name in
+                // the importing ns (matches Tcl's behaviour for the
+                // common single-component form; ``::src::pat``
+                // qualified forms are treated the same as ``pat``
+                // for now since our forget walks only ``current_ns``).
+                if (sp6[0] == 'f' and sp6[1] == 'o' and sp6[2] == 'r' and sp6[3] == 'g' and sp6[4] == 'e' and sp6[5] == 't') {
+                    var fi: u32 = 2;
+                    var any_forgotten: u32 = 0;
+                    while (fi < words.len) : (fi += 1) {
+                        const fs = obj_ensure_string(words[fi]);
+                        any_forgotten += tcl_ns.ns_forget(tcl_ns.ns_current(), fs.ptr, fs.len);
+                    }
+                    // Invalidate the proc-lookup LRU — cached
+                    // entries might point at sources whose redirect
+                    // has just been deactivated, and the cache key
+                    // doesn't track that.
+                    if (any_forgotten > 0) procs.lru_invalidate_all();
+                    return 0;
+                }
             }
         }
         return 0;
