@@ -92,3 +92,92 @@ class TestFoldingRanges:
         ranges = get_folding_ranges(source)
         region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
         assert len(region_ranges) >= 1
+
+    def test_if_else_bodies_are_disjoint(self):
+        """Regression for #182: `} else {` must not put body1 and body2 on the same line."""
+        source = textwrap.dedent("""\
+            if {1} {
+                puts "yes"
+                puts "really"
+            } else {
+                puts "no"
+                puts "nope"
+            }
+        """)
+        ranges = get_folding_ranges(source)
+        region_ranges = sorted(
+            (r for r in ranges if r.kind == types.FoldingRangeKind.Region),
+            key=lambda r: (r.start_line, r.end_line),
+        )
+        # Expect two sibling folds, one per branch, with no shared line.
+        body_ranges = [r for r in region_ranges if r.start_line in (0, 3)]
+        assert len(body_ranges) == 2
+        first, second = body_ranges
+        assert first.end_line < second.start_line, (
+            f"body1 fold {first.start_line}..{first.end_line} overlaps "
+            f"body2 fold {second.start_line}..{second.end_line}"
+        )
+
+    def test_nested_if_else_no_overlapping_siblings(self):
+        """Deeply nested if/else with ``} else {`` on the same line stays well-formed."""
+        source = textwrap.dedent("""\
+            proc demo {x} {
+                if {$x} {
+                    if {$x > 1} {
+                        puts "big"
+                        puts "really big"
+                    } else {
+                        puts "small"
+                        puts "really small"
+                    }
+                } else {
+                    puts "zero"
+                    puts "none"
+                }
+            }
+        """)
+        ranges = get_folding_ranges(source)
+
+        def contains(outer, inner):
+            return (
+                outer.start_line <= inner.start_line and inner.end_line <= outer.end_line
+            )
+
+        for i, a in enumerate(ranges):
+            for b in ranges[i + 1 :]:
+                if a.start_line == b.start_line and a.end_line == b.end_line:
+                    continue
+                if contains(a, b) or contains(b, a):
+                    continue
+                overlaps = a.end_line >= b.start_line and a.start_line <= b.end_line
+                assert not overlaps, (
+                    f"non-nested overlap between {a.start_line}..{a.end_line} "
+                    f"and {b.start_line}..{b.end_line}"
+                )
+
+    def test_if_else_proc_body_close_brace_visible(self):
+        """Proc fold end should leave the outer closing ``}`` line visible."""
+        source = textwrap.dedent("""\
+            proc demo {} {
+                if {1} {
+                    puts "yes"
+                } else {
+                    puts "no"
+                }
+            }
+        """)
+        ranges = get_folding_ranges(source)
+        proc_folds = [
+            r
+            for r in ranges
+            if r.kind == types.FoldingRangeKind.Region and r.start_line == 0
+        ]
+        assert proc_folds
+        # The source has 8 lines; the final ``}`` sits on line 6.
+        # Fold end must be <= 5 so that line 6 stays visible when folded.
+        lines = source.split("\n")
+        close_idx = next(i for i, line in enumerate(lines) if line == "}")
+        for r in proc_folds:
+            assert r.end_line < close_idx, (
+                f"proc fold end {r.end_line} hides closing brace on line {close_idx}"
+            )
