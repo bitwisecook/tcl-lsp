@@ -1168,6 +1168,73 @@ class _Lowerer:
             return not body_has_dynamic_barrier(literal, None)
         return False
 
+    def _eval_subst_nocommands_body(self, cmd_text: str) -> str | None:
+        """If *cmd_text* is ``subst -nocommands {template}`` (or the
+        equivalent ``-nobackslashes -nocommands {template}`` /
+        ``-nocommands -nobackslashes {template}`` shapes) AND every
+        ``\\$var`` inside *template* is in the current const-map,
+        return the substituted string; otherwise ``None`` (so the
+        caller keeps the runtime-dispatch path).
+
+        Used by the ``proc`` case in :meth:`_lower_command` to
+        materialise the tcltest-style ``Option`` factory body at
+        compile time when the surrounding proc has all the template
+        vars const-tracked.
+        """
+        try:
+            inner = segment_commands(cmd_text, None)
+        except TclParseError:
+            return None
+        if len(inner) != 1:
+            return None
+        inner_cmd = inner[0]
+        if not inner_cmd.texts or inner_cmd.texts[0] != "subst":
+            return None
+        # Walk the args looking for ``-nocommands`` and (optionally)
+        # ``-nobackslashes`` / ``-novariables`` flags.  ``-novariables``
+        # would defeat the whole point; refuse on that one.  The
+        # template must be the final positional argument.
+        saw_nocommands = False
+        template_text: str | None = None
+        template_tok = None
+        for i, tok in enumerate(inner_cmd.argv[1:], start=1):
+            text = inner_cmd.texts[i]
+            if text == "-nocommands":
+                saw_nocommands = True
+                continue
+            if text == "-nobackslashes":
+                # Our evaluator always processes backslashes (Tcl's
+                # default).  If the source explicitly disables them,
+                # the semantics differ — refuse.
+                return None
+            if text == "-novariables":
+                return None
+            if text.startswith("-"):
+                return None  # unknown flag; don't risk it
+            # First positional — the template.  Must be a single
+            # braced STR token so the template bytes are known
+            # literally (no nested substitutions).
+            if not inner_cmd.single_token_word[i]:
+                return None
+            if tok.type is not TokenType.STR:
+                return None
+            if template_text is not None:
+                return None  # more than one positional
+            template_text = text
+            template_tok = tok
+        if not saw_nocommands or template_text is None or template_tok is None:
+            return None
+        # Build a fresh const-map view for the evaluator.  The
+        # const-map stack's top frame holds the proc-local names
+        # we've tracked so far.  Pass a copy so the evaluator
+        # can't accidentally mutate lowering state.
+        if self._proc_depth <= 0 or not self._const_map_stack:
+            return None
+        from ..parsing.subst_nocommands import subst_nocommands
+
+        const_map = dict(self._const_map_stack[-1])
+        return subst_nocommands(template_text, const_map)
+
     @staticmethod
     def _eval_list_literal_body(cmd_text: str) -> str | None:
         """If *cmd_text* is ``list lit1 lit2 ...`` with all-literal
@@ -1532,9 +1599,30 @@ class _Lowerer:
                     params = ()
                 qualified = _qualify_proc_name(namespace, proc_name)
                 body_tok = arg_tokens[2]
+                # P7.3: if the body is a ``[subst -nocommands
+                # {template}]`` command sub and every ``$var``
+                # inside the template is in the const-map, evaluate
+                # the subst at compile time and lower the resulting
+                # string as a normal script.  Catches the tcltest
+                # ``Option`` factory shape where the accessor body
+                # is built from a template plus const-known option
+                # name / default / description.
+                materialised_body: str | None = None
+                if body_tok.type is TokenType.CMD:
+                    materialised_body = self._eval_subst_nocommands_body(body_tok.text)
                 self._proc_depth += 1
                 try:
-                    body = self._lower_body_arg(args[2], body_tok, namespace=namespace)
+                    if materialised_body is not None:
+                        # Lower the substituted string as a fresh
+                        # script — ``_lower_body_arg`` short-circuits
+                        # to an empty IRScript when given a ``None``
+                        # token, so we bypass it and call
+                        # ``_lower_script`` directly.
+                        body = self._lower_script(
+                            materialised_body, namespace=namespace, body_token=None
+                        )
+                    else:
+                        body = self._lower_body_arg(args[2], body_tok, namespace=namespace)
                 finally:
                     self._proc_depth -= 1
                 # Register the IR proc for compilation (bytecode

@@ -488,6 +488,80 @@ class TestProcDynamicNameConstMap:
         assert "::First" not in mod.procedures
 
 
+class TestProcDynamicBodySubstNocommands:
+    """P7.3 — ``proc $var [subst -nocommands {template}]`` materialises
+    the template at compile time when every template ``$var`` is
+    const-tracked in the enclosing proc.  This is the full tcltest
+    ``Option`` factory shape."""
+
+    def test_subst_nocommands_body_materialises_with_const_vars(self):
+        # ``Factory`` has two const-tracked locals (``name``,
+        # ``default``); ``proc`` uses both in the name AND in the
+        # body-template.  Both substitutions happen at compile time,
+        # producing a real ``::Verbose`` IRProcedure whose body
+        # references the materialised literal.
+        source = textwrap.dedent("""\
+            proc Factory {} {
+                set name {Verbose}
+                set default {0}
+                proc $name {x} [subst -nocommands {return $default}]
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert "::Verbose" in mod.procedures
+        verbose = mod.procedures["::Verbose"]
+        # The body should now contain a ``return 0`` (the template's
+        # ``$default`` was substituted to ``0``).
+        from core.compiler.ir import IRReturn
+
+        body_stmts = verbose.body.statements
+        assert any(isinstance(s, IRReturn) for s in body_stmts)
+
+    def test_subst_nocommands_body_refuses_missing_var(self):
+        # Template has ``$unbound`` which isn't in the const-map.
+        # The lowering should refuse the materialisation and fall
+        # through to the normal path — which in turn bails since
+        # the body is a command sub, not a braced literal.
+        source = textwrap.dedent("""\
+            proc Factory {} {
+                set name {Verbose}
+                proc $name {x} [subst -nocommands {return $unbound}]
+            }
+        """)
+        mod = lower_to_ir(source)
+        # ``::Verbose`` should NOT appear as a compiled IRProcedure
+        # because the body couldn't be materialised.  (The outer
+        # ``proc $name ...`` might still register the proc, but the
+        # body is unresolved — depends on the downstream lowering
+        # behaviour for unresolvable CMD bodies.)
+        if "::Verbose" in mod.procedures:
+            verbose = mod.procedures["::Verbose"]
+            # If we did register something, the body shouldn't be a
+            # materialised IRReturn — the template stayed dynamic.
+            from core.compiler.ir import IRReturn
+
+            assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
+
+    def test_subst_nocommands_body_refuses_nobackslashes_flag(self):
+        # ``-nobackslashes`` changes semantics (no backslash
+        # processing).  Our evaluator always decodes backslashes
+        # (matching Tcl's default), so we refuse materialisation
+        # when the source opts out.
+        source = textwrap.dedent("""\
+            proc Factory {} {
+                set name {Verbose}
+                set default {0}
+                proc $name {x} [subst -nobackslashes -nocommands {return $default}]
+            }
+        """)
+        mod = lower_to_ir(source)
+        if "::Verbose" in mod.procedures:
+            from core.compiler.ir import IRReturn
+
+            verbose = mod.procedures["::Verbose"]
+            assert not any(isinstance(s, IRReturn) for s in verbose.body.statements)
+
+
 class TestNamespaceArrayScalarVariableForms:
     """Variable form edge cases: namespaced + array/scalar distinctions."""
 
