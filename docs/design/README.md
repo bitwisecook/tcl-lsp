@@ -58,6 +58,11 @@ ownership matrices.
   command/variable/path tables) modelled on Tcl 9's `Namespace`
   struct, with per-phase migration plan from the FQN-string
   fallbacks currently in `tcl_procs.zig` / `tcl_globals.zig`.
+- [runtime/rename-alias.md](runtime/rename-alias.md) — layout + flow
+  for `rename` and single-interp `interp alias`, layered on top of the
+  namespace tree.  Covers `CMD_ALIAS` flag, `AliasRec`, dispatch
+  trampoline, and the compiled-proc name-slot preservation
+  caveat.
 
 ## Contracts and interfaces
 

@@ -36,7 +36,7 @@ pub const OBJ_SIZE: u32 = 24;
 var heap_ptr: u32 = 65536;
 var free_list: u32 = 0;
 
-pub fn alloc(size: u32) callconv(.C) u32 {
+pub fn alloc(size: u32) callconv(.c) u32 {
     const aligned = (size + 7) & ~@as(u32, 7);
     if (aligned == OBJ_SIZE and free_list != 0) {
         const ptr = free_list;
