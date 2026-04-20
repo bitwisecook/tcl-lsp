@@ -2218,3 +2218,111 @@ proc square {n} {
             r = func(store, boxed)
             pairs.append((n, 0 if r == 0 else obj_get_int(store, r)))
         assert pairs == [(2, 4), (3, 9), (4, 16), (5, 25), (6, 36), (7, 49)]
+
+
+class TestRenameAndAlias:
+    """End-to-end rename / interp alias behaviour.
+
+    The compiler leaves ``rename`` / ``interp`` as runtime calls (they
+    aren't specialisable at compile time — the command / target only
+    resolve when the source runs), so these tests exercise the full
+    top-level eval path through the interpreter fallback.  The state
+    we inspect lives in globals so we can pull it out via the runtime's
+    ``global_get`` helper.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_rename_basic(self):
+        """``rename foo bar`` moves the proc; calling the new name
+        runs the proc body, calling the old name raises an error."""
+        result = self._run_and_read_global(
+            """\
+proc orig {} { set ::result ran-orig }
+rename orig renamed
+renamed
+""",
+            "::result",
+        )
+        assert result == b"ran-orig"
+
+    def test_rename_to_empty_deletes(self):
+        """``rename foo {}`` removes ``foo`` — calling it afterwards
+        is an error.  We stamp a ``deleted`` marker first so the test
+        asserts on proc execution order rather than relying on error
+        propagation."""
+        result = self._run_and_read_global(
+            """\
+proc once {} { set ::result hit }
+once
+rename once {}
+set ::marker stopped
+""",
+            "::marker",
+        )
+        assert result == b"stopped"
+
+    def test_interp_alias_basic(self):
+        """``interp alias {} greet {} say_hello`` — calling ``greet``
+        dispatches to ``say_hello``."""
+        result = self._run_and_read_global(
+            """\
+proc say_hello {name} { set ::result hello-$name }
+interp alias {} greet {} say_hello
+greet world
+""",
+            "::result",
+        )
+        assert result == b"hello-world"
+
+    def test_interp_alias_with_prefix(self):
+        """``interp alias {} g {} say header`` — each dispatch of
+        ``g tail`` runs as ``say header tail``."""
+        result = self._run_and_read_global(
+            """\
+proc say {first second} { set ::result $first/$second }
+interp alias {} g {} say top
+g bottom
+""",
+            "::result",
+        )
+        assert result == b"top/bottom"
+
+
+def _read_global_string(
+    rt_instance: wasmtime.Instance,
+    store: wasmtime.Store,
+    name: str,
+) -> bytes:
+    """Read a global variable as a UTF-8 byte string.  Stages the
+    name into linear memory, routes through ``global_get``, then
+    walks the TclObj's ``str_ptr`` / ``str_len`` slots."""
+    exports = rt_instance.exports(store)
+    memory: wasmtime.Memory = exports["memory"]
+    test_alloc = exports["tcl_test_alloc"]
+    obj_new_string = exports["obj_new_string"]
+    global_get = exports["global_get"]
+
+    encoded = name.encode("utf-8")
+    addr = test_alloc(store, len(encoded))
+    memory.write(store, encoded, addr)
+    name_obj = obj_new_string(store, addr, len(encoded))
+    val_obj = global_get(store, name_obj)
+    if val_obj == 0:
+        return b""
+    # TclObj layout: ptr at offset 16, len at offset 20
+    # (matches OBJ_STR_PTR / OBJ_STR_LEN in tcl_obj.zig).
+    str_ptr = int.from_bytes(memory.read(store, val_obj + 16, val_obj + 20), "little", signed=True)
+    str_len = int.from_bytes(memory.read(store, val_obj + 20, val_obj + 24), "little", signed=True)
+    if str_len == 0:
+        return b""
+    return bytes(memory.read(store, str_ptr, str_ptr + str_len))
