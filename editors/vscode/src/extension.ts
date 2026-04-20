@@ -36,6 +36,7 @@ import {
   runtimeValidationAdapterLabel,
   RuntimeValidationAdapterMode,
 } from "./runtimeValidation";
+import { convertShowReferencesArgs, JsonLocation, JsonPosition } from "./showReferences";
 import {
   buildPackageScaffold,
   packageDirectoryName,
@@ -729,6 +730,23 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.copyFileAsBase64", copyFileAsBase64),
     commands.registerCommand("tclLsp.copyFileAsGzipBase64", copyFileAsGzipBase64),
     commands.registerCommand("tclLsp.translateXc", translateXc),
+    // Wrapper for the built-in editor.action.showReferences: the LSP server
+    // emits this command on its code lenses with URI/Position/Location args
+    // serialised as JSON primitives, but the built-in command validates its
+    // arguments against vscode.Uri/Position/Array constraints and rejects
+    // raw strings/plain objects. Convert here before delegating.
+    commands.registerCommand(
+      "tcl-lsp.showReferences",
+      async (uriString: string, position: JsonPosition, locations: ReadonlyArray<JsonLocation>) => {
+        const args = convertShowReferencesArgs(uriString, position, locations);
+        await commands.executeCommand(
+          "editor.action.showReferences",
+          args.uri,
+          args.position,
+          args.locations,
+        );
+      },
+    ),
   );
 
   context.subscriptions.push(
