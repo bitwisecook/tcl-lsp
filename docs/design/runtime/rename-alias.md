@@ -17,8 +17,11 @@ In:
 - ``interp alias`` — create / query / delete, with frozen prefix
   args.  Single-interp: target interp path is always ``{}``.
 - Alias dispatch trampoline wired into the proc-first fast path so
-  aliases are transparent to callers and track target renames
-  automatically.
+  aliases are transparent to callers.  Resolution is by *stored
+  target name* on each dispatch, anchored at the global namespace
+  — this lazily observes deletion of the target but does NOT
+  follow ``rename`` of the target (the stored name stops
+  resolving).  Matches C Tcl's semantics.
 
 Out (deferred):
 
@@ -139,9 +142,13 @@ has ``CMD_ALIAS`` set.  The trampoline:
 1. Synthesises a new argv ``[target_name, *prefix_args, *caller_tail]``.
 2. Caps total length at ``parse.MAX_WORDS`` — overlong argv
    triggers an explicit error rather than truncation.
-3. Resolves the target by *name* each call via ``proc_lookup`` —
-   this is what lets aliases track rename / delete of their target
-   automatically (matching C Tcl's by-name resolution).
+3. Resolves the stored target name on each dispatch, anchored at
+   the global namespace (``TCL_EVAL_INVOKE``-style).  By-string
+   resolution observes *deletion* of the target lazily (next
+   dispatch after ``rename target {}`` raises "unknown command:
+   <target>"), but it does NOT track ``rename`` of the target —
+   the stored name stops resolving once the Command has moved to
+   its new cmd_table key.  Matches C Tcl semantics.
 4. Recurses through ``eval_proc_call_bucket`` with the resolved
    target bucket, so compiled-proc / host-bridge / interpreted-body
    paths all work uniformly.

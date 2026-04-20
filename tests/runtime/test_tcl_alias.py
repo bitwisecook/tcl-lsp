@@ -167,12 +167,11 @@ def test_alias_no_prefix_dispatches(runtime: RuntimeHandle):
     runtime.eval_script("a hello")
     # Read the global ::result that orig wrote.
     result_obj = runtime.new_string("::result")
-    # Use global_get to fetch the value
+    # Use global_get to fetch the value; unwrap via ``_obj_str``
+    # which reads ``OBJ_STR_PTR`` (offset 16) / ``OBJ_STR_LEN``
+    # (offset 20) — see ``tcl_obj.zig`` for the TclObj layout.
     global_get = runtime.instance.exports(runtime.store)["global_get"]
     val_obj = global_get(runtime.store, result_obj)
-    # Convert TclObj to string via obj_get_str / ensure_string.
-    # Use raw memory read through the Obj's str_ptr/str_len.
-    # (TYPE_STRING=0, OBJ_STR_PTR offset=4, OBJ_STR_LEN offset=8.)
     ptr, length = _obj_str(runtime, val_obj)
     assert runtime.read(ptr, length) == b"hello"
 
@@ -198,9 +197,14 @@ def test_alias_prefix_prepended(runtime: RuntimeHandle):
 # -- A4: alias + rename interaction -----------------------------------------
 
 
-def test_alias_follows_target_rename(runtime: RuntimeHandle):
-    """Aliases resolve their target by *name* each call — renaming
-    the target's command keeps the alias pointing at it."""
+def test_alias_rename_of_target_breaks_lookup(runtime: RuntimeHandle):
+    """Aliases resolve their stored target name on each call.  Because
+    resolution is by *string*, renaming the target command makes the
+    stored name stop resolving — the alias does NOT automatically
+    follow the rename.  If the target is later recreated at the
+    original name, the alias starts working again; otherwise calls
+    through the alias raise ``unknown command: <target>``.
+    """
     runtime.register_proc("::orig", "x", "set ::result called:$x")
     root = runtime.root()
     runtime.create_alias(root, "a", "::orig")
@@ -213,10 +217,9 @@ def test_alias_follows_target_rename(runtime: RuntimeHandle):
         *runtime.stage("renamed"),
     )
     assert r == 0  # RenameResult.ok
-    # Alias still points at the string "::orig" — the target is gone,
-    # so dispatch should surface an unknown-command error.  We can't
-    # catch traps cleanly here, so assert the alias still exists but
-    # the target doesn't.
+    # Alias redirect is still in the cmd_table; the target name
+    # it stores ("::orig") no longer resolves because the Command
+    # moved to the cmd_table bucket keyed on "renamed".
     assert runtime.exists("::a")
     assert not runtime.exists("::orig")
     assert runtime.exists("::renamed")
