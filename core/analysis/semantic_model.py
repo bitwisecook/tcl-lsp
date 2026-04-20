@@ -489,6 +489,31 @@ class AnalysisResult:
             unknown_proc_info=self.unknown_proc_info,
         )
 
+    def for_index(self) -> AnalysisResult:
+        """Return a lightweight copy retaining only fields cross-file readers touch.
+
+        The workspace index and its callers read seven fields on non-OPEN
+        entries: ``all_procs`` / ``all_classes`` (symbol index),
+        ``global_scope`` (``find_var_in_scope``), ``command_invocations``
+        (usage counts), ``package_requires`` (workspace Tcl-version
+        upgrade and ``active_package_names``), ``command_aliases``
+        (workspace diagnostics context), and ``source_targets`` (rename
+        of a sourced file). Every other field is only consumed on
+        currently-open documents, so stripping them before storing keeps
+        thousands of scanned files from pinning diagnostics, regex
+        patterns, stub definitions, suppressed-line sets, and similar
+        per-file state.
+        """
+        return AnalysisResult(
+            global_scope=self.global_scope,
+            all_procs=self.all_procs,
+            all_classes=self.all_classes,
+            command_invocations=self.command_invocations,
+            package_requires=self.package_requires,
+            command_aliases=self.command_aliases,
+            source_targets=self.source_targets,
+        )
+
     def _ensure_bare_name_index(self) -> dict[str, ProcDef]:
         """Build or return the bare-name → ProcDef index.
 
