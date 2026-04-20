@@ -1,8 +1,10 @@
 """Background workspace scanner.
 
 Scans workspace directories and configured library paths for Tcl files,
-runs lightweight analysis (proc signature extraction only via ``analyse()``),
-and populates the WorkspaceIndex with background entries.
+runs the lightweight ``extract_signatures()`` pass (signature-only:
+procs, classes, package requires, source targets, command aliases, and a
+name-only invocation list), and populates the WorkspaceIndex with
+background entries.
 """
 
 from __future__ import annotations
@@ -16,8 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
-from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef
+from core.analysis.signature_scan import extract_signatures
 from core.bigip.apl_model import AplModel, resolve_apl_includes
 from core.bigip.model import BigipConfig
 from core.bigip.parser import parse_bigip_conf
@@ -421,11 +423,17 @@ class BackgroundScanner:
             return None
 
     def _run_analysis(self, full_path: str, ext: str) -> ScanResult | None:
-        """Run analysis for a single file without caching the result."""
+        """Run signature-only analysis for a single file without caching."""
         uri = path_to_uri(full_path)
         try:
             source = Path(full_path).read_text(encoding="utf-8", errors="replace")
-            result = analyse(source)
+            # Background-scanned files only contribute cross-file signals:
+            # proc/class signatures, package requires, source targets, and
+            # aliases. ``extract_signatures`` skips diagnostics, the
+            # optimiser, variable-reference tracking, lowering, and every
+            # other stage ``analyse()`` runs, which is both far faster and
+            # far lighter. Full analysis is still run on ``didOpen``.
+            result = extract_signatures(source)
             dialect = _dialect_from_ext(ext)
             rule_init_exports: list[RuleInitExport] = []
             if dialect == "f5-irules":
