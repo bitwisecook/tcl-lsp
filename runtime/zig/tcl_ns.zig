@@ -503,11 +503,16 @@ pub fn ns_cmd_put(ns_addr: u32, name_ptr: u32, name_len: u32, value: u32) u32 {
     const hash = ht.fnv1a(name_ptr, name_len);
     if (ns.cmd_table.find(name_ptr, name_len, hash)) |bucket| {
         write_i32(bucket + OFF_HANDLE, @bitCast(value));
+        // Update-in-place still counts as a mutation — re-binding
+        // the same name to a new Command shadows what dependents
+        // may have cached.  Bump the epoch.
+        bump_cmd_ref_epoch(ns_addr);
         return bucket;
     }
     if (ns.cmd_table.needs_grow()) ns.cmd_table.grow();
     const bucket = ns.cmd_table.insert_header(name_ptr, name_len, hash);
     write_i32(bucket + OFF_HANDLE, @bitCast(value));
+    bump_cmd_ref_epoch(ns_addr);
     return bucket;
 }
 
@@ -820,11 +825,26 @@ const PATH_ENTRY_SIZE: u32 = @sizeOf(NamespacePathEntry);
 ///
 /// We re-allocate the path array on every call rather than growing
 /// — paths are typically set once at module load and rarely
-/// touched, so the leakage is bounded.  P5.3 wires the
-/// path-source back-list; for P5.1 we just record the targets so
-/// P5.2 can walk them in ``ns_find_command``.
+/// touched, so the leakage is bounded.  P5.3 also splices each new
+/// entry into the *target* ns's ``path_source_head`` doubly-linked
+/// list so future cmd-table mutations can walk back to the
+/// dependents and bump their ``cmd_ref_epoch``.
 pub fn ns_set_path(ns_addr: u32, targets_buf: u32, targets_count: u32) void {
     const ns: *Namespace = @ptrFromInt(ns_addr);
+
+    // Unhook any previously-linked path entries from their
+    // targets' source lists.  Without this, a subsequent
+    // ``namespace path``-triggered ``cmd_ref_epoch`` cascade
+    // would still walk the dead entries and bump invalid
+    // dependents.
+    if (ns.path_array != 0 and ns.path_len > 0) {
+        var k: u32 = 0;
+        while (k < ns.path_len) : (k += 1) {
+            const e: *NamespacePathEntry = @ptrFromInt(ns.path_array + k * PATH_ENTRY_SIZE);
+            unlink_path_source(e);
+        }
+    }
+
     var nonzero_count: u32 = 0;
     var i: u32 = 0;
     while (i < targets_count) : (i += 1) {
@@ -842,15 +862,69 @@ pub fn ns_set_path(ns_addr: u32, targets_buf: u32, targets_count: u32) void {
     while (j < targets_count) : (j += 1) {
         const t: u32 = @bitCast(read_i32(targets_buf + j * 4));
         if (t == 0) continue;
-        const e: *NamespacePathEntry = @ptrFromInt(buf + slot * PATH_ENTRY_SIZE);
+        const entry_addr = buf + slot * PATH_ENTRY_SIZE;
+        const e: *NamespacePathEntry = @ptrFromInt(entry_addr);
         e.target_ns = t;
         e.creator_ns = ns_addr;
         e.prev = 0;
         e.next = 0;
+        // Splice into target.path_source_head (prepend at head;
+        // doubly-linked so unlinking on path replace is O(1)).
+        const target: *Namespace = @ptrFromInt(t);
+        const old_head = target.path_source_head;
+        e.next = old_head;
+        if (old_head != 0) {
+            const oh: *NamespacePathEntry = @ptrFromInt(old_head);
+            oh.prev = entry_addr;
+        }
+        target.path_source_head = entry_addr;
         slot += 1;
     }
     ns.path_array = buf;
     ns.path_len = nonzero_count;
+}
+
+/// Splice a path entry out of its target's ``path_source_head``
+/// doubly-linked list.  Idempotent — tolerates entries that were
+/// never linked (e.g. zero target).
+fn unlink_path_source(e: *NamespacePathEntry) void {
+    if (e.target_ns == 0) return;
+    const target: *Namespace = @ptrFromInt(e.target_ns);
+    if (e.prev != 0) {
+        const p: *NamespacePathEntry = @ptrFromInt(e.prev);
+        p.next = e.next;
+    } else {
+        // Head of the list.
+        target.path_source_head = e.next;
+    }
+    if (e.next != 0) {
+        const n: *NamespacePathEntry = @ptrFromInt(e.next);
+        n.prev = e.prev;
+    }
+    e.prev = 0;
+    e.next = 0;
+}
+
+/// Bump ``cmd_ref_epoch`` on ``ns`` and cascade through its
+/// ``path_source_head`` list, bumping each dependent ns's epoch
+/// too.  Called from ``ns_cmd_put`` so any cmd_table mutation
+/// invalidates downstream cache layers.  In our runtime the only
+/// "cache" is the proc-lookup LRU (which gets blown away by the
+/// caller of ns_cmd_put — proc_register, ns_import — already), so
+/// the epoch field is currently a record-keeper for future cache
+/// machinery rather than the invalidation trigger.
+fn bump_cmd_ref_epoch(ns_addr: u32) void {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    ns.cmd_ref_epoch +%= 1;
+    var cur = ns.path_source_head;
+    while (cur != 0) {
+        const e: *const NamespacePathEntry = @ptrFromInt(cur);
+        if (e.creator_ns != 0 and e.creator_ns != ns_addr) {
+            const dep: *Namespace = @ptrFromInt(e.creator_ns);
+            dep.cmd_ref_epoch +%= 1;
+        }
+        cur = e.next;
+    }
 }
 
 /// Read-only view of an ns's path entries.  Returns the count;
