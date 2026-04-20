@@ -18,6 +18,7 @@ const tcl_catch = @import("tcl_catch.zig");
 const tcl_frames = @import("tcl_frames.zig");
 const tcl_procs = @import("tcl_procs.zig");
 const tcl_ns = @import("tcl_ns.zig");
+const parse_cache = @import("parse_cache.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
 const tcl_array = @import("tcl_array.zig");
@@ -196,6 +197,17 @@ comptime {
     _ = &tcl_ns.var_resolve_link;
     _ = &tcl_ns.var_get_scalar;
     _ = &tcl_ns.var_set_scalar;
+    // P9.1 — parse cache; no in-tree caller until P9.2 wires
+    // ``eval_script`` through it.  Comptime refs keep wasm-ld
+    // from dropping the symbols.
+    _ = &parse_cache.lookup;
+    _ = &parse_cache.insert;
+    _ = &parse_cache.invalidate_all;
+    _ = &parse_cache.alloc_slab;
+    _ = &parse_cache.command_record;
+    _ = &parse_cache.token_area_start;
+    _ = &parse_cache.token_at;
+    _ = &parse_cache.slab_n_commands;
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
     _ = &tcl_io.tcl_cmd_puts_nonewline;
