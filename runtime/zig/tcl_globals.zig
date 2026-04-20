@@ -9,6 +9,16 @@ const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 
+const ht = @import("hash_table.zig");
+
+// ``fnv1a`` was originally defined here; its canonical home is now
+// ``hash_table.zig`` so the same hash is used by every table in the
+// runtime (procs, globals, frames, namespace child / cmd / var
+// tables in P1+).  Re-exported here so existing callers in
+// ``tcl_array.zig`` and ``tcl_frames.zig`` keep working until those
+// modules are migrated in P0.3.
+pub const fnv1a = ht.fnv1a;
+
 const HTAB_BUCKET_SIZE: u32 = 16;
 const HTAB_INITIAL_CAP: u32 = 16;
 
@@ -24,23 +34,6 @@ fn htab_init() void {
     while (i < htab_cap) : (i += 1) {
         write_i32(htab_buf + i * HTAB_BUCKET_SIZE, 0);
     }
-}
-
-pub fn fnv1a(ptr: u32, len: u32) u32 {
-    // Empty string (common: ``$arr()`` with an empty key, or an
-    // empty TclObj with ptr=0 from obj_ensure_string).  Skip the
-    // ``@ptrFromInt`` — Zig's safe-mode checks panic on a null
-    // pointer conversion, which is especially noisy when the
-    // payload is a zero-length slice that wouldn't be dereferenced
-    // anyway.
-    if (len == 0) return 2166136261;
-    var h: u32 = 2166136261;
-    const src: [*]const u8 = @ptrFromInt(ptr);
-    for (0..len) |i| {
-        h ^= @as(u32, src[i]);
-        h *%= 16777619;
-    }
-    return h;
 }
 
 fn htab_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
