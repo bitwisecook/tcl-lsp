@@ -73,23 +73,23 @@ extern fn readlink(path: [*:0]const u8, buf: [*]u8, bufsiz: usize) isize;
 // consulted only when ``O_CREAT`` is in the flags.  wasi-libc
 // exposes the variadic shape, but we always pass three args
 // (mode=0 when not creating) so a fixed-arity extern is safe on
-// WASM's calling convention.  The explicit ``callconv(.C)`` +
+// WASM's calling convention.  The explicit ``callconv(.c)`` +
 // ``@extern`` pins the linkage name so Zig doesn't name-mangle
 // it — the symbol the linker resolves is literally ``open``.
 const open = @extern(
-    *const fn ([*:0]const u8, c_int, c_uint) callconv(.C) c_int,
+    *const fn ([*:0]const u8, c_int, c_uint) callconv(.c) c_int,
     .{ .name = "open" },
 );
 const read = @extern(
-    *const fn (c_int, [*]u8, usize) callconv(.C) isize,
+    *const fn (c_int, [*]u8, usize) callconv(.c) isize,
     .{ .name = "read" },
 );
 const write = @extern(
-    *const fn (c_int, [*]const u8, usize) callconv(.C) isize,
+    *const fn (c_int, [*]const u8, usize) callconv(.c) isize,
     .{ .name = "write" },
 );
 const close = @extern(
-    *const fn (c_int) callconv(.C) c_int,
+    *const fn (c_int) callconv(.c) c_int,
     .{ .name = "close" },
 );
 
