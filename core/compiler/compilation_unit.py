@@ -156,6 +156,15 @@ def compile_source(
     if ir_module is None:
         ir_module = lower_to_ir(source)
 
+    # P8.2: specialise Option-shape factory calls at every literal-
+    # args call site.  Runs before CFG / SSA so the synthesised
+    # child procs participate in the rest of the pipeline just like
+    # any other IR-lowered proc.  Pass is a no-op when no factories
+    # are detected — amortised cost is a single proc walk.
+    from .passes.specialise_factories import specialise_factories
+
+    specialise_factories(ir_module)
+
     # Extract TclOO class names from the IR so type propagation can
     # recognise ``[ClassName new]`` as returning an OBJECT instance.
     if not known_classes:
