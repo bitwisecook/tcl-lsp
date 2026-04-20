@@ -1497,16 +1497,35 @@ class _Lowerer:
             case "proc" if len(args) == 3 and len(arg_tokens) >= 3:
                 proc_name = args[0]
                 # Dynamic proc names (containing $ or [) can only be
-                # resolved at runtime — emit as a regular command call
-                # so that the VM evaluates variable/command substitutions.
+                # resolved at runtime in general — BUT if the name is a
+                # bare ``$var`` and ``var`` is in the lowering
+                # const-map (see :meth:`_const_map_lookup`), we can
+                # substitute the literal and continue lowering as a
+                # normal static-name proc.  This catches the Option
+                # factory pattern in tcltest (``proc $varName body``
+                # inside a helper that was just called with a literal
+                # ``-foo`` name), which was previously bailing straight
+                # to the runtime.  Multi-token names (``foo_$x``,
+                # ``$a$b``) and command-substitution names stay out of
+                # scope — they're genuinely dynamic in the general
+                # case.  P6.1.
                 if "$" in proc_name or "[" in proc_name:
-                    return IRBarrier(
-                        range=cmd.range,
-                        reason="dynamic proc name",
-                        command=cmd_name,
-                        args=tuple(args),
-                        tokens=cmd.cmd_tokens,
-                    )
+                    substituted: str | None = None
+                    if (
+                        "[" not in proc_name
+                        and cmd.single_token_word[1]
+                        and arg_tokens[0].type is TokenType.VAR
+                    ):
+                        substituted = self._const_map_lookup(arg_tokens[0])
+                    if substituted is None:
+                        return IRBarrier(
+                            range=cmd.range,
+                            reason="dynamic proc name",
+                            command=cmd_name,
+                            args=tuple(args),
+                            tokens=cmd.cmd_tokens,
+                        )
+                    proc_name = substituted
                 try:
                     params = _parse_param_names(args[1])
                 except Exception:
@@ -1538,10 +1557,17 @@ class _Lowerer:
                     )
                 else:
                     self.module.redefined_procedures.add(qualified)
+                # If the name was a const-substituted ``$var``, the
+                # runtime-side registration also needs the concrete
+                # name rather than the literal ``$var`` bytes we'd
+                # otherwise pass on — splice the resolved ``proc_name``
+                # into the args tuple so the emitted ``proc`` command
+                # reaches the runtime with the real name.
+                out_args = (proc_name,) + tuple(args[1:]) if proc_name != args[0] else tuple(args)
                 return IRCall(
                     range=cmd.range,
                     command=cmd_name,
-                    args=tuple(args),
+                    args=out_args,
                     tokens=cmd.cmd_tokens,
                 )
 
