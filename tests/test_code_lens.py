@@ -67,8 +67,16 @@ class TestResolveCodeLens:
         resolved = resolve_code_lens(lenses[0], ws)
         assert resolved.command is not None
         assert resolved.command.title == "3 references"
-        assert resolved.command.command == "tcl-lsp.findReferences"
-        assert resolved.command.arguments == [TEST_URI, "::greet"]
+        # VS Code built-in, so no client-side command registration is required.
+        assert resolved.command.command == "editor.action.showReferences"
+        assert resolved.command.arguments is not None
+        assert resolved.command.arguments[0] == TEST_URI
+        # The second argument is the position to display in the peek header —
+        # the start of the proc name range supplied by ``get_code_lenses``.
+        assert resolved.command.arguments[1] == lenses[0].range.start
+        # Third argument is the locations list. Without a reference-finder
+        # passed in we still emit an empty list so the command is well-formed.
+        assert resolved.command.arguments[2] == []
 
     def test_singular_title(self):
         source = "proc greet {} { return hi }\n"
@@ -87,3 +95,29 @@ class TestResolveCodeLens:
         resolved = resolve_code_lens(lenses[0], ws)
         assert resolved.command is not None
         assert resolved.command.title == "0 references"
+
+    def test_find_references_callback_populates_locations(self):
+        from lsprotocol import types
+
+        source = "proc greet {} { return hi }\n"
+        analysis = analyse(source)
+        lenses = get_code_lenses(source, TEST_URI, analysis)
+        ws = _FakeWorkspaceIndex({"::greet": 2})
+
+        want_loc = types.Location(
+            uri=TEST_URI,
+            range=types.Range(
+                start=types.Position(line=5, character=0),
+                end=types.Position(line=5, character=5),
+            ),
+        )
+
+        def finder(uri: str, qname: str) -> list[types.Location]:
+            assert uri == TEST_URI
+            assert qname == "::greet"
+            return [want_loc]
+
+        resolved = resolve_code_lens(lenses[0], ws, finder)
+        assert resolved.command is not None
+        assert resolved.command.arguments is not None
+        assert resolved.command.arguments[2] == [want_loc]
