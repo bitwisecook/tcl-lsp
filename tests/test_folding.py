@@ -139,9 +139,7 @@ class TestFoldingRanges:
         ranges = get_folding_ranges(source)
 
         def contains(outer, inner):
-            return (
-                outer.start_line <= inner.start_line and inner.end_line <= outer.end_line
-            )
+            return outer.start_line <= inner.start_line and inner.end_line <= outer.end_line
 
         for i, a in enumerate(ranges):
             for b in ranges[i + 1 :]:
@@ -168,9 +166,7 @@ class TestFoldingRanges:
         """)
         ranges = get_folding_ranges(source)
         proc_folds = [
-            r
-            for r in ranges
-            if r.kind == types.FoldingRangeKind.Region and r.start_line == 0
+            r for r in ranges if r.kind == types.FoldingRangeKind.Region and r.start_line == 0
         ]
         assert proc_folds
         # The source has 8 lines; the final ``}`` sits on line 6.
