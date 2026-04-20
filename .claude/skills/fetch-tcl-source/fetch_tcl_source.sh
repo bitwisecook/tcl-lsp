@@ -1,5 +1,5 @@
 #!/bin/bash
-# fetch_tcl_source.sh — Download Tcl test and library files via sparse checkout.
+# fetch_tcl_source.sh — Download full Tcl source trees for 8.4, 8.5, 8.6, 9.0.
 #
 # Usage:
 #   ./fetch_tcl_source.sh <version>
@@ -10,11 +10,13 @@
 #   ./fetch_tcl_source.sh all       # all four versions
 #   ./fetch_tcl_source.sh status    # show what's present in tmp/
 #
-# Uses git sparse-checkout to fetch only tests/ and library/ from the
-# tcltk/tcl GitHub repository, keeping downloads small (~11 MB per version
-# instead of ~100 MB+ for a full clone).
+# Fetches pre-built release tarballs from GitHub's codeload CDN
+# (https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags/<tag>).
+# These are CDN-cached by GitHub so the download is easy on the upstream
+# Tcl project, and tarballs avoid the disk + CPU overhead of git metadata.
 #
-# Extracts to tmp/tcl<full_version>/ in the repo root.
+# Extracts to tmp/tcl<full_version>/ in the repo root — full source
+# (generic/, unix/, win/, tests/, library/, doc/, …), no .git directory.
 # Idempotent — skips download if already present.
 
 set -euo pipefail
@@ -22,9 +24,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TMP_DIR="$REPO_ROOT/tmp"
-GITHUB_REPO="https://github.com/tcltk/tcl.git"
+CODELOAD_BASE="https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags"
 
-# Version → (GitHub tag, local directory name)
+# Version → (full patch version, GitHub tag)
 # Update these when new patch releases come out.
 declare -A LATEST_VERSIONS=(
     [8.4]="8.4.20"
@@ -64,7 +66,7 @@ show_status() {
     for major_minor in 8.4 8.5 8.6 9.0; do
         local full="${LATEST_VERSIONS[$major_minor]}"
         local dir="$TMP_DIR/tcl${full}"
-        if [[ -d "$dir/tests" ]]; then
+        if [[ -d "$dir/generic" ]] && [[ -d "$dir/tests" ]]; then
             local test_count
             test_count=$(find "$dir/tests" -name '*.test' 2>/dev/null | wc -l)
             echo "  tcl${full}/  [present]  ${test_count} test files"
@@ -77,48 +79,56 @@ show_status() {
     echo "$found of 4 versions present."
 }
 
-# Fetch one version via git sparse-checkout
+# Fetch one version by downloading the GitHub codeload tarball.
 fetch_version() {
     local major_minor="$1"
     local full="${LATEST_VERSIONS[$major_minor]}"
     local tag="${GITHUB_TAGS[$major_minor]}"
     local target_dir="$TMP_DIR/tcl${full}"
+    local url="${CODELOAD_BASE}/${tag}"
 
-    if [[ -d "$target_dir/tests" ]]; then
+    if [[ -d "$target_dir/generic" ]] && [[ -d "$target_dir/tests" ]]; then
         echo "  tcl${full}/ already exists — skipping"
         return 0
     fi
 
     mkdir -p "$TMP_DIR"
+    rm -rf "$target_dir"
 
-    echo "  Cloning tcl ${full} (sparse: tests/ + library/) ..."
+    local tmp_tarball
+    tmp_tarball="$(mktemp -p "$TMP_DIR" "tcl${full}.XXXXXX.tar.gz")"
+    trap "rm -f '$tmp_tarball'" RETURN
+
+    echo "  Downloading tcl ${full} source tarball ..."
     local attempt
     for attempt in 1 2 3 4; do
-        if git clone --depth 1 --filter=blob:none --sparse \
-               --branch "$tag" "$GITHUB_REPO" "$target_dir" 2>/dev/null; then
+        if curl -fsSL --connect-timeout 15 --max-time 600 \
+               -o "$tmp_tarball" "$url"; then
             break
         fi
         if [[ $attempt -lt 4 ]]; then
             local wait=$((2 ** attempt))
             echo "    Retry $attempt (waiting ${wait}s) ..."
-            rm -rf "$target_dir"
             sleep "$wait"
         else
-            echo "  ERROR: Failed to clone after 4 attempts" >&2
-            rm -rf "$target_dir"
+            echo "  ERROR: Failed to download tcl ${full} after 4 attempts" >&2
             return 1
         fi
     done
 
-    echo "  Setting sparse-checkout to tests/ + library/ ..."
-    git -C "$target_dir" sparse-checkout set tests library 2>/dev/null
+    echo "  Extracting to tcl${full}/ ..."
+    mkdir -p "$target_dir"
+    tar -xzf "$tmp_tarball" -C "$target_dir" --strip-components=1
 
-    if [[ -d "$target_dir/tests" ]]; then
+    if [[ -d "$target_dir/generic" ]] && [[ -d "$target_dir/tests" ]]; then
         local test_count
         test_count=$(find "$target_dir/tests" -name '*.test' 2>/dev/null | wc -l)
-        echo "  Done: tcl${full}/ (${test_count} test files)"
+        local size
+        size=$(du -sh "$target_dir" | awk '{print $1}')
+        echo "  Done: tcl${full}/ (${test_count} test files, ${size})"
     else
-        echo "  ERROR: tests/ directory not found after sparse checkout" >&2
+        echo "  ERROR: generic/ or tests/ missing after extract" >&2
+        rm -rf "$target_dir"
         return 1
     fi
 }
