@@ -58,9 +58,15 @@ pub const HEADER_SIZE: u32 = 12;
 pub fn Table(comptime bucket_size: u32) type {
     if (bucket_size < HEADER_SIZE) @compileError("bucket_size must be >= HEADER_SIZE");
     if (bucket_size % 4 != 0) @compileError("bucket_size must be 4-byte aligned");
-    return struct {
+    return extern struct {
         const Self = @This();
 
+        // ``extern`` so the type is ABI-compatible and can be embedded
+        // inside another ``extern struct`` (e.g. ``tcl_ns.Namespace``
+        // holds three of these inline).  All fields are u32, so the
+        // resulting layout is identical to the prior non-extern
+        // variant — this is purely a Zig-language constraint, not a
+        // bytewise change.
         buf: u32 = 0,
         cap: u32 = 0,
         count: u32 = 0,

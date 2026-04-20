@@ -51,6 +51,14 @@ See [compiler/README.md](compiler/README.md) for the compiler design-doc
 index — pipeline stages, analyses, codegen, optimisation passes, and
 ownership matrices.
 
+## Runtime internals
+
+- [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for
+  the Zig runtime's namespace tree (root, child links, per-ns
+  command/variable/path tables) modelled on Tcl 9's `Namespace`
+  struct, with per-phase migration plan from the FQN-string
+  fallbacks currently in `tcl_procs.zig` / `tcl_globals.zig`.
+
 ## Contracts and interfaces
 
 See [contracts/](contracts/) for focused notes on module contracts and

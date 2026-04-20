@@ -13,6 +13,7 @@ const tcl_dict = @import("tcl_dict.zig");
 const tcl_catch = @import("tcl_catch.zig");
 const tcl_frames = @import("tcl_frames.zig");
 const tcl_procs = @import("tcl_procs.zig");
+const tcl_ns = @import("tcl_ns.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
 const tcl_array = @import("tcl_array.zig");
@@ -171,6 +172,11 @@ comptime {
     _ = &tcl_globals.global_get;
     _ = &tcl_globals.global_exists;
     _ = &tcl_globals.tcl_incr;
+    // tcl_ns exports (P1.2 — no in-tree caller yet; comptime ref
+    // keeps wasm-ld from dropping the new symbols)
+    _ = &tcl_ns.tcl_ns_root;
+    _ = &tcl_ns.tcl_ns_lookup;
+    _ = &tcl_ns.tcl_ns_create;
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
     _ = &tcl_io.tcl_cmd_puts_nonewline;
