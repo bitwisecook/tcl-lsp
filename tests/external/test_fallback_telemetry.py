@@ -34,6 +34,42 @@ def test_summary_empty_for_pure_compile() -> None:
     assert summary["top_fallback_commands"] == []
 
 
+def test_nontrapping_runtime_command_skips_diag_site() -> None:
+    """``puts`` / ``append`` are classified non-trapping — no diag site.
+
+    Pure ``puts hello`` compiles through the runtime dispatch path
+    (``_emit_cmd_runtime``), which now skips the per-call
+    ``tcl_diag_set`` preamble for commands in
+    ``_CMD_RUNTIME_NONTRAPPING``.  The emitted DiagMap must have zero
+    sites for the compile.
+    """
+    _wasm, diag = _compile_tcl_with_diag("puts hello\n", "puts.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+    # ``append x "one"`` is statement-context mutate-var path — also
+    # goes through runtime dispatch without a diag site now.
+    _wasm, diag = _compile_tcl_with_diag('append x "one"\n', "append.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+
+def test_trapping_runtime_command_keeps_diag_site() -> None:
+    """Stub commands that raise ``unsupported command: X`` still
+    record a diag site so the stderr trap line resolves to source.
+
+    ``fconfigure`` routes through ``_CMD_RUNTIME`` but is NOT in
+    ``_CMD_RUNTIME_NONTRAPPING``: the compile emits a single
+    ``runtime``-kind diag site for it.
+    """
+    _wasm, diag = _compile_tcl_with_diag("fconfigure stdin -blocking 0\n", "trap_fconfigure.tcl")
+    runtime_sites = [s for s in diag.sites if s.kind == "runtime"]
+    assert any(s.command == "fconfigure" for s in runtime_sites), (
+        "fconfigure must keep its diag site (stub raises unsupported "
+        "command and stderr trap line needs to resolve)"
+    )
+
+
 def test_summary_none_diag_returns_zeroes() -> None:
     """Compile failed before a DiagMap could be produced — all zeroes."""
     summary = _summarise_diag(None)
@@ -97,6 +133,100 @@ def test_triage_table_totals_sum_fallback_sites() -> None:
     ]
     rendered = _render_table(entries)
     assert "fallback_sites=10" in rendered
+
+
+def test_namespace_import_resolves_unqualified_calls() -> None:
+    """``namespace import ::foo::*`` eliminates the fallback for bare calls.
+
+    Compiling ``namespace eval ::foo { proc bar {} {...} }; namespace
+    import ::foo::*; bar`` used to emit a ``tcl_eval`` fallback for
+    the bare ``bar`` call because the compiler couldn't see that
+    ``bar`` was imported from ``::foo``.  With the import table
+    wired through, the call resolves to ``::foo::bar`` at compile
+    time and dispatches directly — zero diag sites.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "    namespace export bar baz\n"
+        "}\n"
+        "namespace import ::foo::*\n"
+        "bar\n"
+        "baz\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0, (
+        f"expected zero fallback sites after namespace import, got "
+        f"{summary['fallback_sites_total']}: {summary['top_fallback_commands']}"
+    )
+
+
+def test_namespace_import_single_name_resolves() -> None:
+    """Single-name import (``namespace import ::foo::bar``) also works.
+
+    The source namespace must ``namespace export bar`` for the
+    import shortcut to fire — otherwise codegen correctly falls
+    back to runtime dispatch (which matches C Tcl's
+    ``Tcl_Import`` semantics: unexported names can't be imported).
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "    namespace export bar\n"
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "bar\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_single.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+
+def test_namespace_import_without_export_falls_back() -> None:
+    """Importing an unexported name must keep the runtime dispatch
+    path so the interpreter can apply the correct "unknown
+    command" diagnostic.  This is the P8-review correctness fix:
+    the compile-time shortcut is now gated on ``namespace export``
+    patterns, matching C Tcl's ``Tcl_Import`` rules.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        # No ``namespace export bar`` — bar is NOT importable.
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "bar\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_unexported.tcl")
+    summary = _summarise_diag(diag)
+    # The ``bar`` call falls back to runtime dispatch; at least
+    # one fallback site must remain.
+    assert summary["fallback_sites_total"] >= 1
+
+
+def test_unimported_name_still_falls_back() -> None:
+    """``baz`` was not imported, so bare ``baz`` must still fall back.
+
+    Guards against the import table being too permissive — only
+    names present in a recorded ``namespace import`` directive
+    should dispatch directly.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "baz\n"  # not imported — must fall back
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_partial.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] >= 1
+    commands = [c for c, _ in summary["top_fallback_commands"]]
+    assert "baz" in commands
 
 
 def test_kind_bucketing_distinguishes_fallback_from_unsupported() -> None:

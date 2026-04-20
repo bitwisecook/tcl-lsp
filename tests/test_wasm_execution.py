@@ -2127,3 +2127,94 @@ class TestCatch:
         )
         # Outer catch should succeed (inner catch handles the error)
         assert result == 0
+
+
+class TestParseCacheReplay:
+    """End-to-end regression guard for the P9 parse cache (runtime/zig/parse_cache.zig).
+
+    The cache populates on ``proc_register`` and replays a pre-built
+    command + token slab on subsequent ``eval_script`` entries.  A
+    miscompile in ``build_for_body`` (wrong ``tokens_len``, bad
+    ``next_pos``, …) would manifest as divergent or wrong results
+    across repeated invocations.  We invoke the same proc many times
+    in a single store so the cache is exercised on every call after
+    the first, and assert that results stay stable and match the
+    value a correct parser + evaluator would produce.
+    """
+
+    def _invoke_many(
+        self,
+        source: str,
+        proc_name: str,
+        args: tuple[int, ...],
+        n_calls: int,
+    ) -> list[int]:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+
+        obj_new_int = rt_instance.exports(store)["obj_new_int"]
+        obj_get_int = rt_instance.exports(store)["obj_get_int"]
+
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+
+        func = tcl_instance.exports(store)[f"::{proc_name}"]
+        results: list[int] = []
+        for _ in range(n_calls):
+            boxed = tuple(obj_new_int(store, a) for a in args)
+            r = func(store, *boxed)
+            results.append(0 if r == 0 else obj_get_int(store, r))
+        return results
+
+    def test_multi_command_body_stable_across_calls(self):
+        """A proc with a multi-command interpreted body returns the same
+        value on every call.  Cache miscompile would show up as one
+        (or all) calls diverging from the expected 55.
+        """
+        source = """\
+proc sum_to {n} {
+    set total 0
+    set i 1
+    while {$i <= $n} {
+        set total [expr {$total + $i}]
+        incr i
+    }
+    return $total
+}
+"""
+        results = self._invoke_many(source, "sum_to", (10,), n_calls=5)
+        assert results == [55, 55, 55, 55, 55]
+
+    def test_repeated_calls_distinct_args(self):
+        """Repeated calls with different args still produce correct
+        results per-call.  Guards against the cache accidentally
+        hard-coding a value from a prior invocation's frame.
+        """
+        source = """\
+proc square {n} {
+    set result [expr {$n * $n}]
+    return $result
+}
+"""
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        obj_new_int = rt_instance.exports(store)["obj_new_int"]
+        obj_get_int = rt_instance.exports(store)["obj_get_int"]
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+
+        func = tcl_instance.exports(store)["::square"]
+        pairs: list[tuple[int, int]] = []
+        for n in (2, 3, 4, 5, 6, 7):
+            boxed = obj_new_int(store, n)
+            r = func(store, boxed)
+            pairs.append((n, 0 if r == 0 else obj_get_int(store, r)))
+        assert pairs == [(2, 4), (3, 9), (4, 16), (5, 25), (6, 36), (7, 49)]

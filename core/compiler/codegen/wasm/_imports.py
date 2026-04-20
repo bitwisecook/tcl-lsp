@@ -423,6 +423,34 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "apply": ("tcl_apply", 2),
 }
 
+# Runtime commands whose Zig implementation is total for well-typed
+# inputs — they return a result for every argument shape the compiler
+# can emit and never trap into ``tcl_diag``.  The codegen elides the
+# per-call ``tcl_diag_set`` preamble (~4 WASM bytes + one DiagSite
+# record) for these commands because the trap-resolver
+# (:func:`tests.test_wasm_real_tcl._resolve_trap`) only reads diag
+# sites when a ``tcl trap: site=<id>`` line appears on stderr, and
+# none of the commands below emit that.
+#
+# Commands omitted from this set (i.e. that DO need a diag site):
+# every I/O / FS / event / coroutine / introspection stub that can
+# raise "unsupported command: X"; ``format``/``scan``/``regexp`` (may
+# error on bad patterns); ``error`` itself; ``lsort``/``lsearch`` /
+# ``split``/``join`` (may error on malformed lists); ``string is *``;
+# all ``tcl_dict_*`` (dict-shape errors); all ``tcl_clock_*`` (stub
+# error paths).
+_CMD_RUNTIME_NONTRAPPING: frozenset[str] = frozenset(
+    {
+        # ``puts`` writes to a WASI stdout pipe the host always
+        # provides; there is no "channel closed" error path the
+        # codegen can reach.
+        "puts",
+        # ``append`` concatenates strings verbatim — no list parsing,
+        # no number conversion, no shimmer.
+        "append",
+    }
+)
+
 # String sub-command → import key
 _STRING_SUBCMD_IMPORT: dict[str, str] = {
     "length": "tcl_string_length",

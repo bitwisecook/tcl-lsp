@@ -420,6 +420,21 @@ fn eval_command(words: []const i32) i32 {
     if (cmd_s.len == 0) return 0;
     const cmd: [*]const u8 = @ptrFromInt(cmd_s.ptr);
 
+    // Fast path: probe the proc registry first.  Tcl semantics say a
+    // user-defined proc shadows a built-in, and for dispatch-heavy
+    // test bundles (tcltest calling ::tcltest::preserveCore,
+    // ::tcltest::temporaryDirectory, etc. — and the test body itself
+    // calling ``test`` which resolves to ``::tcltest::test``) the proc
+    // path wins 10× more often than a builtin would.  ``proc_lookup``
+    // is O(1) via the MRU cache + open-addressed hash and short-
+    // circuits on ``proc_buf == 0``, so the miss cost on a bundle
+    // with no procs is a single ``i32`` load.  The builtin chain
+    // below still runs on miss so nothing else changes.
+    if (procs.proc_buf_nonzero()) {
+        const bucket = procs.proc_lookup(words[0]);
+        if (bucket != 0) return eval_proc_call_bucket(words, bucket);
+    }
+
     if (str_eq(cmd, cmd_s.len, "set")) {
         if (words.len >= 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
         else if (words.len >= 2) { return frames.var_resolve(words[1]); }
@@ -813,14 +828,35 @@ fn eval_command(words: []const i32) i32 {
         return obj_new_string(0, 0);
     }
     if (str_eq(cmd, cmd_s.len, "variable")) {
-        // ``variable name ?value? ?name value …?`` — declare +
-        // optionally initialise a namespace variable.  We don't
-        // track namespace scopes in the interpreter, so treat it
-        // identically to ``set`` when a value is given, else a NOP.
+        // ``variable name ?value? ?name value …?`` — declare a
+        // namespace-scoped variable in the current namespace and
+        // create a frame-local VAR_LINK-style alias to it.  Matches
+        // C Tcl's ``Tcl_VariableObjCmd``: the var lives in the
+        // namespace's ``var_table``, and within the active proc
+        // body the local name reads / writes through the alias.
         var i: u32 = 1;
-        while (i < words.len) : (i += 2) {
+        while (i < words.len) : (i += 1) {
+            const name_obj = words[i];
+            const sn = obj_ensure_string(name_obj);
+            // Resolve to (target_ns, simple_name) — find-or-creates
+            // intermediates so ``variable ::deep::ns::v`` works
+            // before ``::deep::ns`` exists.
+            const r = tcl_ns.ns_resolve_qualified_creating(
+                tcl_ns.ns_current(),
+                sn.ptr,
+                sn.len,
+            );
+            if (r.target_ns == 0 or r.simple_len == 0) continue;
+            const var_ptr = tcl_ns.ns_var_create(r.target_ns, r.simple_ptr, r.simple_len);
+            // Alias the local *simple* name to the ns var so the
+            // proc body can refer to it unqualified.  C Tcl uses
+            // the trailing component for this; we do the same.
+            const local_name = obj_new_string(@bitCast(r.simple_ptr), @bitCast(r.simple_len));
+            frames.frame_alias_ns_var(local_name, var_ptr);
+            // Optional initialiser.
             if (i + 1 < words.len) {
-                _ = frames.var_set(words[i], words[i + 1]);
+                tcl_ns.var_set_scalar(var_ptr, @bitCast(words[i + 1]));
+                i += 1;
             }
         }
         return obj_new_string(0, 0);
@@ -941,48 +977,175 @@ fn eval_command(words: []const i32) i32 {
         str_eq(cmd, cmd_s.len, "variable") or
         str_eq(cmd, cmd_s.len, "rename"))
     { return 0; }
-    // ``namespace eval <ns> <body>`` — execute the body script.
-    // We ignore the namespace argument (no namespace tracking in the
-    // interpreter's flat model) and just run the body so that commands
-    // like ``upvar 0 src local`` inside namespace-eval blocks take
-    // effect.  Other namespace sub-commands (import, exists, …) are
-    // silently treated as no-ops.
+    // ``namespace`` sub-command dispatch.  P4.1 adds ``export`` and
+    // makes ``eval`` actually switch ``current_ns`` for the body so
+    // ``namespace eval ::ctx { namespace export foo }`` records the
+    // pattern on ``::ctx`` rather than on root.
     if (str_eq(cmd, cmd_s.len, "namespace")) {
-        if (words.len >= 3) {
+        if (words.len >= 2) {
             const sub = obj_ensure_string(words[1]);
             if (sub.len == 4 and sub.ptr != 0) {
                 const sp: [*]const u8 = @ptrFromInt(sub.ptr);
                 if (sp[0] == 'e' and sp[1] == 'v' and sp[2] == 'a' and sp[3] == 'l') {
-                    // namespace eval <ns> script ?arg? ... — concatenate body args
-                    // with single spaces (matches Tcl semantics).
+                    if (words.len < 4) return 0;
+                    // Resolve / create the target ns and switch
+                    // ``current_ns`` for the duration of the body.
+                    const ns_obj_s = obj_ensure_string(words[2]);
+                    const target_ns = tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len);
+                    const saved_ns = tcl_ns.current_ns;
+                    tcl_ns.current_ns = target_ns;
+                    defer tcl_ns.current_ns = saved_ns;
+                    // Concatenate body args with single spaces
+                    // (matches Tcl semantics for >1 body part).
                     if (words.len == 4) {
                         const bs = obj_ensure_string(words[3]);
                         if (bs.len > 0) return eval_script(bs.ptr, bs.len);
                         return 0;
                     }
-                    if (words.len > 4) {
-                        var total: u32 = 0;
-                        var wi3: u32 = 3;
-                        while (wi3 < words.len) : (wi3 += 1) {
-                            const ws = obj_ensure_string(words[wi3]);
-                            total += ws.len;
-                            if (wi3 + 1 < words.len) total += 1; // space
-                        }
-                        const buf = alloc(total);
-                        var off: u32 = 0;
-                        wi3 = 3;
-                        while (wi3 < words.len) : (wi3 += 1) {
-                            const ws = obj_ensure_string(words[wi3]);
-                            memcpy(buf + off, ws.ptr, ws.len);
-                            off += ws.len;
-                            if (wi3 + 1 < words.len) {
-                                const d: [*]u8 = @ptrFromInt(buf + off);
-                                d[0] = ' ';
-                                off += 1;
-                            }
-                        }
-                        return eval_script(buf, total);
+                    var total: u32 = 0;
+                    var wi3: u32 = 3;
+                    while (wi3 < words.len) : (wi3 += 1) {
+                        const ws = obj_ensure_string(words[wi3]);
+                        total += ws.len;
+                        if (wi3 + 1 < words.len) total += 1;
                     }
+                    const buf = alloc(total);
+                    var off: u32 = 0;
+                    wi3 = 3;
+                    while (wi3 < words.len) : (wi3 += 1) {
+                        const ws = obj_ensure_string(words[wi3]);
+                        memcpy(buf + off, ws.ptr, ws.len);
+                        off += ws.len;
+                        if (wi3 + 1 < words.len) {
+                            const d: [*]u8 = @ptrFromInt(buf + off);
+                            d[0] = ' ';
+                            off += 1;
+                        }
+                    }
+                    return eval_script(buf, total);
+                }
+            }
+            // ``namespace export ?-clear? pat1 pat2 …`` — append
+            // each pattern to the current ns's export list.
+            // ``-clear`` (a documented but rarely-used flag) would
+            // wipe before appending; not implemented in P4.1.
+            if (sub.len == 6 and sub.ptr != 0) {
+                const sp6: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp6[0] == 'e' and sp6[1] == 'x' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
+                    var pi: u32 = 2;
+                    while (pi < words.len) : (pi += 1) {
+                        const ps = obj_ensure_string(words[pi]);
+                        // Skip the ``-clear`` flag rather than
+                        // recording it as a pattern (we don't
+                        // implement the wipe but we mustn't
+                        // pollute the pattern list either).
+                        if (ps.len == 6 and ps.ptr != 0) {
+                            const psp: [*]const u8 = @ptrFromInt(ps.ptr);
+                            if (psp[0] == '-' and psp[1] == 'c' and psp[2] == 'l' and psp[3] == 'e' and psp[4] == 'a' and psp[5] == 'r') continue;
+                        }
+                        tcl_ns.ns_export(tcl_ns.ns_current(), ps.ptr, ps.len);
+                    }
+                    return 0;
+                }
+            }
+            // ``namespace import ?-force? ::src::pat …`` — for each
+            // pattern, walk the source ns's exports and create
+            // redirect commands in the current ns's cmd_table.
+            // ``-force`` (overwrite shadowed imports) is recognised
+            // and ignored — our redirect insert path already
+            // overwrites any existing entry under the same name.
+            if (sub.len == 6 and sub.ptr != 0) {
+                const sp6: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp6[0] == 'i' and sp6[1] == 'm' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
+                    var ii: u32 = 2;
+                    while (ii < words.len) : (ii += 1) {
+                        const is = obj_ensure_string(words[ii]);
+                        if (is.len == 6 and is.ptr != 0) {
+                            const isp: [*]const u8 = @ptrFromInt(is.ptr);
+                            if (isp[0] == '-' and isp[1] == 'f' and isp[2] == 'o' and isp[3] == 'r' and isp[4] == 'c' and isp[5] == 'e') continue;
+                        }
+                        const created = tcl_ns.ns_import(tcl_ns.ns_current(), is.ptr, is.len);
+                        // Each redirect counts as a real command
+                        // for the proc-first dispatch fast path —
+                        // bump the procs counter so ``proc_lookup``
+                        // doesn't early-return 0 when the importing
+                        // module has only imports (no own procs).
+                        var bk: u32 = 0;
+                        while (bk < created) : (bk += 1) procs.proc_count_bump();
+                    }
+                    return 0;
+                }
+                // ``namespace forget pat …`` — deactivate matching
+                // redirects in the current ns.  Patterns are
+                // ``string match`` globs against the simple name in
+                // the importing ns (matches Tcl's behaviour for the
+                // common single-component form; ``::src::pat``
+                // qualified forms are treated the same as ``pat``
+                // for now since our forget walks only ``current_ns``).
+                if (sp6[0] == 'f' and sp6[1] == 'o' and sp6[2] == 'r' and sp6[3] == 'g' and sp6[4] == 'e' and sp6[5] == 't') {
+                    var fi: u32 = 2;
+                    var any_forgotten: u32 = 0;
+                    while (fi < words.len) : (fi += 1) {
+                        const fs = obj_ensure_string(words[fi]);
+                        any_forgotten += tcl_ns.ns_forget(tcl_ns.ns_current(), fs.ptr, fs.len);
+                    }
+                    // Invalidate the proc-lookup LRU — cached
+                    // entries might point at sources whose redirect
+                    // has just been deactivated, and the cache key
+                    // doesn't track that.
+                    if (any_forgotten > 0) procs.lru_invalidate_all();
+                    return 0;
+                }
+            }
+            // ``namespace path { ::ns1 ::ns2 … }`` — set the current
+            // ns's command resolution path.  Argument is a Tcl list
+            // (single ``words[2]``) of namespace names.  Each name is
+            // resolved to a ``*Namespace`` (find-only — missing
+            // namespaces are silently skipped, matching our pattern
+            // for namespace-tree gaps).  P5.2 will start consulting
+            // the path in ``ns_find_command``; for now this just
+            // records it.
+            if (sub.len == 4 and sub.ptr != 0) {
+                const sp4: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp4[0] == 'p' and sp4[1] == 'a' and sp4[2] == 't' and sp4[3] == 'h') {
+                    if (words.len < 3) {
+                        // ``namespace path`` with no args queries
+                        // current — not implemented here, return empty.
+                        return 0;
+                    }
+                    const ls = obj_ensure_string(words[2]);
+                    const count = obj_mod.list_count_elements(ls.ptr, ls.len);
+                    if (count == 0) {
+                        // Empty list clears the path.
+                        tcl_ns.ns_set_path(tcl_ns.ns_current(), 0, 0);
+                        return 0;
+                    }
+                    // Allocate a packed u32 array for the resolved
+                    // targets.  Writing via ``write_i32`` sidesteps
+                    // the ``[*]u32`` alignment cast Zig requires for
+                    // pointer arithmetic on bump-allocated memory.
+                    const targets_buf = alloc(@intCast(count * 4));
+                    var li: i64 = 0;
+                    while (li < count) : (li += 1) {
+                        const elt = obj_mod.list_element_at(ls.ptr, ls.len, li);
+                        const r = tcl_ns.ns_resolve_qualified(tcl_ns.ns_current(), elt.start, elt.len);
+                        // ``namespace path`` should resolve to an
+                        // existing leaf ns.  ``ns_resolve_qualified``
+                        // for ``::tcltest`` yields target=root,
+                        // simple="tcltest" (because there's no
+                        // trailing component to make it a "this whole
+                        // path is a ns" lookup).  Combine the two:
+                        // if simple_len > 0, descend one more level.
+                        var resolved: u32 = r.target_ns;
+                        if (r.simple_len > 0 and r.target_ns != 0) {
+                            const child = tcl_ns.ns_lookup(r.target_ns, r.simple_ptr, r.simple_len);
+                            resolved = child;
+                        }
+                        obj_mod.write_i32(targets_buf + @as(u32, @intCast(li)) * 4, @bitCast(resolved));
+                    }
+                    tcl_ns.ns_set_path(tcl_ns.ns_current(), targets_buf, @intCast(count));
+                    procs.lru_invalidate_all();
+                    return 0;
                 }
             }
         }
@@ -994,52 +1157,67 @@ fn eval_command(words: []const i32) i32 {
 
 const str_eq = @import("tcl_chars.zig").str_eq;
 
-/// Namespace context for eval-fallback calls.  Compiled procs set
-/// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
-/// commands like ``proc $varName body`` inside the fallback
-/// register in the enclosing namespace instead of the global scope.
-/// Zero means "no namespace context" — unqualified names stay
-/// unqualified.
-var current_ns_ptr: u32 = 0;
-var current_ns_len: u32 = 0;
+const tcl_ns = @import("tcl_ns.zig");
 
-/// Set the current namespace (pointer + length into UTF-8 bytes).
-/// Returns a packed save value the caller should pass back to
-/// ``ns_restore`` to unwind — supports nesting without a heap stack.
+// Namespace context for eval-fallback calls.  Storage lives in
+// ``tcl_ns.current_ns`` (moved there in P2.1 so ``tcl_procs.zig``
+// can read it without circular-importing ``tcl_interp.zig``).
+// Zero means "no namespace context active" — equivalent to the
+// root ns for resolution but treated as "leave names unqualified"
+// by ``qualify_name`` so legacy callers that never call ``ns_set``
+// keep their old behaviour.
+
+/// Set the current namespace.  ``name_ptr`` / ``name_len`` are a
+/// fully-qualified name like ``::tcltest`` that the runtime walks
+/// (find-or-create) to obtain the corresponding ``*Namespace``
+/// handle.
+///
+/// Returns the previously-active handle packed into the low 32 bits
+/// of an i64 — keeping the i64 ABI matching the compiler-side
+/// import declaration (``[I32, I32] -> I64`` in
+/// ``codegen/wasm/_imports.py``).  The high 32 bits are unused
+/// (always 0) to leave room for future flags without another ABI
+/// flip.
 pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
-    const saved: i64 = (@as(i64, current_ns_ptr) << 32) | @as(i64, current_ns_len);
-    current_ns_ptr = @intCast(name_ptr);
-    current_ns_len = @intCast(name_len);
-    return saved;
+    const saved: u32 = tcl_ns.current_ns;
+    const ns = tcl_ns.ns_create_from_fqn(@bitCast(name_ptr), @bitCast(name_len));
+    tcl_ns.current_ns = ns;
+    return @as(i64, saved);
 }
 
 /// Restore a saved namespace context, unwinding an ``ns_set`` pair.
 pub export fn ns_restore(saved: i64) void {
-    current_ns_ptr = @intCast((saved >> 32) & 0xFFFFFFFF);
-    current_ns_len = @intCast(saved & 0xFFFFFFFF);
+    tcl_ns.current_ns = @intCast(saved & 0xFFFFFFFF);
 }
 
 /// If *name* (a TclObj) is unqualified (no leading ``::``) and a
-/// current namespace context is active, return a fresh TclObj
-/// holding ``<ns>::<name>``.  Otherwise return *name* unchanged.
-/// Used by the interpreter's ``proc`` / ``variable`` handlers to
-/// namespace-qualify dynamically constructed names.
+/// non-root current namespace context is active, return a fresh
+/// TclObj holding ``<ns_full_name>::<name>``.  Otherwise return
+/// *name* unchanged.  Used by the interpreter's ``proc`` /
+/// ``variable`` handlers to namespace-qualify dynamically
+/// constructed names.
 fn qualify_name(name: i32) i32 {
-    if (current_ns_ptr == 0 or current_ns_len == 0) return name;
+    if (tcl_ns.current_ns == 0) return name;
+    // Root has full name ``::``; ``::name`` is the same as ``name``
+    // for resolution purposes, so don't bother prefixing — keeps
+    // the output stable for callers that previously got an
+    // unqualified name back when no ns was active.
+    const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
+    if (ns_full.len == 2) return name;
     const s = obj_ensure_string(name);
     if (s.len == 0) return name;
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
     // Already qualified with ``::`` — leave alone.
     if (s.len >= 2 and sp[0] == ':' and sp[1] == ':') return name;
-    // Build ``<ns>::<name>`` in the bump allocator.
-    const ns_ptr: [*]const u8 = @ptrFromInt(current_ns_ptr);
-    const total: u32 = current_ns_len + 2 + s.len;
+    // Build ``<ns_full>::<name>`` in the bump allocator.
+    const ns_ptr: [*]const u8 = @ptrFromInt(ns_full.ptr);
+    const total: u32 = ns_full.len + 2 + s.len;
     const buf_addr: u32 = obj_mod.alloc(total);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
-    for (0..current_ns_len) |i| buf[i] = ns_ptr[i];
-    buf[current_ns_len] = ':';
-    buf[current_ns_len + 1] = ':';
-    for (0..s.len) |i| buf[current_ns_len + 2 + i] = sp[i];
+    for (0..ns_full.len) |i| buf[i] = ns_ptr[i];
+    buf[ns_full.len] = ':';
+    buf[ns_full.len + 1] = ':';
+    for (0..s.len) |i| buf[ns_full.len + 2 + i] = sp[i];
     return obj_mod.obj_new_string(@intCast(buf_addr), @intCast(total));
 }
 
@@ -1300,6 +1478,13 @@ fn eval_proc_call(words: []const i32) i32 {
         catch_mod.error_unknown_command(words[0]);
         return 0;
     }
+    return eval_proc_call_bucket(words, bucket);
+}
+
+/// Internal: dispatch once the proc bucket is already resolved.
+/// Shared between ``eval_proc_call`` (legacy path) and the proc-first
+/// fast path in ``eval_command``.
+fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
     // because pure WASM can't call across modules.  The bridge
@@ -1696,18 +1881,6 @@ const MAX_EXPANDED_WORDS: u32 = 128;
 
 pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     if (script_len == 0) return 0;
-    const src: [*]const u8 = @ptrFromInt(script_ptr);
-    var pos: u32 = 0;
-    var result: i32 = 0;
-    // Token-tree scratch for each parsed command.  A command contributes
-    // at most MAX_WORDS ``.WORD`` / ``.SIMPLE_WORD`` tokens plus one
-    // ``.EXPAND_WORD`` marker per ``{*}`` — so 2 * MAX_WORDS is the
-    // worst-case slot count.  The tree is shallow today (no
-    // sub-tokens); ``Token.braced`` carries the same info the old
-    // ``wb[]`` array carried, and the marker walk below reconstructs
-    // the old ``we[]`` per-word expansion flag from the placement of
-    // ``.EXPAND_WORD`` tokens in the stream.
-    var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
@@ -1724,9 +1897,29 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         diag.current_eval_pos = saved_pos;
     }
 
+    // P9.2: fast path — if this body was pre-parsed by
+    // ``parse_cache.build_for_body`` (called from ``proc_register``
+    // in P9.3), replay the cached command list without re-parsing.
+    const parse_cache = @import("parse_cache.zig");
+    const slab = parse_cache.lookup(script_ptr, script_len);
+    if (slab != 0) {
+        return eval_cached_slab(slab, script_ptr, script_len);
+    }
+
+    // Cold path: no cache entry — parse + execute inline the way
+    // we always have.  The cache stays empty for bodies that
+    // weren't pre-parsed; non-proc scripts (``eval``, ``uplevel``,
+    // command subs) flow through here every call.
+    const src: [*]const u8 = @ptrFromInt(script_ptr);
+    var pos: u32 = 0;
+    var result: i32 = 0;
+    // Token-tree scratch for each parsed command.  A command contributes
+    // at most MAX_WORDS ``.WORD`` / ``.SIMPLE_WORD`` tokens plus one
+    // ``.EXPAND_WORD`` marker per ``{*}`` — so 2 * MAX_WORDS is the
+    // worst-case slot count.
+    var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
+
     while (pos < script_len) {
-        // Publish the current command's position so any trap that
-        // fires during dispatch includes a useful source snippet.
         diag.current_eval_ptr = script_ptr;
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
@@ -1735,89 +1928,122 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         pos = cmd.next;
         if (cmd.n_words == 0) continue;
 
-        // Walk the Token stream: EXPAND_WORD is a marker that sets the
-        // expansion flag on the next WORD / SIMPLE_WORD.  Everything
-        // else is a direct word.  The absolute byte pointer comes
-        // from ``Parse.src_ptr + Token.start``.
-        const tokens: [*]parse.Token = @ptrFromInt(cmd.tokens_ptr);
-        var has_expand = false;
-        {
-            var t: u32 = 0;
-            while (t < cmd.tokens_len) : (t += 1) {
-                if (tokens[t].kind == .EXPAND_WORD) {
-                    has_expand = true;
-                    break;
-                }
-            }
-        }
-
-        if (!has_expand) {
-            // Fast path: no expansion.  Every token is a WORD /
-            // SIMPLE_WORD describing one script word.
-            var word_objs: [MAX_WORDS]i32 = undefined;
-            var wi: u32 = 0;
-            var t: u32 = 0;
-            while (t < cmd.tokens_len) : (t += 1) {
-                const tok = tokens[t];
-                if (tok.kind == .EXPAND_WORD) continue;
-                const wptr_abs: u32 = cmd.src_ptr + tok.start;
-                if (tok.braced) {
-                    word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
-                } else {
-                    word_objs[wi] = subst_word(wptr_abs, tok.len);
-                }
-                wi += 1;
-            }
-            result = eval_command(word_objs[0..wi]);
-        } else {
-            // Slow path: at least one {*} expansion.
-            var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
-            var ecount: u32 = 0;
-            var pending_expand = false;
-            var t: u32 = 0;
-            while (t < cmd.tokens_len) : (t += 1) {
-                const tok = tokens[t];
-                if (tok.kind == .EXPAND_WORD) {
-                    pending_expand = true;
-                    continue;
-                }
-                const wptr_abs: u32 = cmd.src_ptr + tok.start;
-                const word_obj: i32 = if (tok.braced)
-                    obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
-                else
-                    subst_word(wptr_abs, tok.len);
-
-                if (pending_expand) {
-                    pending_expand = false;
-                    // Expansion: split word_obj as a Tcl list and
-                    // insert each element as a separate argument.
-                    const s = obj_ensure_string(word_obj);
-                    const n = list_count_elements(s.ptr, s.len);
-                    var j: i64 = 0;
-                    while (j < n) : (j += 1) {
-                        if (ecount >= MAX_EXPANDED_WORDS) break;
-                        const elem = list_element_at(s.ptr, s.len, j);
-                        if (elem.braced) {
-                            expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
-                        } else {
-                            const buf = alloc(elem.len);
-                            const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-                            expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
-                        }
-                        ecount += 1;
-                    }
-                } else {
-                    if (ecount < MAX_EXPANDED_WORDS) {
-                        expanded[ecount] = word_obj;
-                        ecount += 1;
-                    }
-                }
-            }
-            result = eval_command(expanded[0..ecount]);
-        }
+        result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
         if (has_signal()) return result;
     }
     return result;
+}
+
+/// Replay pre-parsed command records from a parse-cache slab.
+/// Exits on the first command that raises a signal (break /
+/// continue / return / error) — same semantics as the cold path.
+fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
+    const parse_cache = @import("parse_cache.zig");
+    const diag = @import("tcl_diag.zig");
+    const n_cmds = parse_cache.slab_n_commands(slab);
+    var result: i32 = 0;
+    var i: u32 = 0;
+    while (i < n_cmds) : (i += 1) {
+        const rec = parse_cache.command_record(slab, i);
+        const tok_offset: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_TOKENS_OFFSET));
+        const tok_len: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_TOKENS_LEN));
+        const next_pos: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_NEXT_POS));
+        diag.current_eval_ptr = body_ptr;
+        diag.current_eval_len = body_len;
+        // The per-record ``next_pos`` captures the byte offset the
+        // cold path would have advanced to after this command;
+        // publishing it as ``current_eval_pos`` keeps trap
+        // diagnostics pointing at the right source span for
+        // errors triggered inside the dispatched command.
+        diag.current_eval_pos = if (i == 0) 0 else @bitCast(obj_mod.read_i32(parse_cache.command_record(slab, i - 1) + parse_cache.OFF_CR_NEXT_POS));
+        const tokens_ptr = parse_cache.token_at(slab, tok_offset);
+        result = execute_parsed_command(body_ptr, tokens_ptr, tok_len);
+        if (has_signal()) return result;
+        _ = next_pos;
+    }
+    return result;
+}
+
+/// Execute the dispatch + eval_command body for a single parsed
+/// command.  Factored out of ``eval_script`` so both the cold
+/// (parse-on-demand) and warm (cached) paths share identical
+/// command-execution semantics.  ``body_ptr`` is the base of the
+/// original script bytes; ``parse.Token.start`` values are offsets
+/// relative to it.
+fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
+    const tokens: [*]parse.Token = @ptrFromInt(tokens_ptr);
+    var has_expand = false;
+    {
+        var t: u32 = 0;
+        while (t < tokens_len) : (t += 1) {
+            if (tokens[t].kind == .EXPAND_WORD) {
+                has_expand = true;
+                break;
+            }
+        }
+    }
+
+    if (!has_expand) {
+        // Fast path: no expansion.
+        var word_objs: [MAX_WORDS]i32 = undefined;
+        var wi: u32 = 0;
+        var t: u32 = 0;
+        while (t < tokens_len) : (t += 1) {
+            const tok = tokens[t];
+            if (tok.kind == .EXPAND_WORD) continue;
+            const wptr_abs: u32 = body_ptr + tok.start;
+            if (tok.braced) {
+                word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
+            } else {
+                word_objs[wi] = subst_word(wptr_abs, tok.len);
+            }
+            wi += 1;
+        }
+        return eval_command(word_objs[0..wi]);
+    }
+
+    // Slow path: at least one {*} expansion.
+    var expanded: [MAX_EXPANDED_WORDS]i32 = undefined;
+    var ecount: u32 = 0;
+    var pending_expand = false;
+    var t: u32 = 0;
+    while (t < tokens_len) : (t += 1) {
+        const tok = tokens[t];
+        if (tok.kind == .EXPAND_WORD) {
+            pending_expand = true;
+            continue;
+        }
+        const wptr_abs: u32 = body_ptr + tok.start;
+        const word_obj: i32 = if (tok.braced)
+            obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
+        else
+            subst_word(wptr_abs, tok.len);
+
+        if (pending_expand) {
+            pending_expand = false;
+            const s = obj_ensure_string(word_obj);
+            const n = list_count_elements(s.ptr, s.len);
+            var j: i64 = 0;
+            while (j < n) : (j += 1) {
+                if (ecount >= MAX_EXPANDED_WORDS) break;
+                const elem = list_element_at(s.ptr, s.len, j);
+                if (elem.braced) {
+                    expanded[ecount] = obj_new_string_copy(s.ptr + elem.start, elem.len);
+                } else {
+                    const buf = alloc(elem.len);
+                    const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
+                    expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
+                }
+                ecount += 1;
+            }
+        } else {
+            if (ecount < MAX_EXPANDED_WORDS) {
+                expanded[ecount] = word_obj;
+                ecount += 1;
+            }
+        }
+    }
+    return eval_command(expanded[0..ecount]);
 }
 
 // Exported: evaluate a Tcl script string.

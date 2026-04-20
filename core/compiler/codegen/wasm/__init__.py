@@ -290,6 +290,58 @@ def wasm_codegen_module(
     shared_string_index: dict[str, int] = {}
     shared_string_offset: list[int] = [0]
 
+    # Resolve ``namespace import`` patterns against the now-complete
+    # proc index so the emitter can dispatch unqualified calls
+    # (``test name desc body``) directly to the compiled proc
+    # (``::tcltest::test``) instead of falling back to ``tcl_eval``.
+    # ``namespace_imports`` is ordered; later imports shadow earlier
+    # ones (matches Tcl resolution).  Pattern matching supports only
+    # the two real-world shapes: absolute glob (``::ns::*``) and
+    # absolute single name (``::ns::proc``).  More elaborate globs
+    # would need ``string match`` semantics — deferred until a test
+    # in the wild trips it.
+    #
+    # ``namespace export`` filter: C Tcl's ``Tcl_Import`` only
+    # redirects commands whose simple name matches the source
+    # namespace's export patterns.  We gather those patterns by
+    # source ns and reject import candidates whose simple name
+    # doesn't match any — the importing caller then falls back to
+    # runtime dispatch (which produces the correct "unknown
+    # command" diagnostic when the name really wasn't exported).
+    # An empty export list for a source ns means "no exports
+    # visible", so every import from that ns skips the shortcut.
+    from fnmatch import fnmatchcase
+
+    exports_by_ns: dict[str, list[str]] = {}
+    for src_ns, pat in ir_module.namespace_exports:
+        exports_by_ns.setdefault(src_ns, []).append(pat)
+
+    def _source_exports(simple_name: str, source_ns: str) -> bool:
+        patterns = exports_by_ns.get(source_ns, [])
+        if not patterns:
+            return False
+        for p in patterns:
+            if fnmatchcase(simple_name, p):
+                return True
+        return False
+
+    proc_imports: dict[str, dict[str, str]] = {}
+    for context_ns, pattern in ir_module.namespace_imports:
+        table = proc_imports.setdefault(context_ns, {})
+        ns_part, _, name_part = pattern.rpartition("::")
+        if not ns_part:
+            continue
+        prefix = f"{ns_part}::"
+        if name_part == "*":
+            for qname in proc_index:
+                if qname.startswith(prefix):
+                    short = qname[len(prefix) :]
+                    if "::" not in short and _source_exports(short, ns_part):
+                        table[short] = qname
+        else:
+            if pattern in proc_index and _source_exports(name_part, ns_part):
+                table[name_part] = pattern
+
     # Phase 4: Compile top-level with shared state
     top_escape = escape_summaries.get("::top") if escape_summaries is not None else None
     emitter = _WasmEmitter(
@@ -305,6 +357,7 @@ def wasm_codegen_module(
         shared_string_offset=shared_string_offset,
         diag_map=diag_map,
         escape_summary=top_escape,
+        proc_imports=proc_imports,
     )
     # Register every compiled proc in the runtime proc table with a
     # non-zero func_idx marker so the interpreter knows to dispatch
@@ -341,6 +394,7 @@ def wasm_codegen_module(
             proc_qname=qname,
             diag_map=diag_map,
             escape_summary=proc_escape,
+            proc_imports=proc_imports,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
@@ -352,8 +406,11 @@ def wasm_codegen_module(
             diag_map.procs.append((f_idx, qname))
 
     # Emit a single set of data segments from the shared string table.
+    # ``surrogatepass`` mirrors ``_intern_string`` — the runtime reads
+    # strings as opaque byte sequences; preserving WTF-8 lets test
+    # bundles with lone-surrogate test-result literals compile.
     for value, offset in shared_strings:
-        encoded = value.encode("utf-8")
+        encoded = value.encode("utf-8", errors="surrogatepass")
         data = len(encoded).to_bytes(4, "little") + encoded
         module.data_segments.append(WasmData(offset=offset, data=data))
 

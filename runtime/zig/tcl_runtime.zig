@@ -5,7 +5,11 @@
 // calls them directly.
 
 const tcl_obj = @import("tcl_obj.zig");
-const tcl_globals = @import("tcl_globals.zig");
+// ``tcl_globals.zig`` retired in P3.4 — its four exports moved
+// into ``tcl_ns.zig``.  The ``tcl_globals`` alias is kept as a
+// convenience for the re-export block below; new code should
+// import ``tcl_ns`` directly.
+const tcl_globals = @import("tcl_ns.zig");
 const tcl_io = @import("tcl_io.zig");
 const tcl_string = @import("tcl_string.zig");
 const tcl_list_mod = @import("tcl_list.zig");
@@ -13,6 +17,8 @@ const tcl_dict = @import("tcl_dict.zig");
 const tcl_catch = @import("tcl_catch.zig");
 const tcl_frames = @import("tcl_frames.zig");
 const tcl_procs = @import("tcl_procs.zig");
+const tcl_ns = @import("tcl_ns.zig");
+const parse_cache = @import("parse_cache.zig");
 const tcl_cmd_info = @import("tcl_cmd_info.zig");
 const tcl_clock = @import("tcl_clock.zig");
 const tcl_array = @import("tcl_array.zig");
@@ -171,6 +177,37 @@ comptime {
     _ = &tcl_globals.global_get;
     _ = &tcl_globals.global_exists;
     _ = &tcl_globals.tcl_incr;
+    // tcl_ns exports (P1.2 — no in-tree caller yet; comptime ref
+    // keeps wasm-ld from dropping the new symbols)
+    _ = &tcl_ns.tcl_ns_root;
+    _ = &tcl_ns.tcl_ns_lookup;
+    _ = &tcl_ns.tcl_ns_create;
+    // P1.4 — ns_resolve_qualified test scaffolding
+    _ = &tcl_ns.tcl_ns_resolve_qualified;
+    _ = &tcl_ns.tcl_ns_last_simple_ptr;
+    _ = &tcl_ns.tcl_ns_last_simple_len;
+    _ = &tcl_ns.tcl_ns_last_alt;
+    _ = &tcl_ns.tcl_test_alloc;
+    // P3.1 — Var struct + var_table helpers; no in-tree caller
+    // until P3.2 forwards globals through them.  The comptime refs
+    // keep them in the binary so the P1.4 test harness (or P3.x
+    // tests) can reach them.
+    _ = &tcl_ns.ns_var_find;
+    _ = &tcl_ns.ns_var_create;
+    _ = &tcl_ns.var_resolve_link;
+    _ = &tcl_ns.var_get_scalar;
+    _ = &tcl_ns.var_set_scalar;
+    // P9.1 — parse cache; no in-tree caller until P9.2 wires
+    // ``eval_script`` through it.  Comptime refs keep wasm-ld
+    // from dropping the symbols.
+    _ = &parse_cache.lookup;
+    _ = &parse_cache.insert;
+    _ = &parse_cache.invalidate_all;
+    _ = &parse_cache.alloc_slab;
+    _ = &parse_cache.command_record;
+    _ = &parse_cache.token_area_start;
+    _ = &parse_cache.token_at;
+    _ = &parse_cache.slab_n_commands;
     // tcl_io exports
     _ = &tcl_io.tcl_cmd_puts;
     _ = &tcl_io.tcl_cmd_puts_nonewline;

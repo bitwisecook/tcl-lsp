@@ -80,6 +80,7 @@ from ._encoding import (
 from ._imports import (
     _CLOCK_SUBCMD_IMPORT,
     _CMD_RUNTIME,
+    _CMD_RUNTIME_NONTRAPPING,
     _DICT_SUBCMD_IMPORT,
     _RUNTIME_IMPORTS,
     _SCOPE_NOP_COMMANDS,
@@ -184,6 +185,7 @@ class _WasmEmitter:
         proc_qname: str | None = None,
         diag_map: DiagMap | None = None,
         escape_summary: "ProcEscapeSummary | None" = None,
+        proc_imports: dict[str, dict[str, str]] | None = None,
     ) -> None:
         self._cfg = cfg
         self._params = params
@@ -209,6 +211,15 @@ class _WasmEmitter:
         # surplus call-site args are packed into a single list TclObj
         # and passed as the last positional argument.
         self._proc_args_tail: set[str] = proc_args_tail or set()
+
+        # Resolved ``namespace import`` table: ``{context_ns: {short:
+        # qualified}}``.  Consulted by ``_resolve_proc`` /
+        # ``_resolve_proc_qname`` so unqualified calls like ``test
+        # name desc body`` dispatch directly to ``::tcltest::test``
+        # (when ``namespace import ::tcltest::*`` was seen at lowering
+        # time) rather than falling back to ``tcl_eval``.  Empty when
+        # no namespace-import directives were present.
+        self._proc_imports: dict[str, dict[str, str]] = proc_imports or {}
 
         # Local variable management
         self._local_names: list[str] = []
@@ -1063,7 +1074,7 @@ class _WasmEmitter:
                 self._emit_call(new_int_idx)
             except ValueError:
                 offset = self._intern_string(value)
-                encoded = value.encode("utf-8")
+                encoded = value.encode("utf-8", errors="surrogatepass")
                 # data_ptr = segment offset + 4 (skip length prefix)
                 self._emit_i32_const(offset + 4)
                 self._emit_i32_const(len(encoded))
@@ -1180,11 +1191,22 @@ class _WasmEmitter:
             self._emit_obj_literal(list_str)
 
     def _intern_string(self, value: str) -> int:
-        """Return the memory offset for a string constant."""
+        """Return the memory offset for a string constant.
+
+        Uses ``surrogatepass`` so lone surrogates that the source
+        reader left in a Python string survive as WTF-8 bytes.  The
+        Zig runtime reads strings as opaque byte sequences — it does
+        not validate UTF-8 — so this preserves the exact source
+        bytes end-to-end.  Needed for test bundles that embed
+        arbitrary binary data in ``test`` result strings (``expr.test``
+        has a few); before the compile-time namespace-import
+        resolution, those calls fell back to ``tcl_eval`` which
+        stored the source verbatim, so the issue was latent.
+        """
         if value in self._string_index:
             return self._string_index[value]
         offset = self._string_offset_ref[0]
-        encoded = value.encode("utf-8")
+        encoded = value.encode("utf-8", errors="surrogatepass")
         self._string_offset_ref[0] += len(encoded) + 4  # 4 bytes for length prefix
         self._strings.append((value, offset))
         self._string_index[value] = offset
@@ -2372,6 +2394,44 @@ class _WasmEmitter:
             case IRTry(body=body, handlers=handlers, finally_body=finally_body):
                 self._emit_try(body, handlers, finally_body)
 
+    def _resolve_import(self, command: str) -> str | None:
+        """Resolve an unqualified ``command`` via ``namespace import``.
+
+        Consults the resolved import table built by the codegen
+        driver: for each candidate context namespace (the active
+        ``namespace eval`` block, then the enclosing proc's namespace,
+        then global), look up the short name and return the
+        fully-qualified target if it points at a known proc.
+
+        Imports recorded in a specific namespace only apply when
+        we're compiling inside that namespace, matching Tcl's
+        lexical resolution.  The global import table is always
+        consulted last so top-level ``namespace import ::tcltest::*``
+        still lets a bare ``test`` call resolve when compiling a
+        top-level statement.
+        """
+        if not self._proc_imports:
+            return None
+        # Probe the most-specific context first, then widen.
+        contexts: list[str] = []
+        if self._block_namespace and self._block_namespace != "::":
+            contexts.append(self._block_namespace)
+        if self._proc_namespace and self._proc_namespace != "::":
+            contexts.append(self._proc_namespace)
+        contexts.append("::")
+        seen: set[str] = set()
+        for ctx in contexts:
+            if ctx in seen:
+                continue
+            seen.add(ctx)
+            table = self._proc_imports.get(ctx)
+            if table is None:
+                continue
+            qn = table.get(command)
+            if qn is not None and qn in self._proc_index:
+                return qn
+        return None
+
     def _resolve_proc_qname(self, command: str) -> str | None:
         """Resolve ``command`` to the qualified proc name if it matches."""
         if command.startswith("::"):
@@ -2388,7 +2448,10 @@ class _WasmEmitter:
             return f"::{command}"
         if command in self._proc_index:
             return command
-        return None
+        # Final step: consult ``namespace import`` mappings so a bare
+        # call like ``test …`` resolves to ``::tcltest::test`` when
+        # the caller executed ``namespace import ::tcltest::*``.
+        return self._resolve_import(command)
 
     def _resolve_proc(self, command: str) -> tuple[int, int] | None:
         """Look up a user-defined proc by name, returning (func_idx, n_params) or None.
@@ -2420,7 +2483,16 @@ class _WasmEmitter:
             hit = self._proc_index.get(ns_qname)
             if hit is not None:
                 return hit
-        return self._proc_index.get(f"::{command}") or self._proc_index.get(command)
+        direct = self._proc_index.get(f"::{command}") or self._proc_index.get(command)
+        if direct is not None:
+            return direct
+        # Final step: consult ``namespace import`` mappings so bare
+        # calls after ``namespace import ::tcltest::*`` (etc.)
+        # dispatch directly instead of falling back to ``tcl_eval``.
+        imported = self._resolve_import(command)
+        if imported is not None:
+            return self._proc_index.get(imported)
+        return None
 
     def _emit_call_stmt(
         self,
@@ -2865,7 +2937,7 @@ class _WasmEmitter:
                     # pool so multiple fallbacks in the same proc
                     # share the bytes.
                     offset = self._intern_string(ns_literal)
-                    encoded = ns_literal.encode("utf-8")
+                    encoded = ns_literal.encode("utf-8", errors="surrogatepass")
                     self._emit_i32_const(offset + 4)
                     self._emit_i32_const(len(encoded))
                     self._emit_call(ns_set_idx)
@@ -4800,13 +4872,21 @@ class _WasmEmitter:
             self._emit_unsupported_trap(command)
             return
 
-        # Record a diag site for *every* runtime-dispatched command so
-        # a trap inside the runtime (stubs raising ``unsupported
-        # command: X``, ``lappend`` erroring on a non-list value, etc.)
-        # is attributable to the right source location.  Three WASM
-        # bytes per call; negligible against the alternative of
-        # silent misattribution.
-        self._emit_diag_site(command, args=args, kind="runtime")
+        # Record a diag site for runtime-dispatched commands whose
+        # stubs can trap (``unsupported command: X`` from I/O / FS /
+        # event / coroutine stubs, ``regexp`` on bad patterns, dict /
+        # clock error paths, etc.) so stderr's ``tcl trap: site=<id>``
+        # line resolves to the right source location.  Commands in
+        # ``_CMD_RUNTIME_NONTRAPPING`` (currently just ``puts`` and
+        # ``append`` — see the set definition in ``_imports.py``)
+        # are total for every arg shape the codegen emits and
+        # never raise into ``tcl_diag``, so the per-call
+        # ``tcl_diag_set`` preamble (~4 WASM bytes + one DiagSite
+        # record) is pure overhead for them.  ``lappend`` /
+        # ``lindex`` etc. still emit diag sites because they can
+        # trap on malformed list values.
+        if command not in _CMD_RUNTIME_NONTRAPPING:
+            self._emit_diag_site(command, args=args, kind="runtime")
 
         spec = _RUNTIME_IMPORTS[import_key]
         param_count = len(spec[2])
@@ -6485,7 +6565,7 @@ class _WasmEmitter:
         """Return accumulated string data segments."""
         segments: list[WasmData] = []
         for value, offset in self._strings:
-            encoded = value.encode("utf-8")
+            encoded = value.encode("utf-8", errors="surrogatepass")
             # Store: 4-byte length prefix + utf-8 data
             data = len(encoded).to_bytes(4, "little") + encoded
             segments.append(WasmData(offset=offset, data=data))

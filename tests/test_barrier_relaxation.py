@@ -167,3 +167,102 @@ class TestBarrierGateSafety:
         assert body.statements
         first = body.statements[0]
         assert not isinstance(first, IRBarrier)
+
+
+class TestConstMapBarrierRelaxation:
+    """Const-propagate ``set body {literal}`` through ``$body`` at
+    the ``uplevel`` / ``eval`` barrier-relaxation gate."""
+
+    def test_proc_set_body_then_uplevel_relaxes(self):
+        mod = lower_to_ir("proc p {} { set body {set x 1}; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        # IRAssignConst, then IRUpFrame with the body folded in.
+        assert any(isinstance(s, IRUpFrame) for s in stmts)
+
+    def test_proc_set_body_then_eval_relaxes(self):
+        mod = lower_to_ir("proc p {} { set body {set x 1}; eval $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBlock) for s in stmts)
+
+    def test_reassign_invalidates_const_map(self):
+        mod = lower_to_ir("proc p {dyn} { set body {set x 1}; set body $dyn; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        # Re-assignment to ``body`` with a dynamic RHS drops the map
+        # entry — subsequent uplevel cannot relax.
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
+
+    def test_control_flow_invalidates_const_map(self):
+        # ``if`` may write to arbitrary vars in its body; conservatively
+        # drop the whole map so ``uplevel 1 $body`` after it stays a
+        # barrier.
+        mod = lower_to_ir(
+            "proc p {c} { set body {set x 1}; if {$c} { set body {set x 2} }; uplevel 1 $body }"
+        )
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
+
+    def test_top_level_const_map_stays_disabled(self):
+        # Top-level ``set body {…}`` creates a global; const-propagating
+        # it is unsound because other code could write the global.
+        mod = lower_to_ir("set body {set x 1}\nuplevel 1 $body")
+        assert any(isinstance(s, IRBarrier) for s in mod.top_level.statements)
+
+    def test_param_not_in_const_map(self):
+        # A proc parameter is not a ``set`` assignment — it never
+        # enters the const-map, so ``uplevel 1 $param`` stays a
+        # barrier (the passthrough-inlining pass handles the
+        # single-param shape separately at call sites).
+        mod = lower_to_ir("proc p {body} { uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) for s in stmts)
+
+    def test_namespace_qualified_name_not_tracked(self):
+        # ``set ::body {...}`` is a global write; don't track it.
+        mod = lower_to_ir("proc p {} { set ::body {set x 1}; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
+
+    def test_array_ref_not_tracked(self):
+        mod = lower_to_ir("proc p {} { set arr(k) {set x 1}; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
+
+    def test_nested_dynamic_barrier_in_literal_still_poisons(self):
+        mod = lower_to_ir("proc p {} { set body {eval $x}; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
+
+    def test_catch_body_inherits_outer_const_map(self):
+        # ``set body {literal}; catch {uplevel 1 $body}`` — the catch's
+        # inner scope should inherit the outer proc's const-map so the
+        # nested uplevel can relax.  Mirrors tcltest's
+        # ``catch {uplevel 1 $setup}`` shape where ``setup`` is set to
+        # a literal earlier in the proc.
+        from core.compiler.ir import IRCatch
+
+        mod = lower_to_ir("proc p {} { set body {set x 1}; catch {uplevel 1 $body} err }")
+        stmts = mod.procedures["::p"].body.statements
+        catch_stmts = [s for s in stmts if isinstance(s, IRCatch)]
+        assert catch_stmts
+        inner = catch_stmts[0].body.statements
+        assert any(isinstance(s, IRUpFrame) for s in inner)
+
+    def test_if_body_inherits_outer_const_map(self):
+        from core.compiler.ir import IRIf
+
+        mod = lower_to_ir("proc p {c} { set body {set x 1}; if {$c} { uplevel 1 $body } }")
+        stmts = mod.procedures["::p"].body.statements
+        if_stmts = [s for s in stmts if isinstance(s, IRIf)]
+        assert if_stmts
+        inner = if_stmts[0].clauses[0].body.statements
+        assert any(isinstance(s, IRUpFrame) for s in inner)
+
+    def test_inner_reassignment_does_not_leak_to_parent(self):
+        # Child scope re-assigns ``body`` to something dynamic — the
+        # child's local const-map loses the entry, but the parent's
+        # map is only cleared because ``if`` itself is structured IR.
+        # The outer uplevel stays a barrier (the parent's invalidation
+        # is still in charge post-``if``).
+        mod = lower_to_ir("proc p {c} { set body {a}; if {$c} { set body $c } ; uplevel 1 $body }")
+        stmts = mod.procedures["::p"].body.statements
+        assert any(isinstance(s, IRBarrier) and s.command == "uplevel" for s in stmts)
