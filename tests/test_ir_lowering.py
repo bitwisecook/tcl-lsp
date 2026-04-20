@@ -707,3 +707,165 @@ class TestAliasLowering:
         assert len(assign_exprs) == 2
         assert assign_exprs[0].name == "c2"
         assert assign_exprs[1].name == "c"
+
+
+class TestNamespaceDirectiveDeadCode:
+    """``namespace import`` / ``namespace export`` inside statically-
+    dead ``if`` branches must not register with ``IRModule``'s
+    import / export tables — the codegen turns those into
+    compile-time dispatch rewrites and a dead-code directive can
+    silently globalise an unqualified call to a namespace that was
+    never actually populated at runtime.
+
+    See https://github.com/bitwisecook/tcl-lsp/issues/189.
+    """
+
+    def test_namespace_import_in_if_false_not_collected(self):
+        """``if {0} { namespace import ... }`` leaves the module's
+        ``namespace_imports`` table empty."""
+        source = textwrap.dedent("""\
+            namespace eval ::other {
+                namespace export evil
+                proc evil {} { return bad }
+            }
+            if {0} {
+                namespace import ::other::evil
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert all(pat != "::other::evil" for _, pat in mod.namespace_imports)
+
+    def test_namespace_export_in_if_false_not_collected(self):
+        """``if {0} { namespace export ... }`` leaves the module's
+        ``namespace_exports`` table free of the dead directive."""
+        source = textwrap.dedent("""\
+            namespace eval ::other {
+                if {0} {
+                    namespace export evil
+                }
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert all(not (ns == "::other" and pat == "evil") for ns, pat in mod.namespace_exports)
+
+    def test_issue_189_shape(self):
+        """The exact shape from issue #189: BOTH the export and the
+        matching import live in the same dead block, so the
+        export-pattern filter alone wouldn't catch the bad rewrite.
+        Dead-code suppression prevents either from registering."""
+        source = textwrap.dedent("""\
+            if {0} {
+                namespace eval ::other {
+                    namespace export evil
+                }
+                namespace import ::other::evil
+            }
+            evil
+        """)
+        mod = lower_to_ir(source)
+        assert mod.namespace_imports == ()
+        # An ``evil`` export collected from dead code would still let
+        # the codegen try to dispatch ``evil`` directly if some other
+        # path added the matching import — so the export must stay
+        # uncollected too.
+        assert all(pat != "evil" for _, pat in mod.namespace_exports)
+
+    def test_if_true_else_branch_is_dead(self):
+        """``if {1} { live } else { namespace import X }`` — the
+        else branch is dead, so its directive isn't collected."""
+        source = textwrap.dedent("""\
+            if {1} {
+                set x 1
+            } else {
+                namespace import ::other::evil
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert all(pat != "::other::evil" for _, pat in mod.namespace_imports)
+
+    def test_if_true_elseif_branch_is_dead(self):
+        """``if {1} { live } elseif {…} { dead }`` — once the first
+        clause is statically true, every later clause is dead."""
+        source = textwrap.dedent("""\
+            if {1} {
+                set x 1
+            } elseif {$y == 1} {
+                namespace import ::other::evil
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert all(pat != "::other::evil" for _, pat in mod.namespace_imports)
+
+    def test_if_false_false_alternative_boolean_literals(self):
+        """Tcl accepts ``no``/``off`` as false booleans — the dead-
+        code gate respects them too (case-insensitive)."""
+        source = textwrap.dedent("""\
+            if {No} {
+                namespace import ::other::x
+            }
+            if {OFF} {
+                namespace import ::other::y
+            }
+        """)
+        mod = lower_to_ir(source)
+        pats = {pat for _, pat in mod.namespace_imports}
+        assert "::other::x" not in pats
+        assert "::other::y" not in pats
+
+    def test_live_if_still_collects(self):
+        """Regression: directives in genuinely-live ``if`` branches
+        are still captured (the existing code path stays working)."""
+        source = textwrap.dedent("""\
+            namespace eval ::other {
+                namespace export ok
+                proc ok {} { return good }
+            }
+            if {1} {
+                namespace import ::other::ok
+            }
+        """)
+        mod = lower_to_ir(source)
+        pats = {pat for _, pat in mod.namespace_imports}
+        assert "::other::ok" in pats
+
+    def test_unqualified_unconditional_still_collects(self):
+        """Regression: top-level directives (no ``if`` wrapper) are
+        captured — dead-code depth stays at 0 for the default path."""
+        source = textwrap.dedent("""\
+            namespace eval ::other {
+                namespace export ok
+                proc ok {} { return good }
+            }
+            namespace import ::other::ok
+        """)
+        mod = lower_to_ir(source)
+        pats = {pat for _, pat in mod.namespace_imports}
+        assert "::other::ok" in pats
+
+    def test_nested_dead_inside_live_if(self):
+        """``if {1} { if {0} { namespace import … } }`` — the inner
+        branch is dead because the inner condition is false, even
+        though the outer condition is live."""
+        source = textwrap.dedent("""\
+            if {1} {
+                if {0} {
+                    namespace import ::other::evil
+                }
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert all(pat != "::other::evil" for _, pat in mod.namespace_imports)
+
+    def test_dynamic_condition_still_collects(self):
+        """Dynamic conditions (a variable / command substitution)
+        can't be folded at compile time — we pessimistically treat
+        them as live so we never *lose* a legitimate directive."""
+        source = textwrap.dedent("""\
+            set flag 1
+            if {$flag} {
+                namespace import ::other::ok
+            }
+        """)
+        mod = lower_to_ir(source)
+        pats = {pat for _, pat in mod.namespace_imports}
+        assert "::other::ok" in pats
