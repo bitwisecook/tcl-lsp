@@ -2453,10 +2453,18 @@ async def _publish_diagnostics(
     partial_mode = state.has_partial_commands
 
     # After analysis completes, ask the client to re-request semantic
-    # tokens so they benefit from analysis enrichment (regex_positions).
+    # tokens so they benefit from analysis enrichment (regex_positions),
+    # and folding ranges so that scope-based folds for quoted or
+    # substituted proc/namespace bodies (which the syntactic walker
+    # can't recover) get picked up on top of the syntactic folds that
+    # were served pre-analysis.
     if did_analyse and state.analysis is not None:
         try:
             server.workspace_semantic_tokens_refresh(None)
+        except Exception:
+            pass  # client may not support refresh
+        try:
+            server.workspace_folding_range_refresh(None)
         except Exception:
             pass  # client may not support refresh
 
