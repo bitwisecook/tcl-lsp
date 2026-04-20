@@ -1097,6 +1097,57 @@ fn eval_command(words: []const i32) i32 {
                     return 0;
                 }
             }
+            // ``namespace path { ::ns1 ::ns2 … }`` — set the current
+            // ns's command resolution path.  Argument is a Tcl list
+            // (single ``words[2]``) of namespace names.  Each name is
+            // resolved to a ``*Namespace`` (find-only — missing
+            // namespaces are silently skipped, matching our pattern
+            // for namespace-tree gaps).  P5.2 will start consulting
+            // the path in ``ns_find_command``; for now this just
+            // records it.
+            if (sub.len == 4 and sub.ptr != 0) {
+                const sp4: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp4[0] == 'p' and sp4[1] == 'a' and sp4[2] == 't' and sp4[3] == 'h') {
+                    if (words.len < 3) {
+                        // ``namespace path`` with no args queries
+                        // current — not implemented here, return empty.
+                        return 0;
+                    }
+                    const ls = obj_ensure_string(words[2]);
+                    const count = obj_mod.list_count_elements(ls.ptr, ls.len);
+                    if (count == 0) {
+                        // Empty list clears the path.
+                        tcl_ns.ns_set_path(tcl_ns.ns_current(), 0, 0);
+                        return 0;
+                    }
+                    // Allocate a packed u32 array for the resolved
+                    // targets.  Writing via ``write_i32`` sidesteps
+                    // the ``[*]u32`` alignment cast Zig requires for
+                    // pointer arithmetic on bump-allocated memory.
+                    const targets_buf = alloc(@intCast(count * 4));
+                    var li: i64 = 0;
+                    while (li < count) : (li += 1) {
+                        const elt = obj_mod.list_element_at(ls.ptr, ls.len, li);
+                        const r = tcl_ns.ns_resolve_qualified(tcl_ns.ns_current(), elt.start, elt.len);
+                        // ``namespace path`` should resolve to an
+                        // existing leaf ns.  ``ns_resolve_qualified``
+                        // for ``::tcltest`` yields target=root,
+                        // simple="tcltest" (because there's no
+                        // trailing component to make it a "this whole
+                        // path is a ns" lookup).  Combine the two:
+                        // if simple_len > 0, descend one more level.
+                        var resolved: u32 = r.target_ns;
+                        if (r.simple_len > 0 and r.target_ns != 0) {
+                            const child = tcl_ns.ns_lookup(r.target_ns, r.simple_ptr, r.simple_len);
+                            resolved = child;
+                        }
+                        obj_mod.write_i32(targets_buf + @as(u32, @intCast(li)) * 4, @bitCast(resolved));
+                    }
+                    tcl_ns.ns_set_path(tcl_ns.ns_current(), targets_buf, @intCast(count));
+                    procs.lru_invalidate_all();
+                    return 0;
+                }
+            }
         }
         return 0;
     }

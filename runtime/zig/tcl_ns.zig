@@ -773,6 +773,85 @@ pub fn ns_export_matches(ns_addr: u32, name_ptr: u32, name_len: u32) bool {
     return false;
 }
 
+// -- Namespace path (P5.1) --------------------------------------------------
+
+/// One ordered entry on a namespace's command resolution path.
+/// ``target_ns`` is the namespace to probe; ``creator_ns`` is the
+/// namespace whose ``path_array[i]`` this entry occupies.  The
+/// ``prev`` / ``next`` slots form a doubly-linked list that hangs
+/// off the *target's* ``path_source_head`` (P5.3) so we can
+/// invalidate dependents when the target's commands change.
+///
+/// 16 bytes; bump-allocated en bloc as a contiguous array on the
+/// owning namespace.
+pub const NamespacePathEntry = extern struct {
+    target_ns: u32,
+    creator_ns: u32,
+    prev: u32,
+    next: u32,
+};
+
+const PATH_ENTRY_SIZE: u32 = @sizeOf(NamespacePathEntry);
+
+/// Replace ``ns``'s command resolution path with the given list of
+/// target namespaces.  ``targets_buf`` points at a packed array of
+/// ``targets_count`` u32 ``*Namespace`` handles in linear memory
+/// (any zero entries are skipped — left over from a parse miss).
+///
+/// Taking the array as a raw u32 byte-address (rather than a typed
+/// ``[*]const u32``) avoids the alignment cast Zig would otherwise
+/// require — our bump allocator returns 4-byte aligned addresses
+/// in practice but the type system doesn't know that.
+///
+/// We re-allocate the path array on every call rather than growing
+/// — paths are typically set once at module load and rarely
+/// touched, so the leakage is bounded.  P5.3 wires the
+/// path-source back-list; for P5.1 we just record the targets so
+/// P5.2 can walk them in ``ns_find_command``.
+pub fn ns_set_path(ns_addr: u32, targets_buf: u32, targets_count: u32) void {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    var nonzero_count: u32 = 0;
+    var i: u32 = 0;
+    while (i < targets_count) : (i += 1) {
+        const t: u32 = @bitCast(read_i32(targets_buf + i * 4));
+        if (t != 0) nonzero_count += 1;
+    }
+    if (nonzero_count == 0) {
+        ns.path_array = 0;
+        ns.path_len = 0;
+        return;
+    }
+    const buf = alloc(nonzero_count * PATH_ENTRY_SIZE);
+    var slot: u32 = 0;
+    var j: u32 = 0;
+    while (j < targets_count) : (j += 1) {
+        const t: u32 = @bitCast(read_i32(targets_buf + j * 4));
+        if (t == 0) continue;
+        const e: *NamespacePathEntry = @ptrFromInt(buf + slot * PATH_ENTRY_SIZE);
+        e.target_ns = t;
+        e.creator_ns = ns_addr;
+        e.prev = 0;
+        e.next = 0;
+        slot += 1;
+    }
+    ns.path_array = buf;
+    ns.path_len = nonzero_count;
+}
+
+/// Read-only view of an ns's path entries.  Returns the count;
+/// caller indexes into ``ns.path_array`` directly.  Used by P5.2's
+/// ``ns_find_command`` extension.
+pub fn ns_path_len(ns_addr: u32) u32 {
+    const ns: *const Namespace = @ptrFromInt(ns_addr);
+    return ns.path_len;
+}
+
+pub fn ns_path_entry(ns_addr: u32, idx: u32) *const NamespacePathEntry {
+    const ns: *const Namespace = @ptrFromInt(ns_addr);
+    const buf = ns.path_array + idx * PATH_ENTRY_SIZE;
+    return @ptrFromInt(buf);
+}
+
 // -- Namespace import (P4.2) ------------------------------------------------
 
 /// ``ImportedCmdData`` — the ``client_data`` payload C Tcl hangs
