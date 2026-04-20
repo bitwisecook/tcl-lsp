@@ -168,7 +168,8 @@ class TestDialectProfiles:
     def test_w002_suppressed_when_user_proc_shadows_disallowed_command(self):
         # tcllib's installer.tcl defines its own ``::log`` proc, which
         # shadows the iRules-only ``log`` built-in. W002 must not fire
-        # on calls to ``log`` when the user has defined it.
+        # on calls to ``log`` when the user has defined it before the
+        # call site at an unconditional top-level position.
         configure_signatures(dialect="tcl8.6")
         src = 'proc ::log {text} { puts $text }\nlog "hello"\n'
         result = analyse(src)
@@ -182,10 +183,43 @@ class TestDialectProfiles:
         assert "'log' is disabled" in w002[0].message
 
     def test_w002_suppressed_for_namespaced_user_proc(self):
+        # ``namespace eval`` runs unconditionally, so a proc it defines
+        # counts as a shadowing definition for W002 purposes.
         configure_signatures(dialect="tcl8.6")
         src = 'namespace eval ::ns { proc log {text} { puts $text } }\n::ns::log "hi"\n'
         result = analyse(src)
         assert all(d.code != "W002" for d in result.diagnostics)
+
+    def test_w002_fires_when_call_precedes_user_proc(self):
+        # Command resolution is order-dependent at runtime: a call that
+        # executes before ``proc ::log`` runs would dispatch to the
+        # (disallowed) built-in, so W002 must still fire.
+        configure_signatures(dialect="tcl8.6")
+        src = 'log "hello"\nproc ::log {text} { puts $text }\n'
+        result = analyse(src)
+        w002 = [d for d in result.diagnostics if d.code == "W002"]
+        assert len(w002) == 1
+        assert "'log' is disabled" in w002[0].message
+
+    def test_w002_fires_when_user_proc_is_defined_conditionally(self):
+        # A proc defined inside an ``if`` body is not guaranteed to
+        # exist at an arbitrary call site, so W002 still fires.
+        configure_signatures(dialect="tcl8.6")
+        src = 'if {1} { proc ::log {text} { puts $text } }\nlog "hello"\n'
+        result = analyse(src)
+        w002 = [d for d in result.diagnostics if d.code == "W002"]
+        assert len(w002) == 1
+        assert "'log' is disabled" in w002[0].message
+
+    def test_w002_fires_for_fully_qualified_disallowed_command(self):
+        # The command registry is keyed without a leading ``::``; W002
+        # must strip it so ``::open`` under the iRules dialect is
+        # recognised as the disallowed ``open`` built-in.
+        configure_signatures(dialect="f5-irules")
+        result = analyse("::open /tmp/x\n")
+        w002 = [d for d in result.diagnostics if d.code == "W002"]
+        assert len(w002) == 1
+        assert "'::open' is disabled" in w002[0].message
 
     def test_completion_hides_f5_irules_disabled_commands(self):
         configure_signatures(dialect="f5-irules")

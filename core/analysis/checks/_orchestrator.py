@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 
 from ...commands.registry import REGISTRY
 from ...parsing.tokens import Token
@@ -105,8 +106,10 @@ ALL_CHECKS = [
 ]
 
 # Checks that run unconditionally on every command (no command-name guard).
+# ``check_disabled_command`` (W002) is invoked explicitly by
+# ``run_all_checks`` because it requires extra context (the map of
+# unconditional user proc definitions) that other checks do not.
 _UNIVERSAL_CHECKS: list[_CheckFn] = [
-    check_disabled_command,
     check_non_literal_command,
     check_non_ascii,
     check_hardcoded_credentials,
@@ -196,6 +199,9 @@ def _get_targeted_checks() -> dict[str, list[_CheckFn]]:
     return _targeted_checks
 
 
+_EMPTY_USER_PROCS: Mapping[str, int] = {}
+
+
 def run_all_checks(
     cmd_name: str,
     args: list[str],
@@ -205,7 +211,7 @@ def run_all_checks(
     *,
     event: str | None = None,
     file_profiles: frozenset[str] = frozenset(),
-    user_procs: frozenset[str] = frozenset(),
+    user_procs: Mapping[str, int] = _EMPTY_USER_PROCS,
 ) -> list[Diagnostic]:
     """Run all registered checks on a single command and return diagnostics.
 
@@ -213,18 +219,21 @@ def run_all_checks(
     current command, reducing the number of function calls from ~35 to
     ~8-12 per command on average.
 
-    ``user_procs`` is the set of qualified proc names defined in the
-    current translation unit; used by W002 to recognise user procs that
-    shadow commands the active dialect disallows.
+    ``user_procs`` maps qualified user proc names to the source offset of
+    their earliest unconditional top-level definition. W002 uses it to
+    suppress the warning at call sites that appear after a shadowing
+    proc definition.
     """
     diagnostics: list[Diagnostic] = []
+    # W002 needs the user_procs context and must run on every command,
+    # so invoke it explicitly rather than through the universal loop.
+    diagnostics.extend(
+        check_disabled_command(
+            cmd_name, args, arg_tokens, all_tokens, source, user_procs=user_procs
+        )
+    )
     for check in _UNIVERSAL_CHECKS:
-        if check is check_disabled_command:
-            diagnostics.extend(
-                check(cmd_name, args, arg_tokens, all_tokens, source, user_procs=user_procs)
-            )
-        else:
-            diagnostics.extend(check(cmd_name, args, arg_tokens, all_tokens, source))
+        diagnostics.extend(check(cmd_name, args, arg_tokens, all_tokens, source))
     targeted = _get_targeted_checks().get(cmd_name)
     if targeted:
         for check in targeted:
