@@ -294,49 +294,17 @@ pub export fn proc_lookup(name: i32) i32 {
         lru_insert(hash, sn.len, first_byte, base);
         return @bitCast(base);
     }
-    // Only fall through to namespace search for UNQUALIFIED names.
-    if (sn.len >= 2) {
-        const first_two: [*]const u8 = @ptrFromInt(sn.ptr);
-        if (first_two[0] == ':' and first_two[1] == ':') return 0;
-    }
-    // 2. Try ``::name``.
-    {
-        const alen: u32 = sn.len + 2;
-        const buf = obj.alloc(alen);
-        const b: [*]u8 = @ptrFromInt(buf);
-        b[0] = ':';
-        b[1] = ':';
-        const src: [*]const u8 = @ptrFromInt(sn.ptr);
-        for (0..sn.len) |i| b[2 + i] = src[i];
-        const h2 = fnv1a(buf, alen);
-        if (proc_table.find(buf, alen, h2)) |base| {
-            return @bitCast(base);
-        }
-    }
-    // 3. Linear scan for ``*::name`` suffix.  Inlined here (rather
-    // than using ``proc_table.each``) so the early-out on a match
-    // can return immediately.
-    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
-    var idx: u32 = 0;
-    while (idx < proc_table.cap) : (idx += 1) {
-        const base = proc_table.buf + idx * PROC_BUCKET_SIZE;
-        const np: u32 = @bitCast(read_i32(base));
-        if (np == 0) continue;
-        const nl: u32 = @bitCast(read_i32(base + 4));
-        if (nl <= sn.len + 2) continue; // need room for "::name"
-        const npp: [*]const u8 = @ptrFromInt(np);
-        const tail_start: u32 = nl - sn.len;
-        if (tail_start < 2) continue;
-        if (npp[tail_start - 2] != ':' or npp[tail_start - 1] != ':') continue;
-        var matches = true;
-        for (0..sn.len) |i| {
-            if (npp[tail_start + i] != sp[i]) {
-                matches = false;
-                break;
-            }
-        }
-        if (matches) return @bitCast(base);
-    }
+    // The namespace tree walk above (step 2) handles every shape
+    // the legacy fallbacks used to cover:
+    //   * Unqualified ``foo`` → context-ns then root cmd_table
+    //     (subsumes the old "exact + ::name prefix" pair).
+    //   * Qualified ``::a::b::cmd`` → ns_resolve_qualified +
+    //     cmd_table probe with alt-path (subsumes the suffix-scan
+    //     hack, which existed only because there was no real ns
+    //     tree to consult).
+    // P2.3 removes the suffix scan + ``::name`` prefix probe; the
+    // flat-find at step 3 stays as a defence-in-depth fallback
+    // until P2.4 retires the flat table entirely.
     return 0;
 }
 
