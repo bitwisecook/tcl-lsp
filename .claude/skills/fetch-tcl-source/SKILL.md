@@ -8,9 +8,12 @@ allowed-tools: Bash, Read
 
 # Fetch Tcl Source
 
-Downloads Tcl source tarballs from SourceForge and extracts them to `tmp/`
-so that test suites, bytecode snippets, and reference data are available
-without bundling Tcl source in the repository.
+Downloads Tcl release source tarballs from GitHub's codeload CDN
+(`https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags/<tag>`) and
+extracts them to `tmp/` so test suites, bytecode snippets, and reference
+data are available without bundling Tcl source in the repository. Tarballs
+are preferred over `git clone` because they are CDN-cached, smaller on
+disk (no `.git` metadata), and easier on the upstream Tcl project.
 
 ## Usage
 
@@ -53,7 +56,8 @@ Each source tree also contains `generic/`, `library/`, `doc/`, and build files.
 
 - `tmp/` is gitignored — downloads are local only
 - Idempotent: re-running skips existing directories
-- Downloads from SourceForge with retry logic (4 attempts, exponential backoff)
+- Downloads from `codeload.github.com` with retry logic (4 attempts,
+  exponential backoff)
 - Version numbers are hardcoded; update `fetch_tcl_source.sh` when new
   patch releases come out
 
