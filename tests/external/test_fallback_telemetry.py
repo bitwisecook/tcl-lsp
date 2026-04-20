@@ -164,11 +164,18 @@ def test_namespace_import_resolves_unqualified_calls() -> None:
 
 
 def test_namespace_import_single_name_resolves() -> None:
-    """Single-name import (``namespace import ::foo::bar``) also works."""
+    """Single-name import (``namespace import ::foo::bar``) also works.
+
+    The source namespace must ``namespace export bar`` for the
+    import shortcut to fire — otherwise codegen correctly falls
+    back to runtime dispatch (which matches C Tcl's
+    ``Tcl_Import`` semantics: unexported names can't be imported).
+    """
     src = (
         "namespace eval ::foo {\n"
         "    proc bar {} { return 1 }\n"
         "    proc baz {} { return 2 }\n"
+        "    namespace export bar\n"
         "}\n"
         "namespace import ::foo::bar\n"
         "bar\n"
@@ -176,6 +183,28 @@ def test_namespace_import_single_name_resolves() -> None:
     _wasm, diag = _compile_tcl_with_diag(src, "ns_import_single.tcl")
     summary = _summarise_diag(diag)
     assert summary["fallback_sites_total"] == 0
+
+
+def test_namespace_import_without_export_falls_back() -> None:
+    """Importing an unexported name must keep the runtime dispatch
+    path so the interpreter can apply the correct "unknown
+    command" diagnostic.  This is the P8-review correctness fix:
+    the compile-time shortcut is now gated on ``namespace export``
+    patterns, matching C Tcl's ``Tcl_Import`` rules.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        # No ``namespace export bar`` — bar is NOT importable.
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "bar\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_unexported.tcl")
+    summary = _summarise_diag(diag)
+    # The ``bar`` call falls back to runtime dispatch; at least
+    # one fallback site must remain.
+    assert summary["fallback_sites_total"] >= 1
 
 
 def test_unimported_name_still_falls_back() -> None:

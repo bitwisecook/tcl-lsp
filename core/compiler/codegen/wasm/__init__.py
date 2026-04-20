@@ -300,6 +300,31 @@ def wasm_codegen_module(
     # absolute single name (``::ns::proc``).  More elaborate globs
     # would need ``string match`` semantics — deferred until a test
     # in the wild trips it.
+    #
+    # ``namespace export`` filter: C Tcl's ``Tcl_Import`` only
+    # redirects commands whose simple name matches the source
+    # namespace's export patterns.  We gather those patterns by
+    # source ns and reject import candidates whose simple name
+    # doesn't match any — the importing caller then falls back to
+    # runtime dispatch (which produces the correct "unknown
+    # command" diagnostic when the name really wasn't exported).
+    # An empty export list for a source ns means "no exports
+    # visible", so every import from that ns skips the shortcut.
+    from fnmatch import fnmatchcase
+
+    exports_by_ns: dict[str, list[str]] = {}
+    for src_ns, pat in ir_module.namespace_exports:
+        exports_by_ns.setdefault(src_ns, []).append(pat)
+
+    def _source_exports(simple_name: str, source_ns: str) -> bool:
+        patterns = exports_by_ns.get(source_ns, [])
+        if not patterns:
+            return False
+        for p in patterns:
+            if fnmatchcase(simple_name, p):
+                return True
+        return False
+
     proc_imports: dict[str, dict[str, str]] = {}
     for context_ns, pattern in ir_module.namespace_imports:
         table = proc_imports.setdefault(context_ns, {})
@@ -311,10 +336,10 @@ def wasm_codegen_module(
             for qname in proc_index:
                 if qname.startswith(prefix):
                     short = qname[len(prefix) :]
-                    if "::" not in short:
+                    if "::" not in short and _source_exports(short, ns_part):
                         table[short] = qname
         else:
-            if pattern in proc_index:
+            if pattern in proc_index and _source_exports(name_part, ns_part):
                 table[name_part] = pattern
 
     # Phase 4: Compile top-level with shared state
