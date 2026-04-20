@@ -44,12 +44,35 @@ const tcl_ns = @import("tcl_ns.zig");
 //
 // Sizes are given as comptime constants so the accessors can keep
 // using the historical ``OFF_*`` names without changing call sites.
-const COMMAND_SIZE: u32 = 32;
-const OFF_PARAMS_OBJ: u32 = 12;
+//
+// Layout:
+//
+//     [ 0.. 3] name_ptr   : i32  (heap-copied FQN bytes; used by ``info procs``)
+//     [ 4.. 7] name_len   : i32
+//     [ 8..11] flags      : u32  (CMD_IMPORTED bit; was ``hash``, never
+//                                  read after construction so repurposed
+//                                  in P4.2 with no observable change)
+//     [12..15] params_obj : i32  (TclObj for interpreted procs;
+//                                  ``*ImportedCmdData`` for imports;
+//                                  0 for compiled procs)
+//     [16..19] body_obj   : i32  (TclObj for interpreted procs; 0 otherwise)
+//     [20..23] n_params   : i32
+//     [24..27] func_idx   : i32  (>0 means AOT-compiled to a WASM fn)
+//     [28..31] args_tail  : i32  (1 if last param is "args")
+pub const COMMAND_SIZE: u32 = 32;
+pub const OFF_FLAGS: u32 = 8;
+pub const OFF_PARAMS_OBJ: u32 = 12;
 const OFF_BODY_OBJ: u32 = 16;
 const OFF_N_PARAMS: u32 = 20;
 const OFF_FUNC_IDX: u32 = 24;
 const OFF_ARGS_TAIL: u32 = 28;
+
+/// Set on imported (redirect) commands.  ``params_obj`` holds an
+/// ``*ImportedCmdData`` pointing at the source ``*Command`` and
+/// back at this redirect Command itself.  The dispatcher follows
+/// the chain on every lookup so callers always see the source's
+/// payload.
+pub const CMD_IMPORTED: u32 = 0x80;
 
 /// Total number of registered procs.  Bumped on every fresh insert
 /// (not on update-in-place).  Used by ``proc_buf_nonzero`` as the
@@ -62,6 +85,16 @@ var proc_count: u32 = 0;
 /// (e.g. a bundle with no procs defined yet).
 pub fn proc_buf_nonzero() bool {
     return proc_count != 0;
+}
+
+/// Counterpart for non-``proc_register`` paths that publish a
+/// command into a namespace's ``cmd_table`` — currently only
+/// ``tcl_ns.ns_import``.  Bumping this lets ``proc_lookup``'s
+/// "any procs at all?" early-out fire correctly when the only
+/// commands present are imports.
+pub fn proc_count_bump() void {
+    proc_count += 1;
+    lru_invalidate();
 }
 
 // -- Proc lookup LRU cache --
@@ -122,8 +155,11 @@ fn lru_insert(ns: u32, hash: u32, len: u32, first_byte: u8, cmd: u32) void {
 
 /// Allocate a fresh ``Command`` struct, copy ``name`` bytes onto
 /// the heap so the struct outlives the source TclObj string slab,
-/// and zero the value payload.
+/// and zero the value payload.  ``hash`` is unused now (offset 8
+/// holds ``flags`` post-P4.2) — kept in the signature for source
+/// continuity but ignored.
 fn alloc_command(name_ptr: u32, name_len: u32, hash: u32) u32 {
+    _ = hash;
     const addr = alloc(COMMAND_SIZE);
     const slice: [*]u8 = @ptrFromInt(addr);
     @memset(slice[0..COMMAND_SIZE], 0);
@@ -131,7 +167,7 @@ fn alloc_command(name_ptr: u32, name_len: u32, hash: u32) u32 {
     if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
     write_i32(addr, @bitCast(nbuf));
     write_i32(addr + 4, @bitCast(name_len));
-    write_i32(addr + 8, @bitCast(hash));
+    // flags slot at offset 8 stays zero — set later for imports.
     return addr;
 }
 
@@ -170,6 +206,9 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
         proc_count += 1;
     }
 
+    // Clear any CMD_IMPORTED bit — defining a proc with the same
+    // simple name shadows an import in this ns (matches C Tcl).
+    write_i32(cmd + OFF_FLAGS, 0);
     write_i32(cmd + OFF_PARAMS_OBJ, params_obj);
     write_i32(cmd + OFF_BODY_OBJ, body_obj);
     write_i32(cmd + OFF_N_PARAMS, @intCast(n_params));
@@ -201,6 +240,8 @@ pub export fn proc_register_compiled(
         proc_count += 1;
     }
 
+    // Clear any CMD_IMPORTED bit (see ``proc_register`` above).
+    write_i32(cmd + OFF_FLAGS, 0);
     write_i32(cmd + OFF_PARAMS_OBJ, 0);
     write_i32(cmd + OFF_BODY_OBJ, 0);
     write_i32(cmd + OFF_N_PARAMS, n_params);
@@ -266,10 +307,40 @@ pub export fn proc_lookup(name: i32) i32 {
     // 2. Namespace tree walk.
     const cmd = tcl_ns.ns_find_command(ns, sn.ptr, sn.len);
     if (cmd != 0) {
-        lru_insert(ns, hash, sn.len, first_byte, cmd);
-        return @bitCast(cmd);
+        const real = unwrap_imports(cmd);
+        // Cache the *unwrapped* address so subsequent LRU hits
+        // skip the redirect chain too.
+        lru_insert(ns, hash, sn.len, first_byte, real);
+        return @bitCast(real);
     }
     return 0;
+}
+
+/// Follow ``CMD_IMPORTED`` redirects to the source ``Command``.
+/// In C Tcl ``CMD_IMPORTED`` Commands store an ``ImportedCmdData``
+/// (``{real_cmd, self_cmd}``) in the ``client_data`` slot — we use
+/// the same shape, holding the descriptor at ``OFF_PARAMS_OBJ``
+/// (which is unused for redirect commands since they have no body).
+///
+/// Capped at 64 hops as a defence against pathological cycles —
+/// the only way to create a cycle is `namespace import` aliasing
+/// in a loop, which Tcl itself rejects, but the cap is cheap and
+/// makes the fast path bounded-time.
+fn unwrap_imports(cmd_in: u32) u32 {
+    var cur: u32 = cmd_in;
+    var hops: u32 = 0;
+    while (hops < 64) : (hops += 1) {
+        if (cur == 0) return 0;
+        const flags: u32 = @bitCast(read_i32(cur + OFF_FLAGS));
+        if ((flags & CMD_IMPORTED) == 0) return cur;
+        const desc: u32 = @bitCast(read_i32(cur + OFF_PARAMS_OBJ));
+        if (desc == 0) return cur;
+        // ImportedCmdData layout: [real_cmd: u32 | self_cmd: u32]
+        const real: u32 = @bitCast(read_i32(desc));
+        if (real == 0) return cur;
+        cur = real;
+    }
+    return cur;
 }
 
 /// Get the func_idx field from a proc Command pointer.

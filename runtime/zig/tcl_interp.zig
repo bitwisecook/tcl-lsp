@@ -1048,6 +1048,34 @@ fn eval_command(words: []const i32) i32 {
                     return 0;
                 }
             }
+            // ``namespace import ?-force? ::src::pat …`` — for each
+            // pattern, walk the source ns's exports and create
+            // redirect commands in the current ns's cmd_table.
+            // ``-force`` (overwrite shadowed imports) is recognised
+            // and ignored — our redirect insert path already
+            // overwrites any existing entry under the same name.
+            if (sub.len == 6 and sub.ptr != 0) {
+                const sp6: [*]const u8 = @ptrFromInt(sub.ptr);
+                if (sp6[0] == 'i' and sp6[1] == 'm' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
+                    var ii: u32 = 2;
+                    while (ii < words.len) : (ii += 1) {
+                        const is = obj_ensure_string(words[ii]);
+                        if (is.len == 6 and is.ptr != 0) {
+                            const isp: [*]const u8 = @ptrFromInt(is.ptr);
+                            if (isp[0] == '-' and isp[1] == 'f' and isp[2] == 'o' and isp[3] == 'r' and isp[4] == 'c' and isp[5] == 'e') continue;
+                        }
+                        const created = tcl_ns.ns_import(tcl_ns.ns_current(), is.ptr, is.len);
+                        // Each redirect counts as a real command
+                        // for the proc-first dispatch fast path —
+                        // bump the procs counter so ``proc_lookup``
+                        // doesn't early-return 0 when the importing
+                        // module has only imports (no own procs).
+                        var bk: u32 = 0;
+                        while (bk < created) : (bk += 1) procs.proc_count_bump();
+                    }
+                    return 0;
+                }
+            }
         }
         return 0;
     }

@@ -773,6 +773,111 @@ pub fn ns_export_matches(ns_addr: u32, name_ptr: u32, name_len: u32) bool {
     return false;
 }
 
+// -- Namespace import (P4.2) ------------------------------------------------
+
+/// ``ImportedCmdData`` — the ``client_data`` payload C Tcl hangs
+/// off the ``params_obj`` slot of a ``CMD_IMPORTED`` Command.
+/// ``real_cmd`` is the source ``*Command`` (lookup follows it),
+/// ``self_cmd`` points back at this redirect Command itself so
+/// P4.3's import-back-pointer list can splice it on source delete.
+///
+/// 8 bytes; bump-allocated per import.
+pub const ImportedCmdData = extern struct {
+    real_cmd: u32,
+    self_cmd: u32,
+};
+
+const tcl_procs_constants = struct {
+    // Mirror of the layout constants in ``tcl_procs.zig``.  We
+    // can't ``@import`` that module here without a circular
+    // dependency (procs imports ns), so we duplicate the offsets.
+    // The values are pinned by the design doc + a static_assert in
+    // tcl_procs.zig (a comptime ``if`` would catch a mismatch on
+    // build).  Update both together.
+    const COMMAND_SIZE: u32 = 32;
+    const OFF_FLAGS: u32 = 8;
+    const OFF_PARAMS_OBJ: u32 = 12;
+    const CMD_IMPORTED: u32 = 0x80;
+};
+
+/// Allocate a redirect ``Command`` shaped like a regular Command
+/// but with ``CMD_IMPORTED`` set and ``params_obj`` pointing at a
+/// freshly-allocated ``ImportedCmdData`` whose ``real_cmd`` field
+/// is the source.  ``name_*`` is the simple name the redirect
+/// will be inserted under in the importing ns's ``cmd_table``.
+fn alloc_import_redirect(name_ptr: u32, name_len: u32, source_cmd: u32) u32 {
+    const c = tcl_procs_constants;
+    const cmd = alloc(c.COMMAND_SIZE);
+    const slice: [*]u8 = @ptrFromInt(cmd);
+    @memset(slice[0..c.COMMAND_SIZE], 0);
+    const nbuf = alloc(name_len);
+    if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
+    write_i32(cmd, @bitCast(nbuf));
+    write_i32(cmd + 4, @bitCast(name_len));
+    write_i32(cmd + c.OFF_FLAGS, @bitCast(c.CMD_IMPORTED));
+
+    const desc = alloc(@sizeOf(ImportedCmdData));
+    const d: *ImportedCmdData = @ptrFromInt(desc);
+    d.real_cmd = source_cmd;
+    d.self_cmd = cmd;
+    write_i32(cmd + c.OFF_PARAMS_OBJ, @bitCast(desc));
+    return cmd;
+}
+
+/// ``namespace import ::src::pat`` semantics.  Walks the source
+/// namespace's ``cmd_table``, matches each command's simple name
+/// against (a) the trailing pattern from the import spec and
+/// (b) the source ns's registered exports (P4.1), and inserts a
+/// redirect Command into ``dest_ns.cmd_table`` for every match.
+///
+/// ``import_spec`` is the user-facing argument: anything from
+/// ``foo`` to ``::tcltest::*``.  We split off the trailing
+/// component as the simple match pattern; everything before is the
+/// source namespace.
+///
+/// Returns the number of redirects created (0 if the source ns
+/// doesn't exist or no exports matched).
+pub fn ns_import(dest_ns: u32, import_spec_ptr: u32, import_spec_len: u32) u32 {
+    if (import_spec_len == 0) return 0;
+
+    // Resolve the spec to (source_ns, simple_pattern).  Reuse the
+    // qualified-name walker — it splits off the trailing simple
+    // component for free.
+    const r = ns_resolve_qualified(ns_current(), import_spec_ptr, import_spec_len);
+    const src_ns = r.target_ns;
+    if (src_ns == 0 or r.simple_len == 0) return 0;
+
+    var imported: u32 = 0;
+
+    const ns: *const Namespace = @ptrFromInt(src_ns);
+    if (ns.cmd_table.buf == 0) return 0;
+
+    // Iterate the source ns's cmd_table buckets.  Each populated
+    // bucket has a non-zero name_ptr in its header; the value
+    // (at OFF_HANDLE) is the source ``*Command``.
+    const bucket_size: u32 = 16; // matches NS_BUCKET_SIZE
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        // Filter 1: must match the import-spec trailing pattern.
+        if (!tcl_string.glob_match(r.simple_ptr, r.simple_len, name_ptr, name_len)) continue;
+        // Filter 2: must match the source ns's export list (the
+        // "you can't import what wasn't exported" rule).
+        if (!ns_export_matches(src_ns, name_ptr, name_len)) continue;
+
+        const source_cmd: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
+        if (source_cmd == 0) continue;
+        const redirect = alloc_import_redirect(name_ptr, name_len, source_cmd);
+        _ = ns_cmd_put(dest_ns, name_ptr, name_len, redirect);
+        imported += 1;
+    }
+
+    return imported;
+}
+
 // -- Public globals ABI (moved from the retired tcl_globals.zig in P3.4)
 //
 // These four exports are the long-standing names compiled WASM
