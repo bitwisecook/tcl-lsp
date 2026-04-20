@@ -8,7 +8,7 @@
 const obj = @import("tcl_obj.zig");
 const io = @import("tcl_io.zig");
 const diag = @import("tcl_diag.zig");
-const globals = @import("tcl_globals.zig");
+const globals = @import("tcl_ns.zig"); // global_set lives in tcl_ns post-P3.4
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;

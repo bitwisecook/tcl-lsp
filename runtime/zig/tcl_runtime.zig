@@ -5,7 +5,11 @@
 // calls them directly.
 
 const tcl_obj = @import("tcl_obj.zig");
-const tcl_globals = @import("tcl_globals.zig");
+// ``tcl_globals.zig`` retired in P3.4 — its four exports moved
+// into ``tcl_ns.zig``.  The ``tcl_globals`` alias is kept as a
+// convenience for the re-export block below; new code should
+// import ``tcl_ns`` directly.
+const tcl_globals = @import("tcl_ns.zig");
 const tcl_io = @import("tcl_io.zig");
 const tcl_string = @import("tcl_string.zig");
 const tcl_list_mod = @import("tcl_list.zig");

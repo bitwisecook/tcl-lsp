@@ -28,7 +28,6 @@ const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;
 const obj_get_int = obj.obj_get_int;
 
-const globals = @import("tcl_globals.zig");
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 

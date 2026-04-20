@@ -712,6 +712,59 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     v.value = obj_handle;
 }
 
+// -- Public globals ABI (moved from the retired tcl_globals.zig in P3.4)
+//
+// These four exports are the long-standing names compiled WASM
+// modules import for global-variable access.  They live here now
+// because the storage they front IS the root namespace's
+// ``var_table`` — there's no separate flat table left to host them.
+//
+// Keeping the existing export names means the compiler's import
+// table (``codegen/wasm/_imports.py``) doesn't change; only the
+// implementation home moves.
+
+const obj_new_int_pub = obj.obj_new_int;
+const obj_get_int_pub = obj.obj_get_int;
+
+/// Set a global variable.  Lazy-creates the ``*Var`` if missing.
+pub export fn global_set(name: i32, value: i32) i32 {
+    const sn = obj.obj_ensure_string(name);
+    const v = ns_var_create(ns_root(), sn.ptr, sn.len);
+    var_set_scalar(v, @bitCast(value));
+    return value;
+}
+
+/// Get a global variable.  Returns 0 (a NULL TclObj handle) if the
+/// var has never been set.
+pub export fn global_get(name: i32) i32 {
+    const sn = obj.obj_ensure_string(name);
+    const v = ns_var_find(ns_root(), sn.ptr, sn.len);
+    if (v == 0) return 0;
+    return @bitCast(var_get_scalar(v));
+}
+
+/// ``info exists ::name`` — returns a TclObj 1 if the entry has
+/// ever been written to root's var_table, else 0.  Match the prior
+/// "hash entry exists" behaviour rather than checking value != 0.
+pub export fn global_exists(name: i32) i32 {
+    const sn = obj.obj_ensure_string(name);
+    const v = ns_var_find(ns_root(), sn.ptr, sn.len);
+    if (v == 0) return obj_new_int_pub(0);
+    return obj_new_int_pub(1);
+}
+
+/// Numeric ``incr`` helper — historically lived in tcl_globals.zig
+/// alongside the var ABI but doesn't actually touch globals
+/// storage.  Kept here for ABI continuity (the compiler still
+/// imports it under ``tcl_incr``); not a great architectural fit
+/// long-term but moving it is out of scope for the namespace-tree
+/// rework.
+pub export fn tcl_incr(o: i32, amount: i32) i32 {
+    const val = obj_get_int_pub(o);
+    const amt = obj_get_int_pub(amount);
+    return obj_new_int_pub(val + amt);
+}
+
 // -- Test scaffolding -------------------------------------------------------
 //
 // The QualifiedResult struct is awkward to surface across a WASM

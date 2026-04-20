@@ -34,8 +34,13 @@ const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 
-const globals = @import("tcl_globals.zig");
 const tcl_ns = @import("tcl_ns.zig");
+// ``globals`` here is a name-only alias for tcl_ns — the four
+// globals exports moved into tcl_ns in P3.4.  Aliasing keeps the
+// existing call sites readable (``globals.global_set`` reads as
+// "go to global storage", which is more obvious than
+// ``tcl_ns.global_set`` would be).
+const globals = tcl_ns;
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
