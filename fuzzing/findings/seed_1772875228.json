@@ -1,0 +1,24 @@
+{
+  "seed": 1772875228,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use a list as operand of \"~\"\n    while executing\n\"if {(~(~$y))} {\n    set z 24\n    incr z 3\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpicxu3u7u.tcl\" line 4)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use a list as operand of \"~\"\n    while executing\n\"if {(~(~$y))} {\n    set z 24\n    incr z 3\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpicxu3u7u.tcl\" line 4)"
+    }
+  ],
+  "fixed": true,
+  "fix": "list-as-operand errors now propagate correctly",
+  "category": "list-as-operand"
+}

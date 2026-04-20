@@ -1,0 +1,32 @@
+{
+  "seed": 1772845962,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"88.31\" as left operand of \"&\"\n    invoked from within\n\"expr {((-60 ? (88.31 & -10.56) : (-10 / max(1, abs(-39)))) <= ($idx + wide(-47)))}\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$idx < 2} {\n    set item [expr {56}]\n    expr {((-60 ? (88.31 & -10.56) : (-10 / max(1, abs(-39)))) <= ($idx + wide(-47)))}\n    switch -- 62 {\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp12z6ey32.tcl\" line 60)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"88.31\" as left operand of \"&\"\n    invoked from within\n\"expr {((-60 ? (88.31 & -10.56) : (-10 / max(1, abs(-39)))) <= ($idx + wide(-47)))}\"\n    (\"while\" body line 3)\n    invoked from within\n\"while {$idx < 2} {\n    set item [expr {56}]\n    expr {((-60 ? (88.31 & -10.56) : (-10 / max(1, abs(-39)))) <= ($idx + wide(-47)))}\n    switch -- 62 {\n...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp12z6ey32.tcl\" line 60)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

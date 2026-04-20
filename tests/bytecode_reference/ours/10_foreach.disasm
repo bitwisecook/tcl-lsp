@@ -1,0 +1,15 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "foreach"
+    1: "item"
+    2: "a b c"
+    3: "\n    set x $item\n"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "foreach"
+    (2) push1 1	# "item"
+    (4) push1 2	# "a b c"
+    (6) push1 3	# "\n    set x $item\n"
+    (8) invokeStk1 4	# foreach
+  # exit_2:
+    (10) done

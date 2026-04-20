@@ -1,0 +1,30 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xb4cb4600, refCt 1, epoch 0, interp 0x2b76c60 (epoch 0)
+  Source "set a \"hello\"\nset b \"world\"\nexpr {$a eq $b}\nexpr {$a ne"
+  Cmds 4, src 60, inst 22, litObjs 2, aux 0, stkDepth 2, code/src 3.60
+  Code 216 = header 160+inst 22+litObj 16+exc 0+aux 0+cmdMap 16
+  Proc 0xb50d4c80, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "a"
+      slot 1, scalar, "b"
+  Commands 4:
+      1: pc 0-4, src 0-12   	   2: pc 5-9, src 14-26
+      3: pc 10-15, src 28-42   	   4: pc 16-20, src 44-58
+  Command 1: "set a \"hello\""
+    (0) push1 0  	# "hello"
+    (2) storeScalar1 0	# var "a"
+    (4) pop 
+  Command 2: "set b \"world\""
+    (5) push1 1  	# "world"
+    (7) storeScalar1 1	# var "b"
+    (9) pop 
+  Command 3: "expr {$a eq $b}"
+    (10) loadScalar1 0	# var "a"
+    (12) loadScalar1 1	# var "b"
+    (14) streq 
+    (15) pop 
+  Command 4: "expr {$a ne $b}"
+    (16) loadScalar1 0	# var "a"
+    (18) loadScalar1 1	# var "b"
+    (20) strneq 
+    (21) done 

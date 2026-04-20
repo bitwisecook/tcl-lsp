@@ -1,0 +1,32 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x890c4640, refCt 1, epoch 0, interp 0xa1ee20 (epoch 0)
+  Source "set s \"Hello World\"\nregsub {World} $s {Tcl} result\nregs"
+  Cmds 3, src 87, inst 33, litObjs 8, aux 0, stkDepth 6, code/src 3.17
+  Code 276 = header 160+inst 33+litObj 64+exc 0+aux 0+cmdMap 12
+  Proc 0x890bd100, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "s"
+  Commands 3:
+      1: pc 0-4, src 0-18   	   2: pc 5-17, src 20-49
+      3: pc 18-31, src 51-85
+  Command 1: "set s \"Hello World\""
+    (0) push1 0  	# "Hello World"
+    (2) storeScalar1 0	# var "s"
+    (4) pop 
+  Command 2: "regsub {World} $s {Tcl} result"
+    (5) push1 1  	# "regsub"
+    (7) push1 2  	# "World"
+    (9) loadScalar1 0	# var "s"
+    (11) push1 3  	# "Tcl"
+    (13) push1 4  	# "result"
+    (15) invokeStk1 5 
+    (17) pop 
+  Command 3: "regsub -all {[aeiou]} $s {*} result"
+    (18) push1 1  	# "regsub"
+    (20) push1 5  	# "-all"
+    (22) push1 6  	# "[aeiou]"
+    (24) loadScalar1 0	# var "s"
+    (26) push1 7  	# "*"
+    (28) push1 4  	# "result"
+    (30) invokeStk1 6 
+    (32) done 

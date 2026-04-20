@@ -1,0 +1,27 @@
+ByteCode 0xc91185610, refCt 1, epoch 21, interp 0xc9101c010 (epoch 21)
+  Source "set lst [list d b a c]\nlsort $lst\nlsearch $lst ..."
+  Cmds 4, src 49, inst 33, litObjs 5, aux 0, stkDepth 3, code/src 0.00
+  Commands 4:
+      1: pc 0-14, src 0-21        2: pc 2-12, src 9-20
+      3: pc 15-22, src 23-32        4: pc 23-31, src 34-47
+  Command 1: "set lst [list d b a c]..."
+    (0) push1 0 	# "lst"
+  Command 2: "list d b a c..."
+    (2) startCommand +11 1 	# next cmd at pc 13, 1 cmds start here
+    (11) push1 1 	# "d b a c"
+    (13) storeStk 
+    (14) pop 
+  Command 3: "lsort $lst..."
+    (15) push1 2 	# "lsort"
+    (17) push1 0 	# "lst"
+    (19) loadStk 
+    (20) invokeStk1 2 
+    (22) pop 
+  Command 4: "lsearch $lst b..."
+    (23) push1 3 	# "lsearch"
+    (25) push1 0 	# "lst"
+    (27) loadStk 
+    (28) push1 4 	# "b"
+    (30) invokeStk1 3 
+    (32) done 
+

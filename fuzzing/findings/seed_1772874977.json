@@ -1,0 +1,24 @@
+{
+  "seed": 1772874977,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"count\": no such variable\n    while executing\n\"expr {(-85 & (-53 / max(1, abs(($count / max(1, abs(38)))))))}\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- 51 {\n    \"\" {\n        if {(-88.71 <= 13)} {\n            set val 54\n            incr val 7\n            set x 0\n            foreach val {-11.6...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp7ivjki0j.tcl\" line 16)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

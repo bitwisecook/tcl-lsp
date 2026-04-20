@@ -1,0 +1,54 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "countdown"
+    2: "n"
+    3: "\n    set result {}\n    while {$n > ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "countdown"
+    (4) push1 2	# "n"
+    (6) push1 3	# "\n    set result {}\n    while {$n > ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::countdown, 22 instructions, 66 bytes, 2 literals, 2 variables
+  Literals:
+    0: ""
+    1: "0"
+  Local variables:
+    %v0: "n"
+    %v1: "result"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# ""
+    (2) storeScalar1 %v1	# var "result"
+    (4) pop
+    (5) startCommand +47 1	# next cmd at pc 52, 1 cmds start here
+    (14) jump1 +29	# pc 43
+  # while_body_3:
+    (16) startCommand +13 1	# next cmd at pc 29, 1 cmds start here
+    (25) loadScalar1 %v0	# var "n"
+    (27) lappendScalar1 %v1	# var "result"
+  # cmd_end_2:
+    (29) pop
+    (30) startCommand +12 1	# next cmd at pc 42, 1 cmds start here
+    (39) incrScalar1Imm %v0 -1	# var "n"
+  # cmd_end_3:
+    (42) pop
+  # while_header_2:
+    (43) loadScalar1 %v0	# var "n"
+    (45) push1 1	# "0"
+    (47) gt
+    (48) jumpTrue1 -32	# pc 16
+  # while_end_4:
+    (50) push1 0	# ""
+  # while_cmd_end_1:
+    (52) pop
+    (53) startCommand +12 1	# next cmd at pc 65, 1 cmds start here
+    (62) loadScalar1 %v1	# var "result"
+    (64) done
+  # ret_end_4:
+    (65) done

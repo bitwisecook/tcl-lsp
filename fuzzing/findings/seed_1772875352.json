@@ -1,0 +1,24 @@
+{
+  "seed": 1772875352,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"for\" body line 19)\n    invoked from within\n\"for {set x 0} {$x < 5} {incr x} {\n    set x apmb\n    expr {round(-31)}\n    if {((7 % max(1, abs(8))) > (!89))} {\n        foreach x {} {\n            se...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpykqv8ts6.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "invalid command name \"0-9\"\n    while executing\n\"0-9\"\n    (\"for\" body line 19)\n    invoked from within\n\"for {set x 0} {$x < 5} {incr x} {\n    set x apmb\n    expr {round(-31)}\n    if {((7 % max(1, abs(8))) > (!89))} {\n        foreach x {} {\n            se...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpykqv8ts6.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "command resolution errors now propagate correctly",
+  "category": "invalid-command"
+}

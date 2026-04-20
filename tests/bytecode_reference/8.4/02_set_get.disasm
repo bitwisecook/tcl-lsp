@@ -1,0 +1,19 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x86c6c380, refCt 1, epoch 0, interp 0x33a2e10 (epoch 0)
+  Source "set x 42\nset y $x\n"
+  Cmds 2, src 18, inst 10, litObjs 1, aux 0, stkDepth 1, code/src 10.67
+  Code 192 = header 160+inst 10+litObj 8+exc 0+aux 0+cmdMap 8
+  Proc 0x870e1cc0, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "y"
+  Commands 2:
+      1: pc 0-4, src 0-7   	   2: pc 5-8, src 9-16
+  Command 1: "set x 42"
+    (0) push1 0  	# "42"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "set y $x"
+    (5) loadScalar1 0	# var "x"
+    (7) storeScalar1 1	# var "y"
+    (9) done 

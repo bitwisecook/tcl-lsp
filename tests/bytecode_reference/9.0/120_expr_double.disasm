@@ -1,0 +1,26 @@
+ByteCode 0x89116ba10, refCt 1, epoch 21, interp 0x89101c010 (epoch 21)
+  Source "expr {3.14 + 2.71}\nexpr {1.0 / 3.0}\nexpr {double(42)}..."
+  Cmds 4, src 76, inst 44, litObjs 5, aux 0, stkDepth 2, code/src 0.00
+  Commands 4:
+      1: pc 0-2, src 0-17        2: pc 3-14, src 19-34
+      3: pc 15-31, src 36-52        4: pc 32-42, src 54-74
+  Command 1: "expr {3.14 + 2.71}..."
+    (0) nop 
+    (1) nop 
+    (2) nop 
+  Command 2: "expr {1.0 / 3.0}..."
+    (3) startCommand +11 1 	# next cmd at pc 14, 1 cmds start here
+    (12) push1 1 	# "0.3333333333333333"
+    (14) pop 
+  Command 3: "expr {double(42)}..."
+    (15) startCommand +16 1 	# next cmd at pc 31, 1 cmds start here
+    (24) push1 2 	# "tcl::mathfunc::double"
+    (26) push1 3 	# "42"
+    (28) invokeStk1 2 
+    (30) tryCvtToNumeric 
+    (31) pop 
+  Command 4: "expr {1.5e2 + 2.5e-1}..."
+    (32) startCommand +11 1 	# next cmd at pc 43, 1 cmds start here
+    (41) push1 4 	# "150.25"
+    (43) done 
+

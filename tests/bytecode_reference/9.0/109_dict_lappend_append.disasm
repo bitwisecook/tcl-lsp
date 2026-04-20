@@ -1,0 +1,44 @@
+ByteCode 0x901175210, refCt 1, epoch 21, interp 0x90101c010 (epoch 21)
+  Source "set d [dict create a hello b {}]\ndict append d a \" wo..."
+  Cmds 5, src 95, inst 87, litObjs 14, aux 0, stkDepth 8, code/src 0.00
+  Commands 5:
+      1: pc 0-16, src 0-31        2: pc 2-14, src 7-30
+      3: pc 17-36, src 33-56        4: pc 37-68, src 58-79
+      5: pc 69-85, src 81-93
+  Command 1: "set d [dict create a hello b {}]..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create a hello b {}..."
+    (2) startCommand +13 1 	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1 	# "a hello b {}"
+    (13) dup 
+    (14) verifyDict 
+    (15) storeStk 
+    (16) pop 
+  Command 3: "dict append d a \" world..."
+    (17) startCommand +19 1 	# next cmd at pc 36, 1 cmds start here
+    (26) push1 2 	# "::tcl::dict::append"
+    (28) push1 0 	# "d"
+    (30) push1 3 	# "a"
+    (32) push1 4 	# " world"
+    (34) invokeStk1 4 
+    (36) pop 
+  Command 4: "dict lappend d b x y z..."
+    (37) startCommand +31 1 	# next cmd at pc 68, 1 cmds start here
+    (46) push1 5 	# "dict"
+    (48) push1 6 	# "lappend"
+    (50) push1 0 	# "d"
+    (52) push1 7 	# "b"
+    (54) push1 8 	# "x"
+    (56) push1 9 	# "y"
+    (58) push1 10 	# "z"
+    (60) push1 11 	# "::tcl::dict::lappend"
+    (62) invokeReplace 7 2 
+    (68) pop 
+  Command 5: "dict incr d c..."
+    (69) startCommand +17 1 	# next cmd at pc 86, 1 cmds start here
+    (78) push1 12 	# "::tcl::dict::incr"
+    (80) push1 0 	# "d"
+    (82) push1 13 	# "c"
+    (84) invokeStk1 3 
+    (86) done 
+

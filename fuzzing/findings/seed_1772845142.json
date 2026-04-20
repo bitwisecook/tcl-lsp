@@ -1,0 +1,24 @@
+{
+  "seed": 1772845142,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use floating-point value \"39.63\" as right operand of \"%\"\n    while executing\n\"expr {(((~89) ? int(-86.09) : wide($z)) % max(1, abs(39.63)))}\"\n    invoked from within\n\"if {((-2) ? (9 < 90) : (-4 % max(1, abs(38))))} {\n    set acc 745\n    if {$acc != -7} {\n        foreach acc {} {\n            string repeat \"pjs?g uei,...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6crfgmdg.tcl\" line 1)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use floating-point value \"39.63\" as right operand of \"%\"\n    while executing\n\"expr {(((~89) ? int(-86.09) : wide($z)) % max(1, abs(39.63)))}\"\n    invoked from within\n\"if {((-2) ? (9 < 90) : (-4 % max(1, abs(38))))} {\n    set acc 745\n    if {$acc != -7} {\n        foreach acc {} {\n            string repeat \"pjs?g uei,...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp6crfgmdg.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "modulo rejects float operands per Tcl 9.0",
+  "category": "float-modulo"
+}

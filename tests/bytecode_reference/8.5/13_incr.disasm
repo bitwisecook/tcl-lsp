@@ -1,0 +1,22 @@
+ByteCode 0x0x99ecfa210, refCt 1, epoch 3, interp 0x0x99ec20010 (epoch 3)
+  Source "set x 0\nincr x\nincr x 5\n"
+  Cmds 3, src 24, inst 34, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Commands 3:
+      1: pc 0-5, src 0-6   	   2: pc 6-19, src 8-13
+      3: pc 20-32, src 15-22
+  Command 1: "set x 0"
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "incr x"
+    (6) startCommand +13 1 	# next cmd at pc 19
+    (15) push1 0 	# "x"
+    (17) incrScalarStkImm +1 
+    (19) pop 
+  Command 3: "incr x 5"
+    (20) startCommand +13 1 	# next cmd at pc 33
+    (29) push1 0 	# "x"
+    (31) incrScalarStkImm +5 
+    (33) done 
+

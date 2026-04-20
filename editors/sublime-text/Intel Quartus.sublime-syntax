@@ -1,0 +1,8 @@
+%YAML 1.2
+---
+# Intel Quartus dialect — selects intel-quartus-eda-tcl for LSP analysis
+name: Intel Quartus
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax

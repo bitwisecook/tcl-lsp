@@ -1,0 +1,53 @@
+ByteCode 0x0x7188be410, refCt 1, epoch 3, interp 0x0x718c20010 (epoch 3)
+  Source "set a [string equal \"hello\" \"hello\"]\nset b [string equa"
+  Cmds 8, src 164, inst 97, litObjs 16, aux 0, stkDepth 7, code/src 0.00
+  Commands 8:
+      1: pc 0-17, src 0-35   	   2: pc 2-15, src 7-34
+      3: pc 18-42, src 37-80   	   4: pc 29-40, src 44-79
+      5: pc 43-69, src 82-115   	   6: pc 54-67, src 89-114
+      7: pc 70-95, src 117-162   	   8: pc 81-94, src 124-161
+  Command 1: "set a [string equal \"hello\" \"hello\"]"
+    (0) push1 0 	# "a"
+  Command 2: "string equal \"hello\" \"hello\""
+    (2) startCommand +14 1 	# next cmd at pc 16
+    (11) push1 1 	# "hello"
+    (13) push1 1 	# "hello"
+    (15) streq 
+    (16) storeScalarStk 
+    (17) pop 
+  Command 3: "set b [string equal -nocase \"Hello\" \"hello\"]"
+    (18) startCommand +24 1 	# next cmd at pc 42
+    (27) push1 2 	# "b"
+  Command 4: "string equal -nocase \"Hello\" \"hello\""
+    (29) push1 3 	# "string"
+    (31) push1 4 	# "equal"
+    (33) push1 5 	# "-nocase"
+    (35) push1 6 	# "Hello"
+    (37) push1 1 	# "hello"
+    (39) invokeStk1 5 
+    (41) storeScalarStk 
+    (42) pop 
+  Command 5: "set c [string compare \"abc\" \"abd\"]"
+    (43) startCommand +26 1 	# next cmd at pc 69
+    (52) push1 7 	# "c"
+  Command 6: "string compare \"abc\" \"abd\""
+    (54) startCommand +14 1 	# next cmd at pc 68
+    (63) push1 8 	# "abc"
+    (65) push1 9 	# "abd"
+    (67) strcmp 
+    (68) storeScalarStk 
+    (69) pop 
+  Command 7: "set d [string compare -length 3 \"abcX\" \"abcY\"]"
+    (70) startCommand +26 1 	# next cmd at pc 96
+    (79) push1 10 	# "d"
+  Command 8: "string compare -length 3 \"abcX\" \"abcY\""
+    (81) push1 3 	# "string"
+    (83) push1 11 	# "compare"
+    (85) push1 12 	# "-length"
+    (87) push1 13 	# "3"
+    (89) push1 14 	# "abcX"
+    (91) push1 15 	# "abcY"
+    (93) invokeStk1 6 
+    (95) storeScalarStk 
+    (96) done 
+

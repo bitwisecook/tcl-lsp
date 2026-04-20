@@ -1,0 +1,24 @@
+{
+  "seed": 1772874943,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "cannot use floating-point value \"87.9\" as left operand of \"%\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"87.90\" as left operand of \"%\"\n    while executing\n\"expr {(87.90 % max(1, abs(max((18 + -43), (-74 >> 91)))))}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach i {91.03 927 false} {\n            expr {1}\n            for {set j 0} {$j < 1} {incr j} {\n                expr {(87.90 % max(1, abs(max((18 + -...\"\n    (\"default\" arm line 2)\n    invoked from within\n\"switch -- -69 {\n    \"s#?ptq!g0_nnb\" {\n        string first \"a\" \"\"\n        expr {39}\n        if {"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

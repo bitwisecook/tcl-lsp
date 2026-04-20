@@ -1,0 +1,24 @@
+{
+  "seed": 1772846024,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "wrong # args: extra words after \"else\" clause in \"if\" command",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use non-numeric string \"xykcrgyg\" as operand of \"!\"\n    while executing\n\"if {abs((!$val))} {\n            expr {abs(82)}\n        } else {\n            set z 15.49\n        } elseif {(10 ^ wide(81))} {\n            set val 869\n ...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach item {1} {\n        set item {-954 no -8.02 -344}\n        append val xykcrgyg\n        if {abs((!$val))} {\n            expr {abs(82)}\n        } ...\"\n    (\"foreach\" body line 2)\n    invoked from within\n\"fore"
+    }
+  ],
+  "fixed": true,
+  "fix": "if-else-elseif pre-validation in _cmd_if",
+  "category": "if-else-elseif"
+}

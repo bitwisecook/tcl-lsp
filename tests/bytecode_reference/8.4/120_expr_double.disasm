@@ -1,0 +1,30 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xdccd8500, refCt 1, epoch 0, interp 0x360ec60 (epoch 0)
+  Source "expr {3.14 + 2.71}\nexpr {1.0 / 3.0}\nexpr {double(42)}\ne"
+  Cmds 4, src 76, inst 24, litObjs 7, aux 0, stkDepth 2, code/src 3.37
+  Code 256 = header 160+inst 24+litObj 56+exc 0+aux 0+cmdMap 16
+  Proc 0xdd055dc0, refCt 1, args 0, compiled locals 0
+  Commands 4:
+      1: pc 0-5, src 0-17   	   2: pc 6-11, src 19-34
+      3: pc 12-17, src 36-52   	   4: pc 18-22, src 54-74
+  Command 1: "expr {3.14 + 2.71}"
+    (0) push1 0  	# "3.14"
+    (2) push1 1  	# "2.71"
+    (4) add 
+    (5) pop 
+  Command 2: "expr {1.0 / 3.0}"
+    (6) push1 2  	# "1.0"
+    (8) push1 3  	# "3.0"
+    (10) div 
+    (11) pop 
+  Command 3: "expr {double(42)}"
+    (12) push1 4  	# "42"
+    (14) callBuiltinFunc1 20 
+    (16) tryCvtToNumeric 
+    (17) pop 
+  Command 4: "expr {1.5e2 + 2.5e-1}"
+    (18) push1 5  	# "1.5e2"
+    (20) push1 6  	# "2.5e-1"
+    (22) add 
+    (23) done 

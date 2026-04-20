@@ -1,0 +1,26 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x64898600, refCt 1, epoch 0, interp 0x886c60 (epoch 0)
+  Source "set x 1\nif {$x} {\n    set y 10\n}\n"
+  Cmds 3, src 33, inst 19, litObjs 3, aux 0, stkDepth 1, code/src 6.67
+  Code 220 = header 160+inst 19+litObj 24+exc 0+aux 0+cmdMap 12
+  Proc 0x65878c00, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "x"
+      slot 1, scalar, "y"
+  Commands 3:
+      1: pc 0-4, src 0-6   	   2: pc 5-17, src 8-31
+      3: pc 10-13, src 22-29
+  Command 1: "set x 1"
+    (0) push1 0  	# "1"
+    (2) storeScalar1 0	# var "x"
+    (4) pop 
+  Command 2: "if {$x} {\n    set y 10\n}"
+    (5) loadScalar1 0	# var "x"
+    (7) tryCvtToNumeric 
+    (8) jumpFalse1 8  	# pc 16
+  Command 3: "set y 10"
+    (10) push1 1  	# "10"
+    (12) storeScalar1 1	# var "y"
+    (14) jump1 4  	# pc 18
+    (16) push1 2  	# ""
+    (18) done 

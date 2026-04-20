@@ -1,0 +1,25 @@
+{
+  "seed": 1772875330,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "missing close-brace",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "tclsh(tclsh9.0) crashed but vm_opt did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "missing close-brace",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "parse_error": "missing close-brace",
+  "fixed": true,
+  "fix": "VM now errors correctly",
+  "category": "vm-error-fixed"
+}

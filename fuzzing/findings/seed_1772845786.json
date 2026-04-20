@@ -1,0 +1,24 @@
+{
+  "seed": 1772845786,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm error vs vm_opt ok",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "missing \"",
+      "detail_b": "(ok)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm error vs tclsh(tclsh9.0) ok",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "missing \"",
+      "detail_b": "(ok)"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now completes successfully within timeout",
+  "category": "vm-timeout-resolved"
+}

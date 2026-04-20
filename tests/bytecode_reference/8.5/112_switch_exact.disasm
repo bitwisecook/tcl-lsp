@@ -1,0 +1,38 @@
+ByteCode 0x0xbfccfa410, refCt 1, epoch 3, interp 0x0xbfcc20010 (epoch 3)
+  Source "set x \"hello\"\nswitch -exact -- $x {\n    hello {set y 1}"
+  Cmds 5, src 100, inst 81, litObjs 6, aux 1, stkDepth 4, code/src 0.00
+  Commands 5:
+      1: pc 0-5, src 0-12   	   2: pc 6-79, src 14-98
+      3: pc 28-41, src 47-53   	   4: pc 47-60, src 67-73
+      5: pc 66-79, src 89-95
+  Command 1: "set x \"hello\""
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "hello"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "switch -exact -- $x {\n    hello {set y 1}\n    world {se"
+    (6) startCommand +74 1 	# next cmd at pc 80
+    (15) push1 0 	# "x"
+    (17) loadScalarStk 
+    (18) jumpTable 0 
+		["world"->pc 47, "hello"->pc 28]
+    (23) jump4 +43 	# pc 66
+  Command 3: "set y 1"
+    (28) startCommand +14 1 	# next cmd at pc 42
+    (37) push1 2 	# "y"
+    (39) push1 3 	# "1"
+    (41) storeScalarStk 
+    (42) jump4 +38 	# pc 80
+  Command 4: "set y 2"
+    (47) startCommand +14 1 	# next cmd at pc 61
+    (56) push1 2 	# "y"
+    (58) push1 4 	# "2"
+    (60) storeScalarStk 
+    (61) jump4 +19 	# pc 80
+  Command 5: "set y 0"
+    (66) startCommand +14 1 	# next cmd at pc 80
+    (75) push1 2 	# "y"
+    (77) push1 5 	# "0"
+    (79) storeScalarStk 
+    (80) done 
+

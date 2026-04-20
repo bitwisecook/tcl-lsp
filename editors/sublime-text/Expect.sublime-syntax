@@ -1,0 +1,11 @@
+%YAML 1.2
+---
+# Expect dialect — selects expect for LSP analysis
+name: Expect
+scope: source.tcl
+version: 2
+
+extends: Tcl.sublime-syntax
+
+file_extensions:
+  - exp

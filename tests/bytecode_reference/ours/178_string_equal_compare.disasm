@@ -1,0 +1,70 @@
+ByteCode ::top, 40 instructions, 127 bytes, 18 literals, 0 variables
+  Literals:
+    0: "a"
+    1: "hello"
+    2: "b"
+    3: "string"
+    4: "equal"
+    5: "-nocase"
+    6: "Hello"
+    7: "::tcl::string::equal"
+    8: "c"
+    9: "abc"
+    10: "abd"
+    11: "d"
+    12: "compare"
+    13: "-length"
+    14: "3"
+    15: "abcX"
+    16: "abcY"
+    17: "::tcl::string::compare"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "a"
+    (2) startCommand +14 1	# next cmd at pc 16, 1 cmds start here
+    (11) push1 1	# "hello"
+    (13) push1 1	# "hello"
+    (15) streq
+  # subcmd_end_1:
+    (16) storeStk
+    (17) pop
+    (18) startCommand +39 1	# next cmd at pc 57, 1 cmds start here
+    (27) push1 2	# "b"
+    (29) startCommand +27 1	# next cmd at pc 56, 1 cmds start here
+    (38) push1 3	# "string"
+    (40) push1 4	# "equal"
+    (42) push1 5	# "-nocase"
+    (44) push1 6	# "Hello"
+    (46) push1 1	# "hello"
+    (48) push1 7	# "::tcl::string::equal"
+    (50) invokeReplace 5 2
+  # subcmd_end_3:
+    (56) storeStk
+  # cmd_end_2:
+    (57) pop
+    (58) startCommand +26 1	# next cmd at pc 84, 1 cmds start here
+    (67) push1 8	# "c"
+    (69) startCommand +14 1	# next cmd at pc 83, 1 cmds start here
+    (78) push1 9	# "abc"
+    (80) push1 10	# "abd"
+    (82) strcmp
+  # subcmd_end_5:
+    (83) storeStk
+  # cmd_end_4:
+    (84) pop
+    (85) startCommand +41 1	# next cmd at pc 126, 1 cmds start here
+    (94) push1 11	# "d"
+    (96) startCommand +29 1	# next cmd at pc 125, 1 cmds start here
+    (105) push1 3	# "string"
+    (107) push1 12	# "compare"
+    (109) push1 13	# "-length"
+    (111) push1 14	# "3"
+    (113) push1 15	# "abcX"
+    (115) push1 16	# "abcY"
+    (117) push1 17	# "::tcl::string::compare"
+    (119) invokeReplace 6 2
+  # subcmd_end_7:
+    (125) storeStk
+  # cmd_end_6:
+  # exit_2:
+    (126) done

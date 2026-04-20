@@ -1,0 +1,24 @@
+{
+  "seed": 1772875080,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$b > 9} {\n                set tmp [expr {(($msg & -71) != (wide(-58) << min(37, 3)))}]\n                regexp \"[0-9]\" \"\"\n                string re...\"\n    (\"foreach\" body line 37)\n    invoked from within\n\"foreach data {-73 -485 16.19 0 -228 530} {\n    set data 81\n    incr data 2\n    switch -- -32 {\n        cjguhu {\n            expr {-12.52}\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpal2j7s7w.tcl\" line "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"b\": no such variable\n    while executing\n\"if {$b > 9} {\n                set tmp [expr {(($msg & -71) != (wide(-58) << min(37, 3)))}]\n                regexp \"[0-9]\" \"\"\n                string re...\"\n    (\"foreach\" body line 37)\n    invoked from within\n\"foreach data {-73 -485 16.19 0 -228 530} {\n    set data 81\n    incr data 2\n    switch -- -32 {\n        cjguhu {\n            expr {-12.52}\n            ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpal2j7s7w.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

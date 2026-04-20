@@ -1,0 +1,28 @@
+TCLSH    /usr/local/bin/tclsh8.4
+VERSION  8.4.20
+FILE     split.test
+DATE     2026-03-03T12:54:46
+---
+PASS split-1.1
+PASS split-1.10
+PASS split-1.11
+PASS split-1.12
+PASS split-1.13
+PASS split-1.14
+PASS split-1.2
+PASS split-1.3
+PASS split-1.4
+PASS split-1.5
+PASS split-1.6
+PASS split-1.7
+PASS split-1.8
+PASS split-1.9
+FAIL split-2.1
+FAIL split-2.1 split errors
+FAIL split-2.2
+FAIL split-2.2 split errors
+---
+TOTAL   18
+PASSED  14
+SKIPPED 0
+FAILED  4

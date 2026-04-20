@@ -1,0 +1,32 @@
+{
+  "seed": 1772845785,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"tmp\": no such variable\n    while executing\n\"if {$tmp >= 15} {\n                    set key 15\n                    incr key 10\n                    expr {((-(-49.98 ^ 63)) & (5 > (52.50 * 93.54)))}...\"\n    (\"default\" arm line 10)\n    invoked from within\n\"switch -- \"\" {\n    -171 {\n        foreach idx {542 50.10 -656 134 -51.52} {\n            set count 50\n            incr count 2\n            foreach j {f...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpzqlv7q_9.tcl\" line"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"tmp\": no such variable\n    while executing\n\"if {$tmp >= 15} {\n                    set key 15\n                    incr key 10\n                    expr {((-(-49.98 ^ 63)) & (5 > (52.50 * 93.54)))}...\"\n    (\"default\" arm line 10)\n    invoked from within\n\"switch -- \"\" {\n    -171 {\n        foreach idx {542 50.10 -656 134 -51.52} {\n            set count 50\n            incr count 2\n            foreach j {f...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpzqlv7q_9.tcl\" line"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

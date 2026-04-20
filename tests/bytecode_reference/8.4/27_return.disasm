@@ -1,0 +1,16 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0xa0cb8600, refCt 1, epoch 0, interp 0x34aee20 (epoch 0)
+  Source "proc fact {n} {\n    if {$n <= 1} {\n        return 1\n   "
+  Cmds 1, src 108, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 1.96
+  Code 212 = header 160+inst 11+litObj 32+exc 0+aux 0+cmdMap 4
+  Proc 0xa10bd100, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-9, src 0-106
+  Command 1: "proc fact {n} {\n    if {$n <= 1} {\n        return 1\n   "
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "fact"
+    (4) push1 2  	# "n"
+    (6) push1 3  	# "\n    if {$n <= 1} {\n        return 1\n   "
+    (8) invokeStk1 4 
+    (10) done 

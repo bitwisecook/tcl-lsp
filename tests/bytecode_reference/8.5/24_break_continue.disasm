@@ -1,0 +1,64 @@
+ByteCode 0x0x8108c6410, refCt 1, epoch 3, interp 0x0x810c20010 (epoch 3)
+  Source "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 3} con"
+  Cmds 8, src 99, inst 113, litObjs 7, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 2, depth 1:
+      0: level 0, loop, pc 8-86, continue 88, break 110
+      1: level 0, loop, pc 88-100, continue -1, break 110
+  Commands 8:
+      1: pc 0-111, src 0-97   	   2: pc 0-4, src 5-11
+      3: pc 8-39, src 39-59   	   4: pc 25-34, src 52-59
+      5: pc 40-71, src 65-82   	   6: pc 57-66, src 78-82
+      7: pc 72-86, src 88-95   	   8: pc 88-100, src 25-30
+  Command 1: "for {set i 0} {$i < 10} {incr i} {\n    if {$i == 3} con"
+  Command 2: "set i 0"
+    (0) push1 0 	# "i"
+    (2) push1 1 	# "0"
+    (4) storeScalarStk 
+    (5) pop 
+    (6) jump1 +96 	# pc 102
+  Command 3: "if {$i == 3} continue"
+    (8) startCommand +31 1 	# next cmd at pc 39
+    (17) push1 0 	# "i"
+    (19) loadScalarStk 
+    (20) push1 2 	# "3"
+    (22) eq 
+    (23) jumpFalse1 +14 	# pc 37
+  Command 4: "continue"
+    (25) startCommand +10 1 	# next cmd at pc 35
+    (34) continue 
+    (35) jump1 +4 	# pc 39
+    (37) push1 3 	# ""
+    (39) pop 
+  Command 5: "if {$i == 7} break"
+    (40) startCommand +31 1 	# next cmd at pc 71
+    (49) push1 0 	# "i"
+    (51) loadScalarStk 
+    (52) push1 4 	# "7"
+    (54) eq 
+    (55) jumpFalse1 +14 	# pc 69
+  Command 6: "break"
+    (57) startCommand +10 1 	# next cmd at pc 67
+    (66) break 
+    (67) jump1 +4 	# pc 71
+    (69) push1 3 	# ""
+    (71) pop 
+  Command 7: "set x $i"
+    (72) startCommand +15 1 	# next cmd at pc 87
+    (81) push1 5 	# "x"
+    (83) push1 0 	# "i"
+    (85) loadScalarStk 
+    (86) storeScalarStk 
+    (87) pop 
+  Command 8: "incr i"
+    (88) startCommand +13 1 	# next cmd at pc 101
+    (97) push1 0 	# "i"
+    (99) incrScalarStkImm +1 
+    (101) pop 
+    (102) push1 0 	# "i"
+    (104) loadScalarStk 
+    (105) push1 6 	# "10"
+    (107) lt 
+    (108) jumpTrue1 -100 	# pc 8
+    (110) push1 3 	# ""
+    (112) done 
+

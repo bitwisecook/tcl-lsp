@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+from ..models import (
+    BigipObjectKindSpec,
+    BigipObjectSpec,
+    BigipPropertySpec,
+)
+from ._base import register
+
+
+@register
+def register_spec() -> BigipObjectSpec:
+    return BigipObjectSpec(
+        kind_spec=BigipObjectKindSpec(
+            "sys_application_template",
+            module="sys",
+            object_types=("application template",),
+        ),
+        header_types=(("sys", "application template"),),
+        properties=(
+            BigipPropertySpec(
+                name="actions",
+                value_type="enum",
+                enum_values=("add", "delete", "modify", "replace-all-with"),
+            ),
+            BigipPropertySpec(name="definition", value_type="string", in_sections=("actions",)),
+            BigipPropertySpec(name="html-help", value_type="string", in_sections=("definition",)),
+            BigipPropertySpec(
+                name="implementation", value_type="list", in_sections=("definition",), repeated=True
+            ),
+            BigipPropertySpec(
+                name="presentation", value_type="list", in_sections=("definition",), repeated=True
+            ),
+            BigipPropertySpec(
+                name="role-acl",
+                value_type="enum",
+                in_sections=("definition",),
+                enum_values=("add", "delete", "modify", "replace-all-with"),
+            ),
+            BigipPropertySpec(name="run-as", value_type="string", in_sections=("definition",)),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="requires-modules",
+                value_type="enum",
+                enum_values=("add", "delete", "modify", "replace-all-with"),
+            ),
+            BigipPropertySpec(name="requires-bigip-version-max", value_type="string"),
+            BigipPropertySpec(name="requires-bigip-version-min", value_type="string"),
+            BigipPropertySpec(name="value", value_type="string"),
+            BigipPropertySpec(name="persist", value_type="enum", enum_values=("true", "false")),
+            BigipPropertySpec(name="generate", value_type="string"),
+            BigipPropertySpec(name="save", value_type="string"),
+            BigipPropertySpec(name="load", value_type="string"),
+            BigipPropertySpec(name="choice", value_type="list", repeated=True),
+            BigipPropertySpec(name="password", value_type="string"),
+            BigipPropertySpec(name="string", value_type="string"),
+            BigipPropertySpec(name="section", value_type="list", repeated=True),
+            BigipPropertySpec(name="table", value_type="list", repeated=True),
+            BigipPropertySpec(name="optional", value_type="list", repeated=True),
+            BigipPropertySpec(
+                name="choice",
+                value_type="enum",
+                in_sections=("section",),
+                repeated=True,
+                enum_values=("yes", "no"),
+            ),
+            BigipPropertySpec(name="define", value_type="enum", enum_values=("yes", "no")),
+            BigipPropertySpec(name="yesno", value_type="string", in_sections=("section",)),
+            BigipPropertySpec(name="string", value_type="string", in_sections=("define",)),
+            BigipPropertySpec(
+                name="addrport",
+                value_type="string",
+                in_sections=("section",),
+                min_value=0,
+                max_value=65535,
+            ),
+            BigipPropertySpec(name="text", value_type="string"),
+            BigipPropertySpec(name="message", value_type="string"),
+            BigipPropertySpec(name="set", value_type="boolean", in_sections=("choice",)),
+            BigipPropertySpec(name="append", value_type="string", in_sections=("choice",)),
+            BigipPropertySpec(name="return", value_type="string", in_sections=("choice",)),
+            BigipPropertySpec(name="vs", value_type="string", in_sections=("text",)),
+            BigipPropertySpec(name="foreach", value_type="string"),
+            BigipPropertySpec(name="set", value_type="string", in_sections=("foreach",)),
+            BigipPropertySpec(name="presentation", value_type="string"),
+            BigipPropertySpec(name="section", value_type="string", in_sections=("presentation",)),
+            BigipPropertySpec(
+                name="choice",
+                value_type="enum",
+                in_sections=("presentation",),
+                repeated=True,
+                enum_values=("true", "false"),
+            ),
+            BigipPropertySpec(name="basic", value_type="string"),
+            BigipPropertySpec(name="implementation", value_type="string"),
+            BigipPropertySpec(
+                name="if", value_type="boolean", in_sections=("implementation",), repeated=True
+            ),
+            BigipPropertySpec(name="set", value_type="string", in_sections=("implementation",)),
+            BigipPropertySpec(name="append", value_type="string", in_sections=("implementation",)),
+            BigipPropertySpec(name="set", value_type="string"),
+            BigipPropertySpec(name="foreach", value_type="string", in_sections=("set",)),
+            BigipPropertySpec(name="append", value_type="string", in_sections=("foreach",)),
+            BigipPropertySpec(name="append", value_type="string", in_sections=("set",)),
+            BigipPropertySpec(name="append", value_type="string"),
+            BigipPropertySpec(name="members", value_type="string"),
+            BigipPropertySpec(name="monitor", value_type="string"),
+            BigipPropertySpec(name="destination", value_type="string"),
+            BigipPropertySpec(name="profiles", value_type="list", repeated=True),
+            BigipPropertySpec(name="snat", value_type="string"),
+            BigipPropertySpec(name="pool", value_type="reference", references=("ltm_pool",)),
+            BigipPropertySpec(name="http-class", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="cli", value_type="string"),
+            BigipPropertySpec(name="proc", value_type="list", in_sections=("cli",), repeated=True),
+            BigipPropertySpec(name="array", value_type="string", in_sections=("cli",)),
+            BigipPropertySpec(name="puts", value_type="string", in_sections=("cli",)),
+            BigipPropertySpec(name="proc", value_type="string"),
+            BigipPropertySpec(name="incr", value_type="string", in_sections=("proc",)),
+            BigipPropertySpec(name="namespace", value_type="string"),
+            BigipPropertySpec(name="set", value_type="string", in_sections=("namespace",)),
+            BigipPropertySpec(name="puts", value_type="list", repeated=True),
+            BigipPropertySpec(name="if", value_type="list", repeated=True),
+            BigipPropertySpec(name="else", value_type="string"),
+            BigipPropertySpec(name="puts", value_type="string", in_sections=("else",)),
+            BigipPropertySpec(name="set", value_type="string", in_sections=("else",)),
+            BigipPropertySpec(name="close", value_type="string", in_sections=("else",)),
+            BigipPropertySpec(name="set", value_type="string", in_sections=("cli",)),
+            BigipPropertySpec(name="if", value_type="list", in_sections=("cli",), repeated=True),
+        ),
+    )

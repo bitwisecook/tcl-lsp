@@ -1,0 +1,13 @@
+when HTTP_REQUEST {
+    set host [HTTP::host]
+    #   ^--- cursor on if
+    if {$host eq "app.example.com"} {
+        pool app_pool
+    } elseif {$host eq "api.example.com"} {
+        pool app_pool
+    } elseif {$host eq "web.example.com"} {
+        pool app_pool
+    } elseif {$host eq "cdn.example.com"} {
+        pool app_pool
+    }
+}

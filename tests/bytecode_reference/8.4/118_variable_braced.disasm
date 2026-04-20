@@ -1,0 +1,27 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x65050600, refCt 1, epoch 0, interp 0x1162e10 (epoch 0)
+  Source "set {odd name} 42\nset x ${odd name}\nset arr(a\ b) 99\n"
+  Cmds 3, src 53, inst 18, litObjs 4, aux 0, stkDepth 2, code/src 4.30
+  Code 228 = header 160+inst 18+litObj 32+exc 0+aux 0+cmdMap 12
+  Proc 0x6500af40, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "x"
+      slot 1, "odd name"
+      slot 2, array, "arr"
+  Commands 3:
+      1: pc 0-5, src 0-16   	   2: pc 6-10, src 18-34
+      3: pc 11-16, src 36-51
+  Command 1: "set {odd name} 42"
+    (0) push1 0  	# "odd name"
+    (2) push1 1  	# "42"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "set x ${odd name}"
+    (6) loadScalar1 1	# var "odd name"
+    (8) storeScalar1 0	# var "x"
+    (10) pop 
+  Command 3: "set arr(a\ b) 99"
+    (11) push1 2  	# "a b"
+    (13) push1 3  	# "99"
+    (15) storeArray1 2	# var "arr"
+    (17) done 

@@ -1,0 +1,24 @@
+{
+  "seed": 1772874934,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"buf\": no such variable\n    while executing\n\"if {$buf > 8} {\n                    regexp \"^[a-z]\" \"k+#.poyh=l?ixja 2al\"\n                    expr {(-((-63 ** -9) + -6.07))}\n                    list...\"\n    (\"default\" arm line 5)\n    invoked from within\n\"switch -- 63 {\n    \"@uug044z8xt:!jvt,j\" {\n        switch -- 600 {\n            -72.25 {\n                append idx -542\n                set a 0\n       ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpg5247r5k.tcl\" line "
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

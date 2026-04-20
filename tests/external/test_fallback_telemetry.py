@@ -1,0 +1,218 @@
+"""Regression tests for Tcl 9 fallback-site telemetry (triage).
+
+These tests cover the pre-run ``DiagMap`` summarisation fed into
+``tmp/tcl9-report.json``: a compile of a script that cannot be
+specialised produces a non-zero fallback count, and the count is
+bucketed by command + kind so the triage renderer can surface
+per-file coverage.
+"""
+
+from __future__ import annotations
+
+from scripts.tcl9_triage_report import _render_table
+from tests.external.run_tcl9_tests import _summarise_diag
+from tests.test_wasm_real_tcl import _compile_tcl_with_diag
+
+
+def test_unknown_command_registers_fallback_site() -> None:
+    """An unknown command lowers to IRBarrier and emits a diag site."""
+    _wasm, diag = _compile_tcl_with_diag("foo 1 2\n", "unknown_cmd.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] >= 1
+    # Every site is counted; "foo" is the only command here that
+    # could trigger a fallback.
+    commands = [cmd for cmd, _ in summary["top_fallback_commands"]]
+    assert "foo" in commands
+
+
+def test_summary_empty_for_pure_compile() -> None:
+    """``set x 1`` lowers entirely inline; no diag sites emitted."""
+    _wasm, diag = _compile_tcl_with_diag("set x 1\n", "pure.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+    assert summary["fallback_sites_by_kind"] == {}
+    assert summary["top_fallback_commands"] == []
+
+
+def test_nontrapping_runtime_command_skips_diag_site() -> None:
+    """``puts`` / ``append`` are classified non-trapping — no diag site.
+
+    Pure ``puts hello`` compiles through the runtime dispatch path
+    (``_emit_cmd_runtime``), which now skips the per-call
+    ``tcl_diag_set`` preamble for commands in
+    ``_CMD_RUNTIME_NONTRAPPING``.  The emitted DiagMap must have zero
+    sites for the compile.
+    """
+    _wasm, diag = _compile_tcl_with_diag("puts hello\n", "puts.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+    # ``append x "one"`` is statement-context mutate-var path — also
+    # goes through runtime dispatch without a diag site now.
+    _wasm, diag = _compile_tcl_with_diag('append x "one"\n', "append.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+
+def test_trapping_runtime_command_keeps_diag_site() -> None:
+    """Stub commands that raise ``unsupported command: X`` still
+    record a diag site so the stderr trap line resolves to source.
+
+    ``fconfigure`` routes through ``_CMD_RUNTIME`` but is NOT in
+    ``_CMD_RUNTIME_NONTRAPPING``: the compile emits a single
+    ``runtime``-kind diag site for it.
+    """
+    _wasm, diag = _compile_tcl_with_diag("fconfigure stdin -blocking 0\n", "trap_fconfigure.tcl")
+    runtime_sites = [s for s in diag.sites if s.kind == "runtime"]
+    assert any(s.command == "fconfigure" for s in runtime_sites), (
+        "fconfigure must keep its diag site (stub raises unsupported "
+        "command and stderr trap line needs to resolve)"
+    )
+
+
+def test_summary_none_diag_returns_zeroes() -> None:
+    """Compile failed before a DiagMap could be produced — all zeroes."""
+    summary = _summarise_diag(None)
+    assert summary == {
+        "fallback_sites_total": 0,
+        "fallback_sites_by_kind": {},
+        "top_fallback_commands": [],
+    }
+
+
+def test_triage_table_renders_fb_column() -> None:
+    """The rendered triage markdown must carry the FB column and value."""
+    entries = [
+        {
+            "file": "foo.test",
+            "subsystem": "string",
+            "stage": "run",
+            "status": "fail",
+            "category": "A",
+            "total": 10,
+            "passed": 7,
+            "failed": 3,
+            "first_failing_test": "foo-1.1",
+            "trap_site": None,
+            "fallback_sites_total": 42,
+        }
+    ]
+    rendered = _render_table(entries)
+    assert "| FB |" in rendered, "FB column header missing from rendered table"
+    assert "| 42 |" in rendered, "FB column value missing from rendered row"
+    assert "fallback_sites=42" in rendered, "totals line missing fallback_sites"
+
+
+def test_triage_table_totals_sum_fallback_sites() -> None:
+    """The totals line must sum fallback_sites across all rows."""
+    entries = [
+        {
+            "file": "a.test",
+            "subsystem": "list",
+            "stage": "run",
+            "status": "fail",
+            "category": "A",
+            "fallback_sites_total": 3,
+        },
+        {
+            "file": "b.test",
+            "subsystem": "list",
+            "stage": "run",
+            "status": "fail",
+            "category": "B",
+            "fallback_sites_total": 7,
+        },
+        {
+            "file": "c.test",
+            "subsystem": "list",
+            "stage": "run",
+            "status": "pass",
+            "category": "pass",
+            # Missing field — must be treated as zero.
+        },
+    ]
+    rendered = _render_table(entries)
+    assert "fallback_sites=10" in rendered
+
+
+def test_namespace_import_resolves_unqualified_calls() -> None:
+    """``namespace import ::foo::*`` eliminates the fallback for bare calls.
+
+    Compiling ``namespace eval ::foo { proc bar {} {...} }; namespace
+    import ::foo::*; bar`` used to emit a ``tcl_eval`` fallback for
+    the bare ``bar`` call because the compiler couldn't see that
+    ``bar`` was imported from ``::foo``.  With the import table
+    wired through, the call resolves to ``::foo::bar`` at compile
+    time and dispatches directly — zero diag sites.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "    namespace export bar baz\n"
+        "}\n"
+        "namespace import ::foo::*\n"
+        "bar\n"
+        "baz\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0, (
+        f"expected zero fallback sites after namespace import, got "
+        f"{summary['fallback_sites_total']}: {summary['top_fallback_commands']}"
+    )
+
+
+def test_namespace_import_single_name_resolves() -> None:
+    """Single-name import (``namespace import ::foo::bar``) also works."""
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "bar\n"
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_single.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] == 0
+
+
+def test_unimported_name_still_falls_back() -> None:
+    """``baz`` was not imported, so bare ``baz`` must still fall back.
+
+    Guards against the import table being too permissive — only
+    names present in a recorded ``namespace import`` directive
+    should dispatch directly.
+    """
+    src = (
+        "namespace eval ::foo {\n"
+        "    proc bar {} { return 1 }\n"
+        "    proc baz {} { return 2 }\n"
+        "}\n"
+        "namespace import ::foo::bar\n"
+        "baz\n"  # not imported — must fall back
+    )
+    _wasm, diag = _compile_tcl_with_diag(src, "ns_import_partial.tcl")
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] >= 1
+    commands = [c for c, _ in summary["top_fallback_commands"]]
+    assert "baz" in commands
+
+
+def test_kind_bucketing_distinguishes_fallback_from_unsupported() -> None:
+    """Kind histogram must separate fallback from unsupported sites.
+
+    Any script that compiles but cannot specialise and must defer to
+    the runtime should register at least one ``fallback`` site. The
+    histogram is keyed by ``DiagSite.kind`` so the triage table can
+    track architectural dead-ends separately from relaxable barriers.
+    """
+    _wasm, diag = _compile_tcl_with_diag(
+        "proc p {} { unknown_user_cmd a b }\np\n",
+        "kinds.tcl",
+    )
+    summary = _summarise_diag(diag)
+    assert summary["fallback_sites_total"] >= 1
+    assert "fallback" in summary["fallback_sites_by_kind"]
+    assert summary["fallback_sites_by_kind"]["fallback"] >= 1

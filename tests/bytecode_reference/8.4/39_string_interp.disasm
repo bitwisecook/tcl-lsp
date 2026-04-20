@@ -1,0 +1,33 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x310c0640, refCt 1, epoch 0, interp 0x30c0d000 (epoch 0)
+  Source "set name Alice\nset greeting \"Hello, $name!\"\nset msg \"Re"
+  Cmds 4, src 77, inst 28, litObjs 6, aux 0, stkDepth 3, code/src 3.32
+  Code 256 = header 160+inst 28+litObj 48+exc 0+aux 0+cmdMap 16
+  Proc 0x310c9c40, refCt 1, args 0, compiled locals 3
+      slot 0, scalar, "name"
+      slot 1, scalar, "greeting"
+      slot 2, scalar, "msg"
+  Commands 4:
+      1: pc 0-4, src 0-13   	   2: pc 5-15, src 15-42
+      3: pc 16-26, src 44-75   	   4: pc 18-22, src 62-73
+  Command 1: "set name Alice"
+    (0) push1 0  	# "Alice"
+    (2) storeScalar1 0	# var "name"
+    (4) pop 
+  Command 2: "set greeting \"Hello, $name!\""
+    (5) push1 1  	# "Hello, "
+    (7) loadScalar1 0	# var "name"
+    (9) push1 2  	# "!"
+    (11) concat1 3 
+    (13) storeScalar1 1	# var "greeting"
+    (15) pop 
+  Command 3: "set msg \"Result: [expr {1 + 2}]\""
+    (16) push1 3  	# "Result: "
+  Command 4: "expr {1 + 2}"
+    (18) push1 4  	# "1"
+    (20) push1 5  	# "2"
+    (22) add 
+    (23) concat1 2 
+    (25) storeScalar1 2	# var "msg"
+    (27) done 

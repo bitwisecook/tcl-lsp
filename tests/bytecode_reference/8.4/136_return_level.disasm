@@ -1,0 +1,23 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x7b0b8640, refCt 1, epoch 0, interp 0x7ac0d000 (epoch 0)
+  Source "proc inner {} {\n    return -code error -level 0 \"local "
+  Cmds 2, src 135, inst 22, litObjs 6, aux 0, stkDepth 4, code/src 1.78
+  Code 240 = header 160+inst 22+litObj 48+exc 0+aux 0+cmdMap 8
+  Proc 0x7b0c1c40, refCt 1, args 0, compiled locals 0
+  Commands 2:
+      1: pc 0-10, src 0-62   	   2: pc 11-20, src 64-133
+  Command 1: "proc inner {} {\n    return -code error -level 0 \"local "
+    (0) push1 0  	# "proc"
+    (2) push1 1  	# "inner"
+    (4) push1 2  	# ""
+    (6) push1 3  	# "\n    return -code error -level 0 \"local "
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc outer {} {\n    set code [catch {inner} msg]\n    li"
+    (11) push1 0  	# "proc"
+    (13) push1 4  	# "outer"
+    (15) push1 2  	# ""
+    (17) push1 5  	# "\n    set code [catch {inner} msg]\n    li"
+    (19) invokeStk1 4 
+    (21) done 
