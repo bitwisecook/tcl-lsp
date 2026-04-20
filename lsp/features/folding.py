@@ -253,8 +253,9 @@ def _normalise_overlaps(
         stack.append(len(working) - 1)
 
     # De-duplicate: trimming parents or ranges may have collapsed distinct
-    # inputs onto the same (start, end, kind) triple.
-    seen: set[tuple[int, int, types.FoldingRangeKind]] = set()
+    # inputs onto the same (start, end, kind) triple.  ``kind`` is declared
+    # by lsprotocol as ``Optional[Union[FoldingRangeKind, str]]``.
+    seen: set[tuple[int, int, types.FoldingRangeKind | str | None]] = set()
     result: list[types.FoldingRange] = []
     for r in working:
         if r is None:
