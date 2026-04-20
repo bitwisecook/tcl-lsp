@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
 from core.analysis.semantic_model import AnalysisResult, Scope
 from core.commands.registry.runtime import iter_body_arguments
 from core.parsing.command_segmenter import segment_commands
@@ -279,14 +278,21 @@ def get_folding_ranges(
     *,
     lines: list[str] | None = None,
 ) -> list[types.FoldingRange]:
-    """Return folding ranges for a Tcl source file."""
-    if analysis is None:
-        analysis = analyse(source)
+    """Return folding ranges for a Tcl source file.
 
+    When ``analysis`` is ``None`` the scope-based collector is skipped.
+    It's redundant with the syntactic body-argument walker for the
+    common proc/namespace/control-structure cases, so omitting it
+    lets the LSP handler serve fold ranges immediately after
+    ``didOpen`` — before the background analyse() task populates
+    ``state.analysis`` — without blocking the event loop on a
+    synchronous full analysis pass.
+    """
     ranges: list[types.FoldingRange] = []
     seen: set[tuple[int, int]] = set()
 
-    _collect_scope_folds(analysis.global_scope, seen, ranges, source)
+    if analysis is not None:
+        _collect_scope_folds(analysis.global_scope, seen, ranges, source)
     _collect_comment_folds(source, seen, ranges, lines=lines)
     _collect_body_folds(source, seen, ranges, original_source=source)
 

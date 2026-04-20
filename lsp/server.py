@@ -933,8 +933,11 @@ def on_folding_range(
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
-    if state is not None and state.analysis is None:
-        return []
+    # Fold ranges don't require a full AnalysisResult: the comment and
+    # body-argument collectors work on source tokens alone and already
+    # cover proc/namespace/control-structure bodies.  Returning ``[]``
+    # while analysis is still running would leave VS Code with a cached
+    # empty result and no fold markers until the next didChange.
     source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_folding_ranges(source, analysis=analysis, lines=state.lines if state else None)
@@ -2450,10 +2453,18 @@ async def _publish_diagnostics(
     partial_mode = state.has_partial_commands
 
     # After analysis completes, ask the client to re-request semantic
-    # tokens so they benefit from analysis enrichment (regex_positions).
+    # tokens so they benefit from analysis enrichment (regex_positions),
+    # and folding ranges so that scope-based folds for quoted or
+    # substituted proc/namespace bodies (which the syntactic walker
+    # can't recover) get picked up on top of the syntactic folds that
+    # were served pre-analysis.
     if did_analyse and state.analysis is not None:
         try:
             server.workspace_semantic_tokens_refresh(None)
+        except Exception:
+            pass  # client may not support refresh
+        try:
+            server.workspace_folding_range_refresh(None)
         except Exception:
             pass  # client may not support refresh
 
