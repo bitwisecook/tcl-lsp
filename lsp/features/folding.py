@@ -23,8 +23,19 @@ def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:
     collide with the next sibling body's fold range, producing the
     non-hierarchical overlap VS Code's folding tree-builder rejects.  Moving
     the fold end up one line in that case keeps siblings disjoint.
+
+    Incomplete bodies (no closing ``}`` yet -- common while the user is still
+    typing) don't need the adjustment: there is no separator line to preserve,
+    and decrementing would collapse the fold range away mid-edit.
     """
-    if 0 <= end_offset < len(source) and source[end_offset] != "\n":
+    if end_offset < 0 or end_offset >= len(source):
+        return end_line
+    if source[end_offset] == "\n":
+        return end_line
+    # Only adjust when there is an actual closing ``}`` right after the
+    # content -- otherwise the body is unterminated and the fold should span
+    # what the user has so far.
+    if end_offset + 1 < len(source) and source[end_offset + 1] == "}":
         return end_line - 1
     return end_line
 
@@ -178,6 +189,14 @@ def _normalise_overlaps(
     one containing the other).  The collectors already try to avoid this via
     ``_adjust_body_end_line``, but a belt-and-suspenders post-pass keeps the
     output well-formed even if a new collector forgets the invariant.
+
+    ``FoldingRange.end_line`` is inclusive, so two ranges that share a
+    boundary line (e.g. ``[0, 5]`` and ``[5, 10]``) both include the shared
+    line and are neither disjoint nor strictly nested.  When that pattern
+    slips past the collectors, we trim the earlier sibling's end so the two
+    become disjoint; when a range extends past the open parent, we trim
+    the range down to the parent's end.  A final pass drops any duplicate
+    ``(start, end, kind)`` triples produced by those adjustments.
     """
     if not ranges:
         return ranges
@@ -186,29 +205,65 @@ def _normalise_overlaps(
     # children and equal-start ranges with larger spans come first.
     ordered = sorted(ranges, key=lambda r: (r.start_line, -r.end_line))
 
-    # Walk with a stack of open ranges; when a new range overlaps the top of
-    # the stack without being fully contained, shrink it so it nests properly.
-    stack: list[types.FoldingRange] = []
-    result: list[types.FoldingRange] = []
+    # working[i] may be replaced in-place (to trim a previously-emitted
+    # parent) or set to None to drop it outright.  stack holds indices of
+    # currently-open ancestors.
+    working: list[types.FoldingRange | None] = []
+    stack: list[int] = []
+
     for r in ordered:
-        # A stack entry is closed when it ends strictly before r starts OR
-        # exactly at r.start — in the latter case r is r's sibling, not a
-        # child, even though LSP spec permits either interpretation.
-        while stack and stack[-1].end_line <= r.start_line:
-            stack.pop()
-        if stack and stack[-1].end_line < r.end_line:
-            # r extends past its would-be parent — trim it.
-            new_end = stack[-1].end_line
-            if new_end > r.start_line:
+        # Close or trim ancestors that conflict with r's start.
+        while stack:
+            parent = working[stack[-1]]
+            assert parent is not None  # stack entries are always live
+            if parent.end_line < r.start_line:
+                stack.pop()
+                continue
+            if parent.end_line == r.start_line:
+                # Inclusive end_line: a shared boundary still overlaps, so
+                # trim the parent back by one line if that leaves a useful
+                # fold, otherwise drop it entirely.
+                if parent.end_line - 1 > parent.start_line:
+                    working[stack[-1]] = types.FoldingRange(
+                        start_line=parent.start_line,
+                        end_line=parent.end_line - 1,
+                        kind=parent.kind,
+                    )
+                else:
+                    working[stack[-1]] = None
+                stack.pop()
+                continue
+            break
+
+        # Trim r down to fit inside its (new) parent, if any.
+        if stack:
+            parent = working[stack[-1]]
+            assert parent is not None
+            if parent.end_line < r.end_line:
+                if parent.end_line <= r.start_line:
+                    # Trim would leave r degenerate or inverted — drop it.
+                    continue
                 r = types.FoldingRange(
                     start_line=r.start_line,
-                    end_line=new_end,
+                    end_line=parent.end_line,
                     kind=r.kind,
                 )
-            else:
-                continue
+
+        working.append(r)
+        stack.append(len(working) - 1)
+
+    # De-duplicate: trimming parents or ranges may have collapsed distinct
+    # inputs onto the same (start, end, kind) triple.
+    seen: set[tuple[int, int, types.FoldingRangeKind]] = set()
+    result: list[types.FoldingRange] = []
+    for r in working:
+        if r is None:
+            continue
+        key = (r.start_line, r.end_line, r.kind)
+        if key in seen:
+            continue
+        seen.add(key)
         result.append(r)
-        stack.append(r)
     return result
 
 

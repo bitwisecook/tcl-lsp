@@ -169,11 +169,77 @@ class TestFoldingRanges:
             r for r in ranges if r.kind == types.FoldingRangeKind.Region and r.start_line == 0
         ]
         assert proc_folds
-        # The source has 8 lines; the final ``}`` sits on line 6.
-        # Fold end must be <= 5 so that line 6 stays visible when folded.
+        # The proc's own closing ``}`` is the last line that is exactly ``}``
+        # at column 0 — the inner ``if``/``else`` braces are indented.
         lines = source.split("\n")
-        close_idx = next(i for i, line in enumerate(lines) if line == "}")
+        close_idx = max(i for i, line in enumerate(lines) if line == "}")
         for r in proc_folds:
             assert r.end_line < close_idx, (
                 f"proc fold end {r.end_line} hides closing brace on line {close_idx}"
             )
+
+    def test_incomplete_body_still_folds(self):
+        """Unterminated braced body (user mid-edit) must still produce a fold."""
+        # No closing ``}`` on the proc body.
+        source = "proc foo {} {\n    puts hi\n    puts there\n"
+        ranges = get_folding_ranges(source)
+        region_ranges = [r for r in ranges if r.kind == types.FoldingRangeKind.Region]
+        # The partial body should still be foldable so folding doesn't flicker
+        # off every time the user deletes the trailing brace.
+        assert region_ranges, "expected a fold range for an unterminated proc body"
+        # Start line should be the ``{`` line.
+        assert any(r.start_line == 0 for r in region_ranges)
+
+    def test_normalise_overlaps_shared_boundary_trims_earlier(self):
+        """Two sibling ranges sharing a boundary line must become disjoint."""
+        from lsprotocol import types as lsp_types
+
+        from lsp.features.folding import _normalise_overlaps
+
+        ranges = [
+            lsp_types.FoldingRange(
+                start_line=0,
+                end_line=5,
+                kind=lsp_types.FoldingRangeKind.Region,
+            ),
+            lsp_types.FoldingRange(
+                start_line=5,
+                end_line=10,
+                kind=lsp_types.FoldingRangeKind.Region,
+            ),
+        ]
+        normalised = _normalise_overlaps(ranges)
+        # Both ranges should survive, and they must not share any line.
+        assert len(normalised) == 2
+        a, b = sorted(normalised, key=lambda r: r.start_line)
+        assert a.end_line < b.start_line, f"{a} and {b} still overlap"
+
+    def test_normalise_overlaps_dedups_after_trimming(self):
+        """Trimming must not leave duplicate ``(start, end, kind)`` entries."""
+        from lsprotocol import types as lsp_types
+
+        from lsp.features.folding import _normalise_overlaps
+
+        # Parent [0, 10] with child [3, 8]; a sibling [3, 12] trims to [3, 10]
+        # and another collector emitting [3, 10] natively would otherwise
+        # survive as a duplicate.
+        ranges = [
+            lsp_types.FoldingRange(
+                start_line=0,
+                end_line=10,
+                kind=lsp_types.FoldingRangeKind.Region,
+            ),
+            lsp_types.FoldingRange(
+                start_line=3,
+                end_line=10,
+                kind=lsp_types.FoldingRangeKind.Region,
+            ),
+            lsp_types.FoldingRange(
+                start_line=3,
+                end_line=12,
+                kind=lsp_types.FoldingRangeKind.Region,
+            ),
+        ]
+        normalised = _normalise_overlaps(ranges)
+        keys = [(r.start_line, r.end_line, r.kind) for r in normalised]
+        assert len(keys) == len(set(keys)), f"duplicates in {keys}"
