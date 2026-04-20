@@ -31,6 +31,8 @@ const obj_new_int = obj.obj_new_int;
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
+const tcl_ns = @import("tcl_ns.zig");
+
 // -- Bucket layout --
 const PROC_BUCKET_SIZE: u32 = 32;
 const PROC_INITIAL_CAP: u32 = 16;
@@ -96,6 +98,25 @@ fn maybe_grow() void {
     }
 }
 
+/// P2.1 dual-write: also publish this proc into the current
+/// namespace's ``cmd_table`` so the new namespace-tree resolution
+/// path (P2.2+) can find it.  The cmd_table value is the flat
+/// proc_table bucket address — letting reads pivot to the existing
+/// ``proc_get_*`` accessors without needing a real ``Command``
+/// struct yet (P2.4 finishes the migration).
+///
+/// ``full_name`` is the FQN as registered (e.g. ``::tcltest::test``
+/// or just ``foo``).  We resolve it to (target_ns, simple_name)
+/// — find-or-creating any missing intermediates — then insert into
+/// that target's ``cmd_table`` keyed by the simple name.  Names
+/// without any ``::`` separator land directly in ``ns_current()``.
+fn ns_dual_write(name_ptr: u32, name_len: u32, bucket_base: u32) void {
+    const cxt = tcl_ns.ns_current();
+    const r = tcl_ns.ns_resolve_qualified_creating(cxt, name_ptr, name_len);
+    if (r.target_ns == 0 or r.simple_len == 0) return;
+    _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, bucket_base);
+}
+
 /// Register an interpreted proc (body is Tcl source, func_idx = 0).
 /// params_obj and body_obj are TclObj handles (string representations).
 pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
@@ -121,6 +142,7 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
         write_i32(base + OFF_N_PARAMS, @intCast(n_params));
         write_i32(base + OFF_FUNC_IDX, 0); // interpreted
         write_i32(base + OFF_ARGS_TAIL, 0);
+        ns_dual_write(sn.ptr, sn.len, base);
         return obj_new_int(0);
     }
 
@@ -131,6 +153,7 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     write_i32(base + OFF_BODY_OBJ, body_obj);
     write_i32(base + OFF_N_PARAMS, @intCast(n_params));
     // func_idx + args_tail are zero from insert_header's payload clear.
+    ns_dual_write(sn.ptr, sn.len, base);
     return obj_new_int(0);
 }
 
@@ -157,6 +180,7 @@ pub export fn proc_register_compiled(
         write_i32(base + OFF_N_PARAMS, n_params);
         write_i32(base + OFF_FUNC_IDX, func_idx);
         write_i32(base + OFF_ARGS_TAIL, args_tail);
+        ns_dual_write(sn.ptr, sn.len, base);
         return obj_new_int(0);
     }
 
@@ -166,6 +190,7 @@ pub export fn proc_register_compiled(
     write_i32(base + OFF_N_PARAMS, n_params);
     write_i32(base + OFF_FUNC_IDX, func_idx);
     write_i32(base + OFF_ARGS_TAIL, args_tail);
+    ns_dual_write(sn.ptr, sn.len, base);
     return obj_new_int(0);
 }
 

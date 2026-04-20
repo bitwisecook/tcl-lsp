@@ -98,6 +98,24 @@ pub const Namespace = extern struct {
 /// ``ns_root``.  Zero before then.
 var root_addr: u32 = 0;
 
+/// Currently-active namespace handle.  Zero means "no explicit
+/// context set" — readers should treat that as root.  Compiled
+/// procs flip this via ``ns_set`` / ``ns_restore`` (in
+/// ``tcl_interp.zig``) before dispatching into the interpreter so
+/// dynamic ``proc $name body`` lands in the enclosing ns.
+///
+/// Public so that ``tcl_interp.zig`` can write through it without a
+/// circular dependency loop (interp imports ns; if ns imported
+/// interp we'd cycle).
+pub var current_ns: u32 = 0;
+
+/// The "current namespace" with the zero-means-root convention
+/// applied — every internal caller wanting a non-zero handle should
+/// go through this rather than reading ``current_ns`` directly.
+pub fn ns_current() u32 {
+    return if (current_ns != 0) current_ns else ns_root();
+}
+
 /// Allocate and zero-initialise a new ``Namespace`` at a fresh
 /// linear-memory address.  Sub-tables start with ``buf == 0`` (will
 /// init lazily on first insert).
@@ -404,6 +422,106 @@ pub fn ns_resolve_qualified(cxt: u32, name_ptr: u32, name_len: u32) QualifiedRes
     result.target_ns = ns;
     result.alt_ns = alt;
     return result;
+}
+
+/// Same shape as ``ns_resolve_qualified`` but find-or-creates each
+/// intermediate namespace along the walk.  Used by registration
+/// paths (``proc_register`` dual-write, ``namespace eval``, etc.)
+/// where a missing intermediate should be materialised, not
+/// reported as a miss.
+///
+/// ``alt_ns`` is always 0 in the result — when we're creating, the
+/// "search-from-root alternate" doesn't apply (we already committed
+/// to a single tree location).
+pub fn ns_resolve_qualified_creating(cxt: u32, name_ptr: u32, name_len: u32) QualifiedResult {
+    var result: QualifiedResult = .{
+        .target_ns = 0,
+        .simple_ptr = 0,
+        .simple_len = 0,
+        .alt_ns = 0,
+    };
+
+    const root = ns_root();
+    var ns: u32 = if (cxt != 0) cxt else root;
+    var i: u32 = 0;
+    if (name_len >= 2) {
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        if (src[0] == ':' and src[1] == ':') {
+            ns = root;
+            i = 2;
+            while (i < name_len and src[i] == ':') : (i += 1) {}
+        }
+    }
+
+    if (i >= name_len) {
+        result.target_ns = ns;
+        return result;
+    }
+
+    const src: [*]const u8 = @ptrFromInt(name_ptr);
+    while (i < name_len) {
+        var end: u32 = i;
+        var has_sep = false;
+        while (end < name_len) : (end += 1) {
+            if (src[end] == ':' and end + 1 < name_len and src[end + 1] == ':') {
+                has_sep = true;
+                break;
+            }
+        }
+        const comp_len: u32 = end - i;
+
+        if (!has_sep) {
+            result.target_ns = ns;
+            result.simple_ptr = name_ptr + i;
+            result.simple_len = comp_len;
+            return result;
+        }
+
+        if (comp_len > 0) {
+            ns = ns_create(ns, name_ptr + i, comp_len);
+        }
+
+        i = end + 2;
+        while (i < name_len and src[i] == ':') : (i += 1) {}
+    }
+
+    result.target_ns = ns;
+    return result;
+}
+
+/// Insert (or update) a command in ``ns.cmd_table`` keyed by simple
+/// name.  Returns the bucket base so the caller can later read /
+/// rewrite the value.  P2.x stores the corresponding flat
+/// ``proc_table`` bucket address as the value; P3+/P4 may swap to
+/// a real ``Command`` struct.
+///
+/// The key bytes are heap-copied by ``Table.insert_header`` so the
+/// caller's input buffer can be released after the call.
+pub fn ns_cmd_put(ns_addr: u32, name_ptr: u32, name_len: u32, value: u32) u32 {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    ns.cmd_table.init(NS_INITIAL_CAP);
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (ns.cmd_table.find(name_ptr, name_len, hash)) |bucket| {
+        write_i32(bucket + OFF_HANDLE, @bitCast(value));
+        return bucket;
+    }
+    if (ns.cmd_table.needs_grow()) ns.cmd_table.grow();
+    const bucket = ns.cmd_table.insert_header(name_ptr, name_len, hash);
+    write_i32(bucket + OFF_HANDLE, @bitCast(value));
+    return bucket;
+}
+
+/// Find a command in ``ns.cmd_table`` by simple name.  Returns the
+/// stored value (i.e. flat-bucket address while P2.x is in dual-
+/// write mode) or 0 if absent.
+pub fn ns_cmd_find(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return 0;
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (ns.cmd_table.find(name_ptr, name_len, hash)) |bucket| {
+        return @bitCast(read_i32(bucket + OFF_HANDLE));
+    }
+    return 0;
 }
 
 /// Lower-level child lookup: returns the child handle, or 0 if not

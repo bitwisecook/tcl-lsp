@@ -1009,19 +1009,15 @@ fn eval_command(words: []const i32) i32 {
 
 const str_eq = @import("tcl_chars.zig").str_eq;
 
-/// Namespace context for eval-fallback calls.  Compiled procs set
-/// this before calling :func:`tcl_eval` (via :func:`ns_set`) so
-/// commands like ``proc $varName body`` inside the fallback
-/// register in the enclosing namespace instead of the global scope.
-///
-/// Storage is a ``*Namespace`` handle (P1.3 onwards).  Zero means
-/// "no namespace context active" — equivalent to the root ns for
-/// resolution but treated as "leave names unqualified" by
-/// ``qualify_name`` so legacy callers that never call ``ns_set``
-/// keep their old behaviour.
-var current_ns: u32 = 0;
-
 const tcl_ns = @import("tcl_ns.zig");
+
+// Namespace context for eval-fallback calls.  Storage lives in
+// ``tcl_ns.current_ns`` (moved there in P2.1 so ``tcl_procs.zig``
+// can read it without circular-importing ``tcl_interp.zig``).
+// Zero means "no namespace context active" — equivalent to the
+// root ns for resolution but treated as "leave names unqualified"
+// by ``qualify_name`` so legacy callers that never call ``ns_set``
+// keep their old behaviour.
 
 /// Set the current namespace.  ``name_ptr`` / ``name_len`` are a
 /// fully-qualified name like ``::tcltest`` that the runtime walks
@@ -1035,15 +1031,15 @@ const tcl_ns = @import("tcl_ns.zig");
 /// (always 0) to leave room for future flags without another ABI
 /// flip.
 pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
-    const saved: u32 = current_ns;
+    const saved: u32 = tcl_ns.current_ns;
     const ns = tcl_ns.ns_create_from_fqn(@bitCast(name_ptr), @bitCast(name_len));
-    current_ns = ns;
+    tcl_ns.current_ns = ns;
     return @as(i64, saved);
 }
 
 /// Restore a saved namespace context, unwinding an ``ns_set`` pair.
 pub export fn ns_restore(saved: i64) void {
-    current_ns = @intCast(saved & 0xFFFFFFFF);
+    tcl_ns.current_ns = @intCast(saved & 0xFFFFFFFF);
 }
 
 /// If *name* (a TclObj) is unqualified (no leading ``::``) and a
@@ -1053,12 +1049,12 @@ pub export fn ns_restore(saved: i64) void {
 /// ``variable`` handlers to namespace-qualify dynamically
 /// constructed names.
 fn qualify_name(name: i32) i32 {
-    if (current_ns == 0) return name;
+    if (tcl_ns.current_ns == 0) return name;
     // Root has full name ``::``; ``::name`` is the same as ``name``
     // for resolution purposes, so don't bother prefixing — keeps
     // the output stable for callers that previously got an
     // unqualified name back when no ns was active.
-    const ns_full = tcl_ns.ns_full_name(current_ns);
+    const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
     if (ns_full.len == 2) return name;
     const s = obj_ensure_string(name);
     if (s.len == 0) return name;
