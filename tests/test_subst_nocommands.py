@@ -114,6 +114,15 @@ class TestSubstNocommandsRefuses:
     def test_namespace_qualified_var(self):
         assert subst_nocommands("$foo::bar", {"foo": "X"}) is None
 
+    def test_leading_double_colon_var_refused(self):
+        # ``$::name`` is a Tcl namespace-qualified var reference
+        # that real ``subst -nocommands`` would substitute at
+        # runtime.  Our const-map doesn't carry qualified entries,
+        # so refuse rather than emit the ``$`` as literal text
+        # (which would silently diverge from tclsh semantics).
+        assert subst_nocommands("$::name", {"name": "X"}) is None
+        assert subst_nocommands("prefix $::foo suffix", {"foo": "X"}) is None
+
     def test_unclosed_braced_var(self):
         assert subst_nocommands("${name", {"name": "X"}) is None
 

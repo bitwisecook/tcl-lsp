@@ -487,6 +487,45 @@ class TestProcDynamicNameConstMap:
         assert "::Second" in mod.procedures
         assert "::First" not in mod.procedures
 
+    def test_nested_proc_body_does_not_inherit_outer_const_map(self):
+        # Regression: an outer proc's ``set body {literal}`` must
+        # not be visible to a NESTED ``proc inner``'s barrier-
+        # relaxation gate.  At runtime ``inner`` has its own frame
+        # with no ``body`` local, so lowering must not bake the
+        # outer literal into ``inner``'s body.
+        source = textwrap.dedent("""\
+            proc Outer {} {
+                set body {set z 99}
+                proc inner {} {
+                    uplevel 1 $body
+                }
+            }
+        """)
+        mod = lower_to_ir(source)
+        assert "::inner" in mod.procedures
+        inner = mod.procedures["::inner"]
+        # ``uplevel 1 $body`` inside ``inner`` must remain an
+        # IRBarrier (dynamic body) — not a relaxed IRBlock /
+        # IRUpFrame containing the outer's ``set z 99`` literal.
+        from core.compiler.ir import IRBarrier, IRBlock, IRUpFrame
+
+        for s in inner.body.statements:
+            assert not isinstance(s, IRUpFrame), (
+                "inner's uplevel must stay dynamic (outer's const-map leaked)"
+            )
+            if isinstance(s, IRBlock):
+                # Guard against a relaxed inline too — IRBlock is
+                # the inline form used by ``_relax_eval`` / uplevel
+                # inlining.
+                for inner_s in s.body.statements:
+                    assert "z" not in getattr(inner_s, "name", ""), (
+                        "inner's uplevel body was inlined from outer's const literal"
+                    )
+        # The barrier is the correct shape.
+        assert any(
+            isinstance(s, IRBarrier) and s.command == "uplevel" for s in inner.body.statements
+        )
+
 
 class TestProcDynamicBodySubstNocommands:
     """P7.3 — ``proc $var [subst -nocommands {template}]`` materialises
