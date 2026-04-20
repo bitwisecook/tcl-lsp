@@ -11,6 +11,7 @@ from ...commands.registry.runtime import (
 )
 from ...common.codes import diag
 from ...common.dialect import active_dialect
+from ...common.naming import normalise_qualified_name
 from ...common.ranges import range_from_token
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import Diagnostic, Severity
@@ -30,8 +31,17 @@ def check_disabled_command(
     arg_tokens: list[Token],
     all_tokens: list[Token],
     source: str,
+    user_procs: frozenset[str] = frozenset(),
 ) -> list[Diagnostic]:
-    """W002: Warn when a command is disabled in the active dialect profile."""
+    """W002: Warn when a command is disabled in the active dialect profile.
+
+    When the caller supplies ``user_procs`` — the set of qualified proc
+    names defined in the current translation unit — a command name that
+    resolves to a user-defined proc is treated as shadowing the disallowed
+    built-in and W002 is suppressed.
+    """
+    if cmd_name and normalise_qualified_name(cmd_name) in user_procs:
+        return []
     dialect = active_dialect()
     status = REGISTRY.command_status(cmd_name, dialect)
     if status is DialectStatus.DISALLOWED:
