@@ -74,10 +74,19 @@ comptime {
 
 /// Allocate and populate a fresh alias redirect Command.  Returns
 /// the Command address.  Caller is responsible for inserting the
-/// Command into its destination ns's ``cmd_table`` (via
-/// ``ns_cmd_put``).  The target name bytes + prefix arg handles
-/// are both heap-copied so the caller's input can be released.
+/// Command into ``dest_ns``'s ``cmd_table`` (via ``ns_cmd_put``).
+/// The target name bytes + prefix arg handles are heap-copied so
+/// the caller's input can be released.
+///
+/// The Command's ``name_ptr`` / ``name_len`` header is stamped
+/// with the fully-qualified alias name (``<dest_ns_full>::<simple>``)
+/// so introspection callers (``proc_get_name_ptr``,
+/// ``info commands``, the host-bridge dispatcher) see the same
+/// FQN shape they'd get from an interpreted ``proc`` definition.
+/// ``dest_ns`` is the destination namespace the caller will insert
+/// the Command into.
 pub fn alias_alloc(
+    dest_ns: u32,
     new_simple_ptr: u32,
     new_simple_len: u32,
     target_name_ptr: u32,
@@ -89,12 +98,12 @@ pub fn alias_alloc(
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..tcl_procs.COMMAND_SIZE], 0);
 
-    // Heap-copy the redirect's own simple name (for
-    // ``proc_get_name_ptr`` / ``info commands`` consumers).
-    const nbuf = alloc(new_simple_len);
-    if (new_simple_len > 0) memcpy(nbuf, new_simple_ptr, new_simple_len);
-    write_i32(cmd, @bitCast(nbuf));
-    write_i32(cmd + 4, @bitCast(new_simple_len));
+    // Stamp the Command's fully-qualified name — matches the
+    // shape ``proc_register`` produces for interpreted procs
+    // (``::ns::name``) so introspection paths stay uniform.
+    const fqn = tcl_ns.ns_build_fqn(dest_ns, new_simple_ptr, new_simple_len);
+    write_i32(cmd, @bitCast(fqn.ptr));
+    write_i32(cmd + 4, @bitCast(fqn.len));
 
     // Stamp the flag.
     write_i32(cmd + tcl_procs.OFF_FLAGS, @bitCast(CMD_ALIAS));
@@ -156,46 +165,49 @@ pub fn alias_clear(cmd: u32) void {
     r.prefix_args_addr = 0;
 }
 
-/// Produce the query form string for ``interp alias {} newName``:
-/// the target FQN + each prefix arg as a space-separated list
-/// (Tcl-list-escaped by the caller if needed).  Returns a TclObj
-/// handle.
-///
-/// The simple concatenation is fine for tcltest's usage — the
-/// prefix args in practice are single-word options like ``-setup``
-/// or literal keywords.  When a prefix arg contains whitespace,
-/// the caller should route through the full Tcl list-quoting
-/// helper; we leave that to the ``interp alias`` built-in.
+/// Produce the query form for ``interp alias {} newName``: the
+/// target FQN plus each prefix arg, rendered as a valid Tcl list
+/// via :func:`tcl_obj.list_elem_quote` so round-tripping
+/// ``[interp alias {} name]`` through ``lindex`` / ``foreach``
+/// recovers the exact original prefix vector.  A prefix arg like
+/// ``{hello world}`` renders as ``{hello world}``, a ``$foo``
+/// prefix renders as ``{$foo}``, and an empty prefix as ``{}``.
+/// Returns a TclObj handle.
 pub fn alias_describe(cmd: u32) i32 {
     if (!is_alias(cmd)) return obj_new_string(0, 0);
     const r = alias_rec(cmd);
     if (r.target_name_len == 0) return obj_new_string(0, 0);
 
-    // Compute the total byte length: target + (" " + arg.len) for
-    // each prefix arg.  Over-allocates by one when n_prefix == 0.
-    var total: u32 = r.target_name_len;
+    // Generous over-allocation: each source byte can expand to two
+    // output bytes in the worst ``\\<byte>`` case, plus the bracing
+    // overhead per element.  ``+ 8`` per element covers the worst-
+    // case ``{}`` wrapping.  The list-quote helper writes fewer
+    // bytes than this budget; unused slack stays in bump memory.
+    var total: u32 = r.target_name_len * 2 + 8;
     var i: u32 = 0;
     while (i < r.n_prefix) : (i += 1) {
         const h: i32 = read_i32(r.prefix_args_addr + i * 4);
         const s = obj_ensure_string(h);
-        total += 1 + s.len;
+        total += 1 + s.len * 2 + 8; // leading space + quoted element
     }
     const buf = alloc(total);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    const tp: [*]const u8 = @ptrFromInt(r.target_name_ptr);
-    for (0..r.target_name_len) |k| dst[k] = tp[k];
-    var off: u32 = r.target_name_len;
+
+    // Element 0: the target name.  ``list_elem_quote`` treats it as
+    // the first list element so a leading ``#`` is braced — matches
+    // C Tcl's ``Tcl_Merge``.
+    var off: u32 = obj.list_elem_quote(buf, 0, r.target_name_ptr, r.target_name_len);
+
+    // Subsequent elements: each prefix arg, space-separated, with
+    // ``list_elem_quote_nth`` so a leading ``#`` on a non-first
+    // element stays unbraced (matches ``UpdateStringOfList``).
     i = 0;
     while (i < r.n_prefix) : (i += 1) {
-        dst[off] = ' ';
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = ' ';
         off += 1;
         const h: i32 = read_i32(r.prefix_args_addr + i * 4);
         const s = obj_ensure_string(h);
-        if (s.len > 0) {
-            const sp: [*]const u8 = @ptrFromInt(s.ptr);
-            for (0..s.len) |k| dst[off + k] = sp[k];
-            off += s.len;
-        }
+        off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
     return obj_new_string(@bitCast(buf), @bitCast(off));
 }

@@ -441,6 +441,7 @@ pub export fn tcl_test_alias_create(
     prefix_args_addr: i32,
 ) i32 {
     const cmd = tcl_alias.alias_alloc(
+        @bitCast(dest_ns),
         @bitCast(new_simple_ptr),
         @bitCast(new_simple_len),
         @bitCast(target_name_ptr),

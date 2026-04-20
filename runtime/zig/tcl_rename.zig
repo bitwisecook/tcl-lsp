@@ -95,37 +95,16 @@ fn bytes_eq(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) bool {
     return true;
 }
 
-/// Write a fresh FQN onto ``cmd``'s name slot.  The previous buffer
-/// (if any) is leaked via the bump allocator — command renames are
+/// Write a fresh FQN onto ``cmd``'s name slot via the shared
+/// :func:`tcl_ns.ns_build_fqn` formatter.  The previous buffer (if
+/// any) is leaked via the bump allocator — command renames are
 /// rare and bounded per program.  The stored name is the full
 /// ``::path::to::simple`` form so ``proc_get_name_ptr`` consumers
 /// (host dispatcher, ``info commands``) see the current identity.
 fn write_command_fqn(cmd: u32, target_ns: u32, simple_ptr: u32, simple_len: u32) void {
-    const parent_full = tcl_ns.ns_full_name(target_ns);
-    // Materialise ``<parent_full>::<simple>``.  Root's full_name is
-    // the literal ``::`` (len 2) so we collapse the duplicate.
-    const parent_is_root = parent_full.len == 2;
-    const total: u32 = if (parent_is_root) 2 + simple_len else parent_full.len + 2 + simple_len;
-    const buf = alloc(total);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    var off: u32 = 0;
-    if (parent_is_root) {
-        dst[0] = ':';
-        dst[1] = ':';
-        off = 2;
-    } else {
-        const ps: [*]const u8 = @ptrFromInt(parent_full.ptr);
-        for (0..parent_full.len) |k| dst[k] = ps[k];
-        dst[parent_full.len] = ':';
-        dst[parent_full.len + 1] = ':';
-        off = parent_full.len + 2;
-    }
-    if (simple_len > 0) {
-        const sp: [*]const u8 = @ptrFromInt(simple_ptr);
-        for (0..simple_len) |k| dst[off + k] = sp[k];
-    }
-    write_i32(cmd, @bitCast(buf));
-    write_i32(cmd + 4, @bitCast(total));
+    const fqn = tcl_ns.ns_build_fqn(target_ns, simple_ptr, simple_len);
+    write_i32(cmd, @bitCast(fqn.ptr));
+    write_i32(cmd + 4, @bitCast(fqn.len));
 }
 
 /// Walk every redirect that imported ``source_cmd`` and deactivate it

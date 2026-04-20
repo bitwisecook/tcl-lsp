@@ -238,6 +238,42 @@ pub fn ns_create_from_fqn(name_ptr: u32, name_len: u32) u32 {
     return ns;
 }
 
+/// Build a fresh ``::ns::simple`` byte buffer.  Used by command-
+/// registration paths (``tcl_rename``, ``tcl_alias``) that need to
+/// stamp the full qualified name onto a ``Command.name`` slot.
+/// Root-ns children collapse ``::`` + ``name`` rather than producing
+/// ``::::name``, matching C Tcl's
+/// ``Tcl_GetCommandFullName`` formatting.
+///
+/// Returns ``(buf_ptr, buf_len)`` — both the address of the newly-
+/// allocated byte buffer and its total length.  The caller owns
+/// the result (the bump allocator never frees, so "owns" here is
+/// the usual "may read forever" contract).
+pub fn ns_build_fqn(target_ns: u32, simple_ptr: u32, simple_len: u32) struct { ptr: u32, len: u32 } {
+    const parent_full = ns_full_name(target_ns);
+    const parent_is_root = parent_full.len == 2;
+    const total: u32 = if (parent_is_root) 2 + simple_len else parent_full.len + 2 + simple_len;
+    const buf = alloc(total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    if (parent_is_root) {
+        dst[0] = ':';
+        dst[1] = ':';
+        off = 2;
+    } else {
+        const ps: [*]const u8 = @ptrFromInt(parent_full.ptr);
+        for (0..parent_full.len) |k| dst[k] = ps[k];
+        dst[parent_full.len] = ':';
+        dst[parent_full.len + 1] = ':';
+        off = parent_full.len + 2;
+    }
+    if (simple_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(simple_ptr);
+        for (0..simple_len) |k| dst[off + k] = sp[k];
+    }
+    return .{ .ptr = buf, .len = total };
+}
+
 /// Materialise the namespace's fully-qualified name (``::a::b``) on
 /// demand and cache it in ``full_name_*``.  Root returns ``::``.
 /// Subsequent calls return the cached pointer + length.
