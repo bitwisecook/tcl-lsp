@@ -22,28 +22,22 @@ pub fn build(b: *std.Build) void {
     });
     fetch_regex.setCwd(b.path("."));
 
-    const exe = b.addExecutable(.{
-        .name = "tcl_runtime",
+    // Zig 0.16 split module creation from Compile: the executable
+    // wraps a ``root_module`` that carries source/target/link info.
+    const root_module = b.createModule(.{
         .root_source_file = b.path("tcl_runtime.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
-
-    // Make the C compilation depend on the fetch step — the regex
-    // sources must exist before the compiler reads them.  The paths
-    // passed to ``addCSourceFiles`` are resolved lazily at the
-    // build-graph execution phase, so the files only need to exist
-    // by the time the C compile runs, not at ``build.zig`` parse
-    // time.
-    exe.step.dependOn(&fetch_regex.step);
 
     // ``regex_include/`` comes first on the include path so
     // ``#include "regcustom.h"`` in ``regguts.h`` resolves to our
     // override rather than the upstream file.  It also provides
     // the minimal ``tclInt.h`` stub that ``regex.h`` pulls in for
     // the ``Tcl_UniChar`` typedef.
-    exe.addIncludePath(b.path("regex_include"));
-    exe.addIncludePath(b.path("vendor/tcl-regex"));
+    root_module.addIncludePath(b.path("regex_include"));
+    root_module.addIncludePath(b.path("vendor/tcl-regex"));
 
     // The Spencer engine amalgamates most of its ``.c`` files via
     // ``#include``s in ``regcomp.c`` (regc_*.c) and ``regexec.c``
@@ -68,7 +62,7 @@ pub fn build(b: *std.Build) void {
     // unresolved: ``re_comp`` / ``re_exec`` are the char variants
     // which are also off) code.  Skip it — upstream's Makefile does
     // the same under ``__REG_NOFRONT``.
-    exe.addCSourceFiles(.{
+    root_module.addCSourceFiles(.{
         .root = b.path("vendor/tcl-regex"),
         .files = &.{
             "regcomp.c",
@@ -78,27 +72,23 @@ pub fn build(b: *std.Build) void {
         },
         .flags = c_flags,
     });
-    exe.addCSourceFile(.{
+    root_module.addCSourceFile(.{
         .file = b.path("regex_include/tcl_reg_shim.c"),
         .flags = c_flags,
     });
 
-    // wasi-libc for malloc/free/memcpy/memset/qsort/strlen/str*
-    // used by the regex engine, plus ``stdio.h`` / ``stdlib.h`` /
-    // ``limits.h`` / ``assert.h`` headers.
-    //
-    // Linking libc also imports POSIX symbols (``close`` / ``open``
-    // / ``read`` / ``gets`` / ``puts`` / ``seek`` / ``tell`` /
-    // ``socket`` / ``exec`` / ``source`` / ``load`` / ``glob`` /
-    // ``chan`` / ``error``) that share names with Tcl command
-    // stubs we were previously exporting unprefixed from Zig.
-    // Those stubs have been renamed to ``tcl_cmd_<name>`` — the
-    // internal Zig symbol and the WASM export both carry the
-    // prefix, and Python's ``_RUNTIME_IMPORTS`` imports them
-    // under the same prefixed name.  The user-facing Tcl command
-    // name (``close``, ``puts``, etc.) is unchanged — only the
-    // internal WASM import wiring moved.
-    exe.linkLibC();
+    const exe = b.addExecutable(.{
+        .name = "tcl_runtime",
+        .root_module = root_module,
+    });
+
+    // Make the C compilation depend on the fetch step — the regex
+    // sources must exist before the compiler reads them.  The paths
+    // passed to ``addCSourceFiles`` are resolved lazily at the
+    // build-graph execution phase, so the files only need to exist
+    // by the time the C compile runs, not at ``build.zig`` parse
+    // time.
+    exe.step.dependOn(&fetch_regex.step);
 
     // Export all pub/export functions and mark as reactor.
     // ``wasi_exec_model = .reactor`` tells Zig/wasm-ld to wire

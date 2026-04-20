@@ -13,6 +13,7 @@ passes "stop — this command may have arbitrary side effects").
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -77,6 +78,38 @@ _register_lowering_hooks()
 
 def _parse_expr(source: str):  # noqa: F811
     return _std_parse_expr(source, dialect=_active_dialect())
+
+
+# Literal condition words Tcl's ``expr`` treats as unambiguous booleans
+# (see ``Tcl_GetBoolean`` in ``tmp/tcl9.0.3/generic/tclGet.c``).  We only
+# match condition *expressions* that are exactly one of these tokens —
+# anything else (``1 + 0``, a variable reference, a command substitution)
+# needs full constant folding that lowering deliberately doesn't do.
+_STATIC_FALSE_LITERALS: frozenset[str] = frozenset({"0", "false", "no", "off"})
+_STATIC_TRUE_LITERALS: frozenset[str] = frozenset({"1", "true", "yes", "on"})
+
+
+def _static_bool(expr_text: str) -> bool | None:
+    """Return ``True`` / ``False`` if *expr_text* is a literal Tcl
+    boolean.  Returns ``None`` when the condition is not a simple
+    literal — more elaborate folding stays out of scope for the
+    reachability gate in :meth:`Lowerer._lower_if`.
+
+    Tolerates surrounding whitespace (``if { 0 } { ... }``) and is
+    case-insensitive (matches ``Tcl_GetBoolean``).  Expressions with
+    a prefix / suffix beyond the literal token (``0 + 0``,
+    ``!true``, variable references, command substitutions) return
+    ``None`` because the simple string match can't prove them
+    constant without duplicating the full expr evaluator.
+    """
+    if not expr_text:
+        return None
+    stripped = expr_text.strip().lower()
+    if stripped in _STATIC_FALSE_LITERALS:
+        return False
+    if stripped in _STATIC_TRUE_LITERALS:
+        return True
+    return None
 
 
 def _join_namespace(parent_ns: str, ns_name: str) -> str:
@@ -326,6 +359,34 @@ class _Lowerer:
         # positive depth enables the const-map.  Incremented at the
         # entry of a proc body lowering, decremented on exit.
         self._proc_depth = 0
+        # Depth of syntactically-dead branches currently being lowered.
+        # ``if {0} { … }`` / ``if {1} { … } else { … }`` / ``while {0}
+        # { … }`` bump this counter around the body lowering so any
+        # ``namespace import`` / ``namespace export`` directive found
+        # inside dead code is NOT collected for the codegen's
+        # compile-time import shortcut.  Non-zero depth suppresses
+        # collection (but does not otherwise alter lowering — the IR
+        # for dead code is still produced so consumers that walk the
+        # tree by syntactic offset see the original structure).  See
+        # https://github.com/bitwisecook/tcl-lsp/issues/189 for the
+        # bug this gates.
+        self._dead_code_depth: int = 0
+
+    @contextlib.contextmanager
+    def _dead_code(self):
+        """Context manager that marks the enclosed lowering calls as
+        running inside statically-dead code.  Used by
+        :meth:`_lower_if` (and analogous structured commands) when a
+        clause's condition folds to a static ``false`` — or when an
+        earlier clause's condition folded to a static ``true``,
+        making the remaining clauses unreachable.  See
+        ``_dead_code_depth`` for the collection gate this drives.
+        """
+        self._dead_code_depth += 1
+        try:
+            yield
+        finally:
+            self._dead_code_depth -= 1
 
     def expr_alias_names(self) -> frozenset[str]:
         """Return names that are aliases for ``expr`` (no prepended args)."""
@@ -597,6 +658,16 @@ class _Lowerer:
         else_body: IRScript | None = None
         else_range: Range | None = None
 
+        # Reachability tracking.  When we encounter a clause whose
+        # condition folds to a static ``false``, its body is lowered
+        # in a dead-code context so syntactic ``namespace import`` /
+        # ``namespace export`` directives inside don't register with
+        # the module-level tables.  Once a clause's condition folds
+        # to static ``true``, every later clause (and the ``else``
+        # branch) is also dead — the flag below latches for the rest
+        # of the if.
+        later_clauses_dead = False
+
         i = 0
         while i < len(args):
             if args[i] == "elseif":
@@ -621,7 +692,11 @@ class _Lowerer:
                         tokens=cmd.cmd_tokens,
                     )
                 body_tok = arg_tokens[i + 1] if i + 1 < len(arg_tokens) else None
-                else_body = self._lower_body_arg(args[i + 1], body_tok, namespace=namespace)
+                if later_clauses_dead:
+                    with self._dead_code():
+                        else_body = self._lower_body_arg(args[i + 1], body_tok, namespace=namespace)
+                else:
+                    else_body = self._lower_body_arg(args[i + 1], body_tok, namespace=namespace)
                 else_range = range_from_token(body_tok) if body_tok is not None else cmd.range
                 break
 
@@ -641,7 +716,13 @@ class _Lowerer:
             body_idx = i
             body_tok = arg_tokens[body_idx] if body_idx < len(arg_tokens) else None
             cond_tok = arg_tokens[cond_idx] if cond_idx < len(arg_tokens) else cmd.argv[0]
-            body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+            cond_value = _static_bool(args[cond_idx])
+            body_is_dead = later_clauses_dead or cond_value is False
+            if body_is_dead:
+                with self._dead_code():
+                    body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
+            else:
+                body = self._lower_body_arg(args[body_idx], body_tok, namespace=namespace)
             clauses.append(
                 IRIfClause(
                     condition=_parse_expr(args[cond_idx]),
@@ -650,6 +731,9 @@ class _Lowerer:
                     body_range=range_from_token(body_tok) if body_tok is not None else cmd.range,
                 )
             )
+            # Static-true condition makes every later branch dead.
+            if cond_value is True and not later_clauses_dead:
+                later_clauses_dead = True
             i += 1
 
         if not clauses:
@@ -1487,6 +1571,12 @@ class _Lowerer:
             and len(args) >= 2
             and args[0] == "import"
             and (cmd.expand_word is None or not any(cmd.expand_word))
+            # Suppress collection inside ``if {0} { … }`` / ``else``
+            # branches that fold to dead code.  Otherwise the codegen's
+            # compile-time import shortcut could rewrite a call site
+            # based on a ``namespace import`` that never actually ran —
+            # see https://github.com/bitwisecook/tcl-lsp/issues/189.
+            and self._dead_code_depth == 0
         ):
             i = 1
             # Skip option flags (``-force`` and any future ``-foo``).
@@ -1512,6 +1602,14 @@ class _Lowerer:
             and len(args) >= 2
             and args[0] == "export"
             and (cmd.expand_word is None or not any(cmd.expand_word))
+            # Dead-code gate — see the matching comment on the
+            # ``namespace import`` collection above.  A dead
+            # ``namespace export`` paired with a dead ``namespace
+            # import`` bypassed the export-pattern filter introduced
+            # in commit 2f5cb00 because both patterns registered at
+            # lowering time.  Suppressing export collection from the
+            # same dead block closes the hole.
+            and self._dead_code_depth == 0
         ):
             for pat in args[1:]:
                 if pat == "-clear":

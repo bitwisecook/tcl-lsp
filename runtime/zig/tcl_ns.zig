@@ -238,6 +238,42 @@ pub fn ns_create_from_fqn(name_ptr: u32, name_len: u32) u32 {
     return ns;
 }
 
+/// Build a fresh ``::ns::simple`` byte buffer.  Used by command-
+/// registration paths (``tcl_rename``, ``tcl_alias``) that need to
+/// stamp the full qualified name onto a ``Command.name`` slot.
+/// Root-ns children collapse ``::`` + ``name`` rather than producing
+/// ``::::name``, matching C Tcl's
+/// ``Tcl_GetCommandFullName`` formatting.
+///
+/// Returns ``(buf_ptr, buf_len)`` — both the address of the newly-
+/// allocated byte buffer and its total length.  The caller owns
+/// the result (the bump allocator never frees, so "owns" here is
+/// the usual "may read forever" contract).
+pub fn ns_build_fqn(target_ns: u32, simple_ptr: u32, simple_len: u32) struct { ptr: u32, len: u32 } {
+    const parent_full = ns_full_name(target_ns);
+    const parent_is_root = parent_full.len == 2;
+    const total: u32 = if (parent_is_root) 2 + simple_len else parent_full.len + 2 + simple_len;
+    const buf = alloc(total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    if (parent_is_root) {
+        dst[0] = ':';
+        dst[1] = ':';
+        off = 2;
+    } else {
+        const ps: [*]const u8 = @ptrFromInt(parent_full.ptr);
+        for (0..parent_full.len) |k| dst[k] = ps[k];
+        dst[parent_full.len] = ':';
+        dst[parent_full.len + 1] = ':';
+        off = parent_full.len + 2;
+    }
+    if (simple_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(simple_ptr);
+        for (0..simple_len) |k| dst[off + k] = sp[k];
+    }
+    return .{ .ptr = buf, .len = total };
+}
+
 /// Materialise the namespace's fully-qualified name (``::a::b``) on
 /// demand and cache it in ``full_name_*``.  Root returns ``::``.
 /// Subsequent calls return the cached pointer + length.
@@ -527,6 +563,30 @@ pub fn ns_cmd_find(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
         return @bitCast(read_i32(bucket + OFF_HANDLE));
     }
     return 0;
+}
+
+/// Clear the value of a cmd_table bucket so future ``ns_cmd_find``
+/// calls return 0 for this name.  The bucket's header (name / hash)
+/// stays populated so probe chains aren't broken — the same
+/// "tombstone via zero value" pattern ``ns_forget`` uses for dead
+/// redirect commands.  Bumps ``cmd_ref_epoch`` + cascades through
+/// ``path_source_head`` so dependents see the clearing.
+///
+/// Used by the rename wave to retire an old name after the Command
+/// has been re-inserted under a new one, and by the delete-via-
+/// rename-to-empty path.  Returns true if an entry was cleared
+/// (i.e. the name was present), false if it wasn't there.
+pub fn ns_cmd_clear(ns_addr: u32, name_ptr: u32, name_len: u32) bool {
+    const ns: *Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return false;
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (ns.cmd_table.find(name_ptr, name_len, hash)) |bucket| {
+        if (read_i32(bucket + OFF_HANDLE) == 0) return false;
+        write_i32(bucket + OFF_HANDLE, 0);
+        bump_cmd_ref_epoch(ns_addr);
+        return true;
+    }
+    return false;
 }
 
 /// Full command resolution mirroring ``Tcl_FindCommand``
@@ -913,7 +973,7 @@ fn unlink_path_source(e: *NamespacePathEntry) void {
 /// caller of ns_cmd_put — proc_register, ns_import — already), so
 /// the epoch field is currently a record-keeper for future cache
 /// machinery rather than the invalidation trigger.
-fn bump_cmd_ref_epoch(ns_addr: u32) void {
+pub fn bump_cmd_ref_epoch(ns_addr: u32) void {
     const ns: *Namespace = @ptrFromInt(ns_addr);
     ns.cmd_ref_epoch +%= 1;
     var cur = ns.path_source_head;
@@ -1086,7 +1146,7 @@ fn unwrap_imports_chain(cmd_in: u32) u32 {
 /// duplicate detection (the same dest ns can't import the same
 /// source command twice without first ``namespace forget``-ting
 /// it, so duplicates would only arise from program bugs).
-fn link_import_ref(source_cmd: u32, redirect: u32) void {
+pub fn link_import_ref(source_cmd: u32, redirect: u32) void {
     const c = tcl_procs_constants;
     const prev_head: u32 = @bitCast(read_i32(source_cmd + c.OFF_IMPORT_REF_HEAD));
     const node = alloc(@sizeOf(ImportRef));
@@ -1099,7 +1159,7 @@ fn link_import_ref(source_cmd: u32, redirect: u32) void {
 /// Splice the ``ImportRef`` for *redirect* out of ``source_cmd``'s
 /// back-list.  Walks the singly-linked list once; quietly succeeds
 /// if no matching node is present (defensive against forget-twice).
-fn unlink_import_ref(source_cmd: u32, redirect: u32) void {
+pub fn unlink_import_ref(source_cmd: u32, redirect: u32) void {
     const c = tcl_procs_constants;
     var prev_link_addr: u32 = source_cmd + c.OFF_IMPORT_REF_HEAD;
     var cur: u32 = @bitCast(read_i32(prev_link_addr));
