@@ -12,12 +12,7 @@ const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 
 const ht = @import("hash_table.zig");
-
-// ``fnv1a`` was originally defined here; canonical home is now
-// ``hash_table.zig``.  Re-exported as a back-compat alias so
-// ``tcl_array.zig`` and ``tcl_frames.zig`` keep working until those
-// modules are migrated in P0.3.
-pub const fnv1a = ht.fnv1a;
+const fnv1a = ht.fnv1a;
 
 const HTAB_BUCKET_SIZE: u32 = 16;
 const HTAB_INITIAL_CAP: u32 = 16;

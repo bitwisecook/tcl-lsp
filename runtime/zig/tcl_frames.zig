@@ -35,13 +35,17 @@ const obj_new_int = obj.obj_new_int;
 const obj_get_int = obj.obj_get_int;
 
 const globals = @import("tcl_globals.zig");
-const fnv1a = globals.fnv1a;
+const ht = @import("hash_table.zig");
+const fnv1a = ht.fnv1a;
 
 // -- Frame layout --
-// Each frame is a contiguous block in linear memory:
-//   [16 buckets * 16 bytes] = 256 bytes per frame
-// Bucket: [name_ptr:4 | name_len:4 | hash:4 | value:4] = 16 bytes
-// Same layout as globals for code reuse.
+// Each frame is a contiguous block in linear memory used as a fixed-
+// capacity ``hash_table.Table(16)`` — 12-byte header + 4-byte i32
+// value (TclObj handle, ALIAS_GLOBAL sentinel, or ALIAS_EXT desc).
+//   [64 buckets * 16 bytes] = 1024 bytes per frame
+// We don't grow on overflow; we trap, so the per-frame view is
+// constructed read-only over the pre-allocated buffer (no init / no
+// grow path), and inserts go through ``try_insert_header``.
 
 const FRAME_BUCKET_SIZE: u32 = 16;
 // Per-frame hash table capacity.  Procs with more than this many distinct
@@ -50,6 +54,18 @@ const FRAME_BUCKET_SIZE: u32 = 16;
 // here or switch to a growable per-frame hash table (mirroring globals).
 const FRAME_BUCKET_COUNT: u32 = 64; // per frame, power of 2
 const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 1024 bytes
+const OFF_VALUE: u32 = ht.HEADER_SIZE; // 12 — value follows header
+
+const FrameTable = ht.Table(FRAME_BUCKET_SIZE);
+
+/// Construct a transient view of the per-frame buffer as a fixed-
+/// capacity hash table.  Frames are pre-allocated in ``frame_push``
+/// (not ``Table.init``-allocated), so the view's ``count`` field is
+/// not authoritative — we never call ``grow`` / ``needs_grow`` on
+/// these tables.
+inline fn frame_table(base: u32) FrameTable {
+    return .{ .buf = base, .cap = FRAME_BUCKET_COUNT, .count = 0 };
+}
 
 /// Sentinel: alias to a global variable with the same local name.
 const ALIAS_GLOBAL: i32 = -1;
@@ -154,50 +170,15 @@ fn frame_at_depth(abs_depth: u32) ?u32 {
 }
 
 fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
-    const mask = FRAME_BUCKET_COUNT - 1;
-    var idx = hash & mask;
-    var probes: u32 = 0;
-    while (probes < FRAME_BUCKET_COUNT) : (probes += 1) {
-        const bucket = base + idx * FRAME_BUCKET_SIZE;
-        const ep: u32 = @bitCast(read_i32(bucket));
-        if (ep == 0) return null; // empty slot
-        const el: u32 = @bitCast(read_i32(bucket + 4));
-        const eh: u32 = @bitCast(read_i32(bucket + 8));
-        if (eh == hash and el == name_len) {
-            const sp: [*]const u8 = @ptrFromInt(ep);
-            const np: [*]const u8 = @ptrFromInt(name_ptr);
-            var match = true;
-            for (0..el) |k| {
-                if (sp[k] != np[k]) {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) return bucket;
-        }
-        idx = (idx + 1) & mask;
-    }
-    return null;
+    const t = frame_table(base);
+    return t.find(name_ptr, name_len, hash);
 }
 
 fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) void {
-    const mask = FRAME_BUCKET_COUNT - 1;
-    var idx = hash & mask;
-    var probes: u32 = 0;
-    while (probes < FRAME_BUCKET_COUNT) : (probes += 1) {
-        const bucket = base + idx * FRAME_BUCKET_SIZE;
-        const ep: u32 = @bitCast(read_i32(bucket));
-        if (ep == 0) {
-            // Copy name to heap (frame outlives the source script potentially)
-            const nbuf = alloc(name_len);
-            memcpy(nbuf, name_ptr, name_len);
-            write_i32(bucket, @bitCast(nbuf));
-            write_i32(bucket + 4, @bitCast(name_len));
-            write_i32(bucket + 8, @bitCast(hash));
-            write_i32(bucket + 12, value);
-            return;
-        }
-        idx = (idx + 1) & mask;
+    var t = frame_table(base);
+    if (t.try_insert_header(name_ptr, name_len, hash)) |bucket| {
+        write_i32(bucket + OFF_VALUE, value);
+        return;
     }
     // Frame full — emit a clear diagnostic and trap.  Previously this
     // looped forever; now we fail loudly so the limit is discoverable.
@@ -257,7 +238,7 @@ fn frame_get_at_depth(abs_depth: u32, name: i32, fallback_name: i32) i32 {
         const sn = obj_ensure_string(name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_get(name);
             if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), fallback_name);
             return v;
@@ -273,10 +254,10 @@ fn frame_set_at_depth(abs_depth: u32, name: i32, fallback_name: i32, value: i32)
         const sn = obj_ensure_string(name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) { _ = globals.global_set(name, value); return; }
             if (is_alias_ext(v)) { _ = resolve_ext_set(alias_desc_ptr(v), fallback_name, value); return; }
-            write_i32(bucket + 12, value);
+            write_i32(bucket + OFF_VALUE, value);
             return;
         }
         frame_insert(base, sn.ptr, sn.len, hash, value);
@@ -297,7 +278,7 @@ fn frame_exists_at_depth(abs_depth: u32, name: i32, fallback_name: i32) bool {
         const sn = obj_ensure_string(name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return obj_get_int(globals.global_exists(name)) != 0;
             if (is_alias_ext(v)) return obj_get_int(resolve_ext_exists(alias_desc_ptr(v), fallback_name)) != 0;
             return true;
@@ -317,7 +298,7 @@ pub export fn frame_alias_global(name: i32) void {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            write_i32(bucket + 12, ALIAS_GLOBAL);
+            write_i32(bucket + OFF_VALUE, ALIAS_GLOBAL);
             return;
         }
         frame_insert(base, sn.ptr, sn.len, hash, ALIAS_GLOBAL);
@@ -338,7 +319,7 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
         const sn = obj_ensure_string(local_name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            write_i32(bucket + 12, encoded);
+            write_i32(bucket + OFF_VALUE, encoded);
         } else {
             frame_insert(base, sn.ptr, sn.len, hash, encoded);
         }
@@ -358,7 +339,7 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
         const sn = obj_ensure_string(local_name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            write_i32(bucket + 12, encoded);
+            write_i32(bucket + OFF_VALUE, encoded);
         } else {
             frame_insert(base, sn.ptr, sn.len, hash, encoded);
         }
@@ -375,10 +356,10 @@ pub export fn local_set(name: i32, value: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
             if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
-            write_i32(bucket + 12, value);
+            write_i32(bucket + OFF_VALUE, value);
             return value;
         }
         frame_insert(base, sn.ptr, sn.len, hash, value);
@@ -396,7 +377,7 @@ pub export fn local_get(name: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_get(name);
             if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
             return v;
@@ -412,7 +393,7 @@ pub export fn local_exists(name: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_exists(name);
             if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), name);
             return obj_new_int(1);
@@ -435,7 +416,7 @@ pub export fn var_resolve(name: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_get(name);
             if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
             return v;
@@ -470,7 +451,7 @@ pub export fn var_exists(name: i32) i32 {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            const v = read_i32(bucket + 12);
+            const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_exists(name);
             if (is_alias_ext(v)) return resolve_ext_exists(alias_desc_ptr(v), name);
             return obj_new_int(1);

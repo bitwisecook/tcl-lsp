@@ -124,9 +124,19 @@ pub fn Table(comptime bucket_size: u32) type {
         /// grow because grow may invalidate caches kept on the caller
         /// side (e.g. proc-lookup LRU pointing at bucket bases).
         pub fn insert_header(self: *Self, name_ptr: u32, name_len: u32, hash: u32) u32 {
+            return self.try_insert_header(name_ptr, name_len, hash).?;
+        }
+
+        /// Like ``insert_header`` but returns ``null`` if the probe chain
+        /// makes a full pass without finding an empty slot.  Used by
+        /// fixed-capacity tables (e.g. per-frame local tables) that
+        /// trap rather than grow when they overflow — they need to
+        /// detect "full" cleanly instead of looping forever.
+        pub fn try_insert_header(self: *Self, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
             const mask = self.cap - 1;
             var idx = hash & mask;
-            while (true) {
+            var probes: u32 = 0;
+            while (probes < self.cap) : (probes += 1) {
                 const base = self.buf + idx * bucket_size;
                 if (@as(u32, @bitCast(read_i32(base))) == 0) {
                     const nbuf = alloc(name_len);
@@ -146,6 +156,7 @@ pub fn Table(comptime bucket_size: u32) type {
                 }
                 idx = (idx + 1) & mask;
             }
+            return null;
         }
 
         /// 75% load-factor check.  Caller decides whether to grow.
