@@ -873,21 +873,31 @@ function drawWasmEdges(container) {
   for (var el of instrs) byIdx[el.dataset.idx] = el;
   var edges = [];
   for (var el of instrs) {
-    var bt = el.querySelector('.wasm-branch-target');
-    if (!bt) continue;
-    var toIdxStr = bt.dataset.branchTargetIdx;
-    if (!toIdxStr) continue;
-    var tgt = byIdx[toIdxStr];
-    if (!tgt) continue;
-    edges.push({
-      from: el,
-      to: tgt,
-      fromId: el.dataset.idx,
-      toId: toIdxStr,
-      fromPos: parseInt(el.dataset.idx),
-      toPos: parseInt(toIdxStr),
-      kind: parseInt(toIdxStr) >= parseInt(el.dataset.idx) ? 'forward' : 'back',
-    });
+    // One row can carry multiple branch targets — a ``jumpTable``
+    // instruction in Tcl ASM renders one ``.wasm-branch-target``
+    // span per ``pattern->label`` pair, plus potentially a fallback
+    // target.  Emit one edge per target so every arm in a switch
+    // dispatch shows up in the gutter.  ``querySelector`` (which we
+    // previously used) only caught the first span.
+    var bts = el.querySelectorAll('.wasm-branch-target');
+    if (!bts.length) continue;
+    var fromIdx = el.dataset.idx;
+    var fromPos = parseInt(fromIdx);
+    for (var bt of bts) {
+      var toIdxStr = bt.dataset.branchTargetIdx;
+      if (!toIdxStr) continue;
+      var tgt = byIdx[toIdxStr];
+      if (!tgt) continue;
+      edges.push({
+        from: el,
+        to: tgt,
+        fromId: fromIdx,
+        toId: toIdxStr,
+        fromPos: fromPos,
+        toPos: parseInt(toIdxStr),
+        kind: parseInt(toIdxStr) >= fromPos ? 'forward' : 'back',
+      });
+    }
   }
   drawOrthogonalEdges(container, edges, {
     svgClass: 'wasm-edges-svg',
