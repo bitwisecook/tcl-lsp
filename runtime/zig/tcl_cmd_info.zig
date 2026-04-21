@@ -207,6 +207,55 @@ pub fn info_hostname() i32 {
     return obj.obj_new_string_copy(@intFromPtr("wasm".ptr), 4);
 }
 
+/// ``info level`` — return the current call-frame depth as an
+/// integer TclObj.  Matches Tcl 9's ``InfoLevelCmd`` for the
+/// zero-arg form (``Tcl_NewWideIntObj((int)varFramePtr->level)``).
+///
+/// The single-arg form ``info level N`` would return the argv
+/// that entered frame ``N``, but our runtime doesn't track
+/// per-frame argv today — so we raise ``bad level`` with the
+/// tclsh wording for any non-zero-arg caller.  Zero-arg users
+/// (the common case; tcltest, error-reporting code, etc.) are
+/// served cleanly.
+pub fn info_level(arg: i32) i32 {
+    if (arg == 0) {
+        return obj_new_int(frames.frame_get_depth());
+    }
+    // Caller supplied a numeric arg — ``info level N``.  We
+    // don't retain argv per frame, so surface the tclsh
+    // ``bad level "X"`` error rather than fabricating a result.
+    const catch_mod = @import("tcl_catch.zig");
+    const arg_s = obj_ensure_string(arg);
+    const prefix = "bad level \"";
+    const suffix = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + arg_s.len + @as(u32, @intCast(suffix.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (prefix, 0..) |b, k| d[k] = b;
+    if (arg_s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(arg_s.ptr);
+        for (0..arg_s.len) |k| d[prefix.len + k] = sp[k];
+    }
+    for (suffix, 0..) |b, k| d[prefix.len + arg_s.len + k] = b;
+    const msg = obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+    return obj_new_string(0, 0);
+}
+
+/// ``info script`` — return the source file of the script
+/// currently being evaluated.  Our WASM runtime is a single
+/// compiled unit with no real filesystem sourcing, so this
+/// always returns the empty string.  Matches Tcl 9's behaviour
+/// when not sourcing a file (``Tcl_SetObjResult(interp,
+/// Tcl_NewObj())``).  Consumers that use ``info script`` to
+/// resolve path-relative includes (``source [file join [info
+/// script] ...]``) must treat the empty result as "no location
+/// available" — tcllib's ``testutilities.tcl`` already does
+/// (hence our stub replaces its ``source`` block).
+pub fn info_script() i32 {
+    return obj_new_string(0, 0);
+}
+
 // -- ``info commands`` / ``info procs`` walker ----------------------------
 
 /// Kinds of entry the cmd-table walker emits.  ``commands`` yields
@@ -557,5 +606,7 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "hostname")) return info_hostname();
     if (str_eq(sp, sub.len, "commands")) return info_commands(arg);
     if (str_eq(sp, sub.len, "procs")) return info_procs(arg);
+    if (str_eq(sp, sub.len, "level")) return info_level(arg);
+    if (str_eq(sp, sub.len, "script")) return info_script();
     return obj_new_string(0, 0);
 }
