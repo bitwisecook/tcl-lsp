@@ -15,89 +15,24 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import zipapp
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# File extensions that add no value at runtime inside a .pyz archive.
-_STRIP_SUFFIXES = frozenset({".pyi", ".typed", ".md", ".txt", ".rst", ".cfg", ".toml", ".ini"})
 
-
-def _create_archive(
-    source: Path,
-    target: str,
-    interpreter: str,
-    *,
-    minify: bool = False,
-) -> None:
-    """Create a .pyz archive, optionally minifying Python source.
-
-    When *minify* is True, every ``.py`` file is run through
-    ``python_minifier`` (docstrings, annotations, and dead ``pass``
-    statements are removed) and non-essential metadata files (``.pyi``,
-    ``py.typed``, ``*.md``, etc.) are excluded.  The resulting zip uses
-    ``ZIP_DEFLATED`` (the only method ``zipimport`` supports).
-    """
-    if not minify:
-        zipapp.create_archive(
-            source=source,
-            target=target,
-            interpreter=interpreter,
-            compressed=True,
-        )
-        return
-
-    # Lazy-import: python-minifier is only required for release builds.
-    try:
-        import python_minifier  # type: ignore[import-untyped]
-    except ImportError:
-        print(
-            "WARN: python-minifier not installed — falling back to unminified archive",
-            file=sys.stderr,
-        )
-        zipapp.create_archive(
-            source=source, target=target, interpreter=interpreter, compressed=True
-        )
-        return
-
-    with open(target, "wb") as fd:
-        fd.write(f"#!{interpreter}\n".encode())
-        with zipfile.ZipFile(fd, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for root_dir, _dirs, files in os.walk(source):
-                for fname in sorted(files):
-                    full = Path(root_dir) / fname
-                    arcname = str(full.relative_to(source))
-
-                    # Skip dead-weight files.
-                    if any(fname.endswith(s) for s in _STRIP_SUFFIXES):
-                        continue
-
-                    data = full.read_bytes()
-
-                    if fname.endswith(".py"):
-                        try:
-                            data = python_minifier.minify(
-                                data.decode(),
-                                filename=arcname,
-                                remove_annotations=True,
-                                remove_pass=True,
-                                remove_literal_statements=True,
-                                combine_imports=True,
-                                hoist_literals=False,
-                                rename_locals=False,
-                                rename_globals=False,
-                            ).encode()
-                        except Exception:
-                            pass  # keep original on minification error
-
-                    zf.writestr(arcname, data)
+def _create_archive(source: Path, target: str, interpreter: str) -> None:
+    """Create a compressed .pyz archive."""
+    zipapp.create_archive(
+        source=source,
+        target=target,
+        interpreter=interpreter,
+        compressed=True,
+    )
 
 
 def _pip_install_pure(stage: Path, *packages: str) -> None:
@@ -129,7 +64,7 @@ def _pip_install_pure(stage: Path, *packages: str) -> None:
         shutil.rmtree(p)
 
 
-def build_cli(version: str, output: Path, *, minify: bool = False) -> None:
+def build_cli(version: str, output: Path) -> None:
     """Build the CLI zipapp: core/ + lsp/ + explorer/ packages."""
     with tempfile.TemporaryDirectory(prefix="zipapp-cli-") as tmp:
         stage = Path(tmp)
@@ -164,13 +99,13 @@ def build_cli(version: str, output: Path, *, minify: bool = False) -> None:
             "sys.exit(main())\n"
         )
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     print(f"Built: {output}")
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
 
 
-def build_tcl(version: str, output: Path, *, minify: bool = False) -> None:
+def build_tcl(version: str, output: Path) -> None:
     """Build the unified Tcl zipapp: core/ + explorer/ + lsp/ + vm/."""
     with tempfile.TemporaryDirectory(prefix="zipapp-tcl-") as tmp:
         stage = Path(tmp)
@@ -200,13 +135,13 @@ def build_tcl(version: str, output: Path, *, minify: bool = False) -> None:
         )
 
         shutil.copy2(ROOT / "scripts" / "zipapp_tcl_main.py", stage / "__main__.py")
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     print(f"Built: {output}")
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
 
 
-def build_gui(version: str, output: Path, static_dir: Path, *, minify: bool = False) -> None:
+def build_gui(version: str, output: Path, static_dir: Path) -> None:
     """Build the GUI zipapp: static files served from zip."""
     if not (static_dir / "index.html").exists():
         print(f"error: {static_dir}/index.html not found", file=sys.stderr)
@@ -227,14 +162,14 @@ def build_gui(version: str, output: Path, static_dir: Path, *, minify: bool = Fa
         # Copy all static files into static/ subdirectory within the zip
         shutil.copytree(static_dir, stage / "static")
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     size_mb = output.stat().st_size / (1024 * 1024)
     print(f"Built: {output}")
     print(f"  Size: {size_mb:.1f} MB")
 
 
-def build_gui_cdn(version: str, output: Path, static_dir: Path, *, minify: bool = False) -> None:
+def build_gui_cdn(version: str, output: Path, static_dir: Path) -> None:
     """Build the CDN GUI zipapp: lightweight, loads Pyodide from CDN."""
     if not (static_dir / "index.html").exists():
         print(f"error: {static_dir}/index.html not found", file=sys.stderr)
@@ -255,14 +190,14 @@ def build_gui_cdn(version: str, output: Path, static_dir: Path, *, minify: bool 
         # Copy all CDN static files into static/ subdirectory within the zip
         shutil.copytree(static_dir, stage / "static")
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     size_kb = output.stat().st_size / 1024
     print(f"Built: {output}")
     print(f"  Size: {size_kb:.0f} KB")
 
 
-def build_lsp(version: str, output: Path, *, minify: bool = False) -> None:
+def build_lsp(version: str, output: Path) -> None:
     """Build the LSP server zipapp: lsp/ + core/ + pygls + lsprotocol bundled."""
     with tempfile.TemporaryDirectory(prefix="zipapp-lsp-") as tmp:
         stage = Path(tmp)
@@ -311,13 +246,13 @@ def build_lsp(version: str, output: Path, *, minify: bool = False) -> None:
         # Copy the LSP entry-point script as __main__.py
         shutil.copy2(ROOT / "scripts" / "zipapp_lsp_main.py", stage / "__main__.py")
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     print(f"Built: {output}")
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
 
 
-def build_ai(version: str, output: Path, *, minify: bool = False) -> None:
+def build_ai(version: str, output: Path) -> None:
     """Build the AI analysis zipapp: core/ + lsp/ + ai/ + jinja2 bundled."""
     with tempfile.TemporaryDirectory(prefix="zipapp-ai-") as tmp:
         stage = Path(tmp)
@@ -349,13 +284,13 @@ def build_ai(version: str, output: Path, *, minify: bool = False) -> None:
         # Copy the AI entry-point script as __main__.py
         shutil.copy2(ROOT / "scripts" / "zipapp_ai_main.py", stage / "__main__.py")
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     print(f"Built: {output}")
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
 
 
-def build_mcp(version: str, output: Path, *, minify: bool = False) -> None:
+def build_mcp(version: str, output: Path) -> None:
     """Build the MCP server zipapp: lsp/ + core/ + ai/ + lsprotocol bundled.
 
     The MCP protocol layer is implemented directly (no heavy SDK), so the
@@ -391,13 +326,13 @@ def build_mcp(version: str, output: Path, *, minify: bool = False) -> None:
         # Copy the MCP entry-point script as __main__.py
         shutil.copy2(ROOT / "scripts" / "zipapp_mcp_main.py", stage / "__main__.py")
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     print(f"Built: {output}")
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
 
 
-def build_wasm(version: str, output: Path, *, minify: bool = False) -> None:
+def build_wasm(version: str, output: Path) -> None:
     """Build the WASM compiler zipapp: core/ + explorer/ (wasm_cli)."""
     with tempfile.TemporaryDirectory(prefix="zipapp-wasm-") as tmp:
         stage = Path(tmp)
@@ -432,7 +367,7 @@ def build_wasm(version: str, output: Path, *, minify: bool = False) -> None:
             "sys.exit(main())\n"
         )
 
-        _create_archive(stage, str(output), "/usr/bin/env python3", minify=minify)
+        _create_archive(stage, str(output), "/usr/bin/env python3")
 
     print(f"Built: {output}")
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
@@ -487,11 +422,6 @@ def build_claude_skills(version: str, output: Path, ai_pyz: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build zipapp for tcl-lsp")
-    parser.add_argument(
-        "--minify",
-        action="store_true",
-        help="Minify Python source inside the archive (requires python-minifier)",
-    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     tcl_p = sub.add_parser("tcl", help="Build unified Tcl tool zipapp")
@@ -537,21 +467,21 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
     if args.command == "tcl":
-        build_tcl(args.version, args.output, minify=args.minify)
+        build_tcl(args.version, args.output)
     elif args.command == "cli":
-        build_cli(args.version, args.output, minify=args.minify)
+        build_cli(args.version, args.output)
     elif args.command == "gui":
-        build_gui(args.version, args.output, args.static_dir, minify=args.minify)
+        build_gui(args.version, args.output, args.static_dir)
     elif args.command == "gui-cdn":
-        build_gui_cdn(args.version, args.output, args.static_dir, minify=args.minify)
+        build_gui_cdn(args.version, args.output, args.static_dir)
     elif args.command == "lsp":
-        build_lsp(args.version, args.output, minify=args.minify)
+        build_lsp(args.version, args.output)
     elif args.command == "ai":
-        build_ai(args.version, args.output, minify=args.minify)
+        build_ai(args.version, args.output)
     elif args.command == "mcp":
-        build_mcp(args.version, args.output, minify=args.minify)
+        build_mcp(args.version, args.output)
     elif args.command == "wasm":
-        build_wasm(args.version, args.output, minify=args.minify)
+        build_wasm(args.version, args.output)
     elif args.command == "claude-skills":
         build_claude_skills(args.version, args.output, args.ai_pyz)
 
