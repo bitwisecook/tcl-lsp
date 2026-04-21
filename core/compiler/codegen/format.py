@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from .opcodes import _INDEX_END, _JUMP_OPS, _LVT_OPS, _STR_CLASS_NAMES, Op
 
 if TYPE_CHECKING:
-    from ...analysis.semantic_model import Range
     from ._types import FunctionAsm
 
 
@@ -152,20 +151,11 @@ def format_module_asm(module) -> str:
     return "\n".join(parts)
 
 
-# Structured explorer view
-
-
-def _range_to_explorer_dict(rng: "Range | None") -> dict | None:
-    if rng is None:
-        return None
-    return {
-        "startLine": rng.start.line,
-        "startCol": rng.start.character,
-        "startOffset": rng.start.offset,
-        "endLine": rng.end.line,
-        "endCol": rng.end.character,
-        "endOffset": rng.end.offset,
-    }
+# Structured explorer view.  ``_range_to_explorer_dict`` is defined
+# once in ``wasm/_ir.py`` and re-used here so the ASM and WASM
+# explorer payloads stay in lockstep — any future change to the range
+# wire format lands in a single spot.
+from .wasm._ir import _range_to_explorer_dict  # noqa: E402
 
 
 def format_function_explorer(asm: FunctionAsm, *, func_name: str | None = None) -> dict:
@@ -401,12 +391,20 @@ def format_function_explorer(asm: FunctionAsm, *, func_name: str | None = None) 
 
 
 def format_module_explorer(module) -> list[dict]:
-    """Structured explorer view for a whole ModuleAsm."""
+    """Structured explorer view for a whole ModuleAsm.
+
+    Preserves ``module.procedures`` declaration order — the WASM
+    explorer (:meth:`WasmModule.to_explorer_json`) emits entries in
+    declaration order too, so the ASM and WASM tabs line up in the
+    same order for side-by-side comparison.  The legacy plain-text
+    ``format_module_asm`` still sorts alphabetically because it
+    mirrors ``tcl::unsupported::disassemble`` output.
+    """
     entries: list[dict] = []
     entries.append(format_function_explorer(module.top_level))
     # Ensure ``::top`` is tagged as such even when callers pass the
     # top-level in via a synthetic name.
     entries[0]["kind"] = "top"
-    for name in sorted(module.procedures):
-        entries.append(format_function_explorer(module.procedures[name], func_name=name))
+    for name, proc_asm in module.procedures.items():
+        entries.append(format_function_explorer(proc_asm, func_name=name))
     return entries

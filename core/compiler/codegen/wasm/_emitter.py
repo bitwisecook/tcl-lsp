@@ -315,13 +315,6 @@ class _WasmEmitter:
         self._current_command: str = ""
         self._current_args: tuple[str, ...] = ()
 
-        # Label queued for the next instruction emitted.  Consumed once
-        # by ``_emit``; used by the structured-control-flow helpers to
-        # annotate ``block`` / ``loop`` / ``if`` opens with the Tcl
-        # command that produced them (``foreach`` / ``while`` /
-        # ``if`` / ``switch`` / ``catch``) for the compiler explorer.
-        self._pending_label: str | None = None
-
         # Per-proc var-escape summary.  When provided, _iter_sync_locals
         # uses it to skip variables the analysis proved cannot be seen by
         # name from the interpreter — trimming the frame-sync set below
@@ -1224,31 +1217,14 @@ class _WasmEmitter:
             self._ctrl_depth += 1
         elif op == WasmOp.END:
             self._ctrl_depth -= 1
-        # Prefer an explicit label when a caller provides one; otherwise
-        # fall back to a pending label set with ``_set_pending_label``
-        # (consumed exactly once, by the next instruction emitted).
-        effective_label = label if label is not None else self._pending_label
-        self._pending_label = None
         self._body.append(
             WasmInstruction(
                 op=op,
                 operands=operands,
                 range=self._current_range,
-                label=effective_label,
+                label=label,
             )
         )
-
-    def _set_pending_label(self, label: str) -> None:
-        """Attach a label to the *next* instruction emitted.
-
-        Lets callers that don't go through ``_emit`` directly (mostly
-        the structured-control-flow helpers that call ``_emit_block`` /
-        ``_emit_loop`` / ``_emit_if``) still tag the opening
-        instruction with a human-readable kind.  The pending label is
-        cleared when ``_emit`` fires, so a second call with no emission
-        in between does not leak.
-        """
-        self._pending_label = label
 
     def _emit_i64_const(self, value: int) -> None:
         self._emit(WasmOp.I64_CONST, _leb128_signed(value))

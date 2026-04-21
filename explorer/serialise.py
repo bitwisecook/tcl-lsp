@@ -751,7 +751,7 @@ def _format_function_wat_snippet(entry: dict) -> str:
     for r in entry.get("results", []):
         sig_parts.append(f"(result {r})")
     sig = " ".join(sig_parts)
-    lines = [f"(func ${entry['name']} {sig}".rstrip() + "".rstrip()]
+    lines = [f"(func ${entry['name']} {sig}".rstrip()]
     for loc in entry.get("locals", []):
         lines.append(f"  (local {loc['name']} {loc['type']})")
     for instr in entry.get("instructions", []):
