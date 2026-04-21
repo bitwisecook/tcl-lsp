@@ -65,11 +65,13 @@ from ..parsing.tokens import SourcePosition, Token, TokenType
 from .proc_arg_traits import infer_param_traits
 from .semantic_model import (
     AnalysisResult,
+    AutoPathEntry,
     ClassDef,
     CodeFix,
     CommandInvocation,
     Diagnostic,
     MethodDef,
+    NamespaceImport,
     PackageProvide,
     PackageRequire,
     ParamDef,
@@ -1515,10 +1517,87 @@ class Analyser:
             self.result.has_dynamic_providers = True
         elif cmd_name in ("set", "lappend") and args and args[0] == "auto_path":
             self.result.has_dynamic_providers = True
+            # Record each path argument so ``_load_packages_if_needed`` can
+            # extend the package resolver's search paths for this document.
+            for i in range(1, len(args)):
+                if i >= len(arg_tokens):
+                    break
+                self.result.auto_path_entries.append(
+                    AutoPathEntry(
+                        resolved_path=None,
+                        raw=args[i],
+                        range=range_from_token(arg_tokens[i]),
+                    )
+                )
         elif cmd_name == "rename":
             self.result.has_dynamic_providers = True
         elif cmd_name == "namespace" and len(args) >= 2 and args[0] == "import":
             self.result.has_dynamic_providers = True
+            # ``scope.name`` is only the *local* namespace segment, so
+            # walk the scope chain to get the fully-qualified prefix —
+            # otherwise nested ``namespace eval outer { namespace eval
+            # inner { namespace import … } }`` would record the import
+            # under ``::inner`` instead of ``::outer::inner``.
+            importing_ns = self._namespace_from_scope(scope)
+            i = 1
+            while i < len(args):
+                pattern = args[i]
+                tok = arg_tokens[i] if i < len(arg_tokens) else None
+                if pattern == "-force":
+                    i += 1
+                    continue
+                # Ignore non-qualified or substituted patterns — we
+                # cannot statically resolve them to a source namespace.
+                if "::" not in pattern or "$" in pattern or "[" in pattern:
+                    i += 1
+                    continue
+                # A pattern without a leading ``::`` is resolved
+                # relative to the *current* namespace, not the global
+                # one — Tcl's own rule for ``namespace import``.  So
+                # ``namespace eval foo { namespace import bar::* }``
+                # imports ``::foo::bar::*``, not ``::bar::*``.
+                if not pattern.startswith("::"):
+                    if importing_ns == "::":
+                        pattern = f"::{pattern}"
+                    else:
+                        pattern = f"{importing_ns}::{pattern}"
+                if tok is not None:
+                    self.result.namespace_imports.append(
+                        NamespaceImport(
+                            ns=importing_ns,
+                            pattern=pattern,
+                            range=range_from_token(tok),
+                        )
+                    )
+                i += 1
+        elif cmd_name.endswith("::import") and len(args) == 1:
+            # tcllib-style ``some::ns::import <alias>`` wrapper: the proc
+            # body typically ``uplevel``s ``namespace import some::ns::*``
+            # into the given alias namespace.  Infer the import as a
+            # conjecture so ``alias::foo`` resolves to ``some::ns::foo``.
+            alias = args[0]
+            if alias and "$" not in alias and "[" not in alias:
+                source_ns = cmd_name[: -len("::import")]
+                if not source_ns.startswith("::"):
+                    source_ns = f"::{source_ns}"
+                # Relative aliases live under the current namespace —
+                # ``namespace eval outer { some::ns::import vt }``
+                # creates ``::outer::vt``, not ``::vt``.
+                current_ns = self._namespace_from_scope(scope)
+                if alias.startswith("::"):
+                    alias_ns = alias
+                elif current_ns == "::":
+                    alias_ns = f"::{alias}"
+                else:
+                    alias_ns = f"{current_ns}::{alias}"
+                self.result.namespace_imports.append(
+                    NamespaceImport(
+                        ns=alias_ns,
+                        pattern=f"{source_ns}::*",
+                        range=range_from_token(argv[0]),
+                        conjectured=True,
+                    )
+                )
 
         # Record source command targets for cross-file dependency tracking.
         if cmd_name == "source" and args:
