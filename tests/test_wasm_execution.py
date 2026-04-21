@@ -2316,6 +2316,40 @@ class TestInterpHideExpose:
             top(store)
         return _read_global_string(rt_instance, store, name)
 
+    def test_hide_makes_same_unit_call_fail(self):
+        """After ``interp hide {} foo`` the bare ``foo`` call must
+        raise ``unknown command: foo`` — not dispatch to the
+        compile-time-known body.  Exercises the compiler's
+        proc-index invalidation for procs targeted by ``interp
+        hide`` in the same translation unit (see
+        ``docs/design/runtime/command-introspection.md`` §8.1)."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} { set ::result should-not-run }
+set ::result untouched
+interp hide {} foo
+catch foo msg
+""",
+            "::result",
+        )
+        assert result == b"untouched"
+
+    def test_rename_makes_old_name_unreachable_in_same_unit(self):
+        """After ``rename foo bar`` the old name must stop
+        resolving, and the new name must reach the body — proving
+        the compiler didn't specialise the call to a direct
+        ``call $::foo`` that ignores the rename."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} { set ::result old-ran }
+rename foo bar
+set ::result new-name-not-called
+bar
+""",
+            "::result",
+        )
+        assert result == b"old-ran"
+
     def test_hide_then_expose_restores_proc(self):
         """Hiding a proc removes it from the command table; exposing
         puts it back so subsequent calls dispatch normally."""
@@ -2329,6 +2363,44 @@ greet
             "::result",
         )
         assert result == b"hello"
+
+    def test_invokehidden_dispatches_into_hidden_table(self):
+        """``interp invokehidden {} foo arg`` finds ``foo`` in the
+        hidden table and invokes it with the supplied args."""
+        result = self._run_and_read_global(
+            """\
+proc greet {who} { set ::result "hello-$who" }
+interp hide {} greet
+interp invokehidden {} greet world
+""",
+            "::result",
+        )
+        assert result == b"hello-world"
+
+    def test_invokehidden_unknown_command_raises(self):
+        """``interp invokehidden {} nonexistent`` raises the
+        ``invalid hidden command name "X"`` error from tclInterp.c."""
+        result = self._run_and_read_global(
+            """\
+catch {interp invokehidden {} nonexistent} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'invalid hidden command name "nonexistent"'
+
+    def test_invokehidden_with_global_flag(self):
+        """``interp invokehidden {} -global foo`` dispatches in the
+        global namespace regardless of where it was called."""
+        result = self._run_and_read_global(
+            """\
+proc mark {} { set ::result at-root }
+interp hide {} mark
+interp invokehidden {} -global mark
+""",
+            "::result",
+        )
+        assert result == b"at-root"
 
     def test_hidden_lists_hidden_commands(self):
         """``interp hidden {}`` returns a space-separated list of

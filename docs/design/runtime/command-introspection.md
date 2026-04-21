@@ -120,6 +120,33 @@ list of simple names.  Bucket-traversal order is the same shape
 ``interp aliases`` uses — not stable across grow events but
 matches tclsh's `hiddenCmdTable` iteration.
 
+### 2.5 `interp invokehidden`
+
+``eval_interp_invokehidden`` dispatches a hidden command by name
+with caller-supplied arguments.  Mirrors
+``InvokeHiddenObjCmd`` in ``tclInterp.c`` trimmed to the
+single-interp subset:
+
+| Form | Dispatch namespace |
+|---|---|
+| ``interp invokehidden {} cmd ?arg…?`` | Global (root). |
+| ``interp invokehidden {} -global cmd ?arg…?`` | Global (root). |
+| ``interp invokehidden {} -namespace ns cmd ?arg…?`` | Resolved ``ns``. |
+
+Combining ``-global`` + ``-namespace`` is rejected with
+``cannot use -global option and -namespace option together``
+(verbatim Tcl wording).  Missing targets raise ``invalid hidden
+command name "X"``.
+
+The implementation looks ``cmd`` up in the interpreter-wide
+hidden table (no cmd_table move), builds a fresh argv
+``[hidden_name, caller_args…]``, swaps ``current_ns`` to the
+target, and recurses through ``eval_proc_call_bucket``.  The
+Command's stored name slot is already the hidden name (set by
+``hide_command``), so compiled-proc host-bridge dispatch and
+interpreted-body calls both work uniformly — no special-casing
+of the hidden vs. exposed path.
+
 ## 3. ``info commands`` / ``info procs`` walker
 
 [`tcl_cmd_info.zig`](../../../runtime/zig/tcl_cmd_info.zig) carries
@@ -299,48 +326,40 @@ Three layers:
 
 ## 8. Known limitations
 
-### 8.1 Compiler direct-call bypasses `interp hide` / `rename`
+### 8.1 Compiler direct-call invalidation (resolved)
 
 The WASM compiler builds a ``proc_index: dict[str, (func_idx,
 n_params)]`` at compile time (``codegen/wasm/__init__.py``) that
-lets ``_resolve_proc`` emit a direct ``call $::foo`` for any proc
-defined in the same translation unit.  The runtime's hidden
-table / rename table are not visible to this lookup: if the
-source mixes ``proc foo {} {...}`` with ``interp hide {} foo``
-(or ``rename foo bar``) in the same unit, subsequent bare
-``foo`` calls are still routed to the compiled body via direct
-WASM index dispatch, bypassing ``proc_lookup`` entirely.
+lets ``_resolve_proc`` emit a direct ``call $::foo`` for any
+proc defined in the same translation unit.  That shortcut is
+unsound for procs whose runtime dispatch state may change —
+``interp hide`` moves the Command into the hidden table,
+``rename`` moves it to a different ``cmd_table`` key, and
+``interp expose`` restores a previously hidden binding.
 
-Runtime consequences:
+The compiler now invalidates ``proc_index`` entries for any
+proc name that appears as the target of ``rename`` /
+``interp hide`` / ``interp expose`` anywhere in the module
+(``_collect_dynamically_modified_procs`` walks the IR).  Affected
+calls downgrade to the ``tcl_eval`` eval-fallback path, which
+routes through ``proc_lookup`` and observes the live
+cmd-table / hidden-table state.
 
-* ``interp hide {} foo; foo`` in a single compiled program will
-  dispatch to the hidden Command's compiled body rather than
-  raising ``unknown command: foo``.
-* ``rename foo bar; foo`` will still call the original compiled
-  body — the ``cmd_table`` move is invisible to the compile-time
-  proc-index lookup.
+``rename foo bar`` invalidates both ``foo`` (gone) and ``bar``
+(new) so subsequent calls to either name are dispatched via the
+runtime.  The invalidation is per-module — a proc that's hidden
+in module A is unaffected in module B, matching Tcl's single-
+interp scope.
 
-Runtime-driven paths are unaffected:
+End-to-end tests pin the behaviour:
 
-* Hide / expose / rename invoked from code that wasn't part of
-  the compile-time proc index (dynamic eval, proc calls through
-  ``tcl_eval``, interpreter fallback) observe the runtime state
-  correctly.
-* The runtime's direct tests (``tests/runtime/test_tcl_hide.py``
-  + ``test_tcl_info.py``) exercise every primitive without the
-  compiler, so they stay green.
+* ``test_wasm_execution.py::TestInterpHideExpose::test_hide_makes_same_unit_call_fail``
+* ``test_wasm_execution.py::TestInterpHideExpose::test_rename_makes_old_name_unreachable_in_same_unit``
+* ``test_wasm_execution.py::TestInfoIntrospection::test_hide_and_catch_snippet_compiles``
 
-The fix is a compiler change: invalidate the direct-call
-specialisation when the compiler observes ``interp hide`` /
-``rename`` / ``interp hidden`` on a proc name in the same
-translation unit.  Scoped out of the command-manipulation +
-introspection wave (which is runtime-only) and tracked against
-the compiler codegen layer.
-
-``tests/test_wasm_execution.py::TestInfoIntrospection::test_hide_and_catch_snippet_compiles``
-pins the compile-clean invariant for the exact snippet called
-out in the wave's ship criteria so further codegen changes that
-break compilation of this shape surface a clear regression.
+Unaffected procs (the common case) keep the direct-call
+specialisation — invalidation is surgical, not a blanket
+downgrade.
 
 ### 8.2 `TestCounterBundle` stays xfail
 
