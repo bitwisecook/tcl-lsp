@@ -649,8 +649,18 @@ proc process {x}      { if {[validate $x]} { store $x } }
 ### Compiler explorer (VS Code panel)
 
 An interactive webview panel (Ctrl+Alt+E / Cmd+Alt+E) that visualises the
-compiler's intermediate representation, control-flow graph, SSA form, and
-optimiser output for the active editor.
+compiler's intermediate representation, control-flow graph, SSA form,
+optimiser output, Tcl bytecode, and WebAssembly disassembly for the active
+editor.  The **WASM** tab renders each instruction with its originating Tcl
+source range (click an instruction to place the source cursor inside the
+expression, substituted command, or post-`;` sub-command it compiled from),
+resolved call targets (click `call 42 ; ::greet` to jump to both the
+callee's disassembly and its definition), resolved branch targets (click
+`br 0 ; loop_header foreach` to jump to the matching `loop` open), a
+labelled `block` / `loop` / `if` for each Tcl construct (`foreach`,
+`while`, `for`, `if`, `catch body`, `switch arm`), a source-line comment
+above every instruction group, and orthogonal control-flow arrows in the
+left gutter.
 
 ```
 ┌─────────────────────────────────────────────────┐

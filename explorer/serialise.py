@@ -664,7 +664,17 @@ def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
 
 
 def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=None) -> list[dict]:
-    """Generate WAT (WebAssembly Text) for all functions in the module."""
+    """Generate a structured WASM disassembly view for the compiler explorer.
+
+    Returns one entry per function (plus a synthetic ``(module)`` entry
+    with imports, types, and data segments).  Each entry carries both
+    a flat WAT ``text`` (for copy/paste and the old renderer) and a
+    rich ``instructions`` list with per-instruction metadata — resolved
+    call targets, paired branch targets, source ranges, indent levels,
+    and explorer labels.  The frontend switches to the rich renderer
+    when ``instructions`` is present; consumers that don't understand
+    the new shape can continue to read ``text``.
+    """
     from core.compiler.codegen.wasm import wasm_codegen_module
 
     if cfg_module is None:
@@ -672,15 +682,56 @@ def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=N
 
         cfg_module = build_cfg(ir_module)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
-    wat = wasm_module.to_wat()
-    instr_count = sum(len(f.body) for f in wasm_module.functions)
-    return [
-        {
-            "name": "(module)",
-            "text": wat,
-            "instrCount": instr_count,
-        }
-    ]
+    explorer_entries = wasm_module.to_explorer_json()
+    # Attach ``text`` (a per-function WAT snippet) to each function so
+    # the old text-only renderer still works on consumers that do not
+    # understand the structured shape.  The synthetic ``(module)``
+    # header carries the full-module WAT as its ``text``.
+    full_wat = wasm_module.to_wat()
+    result: list[dict] = []
+    for entry in explorer_entries:
+        if entry["kind"] == "module":
+            # ``instrCount`` on the synthetic module header is left at 0
+            # so the tab-badge total (computed as the sum over all
+            # entries in ``data.wasm``) doesn't double-count the body
+            # instructions.  The real total is available as
+            # ``totalInstrCount`` for UI that wants to display it.
+            result.append(
+                {
+                    **entry,
+                    "text": full_wat,
+                    "totalInstrCount": sum(len(f.body) for f in wasm_module.functions),
+                }
+            )
+        else:
+            result.append(
+                {
+                    **entry,
+                    "text": _format_function_wat_snippet(entry),
+                }
+            )
+    return result
+
+
+def _format_function_wat_snippet(entry: dict) -> str:
+    """Render a single function's instructions as a WAT snippet.
+
+    Used as a legacy fallback for consumers that haven't migrated to
+    the structured ``instructions`` list — emits ``func $name``
+    followed by each instruction's ``fullText`` at its ``indent``.
+    """
+    sig_parts = [f"(param {p['name']} {p['type']})" for p in entry.get("params", [])]
+    for r in entry.get("results", []):
+        sig_parts.append(f"(result {r})")
+    sig = " ".join(sig_parts)
+    lines = [f"(func ${entry['name']} {sig}".rstrip() + "".rstrip()]
+    for loc in entry.get("locals", []):
+        lines.append(f"  (local {loc['name']} {loc['type']})")
+    for instr in entry.get("instructions", []):
+        prefix = "  " + ("    " * instr["indent"])
+        lines.append(f"{prefix}{instr['fullText']}")
+    lines.append(")")
+    return "\n".join(lines)
 
 
 # Top-level serialisation
