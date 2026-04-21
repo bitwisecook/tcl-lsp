@@ -771,6 +771,14 @@ class TestCommandDispatch:
             "proc_register_compiled",
             "frame_push",
             "frame_pop",
+            # ``frame_set_argv`` / ``frame_get_argv`` / ``tcl_list``
+            # are pulled in whenever the module defines procs so
+            # the prologue can stash the invocation list for
+            # ``info level 0`` and the inline reader can retrieve
+            # it.
+            "frame_set_argv",
+            "frame_get_argv",
+            "tcl_list",
             "local_set",
             "local_get",
         }
@@ -2973,6 +2981,184 @@ namespace import -force ::src::foo
         assert "namespace import" in wat, (
             "namespace import script text must be in the WASM data segment"
         )
+
+
+class TestInfoLevelArgv:
+    """Regression tests: ``info level 0`` / ``info level -N`` must
+    return the actual list of words (proc name + call args) that
+    entered the target frame.  tcltest leans on this pattern
+    heavily (``if {[llength [info level 0]] == 1} { return
+    $current } else { set $var $arg }``), so a stub that returns a
+    placeholder list breaks every accessor.
+
+    The runtime stores per-frame argv in ``tcl_frames.frame_argv``
+    and the compiled-proc prologue calls ``frame_set_argv`` with
+    a list built element-by-element from ``[<proc-tail>,
+    <param-1>, <param-2>, ...]``.  ``info level 0`` reads slot 0
+    (top frame); ``info level -N`` reads N frames up.
+    """
+
+    def _run_and_read_stdout(self, source: str) -> str:
+        """Compile the source to WASM and return captured stdout.
+
+        Separate helper from ``_run_and_read_global`` because these
+        tests probe ``puts`` output — ``info level 0`` inside a
+        proc and a ``[llength [info level 0]]`` branch each print
+        their measured value so the assertion is against a concrete
+        string.
+        """
+        import tempfile
+
+        from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+        wasm, _diag = _compile_tcl_with_diag(source, "info_level")
+        with tempfile.TemporaryDirectory() as tmpd:
+            r = _run_wasm(wasm, capture_stdout=True, preopen_tmpdir=tmpd)
+        return r[1].strip() if len(r) >= 2 else ""
+
+    def test_level_zero_returns_real_invocation(self):
+        """``info level 0`` inside a proc returns the full invocation
+        list (proc name + all args)."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {a b} { puts [info level 0] }
+myp hello world
+"""
+        )
+        assert out == "myp hello world"
+
+    def test_level_zero_llength_matches_arg_count(self):
+        """The llength of ``info level 0`` equals (n_params + 1)
+        when the caller supplied every declared arg."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {a b} { puts [llength [info level 0]] }
+myp hello world
+"""
+        )
+        assert out == "3"
+
+    def test_level_zero_llength_for_no_arg_call(self):
+        """A zero-param proc called with no args returns llength 1
+        — just the proc name.  tcltest's accessor pattern uses
+        this case for "was I called without args?"."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {} { puts [llength [info level 0]] }
+myp
+"""
+        )
+        assert out == "1"
+
+    def test_level_minus_one_reads_caller(self):
+        """``info level -1`` inside a proc returns the caller's
+        invocation list.
+
+        Note: ``outer`` also references ``info level`` so its
+        frame is not elided by the escape-analysis path.  A
+        caller that elides its frame (because its own body
+        doesn't use ``info level``) wouldn't appear in the
+        ``info level -N`` walk — a known limitation of the
+        per-proc elision check.  Fixing it needs a
+        whole-module transitive-reachability pass; tracked as a
+        follow-up.
+        """
+        out = self._run_and_read_stdout(
+            """\
+proc inner {} { puts [info level -1] }
+proc outer {a b} {
+    # Reference info level so outer's frame isn't elided.
+    set n [info level]
+    inner
+}
+outer foo bar
+"""
+        )
+        assert out == "outer foo bar"
+
+    def test_accessor_pattern_switches_on_llength(self):
+        """End-to-end tcltest-style accessor pattern: the proc
+        takes an optional ``dir`` param and branches on
+        ``llength [info level 0] == 1`` (no args) vs 2 (with
+        arg).  Both cases must route correctly."""
+        out = self._run_and_read_stdout(
+            """\
+proc workingDirectory { {dir ""} } {
+    if {[llength [info level 0]] == 1} {
+        return "no-args"
+    } else {
+        return "with-arg:$dir"
+    }
+}
+set r1 [workingDirectory]
+set r2 [workingDirectory /tmp]
+puts "$r1 // $r2"
+"""
+        )
+        assert out == "no-args // with-arg:/tmp"
+
+    def test_accessor_pattern_works_post_flush(self):
+        """Same accessor pattern after ``interp create`` triggers
+        full flush — the proc is now invoked through the host
+        bridge, not a compile-time specialised call.  The
+        prologue must still stash argv so the accessor works."""
+        out = self._run_and_read_stdout(
+            """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc Opt { {value {}}} {
+        if {[llength [info level 0]] == 2} {
+            return "set:$value"
+        }
+        return "get"
+    }
+    set r1 [Opt]
+    set r2 [Opt hello]
+    puts "$r1 // $r2"
+}
+"""
+        )
+        assert out == "get // set:hello"
+
+    def test_level_with_no_arg_returns_depth(self):
+        """``info level`` (no arg) returns the integer frame
+        depth — Tcl 9's ``InfoLevelCmd`` zero-arg form."""
+        out = self._run_and_read_stdout(
+            """\
+proc outer {} {
+    proc inner {} { return [info level] }
+    return [inner]
+}
+puts [outer]
+"""
+        )
+        assert out == "2"
+
+    def test_level_bad_positive_raises(self):
+        """``info level 99`` (beyond current depth) raises ``bad
+        level "99"`` just like tclsh."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {} {
+    catch {info level 99} msg
+    puts $msg
+}
+myp
+"""
+        )
+        assert out == 'bad level "99"'
+
+    def test_level_zero_outside_proc_raises(self):
+        """Calling ``info level 0`` at the global scope (no
+        frames pushed) raises ``bad level "0"``."""
+        out = self._run_and_read_stdout(
+            """\
+catch {info level 0} msg
+puts $msg
+"""
+        )
+        assert out == 'bad level "0"'
 
 
 class TestInfoIntrospection:

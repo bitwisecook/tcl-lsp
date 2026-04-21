@@ -99,6 +99,22 @@ const MAX_DEPTH: u32 = 64;
 var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 pub var frame_depth: u32 = 0;
 
+// Per-frame invocation argv — the list of words (command name +
+// arguments) that entered each frame.  Set by callers immediately
+// after ``frame_push`` — both the interpreter's
+// ``eval_proc_call_bucket`` (for interpreted procs) and the
+// compiled-proc prologue (via ``frame_set_argv`` emitted by the
+// WASM codegen) — so ``info level 0`` / ``info level N`` can
+// return the real invocation list instead of a placeholder.
+//
+// Each slot holds an i32 TclObj handle (the list) or 0 when the
+// caller didn't populate it (legacy compiled procs without the
+// prologue instrumentation, top-level frame, etc.).  The array is
+// not zeroed on ``frame_pop`` — next ``frame_push`` reuses the
+// slot and ``frame_set_argv`` overwrites it.  Readers check
+// against 0 and fall back to an empty list.
+var frame_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
+
 // -- Frame operations --
 
 /// Push a new call frame. Returns the frame index.
@@ -120,18 +136,48 @@ pub export fn frame_push() i32 {
     const base = frame_stack[idx];
     const slice: [*]u8 = @ptrFromInt(base);
     @memset(slice[0..FRAME_SIZE], 0);
+    // Clear any stale argv from the previous occupant of this
+    // slot so ``info level 0`` after a push without a subsequent
+    // ``frame_set_argv`` reads 0, not an outdated list.
+    frame_argv[idx] = 0;
     frame_depth += 1;
     return @intCast(idx);
 }
 
 /// Pop the current call frame. Caller should not access frame locals after this.
 pub export fn frame_pop() void {
-    if (frame_depth > 0) frame_depth -= 1;
+    if (frame_depth > 0) {
+        frame_depth -= 1;
+        // Clear the popped slot's argv so a stale list can't
+        // survive into an unrelated use of the same slot.
+        frame_argv[frame_depth] = 0;
+    }
 }
 
 /// Get current frame depth (0 = global scope, no frames pushed).
 pub export fn frame_get_depth() i32 {
     return @intCast(frame_depth);
+}
+
+/// Record the invocation argv for the current (topmost) frame.
+/// Callers should invoke this immediately after ``frame_push``
+/// with a list TclObj whose elements are the proc name followed
+/// by the call arguments.  Zero is the "no argv recorded"
+/// sentinel — equivalent to never calling this function.
+pub export fn frame_set_argv(argv: i32) void {
+    if (frame_depth == 0) return;
+    frame_argv[frame_depth - 1] = argv;
+}
+
+/// Return the invocation argv stored for the frame *offset*
+/// steps down from the top (0 = current, 1 = caller, …).
+/// Returns 0 if the offset is out of range or no argv was
+/// recorded for that frame.
+pub export fn frame_get_argv(offset: i32) i32 {
+    if (offset < 0) return 0;
+    const u: u32 = @intCast(offset);
+    if (u >= frame_depth) return 0;
+    return frame_argv[frame_depth - 1 - u];
 }
 
 /// Save the current frame depth and decrement it by *relative_up*
