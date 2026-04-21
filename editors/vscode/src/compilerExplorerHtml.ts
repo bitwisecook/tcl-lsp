@@ -622,10 +622,10 @@ body {
         <div class="tab" data-tab="taint">Taint</div>
         <div class="tab" data-tab="irules-flow">iRules Flow</div>
         <div class="tab" data-tab="callouts">Callouts</div>
-        <div class="tab" data-tab="asm">ASM</div>
+        <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
-        <div class="tab" data-tab="asm-opt">ASM (Opt)</div>
-        <div class="tab" data-tab="wasm-opt">WASM (Opt)</div>
+        <div class="tab" data-tab="asm-opt">Tcl ASM (opt)</div>
+        <div class="tab" data-tab="wasm-opt">WASM (opt)</div>
       </div>
       <div class="output-content" id="outputContent">
         <div class="tab-pane active" id="pane-ir">

@@ -19,6 +19,7 @@ from core.compiler.codegen import (
     format_function_asm,
     format_module_asm,
 )
+from core.compiler.codegen.format import _esc
 from core.compiler.lowering import lower_to_ir
 
 # Helpers
@@ -412,6 +413,54 @@ class TestFormatting:
         text = format_module_asm(ma)
         assert "ByteCode ::top" in text
         assert "ByteCode ::foo" in text
+
+
+# Disassembly escaping — matches Tcl 9's PrintSourceToObj.
+# Regression cover for control bytes (e.g. STX in synthesised literals like
+# "\x00\x02-") leaking through as raw glyphs and breaking the ASM pane.
+
+
+class TestEscEscaping:
+    def test_named_controls_use_short_forms(self):
+        assert _esc("a\nb\tc\rd\ve\ff") == "a\\nb\\tc\\rd\\ve\\ff"
+
+    def test_nul_escaped_as_uXXXX(self):
+        assert _esc("a\x00b") == "a\\u0000b"
+
+    def test_stx_and_other_c0_controls_escaped(self):
+        # STX (0x02) is the one that leaked in tcllib 2.0 installer.tcl.
+        assert _esc("\x01\x02\x03\x1f") == "\\u0001\\u0002\\u0003\\u001f"
+
+    def test_del_and_high_bmp_escaped(self):
+        assert _esc("\x7f") == "\\u007f"
+        assert _esc("ÿ") == "\\u00ff"
+        assert _esc("￿") == "\\uffff"
+
+    def test_supplementary_plane_uses_big_u(self):
+        assert _esc("\U0001f600") == "\\U0001f600"
+
+    def test_printable_ascii_unchanged(self):
+        assert _esc("hello world!") == "hello world!"
+
+    def test_quote_escaped(self):
+        assert _esc('a"b') == 'a\\"b'
+
+    def test_literal_with_embedded_stx_appears_escaped_in_disassembly(self):
+        """End-to-end: a literal interned with STX must render escaped in the
+        ``Literals:`` section — no raw control byte reaches the formatter output.
+        """
+        literals = LiteralTable()
+        literals.intern("\x00\x02-")
+        fa = FunctionAsm(
+            name="::top",
+            literals=literals,
+            lvt=LocalVarTable(),
+            instructions=[],
+            labels={},
+        )
+        text = format_function_asm(fa)
+        assert "\x02" not in text
+        assert '"\\u0000\\u0002-"' in text
 
 
 # Procedures
