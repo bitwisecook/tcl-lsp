@@ -3804,6 +3804,10 @@ class Analyser:
                             continue
                         if stmt.command in ("variable", "upvar"):
                             continue
+                        if REGISTRY.is_destroys_variable(stmt.command):
+                            # ``unset`` and similar destroy the variable;
+                            # they don't populate it.
+                            continue
                         names: tuple[str, ...] = stmt.defs
                     elif isinstance(
                         stmt,
