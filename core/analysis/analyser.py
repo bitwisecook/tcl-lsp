@@ -3293,13 +3293,15 @@ class Analyser:
             implicit_vars = frozenset({"dir"})
         # Globals that any proc in this module writes may be populated
         # by a proc call (directly or via ``source``) before the
-        # top-level reads the variable — suppress read-before-set for
-        # these in the top-level scope.
-        top_level_externals = implicit_vars | self._globals_written_by_procs(cu)
+        # top-level reads the variable — suppress W210 (read-before-set)
+        # only.  Unused/dead-store diagnostics still apply because a
+        # top-level write is not shadowed by a proc's write unless the
+        # proc actually runs, and we don't reason about call order here.
         self._emit_cfg_ssa_diagnostics_for_function(
             cu.top_level.cfg,
             cu.top_level.analysis,
-            cross_event_vars=top_level_externals,
+            cross_event_vars=implicit_vars,
+            extra_known_defined_vars=self._globals_written_by_procs(cu),
             ssa=cu.top_level.ssa,
         )
         conn = cu.connection_scope
@@ -3832,6 +3834,7 @@ class Analyser:
         analysis: FunctionAnalysis,
         *,
         cross_event_vars: frozenset[str] = frozenset(),
+        extra_known_defined_vars: frozenset[str] = frozenset(),
         ssa: SSAFunction | None = None,
     ) -> None:
         defined_vars = self._collect_defined_vars(cfg)
@@ -3841,7 +3844,10 @@ class Analyser:
         )
         self._emit_possible_paste_error_diagnostics(cfg, analysis)
         self._emit_read_before_set_diagnostics(
-            cfg, analysis, cross_event_vars=cross_event_vars, defined_vars=defined_vars
+            cfg,
+            analysis,
+            cross_event_vars=cross_event_vars | extra_known_defined_vars,
+            defined_vars=defined_vars,
         )
         self._emit_unused_variable_diagnostics(
             cfg, analysis, cross_event_vars=cross_event_vars, defined_vars=defined_vars
