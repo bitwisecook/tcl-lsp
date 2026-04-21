@@ -26,8 +26,8 @@
   "wordPattern": "[\\w:]+",
   "folding": {
     "markers": {
-      "start": "^\\s*\\{",
-      "end": "^\\s*\\}"
+      "start": "^\\s*#\\s*region\\b",
+      "end": "^\\s*#\\s*endregion\\b"
     }
   }
 }
