@@ -1903,6 +1903,7 @@ fn eval_interp(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "hide")) return eval_interp_hide(words);
     if (str_eq(sp, sub.len, "expose")) return eval_interp_expose(words);
     if (str_eq(sp, sub.len, "hidden")) return eval_interp_hidden(words);
+    if (str_eq(sp, sub.len, "invokehidden")) return eval_interp_invokehidden(words);
     if (!str_eq(sp, sub.len, "alias") and !str_eq(sp, sub.len, "aliases")) {
         // Fall back to the existing trapping stub for unsupported
         // ``interp`` subcommands.
@@ -2295,6 +2296,121 @@ fn eval_interp_hidden(words: []const i32) i32 {
         count += 1;
     }
     return obj_new_string(@bitCast(out), @bitCast(off));
+}
+
+/// ``interp invokehidden path ?-global? ?-namespace ns? cmd ?arg…?``.
+/// Looks ``cmd`` up in the interpreter-wide hidden table and
+/// dispatches it with the supplied arguments.  Mirrors Tcl 9's
+/// ``InvokeHiddenObjCmd`` (``tclInterp.c``) trimmed to the
+/// single-interp scope — ``path`` must be the empty list for us.
+///
+/// Option flags:
+///
+/// * ``-global`` — dispatch in the global namespace (root).
+/// * ``-namespace ns`` — dispatch in the named namespace.
+///
+/// With neither flag, the invocation runs in the *global*
+/// namespace too (matches C Tcl, where ``InvokeHiddenObjCmd``
+/// pushes a fresh call frame with ``FRAME_IS_LAMBDA`` at the
+/// root level by default).
+///
+/// Error shape on miss: ``invalid hidden command name "X"`` —
+/// verbatim Tcl 9 wording.  Conflicting ``-global`` +
+/// ``-namespace`` raises ``cannot use -global option and
+/// -namespace option together``.
+fn eval_interp_invokehidden(words: []const i32) i32 {
+    const catch_mod = @import("tcl_catch.zig");
+    if (words.len < 4) {
+        const err_text = "wrong # args: should be \"interp invokehidden path ?-global? ?-namespace ns? hiddenCmdName ?arg ...?\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
+    // words[0] = "interp", words[1] = "invokehidden", words[2] = path.
+    // We accept any path value for single-interp (same convention as
+    // ``interp alias``) — path is always "us".  Option parsing starts
+    // at words[3].
+    var idx: u32 = 3;
+    var use_global: bool = false;
+    var target_ns: u32 = 0;
+    while (idx < words.len) : (idx += 1) {
+        const arg = obj_ensure_string(words[idx]);
+        const ap: [*]const u8 = @ptrFromInt(arg.ptr);
+        if (str_eq(ap, arg.len, "-global")) {
+            use_global = true;
+            continue;
+        }
+        if (str_eq(ap, arg.len, "-namespace")) {
+            if (idx + 1 >= words.len) {
+                const err_text = "missing argument to -namespace";
+                const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+                catch_mod.tcl_cmd_error(msg);
+                return 0;
+            }
+            idx += 1;
+            const ns_s = obj_ensure_string(words[idx]);
+            target_ns = tcl_ns.ns_create_from_fqn(ns_s.ptr, ns_s.len);
+            continue;
+        }
+        // First non-flag argument is the hidden command name.
+        break;
+    }
+    if (idx >= words.len) {
+        const err_text = "wrong # args: should be \"interp invokehidden path ?-global? ?-namespace ns? hiddenCmdName ?arg ...?\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    if (use_global and target_ns != 0) {
+        const err_text = "cannot use -global option and -namespace option together";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
+    const hidden_name = obj_ensure_string(words[idx]);
+    const cmd = tcl_ns.hidden_find(hidden_name.ptr, hidden_name.len);
+    if (cmd == 0) {
+        interp_hide_error("invalid hidden command name \"", hidden_name.ptr, hidden_name.len, "\"");
+        return 0;
+    }
+
+    // Build the call-site argv: ``[hidden_name, caller_args...]``.
+    // The hidden Command's ``name_ptr`` slot already holds the
+    // hidden-name bytes (set by ``hide_command``); we re-wrap as a
+    // TclObj so dispatch sees the same shape it'd see from an
+    // ordinary ``cmd arg…`` call.
+    const tail_count: u32 = @intCast(words.len - 1 - idx);
+    const total: u32 = 1 + tail_count;
+    if (total > parse.MAX_WORDS) {
+        const err_text = "invokehidden argv exceeds MAX_WORDS";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    var new_words: [parse.MAX_WORDS]i32 = undefined;
+    new_words[0] = rt.obj_new_string(@bitCast(hidden_name.ptr), @bitCast(hidden_name.len));
+    var k: u32 = 0;
+    while (k < tail_count) : (k += 1) {
+        new_words[1 + k] = words[idx + 1 + k];
+    }
+
+    // Dispatch namespace selection.  Default (no flag) and
+    // ``-global`` both anchor at root; ``-namespace ns`` anchors at
+    // the resolved namespace.  Save / restore ``current_ns`` so the
+    // outer caller's context isn't perturbed.
+    const saved_ns: u32 = tcl_ns.current_ns;
+    if (target_ns != 0) {
+        tcl_ns.current_ns = target_ns;
+    } else if (use_global) {
+        tcl_ns.current_ns = tcl_ns.ns_root();
+    } else {
+        tcl_ns.current_ns = tcl_ns.ns_root();
+    }
+    const result = eval_proc_call_bucket(new_words[0..total], @bitCast(cmd));
+    tcl_ns.current_ns = saved_ns;
+    return result;
 }
 
 // -- ``namespace which`` ---------------------------------------------------
