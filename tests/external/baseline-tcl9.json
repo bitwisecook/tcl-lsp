@@ -1,0 +1,938 @@
+{
+  "total": 97,
+  "by_outcome": {
+    "pass": 19,
+    "timeout": 19,
+    "fail": 14,
+    "no_summary": 3,
+    "trap": 40,
+    "compile_fail": 2
+  },
+  "passing": [
+    "aaa_exit",
+    "appendComp",
+    "compExpr",
+    "concat",
+    "coroutine",
+    "dstring",
+    "if",
+    "lmap",
+    "lpop",
+    "nre",
+    "ooProp",
+    "ooUtil",
+    "parseOld",
+    "resolver",
+    "source",
+    "stack",
+    "tailcall",
+    "while",
+    "word"
+  ],
+  "failing_with_test_errors": [
+    "append",
+    "eval",
+    "for-old",
+    "if-old",
+    "incr-old",
+    "join",
+    "linsert",
+    "llength",
+    "lsetComp",
+    "proc-old",
+    "split",
+    "unknown",
+    "uplevel",
+    "while-old"
+  ],
+  "trapping": [
+    "cmdAH",
+    "cmdIL",
+    "cmdMZ",
+    "compExpr-old",
+    "compile",
+    "dict",
+    "error",
+    "execute",
+    "expr",
+    "expr-old",
+    "for",
+    "foreach",
+    "format",
+    "get",
+    "incr",
+    "indexObj",
+    "info",
+    "interp",
+    "list",
+    "listRep",
+    "lrange",
+    "lrepeat",
+    "lreplace",
+    "lseq",
+    "mathop",
+    "namespace",
+    "namespace-old",
+    "obj",
+    "oo",
+    "ooNext2",
+    "opt",
+    "parseExpr",
+    "regexp",
+    "rename",
+    "safe",
+    "safe-stock",
+    "set",
+    "switch",
+    "trace",
+    "var"
+  ],
+  "timing_out": [
+    "abstractlist",
+    "assocd",
+    "basic",
+    "brodnik",
+    "cmdInfo",
+    "lindex",
+    "listObj",
+    "lsearch",
+    "lset",
+    "misc",
+    "parse",
+    "proc",
+    "reg",
+    "regexpComp",
+    "result",
+    "set-old",
+    "stringObj",
+    "subst",
+    "upvar"
+  ],
+  "no_tcltest_summary": [
+    "apply",
+    "range",
+    "safe-stock86"
+  ],
+  "unknowns": [],
+  "trap_reason_buckets": {
+    "(no trap line captured)": 11,
+    "unknown-command:\ufffd\u001d\u0001\u001c\u0006\u0001": 1,
+    "unsupported:E   Failed: cmdIL.test trapped: tcl trap: unsupported comman": 1,
+    "unknown-command:clock": 1,
+    "unsupported:E   Failed: compExpr-old.test trapped: tcl trap: unsupported": 1,
+    "unknown-command:\u0015\u0001\u0001h\u0004\u0001::tcltes": 1,
+    "E   Failed: dict.test trapped: tcl trap: ConstraintInitializer must be complete ": 1,
+    "E   Failed: for.test trapped: tcl trap: preserveCore": 1,
+    "E   Failed: foreach.test trapped: tcl trap: preserveCore": 1,
+    "unknown-command:tcl::build-info": 1,
+    "unsupported:E   Failed: get.test trapped: tcl trap: unsupported command:": 1,
+    "unknown-command:\u0018\ufffd\u0296\ufffd\ufffd\u001c\u0001\ufffd\u001f\u0001\u0006lR\ufffdi\ufffd\u001f\u0001": 1,
+    "unknown-command:tclr\u0001": 1,
+    "E   Failed: list.test trapped: tcl trap: wrong # args: should be \"test name desc": 1,
+    "unknown-command:\u0001\ufffdJ\u0001::tcltest::": 1,
+    "unsupported:E   Failed: lrange.test trapped: tcl trap: unsupported comma": 1,
+    "unsupported:E   Failed: lrepeat.test trapped: tcl trap: regexp: unsuppor": 1,
+    "unsupported:E   Failed: lreplace.test trapped: tcl trap: unsupported com": 1,
+    "unknown-command:": 1,
+    "unknown-command:tests": 1,
+    "E   Failed: ooNext2.test trapped: tcl trap: wrong # args: should be \"test name d": 1,
+    "unknown-command:::tcl::OptProc": 1,
+    "E   Failed: parseExpr.test trapped: tcl trap: ConstraintInitializer must be comp": 1,
+    "unsupported:E   Failed: regexp.test trapped: tcl trap: unsupported comma": 1,
+    "E   Failed: rename.test trapped: tcl trap: can't rename \"list\": command doesn't ": 1,
+    "unsupported:E   Failed: safe.test trapped: tcl trap: unsupported command": 1,
+    "E   Failed: safe-stock.test trapped: tcl trap: cannot find opt library": 1,
+    "unknown-command:switch": 1,
+    "unknown-command:Stringset": 1,
+    "unknown-command:\ufffd\ufffd\ufffdz8A\u0001\ufffd\u0006\u0001\f&b\ufffd\u000f\ufffd\u0006\u0001PC\u0001": 1
+  },
+  "entries": [
+    {
+      "name": "scan",
+      "outcome": "compile_fail",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "string",
+      "outcome": "compile_fail",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "append",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t5\tPassed\t3\tSkipped\t\tFailed\t1",
+      "trap": "",
+      "first_failing": "==== append-1.1 FAILED"
+    },
+    {
+      "name": "eval",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t12\tPassed\t8\tSkipped\t\tFailed\t4",
+      "trap": "",
+      "first_failing": "==== eval-2.4 FAILED"
+    },
+    {
+      "name": "for-old",
+      "classname": "for_old",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t9\tPassed\t5\tSkipped\t\tFailed\t4",
+      "trap": "",
+      "first_failing": "==== for-old-1.7 FAILED"
+    },
+    {
+      "name": "if-old",
+      "classname": "if_old",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t11\tPassed\t8\tSkipped\t\tFailed\t2",
+      "trap": "",
+      "first_failing": "==== if-old-4.10 FAILED"
+    },
+    {
+      "name": "incr-old",
+      "classname": "incr_old",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t10\tPassed\t5\tSkipped\t\tFailed\t4",
+      "trap": "",
+      "first_failing": "==== incr-old-2.9 FAILED"
+    },
+    {
+      "name": "join",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t10\tPassed\t7\tSkipped\t\tFailed\t3",
+      "trap": "",
+      "first_failing": "==== join-2.2 FAILED"
+    },
+    {
+      "name": "linsert",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t28\tPassed\t18\tSkipped\t\tFailed\t10",
+      "trap": "",
+      "first_failing": "==== linsert-2.6 FAILED"
+    },
+    {
+      "name": "llength",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t6\tPassed\t3\tSkipped\t\tFailed\t3",
+      "trap": "",
+      "first_failing": "==== llength-2.2 FAILED"
+    },
+    {
+      "name": "lsetComp",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t2\tPassed\t\tSkipped\t\tFailed\t1",
+      "trap": "",
+      "first_failing": "==== lsetComp-1.1 FAILED"
+    },
+    {
+      "name": "proc-old",
+      "classname": "proc_old",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t21\tPassed\t12\tSkipped\t\tFailed\t8",
+      "trap": "",
+      "first_failing": "==== proc-old-7.15 FAILED"
+    },
+    {
+      "name": "split",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t15\tPassed\t10\tSkipped\t\tFailed\t4",
+      "trap": "",
+      "first_failing": "==== split-2.1 FAILED"
+    },
+    {
+      "name": "unknown",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t2\tPassed\t\tSkipped\t\tFailed\t1",
+      "trap": "",
+      "first_failing": "==== unknown-1.1 FAILED"
+    },
+    {
+      "name": "uplevel",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t13\tPassed\t6\tSkipped\t\tFailed\t6",
+      "trap": "",
+      "first_failing": "==== uplevel-2.4 FAILED"
+    },
+    {
+      "name": "while-old",
+      "classname": "while_old",
+      "outcome": "fail",
+      "rc": 1,
+      "summary": "Total\t15\tPassed\t6\tSkipped\t\tFailed\t9",
+      "trap": "",
+      "first_failing": "==== while-old-4.6 FAILED"
+    },
+    {
+      "name": "apply",
+      "outcome": "no_summary",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "range",
+      "outcome": "no_summary",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "safe-stock86",
+      "classname": "safe_stock86",
+      "outcome": "no_summary",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "aaa_exit",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "appendComp",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "compExpr",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "concat",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "coroutine",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "dstring",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "if",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "lmap",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "lpop",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "nre",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "ooProp",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "ooUtil",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "parseOld",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "resolver",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "source",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "stack",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "tailcall",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "while",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "word",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "abstractlist",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "assocd",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "basic",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "brodnik",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "cmdInfo",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "lindex",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "listObj",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "lsearch",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "lset",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "misc",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "parse",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "proc",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "reg",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "regexpComp",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "result",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "set-old",
+      "classname": "set_old",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "stringObj",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "subst",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "upvar",
+      "outcome": "timeout",
+      "rc": 124,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "cmdAH",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: cmdAH.test trapped: tcl trap: unknown command: \ufffd\u001d\u0001\u001c\u0006\u0001",
+      "first_failing": ""
+    },
+    {
+      "name": "cmdIL",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: cmdIL.test trapped: tcl trap: unsupported command: source",
+      "first_failing": ""
+    },
+    {
+      "name": "cmdMZ",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: cmdMZ.test trapped: tcl trap: unknown command: clock",
+      "first_failing": ""
+    },
+    {
+      "name": "compExpr-old",
+      "classname": "compExpr_old",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: compExpr-old.test trapped: tcl trap: unsupported command: binary",
+      "first_failing": ""
+    },
+    {
+      "name": "compile",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: compile.test trapped: tcl trap: unknown command: \u0015\u0001\u0001h\u0004\u0001::tcltes",
+      "first_failing": ""
+    },
+    {
+      "name": "dict",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: dict.test trapped: tcl trap: ConstraintInitializer must be complete script",
+      "first_failing": ""
+    },
+    {
+      "name": "error",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "execute",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "expr",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "expr-old",
+      "classname": "expr_old",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "for",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: for.test trapped: tcl trap: preserveCore",
+      "first_failing": ""
+    },
+    {
+      "name": "foreach",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: foreach.test trapped: tcl trap: preserveCore",
+      "first_failing": ""
+    },
+    {
+      "name": "format",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: format.test trapped: tcl trap: unknown command: tcl::build-info",
+      "first_failing": ""
+    },
+    {
+      "name": "get",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: get.test trapped: tcl trap: unsupported command: source",
+      "first_failing": ""
+    },
+    {
+      "name": "incr",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "indexObj",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "info",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: info.test trapped: tcl trap: unknown command: \u0018\ufffd\u0296\ufffd\ufffd\u001c\u0001\ufffd\u001f\u0001\u0006lR\ufffdi\ufffd\u001f\u0001",
+      "first_failing": ""
+    },
+    {
+      "name": "interp",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: interp.test trapped: tcl trap: unknown command: tclr\u0001",
+      "first_failing": ""
+    },
+    {
+      "name": "list",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: list.test trapped: tcl trap: wrong # args: should be \"test name desc ?options?\"",
+      "first_failing": ""
+    },
+    {
+      "name": "listRep",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: listRep.test trapped: tcl trap: unknown command: \u0001\ufffdJ\u0001::tcltest::",
+      "first_failing": ""
+    },
+    {
+      "name": "lrange",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: lrange.test trapped: tcl trap: unsupported command: apply",
+      "first_failing": ""
+    },
+    {
+      "name": "lrepeat",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: lrepeat.test trapped: tcl trap: regexp: unsupported or unknown option",
+      "first_failing": ""
+    },
+    {
+      "name": "lreplace",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: lreplace.test trapped: tcl trap: unsupported command: apply",
+      "first_failing": ""
+    },
+    {
+      "name": "lseq",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "mathop",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "namespace",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: namespace.test trapped: tcl trap: unknown command: ",
+      "first_failing": ""
+    },
+    {
+      "name": "namespace-old",
+      "classname": "namespace_old",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "obj",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "oo",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: oo.test trapped: tcl trap: unknown command: tests",
+      "first_failing": ""
+    },
+    {
+      "name": "ooNext2",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: ooNext2.test trapped: tcl trap: wrong # args: should be \"test name desc ?options?\"",
+      "first_failing": ""
+    },
+    {
+      "name": "opt",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: opt.test trapped: tcl trap: unknown command: ::tcl::OptProc",
+      "first_failing": ""
+    },
+    {
+      "name": "parseExpr",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: parseExpr.test trapped: tcl trap: ConstraintInitializer must be complete script",
+      "first_failing": ""
+    },
+    {
+      "name": "regexp",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: regexp.test trapped: tcl trap: unsupported command: source",
+      "first_failing": ""
+    },
+    {
+      "name": "rename",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: rename.test trapped: tcl trap: can't rename \"list\": command doesn't exist",
+      "first_failing": ""
+    },
+    {
+      "name": "safe",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: safe.test trapped: tcl trap: unsupported command: file (unknown subcommand)",
+      "first_failing": ""
+    },
+    {
+      "name": "safe-stock",
+      "classname": "safe_stock",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: safe-stock.test trapped: tcl trap: cannot find opt library",
+      "first_failing": ""
+    },
+    {
+      "name": "set",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "",
+      "first_failing": ""
+    },
+    {
+      "name": "switch",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: switch.test trapped: tcl trap: unknown command: switch",
+      "first_failing": ""
+    },
+    {
+      "name": "trace",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: trace.test trapped: tcl trap: unknown command: Stringset",
+      "first_failing": ""
+    },
+    {
+      "name": "var",
+      "outcome": "trap",
+      "rc": 1,
+      "summary": "",
+      "trap": "E   Failed: var.test trapped: tcl trap: unknown command: \f\ufffd\ufffd\ufffdz8A\u0001\ufffd\u0006\u0001\f&b\ufffd\u000f\ufffd\u0006\u0001PC\u0001",
+      "first_failing": ""
+    }
+  ]
+}
