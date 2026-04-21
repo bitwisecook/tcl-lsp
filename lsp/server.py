@@ -787,10 +787,23 @@ def on_definition(
     col = params.position.character
     word = find_word_at_position(source, line, col)
     if word:
-        entries = workspace_index.find_proc(word)
-        for entry in entries:
-            if entry.proc:
-                locations.append(to_lsp_location(entry.uri, entry.proc.name_range))
+        # Prefer fully-qualified names synthesised from this file's
+        # ``namespace import`` (and tcllib ``X::import`` wrapper)
+        # declarations — that's how Tcl itself would resolve the call
+        # at runtime.  Only fall through to a tail-name search when no
+        # import rewrites produce a hit.
+        if analysis is not None and analysis.namespace_imports:
+            from core.analysis.namespace_imports import rewrite_via_imports
+
+            for candidate in rewrite_via_imports(word, analysis.namespace_imports):
+                for entry in workspace_index.find_proc(candidate):
+                    if entry.proc and entry.proc.qualified_name == candidate:
+                        locations.append(to_lsp_location(entry.uri, entry.proc.name_range))
+        if not locations:
+            entries = workspace_index.find_proc(word)
+            for entry in entries:
+                if entry.proc:
+                    locations.append(to_lsp_location(entry.uri, entry.proc.name_range))
         # Try cross-file RULE_INIT variables (e.g. $::varname)
         if not locations and word.startswith("::"):
             var_entries = workspace_index.find_rule_init_var(word)
@@ -2226,7 +2239,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
         from core.analysis.source_resolver import resolve_source_target
 
         script_path = uri_to_path(uri) or ""
-        ws_roots = list(background_scanner._workspace_roots)
+        ws_roots = background_scanner.workspace_roots
         sourced: set[str] = set()
         for st in state.analysis.source_targets:
             resolved = resolve_source_target(st.raw_path, st.is_literal, script_path, ws_roots)
@@ -2251,7 +2264,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
         else:
             exports = extract_rule_init_vars(source, cu=state.compilation_unit)
             workspace_index.update_rule_init_vars(uri, exports)
-    _load_packages_if_needed(state.analysis)
+    _load_packages_if_needed(state.analysis, uri)
 
 
 def _publish_diagnostics_sync(
@@ -2639,12 +2652,69 @@ async def _publish_diagnostics(
     )
 
 
-def _load_packages_if_needed(analysis: object) -> None:
-    """Resolve and load packages referenced by ``package require``."""
+def _is_unsafe_auto_path(path: str) -> bool:
+    """Return True when *path* is too broad to safely ``os.walk()``.
+
+    Filesystem roots, the user's home directory, and any directory
+    two levels or shallower are rejected — a script that appends
+    ``/`` or ``~`` to ``auto_path`` is almost certainly misusing the
+    idiom, and recursively walking a huge tree on the main LSP thread
+    would make the server unresponsive.
+    """
+    import os
+
+    norm = os.path.abspath(path)
+    if norm in ("/", os.path.sep) or norm == os.path.expanduser("~"):
+        return True
+    # Count meaningful path segments — reject depth < 2 so ``/tmp``
+    # or ``/Users`` never get swept, but ``/tmp/proj/lib`` is fine.
+    parts = [p for p in norm.split(os.sep) if p]
+    return len(parts) < 2
+
+
+def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
+    """Resolve and load packages referenced by ``package require``.
+
+    When the document carries ``lappend auto_path`` entries, resolve each
+    statically and register them with the package resolver so packages
+    provided by those directories become discoverable without requiring
+    an explicit workspace/library path setting — mirroring what Tcl
+    itself would do once the file has executed the ``lappend``.
+    """
     from core.analysis.semantic_model import AnalysisResult
 
     if not isinstance(analysis, AnalysisResult):
         return
+
+    if analysis.auto_path_entries and uri is not None:
+        import os
+
+        from core.analysis.auto_path_eval import evaluate_auto_path_expr
+
+        file_path = uri_to_path(uri)
+        extra_paths: list[str] = []
+        for entry in analysis.auto_path_entries:
+            resolved = evaluate_auto_path_expr(entry.raw, file_path)
+            if not resolved or not os.path.isdir(resolved):
+                continue
+            # Refuse to ``os.walk`` the filesystem root, the user's
+            # home directory, or any path shallow enough to sweep in
+            # unrelated trees.  A legitimate ``lappend auto_path``
+            # target is always a library subdirectory; anything at
+            # depth < 2 is almost certainly a mistake we shouldn't
+            # scan on the main thread.
+            if _is_unsafe_auto_path(resolved):
+                log.warning(
+                    "auto_path: refusing to scan overly broad directory %s (from %s)",
+                    resolved,
+                    file_path,
+                )
+                continue
+            if resolved not in extra_paths:
+                extra_paths.append(resolved)
+        if extra_paths:
+            package_resolver.add_search_paths(extra_paths)
+
     if not analysis.package_requires:
         return
     for pkg_req in analysis.package_requires:
@@ -3334,6 +3404,15 @@ def on_initialized(params: types.InitializedParams) -> None:
         workspace_roots=roots,
         library_paths=library_paths if library_paths else None,
     )
+    # Prepend workspace roots to the package resolver's search paths so
+    # a workspace-local copy of a package (e.g. someone editing tcllib)
+    # wins over any copy provided by the configured library paths —
+    # matching Tcl's own ``auto_path`` semantics where the first
+    # provider found satisfies ``package require``.
+    resolver_paths = list(roots) + list(library_paths)
+    if resolver_paths:
+        package_resolver.configure(search_paths=resolver_paths)
+        _loaded_packages.clear()
 
     # Kick off the scan with optional progress reporting.  When the client
     # advertises window/workDoneProgress we emit begin/report/end notifications
@@ -3921,7 +4000,13 @@ def _apply_all_settings_now() -> None:
     if isinstance(library_paths_setting, list):
         library_paths = [str(p) for p in library_paths_setting]
         background_scanner.configure(library_paths=library_paths)
-        package_resolver.configure(search_paths=library_paths)
+        # Prepend workspace roots so a local copy of a package still
+        # wins over the configured library paths.  The scanner's
+        # ``workspace_roots`` accessor returns a snapshot of the list
+        # set in ``on_initialized``, which this settings update leaves
+        # unchanged.
+        resolver_paths = background_scanner.workspace_roots + library_paths
+        package_resolver.configure(search_paths=resolver_paths)
         _loaded_packages.clear()
         threading.Thread(target=_run_background_scan, daemon=True).start()
 
