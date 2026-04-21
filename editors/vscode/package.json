@@ -2,7 +2,7 @@
   "name": "tcl-lsp",
   "displayName": "Tcl/Tk, iRules, EDA-Tools, Expect LSP/MCP",
   "description": "Tcl/Tk, iRules, EDA-Tools, Expect language support with semantic highlighting, diagnostics, optimisations, completions, and more",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "publisher": "bitwisecook",
   "license": "AGPL-3.0-or-later",
   "icon": "docs/icon.png",
