@@ -24,11 +24,15 @@ and retains orders of magnitude less memory per file than ``analyse()``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from core.analysis.analyser import parse_param_list
 from core.analysis.semantic_model import (
     AnalysisResult,
+    AutoPathEntry,
     ClassDef,
     CommandInvocation,
+    NamespaceImport,
     PackageRequire,
     ProcDef,
     SourceTarget,
@@ -38,11 +42,46 @@ from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token, TokenType
 
 
+@dataclass
+class _FactoryCandidate:
+    """A 3-arg command call that might be a factory-wrapper proc definition.
+
+    Tcllib's ``DEFC name args body`` / ``DEF name esc value`` pattern
+    creates a proc at runtime via ``proc $name $args $body``.  We record
+    every call with that shape and resolve it against the set of procs
+    that actually behave as factories after the first pass finishes.
+    """
+
+    head: str  # the command name as written ("DEFC", "::foo::DEF", ...)
+    name: str
+    name_tok: Token
+    body_tok: Token
+    ns_prefix: str  # effective namespace at the call site (no leading ``::``)
+
+
+@dataclass
+class _ProcBodyInfo:
+    """Tracking data for factory-wrapper detection."""
+
+    qname: str
+    params: list[str]
+    body_text: str
+    ns_prefix: str
+
+
+@dataclass
+class _ScanCtx:
+    result: AnalysisResult
+    candidates: list[_FactoryCandidate] = field(default_factory=list)
+    proc_bodies: list[_ProcBodyInfo] = field(default_factory=list)
+
+
 def extract_signatures(source: str) -> AnalysisResult:
     """Return a minimal AnalysisResult for a background-indexed file."""
-    result = AnalysisResult()
-    _scan(source, body_token=None, ns_prefix="", conditional=False, result=result)
-    return result
+    ctx = _ScanCtx(result=AnalysisResult())
+    _scan(source, body_token=None, ns_prefix="", conditional=False, ctx=ctx)
+    _resolve_factory_defs(ctx)
+    return ctx.result
 
 
 def _qualify(ns_prefix: str, name: str) -> str:
@@ -64,12 +103,13 @@ def _scan(
     body_token: Token | None,
     ns_prefix: str,
     conditional: bool,
-    result: AnalysisResult,
+    ctx: _ScanCtx,
 ) -> None:
     # ``recovery=True`` (segmenter default) — an unclosed brace or bracket
     # high up in the file must not swallow the rest of it and silently
     # drop every later declaration.
     commands = segment_commands(source, body_token=body_token)
+    result = ctx.result
     for cmd in commands:
         if cmd.is_partial or not cmd.argv:
             continue
@@ -86,9 +126,9 @@ def _scan(
         )
         match head:
             case "proc":
-                _handle_proc(texts, argv, ns_prefix, result)
+                _handle_proc(texts, argv, ns_prefix, ctx)
             case "namespace":
-                _handle_namespace(texts, argv, ns_prefix, conditional, result)
+                _handle_namespace(texts, argv, ns_prefix, conditional, ctx)
             case "package":
                 _handle_package(texts, argv, conditional, result)
             case "source":
@@ -100,11 +140,16 @@ def _scan(
             case "itcl::class" | "::itcl::class":
                 _handle_itcl_class(texts, argv, ns_prefix, result)
             case "if":
-                _handle_if(texts, argv, ns_prefix, result)
+                _handle_if(texts, argv, ns_prefix, ctx)
             case "catch":
-                _handle_catch(texts, argv, ns_prefix, result)
+                _handle_catch(texts, argv, ns_prefix, ctx)
             case "try":
-                _handle_try(texts, argv, ns_prefix, result)
+                _handle_try(texts, argv, ns_prefix, ctx)
+            case "lappend" | "set":
+                _handle_auto_path(head, texts, argv, result)
+            case _:
+                _maybe_handle_import_wrapper(head, texts, argv, ns_prefix, result)
+                _maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx)
 
 
 def _maybe_recurse_body(
@@ -112,7 +157,7 @@ def _maybe_recurse_body(
     body_tok: Token,
     ns_prefix: str,
     conditional: bool,
-    result: AnalysisResult,
+    ctx: _ScanCtx,
 ) -> None:
     """Recurse into *body_tok* only when it is a braced script.
 
@@ -126,7 +171,7 @@ def _maybe_recurse_body(
             body_token=body_tok,
             ns_prefix=ns_prefix,
             conditional=conditional,
-            result=result,
+            ctx=ctx,
         )
 
 
@@ -134,7 +179,7 @@ def _handle_proc(
     texts: list[str],
     argv: list[Token],
     ns_prefix: str,
-    result: AnalysisResult,
+    ctx: _ScanCtx,
 ) -> None:
     if len(texts) < 4:
         return
@@ -143,13 +188,36 @@ def _handle_proc(
     simple = qualified.rsplit("::", 1)[-1]
     name_range = range_from_token(argv[1])
     body_range = range_from_token(argv[3]) if len(argv) > 3 else name_range
-    result.all_procs[qualified] = ProcDef(
+    params = parse_param_list(texts[2])
+    ctx.result.all_procs[qualified] = ProcDef(
         name=simple,
         qualified_name=qualified,
-        params=parse_param_list(texts[2]),
+        params=params,
         name_range=name_range,
         body_range=body_range,
     )
+    # Record the body text so ``_resolve_factory_defs`` can identify
+    # factory-wrapper procs (``proc $name $args $body`` idiom used by
+    # tcllib's ``DEFC``).  The namespace the factory creates procs in
+    # at call time is the one the wrapper itself belongs to, so keep
+    # that around too.
+    body_ns = qualified.rsplit("::", 1)[0].lstrip(":")
+    ctx.proc_bodies.append(
+        _ProcBodyInfo(
+            qname=qualified,
+            params=[p.name for p in params],
+            body_text=texts[3],
+            ns_prefix=body_ns,
+        )
+    )
+    # Factory calls (``DEFC foo …``) typically live inside an ``INIT``
+    # proc that populates a namespace at package-load time.  Walk the
+    # body looking only for candidate call sites — we deliberately skip
+    # the usual ``proc`` / ``namespace eval`` handlers here because
+    # those definitions only take effect when the enclosing proc runs,
+    # and recording them would confuse static resolution.
+    if len(argv) > 3 and argv[3].type is TokenType.STR:
+        _scan_factory_candidates(texts[3], argv[3], body_ns, ctx)
 
 
 def _handle_namespace(
@@ -157,20 +225,130 @@ def _handle_namespace(
     argv: list[Token],
     ns_prefix: str,
     conditional: bool,
+    ctx: _ScanCtx,
+) -> None:
+    if len(texts) < 2:
+        return
+    sub = texts[1]
+    if sub == "eval" and len(texts) >= 4:
+        raw_ns = texts[2]
+        # ``namespace eval ::foo {...}`` rebases the prefix rather than nesting
+        # under the surrounding namespace — Tcl treats leading ``::`` as absolute.
+        if raw_ns.startswith("::"):
+            inner_prefix = raw_ns.lstrip(":")
+        elif ns_prefix:
+            inner_prefix = f"{ns_prefix}::{raw_ns}"
+        else:
+            inner_prefix = raw_ns
+        _maybe_recurse_body(texts[3], argv[3], inner_prefix, conditional, ctx)
+        return
+    if sub == "import" and len(texts) >= 3:
+        _handle_namespace_import(texts, argv, ns_prefix, ctx.result)
+
+
+def _handle_namespace_import(
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
     result: AnalysisResult,
 ) -> None:
-    if len(texts) < 4 or texts[1] != "eval":
+    # ``namespace import ?-force? pattern ?pattern ...?``
+    importing_ns = f"::{ns_prefix}" if ns_prefix else "::"
+    i = 2
+    while i < len(texts):
+        pattern = texts[i]
+        if pattern == "-force":
+            i += 1
+            continue
+        # Must be a fully-qualified pattern — Tcl's ``namespace import``
+        # only accepts qualified names, but users occasionally write bare
+        # ones in new code; drop those because we cannot resolve them.
+        if "::" not in pattern:
+            i += 1
+            continue
+        if not pattern.startswith("::"):
+            pattern = f"::{pattern}"
+        result.namespace_imports.append(
+            NamespaceImport(
+                ns=importing_ns,
+                pattern=pattern,
+                range=range_from_token(argv[i]),
+            )
+        )
+        i += 1
+
+
+def _maybe_handle_import_wrapper(
+    head: str,
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
+    result: AnalysisResult,
+) -> None:
+    """Recognise the tcllib ``<NS>::import <ALIAS>`` wrapper idiom.
+
+    A common tcllib convention is a proc ``some::ns::import`` that
+    ``uplevel``s ``namespace eval <alias> {namespace import some::ns::*}``.
+    Statically detecting all such wrappers from their bodies is out of
+    scope, but the *call* is unambiguous — its qualified name ends in
+    ``::import`` and its single argument is a namespace identifier.
+    Record a conjectured import so ``vt::showat`` can resolve to
+    ``::term::ansi::send::showat`` when the user opens an example that
+    uses it.
+    """
+    if not head.endswith("::import"):
         return
-    raw_ns = texts[2]
-    # ``namespace eval ::foo {...}`` rebases the prefix rather than nesting
-    # under the surrounding namespace — Tcl treats leading ``::`` as absolute.
-    if raw_ns.startswith("::"):
-        inner_prefix = raw_ns.lstrip(":")
-    elif ns_prefix:
-        inner_prefix = f"{ns_prefix}::{raw_ns}"
-    else:
-        inner_prefix = raw_ns
-    _maybe_recurse_body(texts[3], argv[3], inner_prefix, conditional, result)
+    if len(texts) < 2:
+        return
+    alias = texts[1]
+    if not alias or "$" in alias or "[" in alias:
+        return
+    # Import wrapper typically takes a single namespace token as its
+    # first argument; remaining tokens would be pattern filters we can't
+    # evaluate statically, so we play it safe and only infer when the
+    # call is ``head alias``.
+    if len(texts) > 2:
+        return
+    source_ns = head[: -len("::import")]  # strip trailing ``::import``
+    if not source_ns.startswith("::"):
+        source_ns = f"::{source_ns}"
+    alias_ns = alias if alias.startswith("::") else f"::{alias}"
+    result.namespace_imports.append(
+        NamespaceImport(
+            ns=alias_ns,
+            pattern=f"{source_ns}::*",
+            range=range_from_token(argv[0]),
+            conjectured=True,
+        )
+    )
+
+
+def _handle_auto_path(
+    head: str,
+    texts: list[str],
+    argv: list[Token],
+    result: AnalysisResult,
+) -> None:
+    """Record ``lappend auto_path …`` / ``set auto_path …`` entries."""
+    if len(texts) < 3:
+        return
+    if texts[1] != "auto_path":
+        return
+    # ``set auto_path <expr>`` assigns the whole list; ``lappend
+    # auto_path <expr>`` appends.  Both forms: every word after the
+    # variable name is a path element.
+    for i in range(2, len(texts)):
+        raw = texts[i]
+        if not raw:
+            continue
+        result.auto_path_entries.append(
+            AutoPathEntry(
+                resolved_path=None,
+                raw=raw,
+                range=range_from_token(argv[i]),
+            )
+        )
+    _ = head  # currently no need to distinguish; reserved for future use
 
 
 def _handle_package(
@@ -272,7 +450,7 @@ def _handle_if(
     texts: list[str],
     argv: list[Token],
     ns_prefix: str,
-    result: AnalysisResult,
+    ctx: _ScanCtx,
 ) -> None:
     """Descend into every branch of an ``if`` chain.
 
@@ -301,7 +479,7 @@ def _handle_if(
             i += 1
             continue
         if expect_body:
-            _maybe_recurse_body(texts[i], argv[i], ns_prefix, True, result)
+            _maybe_recurse_body(texts[i], argv[i], ns_prefix, True, ctx)
             expect_body = False
         else:
             expect_body = True
@@ -312,19 +490,19 @@ def _handle_catch(
     texts: list[str],
     argv: list[Token],
     ns_prefix: str,
-    result: AnalysisResult,
+    ctx: _ScanCtx,
 ) -> None:
     # ``catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?``
     if len(texts) < 2:
         return
-    _maybe_recurse_body(texts[1], argv[1], ns_prefix, True, result)
+    _maybe_recurse_body(texts[1], argv[1], ns_prefix, True, ctx)
 
 
 def _handle_try(
     texts: list[str],
     argv: list[Token],
     ns_prefix: str,
-    result: AnalysisResult,
+    ctx: _ScanCtx,
 ) -> None:
     """Descend into the main body, each ``on``/``trap`` handler, and ``finally``.
 
@@ -334,18 +512,293 @@ def _handle_try(
     """
     if len(texts) < 2:
         return
-    _maybe_recurse_body(texts[1], argv[1], ns_prefix, True, result)
+    _maybe_recurse_body(texts[1], argv[1], ns_prefix, True, ctx)
     i = 2
     while i < len(texts):
         clause = texts[i]
         if clause == "finally" and i + 1 < len(texts):
-            _maybe_recurse_body(texts[i + 1], argv[i + 1], ns_prefix, True, result)
+            _maybe_recurse_body(texts[i + 1], argv[i + 1], ns_prefix, True, ctx)
             return
         if clause in ("on", "trap") and i + 3 < len(texts):
-            _maybe_recurse_body(texts[i + 3], argv[i + 3], ns_prefix, True, result)
+            _maybe_recurse_body(texts[i + 3], argv[i + 3], ns_prefix, True, ctx)
             i += 4
         else:
             i += 1
+
+
+_FACTORY_SKIP_HEADS = frozenset(
+    {
+        # Commands that incidentally take the shape ``HEAD NAME BRACED BRACED``
+        # but definitely aren't proc factories — skip by name so they do not
+        # pollute the candidate list.
+        "proc",
+        "namespace",
+        "if",
+        "switch",
+        "while",
+        "for",
+        "foreach",
+        "try",
+        "catch",
+        "eval",
+        "apply",
+        "expr",
+        "uplevel",
+        "upvar",
+        "variable",
+        "set",
+        "lappend",
+        "dict",
+        "array",
+        "string",
+        "list",
+        "lindex",
+        "package",
+        "source",
+        "interp",
+        "oo::class",
+        "oo::define",
+        "oo::objdefine",
+        "method",
+        "classmethod",
+        "itcl::class",
+        "::itcl::class",
+    }
+)
+
+
+def _maybe_record_factory_candidate(
+    head: str,
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
+    ctx: _ScanCtx,
+) -> None:
+    """Record a potential factory-wrapper call for post-scan resolution.
+
+    A tcllib factory call has the shape ``HEAD NAME ARGS BODY`` — four
+    tokens total where the last is a braced script.  We defer deciding
+    whether HEAD is a real factory until after the full scan, so filter
+    here only on the structural shape and a negative list of built-ins
+    that happen to share it.
+    """
+    if len(texts) != 4:
+        return
+    if head in _FACTORY_SKIP_HEADS:
+        return
+    # Name argument must be a plain word — variable and command
+    # substitutions mean the created proc has a runtime-computed name we
+    # cannot statically resolve.
+    name = texts[1]
+    if not name or "$" in name or "[" in name:
+        return
+    body_tok = argv[3]
+    if body_tok.type is not TokenType.STR:
+        return
+    ctx.candidates.append(
+        _FactoryCandidate(
+            head=head,
+            name=name,
+            name_tok=argv[1],
+            body_tok=body_tok,
+            ns_prefix=ns_prefix,
+        )
+    )
+
+
+def _scan_factory_candidates(
+    body_text: str,
+    body_tok: Token,
+    ns_prefix: str,
+    ctx: _ScanCtx,
+) -> None:
+    """Record factory-candidate calls inside a proc body.
+
+    Unlike :func:`_scan`, this pass walks a proc's body looking only
+    for ``HEAD NAME {ARGS} {BODY}`` shaped calls and descends into
+    structural-control bodies that commonly contain factory calls
+    (``if``/``catch``/``try``/``namespace eval``).  It deliberately
+    does not emit nested proc defs or namespace imports — those would
+    be incorrect because nested ``proc`` statements inside a proc body
+    only take effect when that proc is invoked.
+    """
+    try:
+        commands = segment_commands(body_text, body_token=body_tok)
+    except Exception:  # pragma: no cover - defensive
+        return
+    for cmd in commands:
+        if cmd.is_partial or not cmd.argv:
+            continue
+        texts = cmd.texts
+        argv = cmd.argv
+        head = texts[0] if texts else ""
+        if not head:
+            continue
+        if head in ("if", "catch", "try", "namespace"):
+            # Descend into braced bodies that commonly wrap factory calls.
+            _scan_factory_structural(head, texts, argv, ns_prefix, ctx)
+            continue
+        _maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx)
+
+
+def _scan_factory_structural(
+    head: str,
+    texts: list[str],
+    argv: list[Token],
+    ns_prefix: str,
+    ctx: _ScanCtx,
+) -> None:
+    """Recurse a structural command's braced bodies for factory candidates."""
+    if head == "namespace" and len(texts) >= 4 and texts[1] == "eval":
+        raw_ns = texts[2]
+        if raw_ns.startswith("::"):
+            inner = raw_ns.lstrip(":")
+        elif ns_prefix:
+            inner = f"{ns_prefix}::{raw_ns}"
+        else:
+            inner = raw_ns
+        if argv[3].type is TokenType.STR:
+            _scan_factory_candidates(texts[3], argv[3], inner, ctx)
+        return
+    if head == "if":
+        i = 1
+        expect_body = False
+        while i < len(texts):
+            w = texts[i]
+            if w == "then":
+                expect_body = True
+                i += 1
+                continue
+            if w == "elseif":
+                expect_body = False
+                i += 1
+                continue
+            if w == "else":
+                expect_body = True
+                i += 1
+                continue
+            if expect_body and argv[i].type is TokenType.STR:
+                _scan_factory_candidates(texts[i], argv[i], ns_prefix, ctx)
+                expect_body = False
+            else:
+                expect_body = True
+            i += 1
+        return
+    if head == "catch" and len(texts) >= 2 and argv[1].type is TokenType.STR:
+        _scan_factory_candidates(texts[1], argv[1], ns_prefix, ctx)
+        return
+    if head == "try" and len(texts) >= 2:
+        if argv[1].type is TokenType.STR:
+            _scan_factory_candidates(texts[1], argv[1], ns_prefix, ctx)
+        i = 2
+        while i < len(texts):
+            clause = texts[i]
+            if clause == "finally" and i + 1 < len(texts) and argv[i + 1].type is TokenType.STR:
+                _scan_factory_candidates(texts[i + 1], argv[i + 1], ns_prefix, ctx)
+                return
+            if (
+                clause in ("on", "trap")
+                and i + 3 < len(texts)
+                and argv[i + 3].type is TokenType.STR
+            ):
+                _scan_factory_candidates(texts[i + 3], argv[i + 3], ns_prefix, ctx)
+                i += 4
+            else:
+                i += 1
+        return
+
+
+def _is_factory_body(body_text: str, params: list[str]) -> bool:
+    """Return True when *body_text* matches the ``proc $p1 $p2 $p3`` idiom.
+
+    The canonical tcllib wrapper is::
+
+        proc foo {name args body} {
+            ...
+            proc $name $args $body
+            ...
+        }
+
+    We look for any top-level ``proc`` command whose three arguments
+    are ``$name $args $body`` in some order matching the wrapper's own
+    parameter list.  Non-variable arguments disqualify the match to
+    avoid treating ``proc $name foo body`` as a factory.
+    """
+    if len(params) < 3:
+        return False
+    try:
+        commands = segment_commands(body_text)
+    except Exception:  # pragma: no cover - defensive
+        return False
+    # The segmenter reconstructs substitutions as ``${name}``; accept the
+    # bare ``$name`` form too for robustness.
+    param_vars = set()
+    for p in params:
+        param_vars.add(f"${p}")
+        param_vars.add(f"${{{p}}}")
+    for cmd in commands:
+        if cmd.is_partial or not cmd.texts:
+            continue
+        t = cmd.texts
+        if t[0] != "proc" or len(t) != 4:
+            continue
+        if t[1] in param_vars and t[2] in param_vars and t[3] in param_vars:
+            return True
+    return False
+
+
+def _resolve_factory_defs(ctx: _ScanCtx) -> None:
+    """Emit synthetic ProcDefs for each factory-wrapper call site."""
+    if not ctx.candidates or not ctx.proc_bodies:
+        return
+    # Map every factory wrapper to ``(qualified_name, namespace_prefix)``.
+    # The namespace prefix is the namespace the wrapper itself belongs to,
+    # matching Tcl's runtime behaviour: ``proc NAME …`` executed inside
+    # a proc creates the new command in the wrapper's home namespace.
+    factories: dict[str, tuple[str, str]] = {}
+    for info in ctx.proc_bodies:
+        if not _is_factory_body(info.body_text, info.params):
+            continue
+        factories[info.qname] = (info.qname, info.ns_prefix)
+        # Also index by bare name so callers using the unqualified form
+        # (``DEFC showat``) resolve even without explicit qualification.
+        simple = info.qname.rsplit("::", 1)[-1]
+        factories.setdefault(simple, (info.qname, info.ns_prefix))
+    if not factories:
+        return
+    for cand in ctx.candidates:
+        target = factories.get(cand.head)
+        if target is None and cand.head.startswith("::"):
+            target = factories.get(cand.head.lstrip(":"))
+        if target is None:
+            # Unqualified head: also try resolving within the call-site
+            # namespace (``::ns::HEAD``) so a factory defined next to
+            # its callers still matches.
+            qualified_head = _qualify(cand.ns_prefix, cand.head)
+            target = factories.get(qualified_head)
+        if target is None:
+            continue
+        _factory_qname, factory_ns = target
+        # The emitted proc lives in the factory's own namespace unless
+        # the call supplied a fully-qualified name.
+        if cand.name.startswith("::"):
+            emitted_q = cand.name
+        elif factory_ns:
+            emitted_q = f"::{factory_ns}::{cand.name}"
+        else:
+            emitted_q = f"::{cand.name}"
+        simple = emitted_q.rsplit("::", 1)[-1]
+        if emitted_q in ctx.result.all_procs:
+            continue
+        ctx.result.all_procs[emitted_q] = ProcDef(
+            name=simple,
+            qualified_name=emitted_q,
+            params=[],  # factory callers supply params but we'd need
+            # the wrapper's mapping to know which token corresponds;
+            # leave empty — users still get a jump target.
+            name_range=range_from_token(cand.name_tok),
+            body_range=range_from_token(cand.body_tok),
+        )
 
 
 def _emit_class(

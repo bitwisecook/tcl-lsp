@@ -240,9 +240,14 @@ class WorkspaceIndex:
         qualified = f"::{name}"
         if qualified in procs:
             return list(procs[qualified])
-        # O(1) tail-name lookup instead of O(n) scan
+        # O(1) tail-name lookup instead of O(n) scan.  The tail index
+        # keys on the simple (unqualified) name, so strip any namespace
+        # qualifier from the input before looking up — otherwise a
+        # reference like ``vt::showat`` would miss every
+        # ``::target::...::showat`` in the index.
+        tail = name.rsplit("::", 1)[-1] if "::" in name else name
         results: list[IndexEntry] = []
-        for qname in tail_index.get(name, ()):
+        for qname in tail_index.get(tail, ()):
             if qname in procs:
                 results.extend(procs[qname])
         return results

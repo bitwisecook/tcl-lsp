@@ -160,3 +160,61 @@ class TestPackageResolver:
         resolver.configure(search_paths=["/nonexistent/path/xyz"])
         resolver.scan_packages()
         assert resolver.all_package_names() == []
+
+    def test_first_search_path_wins(self):
+        # When the same package name is provided by two paths, the first
+        # one scanned takes priority — matching Tcl's ``auto_path``
+        # semantics where the first ``package ifneeded`` that matches
+        # satisfies the require.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = os.path.join(tmpdir, "ws")
+            libdir = os.path.join(tmpdir, "lib")
+            for base in (workspace, libdir):
+                pkg_dir = os.path.join(base, "mylib")
+                os.makedirs(pkg_dir)
+                Path(os.path.join(pkg_dir, "mylib.tcl")).write_text(f"# from {base}")
+                Path(os.path.join(pkg_dir, "pkgIndex.tcl")).write_text(
+                    "package ifneeded mylib 1.0 [list source [file join $dir mylib.tcl]]"
+                )
+            resolver = PackageResolver()
+            # Workspace first — its copy should win.
+            resolver.configure(search_paths=[workspace, libdir])
+            files = resolver.resolve("mylib")
+            assert len(files) == 1
+            assert files[0].startswith(workspace)
+
+    def test_add_search_paths_preserves_existing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            first_dir = os.path.join(tmpdir, "first")
+            second_dir = os.path.join(tmpdir, "second")
+            for base, name in ((first_dir, "firstpkg"), (second_dir, "secondpkg")):
+                pkg_dir = os.path.join(base, f"{name}1.0")
+                os.makedirs(pkg_dir)
+                Path(os.path.join(pkg_dir, f"{name}.tcl")).write_text("")
+                Path(os.path.join(pkg_dir, "pkgIndex.tcl")).write_text(
+                    f"package ifneeded {name} 1.0 [list source [file join $dir {name}.tcl]]"
+                )
+            resolver = PackageResolver()
+            resolver.configure(search_paths=[first_dir])
+            resolver.scan_packages()
+            assert "firstpkg" in resolver.all_package_names()
+            resolver.add_search_paths([second_dir])
+            assert "firstpkg" in resolver.all_package_names()
+            assert "secondpkg" in resolver.all_package_names()
+
+    def test_add_search_paths_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pkg_dir = os.path.join(tmpdir, "pkg1.0")
+            os.makedirs(pkg_dir)
+            Path(os.path.join(pkg_dir, "pkg.tcl")).write_text("")
+            Path(os.path.join(pkg_dir, "pkgIndex.tcl")).write_text(
+                "package ifneeded pkg 1.0 [list source [file join $dir pkg.tcl]]"
+            )
+            resolver = PackageResolver()
+            resolver.configure(search_paths=[])
+            resolver.scan_packages()
+            resolver.add_search_paths([tmpdir])
+            first_count = len(resolver.resolve("pkg"))
+            resolver.add_search_paths([tmpdir])
+            second_count = len(resolver.resolve("pkg"))
+            assert first_count == second_count == 1
