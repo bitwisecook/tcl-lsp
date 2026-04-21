@@ -3291,10 +3291,15 @@ class Analyser:
         implicit_vars: frozenset[str] = frozenset()
         if self._file_path and self._file_path.endswith("pkgIndex.tcl"):
             implicit_vars = frozenset({"dir"})
+        # Globals that any proc in this module writes may be populated
+        # by a proc call (directly or via ``source``) before the
+        # top-level reads the variable — suppress read-before-set for
+        # these in the top-level scope.
+        top_level_externals = implicit_vars | self._globals_written_by_procs(cu)
         self._emit_cfg_ssa_diagnostics_for_function(
             cu.top_level.cfg,
             cu.top_level.analysis,
-            cross_event_vars=implicit_vars,
+            cross_event_vars=top_level_externals,
             ssa=cu.top_level.ssa,
         )
         conn = cu.connection_scope
@@ -3774,6 +3779,48 @@ class Analyser:
                 if d.code != "W123"
                 or (d.range.start.offset, d.range.end.offset) not in resolved_ranges
             ]
+
+    def _globals_written_by_procs(self, cu: CompilationUnit) -> frozenset[str]:
+        """Return names of global variables that any proc in ``cu`` writes.
+
+        A proc writes to a global when it either declares ``global X`` and
+        then sets ``X`` (via ``set``/``incr``/``append``/``lappend``/...),
+        or writes through a fully-qualified name (``set ::X ...``).  These
+        globals may be populated at runtime by calls to those procs —
+        including indirect calls via ``source`` — so top-level reads of
+        such variables should not trigger W210.  Names are returned without
+        the leading ``::`` since the read-before-set analysis skips
+        qualified reads and reports only bare names.
+        """
+        result: set[str] = set()
+        for fu in cu.procedures.values():
+            global_aliases: set[str] = set()
+            written: set[str] = set()
+            for block in fu.cfg.blocks.values():
+                for stmt in block.statements:
+                    if isinstance(stmt, IRCall):
+                        if stmt.command == "global":
+                            global_aliases.update(stmt.defs)
+                            continue
+                        if stmt.command in ("variable", "upvar"):
+                            continue
+                        names: tuple[str, ...] = stmt.defs
+                    elif isinstance(
+                        stmt,
+                        (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr),
+                    ):
+                        names = (stmt.name,)
+                    else:
+                        continue
+                    for name in names:
+                        if name.startswith("::"):
+                            bare = name.lstrip(":")
+                            if bare:
+                                result.add(bare)
+                        else:
+                            written.add(name)
+            result.update(global_aliases & written)
+        return frozenset(result)
 
     def _emit_cfg_ssa_diagnostics_for_function(
         self,
