@@ -59,14 +59,16 @@ class PackageResolver:
         priority.  Pass ``prepend=True`` to place the new entries at the
         front of the effective order (for workspace-wins semantics).
         """
+        seen_new: set[str] = set()
         new_paths: list[str] = []
         for path in paths:
             if not path:
                 continue
             expanded = os.path.expanduser(path)
             abs_path = os.path.abspath(expanded)
-            if abs_path in self._scanned_paths:
+            if abs_path in self._scanned_paths or abs_path in seen_new:
                 continue
+            seen_new.add(abs_path)
             new_paths.append(abs_path)
         if not new_paths:
             return
@@ -74,7 +76,7 @@ class PackageResolver:
             self._search_paths = new_paths + [
                 p
                 for p in self._search_paths
-                if os.path.abspath(os.path.expanduser(p)) not in new_paths
+                if os.path.abspath(os.path.expanduser(p)) not in seen_new
             ]
         else:
             existing = {os.path.abspath(os.path.expanduser(p)) for p in self._search_paths}
@@ -111,9 +113,12 @@ class PackageResolver:
         """Walk *abs_path* recording pkgIndex.tcl and tclIndex entries."""
         if abs_path in self._scanned_paths:
             return
-        self._scanned_paths.add(abs_path)
+        # Don't mark a non-existent directory as scanned — a transient
+        # mount or a path created later should still get picked up on
+        # a subsequent call.
         if not os.path.isdir(abs_path):
             return
+        self._scanned_paths.add(abs_path)
         for root, _dirs, files in os.walk(abs_path):
             if "pkgIndex.tcl" in files:
                 pkg_index_path = os.path.join(root, "pkgIndex.tcl")

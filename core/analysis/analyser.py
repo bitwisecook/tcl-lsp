@@ -1533,7 +1533,12 @@ class Analyser:
             self.result.has_dynamic_providers = True
         elif cmd_name == "namespace" and len(args) >= 2 and args[0] == "import":
             self.result.has_dynamic_providers = True
-            importing_ns = f"::{scope.name}" if scope.kind == "namespace" and scope.name else "::"
+            # ``scope.name`` is only the *local* namespace segment, so
+            # walk the scope chain to get the fully-qualified prefix —
+            # otherwise nested ``namespace eval outer { namespace eval
+            # inner { namespace import … } }`` would record the import
+            # under ``::inner`` instead of ``::outer::inner``.
+            importing_ns = self._namespace_from_scope(scope)
             i = 1
             while i < len(args):
                 pattern = args[i]
@@ -1546,8 +1551,16 @@ class Analyser:
                 if "::" not in pattern or "$" in pattern or "[" in pattern:
                     i += 1
                     continue
+                # A pattern without a leading ``::`` is resolved
+                # relative to the *current* namespace, not the global
+                # one — Tcl's own rule for ``namespace import``.  So
+                # ``namespace eval foo { namespace import bar::* }``
+                # imports ``::foo::bar::*``, not ``::bar::*``.
                 if not pattern.startswith("::"):
-                    pattern = f"::{pattern}"
+                    if importing_ns == "::":
+                        pattern = f"::{pattern}"
+                    else:
+                        pattern = f"{importing_ns}::{pattern}"
                 if tok is not None:
                     self.result.namespace_imports.append(
                         NamespaceImport(
@@ -1567,7 +1580,16 @@ class Analyser:
                 source_ns = cmd_name[: -len("::import")]
                 if not source_ns.startswith("::"):
                     source_ns = f"::{source_ns}"
-                alias_ns = alias if alias.startswith("::") else f"::{alias}"
+                # Relative aliases live under the current namespace —
+                # ``namespace eval outer { some::ns::import vt }``
+                # creates ``::outer::vt``, not ``::vt``.
+                current_ns = self._namespace_from_scope(scope)
+                if alias.startswith("::"):
+                    alias_ns = alias
+                elif current_ns == "::":
+                    alias_ns = f"::{alias}"
+                else:
+                    alias_ns = f"{current_ns}::{alias}"
                 self.result.namespace_imports.append(
                     NamespaceImport(
                         ns=alias_ns,

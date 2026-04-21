@@ -6,11 +6,15 @@ well-defined, side-effect-free behaviour:
 
     lappend auto_path [file join [file dirname [info script]] ..]
     lappend auto_path [file dirname [file dirname [info script]]]
-    set auto_path [linsert $auto_path 0 /abs/path]
+    lappend auto_path /abs/path
+    lappend auto_path ~/lib
 
-This module understands those forms well enough to produce a concrete
-absolute directory.  Unknown forms return ``None`` and the caller simply
-skips the entry — we never fall back to guessing.
+The supported subset is ``[info script]``, ``[file dirname …]``,
+``[file join …]``, literal words, and ``~``-prefixed paths (expanded
+via ``os.path.expanduser``).  Variable substitutions (``$auto_path``,
+``$env(…)``) and list-manipulation commands (``linsert``, ``lsort``…)
+are not evaluated — expressions that rely on them return ``None`` and
+the caller simply skips the entry.  We never fall back to guessing.
 """
 
 from __future__ import annotations
@@ -40,7 +44,9 @@ def evaluate_auto_path_expr(raw: str, info_script: str | None) -> str | None:
     result = _eval(parsed, info_script)
     if result is None:
         return None
-    return os.path.abspath(result)
+    # Expand ``~`` so ``lappend auto_path ~/lib`` resolves to the
+    # user's home directory rather than a cwd-relative ``~`` literal.
+    return os.path.abspath(os.path.expanduser(result))
 
 
 def _tokenise(text: str) -> list[str] | None:
