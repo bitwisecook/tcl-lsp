@@ -145,6 +145,103 @@ from ._scan import (  # noqa: E402
 # Public API
 
 
+def _proc_name_variants(name: str) -> tuple[str, ...]:
+    """Candidate ``proc_index`` keys for a user-supplied name.
+
+    The user's spelling of a command name on a ``rename`` / ``interp
+    hide`` line can be unqualified (``foo``) or fully qualified
+    (``::foo``, ``::ns::foo``).  The compile-time ``proc_index`` keys
+    are always fully qualified.  We probe both the raw spelling and
+    the ``::``-prefixed form so stripping is robust to the
+    user-visible spelling.  Brace-wrapping (``{foo}``) survives as-is
+    because the IR lowers brace-quoted words to their inner bytes.
+    """
+    name = name.strip()
+    if not name:
+        return ()
+    if name.startswith("::"):
+        return (name,)
+    return (name, f"::{name}")
+
+
+def _collect_dynamically_modified_procs(ir_module: IRModule) -> set[str]:
+    """Return every proc name that ``rename`` / ``interp hide`` /
+    ``interp expose`` touches anywhere in ``ir_module``.
+
+    Used by :func:`wasm_codegen_module` to invalidate
+    ``proc_index`` entries for those names, downgrading calls from
+    a compile-time specialised ``call $::foo`` to the runtime
+    ``tcl_eval`` / ``proc_lookup`` path so runtime hide / rename
+    state is visible.
+
+    The walker recurses through every control-flow node that can
+    hold a script body (``IRIf``, ``IRFor``, ``IRWhile``,
+    ``IRForeach``, ``IRSwitch``, ``IRCatch``, ``IRTry``,
+    ``IRBlock``).  Per-clause bodies are visited so hides inside a
+    ``catch { interp hide {} foo }`` scope still count.
+    """
+    affected: set[str] = set()
+
+    def _scan_statement(stmt: IRStatement) -> None:
+        match stmt:
+            case IRCall(command=cmd, args=args):
+                if cmd == "rename" and len(args) >= 1:
+                    affected.add(args[0])
+                    if len(args) >= 2:
+                        affected.add(args[1])
+                elif cmd == "interp" and args and args[0] in ("hide", "expose"):
+                    # ``interp hide path cmd ?hiddenName?`` →
+                    # args = ("hide", path, cmd, [hiddenName]).
+                    # Both ``cmd`` and ``hiddenName`` / ``newName``
+                    # name procs that may disappear or re-appear at
+                    # runtime, so both are invalidated.
+                    if len(args) >= 3:
+                        affected.add(args[2])
+                    if len(args) >= 4:
+                        affected.add(args[3])
+            case IRIf(clauses=clauses, else_body=else_body):
+                for clause in clauses:
+                    _scan_script(clause.body)
+                if else_body is not None:
+                    _scan_script(else_body)
+            case IRFor(init=init, body=body, next=next_s):
+                _scan_script(init)
+                _scan_script(body)
+                _scan_script(next_s)
+            case IRWhile(body=body):
+                _scan_script(body)
+            case IRForeach(body=body):
+                _scan_script(body)
+            case IRSwitch(arms=arms, default_body=default_body):
+                for arm in arms:
+                    if arm.body is not None:
+                        _scan_script(arm.body)
+                if default_body is not None:
+                    _scan_script(default_body)
+            case IRCatch(body=body):
+                _scan_script(body)
+            case IRTry(body=body, finally_body=finally_body):
+                _scan_script(body)
+                if finally_body is not None:
+                    _scan_script(finally_body)
+            case IRBlock(body=body):
+                _scan_script(body)
+            case _:
+                pass
+
+    def _scan_script(script: IRScript) -> None:
+        for stmt in script.statements:
+            _scan_statement(stmt)
+
+    _scan_script(ir_module.top_level)
+    for proc in ir_module.procedures.values():
+        _scan_script(proc.body)
+    if ir_module.methods:
+        for method in ir_module.methods.values():
+            _scan_script(method.body)
+    return affected
+
+
 def wasm_codegen_function(
     cfg: CFGFunction,
     params: tuple[str, ...] = (),
@@ -282,6 +379,22 @@ def wasm_codegen_module(
         if params and params[-1] == "args":
             proc_args_tail.add(qname)
         func_idx += 1
+
+    # Invalidate proc_index entries for any proc that's the target of
+    # a ``rename`` / ``interp hide`` / ``interp expose`` anywhere in
+    # the module.  The compile-time direct-call specialisation
+    # (``_resolve_proc`` → ``call $::foo``) bypasses the runtime's
+    # hidden-commands table and rename-moved cmd_table, so it's
+    # unsound for procs whose runtime dispatch state may change.
+    # Removing them from ``proc_index`` downgrades calls to the
+    # eval fallback (``tcl_eval`` → ``proc_lookup``), which observes
+    # the runtime state correctly.  See
+    # ``docs/design/runtime/command-introspection.md`` §8.1 for the
+    # background.
+    dynamically_modified = _collect_dynamically_modified_procs(ir_module)
+    for name in dynamically_modified:
+        for variant in _proc_name_variants(name):
+            proc_index.pop(variant, None)
 
     # Shared string table so data segments from different functions
     # don't collide at offset 0. All emitters share a single list,
