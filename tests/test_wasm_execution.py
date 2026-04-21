@@ -2983,6 +2983,65 @@ namespace import -force ::src::foo
         )
 
 
+class TestTopLevelForeachIterVarVisible:
+    """Regression: at top level, a ``foreach`` iteration variable
+    must be reachable from an eval-fallback in the body.  The
+    compiler emits the iter var as a WASM local (fast path), so
+    an eval-fallback reference like ``[eval $i]`` or ``interp
+    delete $i`` couldn't resolve ``$i`` via the global table and
+    saw the empty string, silently passing "" to the runtime.
+
+    ``interp.test`` trips this with
+    ``foreach i [interp children] { interp delete $i }`` — after
+    earlier tests create children, the delete loop would fail
+    with "cannot delete the current interpreter" because ``$i``
+    resolved to empty.  The emitter now publishes each iteration
+    value as a global (``tcl_global_set``) immediately after
+    binding the WASM local, so the eval-fallback sees the real
+    element.
+    """
+
+    def _run_and_read_stdout(self, source: str) -> str:
+        import tempfile
+
+        from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+        wasm, _diag = _compile_tcl_with_diag(source, "toplevel_foreach")
+        with tempfile.TemporaryDirectory() as tmpd:
+            r = _run_wasm(wasm, capture_stdout=True, preopen_tmpdir=tmpd)
+        return r[1].strip() if len(r) >= 2 else ""
+
+    def test_foreach_iter_visible_to_interp_delete(self):
+        """The top-level-foreach + ``interp delete $i`` pattern
+        from ``interp.test``."""
+        out = self._run_and_read_stdout(
+            """\
+interp create a
+interp create b
+foreach i [interp children] {
+    interp delete $i
+}
+puts "remaining=<[interp children]>"
+"""
+        )
+        assert out == "remaining=<>"
+
+    def test_foreach_iter_visible_to_eval_fallback(self):
+        """Generic shape: an eval-fallback in the loop body
+        reads ``$i`` and sees the real iteration value."""
+        out = self._run_and_read_stdout(
+            """\
+set result ""
+foreach i {alpha beta gamma} {
+    # ``append`` goes through the runtime for dynamic args.
+    append result [string toupper $i] ","
+}
+puts $result
+"""
+        )
+        assert out == "ALPHA,BETA,GAMMA,"
+
+
 class TestInfoLevelArgv:
     """Regression tests: ``info level 0`` / ``info level -N`` must
     return the actual list of words (proc name + call args) that
