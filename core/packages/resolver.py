@@ -33,30 +33,72 @@ class PackageResolver:
         self._packages: dict[str, list[PackageInfo]] = {}  # name -> versions
         self._auto_index: dict[str, list[str]] = {}  # proc_name -> [abs paths]
         self._search_paths: list[str] = []
+        self._scanned_paths: set[str] = set()
         self._scanned: bool = False
 
     def configure(self, search_paths: list[str]) -> None:
+        """Replace the search-path list and invalidate the scan cache.
+
+        Workspace roots should appear first so that a workspace-local
+        copy of a package wins over any copy provided by an installed
+        library path — matching Tcl's own ``auto_path`` order, where the
+        first ``pkgIndex.tcl`` that satisfies a ``package require`` is
+        the one that takes effect.
+        """
         self._search_paths = list(search_paths)
+        self._scanned_paths.clear()
         self._scanned = False
 
+    def add_search_paths(self, paths: list[str], *, prepend: bool = False) -> None:
+        """Incorporate additional search paths without discarding the scan cache.
+
+        Used to honour a document's own ``lappend auto_path`` declarations:
+        the new paths are merged in (deduplicated) and scanned immediately
+        for packages and tclIndex entries.  Existing ``_packages`` entries
+        are preserved, so the first provider already discovered keeps
+        priority.  Pass ``prepend=True`` to place the new entries at the
+        front of the effective order (for workspace-wins semantics).
+        """
+        new_paths: list[str] = []
+        for path in paths:
+            if not path:
+                continue
+            expanded = os.path.expanduser(path)
+            abs_path = os.path.abspath(expanded)
+            if abs_path in self._scanned_paths:
+                continue
+            new_paths.append(abs_path)
+        if not new_paths:
+            return
+        if prepend:
+            self._search_paths = new_paths + [
+                p
+                for p in self._search_paths
+                if os.path.abspath(os.path.expanduser(p)) not in new_paths
+            ]
+        else:
+            existing = {os.path.abspath(os.path.expanduser(p)) for p in self._search_paths}
+            self._search_paths.extend(p for p in new_paths if p not in existing)
+        for path in new_paths:
+            self._scan_single_path(path)
+
     def scan_packages(self) -> None:
-        """Walk search paths looking for pkgIndex.tcl and tclIndex files."""
+        """Walk search paths looking for pkgIndex.tcl and tclIndex files.
+
+        Paths are visited in ``_search_paths`` order and the first
+        ``package ifneeded`` entry for a given name wins — later
+        providers append to the version list but do not displace the
+        head.  This mirrors Tcl's own ``auto_path`` semantics.
+        """
         self._packages.clear()
         self._auto_index.clear()
+        self._scanned_paths.clear()
         for search_path in self._search_paths:
             expanded = os.path.expanduser(search_path)
             if not os.path.isdir(expanded):
                 log.warning("PackageResolver: directory not found: %s", search_path)
                 continue
-            for root, _dirs, files in os.walk(expanded):
-                if "pkgIndex.tcl" in files:
-                    pkg_index_path = os.path.join(root, "pkgIndex.tcl")
-                    self._parse_pkg_index(pkg_index_path, root)
-                # Also parse tclIndex files for auto-loading support.
-                files_lower = {f.lower(): f for f in files}
-                if "tclindex" in files_lower:
-                    tcl_index_path = os.path.join(root, files_lower["tclindex"])
-                    self._parse_auto_index(tcl_index_path)
+            self._scan_single_path(os.path.abspath(expanded))
         self._scanned = True
         log.info(
             "Package scan: found %d packages, %d auto-index procs in %d search paths",
@@ -64,6 +106,22 @@ class PackageResolver:
             len(self._auto_index),
             len(self._search_paths),
         )
+
+    def _scan_single_path(self, abs_path: str) -> None:
+        """Walk *abs_path* recording pkgIndex.tcl and tclIndex entries."""
+        if abs_path in self._scanned_paths:
+            return
+        self._scanned_paths.add(abs_path)
+        if not os.path.isdir(abs_path):
+            return
+        for root, _dirs, files in os.walk(abs_path):
+            if "pkgIndex.tcl" in files:
+                pkg_index_path = os.path.join(root, "pkgIndex.tcl")
+                self._parse_pkg_index(pkg_index_path, root)
+            files_lower = {f.lower(): f for f in files}
+            if "tclindex" in files_lower:
+                tcl_index_path = os.path.join(root, files_lower["tclindex"])
+                self._parse_auto_index(tcl_index_path)
 
     def resolve(self, package_name: str, version: str | None = None) -> list[str]:
         """Resolve a package name to its source file paths."""

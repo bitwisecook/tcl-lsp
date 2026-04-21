@@ -264,6 +264,42 @@ class SourceTarget:
 
 
 @dataclass(frozen=True, slots=True)
+class NamespaceImport:
+    """A ``namespace import`` declaration observed during analysis.
+
+    ``ns`` is the importing namespace (``::`` at top level).  ``pattern``
+    is the fully-qualified import pattern, e.g. ``::term::ansi::send::*``
+    or ``::some::ns::specific_cmd``.  When Tcl runs ``namespace import``
+    it creates a local alias for every command in the source namespace
+    matching the pattern; the LSP records the declaration so qualified
+    references like ``vt::showat`` can be rewritten to the underlying
+    fully-qualified name.
+    """
+
+    ns: str  # importing namespace, e.g. "::" or "::vt"
+    pattern: str  # fully-qualified pattern, e.g. "::term::ansi::send::*"
+    range: Range
+    conjectured: bool = False
+    """True when inferred from a tcllib-style ``X::import`` wrapper call
+    rather than a direct ``namespace import`` — lower confidence, used
+    only as a fallback."""
+
+
+@dataclass(frozen=True, slots=True)
+class AutoPathEntry:
+    """A statically-resolved ``lappend auto_path`` / ``set auto_path`` entry.
+
+    ``resolved_path`` is an absolute directory path when the argument
+    could be evaluated from static context (literals, ``[file dirname]``,
+    ``[file join]``, ``[info script]``); otherwise ``None``.
+    """
+
+    resolved_path: str | None
+    raw: str
+    range: Range
+
+
+@dataclass(frozen=True, slots=True)
 class PackageContext:
     """Packages active in a file, with confidence levels.
 
@@ -409,6 +445,8 @@ class AnalysisResult:
     package_provides: list[PackageProvide] = field(default_factory=list)
     has_dynamic_providers: bool = False  # True if load/auto_path detected
     source_targets: list[SourceTarget] = field(default_factory=list)
+    namespace_imports: list[NamespaceImport] = field(default_factory=list)
+    auto_path_entries: list[AutoPathEntry] = field(default_factory=list)
     stub_commands: list[StubCommandDef] = field(default_factory=list)
     stub_expr_defs: list[StubExprDef] = field(default_factory=list)
     # Command aliases: maps qualified alias_name (e.g. ``::=``) to
@@ -483,6 +521,8 @@ class AnalysisResult:
             package_provides=self.package_provides[:],
             has_dynamic_providers=self.has_dynamic_providers,
             source_targets=self.source_targets[:],
+            namespace_imports=self.namespace_imports[:],
+            auto_path_entries=self.auto_path_entries[:],
             stub_commands=self.stub_commands[:],
             stub_expr_defs=self.stub_expr_defs[:],
             command_aliases=self.command_aliases.copy(),
@@ -513,6 +553,8 @@ class AnalysisResult:
             package_requires=self.package_requires,
             command_aliases=self.command_aliases,
             source_targets=self.source_targets,
+            namespace_imports=self.namespace_imports,
+            auto_path_entries=self.auto_path_entries,
         )
 
     def _ensure_bare_name_index(self) -> dict[str, ProcDef]:
