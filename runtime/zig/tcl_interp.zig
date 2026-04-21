@@ -1797,13 +1797,16 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     // alias targets are user-defined by construction; a missing
     // target is a clear "unknown command" diagnostic.
     //
-    // Cross-interp aliases: the parent interp is stashed on
-    // ``OFF_IMPORT_REF_HEAD`` at create time (aliases never have
-    // importers so the slot is free).  When it's set and names a
-    // different interp, we enter that interp before the lookup so
-    // the target resolves against the parent's cmd_table, then
-    // leave on return.
-    const parent_interp: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_IMPORT_REF_HEAD));
+    // Cross-interp aliases: the parent interp is stashed on the
+    // ``AliasRec.parent_interp`` slot at create time.  When it's
+    // set and names a different interp, we enter that interp
+    // before the lookup so the target resolves against the
+    // parent's cmd_table, then leave on return.  (Previously this
+    // lived in the Command's ``OFF_IMPORT_REF_HEAD`` slot, which
+    // clashed with ``namespace import`` back-reference tracking
+    // — moved into ``AliasRec`` so the two metadata axes stay
+    // independent.)
+    const parent_interp: u32 = rec.parent_interp;
     // If the stashed parent interp was torn down by a prior
     // ``interp delete``, produce a clean "unknown command"
     // diagnostic instead of walking a zeroed Interp.  Matches the
@@ -2317,6 +2320,15 @@ fn interp_alias_create(
     // overwrites any previous ``foo`` (proc, alias, or otherwise).
     // The previous Command stays in linear memory — leaked per the
     // bump-allocator contract.
+    //
+    // The parent interp is stashed directly on the ``AliasRec``
+    // (via ``alias_alloc``'s last parameter) rather than on the
+    // Command's ``OFF_IMPORT_REF_HEAD`` slot: that slot is shared
+    // with the ``namespace import`` back-reference list head, so a
+    // later ``namespace import`` of this alias could overwrite the
+    // stashed Interp* and corrupt cross-interp dispatch.  Zero
+    // here means "same-interp dispatch; no swap needed".
+    const stash_parent: u32 = if (parent_interp != child_interp) parent_interp else 0;
     const cmd = alias_mod.alias_alloc(
         r.target_ns,
         r.simple_ptr,
@@ -2325,18 +2337,9 @@ fn interp_alias_create(
         target_name_len,
         n_prefix,
         prefix_buf,
+        stash_parent,
     );
     _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, cmd);
-    // Stash the parent interp on the Command's flags-neighbour slot
-    // so cross-interp dispatch swaps to the right target.  We only
-    // need the parent when it differs from the child; same-interp
-    // aliases use the shared dispatch path.  The storage lives in
-    // ``OFF_IMPORT_REF_HEAD`` — aliases never have importers, so
-    // the slot is free for this repurpose.  ``is_alias`` gates
-    // readers to this exact shape.
-    if (parent_interp != child_interp) {
-        write_i32(cmd + procs.OFF_IMPORT_REF_HEAD, @bitCast(parent_interp));
-    }
     interp_reg.leave(save);
     // Bump the proc counter so ``proc_buf_nonzero`` fires for
     // bundles whose only commands are aliases.
@@ -2443,31 +2446,38 @@ const AliasListCtx = struct {
 };
 
 /// Visitor for the sizing pass of ``interp aliases``.  Inspects
-/// each bucket, filters to aliases, and accumulates the simple-name
-/// length + separator bytes into ``ctx.total``.  C Tcl's ``interp
-/// aliases`` emits each alias's simple name only — ``{bar foo}``,
-/// not ``{::bar ::foo}``.
+/// each bucket, filters to aliases, and accumulates the worst-case
+/// list-quoted length plus a separator byte into ``ctx.total``.  C
+/// Tcl's ``interp aliases`` emits each alias's simple name only —
+/// ``{bar foo}``, not ``{::bar ::foo}`` — list-quoted so names
+/// containing whitespace / braces / backslashes / leading ``#``
+/// round-trip correctly via ``lindex`` / ``foreach``.
 fn alias_size_visit(ctx: *AliasListCtx, _: u32, _: u32, name_len: u32, cmd: u32) void {
     if (!alias_mod.is_alias(cmd)) return;
     if (ctx.count > 0) ctx.total += 1;
-    ctx.total += name_len;
+    // Worst-case from ``list_elem_quote``: ``2 * name_len + 2``.
+    // Empty names expand to ``{}`` (2 bytes).
+    ctx.total += if (name_len == 0) 2 else (2 * name_len + 2);
     ctx.count += 1;
 }
 
 /// Visitor for the filling pass of ``interp aliases``.  Writes the
-/// alias's simple name into ``ctx.buf`` at ``ctx.off``,
-/// space-separated from prior entries.
+/// alias's simple name into ``ctx.buf`` at ``ctx.off`` via
+/// :func:`tcl_list_quote.list_elem_quote` (element 0) or
+/// :func:`list_elem_quote_nth` (subsequent), space-separated from
+/// prior entries.
 fn alias_fill_visit(ctx: *AliasListCtx, _: u32, name_ptr: u32, name_len: u32, cmd: u32) void {
     if (!alias_mod.is_alias(cmd)) return;
+    const list_quote = @import("tcl_list_quote.zig");
     if (ctx.count > 0) {
         const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
         d[0] = ' ';
         ctx.off += 1;
     }
-    if (name_len > 0) {
-        memcpy(ctx.buf + ctx.off, name_ptr, name_len);
-        ctx.off += name_len;
-    }
+    ctx.off = if (ctx.count == 0)
+        list_quote.list_elem_quote(ctx.buf, ctx.off, name_ptr, name_len)
+    else
+        list_quote.list_elem_quote_nth(ctx.buf, ctx.off, name_ptr, name_len);
     ctx.count += 1;
 }
 
@@ -2654,50 +2664,13 @@ fn eval_interp_hidden(words: []const i32) i32 {
         if (t == 0) return 0;
         break :blk t;
     } else interp_reg.interp_current();
-    const buf_addr = interp_reg.hidden_table_buf(target_interp);
-    const cap = interp_reg.hidden_table_cap(target_interp);
-    if (buf_addr == 0 or cap == 0) return obj_new_string(0, 0);
-
-    const bucket_size: u32 = 16;
-
-    // Two-pass: size then fill.  Keeps memory allocation O(1) beyond
-    // the output buffer itself.
-    var total: u32 = 0;
-    var count: u32 = 0;
-    var i: u32 = 0;
-    while (i < cap) : (i += 1) {
-        const bucket = buf_addr + i * bucket_size;
-        const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
-        const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-        if (cmd == 0) continue; // tombstoned
-        const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        if (count > 0) total += 1;
-        total += name_len;
-        count += 1;
-    }
-    if (total == 0) return obj_new_string(0, 0);
-    const out = alloc(total);
-    var off: u32 = 0;
-    count = 0;
-    i = 0;
-    while (i < cap) : (i += 1) {
-        const bucket = buf_addr + i * bucket_size;
-        const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
-        const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-        if (cmd == 0) continue;
-        const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        if (count > 0) {
-            const d: [*]u8 = @ptrFromInt(out + off);
-            d[0] = ' ';
-            off += 1;
-        }
-        memcpy(out + off, name_ptr, name_len);
-        off += name_len;
-        count += 1;
-    }
-    return obj_new_string(@bitCast(out), @bitCast(off));
+    // Shared walker with ``interp slaves`` / ``interp children`` —
+    // same 16-byte bucket layout, same list-quoting contract on
+    // the emitted simple names.
+    return emit_bucket_names_as_list(
+        interp_reg.hidden_table_buf(target_interp),
+        interp_reg.hidden_table_cap(target_interp),
+    );
 }
 
 /// ``interp invokehidden path ?-global? ?-namespace ns? cmd ?arg…?``.
@@ -2736,7 +2709,15 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
     if (target_interp == 0) return 0;
     var idx: u32 = 3;
     var use_global: bool = false;
-    var target_ns: u32 = 0;
+    // ``-namespace NS`` is deferred: we remember the raw bytes and
+    // resolve via ``ns_create_from_fqn`` *after* the ``enter`` swap
+    // so the namespace lands in the target interp's ns tree rather
+    // than the caller's.  Previously we resolved up-front, which for
+    // cross-interp invokehidden would create ``NS`` in the wrong
+    // interp and then execute against that foreign handle.
+    var ns_name_ptr: u32 = 0;
+    var ns_name_len: u32 = 0;
+    var saw_namespace: bool = false;
     while (idx < words.len) : (idx += 1) {
         const arg = obj_ensure_string(words[idx]);
         const ap: [*]const u8 = @ptrFromInt(arg.ptr);
@@ -2753,7 +2734,9 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
             }
             idx += 1;
             const ns_s = obj_ensure_string(words[idx]);
-            target_ns = tcl_ns.ns_create_from_fqn(ns_s.ptr, ns_s.len);
+            ns_name_ptr = ns_s.ptr;
+            ns_name_len = ns_s.len;
+            saw_namespace = true;
             continue;
         }
         // First non-flag argument is the hidden command name.
@@ -2765,7 +2748,7 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
-    if (use_global and target_ns != 0) {
+    if (use_global and saw_namespace) {
         const err_text = "cannot use -global option and -namespace option together";
         const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
         catch_mod.tcl_cmd_error(msg);
@@ -2805,14 +2788,19 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
     // invokehidden we swap into the target interp so ``ns_root()``
     // resolves against the child's namespace tree and the child's
     // procs / vars become reachable.  Save / restore in one pair.
+    //
+    // The ``-namespace`` resolution (find-or-create) runs *after*
+    // ``enter`` so the ns lands in the target's tree.  Previously
+    // it ran before and the handle pointed at a namespace in the
+    // caller's tree — undefined behaviour for cross-interp calls.
     const swapped = target_interp != interp_reg.interp_current();
     const save = if (swapped) interp_reg.enter(target_interp) else interp_reg.EnterSave{
         .prev_interp = interp_reg.current_interp,
         .prev_root_addr = tcl_ns.root_addr,
         .prev_current_ns = tcl_ns.current_ns,
     };
-    if (target_ns != 0) {
-        tcl_ns.current_ns = target_ns;
+    if (saw_namespace) {
+        tcl_ns.current_ns = tcl_ns.ns_create_from_fqn(ns_name_ptr, ns_name_len);
     } else {
         // Both ``-global`` (explicit) and the default (no flag) land
         // at the target interp's root — matches the C Tcl behaviour
@@ -3135,27 +3123,48 @@ fn eval_interp_slaves(words: []const i32) i32 {
     } else interp_reg.interp_current();
 
     const t_ptr: *interp_reg.Interp = @ptrFromInt(target);
-    const buf_addr = t_ptr.children.buf;
-    const cap = t_ptr.children.cap;
-    if (buf_addr == 0 or cap == 0) return obj_new_string(0, 0);
+    return emit_bucket_names_as_list(t_ptr.children.buf, t_ptr.children.cap);
+}
 
-    // Two-pass: size, then fill.  Same shape as interp aliases /
-    // hidden.  Each entry becomes a list element; we use
-    // ``list_elem_quote`` so names with unusual characters round-trip
-    // correctly — in practice child names are simple identifiers but
-    // being strict keeps the contract tight.
+/// Produce a canonical Tcl list of the populated simple names in a
+/// ``hash_table.Table(16)``-shaped bucket array.  Used by
+/// ``interp slaves`` / ``interp children`` / ``interp hidden`` /
+/// ``interp aliases``: each consults a different bucket array but
+/// the output shape (space-separated, list-quoted on any element
+/// that contains whitespace / braces / backslashes / leading ``#``)
+/// is identical across them.
+///
+/// Bucket layout (see ``hash_table.zig``):
+///
+///     [0..3]   name_ptr  (0 = empty slot)
+///     [4..7]   name_len
+///     [8..11]  hash
+///     [12..15] value    (0 = tombstoned)
+///
+/// Two-pass: size (worst-case ``2 * name_len + 2`` per element per
+/// ``list_elem_quote``, plus one byte of separator) then fill using
+/// :func:`tcl_list_quote.list_elem_quote` on element 0 and
+/// :func:`list_elem_quote_nth` on the rest so a leading ``#`` on
+/// element > 0 stays unbraced (matches ``UpdateStringOfList``).
+fn emit_bucket_names_as_list(buf_addr: u32, cap: u32) i32 {
+    if (buf_addr == 0 or cap == 0) return obj_new_string(0, 0);
+    const bucket_size: u32 = 16;
+    const list_quote = @import("tcl_list_quote.zig");
+
     var total: u32 = 0;
     var count: u32 = 0;
     var i: u32 = 0;
     while (i < cap) : (i += 1) {
-        const bucket = buf_addr + i * 16;
+        const bucket = buf_addr + i * bucket_size;
         const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) continue;
         const handle: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
         if (handle == 0) continue; // tombstoned
         const nlen: u32 = @bitCast(read_i32(bucket + 4));
         if (count > 0) total += 1;
-        total += nlen;
+        // Worst-case expansion from ``list_elem_quote``: ``2n + 2``.
+        // Empty names still need at least ``{}`` (2 bytes).
+        total += if (nlen == 0) 2 else (2 * nlen + 2);
         count += 1;
     }
     if (total == 0) return obj_new_string(0, 0);
@@ -3165,7 +3174,7 @@ fn eval_interp_slaves(words: []const i32) i32 {
     count = 0;
     i = 0;
     while (i < cap) : (i += 1) {
-        const bucket = buf_addr + i * 16;
+        const bucket = buf_addr + i * bucket_size;
         const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) continue;
         const handle: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
@@ -3176,8 +3185,10 @@ fn eval_interp_slaves(words: []const i32) i32 {
             d[0] = ' ';
             off += 1;
         }
-        memcpy(out + off, ep, nlen);
-        off += nlen;
+        off = if (count == 0)
+            list_quote.list_elem_quote(out, off, ep, nlen)
+        else
+            list_quote.list_elem_quote_nth(out, off, ep, nlen);
         count += 1;
     }
     return obj_new_string(@bitCast(out), @bitCast(off));

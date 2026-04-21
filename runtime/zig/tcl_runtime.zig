@@ -499,6 +499,7 @@ pub export fn tcl_test_alias_create(
         @bitCast(target_name_len),
         @bitCast(n_prefix),
         @bitCast(prefix_args_addr),
+        0, // parent_interp — scaffolding always creates same-interp aliases
     );
     _ = tcl_ns.ns_cmd_put(
         @bitCast(dest_ns),
