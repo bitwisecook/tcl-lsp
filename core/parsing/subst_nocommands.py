@@ -1,4 +1,4 @@
-"""Compile-time evaluator for ``[subst -nocommands {template}]``.
+r"""Compile-time evaluator for ``[subst -nocommands {template}]``.
 
 Used by P7.3's lowering hook when we see a ``proc \$var [subst
 -nocommands {…}]`` shape and want to materialise the body string
@@ -41,7 +41,7 @@ _NAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012
 
 
 def subst_nocommands(template: str, const_map: Mapping[str, str]) -> str | None:
-    """Evaluate a ``subst -nocommands`` template at compile time.
+    r"""Evaluate a ``subst -nocommands`` template at compile time.
 
     Returns the substituted string on success, or ``None`` if any
     condition above refuses the evaluation.  Refusal is always safe
