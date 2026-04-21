@@ -1,31 +1,38 @@
-# v1.7.1
+# v1.7.2
 
 ## New Features
-- WASM compiler: compile pure Tcl to standalone WebAssembly with an embedded Zig interpreter, supporting procs, namespaces, arrays, upvar/uplevel, real regexp via Tcl's Spencer engine, and WASI-backed file/clock operations
-- Runtime namespace tree: full hierarchical namespace resolution with `namespace eval`, `namespace import/export/forget`, `namespace path`, and per-namespace command/variable tables
-- Workspace signature scan: background indexing descends into if/catch/try bodies for broader symbol coverage
-- Runtime rename and interp alias support with dispatch trampolines and invalidation
-- Parse cache: sidecar storage keyed on body pointer/length, consulted during eval for faster proc lookups
-- Option-shape factory call-site specialisation in the compiler pass
-- Compile-time `subst -nocommands` evaluator and `proc $var body` resolution via lowering const-map
+- Command introspection and manipulation: `info level`, `info script`, and
+  related `info` callers now match tclsh error strings; `interp hide` /
+  `interp expose` / `interp invokehidden` dispatch through a real
+  hidden-command table, and `namespace which` is aware of hidden commands.
+- Compiler explorer: structured WASM disassembly view, extended to the Tcl ASM
+  tab, with unified orthogonal-edge rendering, line hover, diff-side arrows,
+  and jump-table multi-edge support.
 
 ## Improvements
-- LRU cache for `proc_lookup` and namespace-import call resolution at compile time
-- Resolve proc-locals into the call frame for interpreter visibility; pre-eval-sync replaces per-write frame-writeback
-- CodeLens uses `editor.action.showReferences` and walks the workspace index for peek locations
-- Folding: serve ranges immediately after `didOpen`; request `workspace/foldingRange/refresh` after analysis; keep if/else sibling folds disjoint
-- Zig runtime rebuilt with ReleaseFast and Zig 0.16 (`callconv(.C)` → `.c`)
-- AI diagnostics extended with W230–W242 warnings
-- VS Code extension test coverage for `tcl-lsp.showReferences` adapter
+- `expr` now supports the `double()` cast.
+- WASM codegen: substantial IR improvements and expanded execution-test
+  coverage.
+- Compiler explorer toolbar and tab bar in VS Code are now reactive.
+- ASM output escapes all control characters; tabs renamed to "Tcl ASM" with
+  consistent "(opt)" casing.
+- Explorer serialisation discovers the wheel filename from `build_info.json`
+  rather than hard-coding it.
+- Namespace-tree walker is now shared across `hide` and `info` introspection
+  callers.
+- Procs grow an `OFF_EXPORT_NAME_BUCKET` sidecar for uniform rename handling.
 
 ## Bug Fixes
-- Fix IEEE 754 edge cases: `string is double`, `scan %f`, Inf literals, integer overflow, sign of `-0.0`, division by `±0.0`
-- Fix `&&`/`||` identity rewrites to preserve Tcl's boolean result
-- Fix `$arr(key)` / `[set arr(key)]` reads in value and interpolation contexts
-- Fix `subst_flagged` output-buffer overflow
-- Fix code folding seen-set type to match lsprotocol kind declaration
-- Suppress W002 dialect warning when a user proc shadows the command
-- Suppress namespace import/export in dead if branches
-- Fix CodeLens JSON-to-VS-Code type conversion for showReferences
-- Fix KCS diagnostic filename casing for W130–W134
-- Fix npm audit: pin lodash to ^4.18.1
+- Codegen: `proc_index` is now invalidated on `hide`, `rename`, and `expose`,
+  and invalidation is qualified by the enclosing namespace so unrelated procs
+  are no longer evicted.
+- Runtime: `info` no longer double-scans the root namespace; `interp hidden`
+  arity is correct.
+- W210: reads of globals written by setter procs are suppressed; `unset` is
+  excluded from that suppression, and the suppression is scoped to W210 only.
+- VS Code folding: `folding.markers` is scoped to `#region` comments so
+  unrelated comments no longer fold unexpectedly.
+- Compiler explorer: CDN build loads without errors; the micropip 0.8.0
+  `deps=False` race is worked around by bypassing micropip for the initial
+  load.
+- Terminator source ranges in structured disassembly are now correct.
