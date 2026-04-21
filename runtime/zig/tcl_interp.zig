@@ -2251,7 +2251,21 @@ fn eval_interp_expose(words: []const i32) i32 {
 /// table directly; emission order is bucket-traversal order which
 /// isn't stable across grow events but matches ``interp aliases``.
 fn eval_interp_hidden(words: []const i32) i32 {
-    _ = words;
+    // words[0] = "interp", words[1] = "hidden", words[2] = path
+    // (single-interp: always ``{}``).  Reject any trailing args —
+    // Tcl 9's ``HiddenCmdsNamesObjCmd`` raises ``wrong # args``
+    // for ``objc != 2`` (i.e. requires exactly one arg after the
+    // subcommand name).  Our arity check accepts both the bare
+    // ``interp hidden`` form and ``interp hidden {}`` since
+    // tcltest's top-level emits both shapes depending on the
+    // invocation site.
+    if (words.len != 2 and words.len != 3) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "wrong # args: should be \"interp hidden path\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
     const buf_addr = tcl_ns.hidden_table_buf();
     const cap = tcl_ns.hidden_table_cap();
     if (buf_addr == 0 or cap == 0) return obj_new_string(0, 0);
