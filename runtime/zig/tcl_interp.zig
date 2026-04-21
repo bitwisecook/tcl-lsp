@@ -2058,17 +2058,18 @@ fn interp_aliases_list() i32 {
     // Accumulator: sum string lengths (plus separators) to size the
     // output buffer.  We walk the tree twice: once to size, once to
     // fill.  Single-pass grown allocation would require a realloc
-    // path the bump allocator doesn't support.
+    // path the bump allocator doesn't support.  Both passes route
+    // through the shared ``tcl_ns.walk_tree_cmd_tables`` helper so
+    // every ns-tree introspection walker shares one recursion shape.
     const root = tcl_ns.ns_root();
     var ctx: AliasListCtx = .{ .total = 0, .count = 0, .buf = 0, .off = 0 };
-    walk_ns_for_aliases(root, &ctx);
+    tcl_ns.walk_tree_cmd_tables(root, &ctx, alias_size_visit);
     if (ctx.total == 0) return obj_new_string(0, 0);
 
     ctx.buf = alloc(ctx.total);
     ctx.off = 0;
     ctx.count = 0;
-    // Second pass fills the buffer.  ``fill = true``.
-    walk_ns_for_aliases_fill(root, &ctx);
+    tcl_ns.walk_tree_cmd_tables(root, &ctx, alias_fill_visit);
     return obj_new_string(@bitCast(ctx.buf), @bitCast(ctx.off));
 }
 
@@ -2120,74 +2121,28 @@ fn write_alias_fqn(dst: u32, ns: u32, simple_ptr: u32, simple_len: u32) u32 {
     return off;
 }
 
-fn walk_ns_for_aliases(ns: u32, ctx: *AliasListCtx) void {
-    const n: *const tcl_ns.Namespace = @ptrFromInt(ns);
-    if (n.cmd_table.buf != 0) {
-        var i: u32 = 0;
-        const bucket_size: u32 = 16;
-        while (i < n.cmd_table.cap) : (i += 1) {
-            const bucket = n.cmd_table.buf + i * bucket_size;
-            const name_ptr: u32 = @bitCast(read_i32(bucket));
-            if (name_ptr == 0) continue;
-            const name_len: u32 = @bitCast(read_i32(bucket + 4));
-            const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-            if (cmd == 0) continue;
-            if (!alias_mod.is_alias(cmd)) continue;
-            // Reserve space: leading sep if not first, then the
-            // fully-qualified alias name (``::ns::simple``) — Tcl's
-            // ``interp aliases`` disambiguates same-named aliases in
-            // different namespaces by returning FQNs.
-            if (ctx.count > 0) ctx.total += 1;
-            ctx.total += alias_fqn_length(ns, name_len);
-            ctx.count += 1;
-        }
-    }
-    if (n.child_table.buf != 0) {
-        var i: u32 = 0;
-        const bucket_size: u32 = 16;
-        while (i < n.child_table.cap) : (i += 1) {
-            const bucket = n.child_table.buf + i * bucket_size;
-            const name_ptr: u32 = @bitCast(read_i32(bucket));
-            if (name_ptr == 0) continue;
-            const child: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-            if (child != 0) walk_ns_for_aliases(child, ctx);
-        }
-    }
+/// Visitor for the sizing pass of ``interp aliases``.  Inspects each
+/// bucket, filters to aliases, and accumulates the FQN length +
+/// separator bytes into ``ctx.total``.
+fn alias_size_visit(ctx: *AliasListCtx, ns: u32, _: u32, name_len: u32, cmd: u32) void {
+    if (!alias_mod.is_alias(cmd)) return;
+    if (ctx.count > 0) ctx.total += 1;
+    ctx.total += alias_fqn_length(ns, name_len);
+    ctx.count += 1;
 }
 
-fn walk_ns_for_aliases_fill(ns: u32, ctx: *AliasListCtx) void {
-    const n: *const tcl_ns.Namespace = @ptrFromInt(ns);
-    if (n.cmd_table.buf != 0) {
-        var i: u32 = 0;
-        const bucket_size: u32 = 16;
-        while (i < n.cmd_table.cap) : (i += 1) {
-            const bucket = n.cmd_table.buf + i * bucket_size;
-            const name_ptr: u32 = @bitCast(read_i32(bucket));
-            if (name_ptr == 0) continue;
-            const name_len: u32 = @bitCast(read_i32(bucket + 4));
-            const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-            if (cmd == 0) continue;
-            if (!alias_mod.is_alias(cmd)) continue;
-            if (ctx.count > 0) {
-                const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
-                d[0] = ' ';
-                ctx.off += 1;
-            }
-            ctx.off += write_alias_fqn(ctx.buf + ctx.off, ns, name_ptr, name_len);
-            ctx.count += 1;
-        }
+/// Visitor for the filling pass of ``interp aliases``.  Writes
+/// ``<ns_full>::<simple>`` into ``ctx.buf`` at ``ctx.off``,
+/// space-separated from prior entries.
+fn alias_fill_visit(ctx: *AliasListCtx, ns: u32, name_ptr: u32, name_len: u32, cmd: u32) void {
+    if (!alias_mod.is_alias(cmd)) return;
+    if (ctx.count > 0) {
+        const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+        d[0] = ' ';
+        ctx.off += 1;
     }
-    if (n.child_table.buf != 0) {
-        var i: u32 = 0;
-        const bucket_size: u32 = 16;
-        while (i < n.child_table.cap) : (i += 1) {
-            const bucket = n.child_table.buf + i * bucket_size;
-            const name_ptr: u32 = @bitCast(read_i32(bucket));
-            if (name_ptr == 0) continue;
-            const child: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-            if (child != 0) walk_ns_for_aliases_fill(child, ctx);
-        }
-    }
+    ctx.off += write_alias_fqn(ctx.buf + ctx.off, ns, name_ptr, name_len);
+    ctx.count += 1;
 }
 
 // -- ``interp hide`` / ``interp expose`` / ``interp hidden`` ---------------
