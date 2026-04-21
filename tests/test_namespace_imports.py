@@ -144,6 +144,56 @@ class TestExtractNamespaceImports:
         result = extract_signatures(src)
         assert result.namespace_imports == []
 
+    def test_relative_pattern_resolves_against_current_namespace(self):
+        # Tcl resolves ``bar::*`` inside ``namespace eval foo`` as
+        # ``::foo::bar::*``, not ``::bar::*``.  The LSP must track the
+        # same target, otherwise cross-file lookup points at the wrong
+        # source namespace.
+        src = "namespace eval foo { namespace import bar::baz }\n"
+        result = extract_signatures(src)
+        assert len(result.namespace_imports) == 1
+        imp = result.namespace_imports[0]
+        assert imp.ns == "::foo"
+        assert imp.pattern == "::foo::bar::baz"
+
+    def test_relative_glob_pattern_resolves_against_current_namespace(self):
+        src = "namespace eval outer { namespace import inner::* }\n"
+        result = extract_signatures(src)
+        assert len(result.namespace_imports) == 1
+        assert result.namespace_imports[0].pattern == "::outer::inner::*"
+
+    def test_relative_pattern_at_global_still_absolute(self):
+        # At the global level ``foo::bar`` resolves to ``::foo::bar``.
+        src = "namespace import foo::bar\n"
+        result = extract_signatures(src)
+        assert len(result.namespace_imports) == 1
+        assert result.namespace_imports[0].pattern == "::foo::bar"
+
+    def test_substituted_pattern_is_ignored(self):
+        # ``namespace import $var::*`` can't be statically resolved.
+        src = "namespace import $mod::*\n"
+        result = extract_signatures(src)
+        assert result.namespace_imports == []
+
+    def test_nested_namespace_eval_uses_full_qualified_path(self):
+        # ``namespace eval outer { namespace eval inner { namespace
+        # import … } }`` records the import under ``::outer::inner``,
+        # not ``::inner``.
+        src = "namespace eval outer { namespace eval inner { namespace import ::foo::* } }\n"
+        result = extract_signatures(src)
+        assert len(result.namespace_imports) == 1
+        assert result.namespace_imports[0].ns == "::outer::inner"
+
+    def test_import_wrapper_alias_relative_to_current_namespace(self):
+        # tcllib ``X::import alias`` inside ``namespace eval outer``
+        # creates ``::outer::alias``, not ``::alias``.
+        src = "namespace eval outer { term::ansi::send::import vt }\n"
+        result = extract_signatures(src)
+        conj = [i for i in result.namespace_imports if i.conjectured]
+        assert len(conj) == 1
+        assert conj[0].ns == "::outer::vt"
+        assert conj[0].pattern == "::term::ansi::send::*"
+
     def test_auto_path_entry_captured(self):
         src = "lappend auto_path [file dirname [info script]] /abs/lib\n"
         result = extract_signatures(src)
@@ -220,6 +270,61 @@ proc ::ns::INIT {} {
 """
         result = extract_signatures(src)
         assert "::ns::foo" not in result.all_procs
+
+    def test_two_namespaces_with_identical_factory_do_not_cross(self):
+        # Two unrelated namespaces each define their own ``DEFC``
+        # wrapper.  An unqualified ``DEFC`` call inside ``::b`` must
+        # bind to ``::b::DEFC``, emitting the synthetic proc in
+        # ``::b`` — never to ``::a::DEFC``.  The call inside ``::a``
+        # stays in ``::a``.
+        src = """
+proc ::a::DEFC {name arguments script} {
+    proc $name $arguments $script
+}
+proc ::b::DEFC {name arguments script} {
+    proc $name $arguments $script
+}
+proc ::a::INIT {} {
+    DEFC from_a {r} { return $r }
+}
+proc ::b::INIT {} {
+    DEFC from_b {r} { return $r }
+}
+"""
+        result = extract_signatures(src)
+        assert "::a::from_a" in result.all_procs
+        assert "::b::from_b" in result.all_procs
+        # Cross-namespace leakage is the bug — assert both ways.
+        assert "::a::from_b" not in result.all_procs
+        assert "::b::from_a" not in result.all_procs
+
+    def test_factory_without_matching_namespace_is_skipped(self):
+        # A factory in ``::a`` and a call in ``::b`` (where ``::b``
+        # has no factory) must NOT bind — better to emit nothing than
+        # to bind into the wrong namespace.
+        src = """
+proc ::a::DEFC {name arguments script} {
+    proc $name $arguments $script
+}
+proc ::b::INIT {} {
+    DEFC stray {r} { return $r }
+}
+"""
+        result = extract_signatures(src)
+        assert "::a::stray" not in result.all_procs
+        assert "::b::stray" not in result.all_procs
+
+    def test_global_factory_matches_global_call(self):
+        # A factory defined at the global level matches bare calls at
+        # the global level.
+        src = """
+proc ::DEFC {name arguments script} {
+    proc $name $arguments $script
+}
+DEFC global_proc {r} { return $r }
+"""
+        result = extract_signatures(src)
+        assert "::global_proc" in result.all_procs
 
 
 # full analyser picks up namespace imports

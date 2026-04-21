@@ -94,6 +94,11 @@ class BackgroundScanner:
         if library_paths is not None:
             self._library_paths = list(library_paths)
 
+    @property
+    def workspace_roots(self) -> list[str]:
+        """Return a snapshot of the currently configured workspace roots."""
+        return list(self._workspace_roots)
+
     def collect_files(self) -> list[tuple[str, str]]:
         """Discover all Tcl and BIG-IP config files without analysing them.
 

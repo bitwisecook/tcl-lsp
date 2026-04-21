@@ -260,14 +260,23 @@ def _handle_namespace_import(
         if pattern == "-force":
             i += 1
             continue
-        # Must be a fully-qualified pattern — Tcl's ``namespace import``
-        # only accepts qualified names, but users occasionally write bare
-        # ones in new code; drop those because we cannot resolve them.
-        if "::" not in pattern:
+        # Must be a qualified pattern — ``namespace import`` requires
+        # a namespace segment; drop bare names or patterns that still
+        # carry variable / command substitutions, because we cannot
+        # statically resolve them to a source namespace.
+        if "::" not in pattern or "$" in pattern or "[" in pattern:
             i += 1
             continue
+        # A pattern without a leading ``::`` is resolved relative to
+        # the *current* namespace, not the global one — Tcl's own rule
+        # for ``namespace import``.  So
+        # ``namespace eval foo { namespace import bar::* }`` imports
+        # ``::foo::bar::*``, not ``::bar::*``.
         if not pattern.startswith("::"):
-            pattern = f"::{pattern}"
+            if importing_ns == "::":
+                pattern = f"::{pattern}"
+            else:
+                pattern = f"{importing_ns}::{pattern}"
         result.namespace_imports.append(
             NamespaceImport(
                 ns=importing_ns,
@@ -312,7 +321,15 @@ def _maybe_handle_import_wrapper(
     source_ns = head[: -len("::import")]  # strip trailing ``::import``
     if not source_ns.startswith("::"):
         source_ns = f"::{source_ns}"
-    alias_ns = alias if alias.startswith("::") else f"::{alias}"
+    # A relative alias lives under the current namespace — inside
+    # ``namespace eval outer { some::ns::import vt }``, Tcl would
+    # create ``::outer::vt``, not ``::vt``.
+    if alias.startswith("::"):
+        alias_ns = alias
+    elif ns_prefix:
+        alias_ns = f"::{ns_prefix}::{alias}"
+    else:
+        alias_ns = f"::{alias}"
     result.namespace_imports.append(
         NamespaceImport(
             ns=alias_ns,
@@ -748,37 +765,37 @@ def _is_factory_body(body_text: str, params: list[str]) -> bool:
 
 
 def _resolve_factory_defs(ctx: _ScanCtx) -> None:
-    """Emit synthetic ProcDefs for each factory-wrapper call site."""
+    """Emit synthetic ProcDefs for each factory-wrapper call site.
+
+    Factory wrappers are looked up following Tcl's command-resolution
+    order: an unqualified ``DEFC`` inside namespace ``::ns`` binds to
+    ``::ns::DEFC`` first, then falls back to ``::DEFC`` (global).  We
+    deliberately do *not* fall back to "any factory named DEFC
+    anywhere" — two unrelated namespaces can each define their own
+    ``DEFC`` wrapper and Tcl itself would refuse to cross those
+    boundaries, so we should not emit synthetic procs in the wrong
+    namespace.
+    """
     if not ctx.candidates or not ctx.proc_bodies:
         return
-    # Map every factory wrapper to ``(qualified_name, namespace_prefix)``.
-    # The namespace prefix is the namespace the wrapper itself belongs to,
-    # matching Tcl's runtime behaviour: ``proc NAME …`` executed inside
-    # a proc creates the new command in the wrapper's home namespace.
-    factories: dict[str, tuple[str, str]] = {}
+    # Map every factory wrapper's qualified name to the namespace its
+    # generated procs live in (the wrapper's own home namespace —
+    # ``proc $name …`` executed inside a proc creates the command in
+    # the caller's current namespace, which for a factory wrapper
+    # defined in ``::foo::bar`` and called from an init proc *also* in
+    # ``::foo::bar`` is unambiguously ``::foo::bar``).
+    factories: dict[str, str] = {}
     for info in ctx.proc_bodies:
         if not _is_factory_body(info.body_text, info.params):
             continue
-        factories[info.qname] = (info.qname, info.ns_prefix)
-        # Also index by bare name so callers using the unqualified form
-        # (``DEFC showat``) resolve even without explicit qualification.
-        simple = info.qname.rsplit("::", 1)[-1]
-        factories.setdefault(simple, (info.qname, info.ns_prefix))
+        factories[info.qname] = info.ns_prefix
     if not factories:
         return
     for cand in ctx.candidates:
-        target = factories.get(cand.head)
-        if target is None and cand.head.startswith("::"):
-            target = factories.get(cand.head.lstrip(":"))
-        if target is None:
-            # Unqualified head: also try resolving within the call-site
-            # namespace (``::ns::HEAD``) so a factory defined next to
-            # its callers still matches.
-            qualified_head = _qualify(cand.ns_prefix, cand.head)
-            target = factories.get(qualified_head)
-        if target is None:
+        factory_qname = _lookup_factory(cand, factories)
+        if factory_qname is None:
             continue
-        _factory_qname, factory_ns = target
+        factory_ns = factories[factory_qname]
         # The emitted proc lives in the factory's own namespace unless
         # the call supplied a fully-qualified name.
         if cand.name.startswith("::"):
@@ -799,6 +816,30 @@ def _resolve_factory_defs(ctx: _ScanCtx) -> None:
             name_range=range_from_token(cand.name_tok),
             body_range=range_from_token(cand.body_tok),
         )
+
+
+def _lookup_factory(
+    cand: _FactoryCandidate,
+    factories: dict[str, str],
+) -> str | None:
+    """Resolve *cand.head* to a factory qualified name.
+
+    Walks Tcl's command lookup path: absolute names match verbatim;
+    relative names try the call-site namespace first, then the global
+    namespace.  Never falls through to "any factory with this bare
+    name" — that would bind calls in one namespace to a wrapper in an
+    unrelated one.
+    """
+    head = cand.head
+    if head.startswith("::"):
+        return head if head in factories else None
+    qualified = _qualify(cand.ns_prefix, head)
+    if qualified in factories:
+        return qualified
+    global_q = f"::{head}"
+    if global_q != qualified and global_q in factories:
+        return global_q
+    return None
 
 
 def _emit_class(

@@ -2239,7 +2239,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
         from core.analysis.source_resolver import resolve_source_target
 
         script_path = uri_to_path(uri) or ""
-        ws_roots = list(background_scanner._workspace_roots)
+        ws_roots = background_scanner.workspace_roots
         sourced: set[str] = set()
         for st in state.analysis.source_targets:
             resolved = resolve_source_target(st.raw_path, st.is_literal, script_path, ws_roots)
@@ -2652,6 +2652,26 @@ async def _publish_diagnostics(
     )
 
 
+def _is_unsafe_auto_path(path: str) -> bool:
+    """Return True when *path* is too broad to safely ``os.walk()``.
+
+    Filesystem roots, the user's home directory, and any directory
+    two levels or shallower are rejected — a script that appends
+    ``/`` or ``~`` to ``auto_path`` is almost certainly misusing the
+    idiom, and recursively walking a huge tree on the main LSP thread
+    would make the server unresponsive.
+    """
+    import os
+
+    norm = os.path.abspath(path)
+    if norm in ("/", os.path.sep) or norm == os.path.expanduser("~"):
+        return True
+    # Count meaningful path segments — reject depth < 2 so ``/tmp``
+    # or ``/Users`` never get swept, but ``/tmp/proj/lib`` is fine.
+    parts = [p for p in norm.split(os.sep) if p]
+    return len(parts) < 2
+
+
 def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
     """Resolve and load packages referenced by ``package require``.
 
@@ -2675,7 +2695,22 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
         extra_paths: list[str] = []
         for entry in analysis.auto_path_entries:
             resolved = evaluate_auto_path_expr(entry.raw, file_path)
-            if resolved and os.path.isdir(resolved) and resolved not in extra_paths:
+            if not resolved or not os.path.isdir(resolved):
+                continue
+            # Refuse to ``os.walk`` the filesystem root, the user's
+            # home directory, or any path shallow enough to sweep in
+            # unrelated trees.  A legitimate ``lappend auto_path``
+            # target is always a library subdirectory; anything at
+            # depth < 2 is almost certainly a mistake we shouldn't
+            # scan on the main thread.
+            if _is_unsafe_auto_path(resolved):
+                log.warning(
+                    "auto_path: refusing to scan overly broad directory %s (from %s)",
+                    resolved,
+                    file_path,
+                )
+                continue
+            if resolved not in extra_paths:
                 extra_paths.append(resolved)
         if extra_paths:
             package_resolver.add_search_paths(extra_paths)
@@ -3966,10 +4001,11 @@ def _apply_all_settings_now() -> None:
         library_paths = [str(p) for p in library_paths_setting]
         background_scanner.configure(library_paths=library_paths)
         # Prepend workspace roots so a local copy of a package still
-        # wins over the configured library paths.  ``background_scanner
-        # ._workspace_roots`` is the authoritative list set in
-        # ``on_initialized`` and unchanged by this settings update.
-        resolver_paths = list(background_scanner._workspace_roots) + library_paths
+        # wins over the configured library paths.  The scanner's
+        # ``workspace_roots`` accessor returns a snapshot of the list
+        # set in ``on_initialized``, which this settings update leaves
+        # unchanged.
+        resolver_paths = background_scanner.workspace_roots + library_paths
         package_resolver.configure(search_paths=resolver_paths)
         _loaded_packages.clear()
         threading.Thread(target=_run_background_scan, daemon=True).start()

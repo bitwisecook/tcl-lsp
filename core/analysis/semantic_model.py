@@ -287,11 +287,16 @@ class NamespaceImport:
 
 @dataclass(frozen=True, slots=True)
 class AutoPathEntry:
-    """A statically-resolved ``lappend auto_path`` / ``set auto_path`` entry.
+    """A raw ``lappend auto_path`` / ``set auto_path`` argument.
 
-    ``resolved_path`` is an absolute directory path when the argument
-    could be evaluated from static context (literals, ``[file dirname]``,
-    ``[file join]``, ``[info script]``); otherwise ``None``.
+    The extraction pass records every path element as-written, without
+    attempting to evaluate it — resolution requires the document's file
+    path (for ``[info script]``) and happens later in the LSP server
+    via :func:`core.analysis.auto_path_eval.evaluate_auto_path_expr`.
+
+    ``resolved_path`` is reserved for callers that want to cache the
+    evaluated directory back onto the entry; the extractor always sets
+    it to ``None``.
     """
 
     resolved_path: str | None
