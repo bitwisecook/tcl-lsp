@@ -69,8 +69,23 @@ extern "env" fn call_compiled_proc(
 /// pointers.
 pub fn dispatch(bucket: i32, words: []const i32) i32 {
     const procs = @import("tcl_procs.zig");
-    const name_ptr = procs.proc_get_name_ptr(bucket);
-    const name_len = procs.proc_get_name_len(bucket);
+    // Prefer the sidecar export name (set at registration time for
+    // compiled procs).  If the Command was later ``rename``d, the
+    // live name slot now reflects the user-visible identity — but
+    // the host embedder still exports the WASM function under its
+    // original name, so the sidecar is what lookups need.  Falls
+    // through to the live slot when the sidecar is absent (e.g.
+    // procs registered before the sidecar was introduced or
+    // interpreted procs reached via this path).
+    const export_name = procs.proc_get_export_name(@bitCast(bucket));
+    const name_ptr: i32 = if (export_name.ptr != 0)
+        @bitCast(export_name.ptr)
+    else
+        procs.proc_get_name_ptr(bucket);
+    const name_len: i32 = if (export_name.ptr != 0)
+        @bitCast(export_name.len)
+    else
+        procs.proc_get_name_len(bucket);
 
     // ``words[0]`` is the command name; actual arguments start at
     // index 1.  ``given`` = number of supplied call arguments.
