@@ -248,3 +248,46 @@ def test_rename_to_empty_then_recreate(runtime: RuntimeHandle):
     assert r == OK
     runtime.register_proc("::foo", "", "body2")
     assert runtime.exists("::foo")
+
+
+# -- P1: compiled-proc rename preserves the sidecar export name -------------
+
+
+def test_rename_compiled_proc_preserves_export_name(runtime: RuntimeHandle):
+    """Renaming a compiled proc rewrites the Command's live name
+    slot but keeps the sidecar ``OFF_EXPORT_NAME_BUCKET`` pointing
+    at the registration-time export name.  The host-bridge dispatch
+    consumes the sidecar, so cross-module calls survive the
+    rename."""
+    exports = runtime.instance.exports(runtime.store)
+    proc_register_compiled = exports["proc_register_compiled"]
+    export_name_ptr = exports["tcl_test_export_name_ptr"]
+    export_name_len = exports["tcl_test_export_name_len"]
+    proc_lookup = exports["proc_lookup"]
+
+    root = runtime.root()
+    name_obj = runtime.new_string("::compiled_proc")
+    proc_register_compiled(runtime.store, name_obj, 0, 7, 0)
+
+    # Sidecar captures the registration-time FQN.
+    bucket = proc_lookup(runtime.store, runtime.new_string("::compiled_proc"))
+    assert bucket != 0
+    before_ptr = export_name_ptr(runtime.store, bucket)
+    before_len = export_name_len(runtime.store, bucket)
+    assert before_len == len("::compiled_proc")
+    assert runtime.read(before_ptr, before_len).decode("utf-8") == "::compiled_proc"
+
+    # Renaming flips the Command's live name slot; the sidecar
+    # stays untouched.
+    r = runtime.rename(root, "compiled_proc", root, "renamed_compiled")
+    assert r == OK
+
+    bucket = proc_lookup(runtime.store, runtime.new_string("::renamed_compiled"))
+    assert bucket != 0
+    # Live name slot reflects the rename.
+    assert runtime.lookup_name("::renamed_compiled") == "::renamed_compiled"
+    # Sidecar still points at the original export name.
+    after_ptr = export_name_ptr(runtime.store, bucket)
+    after_len = export_name_len(runtime.store, bucket)
+    assert after_len == before_len
+    assert runtime.read(after_ptr, after_len).decode("utf-8") == "::compiled_proc"

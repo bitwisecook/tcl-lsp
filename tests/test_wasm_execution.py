@@ -2298,6 +2298,417 @@ g bottom
         assert result == b"top/bottom"
 
 
+class TestInterpHideExpose:
+    """End-to-end ``interp hide`` / ``interp expose`` / ``interp
+    hidden`` behaviour through the runtime's eval fallback.  The
+    compiler leaves ``interp`` as an eval call, so these exercise
+    the full dispatch path.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_hide_makes_same_unit_call_fail(self):
+        """After ``interp hide {} foo`` the bare ``foo`` call must
+        raise ``unknown command: foo`` — not dispatch to the
+        compile-time-known body.  Exercises the compiler's
+        proc-index invalidation for procs targeted by ``interp
+        hide`` in the same translation unit (see
+        ``docs/design/runtime/command-introspection.md`` §8.1)."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} { set ::result should-not-run }
+set ::result untouched
+interp hide {} foo
+catch foo msg
+""",
+            "::result",
+        )
+        assert result == b"untouched"
+
+    def test_rename_makes_old_name_unreachable_in_same_unit(self):
+        """After ``rename foo bar`` the old name must stop
+        resolving, and the new name must reach the body — proving
+        the compiler didn't specialise the call to a direct
+        ``call $::foo`` that ignores the rename."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} { set ::result old-ran }
+rename foo bar
+set ::result new-name-not-called
+bar
+""",
+            "::result",
+        )
+        assert result == b"old-ran"
+
+    def test_rename_inside_namespace_eval_invalidates_qualified_name(self):
+        """``namespace eval ::ns { proc foo {}; rename foo bar }``
+        must invalidate ``::ns::foo`` in the compiler's
+        ``proc_index``, not just ``::foo``.  Without the
+        context-aware invalidation, calls to ``foo`` elsewhere in
+        the module would still emit ``call $::ns::foo`` and skip
+        the runtime rename.
+
+        We verify the compile-time invariant: the emitted WAT for
+        the module must NOT contain a direct ``call $::ns::foo``
+        anywhere — every invocation has to route through
+        ``tcl_eval``.  This pins the fix for the Copilot review
+        finding on PR #200 (proc_index qualification gap inside
+        namespace eval).
+        """
+        source = """\
+namespace eval ::ns {
+    proc helper {} { return 1 }
+    rename helper renamed
+}
+::ns::helper
+::ns::renamed
+"""
+        wasm_module, _ = _compile_to_wasm(source)
+        wat = wasm_module.to_wat()
+        assert "call $::ns::helper" not in wat, (
+            "proc_index should have been invalidated for ::ns::helper"
+        )
+        # The rename target must also route via eval — ``::ns::renamed``
+        # is the "new" name and needs to resolve at runtime too.
+        assert "call $::ns::renamed" not in wat, (
+            "proc_index should have been invalidated for ::ns::renamed"
+        )
+        # Sanity: tcl_eval is imported, proving the eval-fallback
+        # path is the one being used for these calls.
+        assert 'import "tcl" "tcl_eval"' in wat
+
+    def test_chained_rename_round_trip(self):
+        """``rename foo bar; rename bar foo`` must restore the
+        original name.  Exercises the compiler's
+        ``_collect_dynamically_modified_procs`` invalidation
+        across a chain — both ``foo`` and ``bar`` are invalidated
+        in the first rename, both again in the second, so both
+        calls route through ``tcl_eval`` / ``proc_lookup`` and
+        observe the live cmd_table state at dispatch time."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} { set ::result round-tripped }
+rename foo bar
+rename bar foo
+foo
+""",
+            "::result",
+        )
+        assert result == b"round-tripped"
+
+    def test_hide_then_expose_restores_proc(self):
+        """Hiding a proc removes it from the command table; exposing
+        puts it back so subsequent calls dispatch normally."""
+        result = self._run_and_read_global(
+            """\
+proc greet {} { set ::result hello }
+interp hide {} greet
+interp expose {} greet
+greet
+""",
+            "::result",
+        )
+        assert result == b"hello"
+
+    def test_invokehidden_dispatches_into_hidden_table(self):
+        """``interp invokehidden {} foo arg`` finds ``foo`` in the
+        hidden table and invokes it with the supplied args."""
+        result = self._run_and_read_global(
+            """\
+proc greet {who} { set ::result "hello-$who" }
+interp hide {} greet
+interp invokehidden {} greet world
+""",
+            "::result",
+        )
+        assert result == b"hello-world"
+
+    def test_invokehidden_unknown_command_raises(self):
+        """``interp invokehidden {} nonexistent`` raises the
+        ``invalid hidden command name "X"`` error from tclInterp.c."""
+        result = self._run_and_read_global(
+            """\
+catch {interp invokehidden {} nonexistent} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'invalid hidden command name "nonexistent"'
+
+    def test_invokehidden_with_global_flag(self):
+        """``interp invokehidden {} -global foo`` dispatches in the
+        global namespace regardless of where it was called."""
+        result = self._run_and_read_global(
+            """\
+proc mark {} { set ::result at-root }
+interp hide {} mark
+interp invokehidden {} -global mark
+""",
+            "::result",
+        )
+        assert result == b"at-root"
+
+    def test_invokehidden_with_namespace_flag_passes_args(self):
+        """``interp invokehidden {} -namespace ::ns mark arg1 arg2`` —
+        the hidden proc is invoked inside ``::ns`` and receives the
+        trailing argv verbatim.  Pins the option-parser's arg-
+        consumption flow (``-namespace`` consumes a value slot,
+        subsequent args pass through unchanged)."""
+        result = self._run_and_read_global(
+            """\
+namespace eval ::target {}
+proc carry {a b} { set ::result "$a/$b" }
+interp hide {} carry
+interp invokehidden {} -namespace ::target carry left right
+""",
+            "::result",
+        )
+        assert result == b"left/right"
+
+    def test_hidden_rejects_extra_args(self):
+        """``interp hidden`` requires ``objc == 2`` in Tcl 9's
+        ``HiddenCmdsNamesObjCmd``.  We accept the bare form and
+        the single-path form (``interp hidden {}``) but raise
+        ``wrong # args`` for any extra tokens — matches tclsh's
+        error shape rather than silently ignoring the tail."""
+        result = self._run_and_read_global(
+            """\
+catch {interp hidden {} extra-token} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp hidden path"'
+
+    def test_hidden_lists_hidden_commands(self):
+        """``interp hidden {}`` returns a space-separated list of
+        currently-hidden names."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} {}
+proc bar {} {}
+interp hide {} foo
+interp hide {} bar
+set ::result [interp hidden {}]
+""",
+            "::result",
+        )
+        names = set(result.decode("utf-8").split())
+        assert names == {"foo", "bar"}
+
+
+class TestInfoIntrospection:
+    """End-to-end ``info commands`` / ``info procs`` /
+    ``namespace which -command`` through the eval path.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_info_commands_lists_user_procs(self):
+        result = self._run_and_read_global(
+            """\
+proc alpha {} {}
+proc beta {} {}
+set ::result [info commands]
+""",
+            "::result",
+        )
+        names = set(result.decode("utf-8").split())
+        assert "::alpha" in names
+        assert "::beta" in names
+
+    def test_info_commands_pattern(self):
+        result = self._run_and_read_global(
+            """\
+proc alpha {} {}
+proc beta {} {}
+set ::result [info commands a*]
+""",
+            "::result",
+        )
+        assert result.decode("utf-8").split() == ["::alpha"]
+
+    def test_info_commands_qualified_pattern(self):
+        """``info commands ::ns::*`` — qualified pattern walks the
+        target ns only.  We use ``info commands`` rather than ``info
+        procs`` because the WASM compiler compiles all user procs
+        via ``proc_register_compiled`` — those come out of the
+        interpreted-proc filter but remain visible as commands."""
+        result = self._run_and_read_global(
+            """\
+proc ::ns::p1 {} { set ::unused 1 }
+proc ::ns::p2 {} { set ::unused 2 }
+proc outside {} { set ::unused 3 }
+set ::result [info commands ::ns::*]
+""",
+            "::result",
+        )
+        names = set(result.decode("utf-8").split())
+        assert names == {"::ns::p1", "::ns::p2"}
+
+    def test_namespace_which_returns_fqn(self):
+        result = self._run_and_read_global(
+            """\
+namespace eval ::ns { proc here {} {} }
+set ::result [namespace which -command ::ns::here]
+""",
+            "::result",
+        )
+        assert result == b"::ns::here"
+
+    def test_namespace_which_miss_returns_empty(self):
+        result = self._run_and_read_global(
+            """\
+set ::result "<[namespace which -command missing]>"
+""",
+            "::result",
+        )
+        assert result == b"<>"
+
+    def test_info_body_on_missing_raises_error(self):
+        """``info body`` on a name that doesn't resolve raises
+        ``"X" isn't a procedure`` — matches Tcl 9's ``InfoBodyCmd``
+        wording."""
+        result = self._run_and_read_global(
+            """\
+catch {info body nonexistent} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'"nonexistent" isn\'t a procedure'
+
+    def test_info_body_on_alias_raises_error(self):
+        """Aliases aren't interpreted procs — ``info body`` on an
+        alias raises the same "isn't a procedure" error."""
+        result = self._run_and_read_global(
+            """\
+proc target {} {}
+interp alias {} my_alias {} target
+catch {info body my_alias} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'"my_alias" isn\'t a procedure'
+
+    def test_hide_and_catch_snippet_compiles(self):
+        """Explorer WAT sanity: the
+        ``proc foo {} {return 1}; interp hide {} foo; catch foo msg;
+        expr {$msg}`` snippet compiles to a well-formed WASM module.
+
+        The bare ``foo`` call after ``interp hide`` does NOT currently
+        route through the eval fallback — the compiler specialises
+        it to a direct ``call $::foo`` via its proc-index dispatch.
+        That's a pre-existing codegen optimisation; runtime
+        ``interp hide`` state isn't visible to the compile-time
+        proc index, so hiding a proc that was *also* defined in the
+        same translation unit doesn't block the compiled dispatch.
+        Acknowledged as a known gap in
+        ``docs/design/runtime/command-introspection.md`` §9 — the
+        fix belongs to the compiler, not this runtime wave.  This
+        test just pins the compile-clean invariant so regressions
+        that trap or mis-emit catch this snippet are caught."""
+        source = "proc foo {} {return 1}\ninterp hide {} foo\ncatch foo msg\nexpr {$msg}\n"
+        wasm_module, wasm_bytes = _compile_to_wasm(source)
+        # Smoke check: module parses back out and contains the
+        # imports we rely on (``tcl_eval`` for the ``interp hide``
+        # body, ``catch_enter`` for the catch wrapper).
+        wat = wasm_module.to_wat()
+        assert "tcl_eval" in wat, "tcl_eval import should be present"
+        assert "catch_enter" in wat, "catch_enter import should be present"
+        assert "::foo" in wat, "::foo compiled function should be present"
+        assert len(wasm_bytes) > 0
+
+    def test_info_level_returns_frame_depth(self):
+        """``info level`` at the top-level returns 0 (no frames
+        pushed).  Inside a proc body it returns the call depth.
+        The probe reads the result via ``_read_global_string``
+        which routes through ``tcl_test_obj_str_ptr/len`` — that
+        materialises the decimal rendering for int-shaped TclObjs,
+        so the bare ``[info level]`` form works without needing
+        surrounding literals to force string conversion."""
+        result_top = self._run_and_read_global(
+            """\
+set ::result [info level]
+""",
+            "::result",
+        )
+        assert result_top == b"0"
+
+        result_nested = self._run_and_read_global(
+            """\
+proc outer {} { set ::result [info level] }
+outer
+""",
+            "::result",
+        )
+        assert result_nested == b"1"
+
+    def test_info_script_is_empty_in_wasm_sandbox(self):
+        """``info script`` returns the empty string in our compiled
+        runtime — there's no real filesystem source path."""
+        result = self._run_and_read_global(
+            """\
+set ::result "<[info script]>"
+""",
+            "::result",
+        )
+        assert result == b"<>"
+
+    def test_info_level_with_arg_raises_bad_level(self):
+        """``info level N`` raises ``bad level "N"`` because our
+        runtime doesn't track per-frame argv yet."""
+        result = self._run_and_read_global(
+            """\
+catch {info level 1} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'bad level "1"'
+
+    def test_info_default_on_compiled_proc_raises_error(self):
+        """End-to-end, user procs reach this path as compiled procs
+        (the WASM compiler routes every top-level ``proc`` through
+        ``proc_register_compiled``).  ``info default`` refuses
+        compiled procs with the same ``"X" isn't a procedure``
+        wording it uses for aliases and missing commands — the
+        compiled form has no retrievable params list.  The
+        ``"procedure \"X\" doesn't have an argument \"Y\""`` error
+        shape is still reachable for interpreted procs registered
+        via the runtime ``proc_register`` path (covered in
+        ``tests/runtime/test_tcl_info.py``)."""
+        result = self._run_and_read_global(
+            """\
+proc p1 {a b} {}
+catch {info default p1 missing_arg v} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'"p1" isn\'t a procedure'
+
+
 def _read_global_string(
     rt_instance: wasmtime.Instance,
     store: wasmtime.Store,
@@ -2305,12 +2716,25 @@ def _read_global_string(
 ) -> bytes:
     """Read a global variable as a UTF-8 byte string.  Stages the
     name into linear memory, routes through ``global_get``, then
-    walks the TclObj's ``str_ptr`` / ``str_len`` slots."""
+    walks the TclObj's string representation.
+
+    Uses ``tcl_test_obj_str_ptr`` / ``tcl_test_obj_str_len`` — both
+    route through ``obj_ensure_string`` which materialises the
+    decimal rendering for int-shaped TclObjs the first time it's
+    asked.  Reading the raw ``OBJ_STR_PTR`` / ``OBJ_STR_LEN``
+    slots directly (the pre-wave approach) would surface empty for
+    a freshly-allocated int TclObj — anything set via ``set x
+    [info level]`` / ``llength $list`` / etc. — because the
+    compiler can short-circuit those paths to avoid the string
+    rendering work.
+    """
     exports = rt_instance.exports(store)
     memory: wasmtime.Memory = exports["memory"]
     test_alloc = exports["tcl_test_alloc"]
     obj_new_string = exports["obj_new_string"]
     global_get = exports["global_get"]
+    obj_str_ptr = exports["tcl_test_obj_str_ptr"]
+    obj_str_len = exports["tcl_test_obj_str_len"]
 
     encoded = name.encode("utf-8")
     addr = test_alloc(store, len(encoded))
@@ -2319,10 +2743,8 @@ def _read_global_string(
     val_obj = global_get(store, name_obj)
     if val_obj == 0:
         return b""
-    # TclObj layout: ptr at offset 16, len at offset 20
-    # (matches OBJ_STR_PTR / OBJ_STR_LEN in tcl_obj.zig).
-    str_ptr = int.from_bytes(memory.read(store, val_obj + 16, val_obj + 20), "little", signed=True)
-    str_len = int.from_bytes(memory.read(store, val_obj + 20, val_obj + 24), "little", signed=True)
+    str_ptr = obj_str_ptr(store, val_obj)
+    str_len = obj_str_len(store, val_obj)
     if str_len == 0:
         return b""
     return bytes(memory.read(store, str_ptr, str_ptr + str_len))

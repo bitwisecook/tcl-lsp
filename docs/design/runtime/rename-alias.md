@@ -27,8 +27,9 @@ Out (deferred):
 
 - Child interpreters + cross-interp aliases (``interp alias child
   newName parent oldName``).  Needs child-interp infrastructure.
-- ``interp hide`` / ``interp expose``.  Uses the same command-table
-  machinery but against a hidden-commands side-table.
+- ``interp hide`` / ``interp expose``.  Shipped in the
+  command-introspection wave — see
+  [`command-introspection.md`](command-introspection.md).
 - Command trace invalidation on rename — no trace infra yet.
 - Command deletion handlers — same.
 
@@ -77,24 +78,24 @@ without breaking the probe chain for adjacent entries.
 canonical entry point; ``rename_command`` uses it to retire the
 source name after inserting at the target.
 
-### 3.3 Compiled-proc caveat
+### 3.3 Compiled-proc caveat (retired)
 
-Compiled procs have a fixed WASM export name set at compile time.
-The host-bridge dispatcher (``tcl_dispatch.dispatch``) reads the
-Command's stored name slot as the export lookup key, so renaming
-a compiled proc and overwriting the Command's name slot would
-break dispatch.
+Earlier waves special-cased compiled procs: ``rename_command``
+detected ``func_idx != 0`` and skipped the Command's name-slot
+update so ``tcl_dispatch.dispatch`` could continue reading the
+registration-time export name.  The trade-off was that
+``proc_get_name_ptr`` consumers saw the original name while
+``info commands`` saw the renamed key — a minor parity gap.
 
-Workaround: ``rename_command`` detects ``func_idx != 0`` (compiled
-proc marker) and skips the Command's internal name-slot update.
-The ``cmd_table`` entry still moves to the new name — so callers
-using the new name find the Command — but the Command's internal
-identity stays tied to the original WASM export.  Observable
-consequence: ``info commands`` reports the new name (it walks
-cmd_table keys), but `proc_get_name_ptr` consumers that inspect
-the Command directly see the original.  This is a minor parity
-gap with upstream Tcl; acceptable for the wave since tcltest's
-rename usage is interpreted-proc-only.
+The command-introspection wave replaced the exception with a
+sidecar at ``Command[36..39]`` (``OFF_EXPORT_NAME_BUCKET``):
+``proc_register_compiled`` stashes the registration-time FQN
+there, and the host-bridge dispatcher reads the sidecar first
+(falling back to the live name slot when it's zero).  Rename
+now rewrites the live name slot uniformly for both interpreted
+and compiled procs; the sidecar keeps dispatch anchored.  See
+[`command-introspection.md`](command-introspection.md) §4 for
+the full sidecar contract.
 
 ### 3.4 Built-in protection list
 
