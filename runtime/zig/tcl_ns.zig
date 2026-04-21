@@ -636,6 +636,54 @@ pub fn ns_cmd_find(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
     return 0;
 }
 
+/// Recursive walker over every namespace reachable from ``ns`` via
+/// the ``child_table`` links.  For each populated ``cmd_table``
+/// bucket encountered, invokes ``visit(ctx, ns, name_ptr, name_len, cmd)``.
+/// ``cmd == 0`` entries (tombstones from ``ns_cmd_clear`` / delete)
+/// are skipped before the visitor sees them.
+///
+/// The visitor is a comptime function pointer so the generic
+/// ``ctx: anytype`` stays monomorphised per call site — no vtable,
+/// no dispatch overhead.  Callers use the visitor for both sizing
+/// and filling passes (``interp aliases``, any future ns-tree
+/// introspection walker) by toggling behaviour on a field inside
+/// ``ctx``.
+///
+/// The ``interp hidden`` walker does NOT use this helper — hidden
+/// commands live in the interpreter-wide flat table, not the ns
+/// tree, so they have a different traversal shape.
+pub fn walk_tree_cmd_tables(
+    ns: u32,
+    ctx: anytype,
+    comptime visit: fn (@TypeOf(ctx), u32, u32, u32, u32) void,
+) void {
+    const n: *const Namespace = @ptrFromInt(ns);
+    if (n.cmd_table.buf != 0) {
+        const bucket_size: u32 = 16;
+        var i: u32 = 0;
+        while (i < n.cmd_table.cap) : (i += 1) {
+            const bucket = n.cmd_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const cmd: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
+            if (cmd == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            visit(ctx, ns, name_ptr, name_len, cmd);
+        }
+    }
+    if (n.child_table.buf != 0) {
+        const bucket_size: u32 = 16;
+        var i: u32 = 0;
+        while (i < n.child_table.cap) : (i += 1) {
+            const bucket = n.child_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const child: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
+            if (child != 0) walk_tree_cmd_tables(child, ctx, visit);
+        }
+    }
+}
+
 /// Clear the value of a cmd_table bucket so future ``ns_cmd_find``
 /// calls return 0 for this name.  The bucket's header (name / hash)
 /// stays populated so probe chains aren't broken — the same
