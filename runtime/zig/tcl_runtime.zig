@@ -39,6 +39,7 @@ const tcl_dispatch = @import("tcl_dispatch.zig");
 const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const tcl_rename = @import("tcl_rename.zig");
 const tcl_alias = @import("tcl_alias.zig");
+const tcl_hide = @import("tcl_hide.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -389,11 +390,38 @@ comptime {
     _ = &tcl_alias.alias_describe;
     _ = &tcl_alias.is_alias;
     _ = &tcl_ns.ns_cmd_clear;
-    // Runtime test scaffolding for rename + alias — exposed as
-    // WASM exports so the Python test harness can exercise the
-    // primitives without going through the full Tcl interpreter.
+    // tcl_hide — new in the hide/introspection wave.  Built-ins
+    // in tcl_interp.zig call these directly; test scaffolding
+    // below exposes them to the Python harness too.
+    _ = &tcl_hide.hide_command;
+    _ = &tcl_hide.expose_command;
+    _ = &tcl_ns.hidden_put;
+    _ = &tcl_ns.hidden_find;
+    _ = &tcl_ns.hidden_clear;
+    _ = &tcl_ns.hidden_table_buf;
+    _ = &tcl_ns.hidden_table_cap;
+    // tcl_cmd_info — new walkers for info commands / info procs /
+    // info default.  info_dispatch already re-exported above
+    // picks up the new entry points transitively.
+    _ = &tcl_cmd_info.info_commands;
+    _ = &tcl_cmd_info.info_procs;
+    _ = &tcl_cmd_info.info_default;
+    // tcl_procs — sidecar accessor added for compiled-proc rename
+    // completeness.
+    _ = &tcl_procs.proc_get_export_name;
+    // Runtime test scaffolding — exposed as WASM exports so the
+    // Python test harness can drive primitives without going
+    // through the full Tcl interpreter.
     _ = &tcl_test_rename;
     _ = &tcl_test_alias_create;
+    _ = &tcl_test_hide;
+    _ = &tcl_test_expose;
+    _ = &tcl_test_info_commands;
+    _ = &tcl_test_info_procs;
+    _ = &tcl_test_namespace_which;
+    _ = &tcl_test_hidden_exists;
+    _ = &tcl_test_export_name_ptr;
+    _ = &tcl_test_export_name_len;
 }
 
 // -- Runtime test scaffolding (rename / alias) -----------------------------
@@ -457,4 +485,102 @@ pub export fn tcl_test_alias_create(
     );
     tcl_procs.proc_count_bump();
     return @bitCast(cmd);
+}
+
+// -- Runtime test scaffolding (hide / expose / info) -----------------------
+
+/// Hide a command.  ``src_ns`` identifies the namespace holding
+/// the source.  Returns the ``HideResult`` enum as an i32 (0 = ok,
+/// 1 = not_found, 2 = qualified_name_rejected, 3 = hidden_name_taken).
+pub export fn tcl_test_hide(
+    src_ns: i32,
+    src_simple_ptr: i32,
+    src_simple_len: i32,
+    hidden_name_ptr: i32,
+    hidden_name_len: i32,
+) i32 {
+    const r = tcl_hide.hide_command(
+        @bitCast(src_ns),
+        @bitCast(src_simple_ptr),
+        @bitCast(src_simple_len),
+        @bitCast(hidden_name_ptr),
+        @bitCast(hidden_name_len),
+    );
+    return @bitCast(@as(u32, @intFromEnum(r)));
+}
+
+/// Expose a hidden command.  Returns the ``ExposeResult`` enum as
+/// an i32 (0 = ok, 1 = not_found, 2 = qualified_name_rejected,
+/// 3 = target_exists).
+pub export fn tcl_test_expose(
+    hidden_name_ptr: i32,
+    hidden_name_len: i32,
+    dest_ns: i32,
+    new_simple_ptr: i32,
+    new_simple_len: i32,
+) i32 {
+    const r = tcl_hide.expose_command(
+        @bitCast(hidden_name_ptr),
+        @bitCast(hidden_name_len),
+        @bitCast(dest_ns),
+        @bitCast(new_simple_ptr),
+        @bitCast(new_simple_len),
+    );
+    return @bitCast(@as(u32, @intFromEnum(r)));
+}
+
+/// Non-zero if a hidden-table entry is present under the given
+/// simple name.  Used by tests to assert the hidden state directly
+/// without the interpreter layer.
+pub export fn tcl_test_hidden_exists(name_ptr: i32, name_len: i32) i32 {
+    const h = tcl_ns.hidden_find(@bitCast(name_ptr), @bitCast(name_len));
+    return if (h != 0) 1 else 0;
+}
+
+/// Run ``info commands pattern`` and return the result TclObj.
+/// ``pattern_len == 0`` is the "no pattern" case.  Stages a TclObj
+/// wrapping the supplied pattern bytes so the walker sees the same
+/// shape it would via the interpreter dispatch.
+pub export fn tcl_test_info_commands(pattern_ptr: i32, pattern_len: i32) i32 {
+    if (pattern_len == 0) return tcl_cmd_info.info_commands(0);
+    const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
+    return tcl_cmd_info.info_commands(pat);
+}
+
+/// Run ``info procs pattern``.  Same shape as
+/// :func:`tcl_test_info_commands`.
+pub export fn tcl_test_info_procs(pattern_ptr: i32, pattern_len: i32) i32 {
+    if (pattern_len == 0) return tcl_cmd_info.info_procs(0);
+    const pat = tcl_obj.obj_new_string(pattern_ptr, pattern_len);
+    return tcl_cmd_info.info_procs(pat);
+}
+
+/// Probe ``namespace which -command name`` without routing through
+/// the interpreter.  Returns the resolved Command's stored FQN as
+/// a TclObj, or an empty-string TclObj on miss.  The test harness
+/// reads the TclObj's str_ptr / str_len slots to verify.
+pub export fn tcl_test_namespace_which(name_ptr: i32, name_len: i32) i32 {
+    const cmd = tcl_ns.ns_find_command(
+        tcl_ns.ns_current(),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    );
+    if (cmd == 0) return tcl_obj.obj_new_string(0, 0);
+    const fp: i32 = tcl_obj.read_i32(cmd);
+    const fl: i32 = tcl_obj.read_i32(cmd + 4);
+    return tcl_obj.obj_new_string(fp, fl);
+}
+
+/// Return the sidecar export-name pointer stashed by
+/// ``proc_register_compiled``.  Tests use this to verify the
+/// ``OFF_EXPORT_NAME_BUCKET`` slot is populated correctly and
+/// survives a rename.
+pub export fn tcl_test_export_name_ptr(bucket: i32) i32 {
+    const e = tcl_procs.proc_get_export_name(@bitCast(bucket));
+    return @bitCast(e.ptr);
+}
+
+pub export fn tcl_test_export_name_len(bucket: i32) i32 {
+    const e = tcl_procs.proc_get_export_name(@bitCast(bucket));
+    return @bitCast(e.len);
 }
