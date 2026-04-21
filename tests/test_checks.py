@@ -592,37 +592,25 @@ class TestGlobalsWrittenByProcs:
         assert [d.message for d in diags if "package_name" in d.message] == []
 
     def test_proc_writes_fully_qualified_global_suppresses_w210(self):
-        src = (
-            "proc set_name {v} {set ::package_name $v}\n"
-            "set out $package_name\n"
-        )
+        src = "proc set_name {v} {set ::package_name $v}\nset out $package_name\n"
         diags = _diag_with_code(src, "W210")
         assert [d.message for d in diags if "package_name" in d.message] == []
 
     def test_proc_incr_global_suppresses_w210(self):
-        src = (
-            "proc bump {} {global counter; incr counter}\n"
-            "puts $counter\n"
-        )
+        src = "proc bump {} {global counter; incr counter}\nputs $counter\n"
         diags = _diag_with_code(src, "W210")
         assert [d.message for d in diags if "counter" in d.message] == []
 
     def test_global_alias_without_write_still_warns(self):
         """``global X`` alone (no set) doesn't populate the global."""
-        src = (
-            "proc reader {} {global package_name; return $package_name}\n"
-            "set out $package_name\n"
-        )
+        src = "proc reader {} {global package_name; return $package_name}\nset out $package_name\n"
         diags = _diag_with_code(src, "W210")
         names = [d.message for d in diags if "package_name" in d.message]
         assert len(names) == 1
 
     def test_unrelated_global_still_warns(self):
         """Procs writing other globals don't mask real read-before-set."""
-        src = (
-            "proc set_name {v} {global package_name; set package_name $v}\n"
-            "puts $other_var\n"
-        )
+        src = "proc set_name {v} {global package_name; set package_name $v}\nputs $other_var\n"
         diags = _diag_with_code(src, "W210")
         assert any("other_var" in d.message for d in diags)
 
