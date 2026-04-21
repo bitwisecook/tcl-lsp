@@ -80,16 +80,20 @@ body {
 .app {
   display: grid;
   grid-template-rows: auto 1fr;
+  grid-template-columns: minmax(0, 1fr);
   height: 100vh;
+  width: 100%;
 }
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
   min-height: 42px;
+  min-width: 0;
 }
 .toolbar h1 {
   font-size: 14px;
@@ -125,12 +129,14 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 .output-panel {
   display: flex;
   flex-direction: column;
   flex: 1;
   overflow: hidden;
+  min-width: 0;
 }
 .tab-bar {
   display: flex;
@@ -138,6 +144,7 @@ body {
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  min-width: 0;
 }
 .tab {
   padding: 6px 10px;
