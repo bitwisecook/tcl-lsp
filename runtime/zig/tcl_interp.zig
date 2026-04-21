@@ -1509,77 +1509,199 @@ fn eval_foreach(words: []const i32) i32 {
 /// ``tmp/tcl9.0.3/generic/tclInterp.c`` (``ChildObjCmd``).  We ship
 /// the ``eval`` shape; the rest surface as clean diagnostics so
 /// callers get a readable error rather than a stub-dispatch trap.
+/// Child-as-command bad-option error string.  Matches
+/// ``tmp/tcl9.0.3/generic/tclInterp.c``'s per-child
+/// ``childCmdOptions`` table verbatim (less the ones we don't
+/// ship — ``bgerror``, ``cancel``, ``limit``, ``marktrusted``,
+/// ``recursionlimit``).
+const CHILD_SUBCOMMAND_LIST: []const u8 = "alias, aliases, bgerror, cancel, eval, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit";
+
+/// Render ``wrong # args: should be "<child><suffix>"`` — the
+/// per-child arity-error wording used throughout ``ChildObjCmd``
+/// in tclInterp.c.  ``suffix`` supplies the post-child-name
+/// portion (``" alias aliasName ?targetName? ?arg ...?"``,
+/// ``" aliases"`` etc.).
+fn emit_child_arity_error(
+    child_name_ptr: u32,
+    child_name_len: u32,
+    suffix: []const u8,
+) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "wrong # args: should be \"";
+    const tail: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) +
+        child_name_len +
+        @as(u32, @intCast(suffix.len)) +
+        @as(u32, @intCast(tail.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (prefix, 0..) |b, k| d[k] = b;
+    if (child_name_len > 0) {
+        const np: [*]const u8 = @ptrFromInt(child_name_ptr);
+        for (0..child_name_len) |k| d[prefix.len + k] = np[k];
+    }
+    for (suffix, 0..) |b, k| d[prefix.len + child_name_len + k] = b;
+    for (tail, 0..) |b, k| {
+        d[prefix.len + child_name_len + suffix.len + k] = b;
+    }
+    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+}
+
+fn emit_child_bad_option(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "bad option \"";
+    const infix: []const u8 = "\": must be ";
+    const total: u32 = @as(u32, @intCast(prefix.len)) +
+        name_len +
+        @as(u32, @intCast(infix.len)) +
+        @as(u32, @intCast(CHILD_SUBCOMMAND_LIST.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (prefix, 0..) |b, k| d[k] = b;
+    if (name_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |k| d[prefix.len + k] = sp[k];
+    }
+    for (infix, 0..) |b, k| d[prefix.len + name_len + k] = b;
+    for (CHILD_SUBCOMMAND_LIST, 0..) |b, k| {
+        d[prefix.len + name_len + infix.len + k] = b;
+    }
+    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Dispatch ``<child> subcmd ?args ...?``.  The per-child
+/// subcommand set is the same shape as the ``interp`` built-in's
+/// path-taking subcommands (``eval`` / ``alias`` / ``aliases`` /
+/// ``hide`` / ``expose`` / ``hidden`` / ``invokehidden`` /
+/// ``issafe``) with the child's identity supplied implicitly
+/// rather than as an explicit path argument.
+///
+/// We implement this as an argv-rewrite: the caller's
+/// ``[<child>, subcmd, args...]`` is transformed into
+/// ``["interp", subcmd, <child_path>, args...]`` and handed to
+/// the corresponding top-level ``interp`` subcommand handler.  The
+/// ``<child_path>`` is a TclObj wrapping the child's simple name
+/// in the current interp, which ``resolve_interp_path`` walks
+/// through.  ``alias`` needs a slightly different rewrite (the
+/// parent-path ``{}`` is injected between ``newName`` and
+/// ``target`` on creation) so it's routed through the
+/// per-subcommand helpers directly.
+///
+/// Mirrors ``ChildObjCmd`` (``tmp/tcl9.0.3/generic/tclInterp.c``).
 fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
-    const interp_reg_mod = @import("tcl_interp_registry.zig");
-    const child: u32 = interp_reg_mod.cmd_child_interp(@as(u32, @bitCast(bucket)));
-    if (interp_reg_mod.is_deleted(child)) {
+    const child: u32 = interp_reg.cmd_child_interp(@as(u32, @bitCast(bucket)));
+    if (interp_reg.is_deleted(child)) {
         const catch_mod = @import("tcl_catch.zig");
         catch_mod.error_unknown_command(words[0]);
         return 0;
     }
 
+    // Extract the caller-visible child name (taken from argv[0]
+    // rather than the Interp's ``name_*`` slot so errors mirror
+    // whatever spelling the user invoked — ``interp create foo``
+    // and a later ``rename foo bar`` would read as ``bar alias ...``).
+    const child_name = obj_ensure_string(words[0]);
+
     if (words.len < 2) {
-        const catch_mod = @import("tcl_catch.zig");
-        const err_text = "wrong # args: should be \"<interp> cmd ?arg ...?\"";
-        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
-        catch_mod.tcl_cmd_error(msg);
+        emit_child_arity_error(child_name.ptr, child_name.len, " cmd ?arg ...?");
         return 0;
     }
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
 
-    if (str_eq(sp, sub.len, "eval")) {
-        // Concatenate words[2..] with single-space separator.
+    // ``alias`` diverges from the other subcommands because its
+    // argv shape on the per-child form omits the explicit parent
+    // path: ``<child> alias newName ?target ?arg ...??`` implicitly
+    // sets ``parentPath = {}`` (current interp).  Route directly to
+    // the same helpers the top-level form uses so we don't have to
+    // fake up an argv with a synthetic ``{}`` slot.
+    if (str_eq(sp, sub.len, "alias")) {
         if (words.len < 3) {
-            const catch_mod = @import("tcl_catch.zig");
-            const err_text = "wrong # args: should be \"<interp> eval arg ?arg ...?\"";
-            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
-            catch_mod.tcl_cmd_error(msg);
+            emit_child_arity_error(
+                child_name.ptr,
+                child_name.len,
+                " alias aliasName ?targetName? ?arg ...?",
+            );
             return 0;
         }
-        var total: u32 = 0;
-        var k: u32 = 2;
-        while (k < words.len) : (k += 1) {
-            total += @as(u32, @intCast(obj_ensure_string(words[k]).len));
-            if (k + 1 < words.len) total += 1;
+        const new_name = obj_ensure_string(words[2]);
+        if (words.len == 3) {
+            return interp_alias_query(child, new_name.ptr, new_name.len);
         }
-        if (total == 0) return 0;
-        const script_ptr = alloc(total);
-        var off: u32 = 0;
-        k = 2;
-        while (k < words.len) : (k += 1) {
-            const s = obj_ensure_string(words[k]);
-            if (s.len > 0) {
-                memcpy(script_ptr + off, s.ptr, s.len);
-                off += s.len;
-            }
-            if (k + 1 < words.len) {
-                const d: [*]u8 = @ptrFromInt(script_ptr + off);
-                d[0] = ' ';
-                off += 1;
+        const arg3 = obj_ensure_string(words[3]);
+        if (arg3.len == 0 and words.len == 4) {
+            return interp_alias_delete(child, new_name.ptr, new_name.len);
+        }
+        // Create: ``<child> alias newName target ?args...?``.  Parent
+        // interp = current (the interp hosting this child Command).
+        const target_name = obj_ensure_string(words[3]);
+        const n_prefix: u32 = @as(u32, @intCast(words.len)) - 4;
+        var prefix_buf: u32 = 0;
+        if (n_prefix > 0) {
+            prefix_buf = alloc(n_prefix * 4);
+            var j: u32 = 0;
+            while (j < n_prefix) : (j += 1) {
+                write_i32(prefix_buf + j * 4, words[4 + j]);
             }
         }
-        const save = interp_reg_mod.enter(child);
-        const result = eval_script(script_ptr, off);
-        interp_reg_mod.leave(save);
-        return result;
+        return interp_alias_create(
+            child,
+            interp_reg.interp_current(),
+            new_name.ptr,
+            new_name.len,
+            target_name.ptr,
+            target_name.len,
+            n_prefix,
+            prefix_buf,
+        );
     }
 
-    // Unknown subcommand — match tclsh's wording.
-    const catch_mod = @import("tcl_catch.zig");
-    const prefix: []const u8 = "bad option \"";
-    const suffix: []const u8 = "\": must be alias, aliases, bgerror, cancel, eval, expose, hide, hidden, ismem, issafe, invokehidden, limit, marktrusted, recursionlimit";
-    const total: u32 = @as(u32, @intCast(prefix.len)) + sub.len + @as(u32, @intCast(suffix.len));
-    const buf = alloc(total);
-    const d: [*]u8 = @ptrFromInt(buf);
-    for (prefix, 0..) |b, k| d[k] = b;
-    if (sub.len > 0) {
-        const srp: [*]const u8 = @ptrFromInt(sub.ptr);
-        for (0..sub.len) |k| d[prefix.len + k] = srp[k];
+    // The remaining subcommands route through the top-level
+    // ``interp`` dispatcher with a synthesised ``path`` slot.  Build
+    // ``["interp", subcmd, <child_path>, words[2..]]``.
+    const c: *interp_reg.Interp = @ptrFromInt(child);
+    const child_path_obj = rt.obj_new_string(@bitCast(c.name_ptr), @bitCast(c.name_len));
+
+    const new_len: u32 = @as(u32, @intCast(words.len)) + 1;
+    if (new_len > parse.MAX_WORDS) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "<interp> subcommand argv exceeds MAX_WORDS";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
     }
-    for (suffix, 0..) |b, k| d[prefix.len + sub.len + k] = b;
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
-    catch_mod.tcl_cmd_error(msg);
+    var new_words: [parse.MAX_WORDS]i32 = undefined;
+    const interp_str: []const u8 = "interp";
+    new_words[0] = rt.obj_new_string_copy(@intFromPtr(interp_str.ptr), interp_str.len);
+    new_words[1] = words[1]; // subcmd (re-use caller's TclObj)
+    new_words[2] = child_path_obj;
+    var j: u32 = 3;
+    var k: u32 = 2;
+    while (k < words.len) : (k += 1) {
+        new_words[j] = words[k];
+        j += 1;
+    }
+
+    if (str_eq(sp, sub.len, "eval")) return eval_interp_eval(new_words[0..new_len]);
+    if (str_eq(sp, sub.len, "aliases")) {
+        // ``<child> aliases`` takes no arguments.  Matches
+        // ``ChildObjCmd``'s ``CHILD_ALIASES`` branch in tclInterp.c.
+        if (words.len != 2) {
+            emit_child_arity_error(child_name.ptr, child_name.len, " aliases");
+            return 0;
+        }
+        return interp_aliases_list_for(child);
+    }
+    if (str_eq(sp, sub.len, "hide")) return eval_interp_hide(new_words[0..new_len]);
+    if (str_eq(sp, sub.len, "expose")) return eval_interp_expose(new_words[0..new_len]);
+    if (str_eq(sp, sub.len, "hidden")) return eval_interp_hidden(new_words[0..new_len]);
+    if (str_eq(sp, sub.len, "invokehidden")) return eval_interp_invokehidden(new_words[0..new_len]);
+    if (str_eq(sp, sub.len, "issafe")) return eval_interp_issafe(new_words[0..new_len]);
+
+    // Unknown subcommand — match tclsh's per-child wording.
+    emit_child_bad_option(sub.ptr, sub.len);
     return 0;
 }
 
@@ -2068,11 +2190,24 @@ fn eval_interp(words: []const i32) i32 {
         return 0;
     }
 
-    // ``interp aliases {}``: list every alias in the (only) interp.
-    // We traverse the namespace tree and collect every Command with
-    // CMD_ALIAS set, emitting its simple name.
+    // ``interp aliases ?path?``: list every alias in the target
+    // interp.  We traverse the namespace tree and collect every
+    // Command with CMD_ALIAS set, emitting its simple name.  Empty
+    // path (or no path) resolves to the current interp.
     if (str_eq(sp, sub.len, "aliases")) {
-        return interp_aliases_list();
+        if (words.len > 3) {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "wrong # args: should be \"interp aliases ?path?\"";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        const target_interp: u32 = if (words.len == 3) blk: {
+            const t = resolve_interp_path(words[2]);
+            if (t == 0) return 0;
+            break :blk t;
+        } else interp_reg.interp_current();
+        return interp_aliases_list_for(target_interp);
     }
 
     // ``interp alias childPath newName ?targetPath target ?arg…??``
@@ -2268,26 +2403,35 @@ fn words_obj_new_string_dup(ptr: u32, len: u32) i32 {
     return obj_new_string(@bitCast(buf), @bitCast(len));
 }
 
-/// ``interp aliases {}`` — list every registered alias.  Walks every
-/// namespace in the tree, visiting each one's ``cmd_table`` once and
-/// emitting commands flagged ``CMD_ALIAS``.  Output is a Tcl list of
-/// simple alias names (not FQNs) — matches ``tclsh``'s default.
+/// ``interp aliases ?path?`` — list every registered alias in the
+/// resolved interp.  Walks the interp's namespace tree starting at
+/// its root, visiting each ``cmd_table`` once and emitting commands
+/// flagged ``CMD_ALIAS``.  Output is a Tcl list of simple alias
+/// names (not FQNs) — matches ``tclsh``'s default.
 fn interp_aliases_list() i32 {
+    return interp_aliases_list_for(interp_reg.interp_current());
+}
+
+/// Shared implementation: list aliases reachable from ``target_interp``.
+/// Child-as-command (`<child> aliases`) and the explicit
+/// ``interp aliases <path>`` form both route here.
+fn interp_aliases_list_for(target_interp: u32) i32 {
+    if (target_interp == 0) return obj_new_string(0, 0);
+    const t: *interp_reg.Interp = @ptrFromInt(target_interp);
     // Accumulator: sum string lengths (plus separators) to size the
     // output buffer.  We walk the tree twice: once to size, once to
     // fill.  Single-pass grown allocation would require a realloc
     // path the bump allocator doesn't support.  Both passes route
     // through the shared ``tcl_ns.walk_tree_cmd_tables`` helper so
     // every ns-tree introspection walker shares one recursion shape.
-    const root = tcl_ns.ns_root();
     var ctx: AliasListCtx = .{ .total = 0, .count = 0, .buf = 0, .off = 0 };
-    tcl_ns.walk_tree_cmd_tables(root, &ctx, alias_size_visit);
+    tcl_ns.walk_tree_cmd_tables(t.root_ns, &ctx, alias_size_visit);
     if (ctx.total == 0) return obj_new_string(0, 0);
 
     ctx.buf = alloc(ctx.total);
     ctx.off = 0;
     ctx.count = 0;
-    tcl_ns.walk_tree_cmd_tables(root, &ctx, alias_fill_visit);
+    tcl_ns.walk_tree_cmd_tables(t.root_ns, &ctx, alias_fill_visit);
     return obj_new_string(@bitCast(ctx.buf), @bitCast(ctx.off));
 }
 
@@ -2298,68 +2442,32 @@ const AliasListCtx = struct {
     off: u32,
 };
 
-/// Fully-qualified length of an alias name: ``<ns_full>::<simple>``.
-/// Root-ns aliases are reported as ``::<simple>`` (not ``::::x``) to
-/// match C Tcl's ``Tcl_GetCommandFullName`` collapsing the redundant
-/// separator.  See also :func:`tcl_ns.ns_full_name`.
-fn alias_fqn_length(ns: u32, simple_len: u32) u32 {
-    const ns_full = tcl_ns.ns_full_name(ns);
-    // Root's full name is the literal ``::`` (len 2); a child of root
-    // is ``::<name>`` which already ends with the simple name, so
-    // appending ``::<simple>`` would produce ``::name::::x`` — wrong.
-    // Instead we always join ``<ns_full>::<simple>`` and let the
-    // length-2 root case collapse naturally to ``::<simple>``.
-    if (ns_full.len == 2) return 2 + simple_len;
-    return ns_full.len + 2 + simple_len;
-}
-
-/// Write ``<ns_full>::<simple>`` into ``dst`` at offset 0.  Returns
-/// the number of bytes written.  See :func:`alias_fqn_length` for
-/// the root-ns collapsing rule.
-fn write_alias_fqn(dst: u32, ns: u32, simple_ptr: u32, simple_len: u32) u32 {
-    const ns_full = tcl_ns.ns_full_name(ns);
-    const d: [*]u8 = @ptrFromInt(dst);
-    var off: u32 = 0;
-    if (ns_full.len == 2) {
-        d[0] = ':';
-        d[1] = ':';
-        off = 2;
-    } else {
-        const np: [*]const u8 = @ptrFromInt(ns_full.ptr);
-        for (0..ns_full.len) |k| d[k] = np[k];
-        d[ns_full.len] = ':';
-        d[ns_full.len + 1] = ':';
-        off = ns_full.len + 2;
-    }
-    if (simple_len > 0) {
-        const sp: [*]const u8 = @ptrFromInt(simple_ptr);
-        for (0..simple_len) |k| d[off + k] = sp[k];
-        off += simple_len;
-    }
-    return off;
-}
-
-/// Visitor for the sizing pass of ``interp aliases``.  Inspects each
-/// bucket, filters to aliases, and accumulates the FQN length +
-/// separator bytes into ``ctx.total``.
-fn alias_size_visit(ctx: *AliasListCtx, ns: u32, _: u32, name_len: u32, cmd: u32) void {
+/// Visitor for the sizing pass of ``interp aliases``.  Inspects
+/// each bucket, filters to aliases, and accumulates the simple-name
+/// length + separator bytes into ``ctx.total``.  C Tcl's ``interp
+/// aliases`` emits each alias's simple name only — ``{bar foo}``,
+/// not ``{::bar ::foo}``.
+fn alias_size_visit(ctx: *AliasListCtx, _: u32, _: u32, name_len: u32, cmd: u32) void {
     if (!alias_mod.is_alias(cmd)) return;
     if (ctx.count > 0) ctx.total += 1;
-    ctx.total += alias_fqn_length(ns, name_len);
+    ctx.total += name_len;
     ctx.count += 1;
 }
 
-/// Visitor for the filling pass of ``interp aliases``.  Writes
-/// ``<ns_full>::<simple>`` into ``ctx.buf`` at ``ctx.off``,
+/// Visitor for the filling pass of ``interp aliases``.  Writes the
+/// alias's simple name into ``ctx.buf`` at ``ctx.off``,
 /// space-separated from prior entries.
-fn alias_fill_visit(ctx: *AliasListCtx, ns: u32, name_ptr: u32, name_len: u32, cmd: u32) void {
+fn alias_fill_visit(ctx: *AliasListCtx, _: u32, name_ptr: u32, name_len: u32, cmd: u32) void {
     if (!alias_mod.is_alias(cmd)) return;
     if (ctx.count > 0) {
         const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
         d[0] = ' ';
         ctx.off += 1;
     }
-    ctx.off += write_alias_fqn(ctx.buf + ctx.off, ns, name_ptr, name_len);
+    if (name_len > 0) {
+        memcpy(ctx.buf + ctx.off, name_ptr, name_len);
+        ctx.off += name_len;
+    }
     ctx.count += 1;
 }
 
@@ -2724,15 +2832,6 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
 // ``OPT_{CREATE,EVAL,EXISTS,SLAVES,DELETE}`` branches in
 // ``InterpObjCmd`` (``tmp/tcl9.0.3/generic/tclInterp.c``).
 
-/// Monotonic counter for auto-generated child-interp names
-/// (``interp0``, ``interp1``, …).  Matches C Tcl's ``idIssuer``
-/// on the parent struct but kept here as a flat global because
-/// our interpreter registry doesn't track per-parent issuers
-/// separately — the generated name only has to be unique inside
-/// its parent's children table, which we verify via
-/// ``child_lookup``.
-var interp_anon_counter: u32 = 0;
-
 /// Render an unsigned integer into a bump-allocated decimal
 /// string.  Small enough (≤10 digits for u32) to not bother with
 /// Tcl's double-pass integer formatter.
@@ -2820,13 +2919,23 @@ fn eval_interp_create(words: []const i32) i32 {
     var name_ptr: u32 = 0;
     var name_len: u32 = 0;
     if (path_obj == 0) {
-        // Auto-generate a fresh name: ``interp<N>`` where N is the
-        // next unused counter value.  Guaranteed unique in the
-        // current interp's children table; increment-then-probe
-        // avoids collisions with handmade names like ``interp0``.
+        // Auto-generate a fresh name: ``interp<N>`` where N comes
+        // from the *parent's* own monotonic counter.  Matches C
+        // Tcl's ``Parent.idIssuer`` — kept per-parent so siblings
+        // in different parent interps don't collide, and a
+        // deleted-then-recreated anonymous interp under parent X
+        // doesn't skew the numbering under parent Y.
+        //
+        // Even with the per-parent counter we still probe for
+        // collisions (both against child-registry entries and
+        // same-named cmd_table entries in the parent's root ns)
+        // because a user may have manually created a proc named
+        // ``interp0`` or an explicit child ``interp0`` before
+        // reaching the auto-name path.
+        const current_i: *interp_reg.Interp = @ptrFromInt(current);
         while (true) {
-            const d = render_uint(interp_anon_counter);
-            interp_anon_counter += 1;
+            const d = render_uint(current_i.id_issuer);
+            current_i.id_issuer += 1;
             const prefix: []const u8 = "interp";
             const total: u32 = @as(u32, @intCast(prefix.len)) + d.len;
             const buf = alloc(total);
