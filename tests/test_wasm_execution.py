@@ -2424,6 +2424,82 @@ set ::result "<[namespace which -command missing]>"
         )
         assert result == b"<>"
 
+    def test_info_body_on_missing_raises_error(self):
+        """``info body`` on a name that doesn't resolve raises
+        ``"X" isn't a procedure`` — matches Tcl 9's ``InfoBodyCmd``
+        wording."""
+        result = self._run_and_read_global(
+            """\
+catch {info body nonexistent} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'"nonexistent" isn\'t a procedure'
+
+    def test_info_body_on_alias_raises_error(self):
+        """Aliases aren't interpreted procs — ``info body`` on an
+        alias raises the same "isn't a procedure" error."""
+        result = self._run_and_read_global(
+            """\
+proc target {} {}
+interp alias {} my_alias {} target
+catch {info body my_alias} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'"my_alias" isn\'t a procedure'
+
+    def test_hide_and_catch_snippet_compiles(self):
+        """Explorer WAT sanity: the
+        ``proc foo {} {return 1}; interp hide {} foo; catch foo msg;
+        expr {$msg}`` snippet compiles to a well-formed WASM module.
+
+        The bare ``foo`` call after ``interp hide`` does NOT currently
+        route through the eval fallback — the compiler specialises
+        it to a direct ``call $::foo`` via its proc-index dispatch.
+        That's a pre-existing codegen optimisation; runtime
+        ``interp hide`` state isn't visible to the compile-time
+        proc index, so hiding a proc that was *also* defined in the
+        same translation unit doesn't block the compiled dispatch.
+        Acknowledged as a known gap in
+        ``docs/design/runtime/command-introspection.md`` §9 — the
+        fix belongs to the compiler, not this runtime wave.  This
+        test just pins the compile-clean invariant so regressions
+        that trap or mis-emit catch this snippet are caught."""
+        source = "proc foo {} {return 1}\ninterp hide {} foo\ncatch foo msg\nexpr {$msg}\n"
+        wasm_module, wasm_bytes = _compile_to_wasm(source)
+        # Smoke check: module parses back out and contains the
+        # imports we rely on (``tcl_eval`` for the ``interp hide``
+        # body, ``catch_enter`` for the catch wrapper).
+        wat = wasm_module.to_wat()
+        assert "tcl_eval" in wat, "tcl_eval import should be present"
+        assert "catch_enter" in wat, "catch_enter import should be present"
+        assert "::foo" in wat, "::foo compiled function should be present"
+        assert len(wasm_bytes) > 0
+
+    def test_info_default_on_compiled_proc_raises_error(self):
+        """End-to-end, user procs reach this path as compiled procs
+        (the WASM compiler routes every top-level ``proc`` through
+        ``proc_register_compiled``).  ``info default`` refuses
+        compiled procs with the same ``"X" isn't a procedure``
+        wording it uses for aliases and missing commands — the
+        compiled form has no retrievable params list.  The
+        ``"procedure \"X\" doesn't have an argument \"Y\""`` error
+        shape is still reachable for interpreted procs registered
+        via the runtime ``proc_register`` path (covered in
+        ``tests/runtime/test_tcl_info.py``)."""
+        result = self._run_and_read_global(
+            """\
+proc p1 {a b} {}
+catch {info default p1 missing_arg v} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'"p1" isn\'t a procedure'
+
 
 def _read_global_string(
     rt_instance: wasmtime.Instance,

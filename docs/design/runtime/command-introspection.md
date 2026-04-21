@@ -297,7 +297,63 @@ Three layers:
    pin the semantics; upstream coverage is the next natural
    expansion along with child-interp support.
 
-## 8. Ship summary
+## 8. Known limitations
+
+### 8.1 Compiler direct-call bypasses `interp hide` / `rename`
+
+The WASM compiler builds a ``proc_index: dict[str, (func_idx,
+n_params)]`` at compile time (``codegen/wasm/__init__.py``) that
+lets ``_resolve_proc`` emit a direct ``call $::foo`` for any proc
+defined in the same translation unit.  The runtime's hidden
+table / rename table are not visible to this lookup: if the
+source mixes ``proc foo {} {...}`` with ``interp hide {} foo``
+(or ``rename foo bar``) in the same unit, subsequent bare
+``foo`` calls are still routed to the compiled body via direct
+WASM index dispatch, bypassing ``proc_lookup`` entirely.
+
+Runtime consequences:
+
+* ``interp hide {} foo; foo`` in a single compiled program will
+  dispatch to the hidden Command's compiled body rather than
+  raising ``unknown command: foo``.
+* ``rename foo bar; foo`` will still call the original compiled
+  body — the ``cmd_table`` move is invisible to the compile-time
+  proc-index lookup.
+
+Runtime-driven paths are unaffected:
+
+* Hide / expose / rename invoked from code that wasn't part of
+  the compile-time proc index (dynamic eval, proc calls through
+  ``tcl_eval``, interpreter fallback) observe the runtime state
+  correctly.
+* The runtime's direct tests (``tests/runtime/test_tcl_hide.py``
+  + ``test_tcl_info.py``) exercise every primitive without the
+  compiler, so they stay green.
+
+The fix is a compiler change: invalidate the direct-call
+specialisation when the compiler observes ``interp hide`` /
+``rename`` / ``interp hidden`` on a proc name in the same
+translation unit.  Scoped out of the command-manipulation +
+introspection wave (which is runtime-only) and tracked against
+the compiler codegen layer.
+
+``tests/test_wasm_execution.py::TestInfoIntrospection::test_hide_and_catch_snippet_compiles``
+pins the compile-clean invariant for the exact snippet called
+out in the wave's ship criteria so further codegen changes that
+break compilation of this shape surface a clear regression.
+
+### 8.2 `TestCounterBundle` stays xfail
+
+The tcllib counter-bundle end-to-end (``tests/external/run_tcllib_test.py``)
+hits an ``unknown command: test`` trap at counter.test line 4905
+— ``::tcltest::test`` isn't reachable from the bundle's
+invocation site despite tcltest's stage-1 sourcing completing.
+Root cause is the tcltest-init / namespace-path resolver
+interaction; unrelated to this wave's rename / alias / hide /
+info additions.  The xfail marker's reason string captures the
+concrete trap for follow-up.
+
+## 9. Ship summary
 
 - One new Zig module: ``tcl_hide.zig``.
 - Four new ``tcl_ns.zig`` helpers: ``hidden_put`` /

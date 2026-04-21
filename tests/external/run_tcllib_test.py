@@ -182,10 +182,15 @@ class TestCounterBundle:
 
     @pytest.mark.xfail(
         reason=(
-            "Whole-bundle run depends on the tcltest stage-2 init "
-            "finishing (see TestTcltestTopRuns); blocked on the same "
-            "downstream gaps.  Drop the xfail marker when the bundle "
-            "prints a ``Total N Passed N Failed 0 Skipped 0`` summary."
+            "Bundle trap: ``unknown command: test`` at counter.test's "
+            "first ``test counter-1.1 ...`` invocation.  tcltest's "
+            "stage-1 sourcing completes but the ``::tcltest::test`` "
+            "proc isn't reachable by the time counter.test runs — "
+            "root cause is the tcltest-init / namespace-path resolver "
+            "interaction, unrelated to the command-manipulation + "
+            "introspection wave (rename / alias / hide / info).  Drop "
+            "the xfail marker when the bundle prints a ``Total N "
+            "Passed N Failed 0 Skipped 0`` summary."
         ),
         strict=False,
     )
