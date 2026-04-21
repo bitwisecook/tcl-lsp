@@ -614,6 +614,18 @@ class TestGlobalsWrittenByProcs:
         diags = _diag_with_code(src, "W210")
         assert any("other_var" in d.message for d in diags)
 
+    def test_unset_does_not_suppress_w210(self):
+        """``unset`` destroys a global rather than initialising it."""
+        src = "proc clear {} {unset ::x}\nputs $x\n"
+        diags = _diag_with_code(src, "W210")
+        assert any("'x'" in d.message for d in diags)
+
+    def test_unset_via_alias_does_not_suppress_w210(self):
+        """``global X; unset X`` also destroys; it shouldn't count as a write."""
+        src = "proc clear {} {global x; unset x}\nputs $x\n"
+        diags = _diag_with_code(src, "W210")
+        assert any("'x'" in d.message for d in diags)
+
 
 # W303: ReDoS
 
