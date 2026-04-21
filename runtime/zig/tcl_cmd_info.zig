@@ -239,38 +239,104 @@ pub fn info_level(arg: i32) i32 {
         return obj_new_int(frames.frame_get_depth());
     }
 
-    // ``info level 0`` — tcltest accessors use
-    // ``[llength [info level 0]] == 1`` as a
-    // "called-with-no-args?" check.  Detect the literal ``0``
-    // arg and return a 1-element placeholder list so the
-    // common-case branch fires.  ``info level N`` for N != 0
-    // falls through to the ``bad level "N"`` path below.
+    // Parse the arg as a (possibly signed) integer.  Tcl accepts
+    // both positive levels (``info level 1`` = absolute frame 1)
+    // and negative levels (``info level -1`` = caller, one step
+    // up).  Under full fidelity we'd distinguish these — for the
+    // moment we accept the literal ``0`` form that tcltest relies
+    // on, plus negative offsets that walk up the stack.  Positive
+    // absolute levels without per-frame argv-is-stored-by-level
+    // mapping still raise ``bad level``.
     const arg_s = obj_ensure_string(arg);
-    const is_zero = arg_s.len == 1 and blk: {
-        const p: [*]const u8 = @ptrFromInt(arg_s.ptr);
-        break :blk p[0] == '0';
-    };
-    if (is_zero) {
-        // ``info level 0`` outside any proc has no invocation —
-        // Tcl 9 returns ``bad level "0"``.  Match.
-        if (frames.frame_get_depth() == 0) {
-            const catch_mod = @import("tcl_catch.zig");
-            const msg = obj_new_string(
-                @intCast(@intFromPtr("bad level \"0\"".ptr)),
-                14,
+    const parsed_offset = parse_signed_int(arg_s.ptr, arg_s.len);
+    if (parsed_offset.ok) {
+        const n = parsed_offset.value;
+        if (n == 0) {
+            // ``info level 0`` outside any proc has no
+            // invocation — Tcl 9 returns ``bad level "0"``.
+            if (frames.frame_get_depth() == 0) {
+                const catch_mod = @import("tcl_catch.zig");
+                const literal = "bad level \"0\"";
+                const msg = obj_new_string(
+                    @intCast(@intFromPtr(literal.ptr)),
+                    @intCast(literal.len),
+                );
+                catch_mod.tcl_cmd_error(msg);
+                return obj_new_string(0, 0);
+            }
+            // Return the real argv list recorded by the caller
+            // (``eval_proc_call_bucket`` for interpreted procs,
+            // or the compiled-proc prologue's ``frame_set_argv``
+            // call for compiled procs).  If no argv was recorded
+            // (legacy callers before the instrumentation, top-level
+            // frames, etc.) fall back to a 1-element placeholder
+            // so tcltest's ``[llength [info level 0]] == 1``
+            // check still fires.
+            const argv = frames.frame_get_argv(0);
+            if (argv != 0) return argv;
+            return obj_new_string(
+                @intCast(@intFromPtr("info_level_0".ptr)),
+                12,
             );
-            catch_mod.tcl_cmd_error(msg);
+        }
+        if (n < 0) {
+            // Negative levels are relative — ``-1`` = caller,
+            // ``-2`` = caller's caller, etc.  ``frame_get_argv``
+            // expects a non-negative offset, so flip the sign.
+            const offset: i32 = -n;
+            const depth_i: i32 = frames.frame_get_depth();
+            if (offset >= depth_i) {
+                // Walking off the top of the frame stack —
+                // raise ``bad level "N"`` to match Tcl.
+                return raise_bad_level(arg_s);
+            }
+            const argv = frames.frame_get_argv(offset);
+            if (argv != 0) return argv;
             return obj_new_string(0, 0);
         }
-        return obj_new_string(
-            @intCast(@intFromPtr("info_level_0".ptr)),
-            12,
-        );
+        // Positive absolute level.  We don't yet map absolute
+        // levels to per-frame argv (would need a level-indexed
+        // table), so translate to a relative offset from the
+        // current depth and reuse ``frame_get_argv``.
+        const depth_i: i32 = frames.frame_get_depth();
+        if (n <= 0 or n > depth_i) {
+            return raise_bad_level(arg_s);
+        }
+        const offset: i32 = depth_i - n;
+        const argv = frames.frame_get_argv(offset);
+        if (argv != 0) return argv;
+        return obj_new_string(0, 0);
     }
 
-    // Caller supplied a non-zero numeric arg — ``info level N``.
-    // We don't retain argv per frame, so surface the tclsh
-    // ``bad level "X"`` error rather than fabricating a result.
+    // Arg isn't parseable as an integer — raise ``bad level "X"``.
+    return raise_bad_level(arg_s);
+}
+
+/// Parse a signed integer from a byte span.  Returns ``ok = false``
+/// on empty input or a non-digit after an optional leading sign.
+const ParsedInt = struct { value: i32, ok: bool };
+fn parse_signed_int(ptr: u32, len: u32) ParsedInt {
+    if (len == 0) return .{ .value = 0, .ok = false };
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var sign: i32 = 1;
+    if (p[0] == '-') {
+        sign = -1;
+        i = 1;
+    } else if (p[0] == '+') {
+        i = 1;
+    }
+    if (i >= len) return .{ .value = 0, .ok = false };
+    var v: i32 = 0;
+    while (i < len) : (i += 1) {
+        const c = p[i];
+        if (c < '0' or c > '9') return .{ .value = 0, .ok = false };
+        v = v * 10 + @as(i32, @intCast(c - '0'));
+    }
+    return .{ .value = v * sign, .ok = true };
+}
+
+fn raise_bad_level(arg_s: anytype) i32 {
     const catch_mod = @import("tcl_catch.zig");
     const prefix = "bad level \"";
     const suffix = "\"";

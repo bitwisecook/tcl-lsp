@@ -1862,6 +1862,46 @@ fn eval_proc_call(words: []const i32) i32 {
     return eval_proc_call_bucket(words, bucket);
 }
 
+/// Build a Tcl list TclObj from every word in ``words`` (the proc
+/// name at ``words[0]`` plus its call arguments).  Used by
+/// :func:`eval_proc_call_bucket` to stash the invocation argv so
+/// ``info level 0`` inside the body can read the real list.
+///
+/// Uses :func:`obj.list_elem_quote` / :func:`obj.list_elem_quote_nth`
+/// so each word is properly escaped for list-element placement
+/// — matching the shape :func:`tcl_dispatch.build_args_list`
+/// produces for the ``args`` tail slot.
+fn build_invocation_list(words: []const i32) i32 {
+    if (words.len == 0) return obj_new_string(0, 0);
+    // Worst-case expansion per element: 2x + 2 (full escape mode)
+    // plus one separator byte per gap.
+    var total: u32 = 0;
+    var i: u32 = 0;
+    while (i < words.len) : (i += 1) {
+        const s = obj_ensure_string(words[i]);
+        total += s.len * 2 + 2;
+        if (i > 0) total += 1;
+    }
+    if (total == 0) return obj_new_string(0, 0);
+    const buf = obj_mod.alloc(total);
+    var off: u32 = 0;
+    i = 0;
+    while (i < words.len) : (i += 1) {
+        if (i > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const s = obj_ensure_string(words[i]);
+        if (i == 0) {
+            off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
+        } else {
+            off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
 /// Internal: dispatch once the proc bucket is already resolved.
 /// Shared between ``eval_proc_call`` (legacy path) and the proc-first
 /// fast path in ``eval_command``.
@@ -1903,6 +1943,10 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Stash the invocation argv (proc name + all call args) so
+    // ``info level 0`` inside the body returns the real list
+    // rather than the placeholder emitted by legacy callers.
+    frames.frame_set_argv(build_invocation_list(words));
 
     // Bind parameters: walk the params list, assign each from argv.
     // If the last parameter is named "args", it collects all remaining

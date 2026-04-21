@@ -745,7 +745,13 @@ def _scan_needed_imports(
         needed.add("tcl_proc_register_compiled")
         needed.add("tcl_frame_push")
         needed.add("tcl_frame_pop")
+        needed.add("tcl_frame_set_argv")
+        needed.add("tcl_frame_get_argv")
         needed.add("tcl_local_set")
         needed.add("tcl_local_get")
+        # tcl_list is used by the compiled-proc prologue to build
+        # the invocation argv list, element by element, before
+        # stashing it via frame_set_argv.
+        needed.add("tcl_list_create")
 
     return needed
