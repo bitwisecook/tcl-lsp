@@ -896,6 +896,32 @@ fn eval_command(words: []const i32) i32 {
         return chan.tcl_cmd_fconfigure(fd, acc);
     }
     if (str_eq(cmd, cmd_s.len, "info")) {
+        // ``info`` with one subcommand + optional arg routes through
+        // ``info_dispatch``.  The multi-argument forms (``info
+        // default proc arg var``) peel off here so the dispatcher
+        // stays a clean two-arg shape.
+        if (words.len >= 2) {
+            const sub_s = obj_ensure_string(words[1]);
+            const sub_p: [*]const u8 = @ptrFromInt(sub_s.ptr);
+            if (str_eq(sub_p, sub_s.len, "default")) {
+                if (words.len < 5) return obj_new_string(0, 0);
+                return info.info_default(words[2], words[3], words[4]);
+            }
+            // No-pattern variant of ``info commands`` / ``info procs``:
+            // when the user didn't supply a pattern, pass 0 so the
+            // walker skips glob filtering entirely.
+            if (str_eq(sub_p, sub_s.len, "commands") and words.len == 2) {
+                return info.info_commands(0);
+            }
+            if (str_eq(sub_p, sub_s.len, "procs") and words.len == 2) {
+                return info.info_procs(0);
+            }
+            // Zero-arg subcommands (``info tclversion``,
+            // ``info nameofexecutable``, …) — pass 0 as the arg slot
+            // so the dispatcher hits the right branch without
+            // dereferencing a null TclObj.
+            if (words.len == 2) return info.info_dispatch(words[1], 0);
+        }
         if (words.len >= 3) return info.info_dispatch(words[1], words[2]);
         return obj_new_string(0, 0);
     }
@@ -1097,6 +1123,22 @@ fn eval_command(words: []const i32) i32 {
                     if (any_forgotten > 0) procs.lru_invalidate_all();
                     return 0;
                 }
+            }
+            // ``namespace which ?-command|-variable? name`` — look up
+            // ``name`` in the current ns's command (or variable) path
+            // and return its fully-qualified name.  Returns empty
+            // when resolution misses — intentional: it's a probe,
+            // not an error-raising lookup.  Mirrors
+            // ``Tcl_NamespaceWhichObjCmd`` in ``tclNamesp.c``.
+            if (str_eq(@ptrFromInt(sub.ptr), sub.len, "which")) {
+                return eval_namespace_which(words);
+            }
+            // ``namespace current`` — return the current namespace's
+            // fully-qualified name.  Root returns ``::``.  Used by
+            // tcllib test harnesses to stamp per-namespace test IDs.
+            if (str_eq(@ptrFromInt(sub.ptr), sub.len, "current")) {
+                const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
+                return obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len));
             }
             // ``namespace path { ::ns1 ::ns2 … }`` — set the current
             // ns's command resolution path.  Argument is a Tcl list
@@ -1857,9 +1899,11 @@ fn eval_interp(words: []const i32) i32 {
         return 0;
     }
     const sub = obj_ensure_string(words[1]);
-    if (!str_eq(@ptrFromInt(sub.ptr), sub.len, "alias") and
-        !str_eq(@ptrFromInt(sub.ptr), sub.len, "aliases"))
-    {
+    const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+    if (str_eq(sp, sub.len, "hide")) return eval_interp_hide(words);
+    if (str_eq(sp, sub.len, "expose")) return eval_interp_expose(words);
+    if (str_eq(sp, sub.len, "hidden")) return eval_interp_hidden(words);
+    if (!str_eq(sp, sub.len, "alias") and !str_eq(sp, sub.len, "aliases")) {
         // Fall back to the existing trapping stub for unsupported
         // ``interp`` subcommands.
         const stubs = @import("tcl_stubs.zig");
@@ -1870,7 +1914,7 @@ fn eval_interp(words: []const i32) i32 {
     // ``interp aliases {}``: list every alias in the (only) interp.
     // We traverse the namespace tree and collect every Command with
     // CMD_ALIAS set, emitting its simple name.
-    if (str_eq(@ptrFromInt(sub.ptr), sub.len, "aliases")) {
+    if (str_eq(sp, sub.len, "aliases")) {
         return interp_aliases_list();
     }
 
@@ -2144,6 +2188,237 @@ fn walk_ns_for_aliases_fill(ns: u32, ctx: *AliasListCtx) void {
             if (child != 0) walk_ns_for_aliases_fill(child, ctx);
         }
     }
+}
+
+// -- ``interp hide`` / ``interp expose`` / ``interp hidden`` ---------------
+
+const hide_mod = @import("tcl_hide.zig");
+
+fn interp_hide_error(prefix: []const u8, name_ptr: u32, name_len: u32, suffix: []const u8) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (prefix, 0..) |b, k| d[k] = b;
+    if (name_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |k| d[prefix.len + k] = sp[k];
+    }
+    for (suffix, 0..) |b, k| d[prefix.len + name_len + k] = b;
+    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// ``interp hide {} cmd ?hiddenName?``.  ``words[2]`` is the empty
+/// interp path (we only honour ``{}``).  ``words[3]`` is the
+/// source command name.  ``words[4]`` (optional) is the hidden
+/// destination name.
+fn eval_interp_hide(words: []const i32) i32 {
+    if (words.len < 4 or words.len > 5) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "wrong # args: should be \"interp hide path cmdName ?hiddenCmdName?\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const src = obj_ensure_string(words[3]);
+    const hidden_name = if (words.len >= 5) obj_ensure_string(words[4]) else src;
+
+    const r = hide_mod.hide_command(
+        tcl_ns.ns_current(),
+        src.ptr,
+        src.len,
+        hidden_name.ptr,
+        hidden_name.len,
+    );
+    switch (r) {
+        .ok => return 0,
+        .not_found => {
+            interp_hide_error("unknown command \"", src.ptr, src.len, "\"");
+            return 0;
+        },
+        .qualified_name_rejected => {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "can't use namespace qualifiers as hidden command token (rename)";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        },
+        .hidden_name_taken => {
+            interp_hide_error("hidden command named \"", hidden_name.ptr, hidden_name.len, "\" already exists");
+            return 0;
+        },
+    }
+}
+
+/// ``interp expose {} hiddenName ?newName?``.
+fn eval_interp_expose(words: []const i32) i32 {
+    if (words.len < 4 or words.len > 5) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "wrong # args: should be \"interp expose path hiddenCmdName ?cmdName?\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const hidden_name = obj_ensure_string(words[3]);
+    const new_name = if (words.len >= 5) obj_ensure_string(words[4]) else hidden_name;
+
+    const r = hide_mod.expose_command(
+        hidden_name.ptr,
+        hidden_name.len,
+        tcl_ns.ns_current(),
+        new_name.ptr,
+        new_name.len,
+    );
+    switch (r) {
+        .ok => return 0,
+        .not_found => {
+            interp_hide_error("unknown hidden command \"", hidden_name.ptr, hidden_name.len, "\"");
+            return 0;
+        },
+        .qualified_name_rejected => {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "can not expose to a namespace (use expose to toplevel, then rename)";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        },
+        .target_exists => {
+            interp_hide_error("exposed command \"", new_name.ptr, new_name.len, "\" already exists");
+            return 0;
+        },
+    }
+}
+
+/// ``interp hidden {}`` (and bare ``interp hidden``) — return a Tcl
+/// list of hidden-command names.  Walks the interpreter-wide hidden
+/// table directly; emission order is bucket-traversal order which
+/// isn't stable across grow events but matches ``interp aliases``.
+fn eval_interp_hidden(words: []const i32) i32 {
+    _ = words;
+    const buf_addr = tcl_ns.hidden_table_buf();
+    const cap = tcl_ns.hidden_table_cap();
+    if (buf_addr == 0 or cap == 0) return obj_new_string(0, 0);
+
+    const bucket_size: u32 = 16;
+
+    // Two-pass: size then fill.  Keeps memory allocation O(1) beyond
+    // the output buffer itself.
+    var total: u32 = 0;
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < cap) : (i += 1) {
+        const bucket = buf_addr + i * bucket_size;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (cmd == 0) continue; // tombstoned
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (count > 0) total += 1;
+        total += name_len;
+        count += 1;
+    }
+    if (total == 0) return obj_new_string(0, 0);
+    const out = alloc(total);
+    var off: u32 = 0;
+    count = 0;
+    i = 0;
+    while (i < cap) : (i += 1) {
+        const bucket = buf_addr + i * bucket_size;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const cmd: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (cmd == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (count > 0) {
+            const d: [*]u8 = @ptrFromInt(out + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        memcpy(out + off, name_ptr, name_len);
+        off += name_len;
+        count += 1;
+    }
+    return obj_new_string(@bitCast(out), @bitCast(off));
+}
+
+// -- ``namespace which`` ---------------------------------------------------
+
+/// Render a Command's current fully-qualified name.  Reads the
+/// Command's stored name slot directly — ``rename`` and ``expose``
+/// both keep it in sync with the user-visible identity (compiled
+/// procs' sidecar preserves the WASM export name separately; the
+/// stored slot is always the live FQN).
+fn command_fqn_obj(cmd: u32) i32 {
+    const name_ptr: u32 = @bitCast(read_i32(cmd));
+    const name_len: u32 = @bitCast(read_i32(cmd + 4));
+    if (name_len == 0) return obj_new_string(0, 0);
+    return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+}
+
+/// Render the FQN of a namespace variable: ``<ns_full>::<name>``
+/// with the root-ns ``::`` collapsed so a root-level variable
+/// reads as ``::x`` rather than ``::::x``.  Matches
+/// :func:`tcl_ns.ns_build_fqn`.
+fn variable_fqn_obj(ns: u32, simple_ptr: u32, simple_len: u32) i32 {
+    const fqn = tcl_ns.ns_build_fqn(ns, simple_ptr, simple_len);
+    return obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
+}
+
+fn eval_namespace_which(words: []const i32) i32 {
+    // Argument shapes:
+    //   namespace which name                         → -command (default)
+    //   namespace which -command name
+    //   namespace which -variable name
+    // Anything else is a plain miss — return empty.  We don't raise
+    // wrong-args here to stay consistent with the "probe, don't
+    // error" philosophy of C Tcl's ``Tcl_NamespaceWhichObjCmd``.
+    if (words.len < 3 or words.len > 4) return obj_new_string(0, 0);
+
+    var which_variable = false;
+    var name_idx: u32 = 2;
+    if (words.len == 4) {
+        const flag = obj_ensure_string(words[2]);
+        const fp: [*]const u8 = @ptrFromInt(flag.ptr);
+        if (str_eq(fp, flag.len, "-variable")) {
+            which_variable = true;
+        } else if (!str_eq(fp, flag.len, "-command")) {
+            return obj_new_string(0, 0);
+        }
+        name_idx = 3;
+    }
+    const name = obj_ensure_string(words[name_idx]);
+    if (name.len == 0) return obj_new_string(0, 0);
+
+    if (which_variable) {
+        // Variable resolution: qualified names walk the ns tree to
+        // the target ns + simple name, unqualified names check the
+        // current ns only (C Tcl doesn't walk ``namespace path``
+        // for variables — the path is commands-only).
+        const cxt = tcl_ns.ns_current();
+        const r = tcl_ns.ns_resolve_qualified(cxt, name.ptr, name.len);
+        if (r.simple_len == 0) return obj_new_string(0, 0);
+        if (r.target_ns != 0) {
+            const v = tcl_ns.ns_var_find(r.target_ns, r.simple_ptr, r.simple_len);
+            if (v != 0) return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
+        }
+        if (r.alt_ns != 0) {
+            const v = tcl_ns.ns_var_find(r.alt_ns, r.simple_ptr, r.simple_len);
+            if (v != 0) return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
+        }
+        return obj_new_string(0, 0);
+    }
+
+    // Command resolution: reuse the canonical ``ns_find_command``
+    // walker so the lookup path is identical to proc dispatch.  The
+    // Command's live name slot is the FQN we return — imports are
+    // NOT unwrapped (matches C Tcl's rule that ``namespace which``
+    // on an imported command returns the redirect's FQN, not the
+    // source's).
+    const cxt = tcl_ns.ns_current();
+    const cmd = tcl_ns.ns_find_command(cxt, name.ptr, name.len);
+    if (cmd == 0) return obj_new_string(0, 0);
+    return command_fqn_obj(cmd);
 }
 
 fn eval_string_cmd(words: []const i32) i32 {

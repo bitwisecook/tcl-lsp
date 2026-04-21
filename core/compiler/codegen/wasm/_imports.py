@@ -416,12 +416,14 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     # inscope, origin, forget, path, ensemble) that route through
     # this dispatch.  ``interp`` used to live here too, pointing at
     # the trapping ``tcl_cmd_interp_cmd`` stub — since the runtime
-    # added real ``interp alias`` support (see
-    # docs/design/runtime/rename-alias.md) the codegen now routes
-    # ``interp`` through the eval fallback so the interpreter's
-    # ``interp`` built-in handles the alias subcommands.  Other
-    # ``interp`` subcommands (create, hide, eval, …) still trap
-    # cleanly via ``tcl_env_stubs``.
+    # added real ``interp alias`` + ``interp hide`` / ``interp
+    # expose`` / ``interp hidden`` support (see
+    # docs/design/runtime/rename-alias.md and
+    # docs/design/runtime/command-introspection.md) the codegen
+    # now routes ``interp`` through the eval fallback so the
+    # interpreter's ``interp`` built-in handles them.  Child-interp
+    # subcommands (``interp create`` / ``slaves`` / ``eval``) still
+    # trap cleanly via ``tcl_env_stubs``.
     "package": ("tcl_package", 2),
     "trace": ("tcl_trace", 2),
     "apply": ("tcl_apply", 2),
