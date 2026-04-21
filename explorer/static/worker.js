@@ -34,8 +34,11 @@ async function init() {
   const micropip = pyodide.pyimport("micropip");
 
   // Install our wheel without pulling pygls/lsprotocol (not needed in worker).
+  // NB: JS objects passed to Python functions become positional args; to pass
+  // Python kwargs we must use `callKwargs`, otherwise `deps=True` stays in
+  // effect and micropip tries to fetch every transitive dep.
   const wheelUrl = baseUrl + "tcl_lsp-1.7.1-py3-none-any.whl";
-  await micropip.install(wheelUrl, { deps: false });
+  await micropip.install.callKwargs(wheelUrl, { deps: false });
 
   postMessage({ type: "status", message: "Initialising compiler..." });
 
