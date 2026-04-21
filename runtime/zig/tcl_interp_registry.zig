@@ -110,6 +110,15 @@ pub const Interp = extern struct {
     /// ``INTERP_SAFE | ...``.  Safe interps currently behave
     /// identically to unsafe ones — see the top-of-file comment.
     flags: u32,
+
+    /// Monotonic id issuer for ``interp create`` without an explicit
+    /// path — matches C Tcl's per-parent ``idIssuer`` on the
+    /// ``Parent`` struct (``tmp/tcl9.0.3/generic/tclInterp.c``).
+    /// The anonymous name ``interp<N>`` advances this counter; it
+    /// stays per-parent so siblings in different parents don't
+    /// collide, and so a deleted-then-recreated anonymous interp
+    /// under one parent doesn't skew the issuer state in another.
+    id_issuer: u32,
 };
 
 /// Root-interp singleton.  ``interp_root()`` allocates lazily and

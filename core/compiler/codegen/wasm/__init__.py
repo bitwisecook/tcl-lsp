@@ -462,18 +462,29 @@ def wasm_codegen_module(
     # ``namespace eval ::ns { rename foo bar }`` correctly
     # invalidates ``::ns::foo`` / ``::ns::bar`` rather than only
     # ``::foo`` / ``::bar``.
+    # The callable map is a mutable copy of ``proc_index``.  The
+    # emitter's ``_resolve_proc`` reads from it when deciding whether
+    # to emit a direct ``call $<idx>`` or fall back to ``tcl_eval``,
+    # so invalidation (``rename`` / ``interp hide`` / the full flush
+    # for ``interp create``/``eval``/``delete``) only removes
+    # entries from the callable map.  The original ``proc_index`` is
+    # preserved because it's consumed a second time below to map
+    # ``<wasm function N>`` → proc name for the diagnostic sidecar —
+    # that mapping must not lose entries, even when the
+    # corresponding calls route through eval.
+    callable_proc_index: dict[str, tuple[int, int]] = dict(proc_index)
     dynamically_modified, full_flush = _collect_dynamically_modified_procs(ir_module)
     if full_flush:
         # Child-interp mutation: any direct call emitted from this
         # module can see a modified proc registry after the fact.
-        # Flush proc_index entirely so every subsequent call routes
+        # Flush the callable map so every subsequent call routes
         # through ``tcl_eval`` — see
         # ``docs/design/runtime/child-interp.md`` §7.
-        proc_index.clear()
+        callable_proc_index.clear()
     else:
         for context_ns, name in dynamically_modified:
             for variant in _proc_name_variants(name, context_ns):
-                proc_index.pop(variant, None)
+                callable_proc_index.pop(variant, None)
 
     # Shared string table so data segments from different functions
     # don't collide at offset 0. All emitters share a single list,
@@ -551,7 +562,7 @@ def wasm_codegen_module(
         optimise=optimise,
         is_proc=False,
         shared_imports=shared_imports,
-        proc_index=proc_index,
+        proc_index=callable_proc_index,
         proc_defaults=proc_defaults,
         proc_args_tail=proc_args_tail,
         shared_strings=shared_strings,
@@ -589,7 +600,7 @@ def wasm_codegen_module(
             optimise=optimise,
             is_proc=True,
             shared_imports=shared_imports,
-            proc_index=proc_index,
+            proc_index=callable_proc_index,
             proc_defaults=proc_defaults,
             proc_args_tail=proc_args_tail,
             shared_strings=shared_strings,

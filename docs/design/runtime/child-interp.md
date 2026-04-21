@@ -184,8 +184,8 @@ target resolves against the parent's cmd_table, then
 now returns `(affected, full_flush)`.  When it sees any of
 `interp create` / `interp eval` / `interp delete` anywhere in the
 IR, `full_flush` is set.  The caller responds by clearing
-`proc_index` entirely — every call in the module routes through
-`tcl_eval` / `proc_lookup` and sees the live registry.
+`callable_proc_index` entirely — every call in the module routes
+through `tcl_eval` / `proc_lookup` and sees the live registry.
 
 The shortcut is conservative — most modules with one tiny child-
 interp use will pay the full eval-fallback cost on every call —
@@ -197,6 +197,30 @@ otherwise keep.
 The surgical path (removing specific names on `rename` /
 `interp hide` / `interp expose`) is unchanged — those commands
 continue to invalidate only the named target(s).
+
+### 7.1 Why the callable-map is separate from `proc_index`
+
+`proc_index` is consumed *twice* in `wasm_codegen_module`:
+
+1. As input to the emitter's `_resolve_proc` so call-sites can
+   specialise to direct `call $<func_idx>` when the target is
+   known statically.
+2. As input to the diagnostic sidecar (`DiagMap.procs`) which
+   records `(func_idx, qname)` pairs so WASM-level backtraces
+   can be annotated with proc names.
+
+The flush / invalidation logic only applies to (1).  Dropping
+an entry from (2) would leave the backtrace sidecar with gaps
+— `wasm function N` → `<unknown>` — which is worse than useless.
+
+We keep the original `proc_index` untouched for (2) and give
+the emitter a filtered copy (`callable_proc_index`).  The
+upstream `interp.test` bundle depended on this: tcltest.tcl
+uses `interp create` internally, which fired `full_flush`, but
+it also contains procs like `::tcltest::normalizePath` that the
+sidecar pass still needed to look up.  Pre-split the code
+emitted `proc_index.clear()` and tripped a `KeyError` at the
+sidecar pass.
 
 ## 8. Dispatch interplay
 

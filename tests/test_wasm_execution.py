@@ -3381,3 +3381,256 @@ set ::result $msg
             "::result",
         )
         assert result.startswith(b"unknown command")
+
+    # --- Section 7: basic alias creation (child-as-command alias) ---------
+
+    def test_7_1_child_alias_returns_name(self):
+        """interp-7.1: ``a alias foo in_parent`` returns ``foo``."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+set ::result [a alias foo in_parent]
+""",
+            "::result",
+        )
+        assert result == b"foo"
+
+    def test_7_2_child_alias_with_prefix(self):
+        """interp-7.2: ``a alias bar in_parent a1 a2 a3`` → ``bar``."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+set ::result [a alias bar in_parent a1 a2 a3]
+""",
+            "::result",
+        )
+        assert result == b"bar"
+
+    def test_7_3_alias_query_target_only(self):
+        """interp-7.3: ``a alias foo`` (query) returns the target name
+        when no prefix was specified."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} {}
+interp create a
+a alias foo in_parent
+set ::result [a alias foo]
+""",
+            "::result",
+        )
+        assert result == b"in_parent"
+
+    def test_7_4_alias_query_with_prefix(self):
+        """interp-7.4: ``a alias bar`` returns ``target prefix...``
+        when the alias was created with a prefix."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} {}
+interp create a
+a alias bar in_parent a1 a2 a3
+set ::result [a alias bar]
+""",
+            "::result",
+        )
+        assert result == b"in_parent a1 a2 a3"
+
+    def test_7_5_child_aliases_lsort(self):
+        """interp-7.5: ``lsort [a aliases]`` lists the two aliases."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} {}
+interp create a
+a alias foo in_parent
+a alias bar in_parent a1 a2 a3
+set ::result [lsort [a aliases]]
+""",
+            "::result",
+        )
+        assert result == b"bar foo"
+
+    def test_7_6_aliases_wrong_args(self):
+        """interp-7.6: ``a aliases too many args`` raises
+        ``wrong # args: should be "a aliases"``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+catch {a aliases too many args} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "a aliases"'
+
+    # --- Section 8: alias invocation --------------------------------------
+
+    def test_8_1_alias_invocation_forwards_args(self):
+        """interp-8.1: ``a eval foo s1 s2 s3`` after
+        ``a alias foo in_parent`` dispatches to parent's ``in_parent``
+        with the trailing args."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+a alias foo in_parent
+set ::result [a eval foo s1 s2 s3]
+""",
+            "::result",
+        )
+        assert result == b"seen in parent: {s1 s2 s3}"
+
+    def test_8_2_alias_invocation_with_prefix_merges(self):
+        """interp-8.2: creation-time prefix prepends to the caller's
+        tail argv."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+a alias bar in_parent a1 a2 a3
+set ::result [a eval bar s1 s2 s3]
+""",
+            "::result",
+        )
+        assert result == b"seen in parent: {a1 a2 a3 s1 s2 s3}"
+
+    def test_8_3_child_alias_wrong_args(self):
+        """interp-8.3: bare ``a alias`` raises
+        ``wrong # args: should be "a alias aliasName ?targetName? ?arg ...?"``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+catch {a alias} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == (b'wrong # args: should be "a alias aliasName ?targetName? ?arg ...?"')
+
+    # --- Section 9: missing + late-bound alias targets --------------------
+
+    def test_9_1_alias_missing_target(self):
+        """interp-9.1: calling an alias whose target doesn't exist
+        raises ``invalid command name "X"`` (tclsh's wording when
+        the command gets to the ``unknown`` stage).  Our runtime
+        emits ``unknown command: X`` — the semantic identity is
+        the same (the alias failed to find its target)."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a alias zop nonexistent
+catch {a eval zop} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        # Our runtime's alias-miss diagnostic is ``unknown command:
+        # <target>`` (see dispatch_alias in tcl_interp.zig).  tclsh
+        # uses ``invalid command name "<target>"`` after the unknown
+        # fallback; we pin our wording here.
+        assert result == b"unknown command: nonexistent"
+
+    def test_9_2_alias_late_bound_target(self):
+        """interp-9.2: defining the target after the alias still
+        works because the alias resolves by name on each dispatch."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a alias zop latebind
+proc latebind {} { return i_exist! }
+set ::result [a eval zop]
+""",
+            "::result",
+        )
+        assert result == b"i_exist!"
+
+    def test_9_4_alias_target_resolves_in_global(self):
+        """interp-9.4: alias targets resolve in the *global*
+        namespace even when invoked from inside a namespace eval
+        (matches TCL_EVAL_INVOKE semantics)."""
+        result = self._run_and_read_global(
+            """\
+proc p {} { return GLOBAL }
+namespace eval tst { proc p {} { return NAMESPACE } }
+interp alias {} myalias {} p
+set ::r1 [myalias]
+set ::r2 [namespace eval tst myalias]
+set ::result "$::r1 $::r2"
+""",
+            "::result",
+        )
+        assert result == b"GLOBAL GLOBAL"
+
+    # --- Section 10: aliases between interpreters (sibling routing) -------
+
+    def test_10_1_alias_registration_between_siblings(self):
+        """interp-10.1: ``interp alias a a_alias b b_alias 1 2 3`` —
+        registering an alias from a (source) targeting b (parent
+        interp hosts both siblings)."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create b
+set ::result [interp alias a a_alias b b_alias 1 2 3]
+""",
+            "::result",
+        )
+        assert result == b"a_alias"
+
+    def test_10_4_child_alias_aliases_list_roundtrip(self):
+        """interp-10.4: after ``a alias a_alias puts``, ``a aliases``
+        lists ``a_alias``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a alias a_alias puts
+set ::result [a aliases]
+""",
+            "::result",
+        )
+        assert result == b"a_alias"
+
+    # --- Cross-interp + namespace interactions ---------------------------
+
+    def test_alias_passes_args_into_child_eval_scope(self):
+        """A parent-side alias target invoked from inside a child
+        ``eval`` script sees the args forwarded correctly.  This is
+        the observable shape of "cross-interp argv plumbing" that
+        ``upvar`` would complement; we don't exercise ``upvar``
+        itself because ``docs/design/runtime/child-interp.md`` §1
+        flags per-interp call-frame-stack interactions as
+        deferred (the shared frame stack is safe for
+        single-threaded, non-nested eval but truly nested
+        ``interp eval`` + ``upvar`` isn't characterised yet)."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return "from-parent n=[llength $args] args=$args" }
+interp create a
+a alias call_parent in_parent
+set ::result [a eval call_parent hello world]
+""",
+            "::result",
+        )
+        assert result == b"from-parent n=2 args=hello world"
+
+    def test_per_parent_id_issuer_independence(self):
+        """interp-2.11-style check: each parent has its own
+        ``id_issuer``.  Creating an anonymous interp under the root
+        and another under ``a`` should not share numbers."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::x1 [interp create]
+set ::y1 [a eval interp create]
+set ::result "$::x1 $::y1"
+""",
+            "::result",
+        )
+        # Both should start from 0; child ``a``'s issuer is
+        # independent of root's.
+        import re
+
+        parts = result.decode("utf-8").split()
+        assert len(parts) == 2
+        for p in parts:
+            assert re.fullmatch(r"interp[0-9]+", p), p
