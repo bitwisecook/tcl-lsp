@@ -422,6 +422,8 @@ comptime {
     _ = &tcl_test_hidden_exists;
     _ = &tcl_test_export_name_ptr;
     _ = &tcl_test_export_name_len;
+    _ = &tcl_test_obj_str_ptr;
+    _ = &tcl_test_obj_str_len;
 }
 
 // -- Runtime test scaffolding (rename / alias) -----------------------------
@@ -583,4 +585,22 @@ pub export fn tcl_test_export_name_ptr(bucket: i32) i32 {
 pub export fn tcl_test_export_name_len(bucket: i32) i32 {
     const e = tcl_procs.proc_get_export_name(@bitCast(bucket));
     return @bitCast(e.len);
+}
+
+/// Force the TclObj at ``obj`` to materialise its string rep, then
+/// return the rep's pointer.  For int-shaped TclObjs the
+/// ``str_ptr`` / ``str_len`` slots stay at zero until something
+/// walks the string form; this export lets the Python test
+/// harness read the decimal rendering of results like ``info
+/// level`` / ``llength`` / ``lsearch -exact`` without relying on
+/// compiler-side string interpolation to trigger materialisation.
+/// Pairs with ``tcl_test_obj_str_len``.
+pub export fn tcl_test_obj_str_ptr(obj: i32) i32 {
+    const s = tcl_obj.obj_ensure_string(obj);
+    return @bitCast(s.ptr);
+}
+
+pub export fn tcl_test_obj_str_len(obj: i32) i32 {
+    const s = tcl_obj.obj_ensure_string(obj);
+    return @bitCast(s.len);
 }

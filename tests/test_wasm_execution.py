@@ -2350,6 +2350,25 @@ bar
         )
         assert result == b"old-ran"
 
+    def test_chained_rename_round_trip(self):
+        """``rename foo bar; rename bar foo`` must restore the
+        original name.  Exercises the compiler's
+        ``_collect_dynamically_modified_procs`` invalidation
+        across a chain — both ``foo`` and ``bar`` are invalidated
+        in the first rename, both again in the second, so both
+        calls route through ``tcl_eval`` / ``proc_lookup`` and
+        observe the live cmd_table state at dispatch time."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} { set ::result round-tripped }
+rename foo bar
+rename bar foo
+foo
+""",
+            "::result",
+        )
+        assert result == b"round-tripped"
+
     def test_hide_then_expose_restores_proc(self):
         """Hiding a proc removes it from the command table; exposing
         puts it back so subsequent calls dispatch normally."""
@@ -2401,6 +2420,23 @@ interp invokehidden {} -global mark
             "::result",
         )
         assert result == b"at-root"
+
+    def test_invokehidden_with_namespace_flag_passes_args(self):
+        """``interp invokehidden {} -namespace ::ns mark arg1 arg2`` —
+        the hidden proc is invoked inside ``::ns`` and receives the
+        trailing argv verbatim.  Pins the option-parser's arg-
+        consumption flow (``-namespace`` consumes a value slot,
+        subsequent args pass through unchanged)."""
+        result = self._run_and_read_global(
+            """\
+namespace eval ::target {}
+proc carry {a b} { set ::result "$a/$b" }
+interp hide {} carry
+interp invokehidden {} -namespace ::target carry left right
+""",
+            "::result",
+        )
+        assert result == b"left/right"
 
     def test_hidden_lists_hidden_commands(self):
         """``interp hidden {}`` returns a space-separated list of
@@ -2554,28 +2590,27 @@ set ::result $msg
     def test_info_level_returns_frame_depth(self):
         """``info level`` at the top-level returns 0 (no frames
         pushed).  Inside a proc body it returns the call depth.
-        The string interpolation with surrounding literals around
-        the call forces the int TclObj to materialise its string
-        rep — compiler short-circuits ``"[cmd]"`` to the raw
-        TclObj (bypassing string materialisation), so the test
-        uses ``"<[cmd]>"`` to anchor the result in a concatenated
-        string."""
+        The probe reads the result via ``_read_global_string``
+        which routes through ``tcl_test_obj_str_ptr/len`` — that
+        materialises the decimal rendering for int-shaped TclObjs,
+        so the bare ``[info level]`` form works without needing
+        surrounding literals to force string conversion."""
         result_top = self._run_and_read_global(
             """\
-set ::result "<[info level]>"
+set ::result [info level]
 """,
             "::result",
         )
-        assert result_top == b"<0>"
+        assert result_top == b"0"
 
         result_nested = self._run_and_read_global(
             """\
-proc outer {} { set ::result "<[info level]>" }
+proc outer {} { set ::result [info level] }
 outer
 """,
             "::result",
         )
-        assert result_nested == b"<1>"
+        assert result_nested == b"1"
 
     def test_info_script_is_empty_in_wasm_sandbox(self):
         """``info script`` returns the empty string in our compiled
@@ -2629,12 +2664,25 @@ def _read_global_string(
 ) -> bytes:
     """Read a global variable as a UTF-8 byte string.  Stages the
     name into linear memory, routes through ``global_get``, then
-    walks the TclObj's ``str_ptr`` / ``str_len`` slots."""
+    walks the TclObj's string representation.
+
+    Uses ``tcl_test_obj_str_ptr`` / ``tcl_test_obj_str_len`` — both
+    route through ``obj_ensure_string`` which materialises the
+    decimal rendering for int-shaped TclObjs the first time it's
+    asked.  Reading the raw ``OBJ_STR_PTR`` / ``OBJ_STR_LEN``
+    slots directly (the pre-wave approach) would surface empty for
+    a freshly-allocated int TclObj — anything set via ``set x
+    [info level]`` / ``llength $list`` / etc. — because the
+    compiler can short-circuit those paths to avoid the string
+    rendering work.
+    """
     exports = rt_instance.exports(store)
     memory: wasmtime.Memory = exports["memory"]
     test_alloc = exports["tcl_test_alloc"]
     obj_new_string = exports["obj_new_string"]
     global_get = exports["global_get"]
+    obj_str_ptr = exports["tcl_test_obj_str_ptr"]
+    obj_str_len = exports["tcl_test_obj_str_len"]
 
     encoded = name.encode("utf-8")
     addr = test_alloc(store, len(encoded))
@@ -2643,10 +2691,8 @@ def _read_global_string(
     val_obj = global_get(store, name_obj)
     if val_obj == 0:
         return b""
-    # TclObj layout: ptr at offset 16, len at offset 20
-    # (matches OBJ_STR_PTR / OBJ_STR_LEN in tcl_obj.zig).
-    str_ptr = int.from_bytes(memory.read(store, val_obj + 16, val_obj + 20), "little", signed=True)
-    str_len = int.from_bytes(memory.read(store, val_obj + 20, val_obj + 24), "little", signed=True)
+    str_ptr = obj_str_ptr(store, val_obj)
+    str_len = obj_str_len(store, val_obj)
     if str_len == 0:
         return b""
     return bytes(memory.read(store, str_ptr, str_ptr + str_len))
