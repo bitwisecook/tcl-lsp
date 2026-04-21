@@ -25,23 +25,33 @@ Reference Tcl 9 sources: ``tmp/tcl9.0.3/generic/tclInterp.c``
 
 In:
 
-- Single-interp ``interp hide`` / ``expose`` / ``hidden``.
+- Single-interp ``interp hide`` / ``expose`` / ``hidden`` /
+  ``invokehidden``.
 - ``namespace which`` (find-only) + ``namespace current``.
 - ``info commands`` / ``info procs`` walkers over the ns tree.
 - ``info body`` / ``info args`` / ``info default`` for
   interpreted procs.
+- ``info level`` (no-arg frame-depth form) and ``info script``
+  (empty string — no filesystem source path in the WASM
+  sandbox).
 - Compiled-proc rename completeness via
   ``OFF_EXPORT_NAME_BUCKET``.
 
 Out (deferred to later waves):
 
-- Child interpreters + ``interp invokehidden`` (the dispatch-
-  into-hidden form).  Hiding / exposing works; invoking hidden
-  commands is its own wave.
+- Child interpreters — and with them, cross-interp
+  ``interp invokehidden`` (single-interp dispatch into the
+  hidden table ships here; the multi-interp form needs child
+  interp infrastructure the runtime doesn't have yet).
 - Command-trace machinery — still no trace infrastructure
   in the runtime.
-- ``info level`` / ``info frame`` / ``info script`` — unrelated
-  introspection axes, out of scope for this wave.
+- ``info level N`` (per-frame argv retrieval) — the zero-arg
+  depth form ships here, but the ``info level N`` form would
+  require per-frame argv tracking the runtime doesn't keep.
+  Callers supplying a numeric level get the tclsh
+  ``bad level "N"`` error.
+- ``info frame`` — a separate introspection axis (source
+  location + stack detail), out of scope for this wave.
 
 ## 2. Hidden commands table
 
@@ -309,15 +319,24 @@ already treat empty as "no location available"
 TclObj (a Tcl list where each element is either a bare name or
 a ``{name default}`` pair), matches ``arg`` against the name of
 each pair, and — on a match with a default present — writes the
-default into ``varName`` and returns 1.  Returns 0 if the proc
-is missing, the arg isn't a parameter, or the parameter has no
-default.
+default into ``varName`` and returns 1.  On a match with no
+default, writes the empty string into ``varName`` and returns 0
+(matching Tcl 9's ``InfoDefaultCmd``).
+
+Error shape for non-interpreted-proc targets:
+
+* Missing / alias / hidden / compiled proc (``func_idx != 0``)
+  — raises ``"<name>" isn't a procedure`` via the shared
+  ``resolve_interpreted_proc`` gate.  Compiled procs don't
+  retain their params TclObj (``proc_register_compiled`` clears
+  it), so the ``resolve_interpreted_proc`` filter rejects them
+  there — they never reach the params-walk branch.
+* Arg isn't a parameter of the proc — raises ``procedure "X"
+  doesn't have an argument "Y"``.
 
 The implementation operates on the stored params TclObj
 directly (``obj.list_element_at``), so it works for any
-interpreted proc registered via ``proc_register``.  Compiled
-procs (``func_idx != 0``) have no stored params — they return
-0 and the variable is left unset.
+interpreted proc registered via ``proc_register``.
 
 ## 7. Test coverage
 
