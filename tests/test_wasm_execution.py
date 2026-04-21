@@ -2825,6 +2825,156 @@ namespace eval ::foo {
         )
 
 
+class TestProcDefaultsUnderFlush:
+    """Regression tests: when a compiled proc is reached via the host
+    bridge (``env.call_compiled_proc``) from an eval-fallback caller,
+    missing param slots arrive as null TclObj pointers (``0``).  The
+    proc's prologue must substitute the declared default for each
+    null slot, otherwise ``$param`` resolves to the empty string and
+    dynamic-dispatch patterns like ``catch {$verify $value}`` return
+    an empty result instead of invoking the default verifier.
+
+    This is the bug that caused tcltest's ``Option`` proc to
+    silently lose its ``verify`` parameter when invoked via
+    ``tcl_eval`` (the post–``interp create`` full-flush path).
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_default_applied_for_missing_arg_under_flush(self):
+        """``interp create`` → full flush → call via eval.  The
+        proc's default for a missing trailing arg must be applied
+        by the prologue."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+proc Opt {v {verify ident}} {
+    set ::result "v=$v verify=$verify"
+}
+Opt hello
+""",
+            "::result",
+        )
+        assert result == b"v=hello verify=ident"
+
+    def test_default_preserved_when_explicit_empty_string(self):
+        """Explicit empty-string arg must NOT be replaced by the
+        default — empty string is a valid value distinct from
+        "missing slot".  ``$verify`` should be empty, not the
+        default."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+proc Opt {v {verify ident}} {
+    set ::result "<$verify>"
+}
+Opt hello ""
+""",
+            "::result",
+        )
+        assert result == b"<>"
+
+    def test_tcltest_option_verify_pattern_post_flush(self):
+        """The exact shape tcltest's ``Option`` uses:
+        ``catch {$verify $value}`` with ``verify`` defaulted to
+        ``AcceptAll``.  Under the host-bridge call path the
+        default must reach the catch body."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc AcceptAll {value} { return $value }
+    proc Option {opt value {verify AcceptAll}} {
+        if {[catch {$verify $value} msg]} {
+            return -code error $msg
+        }
+        set ::result $msg
+    }
+    Option -match {body error}
+}
+""",
+            "::result",
+        )
+        assert result == b"body error"
+
+
+class TestNamespaceImportRuntime:
+    """Regression tests: ``namespace import`` / ``namespace export``
+    / ``namespace forget`` must have their runtime side effects —
+    creating / removing command redirects in the current
+    ``cmd_table`` — executed so eval-fallback dispatch can resolve
+    imported names.
+
+    The codegen's compile-time resolver already shortens
+    ``testConstraint`` → ``::tcltest::testConstraint`` for
+    specialised calls, but under ``interp create`` / ``eval`` /
+    ``delete`` the callable proc index is cleared and every call
+    routes through ``tcl_eval``.  Without the runtime redirect,
+    the interpreter's ``proc_lookup`` can't find the short name
+    and raises ``unknown command``.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_import_resolves_short_name_under_flush(self):
+        """After ``interp create`` triggers full flush,
+        unqualified calls to an imported name must resolve
+        through the runtime redirect."""
+        result = self._run_and_read_global(
+            """\
+namespace eval ::src {
+    namespace export foo
+    proc foo {} { return from-src }
+}
+namespace import -force ::src::foo
+interp create child
+interp delete child
+set ::result [foo]
+""",
+            "::result",
+        )
+        assert result == b"from-src"
+
+    def test_import_wat_uses_eval_fallback(self):
+        """The WAT for ``namespace import`` must contain a
+        ``tcl_eval`` invocation so the runtime's ``ns_import``
+        actually creates redirects at runtime.  Without it, the
+        compile-time resolver is the only mechanism and runtime
+        dispatch has no visibility."""
+        source = """\
+namespace eval ::src { namespace export foo; proc foo {} {} }
+namespace import -force ::src::foo
+"""
+        wasm_module, _ = _compile_to_wasm(source)
+        wat = wasm_module.to_wat()
+        # The eval-fallback for the namespace import statement
+        # reconstructs its script and passes it to tcl_eval.
+        assert "namespace import" in wat, (
+            "namespace import script text must be in the WASM data segment"
+        )
+
+
 class TestInfoIntrospection:
     """End-to-end ``info commands`` / ``info procs`` /
     ``namespace which -command`` through the eval path.

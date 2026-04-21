@@ -2636,6 +2636,25 @@ class _WasmEmitter:
                 # silently skip (statement context has no stack commitments).
                 self._emit_namespace_eval_bridge(args[2:], drop_result=True)
                 return
+            # ``namespace import`` / ``namespace export`` / ``namespace
+            # forget`` — record the side effect at runtime so the
+            # interpreter's ``ns_import`` / ``ns_export`` / ``ns_forget``
+            # creates real redirects / export patterns.  The compile-time
+            # resolver (``module.namespace_imports`` / ``namespace_exports``)
+            # still shortens specialised calls when the proc index is live,
+            # but under full flush (``interp create`` / ``eval`` /
+            # ``delete``) that table is cleared and every call routes
+            # through ``tcl_eval`` — the runtime then needs the import
+            # redirect to resolve ``testConstraint`` → ``::tcltest::testConstraint``.
+            #
+            # Only emit for subcommands with real runtime side effects.
+            # ``namespace eval`` is handled above; ``namespace current``,
+            # ``namespace which`` etc. are lookups with no side effect
+            # and remain NOPs at codegen.
+            if command == "namespace" and args and args[0] in ("import", "export", "forget"):
+                self._emit_eval_fallback(command, args)
+                self._emit(WasmOp.DROP)
+                return
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
@@ -6578,6 +6597,46 @@ class _WasmEmitter:
             push_idx = self._shared_imports["tcl_frame_push"]
             self._emit_call(push_idx)
             self._emit(WasmOp.DROP)  # discard frame idx
+
+        # Default-value substitution for null (0) param slots.  Applies
+        # whether or not we push a runtime frame — body code reads
+        # params via ``local.get i`` directly, so the WASM local must
+        # already hold the default if the caller omitted the slot.
+        #
+        # Needed because the host-bridge dispatch path
+        # (``env.call_compiled_proc`` in ``tcl_dispatch.zig``) pads
+        # missing argv slots with literal 0 (null TclObj): the bridge
+        # doesn't know the callee's declared defaults.  The
+        # compile-time specialised call-site path (``_emit_cmd_proc_call``)
+        # pads with a real TclObj (boxed int 0 or the declared default),
+        # so this substitution is a no-op for that path — the
+        # ``i32.eqz`` check fails on a valid TclObj pointer.
+        #
+        # Without this, ``proc Opt {v {verify ident}} { ... }`` called
+        # via the eval fallback (``Opt hello``) ends up with
+        # ``verify`` bound to null — ``$verify`` resolves to the empty
+        # string and dynamic dispatch patterns like
+        # ``catch {$verify $v}`` silently produce an empty result.
+        # tcltest's ``Option`` proc relies on this shape.
+        own_defaults = self._proc_defaults.get(self._proc_qname, ()) if self._proc_qname else ()
+        if self._is_proc and own_defaults:
+            for i, pname in enumerate(self._params):
+                if not pname or pname.startswith("_"):
+                    continue
+                if i >= len(own_defaults):
+                    break
+                default_val = own_defaults[i]
+                if default_val is None:
+                    continue
+                # if local.get(i) == 0 { local.set(i, obj_literal(default_val)) }
+                self._emit_local_get(i)
+                self._emit(WasmOp.I32_EQZ)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="default_sub")
+                self._emit_obj_literal(default_val)
+                self._emit_local_set(i)
+                self._emit(WasmOp.END)
+
+        if wants_frame:
             local_set_idx = self._shared_imports["tcl_local_set"]
             for i, pname in enumerate(self._params):
                 if not pname or pname.startswith("_"):

@@ -135,6 +135,22 @@ def test_triage_table_totals_sum_fallback_sites() -> None:
     assert "fallback_sites=10" in rendered
 
 
+def _non_namespace_fallback_sites(diag) -> int:
+    """Count fallback sites whose command is NOT a ``namespace ...``
+    directive.  ``namespace import`` / ``export`` / ``forget`` now
+    route through an eval fallback on purpose — the runtime needs
+    to see them so its ``ns_import`` / ``ns_export`` create real
+    redirects for the eval-fallback dispatch path to resolve
+    imported names after a full flush (``interp create`` etc.).
+    Those sites are expected and shouldn't count against the
+    "resolve unqualified calls directly" invariant these tests
+    pin.
+    """
+    if diag is None or not diag.sites:
+        return 0
+    return sum(1 for site in diag.sites if site.kind == "fallback" and site.command != "namespace")
+
+
 def test_namespace_import_resolves_unqualified_calls() -> None:
     """``namespace import ::foo::*`` eliminates the fallback for bare calls.
 
@@ -143,7 +159,10 @@ def test_namespace_import_resolves_unqualified_calls() -> None:
     the bare ``bar`` call because the compiler couldn't see that
     ``bar`` was imported from ``::foo``.  With the import table
     wired through, the call resolves to ``::foo::bar`` at compile
-    time and dispatches directly — zero diag sites.
+    time and dispatches directly — zero diag sites for the
+    imported-call path.  (``namespace import`` itself now emits a
+    runtime fallback so the Zig runtime creates the redirect;
+    those sites are excluded from this check.)
     """
     src = (
         "namespace eval ::foo {\n"
@@ -156,10 +175,10 @@ def test_namespace_import_resolves_unqualified_calls() -> None:
         "baz\n"
     )
     _wasm, diag = _compile_tcl_with_diag(src, "ns_import.tcl")
-    summary = _summarise_diag(diag)
-    assert summary["fallback_sites_total"] == 0, (
-        f"expected zero fallback sites after namespace import, got "
-        f"{summary['fallback_sites_total']}: {summary['top_fallback_commands']}"
+    non_ns = _non_namespace_fallback_sites(diag)
+    assert non_ns == 0, (
+        f"expected zero non-namespace fallback sites after namespace "
+        f"import, got {non_ns}: {_summarise_diag(diag)['top_fallback_commands']}"
     )
 
 
@@ -181,8 +200,8 @@ def test_namespace_import_single_name_resolves() -> None:
         "bar\n"
     )
     _wasm, diag = _compile_tcl_with_diag(src, "ns_import_single.tcl")
-    summary = _summarise_diag(diag)
-    assert summary["fallback_sites_total"] == 0
+    non_ns = _non_namespace_fallback_sites(diag)
+    assert non_ns == 0
 
 
 def test_namespace_import_without_export_falls_back() -> None:
