@@ -2350,6 +2350,43 @@ bar
         )
         assert result == b"old-ran"
 
+    def test_rename_inside_namespace_eval_invalidates_qualified_name(self):
+        """``namespace eval ::ns { proc foo {}; rename foo bar }``
+        must invalidate ``::ns::foo`` in the compiler's
+        ``proc_index``, not just ``::foo``.  Without the
+        context-aware invalidation, calls to ``foo`` elsewhere in
+        the module would still emit ``call $::ns::foo`` and skip
+        the runtime rename.
+
+        We verify the compile-time invariant: the emitted WAT for
+        the module must NOT contain a direct ``call $::ns::foo``
+        anywhere — every invocation has to route through
+        ``tcl_eval``.  This pins the fix for the Copilot review
+        finding on PR #200 (proc_index qualification gap inside
+        namespace eval).
+        """
+        source = """\
+namespace eval ::ns {
+    proc helper {} { return 1 }
+    rename helper renamed
+}
+::ns::helper
+::ns::renamed
+"""
+        wasm_module, _ = _compile_to_wasm(source)
+        wat = wasm_module.to_wat()
+        assert "call $::ns::helper" not in wat, (
+            "proc_index should have been invalidated for ::ns::helper"
+        )
+        # The rename target must also route via eval — ``::ns::renamed``
+        # is the "new" name and needs to resolve at runtime too.
+        assert "call $::ns::renamed" not in wat, (
+            "proc_index should have been invalidated for ::ns::renamed"
+        )
+        # Sanity: tcl_eval is imported, proving the eval-fallback
+        # path is the one being used for these calls.
+        assert 'import "tcl" "tcl_eval"' in wat
+
     def test_chained_rename_round_trip(self):
         """``rename foo bar; rename bar foo`` must restore the
         original name.  Exercises the compiler's
@@ -2437,6 +2474,21 @@ interp invokehidden {} -namespace ::target carry left right
             "::result",
         )
         assert result == b"left/right"
+
+    def test_hidden_rejects_extra_args(self):
+        """``interp hidden`` requires ``objc == 2`` in Tcl 9's
+        ``HiddenCmdsNamesObjCmd``.  We accept the bare form and
+        the single-path form (``interp hidden {}``) but raise
+        ``wrong # args`` for any extra tokens — matches tclsh's
+        error shape rather than silently ignoring the tail."""
+        result = self._run_and_read_global(
+            """\
+catch {interp hidden {} extra-token} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp hidden path"'
 
     def test_hidden_lists_hidden_commands(self):
         """``interp hidden {}`` returns a space-separated list of
