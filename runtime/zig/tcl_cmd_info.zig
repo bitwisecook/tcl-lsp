@@ -61,32 +61,81 @@ pub export fn info_exists(name: i32) i32 {
     return frames.var_exists(name);
 }
 
+/// Raise ``"X" isn't a procedure`` with the ``TCL LOOKUP PROCEDURE X``
+/// error code path that ``info body`` / ``info args`` /
+/// ``info default`` all share when the name doesn't resolve to an
+/// interpreted proc.  Matches the Tcl 9 wording verbatim.
+fn raise_not_a_procedure(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix = "\"";
+    const suffix = "\" isn't a procedure";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    d[0] = '"';
+    if (name_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |k| d[prefix.len + k] = sp[k];
+    }
+    for (suffix, 0..) |b, k| d[prefix.len + name_len + k] = b;
+    const msg = obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// Resolve a name to its Command and verify it's an interpreted
-/// proc (``body_obj != 0`` and no redirect flag bits set).  Returns
-/// the Command address or 0.  Shared by body/args/default.
+/// proc.  On miss (unknown / alias / hidden / compiled proc), raise
+/// ``"X" isn't a procedure`` and return 0.  Shared by
+/// body / args / default so the error surface stays uniform.
+///
+/// ``proc_lookup`` transparently unwraps ``CMD_IMPORTED`` to the
+/// terminal source Command, so imports that point at a real
+/// interpreted proc succeed here.  Aliases don't unwrap (by design
+/// — ``CMD_ALIAS`` is preserved for introspection) and fail the
+/// filter.  Compiled procs (``func_idx != 0``) have no body TclObj
+/// so they fail the ``body == 0`` check, matching Tcl's "no
+/// retrievable body" rule.
 fn resolve_interpreted_proc(name: i32) u32 {
+    const sn = obj_ensure_string(name);
     const bucket = procs.proc_lookup(name);
-    if (bucket == 0) return 0;
+    if (bucket == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
     const cmd: u32 = @bitCast(bucket);
     const flags: u32 = @bitCast(read_i32(cmd + procs.OFF_FLAGS));
-    if ((flags & procs.CMD_ALIAS) != 0) return 0;
+    if ((flags & procs.CMD_ALIAS) != 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
+    if (func_idx != 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
     const body = procs.proc_get_body(bucket);
-    if (body == 0) return 0;
+    if (body == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
     return cmd;
 }
 
-/// info body procName — returns the body of an interpreted proc, or empty string.
+/// info body procName — returns the body TclObj for an interpreted
+/// proc.  Raises ``"X" isn't a procedure`` for anything else
+/// (missing, alias, hidden, compiled) and returns an empty TclObj
+/// so the error-flag path is the authoritative signal.
 pub export fn info_body(name: i32) i32 {
-    const bucket = procs.proc_lookup(name);
-    if (bucket == 0) return obj_new_string(0, 0);
-    return procs.proc_get_body(bucket);
+    const cmd = resolve_interpreted_proc(name);
+    if (cmd == 0) return obj_new_string(0, 0);
+    return procs.proc_get_body(@bitCast(cmd));
 }
 
-/// info args procName — returns the parameter list of a proc, or empty string.
+/// info args procName — returns the params TclObj for an
+/// interpreted proc.  Same error shape as ``info body``.
 pub export fn info_args(name: i32) i32 {
-    const bucket = procs.proc_lookup(name);
-    if (bucket == 0) return obj_new_string(0, 0);
-    return procs.proc_get_params(bucket);
+    const cmd = resolve_interpreted_proc(name);
+    if (cmd == 0) return obj_new_string(0, 0);
+    return procs.proc_get_params(@bitCast(cmd));
 }
 
 /// info complete script — returns 1 if the script has matched
@@ -393,22 +442,57 @@ pub fn info_procs(pattern: i32) i32 {
 
 // -- ``info default`` ------------------------------------------------------
 
+/// Raise ``procedure "X" doesn't have an argument "Y"`` — the Tcl 9
+/// error string for ``info default`` when the arg name isn't in the
+/// proc's params list.
+fn raise_missing_argument(proc_ptr: u32, proc_len: u32, arg_ptr: u32, arg_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix = "procedure \"";
+    const middle = "\" doesn't have an argument \"";
+    const suffix = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + proc_len +
+        @as(u32, @intCast(middle.len)) + arg_len +
+        @as(u32, @intCast(suffix.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix, 0..) |b, k| d[k] = b;
+    off = @intCast(prefix.len);
+    if (proc_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(proc_ptr);
+        for (0..proc_len) |k| d[off + k] = sp[k];
+    }
+    off += proc_len;
+    for (middle, 0..) |b, k| d[off + k] = b;
+    off += @as(u32, @intCast(middle.len));
+    if (arg_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(arg_ptr);
+        for (0..arg_len) |k| d[off + k] = sp[k];
+    }
+    off += arg_len;
+    for (suffix, 0..) |b, k| d[off + k] = b;
+    const msg = obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// info default proc arg varName — write the default value of
 /// parameter ``arg`` in proc ``proc`` into the caller's variable
-/// ``varName``.  Returns 1 if the parameter has a default, else 0
-/// (and leaves the variable unset).  Matches C Tcl's
-/// ``InfoDefaultCmd``.
-///
-/// The proc's params TclObj is a Tcl list where each element is
-/// either the bare parameter name or a two-element sublist
-/// ``{name default}``.  We split element-by-element, compare the
-/// first sub-element to ``arg``, and on a match return the second.
-pub fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
+/// ``varName`` and return 1 when a default is present.  When the
+/// arg has no default, set ``varName`` to the empty string and
+/// return 0.  When ``arg`` isn't in the proc's params list, raise
+/// ``procedure "X" doesn't have an argument "Y"`` (tclsh parity).
+/// Non-interpreted-proc resolution failures are handled in
+/// ``resolve_interpreted_proc``.
+pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
     const cmd = resolve_interpreted_proc(proc_name);
     if (cmd == 0) return obj_new_int(0);
     const params_obj = procs.proc_get_params(@bitCast(cmd));
-    if (params_obj == 0) return obj_new_int(0);
     const arg_s = obj_ensure_string(arg_name);
+    const proc_s = obj_ensure_string(proc_name);
+    if (params_obj == 0) {
+        raise_missing_argument(proc_s.ptr, proc_s.len, arg_s.ptr, arg_s.len);
+        return obj_new_int(0);
+    }
     const params_s = obj_ensure_string(params_obj);
 
     const count = obj.list_count_elements(params_s.ptr, params_s.len);
@@ -433,13 +517,22 @@ pub fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
             }
         }
         if (!match) continue;
-        if (sub_count < 2) return obj_new_int(0);
-        // Default present.  Pass it through ``var_name``'s target.
+        // Found the parameter.  If it has a default, pass that
+        // through ``var_name``; otherwise set ``var_name`` to empty
+        // (Tcl 9 InfoDefaultCmd sets to a fresh empty TclObj so the
+        // caller's variable is always materialised, unlike the
+        // pre-wave behaviour of leaving it unset).
+        if (sub_count < 2) {
+            _ = frames.var_set(var_name, obj_new_string(0, 0));
+            return obj_new_int(0);
+        }
         const default_sub = obj.list_element_at(elt.start, elt.len, 1);
         const default_obj = obj_new_string(@bitCast(default_sub.start), @bitCast(default_sub.len));
         _ = frames.var_set(var_name, default_obj);
         return obj_new_int(1);
     }
+    // Arg isn't in the proc's params — match tclsh's error shape.
+    raise_missing_argument(proc_s.ptr, proc_s.len, arg_s.ptr, arg_s.len);
     return obj_new_int(0);
 }
 
