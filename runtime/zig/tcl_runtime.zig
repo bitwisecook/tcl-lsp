@@ -40,6 +40,7 @@ const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const tcl_rename = @import("tcl_rename.zig");
 const tcl_alias = @import("tcl_alias.zig");
 const tcl_hide = @import("tcl_hide.zig");
+const tcl_interp_registry = @import("tcl_interp_registry.zig");
 const interp = @import("tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -395,11 +396,22 @@ comptime {
     // below exposes them to the Python harness too.
     _ = &tcl_hide.hide_command;
     _ = &tcl_hide.expose_command;
-    _ = &tcl_ns.hidden_put;
-    _ = &tcl_ns.hidden_find;
-    _ = &tcl_ns.hidden_clear;
-    _ = &tcl_ns.hidden_table_buf;
-    _ = &tcl_ns.hidden_table_cap;
+    _ = &tcl_interp_registry.hidden_put;
+    _ = &tcl_interp_registry.hidden_find;
+    _ = &tcl_interp_registry.hidden_clear;
+    _ = &tcl_interp_registry.hidden_table_buf;
+    _ = &tcl_interp_registry.hidden_table_cap;
+    // tcl_interp_registry — child-interp wave.  Builtins dispatch
+    // through these; tests drive them via scaffolding exports
+    // declared at the bottom of this file.
+    _ = &tcl_interp_registry.interp_root;
+    _ = &tcl_interp_registry.interp_current;
+    _ = &tcl_interp_registry.child_create;
+    _ = &tcl_interp_registry.child_lookup;
+    _ = &tcl_interp_registry.child_delete;
+    _ = &tcl_interp_registry.resolve_path;
+    _ = &tcl_interp_registry.enter;
+    _ = &tcl_interp_registry.leave;
     // tcl_cmd_info — new walkers for info commands / info procs /
     // info default.  info_dispatch already re-exported above
     // picks up the new entry points transitively.
@@ -424,6 +436,15 @@ comptime {
     _ = &tcl_test_export_name_len;
     _ = &tcl_test_obj_str_ptr;
     _ = &tcl_test_obj_str_len;
+    // Child-interp scaffolding.
+    _ = &tcl_test_interp_root;
+    _ = &tcl_test_interp_current;
+    _ = &tcl_test_interp_create;
+    _ = &tcl_test_interp_lookup;
+    _ = &tcl_test_interp_delete;
+    _ = &tcl_test_interp_eval_script;
+    _ = &tcl_test_interp_root_ns;
+    _ = &tcl_test_hidden_find_in;
 }
 
 // -- Runtime test scaffolding (rename / alias) -----------------------------
@@ -492,8 +513,11 @@ pub export fn tcl_test_alias_create(
 // -- Runtime test scaffolding (hide / expose / info) -----------------------
 
 /// Hide a command.  ``src_ns`` identifies the namespace holding
-/// the source.  Returns the ``HideResult`` enum as an i32 (0 = ok,
-/// 1 = not_found, 2 = qualified_name_rejected, 3 = hidden_name_taken).
+/// the source.  Post-child-interp the hidden table is keyed per
+/// interp; this export routes to the current interp so existing
+/// tests don't need to thread the handle.  Returns the ``HideResult``
+/// enum as an i32 (0 = ok, 1 = not_found, 2 = qualified_name_rejected,
+/// 3 = hidden_name_taken).
 pub export fn tcl_test_hide(
     src_ns: i32,
     src_simple_ptr: i32,
@@ -502,6 +526,7 @@ pub export fn tcl_test_hide(
     hidden_name_len: i32,
 ) i32 {
     const r = tcl_hide.hide_command(
+        tcl_interp_registry.interp_current(),
         @bitCast(src_ns),
         @bitCast(src_simple_ptr),
         @bitCast(src_simple_len),
@@ -522,6 +547,7 @@ pub export fn tcl_test_expose(
     new_simple_len: i32,
 ) i32 {
     const r = tcl_hide.expose_command(
+        tcl_interp_registry.interp_current(),
         @bitCast(hidden_name_ptr),
         @bitCast(hidden_name_len),
         @bitCast(dest_ns),
@@ -533,9 +559,14 @@ pub export fn tcl_test_expose(
 
 /// Non-zero if a hidden-table entry is present under the given
 /// simple name.  Used by tests to assert the hidden state directly
-/// without the interpreter layer.
+/// without the interpreter layer.  Routes to the current interp;
+/// :func:`tcl_test_hidden_find_in` takes an explicit ``Interp*``.
 pub export fn tcl_test_hidden_exists(name_ptr: i32, name_len: i32) i32 {
-    const h = tcl_ns.hidden_find(@bitCast(name_ptr), @bitCast(name_len));
+    const h = tcl_interp_registry.hidden_find(
+        tcl_interp_registry.interp_current(),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    );
     return if (h != 0) 1 else 0;
 }
 
@@ -603,4 +634,94 @@ pub export fn tcl_test_obj_str_ptr(obj: i32) i32 {
 pub export fn tcl_test_obj_str_len(obj: i32) i32 {
     const s = tcl_obj.obj_ensure_string(obj);
     return @bitCast(s.len);
+}
+
+// -- Runtime test scaffolding (child interps) ------------------------------
+
+/// Return the root ``Interp*`` (allocating it on first call, same
+/// shape as ``tcl_ns_root``).  Tests use this to anchor subsequent
+/// ``tcl_test_interp_create`` calls.
+pub export fn tcl_test_interp_root() i32 {
+    return @bitCast(tcl_interp_registry.interp_root());
+}
+
+/// Return the currently-active ``Interp*``.  Tests call this around
+/// ``interp eval`` to verify the swap / restore pair worked.
+pub export fn tcl_test_interp_current() i32 {
+    return @bitCast(tcl_interp_registry.interp_current());
+}
+
+/// Create a child interp under ``parent`` with the given simple
+/// name.  Returns the new ``Interp*`` address.  ``flags`` packs
+/// ``INTERP_SAFE`` (and future flag bits).
+pub export fn tcl_test_interp_create(
+    parent: i32,
+    name_ptr: i32,
+    name_len: i32,
+    flags: i32,
+) i32 {
+    return @bitCast(tcl_interp_registry.child_create(
+        @bitCast(parent),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+        @bitCast(flags),
+    ));
+}
+
+/// Look up a direct child of ``parent`` by simple name.  Returns
+/// 0 on miss.
+pub export fn tcl_test_interp_lookup(parent: i32, name_ptr: i32, name_len: i32) i32 {
+    return @bitCast(tcl_interp_registry.child_lookup(
+        @bitCast(parent),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    ));
+}
+
+/// Delete a child interp from its parent's registry.  Returns 1
+/// if the entry was cleared, 0 otherwise.
+pub export fn tcl_test_interp_delete(parent: i32, name_ptr: i32, name_len: i32) i32 {
+    const ok = tcl_interp_registry.child_delete(
+        @bitCast(parent),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    );
+    return if (ok) 1 else 0;
+}
+
+/// Evaluate a script inside the target interp (no path-resolver
+/// call: tests pass the pre-resolved ``Interp*`` directly).
+/// Returns the TclObj result from ``eval_script``.
+pub export fn tcl_test_interp_eval_script(
+    target_interp: i32,
+    script_ptr: i32,
+    script_len: i32,
+) i32 {
+    const save = tcl_interp_registry.enter(@bitCast(target_interp));
+    const res = interp.tcl_eval(tcl_obj.obj_new_string(script_ptr, script_len));
+    tcl_interp_registry.leave(save);
+    return res;
+}
+
+/// Return the target interp's root ``Namespace*``.  Tests use this
+/// to register procs inside a child interp via ``proc_register``
+/// after wrapping them in an ``enter`` / ``leave`` pair.
+pub export fn tcl_test_interp_root_ns(target_interp: i32) i32 {
+    const t: *tcl_interp_registry.Interp = @ptrFromInt(@as(u32, @bitCast(target_interp)));
+    return @bitCast(t.root_ns);
+}
+
+/// Probe a specific interp's hidden table by simple name.  Returns
+/// non-zero if an entry is present.
+pub export fn tcl_test_hidden_find_in(
+    target_interp: i32,
+    name_ptr: i32,
+    name_len: i32,
+) i32 {
+    const h = tcl_interp_registry.hidden_find(
+        @bitCast(target_interp),
+        @bitCast(name_ptr),
+        @bitCast(name_len),
+    );
+    return if (h != 0) 1 else 0;
 }

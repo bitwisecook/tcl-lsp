@@ -186,16 +186,22 @@ def _proc_name_variants(name: str, context_ns: str = "::") -> tuple[str, ...]:
 
 def _collect_dynamically_modified_procs(
     ir_module: IRModule,
-) -> set[tuple[str, str]]:
-    """Return every ``(context_ns, name)`` pair for procs that
+) -> tuple[set[tuple[str, str]], bool]:
+    """Return the set of ``(context_ns, name)`` pairs for procs that
     ``rename`` / ``interp hide`` / ``interp expose`` touches
-    anywhere in ``ir_module``.
+    anywhere in ``ir_module``, plus a ``full_flush`` flag that's
+    ``True`` when the module uses a command whose side-effects can't
+    be tracked surgically (``interp create`` / ``interp eval`` /
+    ``interp delete``).
 
     Used by :func:`wasm_codegen_module` to invalidate
     ``proc_index`` entries for those names, downgrading calls from
     a compile-time specialised ``call $::foo`` to the runtime
     ``tcl_eval`` / ``proc_lookup`` path so runtime hide / rename
-    state is visible.
+    state is visible.  When ``full_flush`` is set, the caller drops
+    *every* entry — the conservative shortcut documented in
+    ``docs/design/runtime/child-interp.md`` §7 for the child-interp
+    wave.
 
     The walker threads a ``context_ns`` through every script body:
 
@@ -212,6 +218,7 @@ def _collect_dynamically_modified_procs(
     ``::ns::foo`` / ``::ns::bar``, not just ``::foo`` / ``::bar``.
     """
     affected: set[tuple[str, str]] = set()
+    full_flush = [False]
 
     def _scan_statement(stmt: IRStatement, context_ns: str) -> None:
         match stmt:
@@ -230,6 +237,24 @@ def _collect_dynamically_modified_procs(
                         affected.add((context_ns, args[2]))
                     if len(args) >= 4:
                         affected.add((context_ns, args[3]))
+                elif (
+                    cmd == "interp"
+                    and args
+                    and args[0]
+                    in (
+                        "create",
+                        "eval",
+                        "delete",
+                    )
+                ):
+                    # Child-interp primitives: a child can define
+                    # arbitrary procs whose names we can't enumerate
+                    # statically, and ``interp delete`` can unlink
+                    # procs we might be specialising.  Full flush is
+                    # the conservative-but-correct shortcut — calls
+                    # route through ``tcl_eval`` and observe the live
+                    # registry.
+                    full_flush[0] = True
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
                     _scan_script(clause.body, context_ns)
@@ -280,7 +305,7 @@ def _collect_dynamically_modified_procs(
             # inside a method is so rare that the extra root probe
             # is harmless.
             _scan_script(method.body, "::")
-    return affected
+    return affected, full_flush[0]
 
 
 def wasm_codegen_function(
@@ -437,10 +462,18 @@ def wasm_codegen_module(
     # ``namespace eval ::ns { rename foo bar }`` correctly
     # invalidates ``::ns::foo`` / ``::ns::bar`` rather than only
     # ``::foo`` / ``::bar``.
-    dynamically_modified = _collect_dynamically_modified_procs(ir_module)
-    for context_ns, name in dynamically_modified:
-        for variant in _proc_name_variants(name, context_ns):
-            proc_index.pop(variant, None)
+    dynamically_modified, full_flush = _collect_dynamically_modified_procs(ir_module)
+    if full_flush:
+        # Child-interp mutation: any direct call emitted from this
+        # module can see a modified proc registry after the fact.
+        # Flush proc_index entirely so every subsequent call routes
+        # through ``tcl_eval`` — see
+        # ``docs/design/runtime/child-interp.md`` §7.
+        proc_index.clear()
+    else:
+        for context_ns, name in dynamically_modified:
+            for variant in _proc_name_variants(name, context_ns):
+                proc_index.pop(variant, None)
 
     # Shared string table so data segments from different functions
     # don't collide at offset 0. All emitters share a single list,
