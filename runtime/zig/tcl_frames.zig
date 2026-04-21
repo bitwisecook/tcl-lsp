@@ -58,7 +58,17 @@ const FRAME_BUCKET_SIZE: u32 = 16;
 // local names are rare but possible; insertion is bounded and traps on
 // overflow rather than looping.  If this limit is hit in practice, bump
 // here or switch to a growable per-frame hash table (mirroring globals).
-const FRAME_BUCKET_COUNT: u32 = 64; // per frame, power of 2
+// Per-frame hash table capacity.  Must be a power of 2.  Was 64;
+// bumped to 256 because tcltest's ``test`` proc (which is uplevel'd
+// by ``RunTest``) accumulates over 100 distinct locals once every
+// tcltest option variable is read — 64 and 128 both overflowed the
+// open-addressing probe chain and traced to ``frame_insert``
+// raising "frame local table full".  256 × 16 B = 4 KB per frame
+// × 64 max depth = 256 KB total frame memory — acceptable for the
+// web container's bump allocator.  When growable per-frame tables
+// land this cap can move back down; the trap is load-bearing so
+// callers notice rather than silently looping.
+const FRAME_BUCKET_COUNT: u32 = 256;
 const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 1024 bytes
 const OFF_VALUE: u32 = ht.HEADER_SIZE; // 12 — value follows header
 
