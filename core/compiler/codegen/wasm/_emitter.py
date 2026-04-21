@@ -6373,6 +6373,7 @@ class _WasmEmitter:
         # empty-string TclObjs from the runtime, matching reference
         # Tcl's ``foreach {a b} {1 2 3}`` semantics (b="" last iter).
         lindex_idx = self._shared_imports.get("tcl_list_index")
+        global_set_idx = self._shared_imports.get("tcl_global_set")
         for slot, var_name in enumerate(loop_vars):
             var_local = self._intern_local(var_name)
             if lindex_idx is not None:
@@ -6390,6 +6391,20 @@ class _WasmEmitter:
                     self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
             self._emit_local_set(var_local)
+            # At top level (not inside a proc), also publish the
+            # iteration value as a global so eval-fallbacks inside
+            # the body can resolve ``$var_name`` via
+            # ``tcl_global_get``.  Without this, a top-level
+            # ``foreach i [list a b c] { ... $i ... }`` where the
+            # body falls back to ``tcl_eval`` (e.g. ``interp
+            # delete $i``) sees ``i`` as empty and traps.  This
+            # only fires at top level — inside a proc the body
+            # can reach the value via the proc's frame-sync path.
+            if not self._is_proc and global_set_idx is not None:
+                self._emit_obj_literal(var_name)
+                self._emit_local_get(var_local)
+                self._emit_call(global_set_idx)
+                self._emit(WasmOp.DROP)
 
         # Wrap body in block for break/continue
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
