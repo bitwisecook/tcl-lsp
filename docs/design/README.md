@@ -68,6 +68,12 @@ ownership matrices.
   semantics, the `OFF_EXPORT_NAME_BUCKET` sidecar that unblocks
   compiled-proc rename, and the `info commands` / `info procs` /
   `namespace which -command` walkers.
+- [runtime/child-interp.md](runtime/child-interp.md) — child-
+  interpreter primitives (`interp create` / `eval` / `exists` /
+  `slaves` / `delete`), the `Interp` struct + per-interp hidden
+  table, the `enter` / `leave` swap pair for nested eval, and the
+  compiler's conservative proc-index flush on `interp create` /
+  `eval` / `delete`.
 
 ## Contracts and interfaces
 

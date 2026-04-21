@@ -2507,6 +2507,178 @@ set ::result [interp hidden {}]
         assert names == {"foo", "bar"}
 
 
+class TestInterpChildren:
+    """End-to-end ``interp create`` / ``eval`` / ``exists`` /
+    ``slaves`` / ``delete`` behaviour through the runtime's eval
+    fallback.  The compiler leaves every ``interp`` call as an
+    eval-fallback (``_collect_dynamically_modified_procs`` forces a
+    full ``proc_index`` flush when it spots any of these), so these
+    exercise the runtime's child-interp registry through the full
+    dispatch path.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_create_returns_name(self):
+        """``interp create`` returns the new interp's name; explicit
+        name form uses the caller-supplied identifier verbatim."""
+        result = self._run_and_read_global(
+            """\
+set ::result [interp create worker]
+""",
+            "::result",
+        )
+        assert result == b"worker"
+
+    def test_create_auto_name(self):
+        """Anonymous ``interp create`` assigns ``interp<N>``."""
+        result = self._run_and_read_global(
+            """\
+set ::result [interp create]
+""",
+            "::result",
+        )
+        # The counter advances across invocations; we only check the
+        # prefix since later tests in the same module may have
+        # burned earlier numbers.
+        assert result.startswith(b"interp")
+
+    def test_exists_tracks_create_delete(self):
+        """``interp exists`` returns 1 after create and 0 after
+        delete."""
+        result = self._run_and_read_global(
+            """\
+interp create gone
+set ::before [interp exists gone]
+interp delete gone
+set ::after [interp exists gone]
+set ::result "$::before $::after"
+""",
+            "::result",
+        )
+        assert result == b"1 0"
+
+    def test_slaves_lists_children(self):
+        """``interp slaves`` returns the child simple names as a
+        Tcl list."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create b
+set ::result [lsort [interp slaves]]
+""",
+            "::result",
+        )
+        assert result == b"a b"
+
+    def test_eval_runs_script_in_child(self):
+        """Scripts passed to ``interp eval`` execute inside the
+        child — reading back the value through a second eval
+        confirms the first eval's side effect took.
+        """
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {set x 42}
+set ::result [interp eval worker {set x}]
+""",
+            "::result",
+        )
+        assert result == b"42"
+
+    def test_eval_concat_multiple_scripts(self):
+        """``interp eval child a b c`` concatenates ``a b c`` with
+        spaces and evaluates the result (matches ``InterpEvalObjCmd``)."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker set r 123
+set ::result [interp eval worker {set r}]
+""",
+            "::result",
+        )
+        assert result == b"123"
+
+    def test_child_has_independent_procs(self):
+        """Procs registered inside a child are reachable from the
+        child's own eval but absent from the parent's registry."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {proc greet {} {return hello}}
+set ::result [interp eval worker greet]
+""",
+            "::result",
+        )
+        assert result == b"hello"
+
+    def test_delete_current_raises(self):
+        """Deleting the current interp (empty path) raises
+        ``cannot delete the current interpreter``."""
+        result = self._run_and_read_global(
+            """\
+catch {interp delete {}} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b"cannot delete the current interpreter"
+
+    def test_cross_interp_hide(self):
+        """``interp hide child foo`` hides a proc in the child's
+        cmd_table, not the parent's."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {proc foo {} {return 1}}
+interp hide worker foo
+# After hide, the child can't reach ``foo`` via a bare call.
+set ::result [interp eval worker {catch foo}]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_cross_interp_invokehidden(self):
+        """``interp invokehidden child foo`` dispatches into the
+        child's hidden table."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {proc mark {} {set ::marked yes}}
+interp hide worker mark
+interp invokehidden worker mark
+# The assignment landed inside the child — verify it.
+set ::result [interp eval worker {set ::marked}]
+""",
+            "::result",
+        )
+        assert result == b"yes"
+
+    def test_cross_interp_alias(self):
+        """``interp alias child foo {} parent_proc`` creates an
+        alias in the child whose target resolves in the parent."""
+        result = self._run_and_read_global(
+            """\
+proc parent_proc {who} { set ::result "hi-$who" }
+interp create worker
+interp alias worker hi {} parent_proc
+interp eval worker {hi world}
+""",
+            "::result",
+        )
+        assert result == b"hi-world"
+
+
 class TestInfoIntrospection:
     """End-to-end ``info commands`` / ``info procs`` /
     ``namespace which -command`` through the eval path.

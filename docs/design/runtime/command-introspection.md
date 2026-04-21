@@ -39,10 +39,6 @@ In:
 
 Out (deferred to later waves):
 
-- Child interpreters — and with them, cross-interp
-  ``interp invokehidden`` (single-interp dispatch into the
-  hidden table ships here; the multi-interp form needs child
-  interp infrastructure the runtime doesn't have yet).
 - Command-trace machinery — still no trace infrastructure
   in the runtime.
 - ``info level N`` (per-frame argv retrieval) — the zero-arg
@@ -53,26 +49,35 @@ Out (deferred to later waves):
 - ``info frame`` — a separate introspection axis (source
   location + stack detail), out of scope for this wave.
 
+Child interpreters moved to
+[`child-interp.md`](child-interp.md) — the single-interp scope
+here has been lifted, and cross-interp
+``interp invokehidden`` / ``hide`` / ``expose`` / ``alias`` now
+honour real child paths.
+
 ## 2. Hidden commands table
 
 ### 2.1 Storage
 
-[`tcl_ns.zig`](../../../runtime/zig/tcl_ns.zig) owns a module-level
-``hidden_cmd_table: CmdTable`` singleton — same shape as a
-namespace's ``cmd_table`` (12-byte header + 4-byte value = 16-byte
-bucket).  Unlike per-ns tables, the hidden table is
-interpreter-wide: C Tcl keeps one ``hiddenCmdTable`` per interp
-(``tclBasic.c:Interp.hiddenCmdTablePtr``) and qualified names are
-rejected (they'd violate the "hidden is a flat namespace" rule).
+[`tcl_interp_registry.zig`](../../../runtime/zig/tcl_interp_registry.zig)
+owns the hidden-commands table — one per `Interp`.  Same shape
+as a namespace's ``cmd_table`` (12-byte header + 4-byte value =
+16-byte bucket).  Qualified hidden names are rejected (they'd
+violate the "hidden is a flat namespace" rule).
+
+Pre-child-interp this lived as a module-global in
+[`tcl_ns.zig`](../../../runtime/zig/tcl_ns.zig); the move to
+per-interp storage is described in
+[`child-interp.md`](child-interp.md) §5.
 
 Public API:
 
 | Function | Purpose |
 |---|---|
-| ``hidden_put(name_ptr, name_len, value)`` | Insert / update. |
-| ``hidden_find(name_ptr, name_len) -> u32`` | Lookup; 0 on miss. |
-| ``hidden_clear(name_ptr, name_len) -> bool`` | Tombstone. |
-| ``hidden_table_buf / hidden_table_cap`` | Iterator surface. |
+| ``hidden_put(interp, name_ptr, name_len, value)`` | Insert / update. |
+| ``hidden_find(interp, name_ptr, name_len) -> u32`` | Lookup; 0 on miss. |
+| ``hidden_clear(interp, name_ptr, name_len) -> bool`` | Tombstone. |
+| ``hidden_table_buf(interp) / hidden_table_cap(interp)`` | Iterator surface. |
 
 No ``cmd_ref_epoch`` cascade — no namespace paths target the
 hidden table, so there's nothing to invalidate downstream.

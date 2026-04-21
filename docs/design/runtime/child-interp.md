@@ -1,0 +1,283 @@
+# Child interpreters
+
+Status: **shipped** in the child-interpreter wave.  Extends the
+namespace-tree / rename-alias / command-introspection waves with
+per-interpreter state (root namespace, hidden-commands table,
+children registry) and the minimum-viable primitives `interp
+create` / `eval` / `exists` / `slaves` / `delete`, plus a promotion
+of the previously-shipped single-interp `interp alias` / `hide` /
+`expose` / `invokehidden` to honour real child-interpreter paths.
+
+Reference Tcl 9 sources: `tmp/tcl9.0.3/generic/tclInterp.c`
+(`ChildCreate`, `ChildEval`, `InterpObjCmd` dispatch,
+`OPT_{CREATE,EVAL,EXISTS,SLAVES,DELETE}` branches) and
+`tmp/tcl9.0.3/generic/tclBasic.c` (`Tcl_CreateInterp` /
+`DeleteInterp`).
+
+## 1. Scope
+
+In:
+
+- `interp create ?-safe? ?--? ?path?` — auto-named and explicit-
+  named child creation, single-level path only.
+- `interp eval path script ?script ...?` — concat-with-spaces,
+  dispatch inside the resolved child's namespace tree.
+- `interp exists ?path?` — pure lookup, non-raising.
+- `interp slaves ?path?` / `interp children ?path?` — enumerate
+  the resolved interp's direct children.
+- `interp delete ?path ...?` — unlink from the parent's registry.
+- Per-interp `Interp` struct carrying `root_ns`, `hidden_cmd_table`,
+  `parent`, `name_*`, `children`, `flags`.
+- Path-aware promotion of `interp alias` / `hide` / `expose` /
+  `invokehidden`.
+- Conservative compiler-side `proc_index` flush when any of
+  `interp create` / `eval` / `delete` appear in the IR.
+
+Out (deferred to later waves):
+
+- `-safe` semantics enforcement.  The flag is recorded on
+  `Interp.flags` but file / exec / package / env / load access
+  isn't gated — matches the runtime's "no fs / exec anyway"
+  stance.
+- `interp bgerror` — no event loop to pump background errors.
+- `interp limit` / `interp marktrusted` — limit enforcement is
+  cooperative in C Tcl and we have no event loop.
+- `interp target` / `interp share` / `interp transfer` — channel
+  sharing is entangled with the non-existent channel infrastructure.
+- Full delete cascade: child's byte regions (cmd table, hidden
+  table, namespace subtrees) stay live in bump memory after
+  `interp delete` — they're unreachable from the parent but not
+  actively zeroed.  Aliases in the parent that targeted the
+  child have dead sources and surface as "unknown command" on
+  next dispatch (same behaviour as renaming the target).
+- Per-interp call-frame stack.  The shared stack is safe for
+  single-threaded, non-nested eval; truly nested `interp eval`
+  on a stack-depth-sensitive proc would observe stale depth.
+  Flagged here, not fixed.
+- Multi-level `interp create {a b}` (walks intermediate children).
+
+## 2. The `Interp` struct
+
+[`tcl_interp_registry.zig`](../../../runtime/zig/tcl_interp_registry.zig)
+owns the one-Interp-per-interpreter state.  `extern struct`
+layout mirrors the rest of the runtime's ABI — every field is a
+`u32` at a known offset so `@ptrFromInt` casts read the right
+bytes.
+
+| Field | Owns |
+|---|---|
+| `root_ns` | This interp's root (`::`) `Namespace*` — for the root interp this equals `tcl_ns.root_addr`; for children, a fresh namespace allocated via `tcl_ns.ns_alloc_root`. |
+| `hidden_cmd_table` | Interpreter-wide hidden table (used to live as a module-global `tcl_ns.hidden_cmd_table`; moved here so cross-interp `hide` / `expose` can target the right interp). |
+| `parent` | Parent `Interp*` — zero only for the root. |
+| `name_ptr` / `name_len` | Simple name in the parent's `children` table (zero-length for root). |
+| `children` | Registry of direct children — key = simple name, value = `Interp*`. |
+| `flags` | `INTERP_SAFE` (`0x1`) and future flag bits. |
+
+The singleton is lazily allocated the first time `interp_root()`
+is called.  The root interp adopts `tcl_ns.ns_root()` as its
+`root_ns` so the very first access — from anywhere in the runtime
+— gets the same `Namespace*` it always did.  `current_interp` is
+set at the same moment so `interp_current()` always returns a
+valid address.
+
+## 3. Entering / leaving a child
+
+`interp eval` (and every other cross-interp dispatch path —
+`invokehidden`, cross-interp alias create / query / dispatch)
+goes through:
+
+```zig
+const save = interp_reg.enter(target);
+defer interp_reg.leave(save);
+// ... eval in child ...
+```
+
+`enter` saves the previous `current_interp`, `tcl_ns.root_addr`,
+and `tcl_ns.current_ns` into an `EnterSave` record, then swaps
+the target's slots in.  `leave` restores the trio.  Nesting —
+`interp eval child1 { interp eval child2 {...} }` — unwinds
+correctly because each `enter` captures the state that was live
+when it ran, not the root-level state.
+
+`tcl_ns.root_addr` is the mechanism the rest of the runtime uses
+to see the correct root namespace: every caller of `tcl_ns.ns_root()`
+reads this global.  Swapping it means `proc_register`,
+`global_set` / `global_get`, `info commands`, and every other
+path that reaches into the root namespace automatically lands in
+the child's tree — no per-call routing through an "interp
+context" argument.
+
+## 4. Resolving paths
+
+`resolve_path(base, path_ptr, path_len)` parses the path bytes as
+a Tcl list via `obj.list_count_elements` / `list_element_at` and
+walks the chain of children starting from `base`.  Empty path
+returns `base` unchanged; any missing component returns 0.
+
+Call sites (`eval_interp_hide`, `eval_interp_expose`,
+`eval_interp_invokehidden`, `eval_interp_eval`, …) wrap that with
+`resolve_interp_path(words[path_idx])` which also raises the
+tclsh error `could not find interpreter "X"` on miss.
+
+## 5. Per-interp hidden commands
+
+Previously the hidden table lived as a module-global in
+`tcl_ns.zig` — one table for the whole runtime.  That matched the
+single-interp scope but broke the moment we needed cross-interp
+hide / expose.
+
+Post-child-interp:
+
+- The `hidden_cmd_table: HiddenTable` field is embedded inside
+  `Interp`.
+- `hidden_put` / `hidden_find` / `hidden_clear` / `hidden_table_buf` /
+  `hidden_table_cap` now take an explicit `interp_addr`
+  parameter.  Callers that used to pass implicit single-interp
+  state now pass `interp_reg.interp_current()` (e.g. the
+  `tcl_test_hide` / `tcl_test_expose` scaffolding exports).
+- `tcl_hide.hide_command` / `expose_command` gained a leading
+  `target_interp` argument.
+- `eval_interp_hide` / `_expose` / `_hidden` / `_invokehidden`
+  resolve the path argument and route to the target interp's
+  slot.
+
+## 6. Cross-interp alias
+
+`interp alias` takes two paths:
+
+1. `childPath` — where the alias source is registered.
+2. `parentPath` — where the target command lives at dispatch.
+
+For single-interp (both paths empty), both collapse to the
+current interp.  For cross-interp, the alias redirect Command is
+inserted into `childPath`'s cmd_table, and the parent interp is
+stashed in the Command's `OFF_IMPORT_REF_HEAD` slot (aliases
+never have importers, so the slot is free for reuse).
+
+`dispatch_alias` reads that slot on every invocation: when non-
+zero and different from the current interp, it calls
+`interp_reg.enter(parent_interp)` before `proc_lookup` so the
+target resolves against the parent's cmd_table, then
+`interp_reg.leave` restores on return.
+
+## 7. Compiler: conservative proc-index flush
+
+`_collect_dynamically_modified_procs` in
+[`core/compiler/codegen/wasm/__init__.py`](../../../core/compiler/codegen/wasm/__init__.py)
+now returns `(affected, full_flush)`.  When it sees any of
+`interp create` / `interp eval` / `interp delete` anywhere in the
+IR, `full_flush` is set.  The caller responds by clearing
+`proc_index` entirely — every call in the module routes through
+`tcl_eval` / `proc_lookup` and sees the live registry.
+
+The shortcut is conservative — most modules with one tiny child-
+interp use will pay the full eval-fallback cost on every call —
+but the complexity of per-path tracking (which procs a given
+child might register, which names `interp eval script` might
+touch) dwarfs the specialisation opportunity this wave would
+otherwise keep.
+
+The surgical path (removing specific names on `rename` /
+`interp hide` / `interp expose`) is unchanged — those commands
+continue to invalidate only the named target(s).
+
+## 8. Dispatch interplay
+
+When cross-interp dispatch happens (a child alias's target
+resolves via `proc_lookup` in the parent, or a cross-interp
+`invokehidden` reaches into a child's hidden table), two module-
+globals move in lockstep:
+
+1. `current_interp` (the registry's tracker).
+2. `tcl_ns.root_addr` (the ns tree's root pointer).
+
+Both are swapped by `enter` and restored by `leave`.  The
+proc-lookup LRU is keyed on `(ns, hash, len, first_byte)`, so
+cached entries from the parent interp automatically miss when
+the child interp's `ns` pointer differs.  No cross-interp
+cache poisoning is possible without a deliberate
+`tcl_ns.root_addr` rewrite that skips the `enter` / `leave` pair.
+
+## 9. Deferred: deletion cascade
+
+`interp delete path` unlinks the child from the parent's
+`children` table — a `child_delete` bucket-tombstone that makes
+subsequent `resolve_path` / `child_lookup` calls miss.  The
+child's `Interp` struct, root namespace, namespace subtree,
+command tables, and hidden-commands table all stay alive in bump
+memory.  Because nothing outside the parent's registry holds a
+handle to the deleted child, the stale bytes are unreachable
+from Tcl code.
+
+Aliases created with `interp alias parent newName child target`
+(parent-side alias whose target lives in the deleted child)
+retain the child's `Interp*` in their `OFF_IMPORT_REF_HEAD`
+slot.  The next dispatch will `enter(deleted_interp)` and probe
+a no-longer-registered cmd_table — producing "unknown command:
+<target>".  This matches the observable behaviour of "target of
+an alias got renamed away" which `dispatch_alias` already
+handles cleanly.
+
+Full cascade (walking the child's namespace subtree, clearing
+every Command, zeroing the Interp struct, deactivating every
+alias whose `OFF_IMPORT_REF_HEAD` points at the deleted interp)
+is deferred — the bump allocator's "never frees" contract makes
+the zeroing observably no-op'd by dispatch anyway, and tcltest
+doesn't poll for it.
+
+## 10. Dialect compatibility
+
+| Command | 8.4 | 8.5 | 8.6 | 9.0 |
+|---|---|---|---|---|
+| `interp create` | ✓ | ✓ | ✓ | ✓ |
+| `interp eval` | ✓ | ✓ | ✓ | ✓ |
+| `interp delete` | ✓ | ✓ | ✓ | ✓ |
+| `interp exists` | — | ✓ | ✓ | ✓ |
+| `interp slaves` | ✓ | ✓ | ✓ | ✓ (deprecated alias for `children`) |
+| `interp children` | — | — | — | ✓ |
+
+`interp exists` was added in Tcl 8.5; 8.4 scripts either use
+`catch {interp eval path {}}` or probe through the children
+list.  We ship the 8.5+ form; the 8.4-style probe keeps working
+through the `catch` fallback.
+
+## 11. Test coverage
+
+Three layers:
+
+1. **Runtime direct tests** drive the registry primitives through
+   dedicated WASM exports (`tcl_test_interp_create`,
+   `tcl_test_interp_lookup`, `tcl_test_interp_delete`,
+   `tcl_test_interp_eval_script`, `tcl_test_hidden_find_in`):
+   - [`tests/runtime/test_tcl_interp_children.py`](../../../tests/runtime/test_tcl_interp_children.py)
+2. **End-to-end Tcl → WASM → runtime tests**:
+   - `TestInterpChildren` in
+     [`tests/test_wasm_execution.py`](../../../tests/test_wasm_execution.py)
+     covers create + eval + exists + slaves + delete, plus the
+     cross-interp promotions for `alias` / `hide` /
+     `invokehidden`.
+3. **Upstream `interp.test` sections** — not gated into the ship
+   criteria this wave.  The direct + E2E layers pin the
+   semantics; the `interp.test` sections that need full channel
+   sharing, `-safe` enforcement, or limit management are out of
+   scope.
+
+## 12. Ship summary
+
+- One new Zig module: `tcl_interp_registry.zig`.
+- `tcl_ns.zig` changes: `root_addr` made public for swap; new
+  `ns_alloc_root` helper; hidden-table surface removed (moved
+  into the registry).
+- `tcl_hide.zig` API gained a leading `target_interp` argument.
+- `tcl_interp.zig` gained five new subcommand branches
+  (`create`, `eval`, `exists`, `slaves` / `children`, `delete`)
+  plus path promotion for `hide` / `expose` / `hidden` /
+  `invokehidden` / `alias`.
+- `dispatch_alias` reads the parent-interp slot on the alias
+  Command and `enter` / `leave`s around the lookup when set.
+- Compiler's `_collect_dynamically_modified_procs` now returns
+  a `full_flush` flag; callers clear `proc_index` entirely when
+  any of `interp create` / `eval` / `delete` appear.
+- New test scaffolding exports:
+  `tcl_test_interp_root` / `_current` / `_create` / `_lookup` /
+  `_delete` / `_eval_script` / `_root_ns` / `_hidden_find_in`.
