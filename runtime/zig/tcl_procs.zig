@@ -120,6 +120,15 @@ pub const CMD_IMPORTED: u32 = 0x80;
 /// before treating the Command as a plain interpreted proc.
 pub const CMD_ALIAS: u32 = 0x100;
 
+/// Set on the ``Command`` registered under the child's simple name
+/// in the parent's ``cmd_table`` when ``interp create name`` runs.
+/// ``params_obj`` stashes the child ``Interp*``; the dispatcher
+/// consults this slot to route ``name eval script`` (and future
+/// subcommands like ``name alias ...``) into the child interp.
+/// Same ``params_obj``-carries-the-target shape ``CMD_ALIAS`` uses
+/// so the ``proc_lookup`` fast path just needs a flag check.
+pub const CMD_INTERP_CHILD: u32 = 0x200;
+
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
 // dependency.  Pin the shadow to the canonical values here so any

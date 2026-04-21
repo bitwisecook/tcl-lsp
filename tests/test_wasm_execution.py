@@ -2920,3 +2920,464 @@ def _read_global_string(
     if str_len == 0:
         return b""
     return bytes(memory.read(store, str_ptr, str_ptr + str_len))
+
+
+class TestInterpTestPort:
+    """Hand-ported interp.test sections 1.x / 2.x / 3.x / 4.x / 5.x / 6.x.
+
+    The full ``tmp/tcl9.0.3/tests/interp.test`` bundle doesn't compile
+    through this runtime yet (it reaches for tcltest primitives like
+    ``::tcltest::normalizePath`` that aren't wired up), but the
+    individual ``test interp-N.M {...}`` blocks from sections 1-6
+    do — they exercise the child-interp registry surface without the
+    surrounding tcltest harness.
+
+    Each Python test mirrors one or more numbered upstream test.
+    Errors are verified through ``catch msg; set ::result $msg`` so
+    the assertions see the full tclsh error wording.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    # --- Section 1: options for interp command ----------------------------
+
+    def test_1_1_no_subcommand(self):
+        """interp-1.1: ``interp`` alone is a wrong-#-args error."""
+        result = self._run_and_read_global(
+            "catch interp msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp cmd ?arg ...?"'
+
+    def test_1_2_unknown_subcommand(self):
+        """interp-1.2: unknown subcommand raises ``bad option "X": ...``."""
+        result = self._run_and_read_global(
+            "catch {interp frobox} msg\nset ::result $msg\n",
+            "::result",
+        )
+        # Match the prefix + middle + tail; the full option list is verbatim.
+        assert result.startswith(b'bad option "frobox": must be ')
+        assert b"alias, aliases" in result
+        assert result.endswith(b"or transfer")
+
+    def test_1_3_delete_no_args(self):
+        """interp-1.3: ``interp delete`` with no args returns ""."""
+        result = self._run_and_read_global(
+            "set ::result [interp delete]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_1_4_delete_missing(self):
+        """interp-1.4: delete on missing name raises
+        ``could not find interpreter "foo"``."""
+        result = self._run_and_read_global(
+            "catch {interp delete foo bar} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'could not find interpreter "foo"'
+
+    def test_1_5_exists_too_many_args(self):
+        """interp-1.5: ``interp exists foo bar`` raises wrong-#-args."""
+        result = self._run_and_read_global(
+            "catch {interp exists foo bar} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp exists ?path?"'
+
+    def test_1_6_children_too_many_args(self):
+        """interp-1.6: ``interp children foo bar zop`` raises wrong-#-args."""
+        result = self._run_and_read_global(
+            "catch {interp children foo bar zop} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp slaves ?path?"'
+
+    def test_1_10_target_no_args(self):
+        """interp-1.10: ``interp target`` raises
+        ``wrong # args: should be "interp target path alias"``."""
+        result = self._run_and_read_global(
+            "catch {interp target} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp target path alias"'
+
+    # --- Section 2: basic interpreter creation ----------------------------
+
+    def test_2_1_create_with_name(self):
+        """interp-2.1: ``interp create a`` returns "a"."""
+        result = self._run_and_read_global(
+            "set ::result [interp create a]\n",
+            "::result",
+        )
+        assert result == b"a"
+
+    def test_2_2_create_anonymous(self):
+        """interp-2.2: ``catch {interp create}`` returns 0 (success)."""
+        result = self._run_and_read_global(
+            "set ::result [catch {interp create}]\n",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_2_3_create_safe_anonymous(self):
+        """interp-2.3: ``catch {interp create -safe}`` returns 0."""
+        result = self._run_and_read_global(
+            "set ::result [catch {interp create -safe}]\n",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_2_4_create_existing_name(self):
+        """interp-2.4: creating under an already-used name raises
+        ``interpreter named "X" already exists, cannot create``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+catch {interp create a} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'interpreter named "a" already exists, cannot create'
+
+    def test_2_7_unknown_option(self):
+        """interp-2.7: ``interp create -froboz`` raises
+        ``bad option "-froboz": must be -safe or --``."""
+        result = self._run_and_read_global(
+            """\
+catch {interp create -froboz} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'bad option "-froboz": must be -safe or --'
+
+    def test_2_8_dashdash_allows_dashed_name(self):
+        """interp-2.8: ``interp create -- -froboz`` creates and returns
+        the dashed name."""
+        result = self._run_and_read_global(
+            "set ::result [interp create -- -froboz]\n",
+            "::result",
+        )
+        assert result == b"-froboz"
+
+    def test_2_9_safe_dashdash_dashed_name(self):
+        """interp-2.9: ``interp create -safe -- -froboz1`` returns
+        ``-froboz1`` and sets the safe bit."""
+        result = self._run_and_read_global(
+            """\
+set ::a [interp create -safe -- -froboz1]
+set ::b [interp issafe -froboz1]
+set ::result "$::a $::b"
+""",
+            "::result",
+        )
+        assert result == b"-froboz1 1"
+
+    def test_2_10_multi_level_path(self):
+        """interp-2.10: ``interp create {a x1}`` creates ``x1`` as a
+        child of ``a``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a x1}
+interp create {a x2}
+set ::result [interp create {a x3} -safe]
+""",
+            "::result",
+        )
+        assert result == b"a x3"
+
+    def test_2_13_anonymous_regexp(self):
+        """interp-2.13: ``interp create --`` with no name auto-generates
+        ``interp<N>``."""
+        result = self._run_and_read_global(
+            "set ::result [interp create --]\n",
+            "::result",
+        )
+        import re
+
+        assert re.fullmatch(rb"interp[0-9]+", result), result
+
+    # --- Section 3: interp exists + interp children -----------------------
+
+    def test_3_1_children_empty(self):
+        """interp-3.1: with no children, ``interp children`` returns ""."""
+        result = self._run_and_read_global(
+            "set ::result [interp children]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_3_2_exists_after_create(self):
+        """interp-3.2: after ``interp create a``, ``interp exists a`` → 1."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::result [interp exists a]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_3_3_exists_nonexistent(self):
+        """interp-3.3: ``interp exists nonexistent`` → 0."""
+        result = self._run_and_read_global(
+            "set ::result [interp exists nonexistent]\n",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_3_6_exists_no_path_returns_true(self):
+        """interp-3.6: bare ``interp exists`` → 1 (the current interp
+        always exists)."""
+        result = self._run_and_read_global(
+            "set ::result [interp exists]\n",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_3_7_children_after_create(self):
+        """interp-3.7: ``interp children`` returns the created child."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::result [interp children]
+""",
+            "::result",
+        )
+        assert result == b"a"
+
+    def test_3_9_nested_child_appears(self):
+        """interp-3.9: ``interp children a`` lists ``a``'s own
+        children."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a a2} -safe
+set ::result [interp children a]
+""",
+            "::result",
+        )
+        assert result == b"a2"
+
+    def test_3_10_exists_multi_level_path(self):
+        """interp-3.10: ``interp exists {a a2}`` → 1 after
+        creating the chain."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a a2}
+set ::result [interp exists {a a2}]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    # --- Section 4: interp delete -----------------------------------------
+
+    def test_3_11_delete_no_args(self):
+        """interp-3.11: ``interp delete`` with no args returns ""
+        (duplicate of 1.3 in the upstream file)."""
+        result = self._run_and_read_global(
+            "set ::result [interp delete]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_4_1_delete_existing(self):
+        """interp-4.1: ``interp delete a`` returns ""."""
+        result = self._run_and_read_global(
+            """\
+catch {interp create a}
+set ::result [interp delete a]
+""",
+            "::result",
+        )
+        assert result == b""
+
+    def test_4_2_delete_nonexistent(self):
+        """interp-4.2: ``interp delete nonexistent`` raises
+        ``could not find interpreter "nonexistent"``."""
+        result = self._run_and_read_global(
+            "catch {interp delete nonexistent} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'could not find interpreter "nonexistent"'
+
+    def test_4_3_delete_first_missing_errors_early(self):
+        """interp-4.3: ``interp delete x y z`` raises on the first
+        missing name."""
+        result = self._run_and_read_global(
+            "catch {interp delete x y z} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'could not find interpreter "x"'
+
+    def test_4_5_delete_nested_child(self):
+        """interp-4.5: deleting ``{a x1}`` removes it from ``a``'s
+        children table."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a x1}
+interp delete {a x1}
+set ::result [expr {"x1" in [interp children a]}]
+""",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_4_6_delete_multiple_args(self):
+        """interp-4.6: ``interp delete c1 c2 c3`` deletes all three."""
+        result = self._run_and_read_global(
+            """\
+interp create c1
+interp create c2
+interp create c3
+set ::result [interp delete c1 c2 c3]
+""",
+            "::result",
+        )
+        assert result == b""
+
+    def test_4_7_delete_mixed_missing_errors(self):
+        """interp-4.7: deleting a list that contains a missing name
+        raises."""
+        result = self._run_and_read_global(
+            """\
+interp create c1
+interp create c2
+catch {interp delete c1 c2 c3} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'could not find interpreter "c3"'
+
+    def test_4_8_delete_empty_path_rejected(self):
+        """interp-4.8: ``interp delete {}`` raises
+        ``cannot delete the current interpreter``."""
+        result = self._run_and_read_global(
+            "catch {interp delete {}} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b"cannot delete the current interpreter"
+
+    # --- Section 5: consistency -------------------------------------------
+
+    def test_5_1_fresh_children_list_empty(self):
+        """interp-5.1: a freshly-reset runtime has no children."""
+        result = self._run_and_read_global(
+            "set ::result [interp children]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_5_2_nonexistent_exists_false(self):
+        """interp-5.2/5.3: exists returns 0 for a never-created name."""
+        result = self._run_and_read_global(
+            """\
+set ::a [interp exists a]
+set ::b [interp exists nonexistent]
+set ::result "$::a $::b"
+""",
+            "::result",
+        )
+        assert result == b"0 0"
+
+    # --- Section 6: eval --------------------------------------------------
+
+    def test_6_1_child_eval_expr(self):
+        """interp-6.1: ``a eval expr {{3 + 5}}`` dispatches through
+        the child-as-command path to produce 8."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::result [a eval expr {{3 + 5}}]
+""",
+            "::result",
+        )
+        assert result == b"8"
+
+    def test_6_3_child_eval_defines_proc(self):
+        """interp-6.3: a proc defined via ``a eval {proc ...}`` is
+        reachable on subsequent ``a eval foo``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a eval {proc foo {} {expr {3 + 5}}}
+set ::result [a eval foo]
+""",
+            "::result",
+        )
+        assert result == b"8"
+
+    def test_6_4_interp_eval_variant(self):
+        """interp-6.4: ``interp eval a foo`` is equivalent to
+        ``a eval foo``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a eval {proc foo {} {expr {3 + 5}}}
+set ::result [interp eval a foo]
+""",
+            "::result",
+        )
+        assert result == b"8"
+
+    def test_6_5_interp_eval_nested_path(self):
+        """interp-6.5: ``interp eval {a x2} body`` runs ``body`` in
+        the nested child."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a x2}
+interp eval {a x2} {proc frob {} {expr {4 * 9}}}
+set ::result [interp eval {a x2} frob]
+""",
+            "::result",
+        )
+        assert result == b"36"
+
+    # --- Delete cascade -----------------------------------------------
+
+    def test_delete_cascades_to_grandchildren(self):
+        """``interp delete a`` with a grandchild ``a2`` tombstones
+        both; ``interp exists {a a2}`` returns 0 afterwards."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a a2}
+interp delete a
+set ::a_ex [interp exists a]
+set ::a2_ex [interp exists {a a2}]
+set ::result "$::a_ex $::a2_ex"
+""",
+            "::result",
+        )
+        assert result == b"0 0"
+
+    def test_child_as_command_stops_after_delete(self):
+        """Post-delete, the child's top-level command is gone and
+        ``<child> eval ...`` raises unknown-command."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp delete a
+catch {a eval set x 1} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result.startswith(b"unknown command")

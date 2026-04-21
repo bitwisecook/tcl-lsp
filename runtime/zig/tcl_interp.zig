@@ -1499,6 +1499,90 @@ fn eval_foreach(words: []const i32) i32 {
 //   5. Absorb RETURN signal (convert to OK)
 // If not found, raise an error.
 
+/// Child-as-command dispatch.  When ``interp create name`` runs we
+/// register a ``CMD_INTERP_CHILD`` Command in the parent's ns under
+/// the child's simple name.  Calls to that name route here: we
+/// treat ``name`` as an ``interp`` subcommand dispatcher —
+/// ``name eval script`` → ``interp eval name script``, etc.
+///
+/// Matches the per-child ``interpCmd`` handler in
+/// ``tmp/tcl9.0.3/generic/tclInterp.c`` (``ChildObjCmd``).  We ship
+/// the ``eval`` shape; the rest surface as clean diagnostics so
+/// callers get a readable error rather than a stub-dispatch trap.
+fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
+    const interp_reg_mod = @import("tcl_interp_registry.zig");
+    const child: u32 = interp_reg_mod.cmd_child_interp(@as(u32, @bitCast(bucket)));
+    if (interp_reg_mod.is_deleted(child)) {
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.error_unknown_command(words[0]);
+        return 0;
+    }
+
+    if (words.len < 2) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "wrong # args: should be \"<interp> cmd ?arg ...?\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const sub = obj_ensure_string(words[1]);
+    const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+
+    if (str_eq(sp, sub.len, "eval")) {
+        // Concatenate words[2..] with single-space separator.
+        if (words.len < 3) {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "wrong # args: should be \"<interp> eval arg ?arg ...?\"";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        var total: u32 = 0;
+        var k: u32 = 2;
+        while (k < words.len) : (k += 1) {
+            total += @as(u32, @intCast(obj_ensure_string(words[k]).len));
+            if (k + 1 < words.len) total += 1;
+        }
+        if (total == 0) return 0;
+        const script_ptr = alloc(total);
+        var off: u32 = 0;
+        k = 2;
+        while (k < words.len) : (k += 1) {
+            const s = obj_ensure_string(words[k]);
+            if (s.len > 0) {
+                memcpy(script_ptr + off, s.ptr, s.len);
+                off += s.len;
+            }
+            if (k + 1 < words.len) {
+                const d: [*]u8 = @ptrFromInt(script_ptr + off);
+                d[0] = ' ';
+                off += 1;
+            }
+        }
+        const save = interp_reg_mod.enter(child);
+        const result = eval_script(script_ptr, off);
+        interp_reg_mod.leave(save);
+        return result;
+    }
+
+    // Unknown subcommand — match tclsh's wording.
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "bad option \"";
+    const suffix: []const u8 = "\": must be alias, aliases, bgerror, cancel, eval, expose, hide, hidden, ismem, issafe, invokehidden, limit, marktrusted, recursionlimit";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + sub.len + @as(u32, @intCast(suffix.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (prefix, 0..) |b, k| d[k] = b;
+    if (sub.len > 0) {
+        const srp: [*]const u8 = @ptrFromInt(sub.ptr);
+        for (0..sub.len) |k| d[prefix.len + k] = srp[k];
+    }
+    for (suffix, 0..) |b, k| d[prefix.len + sub.len + k] = b;
+    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+    return 0;
+}
+
 /// Alias dispatch trampoline.  An ``interp alias`` redirect Command
 /// has ``CMD_ALIAS`` set in its flags and stores an
 /// :type:`tcl_alias.AliasRec` in ``params_obj``.  On dispatch we:
@@ -1598,6 +1682,16 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     // the target resolves against the parent's cmd_table, then
     // leave on return.
     const parent_interp: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_IMPORT_REF_HEAD));
+    // If the stashed parent interp was torn down by a prior
+    // ``interp delete``, produce a clean "unknown command"
+    // diagnostic instead of walking a zeroed Interp.  Matches the
+    // behaviour of an alias whose target command was renamed out
+    // from under it — both surface at dispatch time.
+    if (parent_interp != 0 and interp_reg.is_deleted(parent_interp)) {
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.error_unknown_command(new_words[0]);
+        return 0;
+    }
     const do_cross_swap = parent_interp != 0 and parent_interp != interp_reg.interp_current();
     const save = if (do_cross_swap) interp_reg.enter(parent_interp) else interp_reg.EnterSave{
         .prev_interp = interp_reg.current_interp,
@@ -1657,6 +1751,14 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     const cmd_flags: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_FLAGS));
     if ((cmd_flags & procs.CMD_ALIAS) != 0) {
         return dispatch_alias(words, bucket);
+    }
+    // ``CMD_INTERP_CHILD`` Commands carry the child's ``Interp*`` in
+    // their ``params_obj`` slot.  ``name subcommand ?arg...?`` routes
+    // to the child-subcommand dispatcher — currently handles ``eval``
+    // (the only shape tcltest reaches for); everything else surfaces
+    // as a clean diagnostic rather than a stub-dispatch miss.
+    if ((cmd_flags & procs.CMD_INTERP_CHILD) != 0) {
+        return dispatch_interp_child(words, bucket);
     }
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
@@ -1903,10 +2005,40 @@ fn eval_rename(words: []const i32) i32 {
 // hide, expose, create, delete, …) remain trapping stubs via
 // :mod:`tcl_env_stubs`.
 
+/// Full set of ``interp`` subcommand names, ordered to match tclsh's
+/// ``bad option`` error messages.  Unrecognised subcommands emit
+/// a ``bad option "X": must be alias, aliases, ...`` error with
+/// this exact ordering (verbatim from
+/// ``tmp/tcl9.0.3/generic/tclInterp.c``'s ``interpOptions`` table).
+const INTERP_SUBCOMMAND_LIST: []const u8 = "alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer";
+
+fn emit_bad_option(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const prefix: []const u8 = "bad option \"";
+    const infix: []const u8 = "\": must be ";
+    const total: u32 = @as(u32, @intCast(prefix.len)) +
+        name_len +
+        @as(u32, @intCast(infix.len)) +
+        @as(u32, @intCast(INTERP_SUBCOMMAND_LIST.len));
+    const buf = alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (prefix, 0..) |b, k| d[k] = b;
+    if (name_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |k| d[prefix.len + k] = sp[k];
+    }
+    for (infix, 0..) |b, k| d[prefix.len + name_len + k] = b;
+    for (INTERP_SUBCOMMAND_LIST, 0..) |b, k| {
+        d[prefix.len + name_len + infix.len + k] = b;
+    }
+    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    catch_mod.tcl_cmd_error(msg);
+}
+
 fn eval_interp(words: []const i32) i32 {
     if (words.len < 2) {
         const catch_mod = @import("tcl_catch.zig");
-        const err_text = "wrong # args: should be \"interp subcommand ?arg ...?\"";
+        const err_text = "wrong # args: should be \"interp cmd ?arg ...?\"";
         const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
         catch_mod.tcl_cmd_error(msg);
         return 0;
@@ -1924,11 +2056,15 @@ fn eval_interp(words: []const i32) i32 {
         return eval_interp_slaves(words);
     }
     if (str_eq(sp, sub.len, "delete")) return eval_interp_delete(words);
+    if (str_eq(sp, sub.len, "target")) return eval_interp_target(words);
+    if (str_eq(sp, sub.len, "issafe") or str_eq(sp, sub.len, "safe")) {
+        return eval_interp_issafe(words);
+    }
     if (!str_eq(sp, sub.len, "alias") and !str_eq(sp, sub.len, "aliases")) {
-        // Fall back to the existing trapping stub for unsupported
-        // ``interp`` subcommands.
-        const stubs = @import("tcl_stubs.zig");
-        stubs.unsupported("interp");
+        // Unrecognised subcommand: raise tclsh's ``bad option "X"``
+        // error rather than the stub-dispatch trap.  Matches
+        // ``InterpObjCmd`` in tclInterp.c.
+        emit_bad_option(sub.ptr, sub.len);
         return 0;
     }
 
@@ -2623,13 +2759,19 @@ fn render_uint(value: u32) struct { ptr: u32, len: u32 } {
 
 /// ``interp create ?-safe? ?--? ?path?``.
 ///
-/// Accepts the documented flag shape; the ``-safe`` bit is recorded
-/// on the new Interp's ``flags`` but not enforced (no file / exec /
-/// package access to gate — see ``docs/design/runtime/child-interp.md``
-/// §2).  Empty path auto-generates ``interp0`` / ``interp1`` / …;
-/// non-empty path selects the simple name (single-level path only
-/// this wave — the last component becomes the child's name in its
-/// parent).
+/// The ``-safe`` bit is recorded on the new Interp's ``flags`` but
+/// not enforced (no file / exec / package access to gate — see
+/// ``docs/design/runtime/child-interp.md`` §2).  Empty path auto-
+/// generates ``interp0`` / ``interp1`` / …; non-empty path may be
+/// multi-level (``interp create {a b}`` creates ``b`` as a child of
+/// ``a``).  The final path component becomes the new interp's
+/// simple name in its parent.
+///
+/// Option parsing matches the "weird historical rules" in
+/// ``InterpObjCmd`` (``tmp/tcl9.0.3/generic/tclInterp.c``):
+/// ``-safe`` can appear anywhere up to the path, ``--`` forces
+/// the next arg to be treated as a path, and unrecognised leading-
+/// dash args raise ``bad option "X": must be -safe or --``.
 fn eval_interp_create(words: []const i32) i32 {
     var safe_flag: bool = false;
     var saw_dashdash: bool = false;
@@ -2638,7 +2780,7 @@ fn eval_interp_create(words: []const i32) i32 {
     while (i < words.len) : (i += 1) {
         const arg = obj_ensure_string(words[i]);
         const ap: [*]const u8 = @ptrFromInt(arg.ptr);
-        if (!saw_dashdash and arg.len >= 1) {
+        if (!saw_dashdash and arg.len >= 1 and ap[0] == '-') {
             if (str_eq(ap, arg.len, "-safe")) {
                 safe_flag = true;
                 continue;
@@ -2647,6 +2789,21 @@ fn eval_interp_create(words: []const i32) i32 {
                 saw_dashdash = true;
                 continue;
             }
+            // Unknown option.  Matches tclsh's wording verbatim.
+            const catch_mod = @import("tcl_catch.zig");
+            const prefix: []const u8 = "bad option \"";
+            const suffix: []const u8 = "\": must be -safe or --";
+            const total: u32 = @as(u32, @intCast(prefix.len)) + arg.len + @as(u32, @intCast(suffix.len));
+            const buf = alloc(total);
+            const d: [*]u8 = @ptrFromInt(buf);
+            for (prefix, 0..) |b, k| d[k] = b;
+            if (arg.len > 0) {
+                for (0..arg.len) |k| d[prefix.len + k] = ap[k];
+            }
+            for (suffix, 0..) |b, k| d[prefix.len + arg.len + k] = b;
+            const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
         }
         if (path_obj != 0) {
             const catch_mod = @import("tcl_catch.zig");
@@ -2659,6 +2816,7 @@ fn eval_interp_create(words: []const i32) i32 {
     }
 
     const current = interp_reg.interp_current();
+    var parent_interp: u32 = current;
     var name_ptr: u32 = 0;
     var name_len: u32 = 0;
     if (path_obj == 0) {
@@ -2676,21 +2834,59 @@ fn eval_interp_create(words: []const i32) i32 {
             for (prefix, 0..) |b, k| dst[k] = b;
             const dp: [*]const u8 = @ptrFromInt(d.ptr);
             for (0..d.len) |k| dst[prefix.len + k] = dp[k];
-            if (interp_reg.child_lookup(current, buf, total) == 0) {
+            // Also reject collision with an existing command in the
+            // parent's ns — matches ``Tcl_GetCommandInfo(interp, buf,
+            // &cmdInfo)`` check in C Tcl's ``OPT_CREATE``.
+            const parent_root = tcl_ns.ns_root();
+            const name_free = interp_reg.child_lookup(current, buf, total) == 0 and
+                tcl_ns.ns_cmd_find(parent_root, buf, total) == 0;
+            if (name_free) {
                 name_ptr = buf;
                 name_len = total;
                 break;
             }
         }
     } else {
-        // Caller-supplied path.  Single-level only this wave: treat
-        // the whole string as a simple name.  Multi-level
-        // ``interp create {a b}`` would need a walk that creates
-        // intermediate children — out of scope (see design doc §9).
+        // Caller-supplied path.  Multi-level paths walk the existing
+        // parent chain; the final component becomes the new child's
+        // simple name.
         const s = obj_ensure_string(path_obj);
-        name_ptr = s.ptr;
-        name_len = s.len;
-        if (interp_reg.child_lookup(current, name_ptr, name_len) != 0) {
+        const elem_count = obj_mod.list_count_elements(s.ptr, s.len);
+        if (elem_count <= 1) {
+            name_ptr = s.ptr;
+            name_len = s.len;
+        } else {
+            // Walk elements 0..n-2 down the existing chain, element
+            // n-1 becomes the new child's name.
+            var k: i64 = 0;
+            while (k < elem_count - 1) : (k += 1) {
+                const elem = obj_mod.list_element_at(s.ptr, s.len, k);
+                parent_interp = interp_reg.child_lookup(
+                    parent_interp,
+                    s.ptr + elem.start,
+                    elem.len,
+                );
+                if (parent_interp == 0) {
+                    const catch_mod = @import("tcl_catch.zig");
+                    const prefix: []const u8 = "could not find interpreter \"";
+                    const suffix: []const u8 = "\"";
+                    const total: u32 = @as(u32, @intCast(prefix.len)) + elem.len + @as(u32, @intCast(suffix.len));
+                    const buf = alloc(total);
+                    const d: [*]u8 = @ptrFromInt(buf);
+                    for (prefix, 0..) |b, kk| d[kk] = b;
+                    const pp: [*]const u8 = @ptrFromInt(s.ptr + elem.start);
+                    for (0..elem.len) |kk| d[prefix.len + kk] = pp[kk];
+                    for (suffix, 0..) |b, kk| d[prefix.len + elem.len + kk] = b;
+                    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+                    catch_mod.tcl_cmd_error(msg);
+                    return 0;
+                }
+            }
+            const final_elem = obj_mod.list_element_at(s.ptr, s.len, elem_count - 1);
+            name_ptr = s.ptr + final_elem.start;
+            name_len = final_elem.len;
+        }
+        if (interp_reg.child_lookup(parent_interp, name_ptr, name_len) != 0) {
             const catch_mod = @import("tcl_catch.zig");
             const prefix: []const u8 = "interpreter named \"";
             const suffix: []const u8 = "\" already exists, cannot create";
@@ -2708,9 +2904,33 @@ fn eval_interp_create(words: []const i32) i32 {
     }
 
     const flags: u32 = if (safe_flag) interp_reg.INTERP_SAFE else 0;
-    _ = interp_reg.child_create(current, name_ptr, name_len, flags);
+    const child = interp_reg.child_create(parent_interp, name_ptr, name_len, flags);
 
-    // Return the child's name as the command's result.
+    // Register a ``CMD_INTERP_CHILD`` Command in the parent interp's
+    // root ns so ``<child> eval script`` resolves through the
+    // regular ``proc_lookup`` dispatcher.  The Command stashes
+    // ``child`` in its ``params_obj`` slot; ``dispatch_interp_child``
+    // reads it back on invocation.  Matches C Tcl where
+    // ``Tcl_CreateSlaveCmd`` installs the interp command in the
+    // parent interp's global ns.
+    const parent_i: *interp_reg.Interp = @ptrFromInt(parent_interp);
+    const cmd = interp_reg.alloc_child_command(
+        parent_i.root_ns,
+        name_ptr,
+        name_len,
+        child,
+    );
+    _ = tcl_ns.ns_cmd_put(parent_i.root_ns, name_ptr, name_len, cmd);
+    procs.proc_count_bump();
+    procs.lru_invalidate_all();
+
+    // Return the path as supplied (or the auto-generated simple
+    // name) — matches tclsh's ``Tcl_SetObjResult(interp, childPtr)``
+    // on OPT_CREATE.
+    if (path_obj != 0) return words_obj_new_string_dup(
+        obj_ensure_string(path_obj).ptr,
+        obj_ensure_string(path_obj).len,
+    );
     return words_obj_new_string_dup(name_ptr, name_len);
 }
 
@@ -2907,6 +3127,12 @@ fn eval_interp_delete(words: []const i32) i32 {
         const t: *interp_reg.Interp = @ptrFromInt(target);
         const parent = t.parent;
         if (parent != 0 and t.name_len > 0) {
+            // Tombstone the ``<child>`` Command from the parent's
+            // root ns so ``<child> eval {...}`` post-delete raises
+            // "unknown command" rather than dispatching into a
+            // deleted interp.
+            const parent_i: *interp_reg.Interp = @ptrFromInt(parent);
+            _ = tcl_ns.ns_cmd_clear(parent_i.root_ns, t.name_ptr, t.name_len);
             _ = interp_reg.child_delete(parent, t.name_ptr, t.name_len);
         }
         // Flush the LRU — a parent alias that targets a command in
@@ -2914,6 +3140,50 @@ fn eval_interp_delete(words: []const i32) i32 {
         procs.lru_invalidate_all();
     }
     return 0;
+}
+
+/// ``interp target path alias`` — not supported this wave, but we
+/// emit the canonical tclsh arity error on the no-arg invocation
+/// instead of falling through to the unknown-subcommand stub
+/// (tclsh's ``InterpObjCmd`` validates this branch before the
+/// generic error-dispatch path).  Matches
+/// ``tmp/tcl9.0.3/generic/tclInterp.c`` ``OPT_TARGET`` arg-count
+/// check.  With the right number of args we still return the
+/// "unsupported" stub for now.
+fn eval_interp_target(words: []const i32) i32 {
+    if (words.len != 4) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "wrong # args: should be \"interp target path alias\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    // Arity is valid but the operation isn't wired up.  Surface
+    // the unsupported stub rather than lying with a bogus result.
+    const stubs = @import("tcl_stubs.zig");
+    stubs.unsupported_sub("interp", "target");
+    return 0;
+}
+
+/// ``interp issafe ?path?`` — read the ``INTERP_SAFE`` flag on the
+/// resolved interp.  The flag is set at creation time via
+/// ``interp create -safe`` but carries no gating consequences in
+/// this runtime (see ``docs/design/runtime/child-interp.md`` §2).
+fn eval_interp_issafe(words: []const i32) i32 {
+    if (words.len > 3) {
+        const catch_mod = @import("tcl_catch.zig");
+        const err_text = "wrong # args: should be \"interp issafe ?path?\"";
+        const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    const target: u32 = if (words.len == 3) blk: {
+        const t = resolve_interp_path(words[2]);
+        if (t == 0) return 0;
+        break :blk t;
+    } else interp_reg.interp_current();
+    const t: *interp_reg.Interp = @ptrFromInt(target);
+    return obj_new_int(if ((t.flags & interp_reg.INTERP_SAFE) != 0) 1 else 0);
 }
 
 // -- ``namespace which`` ---------------------------------------------------
