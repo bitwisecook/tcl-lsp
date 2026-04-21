@@ -477,7 +477,7 @@ function renderCallouts() {
 }
 
 // Assembly / WASM helpers
-function instrCount(arr) { return arr ? arr.reduce(function(n, f) { return n + f.instrCount; }, 0) : 0; }
+function instrCount(arr) { return arr ? arr.reduce(function(n, f) { return n + (f.instrCount || 0); }, 0) : 0; }
 function funcListHtml(funcs) {
   var html = '';
   for (var func of funcs) {
@@ -488,40 +488,185 @@ function funcListHtml(funcs) {
   }
   return html;
 }
-function renderFuncList(paneId, funcs, emptyMsg) {
+
+// Per-pane opt toggle state: true = optimised, false = original.
+var wasmOptState = { 'pane-asm': false, 'pane-wasm': false };
+
+// Tcl ASM and WASM share the same structured rendering pipeline.  The
+// only differences are the data source (``data.asm`` vs ``data.wasm``)
+// and a few WASM-specific node shapes (the ``(module)`` header,
+// ``callTarget``, ``branchTarget``).  The renderer below handles both.
+function renderAsm() { renderDisassembly('pane-asm', 'asm'); }
+function renderWasm() { renderDisassembly('pane-wasm', 'wasm'); }
+
+function renderDisassembly(paneId, kind) {
   var pane = $('#' + paneId);
-  if (!funcs || !funcs.length) { pane.innerHTML = '<div class="empty-state">' + emptyMsg + '</div>'; return; }
-  pane.innerHTML = funcListHtml(funcs);
-}
-
-function renderAsm() { renderFuncList('pane-asm', data.asm, 'No assembly'); }
-function renderAsmOpt() { renderFuncList('pane-asm-opt', data.asmOptimised, 'No optimised assembly (source unchanged by optimiser)'); }
-
-// WASM disassembly — structured per-instruction renderer with
-// click-to-source, call/branch target cross-navigation, source-line
-// comments above each instruction group, and control-flow arrows.
-
-function renderWasm() { renderWasmFuncList('pane-wasm', data.wasm, 'No WASM output'); }
-function renderWasmOpt() { renderWasmFuncList('pane-wasm-opt', data.wasmOptimised, 'No optimised WASM output (source unchanged by optimiser)'); }
-
-function renderWasmFuncList(paneId, funcs, emptyMsg) {
-  var pane = $('#' + paneId);
-  if (!funcs || !funcs.length) { pane.innerHTML = '<div class="empty-state">' + emptyMsg + '</div>'; return; }
-  // Legacy text-only payload from old Python builds — fall back to the
-  // plain <pre> renderer so the pane still has something to show.
+  var origFuncs = kind === 'asm' ? data.asm : data.wasm;
+  var optFuncs = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
+  var emptyMsg = kind === 'asm' ? 'No assembly' : 'No WASM output';
+  if (!origFuncs || !origFuncs.length) {
+    pane.innerHTML = '<div class="empty-state">' + emptyMsg + '</div>';
+    return;
+  }
+  var optAvailable = !!(optFuncs && optFuncs.length);
+  // Preserve user's prior opt-toggle choice across re-renders.
+  var optOn = optAvailable && wasmOptState[paneId] === true;
+  var funcs = optOn ? optFuncs : origFuncs;
   var hasStructured = funcs.some(function(f) { return Array.isArray(f.instructions); });
-  if (!hasStructured) { pane.innerHTML = funcListHtml(funcs); return; }
-  var html = funcs.map(renderWasmEntry).join('');
-  pane.innerHTML = html;
-  setupWasmInteractions(pane, funcs);
+  if (!hasStructured) {
+    // Legacy text-only payload — plain <pre>.
+    pane.innerHTML = funcListHtml(funcs);
+    return;
+  }
+  var toolbar = renderDisasmToolbar(paneId, kind, optAvailable, optOn);
+  var body = funcs.map(function(entry) { return renderDisasmEntry(entry, kind); }).join('');
+  pane.innerHTML = toolbar + '<div class="disasm-body">' + body + '</div>';
+  setupDisasmInteractions(pane, funcs, kind);
+  setupDisasmToolbar(pane, paneId, kind, optAvailable);
   requestAnimationFrame(function() {
     pane.querySelectorAll('.wasm-edges-container').forEach(function(c) { drawWasmEdges(c); });
   });
 }
 
-function renderWasmEntry(entry) {
+function renderDisasmToolbar(paneId, kind, optAvailable, optOn) {
+  var optLabel = kind === 'asm' ? 'Tcl ASM optimisations' : 'WASM optimisations';
+  var disabledAttr = optAvailable ? '' : ' disabled';
+  var hint = optAvailable ? '' : ' <span class="disasm-toolbar-hint">(source unchanged by optimiser)</span>';
+  return '<div class="disasm-toolbar">'
+       + '<label class="disasm-toolbar-opt"><input type="checkbox" data-disasm-opt-toggle' + (optOn ? ' checked' : '') + disabledAttr + '> ' + optLabel + '</label>'
+       + '<button class="disasm-toolbar-diff" data-disasm-diff' + disabledAttr + '>Show optimiser diff</button>'
+       + hint
+       + '</div>';
+}
+
+function setupDisasmToolbar(pane, paneId, kind, optAvailable) {
+  var toggle = pane.querySelector('[data-disasm-opt-toggle]');
+  if (toggle) {
+    toggle.addEventListener('change', function() {
+      wasmOptState[paneId] = toggle.checked;
+      renderDisassembly(paneId, kind);
+    });
+  }
+  var diffBtn = pane.querySelector('[data-disasm-diff]');
+  if (diffBtn && optAvailable) {
+    diffBtn.addEventListener('click', function() {
+      openOptDiffView(paneId, kind);
+    });
+  }
+}
+
+function renderDisasmEntry(entry, kind) {
   if (entry.kind === 'module') return renderWasmModuleHeader(entry);
-  return renderWasmFunction(entry);
+  return renderDisasmFunction(entry, kind);
+}
+
+function renderDisasmFunction(entry, kind) {
+  var sr = entry.sourceRange;
+  var headerAttrs = sr ? ' data-start="' + sr.startOffset + '" data-end="' + sr.endOffset + '"' : '';
+  var html = '<div class="wasm-function" data-kind="' + esc(kind) + '" data-func-idx="' + (entry.funcIdx !== undefined ? entry.funcIdx : '') + '" data-func-name="' + esc(entry.name) + '">';
+  var kindBadge = '';
+  if (entry.kind === 'top') kindBadge = ' <span class="wasm-kind-badge">top</span>';
+  else if (entry.kind === 'method') kindBadge = ' <span class="wasm-kind-badge">method</span>';
+  var sig = '';
+  if (kind === 'wasm') {
+    var params = (entry.params || []).map(function(p) { return '(param ' + esc(p.name) + ' ' + esc(p.type) + ')'; }).join(' ');
+    var results = (entry.results || []).map(function(r) { return '(result ' + esc(r) + ')'; }).join(' ');
+    sig = '(func <span class="wasm-func-name">$' + esc(entry.name) + '</span>' + kindBadge + (params ? ' ' + params : '') + (results ? ' ' + results : '') + ')';
+  } else {
+    sig = 'ByteCode <span class="wasm-func-name">' + esc(entry.name) + '</span>' + kindBadge;
+  }
+  var meta = '';
+  if (kind === 'asm') {
+    meta = ' <span class="wasm-comment">; ' + entry.instrCount + ' instructions, ' + (entry.byteCount || 0) + ' bytes, ' + ((entry.literals || []).length) + ' literals, ' + ((entry.locals || []).length) + ' locals</span>';
+  } else {
+    meta = ' <span class="wasm-comment">; ' + entry.instrCount + ' instructions</span>';
+  }
+  html += '<div class="wasm-func-header"' + headerAttrs + '>' + sig + meta + '</div>';
+  if (kind === 'wasm' && entry.locals && entry.locals.length) {
+    html += '<div class="wasm-func-locals">';
+    for (var loc of entry.locals) html += '<div class="wasm-local">(local ' + esc(loc.name) + ' ' + esc(loc.type) + ')</div>';
+    html += '</div>';
+  } else if (kind === 'asm' && ((entry.literals || []).length || (entry.locals || []).length)) {
+    html += '<details class="disasm-tables"><summary>literals &amp; locals</summary>';
+    if ((entry.literals || []).length) {
+      html += '<div class="disasm-tables-section">Literals:</div>';
+      for (var i = 0; i < entry.literals.length; i++) {
+        html += '<div class="wasm-local">' + i + ': "' + esc(entry.literals[i]) + '"</div>';
+      }
+    }
+    if ((entry.locals || []).length) {
+      html += '<div class="disasm-tables-section">Local variables:</div>';
+      for (var i = 0; i < entry.locals.length; i++) {
+        html += '<div class="wasm-local">%v' + i + ': "' + esc(entry.locals[i]) + '"</div>';
+      }
+    }
+    html += '</details>';
+  }
+  html += '<div class="wasm-func-body wasm-edges-container" data-func-idx="' + (entry.funcIdx !== undefined ? entry.funcIdx : '') + '">';
+  var source = getSource();
+  var prevRangeKey = null;
+  for (var ins of (entry.instructions || [])) {
+    if (ins.kind === 'label') {
+      html += renderDisasmLabel(ins);
+      continue;
+    }
+    var r = ins.range;
+    var rkey = r ? r.startOffset + '/' + r.endOffset : null;
+    if (rkey && rkey !== prevRangeKey) {
+      var snippet = wasmSourceSnippet(source, r);
+      html += '<div class="wasm-src-comment" data-start="' + r.startOffset + '" data-end="' + r.endOffset + '">'
+            + '<span class="wasm-gutter-pad"></span>'
+            + '<span class="wasm-idx">' + (r.startLine + 1) + '</span>'
+            + '<span class="wasm-src-text">; ' + esc(snippet) + '</span>'
+            + '</div>';
+      prevRangeKey = rkey;
+    }
+    if (kind === 'wasm') html += renderWasmInstruction(ins, entry);
+    else html += renderAsmInstruction(ins, entry);
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderDisasmLabel(ins) {
+  return '<div class="wasm-instr disasm-label-row" data-idx="' + ins.idx + '" data-label-name="' + esc(ins.label) + '">'
+       + '<span class="wasm-gutter-pad"></span>'
+       + '<span class="wasm-idx">' + ins.idx + '</span>'
+       + '<span class="wasm-code"><span class="disasm-label-anchor"># ' + esc(ins.label) + ':</span></span>'
+       + '</div>';
+}
+
+function renderAsmInstruction(ins, entry) {
+  var range = ins.range;
+  var rngAttrs = range ? ' data-start="' + range.startOffset + '" data-end="' + range.endOffset + '"' : '';
+  var operandHtml = '';
+  var jt = ins.jumpTarget;
+  if (jt) {
+    var btAttrs = ' data-branch-target-idx="' + (jt.targetIdx !== null && jt.targetIdx !== undefined ? jt.targetIdx : '') + '"'
+                + ' data-branch-target-label="' + esc(jt.label) + '"';
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>'
+                + ' <span class="wasm-branch-target"' + btAttrs + '>; ' + esc(jt.label) + '</span>';
+  } else if (ins.operandText) {
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>';
+  }
+  var jumpTableHtml = '';
+  if (ins.jumpTable && ins.jumpTable.length) {
+    var jtEntries = [];
+    for (var e of ins.jumpTable) {
+      jtEntries.push('<span class="wasm-branch-target" data-branch-target-idx="' + (e.targetIdx !== null && e.targetIdx !== undefined ? e.targetIdx : '') + '" data-branch-target-label="' + esc(e.label) + '">&quot;' + esc(e.pattern) + '&quot;-&gt;' + esc(e.label) + '</span>');
+    }
+    jumpTableHtml = ' <span class="wasm-comment">[' + jtEntries.join(', ') + ']</span>';
+  }
+  var comment = ins.comment ? ' <span class="wasm-comment">; ' + esc(ins.comment) + '</span>' : '';
+  return '<div class="wasm-instr" data-idx="' + ins.idx + '"' + rngAttrs + '>'
+       + '<span class="wasm-gutter-pad"></span>'
+       + '<span class="wasm-idx">(' + ins.offset + ')</span>'
+       + '<span class="wasm-code">'
+       + '<span class="wasm-mnemonic">' + esc(ins.op) + '</span>'
+       + operandHtml
+       + jumpTableHtml
+       + comment
+       + '</span></div>';
 }
 
 function renderWasmModuleHeader(entry) {
@@ -547,45 +692,6 @@ function renderWasmModuleHeader(entry) {
     html += '</details>';
   }
   html += '</div>';
-  return html;
-}
-
-function renderWasmFunction(entry) {
-  var sr = entry.sourceRange;
-  var headerAttrs = sr ? ' data-start="' + sr.startOffset + '" data-end="' + sr.endOffset + '"' : '';
-  var html = '<div class="wasm-function" data-func-idx="' + entry.funcIdx + '" data-func-name="' + esc(entry.name) + '">';
-  var params = (entry.params || []).map(function(p) { return '(param ' + esc(p.name) + ' ' + esc(p.type) + ')'; }).join(' ');
-  var results = (entry.results || []).map(function(r) { return '(result ' + esc(r) + ')'; }).join(' ');
-  var kindBadge = entry.kind === 'top' ? ' <span class="wasm-kind-badge">top</span>' : (entry.kind === 'method' ? ' <span class="wasm-kind-badge">method</span>' : '');
-  html += '<div class="wasm-func-header"' + headerAttrs + '>';
-  html += '(func <span class="wasm-func-name">$' + esc(entry.name) + '</span>' + kindBadge + ' ' + params + (results ? ' ' + results : '') + ')';
-  html += ' <span class="wasm-comment">; ' + entry.instrCount + ' instructions</span>';
-  html += '</div>';
-  if (entry.locals && entry.locals.length) {
-    html += '<div class="wasm-func-locals">';
-    for (var loc of entry.locals) {
-      html += '<div class="wasm-local">(local ' + esc(loc.name) + ' ' + esc(loc.type) + ')</div>';
-    }
-    html += '</div>';
-  }
-  html += '<div class="wasm-func-body wasm-edges-container" data-func-idx="' + entry.funcIdx + '">';
-  var source = getSource();
-  var prevRangeKey = null;
-  for (var ins of entry.instructions) {
-    var r = ins.range;
-    var rkey = r ? r.startOffset + '/' + r.endOffset : null;
-    if (rkey && rkey !== prevRangeKey) {
-      var snippet = wasmSourceSnippet(source, r);
-      html += '<div class="wasm-src-comment" data-start="' + r.startOffset + '" data-end="' + r.endOffset + '">'
-            + '<span class="wasm-gutter-pad"></span>'
-            + '<span class="wasm-idx">' + (r.startLine + 1) + '</span>'
-            + '<span class="wasm-src-text">; ' + esc(snippet) + '</span>'
-            + '</div>';
-      prevRangeKey = rkey;
-    }
-    html += renderWasmInstruction(ins, entry);
-  }
-  html += '</div></div>';
   return html;
 }
 
@@ -642,7 +748,7 @@ function renderWasmInstruction(ins, entry) {
        + '</span></div>';
 }
 
-function setupWasmInteractions(pane, funcs) {
+function setupDisasmInteractions(pane, funcs, kind) {
   // Build a defIdx → entry map from the funcs list so "call N" can
   // resolve to the function block within the same pane.  Registered
   // BEFORE setupHoverHighlighting so the call/branch-target short-
@@ -699,6 +805,10 @@ function setupWasmInteractions(pane, funcs) {
   // short-circuits above can intercept first.
   setupHoverHighlighting(pane);
 }
+
+// Back-compat alias — the old name is referenced elsewhere in this
+// file and may be inlined by external consumers.
+var setupWasmInteractions = setupDisasmInteractions;
 
 // Source-range highlight abstraction: standalone index.html defines
 // ``highlightSourceRanges`` for inline highlighting; the VS Code
@@ -830,6 +940,212 @@ function drawWasmEdges(container) {
     svg.appendChild(path);
   }
   container.insertBefore(svg, container.firstChild);
+}
+
+// Opt diff — semantic-change-only comparison between the original and
+// optimised disassembly.  The diff ignores instruction sequence
+// numbers, byte offsets, literal/local indices (comparing by literal
+// text and local name instead), and ``+N``/``pc N`` jump relatives
+// (comparing by label name instead).  Changes to named targets
+// (labels, call targets, literals, locals) surface as red/green rows.
+
+function openOptDiffView(paneId, kind) {
+  var pane = $('#' + paneId);
+  if (!pane) return;
+  var orig = kind === 'asm' ? data.asm : data.wasm;
+  var opt = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
+  if (!orig || !opt) return;
+  // Match entries by name; render one diff block per function that
+  // appears in either side.
+  var byName = {};
+  for (var e of orig) { if (e.kind !== 'module') byName[e.name] = { orig: e }; }
+  for (var e of opt) {
+    if (e.kind === 'module') continue;
+    if (!byName[e.name]) byName[e.name] = {};
+    byName[e.name].opt = e;
+  }
+  var ordered = [];
+  for (var e of orig) { if (e.kind !== 'module') ordered.push(e.name); }
+  for (var e of opt) {
+    if (e.kind !== 'module' && ordered.indexOf(e.name) < 0) ordered.push(e.name);
+  }
+  var html = renderDisasmToolbar(paneId, kind, true, wasmOptState[paneId] === true);
+  html += '<div class="disasm-diff-header">';
+  html += '<div class="disasm-diff-title">Optimiser diff &mdash; original vs optimised</div>';
+  html += '<div class="disasm-diff-legend">'
+       + '<span class="disasm-diff-legend-removed">&minus; removed</span> '
+       + '<span class="disasm-diff-legend-added">+ added</span> '
+       + '<span class="disasm-diff-legend-dim">sequence numbers &amp; offsets ignored</span>'
+       + '</div>';
+  html += '<button class="disasm-diff-close" data-disasm-diff-close>Close diff</button>';
+  html += '</div><div class="disasm-body disasm-diff-body">';
+  var anyDiff = false;
+  for (var name of ordered) {
+    var pair = byName[name];
+    var block = buildOptDiffBlockHtml(name, pair.orig, pair.opt, kind);
+    if (block.changed) anyDiff = true;
+    html += block.html;
+  }
+  if (!anyDiff) {
+    html += '<div class="empty-state">No semantic changes detected (sequence numbers and offsets ignored).</div>';
+  }
+  html += '</div>';
+  pane.innerHTML = html;
+  setupDisasmToolbar(pane, paneId, kind, true);
+  var closeBtn = pane.querySelector('[data-disasm-diff-close]');
+  if (closeBtn) closeBtn.addEventListener('click', function() { renderDisassembly(paneId, kind); });
+  setupHoverHighlighting(pane);
+}
+
+function buildOptDiffBlockHtml(name, origEntry, optEntry, kind) {
+  var origRows = origEntry ? normaliseForDiff(origEntry, kind) : [];
+  var optRows = optEntry ? normaliseForDiff(optEntry, kind) : [];
+  var segments = computeDiffSegments(origRows.map(function(r) { return r.key; }), optRows.map(function(r) { return r.key; }));
+  var changed = segments.some(function(s) { return s.type !== 'same'; });
+  var html = '<div class="wasm-function disasm-diff-block">';
+  var badge = !origEntry ? '<span class="disasm-diff-badge disasm-diff-added">new</span>'
+             : !optEntry ? '<span class="disasm-diff-badge disasm-diff-removed">removed</span>'
+             : !changed ? '<span class="disasm-diff-badge disasm-diff-same">unchanged</span>'
+             : '<span class="disasm-diff-badge disasm-diff-modified">modified</span>';
+  html += '<div class="wasm-func-header">' + esc(name) + ' ' + badge + '</div>';
+  if (!changed && origEntry) {
+    html += '<div class="disasm-diff-unchanged-note">' + origRows.length + ' instructions — no semantic changes</div>';
+    html += '</div>';
+    return { html: html, changed: false };
+  }
+  html += '<div class="disasm-diff-rows">';
+  for (var seg of segments) {
+    if (seg.type === 'same') {
+      var shown = Math.min(seg.origEnd - seg.origStart, 1);
+      for (var i = 0; i < shown; i++) {
+        var row = origRows[seg.origStart + i];
+        html += renderDiffRow(row, 'same');
+      }
+      var hiddenCount = (seg.origEnd - seg.origStart) - shown;
+      if (hiddenCount > 0) {
+        html += '<div class="disasm-diff-elide">&hellip; ' + hiddenCount + ' unchanged instruction' + (hiddenCount === 1 ? '' : 's') + '</div>';
+      }
+    } else {
+      for (var i = seg.origStart; i < seg.origEnd; i++) html += renderDiffRow(origRows[i], 'removed');
+      for (var i = seg.optStart; i < seg.optEnd; i++) html += renderDiffRow(optRows[i], 'added');
+    }
+  }
+  html += '</div></div>';
+  return { html: html, changed: changed };
+}
+
+function renderDiffRow(row, state) {
+  if (!row) return '';
+  var cls = 'disasm-diff-row disasm-diff-' + state;
+  var sigil = state === 'added' ? '+' : (state === 'removed' ? '−' : ' ');
+  var rng = row.range;
+  var rngAttrs = rng ? ' data-start="' + rng.startOffset + '" data-end="' + rng.endOffset + '"' : '';
+  return '<div class="' + cls + '"' + rngAttrs + '>'
+       + '<span class="disasm-diff-sigil">' + sigil + '</span>'
+       + '<span class="disasm-diff-text">' + row.displayHtml + '</span>'
+       + '</div>';
+}
+
+function normaliseForDiff(entry, kind) {
+  // Map each instruction (or label) into a ``{key, displayHtml,
+  // range}`` tuple where ``key`` is a string uniquely identifying the
+  // semantic content — explicitly excluding sequence numbers, byte
+  // offsets, and ``+N``/``pc N`` jump relatives.  The frontend diff
+  // engine (``computeDiffSegments``) compares keys; rows with equal
+  // keys are grouped into ``same`` segments regardless of where they
+  // sit in the stream.
+  var rows = [];
+  var literals = entry.literals || [];
+  var locals = entry.locals || [];
+  for (var ins of (entry.instructions || [])) {
+    if (ins.kind === 'label') {
+      rows.push({
+        key: 'LABEL:' + ins.label,
+        displayHtml: '<span class="disasm-label-anchor"># ' + esc(ins.label) + ':</span>',
+        range: null,
+      });
+      continue;
+    }
+    var parts = [ins.op];
+    var displayParts = ['<span class="wasm-mnemonic">' + esc(ins.op) + '</span>'];
+    if (kind === 'asm') {
+      var jt = ins.jumpTarget;
+      if (jt) {
+        parts.push('JMP:' + jt.label);
+        displayParts.push('<span class="wasm-branch-target">; ' + esc(jt.label) + '</span>');
+      } else if (ins.operandText) {
+        // Preserve literal/local refs as names, but strip bare numbers
+        // (they're indices whose identity depends on table order).
+        var norm = normaliseAsmOperand(ins, literals, locals);
+        parts.push(norm.key);
+        displayParts.push('<span class="wasm-operand">' + esc(norm.display) + '</span>');
+      }
+      if (ins.jumpTable && ins.jumpTable.length) {
+        var jtKeys = ins.jumpTable.map(function(e) { return e.pattern + '->' + e.label; });
+        parts.push('JT:' + jtKeys.join('|'));
+        var jtDisplay = ins.jumpTable.map(function(e) { return '&quot;' + esc(e.pattern) + '&quot;->' + esc(e.label); });
+        displayParts.push('<span class="wasm-comment">[' + jtDisplay.join(', ') + ']</span>');
+      }
+    } else {
+      // WASM operands: resolve call/branch by target name.
+      if (ins.callTarget) {
+        var ct = ins.callTarget;
+        parts.push('CALL:' + ct.kind + ':' + ct.name);
+        displayParts.push('<span class="wasm-call-target">; ' + esc(ct.kind === 'import' ? ('import ' + ct.name) : ct.name) + '</span>');
+      } else if (ins.branchTarget) {
+        var bt = ins.branchTarget;
+        parts.push('BR:' + (bt.kind || '') + ':' + (bt.label || ''));
+        var lbl = (bt.kind || '') + (bt.label ? ' ' + bt.label : '');
+        displayParts.push('<span class="wasm-branch-target">; ' + esc(lbl) + '</span>');
+      } else if (ins.op === 'local.get' || ins.op === 'local.set' || ins.op === 'local.tee') {
+        var localParts = ins.fullText.split(' ');
+        var localName = localParts.length > 2 ? localParts.slice(2).join(' ') : '';
+        parts.push('LOCAL:' + (localName || ins.operandText));
+        displayParts.push('<span class="wasm-operand-name">' + esc(localName || ins.operandText) + '</span>');
+      } else if (ins.op === 'i32.const' || ins.op === 'i64.const' || ins.op === 'f64.const') {
+        // Constant value IS semantic — keep it.
+        parts.push('K:' + ins.operandText);
+        displayParts.push('<span class="wasm-operand">' + esc(ins.operandText) + '</span>');
+      } else if (ins.operandText) {
+        // Other ops: operand is typically a type descriptor or a
+        // local/global idx.  Keep the text but strip bare numerics.
+        var stripped = ins.operandText.replace(/\b\d+\b/g, '#');
+        parts.push(stripped);
+        if (stripped !== '#') displayParts.push('<span class="wasm-operand">' + esc(ins.operandText) + '</span>');
+      }
+      if (ins.label) {
+        parts.push('LBL:' + ins.label);
+        displayParts.push('<span class="wasm-comment">;; ' + esc(ins.label) + '</span>');
+      }
+    }
+    rows.push({
+      key: parts.join(' '),
+      displayHtml: displayParts.join(' '),
+      range: ins.range,
+    });
+  }
+  return rows;
+}
+
+function normaliseAsmOperand(ins, literals, locals) {
+  // Map push1/push4 N → literal text; loadScalar1/storeScalar1 %vN →
+  // local name; jump/pc-anchored ops are handled via ``jumpTarget``.
+  // Returns ``{key, display}``.
+  var op = ins.op;
+  var text = ins.operandText;
+  if ((op === 'push1' || op === 'push4') && ins.operandText) {
+    var idx = parseInt(ins.operandText);
+    if (!isNaN(idx) && idx >= 0 && idx < literals.length) {
+      return { key: 'LIT:' + literals[idx], display: '"' + literals[idx] + '" (#' + idx + ')' };
+    }
+  }
+  if (ins.lvtRef !== null && ins.lvtRef !== undefined) {
+    var name = locals[ins.lvtRef] || ('v' + ins.lvtRef);
+    return { key: 'VAR:' + name, display: '%' + name };
+  }
+  // Strip bare "+N" / "-N" / "pc N" relatives from non-label ops.
+  var stripped = text.replace(/[+-]?\d+/g, '#').replace(/pc #/g, 'pc');
+  return { key: stripped, display: text };
 }
 
 // SSA variable spans with hover tooltips
