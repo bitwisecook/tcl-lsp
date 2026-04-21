@@ -1,0 +1,32 @@
+[
+  {
+    "bundle": "llength",
+    "bundle_bytes": 106586,
+    "bundle_lines": 3645,
+    "wasm_bytes": 110968,
+    "compile_ms_min": 311.8,
+    "compile_ms_median": 332.6,
+    "exec_ms_min": 220.8,
+    "exec_ms_median": 267.7
+  },
+  {
+    "bundle": "concat",
+    "bundle_bytes": 106914,
+    "bundle_lines": 3661,
+    "wasm_bytes": 111693,
+    "compile_ms_min": 294.5,
+    "compile_ms_median": 321.3,
+    "exec_ms_min": 176.7,
+    "exec_ms_median": 207.3
+  },
+  {
+    "bundle": "interp",
+    "bundle_bytes": 211603,
+    "bundle_lines": 7340,
+    "wasm_bytes": 288327,
+    "compile_ms_min": 496.2,
+    "compile_ms_median": 498.4,
+    "exec_ms_min": 172.5,
+    "exec_ms_median": 470.0
+  }
+]

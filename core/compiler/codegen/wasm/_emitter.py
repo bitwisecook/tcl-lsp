@@ -6682,6 +6682,39 @@ class _WasmEmitter:
             self._emit_call(push_idx)
             self._emit(WasmOp.DROP)  # discard frame idx
 
+        # Stamp the proc's namespace onto ``ns_current`` for the
+        # duration of the body.  Without this, an unqualified
+        # call from inside a ``::ns::foo`` proc (e.g. tcltest's
+        # ``::tcltest::cleanupTests`` calling ``preserveCore``
+        # — an accessor proc created by ``Option``) routes
+        # through ``tcl_eval`` with ``ns_current() == ::`` and
+        # fails to find ``::ns::preserveCore``.  This mirrors
+        # the IRBlock wrapper that Stage 1 put around inlined
+        # ``namespace eval`` bodies, extended to cover procs
+        # whose qualified name already implies a non-root ns.
+        #
+        # Only fires when the proc lives outside root — root
+        # procs keep ``ns_current == ::`` and need no push.
+        ns_saved_proc_local: int | None = None
+        if (
+            self._is_proc
+            and self._proc_namespace
+            and self._proc_namespace != "::"
+            and "tcl_ns_set" in self._shared_imports
+            and "tcl_ns_restore" in self._shared_imports
+        ):
+            ns_set_idx = self._shared_imports["tcl_ns_set"]
+            ns_saved_proc_local = self._add_extra_local(
+                prefix="_proc_ns_saved", val_type=ValType.I64
+            )
+            ns_literal = self._proc_namespace
+            offset = self._intern_string(ns_literal)
+            encoded = ns_literal.encode("utf-8", errors="surrogatepass")
+            self._emit_i32_const(offset + 4)
+            self._emit_i32_const(len(encoded))
+            self._emit_call(ns_set_idx)
+            self._emit_local_set(ns_saved_proc_local)
+
         # Stash the invocation argv for ``info level 0`` / ``info
         # level -N``.  Build a list TclObj of the form
         # ``<proc-tail> <param-1> <param-2> ...`` — but only
@@ -6803,34 +6836,52 @@ class _WasmEmitter:
             self._emit(WasmOp.END)
 
         # Compiled-proc exit epilogue: pop the frame we pushed in the
-        # prologue.  Inject a CALL to ``tcl_frame_pop`` immediately
-        # before every ``WasmOp.RETURN`` and at the natural implicit
-        # fall-through (between the last body instruction and the
-        # final END).  Confining the walk to instructions *after*
-        # ``prologue_end`` means we don't accidentally treat the
-        # prologue's own call/drop as a RETURN site.
+        # prologue, and restore the namespace context if we stamped
+        # one.  Inject the CALLs immediately before every
+        # ``WasmOp.RETURN`` and at the natural implicit fall-through
+        # (between the last body instruction and the final END).
+        # Confining the walk to instructions *after* ``prologue_end``
+        # means we don't accidentally treat the prologue's own
+        # call/drop as a RETURN site.
+        #
+        # The ns-restore needs the saved i64 token from the
+        # prologue's ``ns_set``; we emit it after any frame_pop and
+        # before the END so the stack is ordered
+        # ``[return_val] -> (frame_pop drop) -> (local.get saved ->
+        # ns_restore) -> END``.
+        cleanup_instrs: list[WasmInstruction] = []
         if wants_frame:
             pop_idx = self._shared_imports.get("tcl_frame_pop")
             if pop_idx is not None:
-                call_pop = WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(pop_idx))
-                new_body = list(self._body[:prologue_end])
-                body_tail = list(self._body[prologue_end:])
-                for instr in body_tail:
-                    if instr.op == WasmOp.RETURN:
-                        new_body.append(call_pop)
-                    new_body.append(instr)
-                # Insert pop between the last non-END instruction and
-                # the trailing END(s) for the natural fallthrough.
-                i = len(new_body) - 1
-                while i >= 0 and new_body[i].op == WasmOp.END:
-                    i -= 1
-                if i >= 0 and new_body[i].op != WasmOp.RETURN:
-                    # Natural fallthrough — stack has the implicit
-                    # return value at position i.  Insert pop right
-                    # after it so the stack is ordered
-                    # [return_val, (no change from pop)] when END fires.
-                    new_body = new_body[: i + 1] + [call_pop] + new_body[i + 1 :]
-                self._body = new_body
+                cleanup_instrs.append(
+                    WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(pop_idx))
+                )
+        if ns_saved_proc_local is not None and "tcl_ns_restore" in self._shared_imports:
+            ns_restore_idx = self._shared_imports["tcl_ns_restore"]
+            cleanup_instrs.extend(
+                [
+                    WasmInstruction(
+                        op=WasmOp.LOCAL_GET,
+                        operands=_leb128_unsigned(ns_saved_proc_local),
+                    ),
+                    WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(ns_restore_idx)),
+                ]
+            )
+        if cleanup_instrs:
+            new_body = list(self._body[:prologue_end])
+            body_tail = list(self._body[prologue_end:])
+            for instr in body_tail:
+                if instr.op == WasmOp.RETURN:
+                    new_body.extend(cleanup_instrs)
+                new_body.append(instr)
+            # Insert cleanup between the last non-END instruction and
+            # the trailing END(s) for the natural fallthrough.
+            i = len(new_body) - 1
+            while i >= 0 and new_body[i].op == WasmOp.END:
+                i -= 1
+            if i >= 0 and new_body[i].op != WasmOp.RETURN:
+                new_body = new_body[: i + 1] + cleanup_instrs + new_body[i + 1 :]
+            self._body = new_body
 
         # Apply optimisations
         self._run_optimisations()

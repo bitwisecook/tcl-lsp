@@ -1948,6 +1948,43 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // rather than the placeholder emitted by legacy callers.
     frames.frame_set_argv(build_invocation_list(words));
 
+    // Stamp the proc's namespace onto ``current_ns`` for the
+    // duration of the body so unqualified calls inside the body
+    // resolve via the right ns tree.  Mirrors the compiled-proc
+    // prologue's ``tcl_ns_set`` emission.  The proc's qualified
+    // name lives in its Command bucket; the enclosing ns is the
+    // prefix up to the last ``::``.
+    const saved_proc_ns: u32 = tcl_ns.current_ns;
+    defer tcl_ns.current_ns = saved_proc_ns;
+    {
+        const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
+        const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
+        if (name_len >= 2) {
+            const nsrc: [*]const u8 = @ptrFromInt(name_ptr);
+            // Find the LAST ``::`` so ``::ns::sub::foo`` maps to
+            // ``::ns::sub``.  Loop from the end.
+            var j: u32 = name_len;
+            var found: u32 = 0;
+            while (j >= 2) : (j -= 1) {
+                if (nsrc[j - 2] == ':' and nsrc[j - 1] == ':') {
+                    found = j - 2;
+                    break;
+                }
+            }
+            if (found >= 2) {
+                // ns prefix is name[0..found], which is ``::ns…``
+                // without the trailing ``::``.
+                tcl_ns.current_ns = tcl_ns.ns_create_from_fqn(
+                    @bitCast(name_ptr),
+                    @bitCast(found),
+                );
+            } else if (found == 0 and name_len >= 2 and nsrc[0] == ':' and nsrc[1] == ':') {
+                // Root-level proc (``::foo``) — ns_current stays
+                // at root; nothing to push.
+            }
+        }
+    }
+
     // Bind parameters: walk the params list, assign each from argv.
     // If the last parameter is named "args", it collects all remaining
     // arguments as a Tcl list (standard Tcl variadic proc convention).
