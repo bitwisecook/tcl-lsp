@@ -19,19 +19,32 @@ Reference Tcl 9 sources: `tmp/tcl9.0.3/generic/tclInterp.c`
 In:
 
 - `interp create ?-safe? ?--? ?path?` — auto-named and explicit-
-  named child creation, single-level path only.
+  named child creation, including multi-level paths (`interp
+  create {a x1}` creates `x1` as a child of `a`).
 - `interp eval path script ?script ...?` — concat-with-spaces,
   dispatch inside the resolved child's namespace tree.
 - `interp exists ?path?` — pure lookup, non-raising.
 - `interp slaves ?path?` / `interp children ?path?` — enumerate
   the resolved interp's direct children.
-- `interp delete ?path ...?` — unlink from the parent's registry.
+- `interp delete ?path ...?` — full cascade: mark the target and
+  every descendant `INTERP_DELETED`, tombstone every children-
+  table bucket along the way, remove the parent's top-level
+  `<child>` command, and flush the proc-lookup LRU.
+- `interp issafe ?path?` — reads the `INTERP_SAFE` bit.
+- Child-as-command dispatch: `<child> eval script` resolves
+  through `CMD_INTERP_CHILD` and routes into the child.
 - Per-interp `Interp` struct carrying `root_ns`, `hidden_cmd_table`,
   `parent`, `name_*`, `children`, `flags`.
 - Path-aware promotion of `interp alias` / `hide` / `expose` /
   `invokehidden`.
 - Conservative compiler-side `proc_index` flush when any of
   `interp create` / `eval` / `delete` appear in the IR.
+- Full tclsh-style error wording: `bad option "X": must be
+  alias, aliases, bgerror, cancel, children, create, debug,
+  delete, eval, exists, expose, hide, hidden, issafe,
+  invokehidden, limit, marktrusted, recursionlimit, share,
+  target, or transfer`; `bad option "-X": must be -safe or --`
+  for `interp create`.
 
 Out (deferred to later waves):
 
@@ -42,19 +55,23 @@ Out (deferred to later waves):
 - `interp bgerror` — no event loop to pump background errors.
 - `interp limit` / `interp marktrusted` — limit enforcement is
   cooperative in C Tcl and we have no event loop.
-- `interp target` / `interp share` / `interp transfer` — channel
-  sharing is entangled with the non-existent channel infrastructure.
-- Full delete cascade: child's byte regions (cmd table, hidden
-  table, namespace subtrees) stay live in bump memory after
-  `interp delete` — they're unreachable from the parent but not
-  actively zeroed.  Aliases in the parent that targeted the
-  child have dead sources and surface as "unknown command" on
-  next dispatch (same behaviour as renaming the target).
+- `interp target` — arity validated but the operation surfaces
+  the ``unsupported command: interp target`` stub.
+- `interp share` / `interp transfer` — channel sharing is
+  entangled with the non-existent channel infrastructure.
+- `<child> alias ...` / `<child> hide ...` / `<child> eval` is
+  shipped; the other per-child subcommands (`invokehidden`,
+  `expose`, `aliases`, …) surface as `bad option` errors from
+  the child-as-command dispatcher.
 - Per-interp call-frame stack.  The shared stack is safe for
   single-threaded, non-nested eval; truly nested `interp eval`
   on a stack-depth-sensitive proc would observe stale depth.
   Flagged here, not fixed.
-- Multi-level `interp create {a b}` (walks intermediate children).
+- Full bump-allocator reclaim.  After `interp delete`, the
+  child's `Interp` struct, namespace subtree, cmd tables, and
+  hidden table stay live in bump memory — the `INTERP_DELETED`
+  flag and parent-bucket tombstone prevent every live code
+  path from reaching them, but the bytes aren't freed.
 
 ## 2. The `Interp` struct
 
@@ -198,32 +215,42 @@ the child interp's `ns` pointer differs.  No cross-interp
 cache poisoning is possible without a deliberate
 `tcl_ns.root_addr` rewrite that skips the `enter` / `leave` pair.
 
-## 9. Deferred: deletion cascade
+## 9. Deletion cascade
 
-`interp delete path` unlinks the child from the parent's
-`children` table — a `child_delete` bucket-tombstone that makes
-subsequent `resolve_path` / `child_lookup` calls miss.  The
-child's `Interp` struct, root namespace, namespace subtree,
-command tables, and hidden-commands table all stay alive in bump
-memory.  Because nothing outside the parent's registry holds a
-handle to the deleted child, the stale bytes are unreachable
-from Tcl code.
+`interp delete path` runs the full teardown:
 
-Aliases created with `interp alias parent newName child target`
-(parent-side alias whose target lives in the deleted child)
-retain the child's `Interp*` in their `OFF_IMPORT_REF_HEAD`
-slot.  The next dispatch will `enter(deleted_interp)` and probe
-a no-longer-registered cmd_table — producing "unknown command:
-<target>".  This matches the observable behaviour of "target of
-an alias got renamed away" which `dispatch_alias` already
+1. **Recursive descent** — `mark_deleted_subtree` walks the
+   children table depth-first, flagging every descendant
+   `INTERP_DELETED` and tombstoning the grandchildren buckets
+   along the way.
+2. **Top-level command removal** — the parent's `<child>`
+   Command (registered with `CMD_INTERP_CHILD` at
+   `interp create` time) is cleared via `ns_cmd_clear`, so a
+   post-delete `<child> eval ...` surfaces as a clean
+   "unknown command" from the normal dispatch path.
+3. **Parent-registry tombstone** — `child_delete` writes 0 into
+   the parent's children-table bucket value slot so
+   `resolve_path` / `child_lookup` miss.
+4. **LRU flush** — proc-lookup cache is invalidated so stale
+   cross-interp entries don't linger.
+
+Cross-interp aliases (parent-side alias whose target lives in
+the deleted child) stash the deleted interp's `Interp*` in the
+redirect Command's `OFF_IMPORT_REF_HEAD`.  `dispatch_alias`
+reads it on every invocation and, when `is_deleted(parent) ==
+true`, raises "unknown command: <target>" without entering the
+dead interp.  This matches the observable behaviour of "target
+of an alias got renamed away" which `dispatch_alias` already
 handles cleanly.
 
-Full cascade (walking the child's namespace subtree, clearing
-every Command, zeroing the Interp struct, deactivating every
-alias whose `OFF_IMPORT_REF_HEAD` points at the deleted interp)
-is deferred — the bump allocator's "never frees" contract makes
-the zeroing observably no-op'd by dispatch anyway, and tcltest
-doesn't poll for it.
+What's *not* part of the cascade: bump-allocator reclaim of the
+`Interp` struct, its namespace subtree, its command table
+buckets, and its hidden-commands table.  Those byte regions stay
+live in linear memory — the bump allocator's "never frees"
+contract hasn't changed.  Every live dispatch path consults the
+`INTERP_DELETED` flag and/or the parent's tombstoned bucket
+before routing, so the unfreed bytes are observationally unreachable
+from Tcl.
 
 ## 10. Dialect compatibility
 
@@ -256,28 +283,42 @@ Three layers:
      covers create + eval + exists + slaves + delete, plus the
      cross-interp promotions for `alias` / `hide` /
      `invokehidden`.
-3. **Upstream `interp.test` sections** — not gated into the ship
-   criteria this wave.  The direct + E2E layers pin the
-   semantics; the `interp.test` sections that need full channel
-   sharing, `-safe` enforcement, or limit management are out of
-   scope.
+   - `TestInterpTestPort` in the same file hand-ports
+     ``tmp/tcl9.0.3/tests/interp.test`` sections 1.* / 2.* /
+     3.* / 4.* / 5.* / 6.* (options, create, exists, children,
+     delete, consistency, eval).  Upstream bundle compilation
+     is still blocked by tcltest features unrelated to this
+     wave (``::tcltest::normalizePath`` etc.), so the
+     individual ``test interp-N.M`` bodies are ported
+     verbatim instead.
+3. **Upstream `interp.test` whole-file bundle** — blocked by
+   tcltest harness features outside the child-interp scope.
+   Revisit once the surrounding primitives land.
 
 ## 12. Ship summary
 
-- One new Zig module: `tcl_interp_registry.zig`.
+- One new Zig module: `tcl_interp_registry.zig` carrying
+  `Interp` struct + `enter` / `leave` + `alloc_child_command` +
+  recursive delete helpers.
 - `tcl_ns.zig` changes: `root_addr` made public for swap; new
   `ns_alloc_root` helper; hidden-table surface removed (moved
   into the registry).
 - `tcl_hide.zig` API gained a leading `target_interp` argument.
-- `tcl_interp.zig` gained five new subcommand branches
-  (`create`, `eval`, `exists`, `slaves` / `children`, `delete`)
-  plus path promotion for `hide` / `expose` / `hidden` /
-  `invokehidden` / `alias`.
+- `tcl_procs.zig` gained `CMD_INTERP_CHILD` (`0x200`).
+- `tcl_interp.zig` gained `create`, `eval`, `exists`,
+  `slaves` / `children`, `delete`, `target`, `issafe` branches;
+  path promotion for `hide` / `expose` / `hidden` /
+  `invokehidden` / `alias`; `dispatch_interp_child` for the
+  child-as-command path; `emit_bad_option` for tclsh-parity
+  error wording.
 - `dispatch_alias` reads the parent-interp slot on the alias
-  Command and `enter` / `leave`s around the lookup when set.
-- Compiler's `_collect_dynamically_modified_procs` now returns
-  a `full_flush` flag; callers clear `proc_index` entirely when
+  Command, gates on `is_deleted`, and `enter` / `leave`s around
+  the lookup.
+- Compiler's `_collect_dynamically_modified_procs` returns a
+  `full_flush` flag; callers clear `proc_index` entirely when
   any of `interp create` / `eval` / `delete` appear.
 - New test scaffolding exports:
   `tcl_test_interp_root` / `_current` / `_create` / `_lookup` /
   `_delete` / `_eval_script` / `_root_ns` / `_hidden_find_in`.
+- Upstream `interp.test` sections 1–6 ported verbatim as
+  `TestInterpTestPort` (39 cases, all passing).

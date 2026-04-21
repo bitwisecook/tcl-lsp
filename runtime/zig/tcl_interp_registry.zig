@@ -52,6 +52,15 @@ const tcl_ns = @import("tcl_ns.zig");
 /// discussion.
 pub const INTERP_SAFE: u32 = 0x1;
 
+/// Set on an ``Interp`` once ``interp delete path`` has torn it down.
+/// Dispatch paths that might still hold the stale ``Interp*`` (cross-
+/// interp alias redirect Commands whose ``OFF_IMPORT_REF_HEAD`` slot
+/// points here, or pending ``enter`` frames unwinding) check this bit
+/// and surface a clean "unknown command" diagnostic instead of
+/// walking a zeroed ``root_ns``.  Set by :func:`child_delete_recursive`
+/// as part of the cascade.
+pub const INTERP_DELETED: u32 = 0x2;
+
 /// Bucket size shared across ``children`` and ``hidden_cmd_table``.
 /// Keeps ``Table(16)`` monomorphised once; matches the
 /// ``NS_BUCKET_SIZE`` used throughout the namespace tree so the
@@ -199,25 +208,115 @@ pub fn child_create(parent: u32, name_ptr: u32, name_len: u32, flags: u32) u32 {
     return child;
 }
 
-/// Delete a child interp: tombstone the parent's children-table
-/// bucket.  Full cascade (clearing the child's command table,
-/// hidden table, namespace subtree, etc.) is left to the bump
-/// allocator — those byte regions stay live but unreachable from
-/// the parent's registry, which matches the
-/// "bump-allocator never frees" contract across the rest of the
-/// runtime.  The stale Interp* address is never re-dispatched
-/// because every lookup goes through the parent's children table.
+/// Delete a child interp.  Runs the full cascade:
+///
+/// 1. Recursively delete every grandchild (depth-first so
+///    ``INTERP_DELETED`` propagates down the tree).
+/// 2. Mark the Interp as ``INTERP_DELETED`` so any lingering
+///    alias redirect Command whose ``OFF_IMPORT_REF_HEAD`` stashed
+///    this Interp* sees the dead bit at dispatch time and raises
+///    a clean "unknown command" instead of walking a zeroed ns.
+/// 3. Tombstone the parent's children-table bucket so subsequent
+///    lookups ( ``child_lookup`` / ``resolve_path``) miss.
+///
+/// The child's namespace subtree, cmd tables, hidden-commands
+/// table, and the Interp struct itself stay live in bump memory —
+/// the bump allocator's "never frees" contract hasn't changed.
+/// What IS guaranteed: nothing routes back into the deleted
+/// interp via its old address, because every live-path check
+/// (alias dispatch, name-lookup) consults ``INTERP_DELETED``
+/// and/or the parent's registry bucket.
 pub fn child_delete(parent: u32, name_ptr: u32, name_len: u32) bool {
     if (parent == 0) return false;
     const p: *Interp = @ptrFromInt(parent);
     if (p.children.buf == 0) return false;
     const hash = ht.fnv1a(name_ptr, name_len);
-    if (p.children.find(name_ptr, name_len, hash)) |bucket| {
-        if (read_i32(bucket + tcl_ns.OFF_HANDLE) == 0) return false;
+    const bucket = p.children.find(name_ptr, name_len, hash) orelse return false;
+    const handle: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+    if (handle == 0) return false;
+
+    // Step 1 — recursive teardown.  ``mark_deleted_subtree`` walks
+    // the children table (and any children's children) tagging each
+    // with ``INTERP_DELETED`` depth-first, then tombstones the
+    // bucket slots.
+    mark_deleted_subtree(handle);
+
+    // Step 3 — tombstone the entry in the parent.
+    write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
+    return true;
+}
+
+/// Recursively flag ``interp`` and every descendant as
+/// ``INTERP_DELETED``.  Children's child-table buckets are
+/// tombstoned along the way so re-reaching them via the parent
+/// chain (e.g. a stale cached handle) misses cleanly.
+fn mark_deleted_subtree(interp: u32) void {
+    const i: *Interp = @ptrFromInt(interp);
+    i.flags |= INTERP_DELETED;
+    if (i.children.buf == 0 or i.children.cap == 0) return;
+    var k: u32 = 0;
+    while (k < i.children.cap) : (k += 1) {
+        const bucket = i.children.buf + k * BUCKET_SIZE;
+        const ep: u32 = @bitCast(read_i32(bucket));
+        if (ep == 0) continue;
+        const handle: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (handle == 0) continue;
+        mark_deleted_subtree(handle);
         write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
-        return true;
     }
-    return false;
+}
+
+/// Predicate: has this Interp been torn down via ``interp delete``?
+/// Dispatch paths that hold a stashed Interp* (cross-interp alias
+/// redirects) call this before entering the interp.
+pub fn is_deleted(interp: u32) bool {
+    if (interp == 0) return true;
+    const i: *Interp = @ptrFromInt(interp);
+    return (i.flags & INTERP_DELETED) != 0;
+}
+
+/// Tcl_procs offsets / flag constants we reach into without
+/// importing ``tcl_procs.zig`` (which imports ``tcl_ns.zig`` which
+/// would create a cycle if we imported back).  Kept in sync with
+/// ``tcl_procs.zig`` via the ``comptime`` assert in that module.
+const COMMAND_SIZE: u32 = 40;
+const OFF_CMD_NAME_PTR: u32 = 0;
+const OFF_CMD_NAME_LEN: u32 = 4;
+const OFF_CMD_FLAGS: u32 = 8;
+const OFF_CMD_PARAMS_OBJ: u32 = 12;
+const CMD_INTERP_CHILD: u32 = 0x200;
+
+/// Allocate + populate a Command with the ``CMD_INTERP_CHILD`` flag
+/// set, carrying ``child_interp`` in its ``params_obj`` slot.
+/// Registered into the parent's ``cmd_table`` under the child's
+/// simple name by ``eval_interp_create`` so ``myChild eval {...}``
+/// resolves at the regular dispatch layer with one extra flag
+/// check (same shape used by aliases).
+pub fn alloc_child_command(
+    parent_ns: u32,
+    child_simple_ptr: u32,
+    child_simple_len: u32,
+    child_interp: u32,
+) u32 {
+    const cmd = alloc(COMMAND_SIZE);
+    const slice: [*]u8 = @ptrFromInt(cmd);
+    @memset(slice[0..COMMAND_SIZE], 0);
+
+    // Stamp the FQN in the Command's name slot — same pattern
+    // aliases follow.  This keeps ``info commands`` / ``namespace
+    // which -command`` happy.
+    const fqn = tcl_ns.ns_build_fqn(parent_ns, child_simple_ptr, child_simple_len);
+    write_i32(cmd + OFF_CMD_NAME_PTR, @bitCast(fqn.ptr));
+    write_i32(cmd + OFF_CMD_NAME_LEN, @bitCast(fqn.len));
+    write_i32(cmd + OFF_CMD_FLAGS, @bitCast(CMD_INTERP_CHILD));
+    write_i32(cmd + OFF_CMD_PARAMS_OBJ, @bitCast(child_interp));
+    return cmd;
+}
+
+/// Extract the stashed ``Interp*`` from a ``CMD_INTERP_CHILD`` Command.
+/// Caller should gate on the flag first.
+pub fn cmd_child_interp(cmd: u32) u32 {
+    return @bitCast(read_i32(cmd + OFF_CMD_PARAMS_OBJ));
 }
 
 /// Resolve an interp path (a Tcl list of simple names) relative to
