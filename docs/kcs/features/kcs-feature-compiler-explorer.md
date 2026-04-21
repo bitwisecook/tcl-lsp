@@ -2,7 +2,7 @@
 
 ## Summary
 
-Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes.
+Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes, plus a structured WebAssembly disassembly view with click-to-source navigation, call and branch target cross-linking, control-flow arrows, and labelled structural ops.
 
 ## Applies to
 
@@ -21,6 +21,17 @@ VS Code
 ## Operational context
 
 The compiler explorer runs the full compilation pipeline (parse, lower, optimise, codegen) and displays the output at each stage. It uses a Pyodide-powered web panel for interactive exploration.
+
+### WASM disassembly view
+
+The **WASM** and **WASM (Opt)** tabs show a structured per-instruction disassembly. Each instruction carries:
+
+- The Tcl source range of the originating statement — clicking the instruction places the source cursor at the corresponding point (inside an expression, after a semicolon, or at any other nested command location).
+- A source-line comment above each group of instructions sharing the same originating statement, so the reader can trace "this command compiled to these ops".
+- A resolved target on `call N` (e.g. `call 22 ; ::greet`) — clicking the target label jumps both the disassembly and the source to the callee's definition.
+- A resolved target on `br N` / `br_if N` (e.g. `br 0 ; loop_header foreach`) — clicking the target navigates to the matching `block` / `loop` / `if` open, along with its source range.
+- A label on `block` / `loop` / `if` opens identifying the Tcl construct that produced them (`foreach`, `while`, `for`, `if`, `catch body`, `switch arm`).
+- Orthogonal control-flow arrows in the left gutter showing every branch target, with forward edges drawn solid-blue and back-edges drawn dashed-yellow.
 
 ## File-path anchors
 

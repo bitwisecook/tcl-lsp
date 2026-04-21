@@ -94,6 +94,11 @@ class _Emitter(
         self._used_inline_cmd_subst = False
         # 1-based source line of the current statement (for errorInfo).
         self._current_source_line: int = 0
+        # Full source range of the current statement — stamped onto every
+        # emitted instruction so the compiler explorer can click-to-source
+        # from a bytecode line back to the exact Tcl command that produced
+        # it (at sub-command / expression granularity, not just line level).
+        self._current_source_range = None
         # Pending startCommand end labels for constant-folded branches.
         # Maps join-block name → label to place after the join pop.
         self._pending_join_labels: dict[str, str] = {}
@@ -117,7 +122,15 @@ class _Emitter(
     def _emit(self, op: Op, *operands: int | str, comment: str = "", source_line: int = 0) -> int:
         idx = len(self._instrs)
         sl = source_line or self._current_source_line
-        self._instrs.append(Instruction(op=op, operands=operands, comment=comment, source_line=sl))
+        self._instrs.append(
+            Instruction(
+                op=op,
+                operands=operands,
+                comment=comment,
+                source_line=sl,
+                source_range=self._current_source_range,
+            )
+        )
         return idx
 
     def _place_label(self, label: str) -> None:
@@ -488,6 +501,19 @@ class _Emitter(
                 continue
             blk = self._cfg.blocks[bname]
             self._place_label(bname)
+
+            # Seed the source-range context for this block with its
+            # terminator's range (when present) so non-stmt ops
+            # emitted before any statement (e.g. startCommand wrappers
+            # for foreach / while / for-body branch terminators) carry
+            # the block's own source location rather than a stale
+            # range left behind by whichever stmt the previous block
+            # emitted.  Individual ``_emit_stmt`` calls will still
+            # re-stamp per statement as they run.
+            _term_range = getattr(blk.terminator, "range", None) if blk.terminator else None
+            if _term_range is not None:
+                self._current_source_range = _term_range
+                self._current_source_line = _term_range.start.line + 1
 
             # try/finally inline compilation: emit the entire
             # try/finally sequence when we reach the try_body block.

@@ -467,14 +467,7 @@ textarea#source::placeholder { color: var(--text-dim); }
 }
 .source-line .code-text { white-space: pre; flex: 1; }
 .opt-diff-container { position: relative; padding-left: 36px; }
-.opt-diff-svg {
-  position: absolute;
-  top: 0; left: 0;
-  width: 36px; height: 100%;
-  pointer-events: none;
-  z-index: 1;
-  overflow: visible;
-}
+.opt-diff-svg { width: 36px; }
 .opt-diff-line {
   display: flex;
   font-size: 12px;
@@ -498,8 +491,8 @@ textarea#source::placeholder { color: var(--text-dim); }
 .opt-diff-line.opt-replacement .gutter { color: var(--green); }
 .opt-diff-line.opt-input-highlight { background: rgba(137, 180, 250, 0.18) !important; opacity: 1 !important; }
 .opt-diff-line.opt-output-highlight { background: rgba(166, 227, 161, 0.18) !important; }
-.opt-bracket { fill: none; stroke: var(--text-dim); stroke-width: 1.5; opacity: 0.4; transition: opacity 0.15s, stroke 0.15s; }
-.opt-bracket.highlighted { stroke: var(--accent); opacity: 1; }
+.opt-bracket { fill: none; stroke: var(--text-dim); stroke-width: 1.5; }
+.opt-bracket.highlighted, .opt-bracket:hover { stroke: var(--accent); }
 .analysis-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -576,24 +569,23 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
   opacity: 0.5;
 }
 .cfg-edges-container { position: relative; padding-left: 40px; }
-.cfg-edges-svg {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 1;
-  overflow: visible;
-}
-.cfg-edge { fill: none; stroke-width: 1.5; opacity: 0.45; transition: opacity 0.15s, stroke-width 0.15s; }
+/* Shared orthogonal-edge SVG: pointer-events on the SVG itself
+   stay ``none`` so clicks pass through to the content, but each
+   stroked <path> opts into pointer-events via ``stroke`` so hover
+   highlights the line directly without blocking click-to-source on
+   the underlying row. */
+.oe-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible; }
+.oe-edge { fill: none; stroke-width: 1.5; opacity: 0.45; pointer-events: stroke; cursor: pointer; transition: opacity 0.15s, stroke-width 0.15s; }
+.oe-edge:hover, .oe-edge.highlighted { opacity: 1; stroke-width: 2.5; }
+.oe-endpoint-highlight { outline: 1px solid var(--accent); outline-offset: -1px; border-radius: 2px; background: rgba(137, 180, 250, 0.1); }
+.cfg-edges-svg { /* back-compat — uses .oe-svg behaviour */ }
+.cfg-edge { fill: none; stroke-width: 1.5; }
 .cfg-edge-true { stroke: var(--green); }
 .cfg-edge-false { stroke: var(--red); }
 .cfg-edge-goto { stroke: var(--text-dim); }
-.cfg-edge.highlighted { opacity: 1; stroke-width: 2; }
-.cfg-arrowhead { opacity: 0.45; transition: opacity 0.15s; }
 .cfg-arrowhead-true { fill: var(--green); }
 .cfg-arrowhead-false { fill: var(--red); }
 .cfg-arrowhead-goto { fill: var(--text-dim); }
-.cfg-arrowhead.highlighted { opacity: 1; }
 .cfg-block[data-block] { position: relative; z-index: 2; }
 .var-tooltip {
   position: fixed;
@@ -675,6 +667,163 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
 }
 .tab.irules-only { display: none; }
 .tab.irules-only.irules-visible { display: flex; }
+/* WASM disassembly view */
+.wasm-module { margin-bottom: 16px; }
+.wasm-module-details { margin-left: 16px; font-size: 11px; color: var(--text-dim); }
+.wasm-module-details summary { cursor: pointer; color: var(--text); }
+.wasm-module-details summary:hover { color: var(--accent); }
+.wasm-import-entry { padding: 1px 0; white-space: pre; display: flex; gap: 6px; align-items: baseline; }
+.wasm-function { margin-bottom: 16px; border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; background: var(--bg-surface); }
+.wasm-function[data-func-idx] { position: relative; }
+.wasm-func-header { font-weight: 600; color: var(--cyan); margin-bottom: 4px; padding: 2px 4px; cursor: pointer; border-radius: 3px; transition: background 0.15s; font-size: 12px; }
+.wasm-func-header:hover { background: var(--highlight); }
+.wasm-func-header.wasm-func-flash { background: rgba(137, 180, 250, 0.3); animation: wasm-flash 1.2s ease-out; }
+.wasm-func-header .wasm-kind-badge { font-size: 10px; background: var(--bg-hover); color: var(--text-dim); padding: 1px 5px; border-radius: 8px; margin-left: 2px; font-weight: 400; }
+.wasm-func-name { color: var(--accent); }
+.wasm-func-locals { margin-left: 40px; padding: 2px 0; color: var(--text-dim); font-size: 11px; }
+.wasm-local { padding: 0 4px; }
+.wasm-func-body { font-size: 12px; line-height: 1.5; position: relative; padding-left: 36px; }
+.wasm-instr, .wasm-src-comment { display: flex; align-items: baseline; gap: 4px; padding: 1px 0; border-radius: 2px; position: relative; z-index: 2; white-space: pre; }
+.wasm-instr { cursor: pointer; }
+.wasm-instr:hover { background: var(--highlight); }
+.wasm-instr.highlighted { background: var(--highlight-strong); }
+.wasm-instr.wasm-instr-flash { background: rgba(249, 226, 175, 0.3); animation: wasm-flash 1.2s ease-out; }
+.wasm-src-comment { color: var(--green); cursor: pointer; padding-top: 4px; font-size: 11px; opacity: 0.85; }
+.wasm-src-comment:hover { background: var(--highlight); opacity: 1; }
+.wasm-src-comment .wasm-src-text { color: var(--green); }
+.wasm-gutter-pad { width: 0; flex-shrink: 0; }
+.wasm-idx { color: var(--gutter); min-width: 36px; user-select: none; text-align: right; font-size: 10px; padding-right: 8px; flex-shrink: 0; }
+.wasm-code { display: inline; flex: 1; min-width: 0; }
+.wasm-indent { color: transparent; }
+.wasm-mnemonic { color: var(--text-bright); font-weight: 500; }
+.wasm-operand { color: var(--text); }
+.wasm-operand-name { color: var(--green); }
+.wasm-block-label { color: var(--magenta); opacity: 0.6; font-size: 10px; margin-left: 2px; }
+.wasm-call-target, .wasm-branch-target { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; padding: 0 2px; border-radius: 2px; }
+.wasm-call-target { color: var(--cyan); }
+.wasm-call-target:hover { color: var(--accent); background: rgba(137, 180, 250, 0.15); }
+.wasm-branch-target { color: var(--yellow); }
+.wasm-branch-target:hover { color: var(--orange); background: rgba(250, 179, 135, 0.15); }
+.wasm-comment { color: var(--text-dim); font-style: italic; }
+.wasm-edges-svg { width: 36px; }
+.wasm-edge { fill: none; stroke-width: 1.2; }
+.wasm-edge-forward { stroke: var(--blue); }
+.wasm-edge-back { stroke: var(--yellow); stroke-dasharray: 3,2; }
+.wasm-arrowhead { fill: var(--blue); }
+.wasm-arrowhead-default { fill: var(--blue); }
+@keyframes wasm-flash {
+  0% { background: rgba(249, 226, 175, 0.5); }
+  100% { background: transparent; }
+}
+/* Disassembly toolbar + opt diff */
+.disasm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 3;
+}
+.disasm-toolbar-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.disasm-toolbar-opt input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.disasm-toolbar-opt input:disabled { cursor: not-allowed; opacity: 0.4; }
+.disasm-toolbar-diff {
+  background: var(--bg-surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.disasm-toolbar-diff:hover { border-color: var(--accent); background: var(--bg-hover); }
+.disasm-toolbar-diff:disabled { opacity: 0.4; cursor: not-allowed; }
+.disasm-toolbar-hint { font-size: 11px; color: var(--text-dim); font-style: italic; }
+.disasm-tables { margin-left: 40px; margin-bottom: 4px; color: var(--text-dim); font-size: 11px; }
+.disasm-tables summary { cursor: pointer; padding: 2px 0; }
+.disasm-tables summary:hover { color: var(--accent); }
+.disasm-tables-section { color: var(--text-dim); font-weight: 600; margin-top: 4px; }
+.disasm-label-row { cursor: default !important; }
+.disasm-label-row:hover { background: transparent; }
+.disasm-label-anchor { color: var(--magenta); font-weight: 500; }
+.disasm-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.disasm-diff-title { font-weight: 600; color: var(--accent); font-size: 12px; }
+.disasm-diff-legend { font-size: 10px; display: flex; gap: 10px; }
+.disasm-diff-legend-removed { color: var(--red); }
+.disasm-diff-legend-added { color: var(--green); }
+.disasm-diff-legend-dim { color: var(--text-dim); font-style: italic; }
+.disasm-diff-close {
+  margin-left: auto;
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.disasm-diff-close:hover { border-color: var(--accent); color: var(--text); }
+.disasm-diff-block { border: 1px solid var(--border); background: var(--bg-surface); }
+.disasm-diff-badge {
+  font-size: 10px;
+  font-weight: 400;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.disasm-diff-added { background: rgba(166, 227, 161, 0.15); color: var(--green); }
+.disasm-diff-removed { background: rgba(243, 139, 168, 0.15); color: var(--red); }
+.disasm-diff-same { background: rgba(108, 112, 134, 0.15); color: var(--text-dim); }
+.disasm-diff-modified { background: rgba(249, 226, 175, 0.18); color: var(--yellow); }
+.disasm-diff-rows { padding-left: 4px; }
+.disasm-diff-row {
+  display: flex;
+  gap: 6px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  white-space: pre;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.disasm-diff-row.disasm-diff-removed { background: rgba(243, 139, 168, 0.1); color: var(--text); }
+.disasm-diff-row.disasm-diff-removed .disasm-diff-sigil { color: var(--red); }
+.disasm-diff-row.disasm-diff-removed .disasm-diff-text { text-decoration: line-through; opacity: 0.75; }
+.disasm-diff-row.disasm-diff-added { background: rgba(166, 227, 161, 0.1); color: var(--text); }
+.disasm-diff-row.disasm-diff-added .disasm-diff-sigil { color: var(--green); }
+.disasm-diff-row.disasm-diff-same { background: transparent; color: var(--text-dim); opacity: 0.7; }
+.disasm-diff-row.disasm-diff-same .disasm-diff-sigil { color: var(--text-dim); }
+.disasm-diff-sigil { min-width: 14px; text-align: center; user-select: none; font-weight: 600; flex-shrink: 0; }
+.disasm-diff-text { flex: 1; white-space: pre; }
+.disasm-diff-elide {
+  padding: 2px 22px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-style: italic;
+}
+.disasm-diff-unchanged-note { padding: 4px 8px; color: var(--text-dim); font-size: 11px; font-style: italic; }
 </style>
 <script src="mermaid.min.js"></script>
 <script>
@@ -761,8 +910,6 @@ puts $x"></textarea>
         <div class="tab" data-tab="callouts">Callouts</div>
         <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
-        <div class="tab" data-tab="asm-opt">Tcl ASM (opt)</div>
-        <div class="tab" data-tab="wasm-opt">WASM (opt)</div>
       </div>
       <div class="output-content" id="outputContent">
         <div class="tab-pane active" id="pane-ir">
@@ -782,8 +929,6 @@ puts $x"></textarea>
         <div class="tab-pane" id="pane-callouts"></div>
         <div class="tab-pane" id="pane-asm"></div>
         <div class="tab-pane" id="pane-wasm"></div>
-        <div class="tab-pane" id="pane-asm-opt"></div>
-        <div class="tab-pane" id="pane-wasm-opt"></div>
       </div>
     </div>
   </div>
@@ -979,8 +1124,6 @@ function renderAll() {
   renderCallouts();
   renderAsm();
   renderWasm();
-  renderAsmOpt();
-  renderWasmOpt();
   updateBadges();
 }
 
@@ -1000,8 +1143,6 @@ function updateBadges() {
     'callouts': data.annotations.length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
-    'asm-opt': instrCount(data.asmOptimised),
-    'wasm-opt': instrCount(data.wasmOptimised),
   };
   $$('.tab').forEach(tab => {
     const key = tab.dataset.tab;

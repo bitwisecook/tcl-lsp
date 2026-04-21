@@ -1212,12 +1212,19 @@ class _WasmEmitter:
         self._string_index[value] = offset
         return offset
 
-    def _emit(self, op: int, operands: bytes = b"") -> None:
+    def _emit(self, op: int, operands: bytes = b"", *, label: str | None = None) -> None:
         if op in (WasmOp.BLOCK, WasmOp.LOOP, WasmOp.IF):
             self._ctrl_depth += 1
         elif op == WasmOp.END:
             self._ctrl_depth -= 1
-        self._body.append(WasmInstruction(op=op, operands=operands))
+        self._body.append(
+            WasmInstruction(
+                op=op,
+                operands=operands,
+                range=self._current_range,
+                label=label,
+            )
+        )
 
     def _emit_i64_const(self, value: int) -> None:
         self._emit(WasmOp.I64_CONST, _leb128_signed(value))
@@ -5272,7 +5279,11 @@ class _WasmEmitter:
             self._emit_expr(clause.condition)
             self._emit_i64_const(0)
             self._emit(WasmOp.I64_NE)
-            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit(
+                WasmOp.IF,
+                bytes([_BLOCK_VOID]),
+                label="if" if i == 0 else "elseif",
+            )
             self._emit_script(clause.body)
 
             is_last = i == len(clauses) - 1
@@ -5299,8 +5310,8 @@ class _WasmEmitter:
         # Structure: block{ loop{ <cond>; block{ <body> }; <next>; br 0 } }
         # continue → br to inner block end (skips rest of body, runs next)
         # break → br to outer block (exits loop entirely)
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # break target
-        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))  # loop restart
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="for break")  # break target
+        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="for")  # loop restart
 
         self._emit_expr(condition)
         self._emit_i64_const(0)
@@ -5325,8 +5336,8 @@ class _WasmEmitter:
         """Emit a while loop."""
         # For while, continue just restarts from the condition.
         # Structure: block{ loop{ <cond>; block{ <body> }; br 0 } }
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
-        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="while break")
+        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="while")
 
         self._emit_expr(condition)
         self._emit_i64_const(0)
@@ -5394,8 +5405,8 @@ class _WasmEmitter:
         self._emit_i64_const(0)
         self._emit_local_set(counter)
 
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
-        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="foreach break")
+        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="foreach")
 
         # if counter >= limit, break
         self._emit_local_get(counter)
@@ -5483,7 +5494,11 @@ class _WasmEmitter:
                 # string_equal/string_match returns TclObj wrapping 0 or 1
                 self._emit_unbox_int()
                 self._emit(WasmOp.I32_WRAP_I64)
-                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit(
+                    WasmOp.IF,
+                    bytes([_BLOCK_VOID]),
+                    label=f"switch arm {arm.pattern!r}",
+                )
                 self._emit_script(arm.body)
                 if i < arm_count - 1 or default_body:
                     self._emit(WasmOp.ELSE)
@@ -5509,7 +5524,11 @@ class _WasmEmitter:
                 self._emit_local_get(subject_local)
                 self._emit_literal(arm.pattern)
                 self._emit(WasmOp.I64_EQ)
-                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit(
+                    WasmOp.IF,
+                    bytes([_BLOCK_VOID]),
+                    label=f"switch arm {arm.pattern!r}",
+                )
                 self._emit_script(arm.body)
                 if i < arm_count - 1 or default_body:
                     self._emit(WasmOp.ELSE)
@@ -5567,7 +5586,7 @@ class _WasmEmitter:
             and len(body.statements) > 0
         )
         self._catch_depth += 1
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="catch body")
         stmts = body.statements
         for i, stmt in enumerate(stmts):
             is_last = capture_last and (i == len(stmts) - 1)
@@ -5805,8 +5824,12 @@ class _WasmEmitter:
                 and self._body[i + 1].op == WasmOp.I64_MUL
             ):
                 # Drop the value on stack, push 0
-                optimised.append(WasmInstruction(op=WasmOp.DROP))
-                optimised.append(WasmInstruction(op=WasmOp.I64_CONST, operands=_leb128_signed(0)))
+                optimised.append(WasmInstruction(op=WasmOp.DROP, range=instr.range))
+                optimised.append(
+                    WasmInstruction(
+                        op=WasmOp.I64_CONST, operands=_leb128_signed(0), range=instr.range
+                    )
+                )
                 i += 2
                 continue
 
@@ -5817,7 +5840,9 @@ class _WasmEmitter:
                 and self._body[i + 1].op == WasmOp.LOCAL_GET
                 and instr.operands == self._body[i + 1].operands
             ):
-                optimised.append(WasmInstruction(op=WasmOp.LOCAL_TEE, operands=instr.operands))
+                optimised.append(
+                    WasmInstruction(op=WasmOp.LOCAL_TEE, operands=instr.operands, range=instr.range)
+                )
                 i += 2
                 continue
 
@@ -5991,9 +6016,10 @@ class _WasmEmitter:
         self._active_loop_headers.add(header)
 
         step_block = self._find_step_block(body_start, header)
+        loop_label = "for" if step_block is not None else "while"
 
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
-        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label=f"{loop_label} break")
+        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label=loop_label)
 
         # Evaluate loop condition — break if false
         self._emit_expr(condition)
@@ -6002,7 +6028,11 @@ class _WasmEmitter:
         self._emit_br_if(1)  # break out of block
 
         # Wrap body in a block for break/continue support
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
+        self._emit(
+            WasmOp.BLOCK,
+            bytes([_BLOCK_VOID]),
+            label=f"{loop_label} continue",
+        )  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
 
@@ -6204,8 +6234,8 @@ class _WasmEmitter:
         self._emit_i64_const(0)
         self._emit_local_set(counter)
 
-        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))
-        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]))
+        self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="foreach break")
+        self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="foreach")
 
         # if counter >= limit, break
         self._emit_local_get(counter)
@@ -6388,6 +6418,16 @@ class _WasmEmitter:
         for stmt in stmts:
             self._emit_stmt(stmt)
 
+        # Stamp the terminator's source range onto instructions emitted
+        # below so the explorer can click-through from the ``return`` /
+        # branch / goto opcode to the originating Tcl construct.  The
+        # range is optional on each terminator kind; we leave
+        # ``_current_range`` untouched when missing so we fall back to
+        # whatever the last ``_emit_stmt`` recorded.
+        term_range = getattr(block.terminator, "range", None)
+        if term_range is not None:
+            self._current_range = term_range
+
         match block.terminator:
             case CFGReturn(value=value):
                 if value is not None:
@@ -6422,7 +6462,7 @@ class _WasmEmitter:
                 self._emit_expr(condition)
                 self._emit_i64_const(0)
                 self._emit(WasmOp.I64_NE)
-                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="if")
                 self._emit_block(tt)
                 self._emit(WasmOp.ELSE)
                 self._emit_block(ft)
@@ -6558,6 +6598,7 @@ class _WasmEmitter:
             body=self._body,
             local_names=[f"${n}" for n in self._local_names],
             exported=True,
+            kind="proc" if self._is_proc else "top",
         )
 
     @property

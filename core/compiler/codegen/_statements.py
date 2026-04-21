@@ -120,9 +120,21 @@ class _StatementsMixin:
         self._cmd_index += 1
 
     def _emit_stmt(self: _Emitter, stmt: IRStatement) -> None:  # noqa: C901
-        # Track source line for errorInfo (1-based).
+        # Track source line for errorInfo (1-based) and full source range
+        # so every instruction emitted below this statement carries the
+        # originating Tcl span — consumed by the compiler explorer for
+        # click-to-source and per-source-line group comments.
+        # Invariant: every IR statement carries a ``range`` field
+        # (see core/compiler/ir.py), so the ``hasattr`` guard is
+        # defensive — when it ever slips we'd rather inherit the
+        # previous statement's range than crash the emitter.
+        # ``_emit_term`` / ``_emit_proc_return`` and the CFG block
+        # walker also refresh ``_current_source_range`` for
+        # terminator and ``startCommand`` emissions that happen
+        # outside this path.
         if hasattr(stmt, "range"):
             self._current_source_line = stmt.range.start.line + 1
+            self._current_source_range = stmt.range
         match stmt:
             case IRAssignConst(name=name, value=value):
                 if self._needs_stk_var_ref(name):
