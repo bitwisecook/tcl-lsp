@@ -24,7 +24,15 @@
 //       [24..27] func_idx        : i32 (>0 means AOT-compiled to a WASM fn)
 //       [28..31] args_tail       : i32 (1 if last param is "args")
 //       [32..35] import_ref_head : u32 (``ImportRef`` list head; P4.3)
-//       [36..39] reserved        : u32 (zero; kept for 8-byte alignment)
+//       [36..39] export_name_bucket : u32 (non-zero on compiled procs — points
+//                                           at a ``{ptr: u32, len: u32}`` pair
+//                                           holding the registration-time
+//                                           WASM export name so ``rename``
+//                                           can overwrite the Command's
+//                                           live name slot without breaking
+//                                           host-bridge dispatch; zero on
+//                                           interpreted procs, aliases, and
+//                                           imports)
 //
 // See the detailed field-by-field layout block above the ``OFF_*``
 // constants further down for the canonical in-module description.
@@ -74,9 +82,17 @@ const parse_cache = @import("parse_cache.zig");
 //                                       imports this Command, used by
 //                                       ``namespace forget`` to splice
 //                                       redirects out cleanly; P4.3)
-//     [36..39] reserved        : u32  (zero — kept so the struct is
-//                                       8-byte aligned for any future
-//                                       u64 field)
+//     [36..39] export_name_bucket : u32 (non-zero on compiled procs;
+//                                         points at an 8-byte
+//                                         ``{ptr: u32, len: u32}`` record
+//                                         holding the registration-time
+//                                         WASM export name.  ``tcl_dispatch``
+//                                         reads it first so ``rename`` can
+//                                         overwrite the Command's live
+//                                         name slot — interpreted procs,
+//                                         aliases, and imports leave it
+//                                         zero and the dispatcher falls
+//                                         back to the live name slot)
 pub const COMMAND_SIZE: u32 = 40;
 pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
@@ -85,6 +101,7 @@ const OFF_N_PARAMS: u32 = 20;
 pub const OFF_FUNC_IDX: u32 = 24;
 const OFF_ARGS_TAIL: u32 = 28;
 pub const OFF_IMPORT_REF_HEAD: u32 = 32;
+pub const OFF_EXPORT_NAME_BUCKET: u32 = 36;
 
 /// Set on imported (redirect) commands.  ``params_obj`` holds an
 /// ``*ImportedCmdData`` pointing at the source ``*Command`` and
@@ -300,7 +317,43 @@ pub export fn proc_register_compiled(
     write_i32(cmd + OFF_N_PARAMS, n_params);
     write_i32(cmd + OFF_FUNC_IDX, func_idx);
     write_i32(cmd + OFF_ARGS_TAIL, args_tail);
+
+    // Stash the registration-time WASM export name in the sidecar
+    // record at ``OFF_EXPORT_NAME_BUCKET``.  ``tcl_dispatch`` reads
+    // it first on every call so a later ``rename`` can overwrite
+    // the Command's live name slot without breaking host-bridge
+    // lookup.  Only compiled procs need this — interpreted procs
+    // leave the slot zero and the dispatcher never hits the
+    // compiled-path branch for them.
+    //
+    // On re-registration of an existing bucket we leave the
+    // previously-stamped sidecar in place: the export name never
+    // changes for a given WASM module instance, so re-allocating
+    // would leak without observable benefit.
+    const existing_sidecar: u32 = @bitCast(read_i32(cmd + OFF_EXPORT_NAME_BUCKET));
+    if (existing_sidecar == 0) {
+        const sidecar = alloc(8);
+        const nbuf = alloc(sn.len);
+        if (sn.len > 0) memcpy(nbuf, sn.ptr, sn.len);
+        write_i32(sidecar, @bitCast(nbuf));
+        write_i32(sidecar + 4, @bitCast(sn.len));
+        write_i32(cmd + OFF_EXPORT_NAME_BUCKET, @bitCast(sidecar));
+    }
     return obj_new_int(0);
+}
+
+/// Return the sidecar export-name pointer stashed at
+/// ``OFF_EXPORT_NAME_BUCKET``, or 0 if the Command wasn't registered
+/// as a compiled proc.  Read by ``tcl_dispatch.dispatch`` so the
+/// host-bridge lookup stays tied to the registration-time WASM
+/// export name even after ``rename`` has rewritten the Command's
+/// live name slot.
+pub fn proc_get_export_name(bucket: u32) struct { ptr: u32, len: u32 } {
+    const sidecar: u32 = @bitCast(read_i32(bucket + OFF_EXPORT_NAME_BUCKET));
+    if (sidecar == 0) return .{ .ptr = 0, .len = 0 };
+    const p: u32 = @bitCast(read_i32(sidecar));
+    const l: u32 = @bitCast(read_i32(sidecar + 4));
+    return .{ .ptr = p, .len = l };
 }
 
 /// Lookup a proc by name.  Returns the ``Command*`` (read by
