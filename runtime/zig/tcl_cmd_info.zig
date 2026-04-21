@@ -386,15 +386,23 @@ fn walk_unqualified_path(ctx: *CmdWalkCtx) void {
 
     scan_ns_cmd_table(start, ctx);
 
+    // Walk ``namespace path`` entries.  Track whether the path
+    // already includes root so the trailing "always scan root"
+    // fallback doesn't double-emit root entries when a caller
+    // explicitly lists ``::`` in their path.
     const plen = tcl_ns.ns_path_len(start);
+    var root_in_path: bool = false;
     var pi: u32 = 0;
     while (pi < plen) : (pi += 1) {
         const e = tcl_ns.ns_path_entry(start, pi);
         if (e.target_ns == 0 or e.target_ns == start) continue;
+        if (e.target_ns == root) {
+            root_in_path = true;
+        }
         scan_ns_cmd_table(e.target_ns, ctx);
     }
 
-    if (start != root) scan_ns_cmd_table(root, ctx);
+    if (start != root and !root_in_path) scan_ns_cmd_table(root, ctx);
 }
 
 /// Walk only the target namespace's ``cmd_table`` — used when the
