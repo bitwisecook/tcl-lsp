@@ -579,6 +579,7 @@ explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler exp
 	@mkdir -p $(EXPLORER_CDN_DIR)
 	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_CDN_DIR)
 	cp $(BUILD_INFO_JSON) $(EXPLORER_CDN_DIR)/
+	cp $(EXPLORER_STATIC)/explorer-core.js $(EXPLORER_CDN_DIR)/
 	sed 's|<script src="mermaid.min.js"></script>|<script src="$(MERMAID_CDN_URL)"></script>|' \
 		$(EXPLORER_STATIC)/index.html > $(EXPLORER_CDN_DIR)/index.html
 	sed -e 's|// All assets are local.*|// Pyodide loaded from CDN.|' \
