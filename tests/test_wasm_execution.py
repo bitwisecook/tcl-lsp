@@ -2551,6 +2551,55 @@ set ::result $msg
         assert "::foo" in wat, "::foo compiled function should be present"
         assert len(wasm_bytes) > 0
 
+    def test_info_level_returns_frame_depth(self):
+        """``info level`` at the top-level returns 0 (no frames
+        pushed).  Inside a proc body it returns the call depth.
+        The string interpolation with surrounding literals around
+        the call forces the int TclObj to materialise its string
+        rep — compiler short-circuits ``"[cmd]"`` to the raw
+        TclObj (bypassing string materialisation), so the test
+        uses ``"<[cmd]>"`` to anchor the result in a concatenated
+        string."""
+        result_top = self._run_and_read_global(
+            """\
+set ::result "<[info level]>"
+""",
+            "::result",
+        )
+        assert result_top == b"<0>"
+
+        result_nested = self._run_and_read_global(
+            """\
+proc outer {} { set ::result "<[info level]>" }
+outer
+""",
+            "::result",
+        )
+        assert result_nested == b"<1>"
+
+    def test_info_script_is_empty_in_wasm_sandbox(self):
+        """``info script`` returns the empty string in our compiled
+        runtime — there's no real filesystem source path."""
+        result = self._run_and_read_global(
+            """\
+set ::result "<[info script]>"
+""",
+            "::result",
+        )
+        assert result == b"<>"
+
+    def test_info_level_with_arg_raises_bad_level(self):
+        """``info level N`` raises ``bad level "N"`` because our
+        runtime doesn't track per-frame argv yet."""
+        result = self._run_and_read_global(
+            """\
+catch {info level 1} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'bad level "1"'
+
     def test_info_default_on_compiled_proc_raises_error(self):
         """End-to-end, user procs reach this path as compiled procs
         (the WASM compiler routes every top-level ``proc`` through

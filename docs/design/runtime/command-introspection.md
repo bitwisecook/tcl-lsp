@@ -282,6 +282,27 @@ probe, not an error-raising lookup.
 ``tcl_ns.ns_full_name(ns_current())`` — ``::`` for the root ns,
 ``::path::to::here`` otherwise.
 
+## 5.1 ``info level`` / ``info script``
+
+``info level`` (no arg) returns the current call-frame depth as
+an integer TclObj — thin wrapper around
+``tcl_frames.frame_get_depth()``.  Inside a proc body the
+depth is ≥1; at the top level it's 0.
+
+``info level N`` would return the argv that entered frame
+``N`` in Tcl 9 (``CallFrame.objv``), but our runtime doesn't
+retain per-frame argv today.  Callers supplying a numeric
+level get the tclsh ``bad level "N"`` error instead of a
+fabricated result.  The no-arg form covers the common case
+(depth reporting for error messages and tcltest's nesting
+checks).
+
+``info script`` returns the empty string — our single-unit
+compiled runtime has no filesystem source path to report.
+Consumers that use ``info script`` to resolve relative paths
+already treat empty as "no location available"
+(``testutilities.tcl`` in tcllib is the canonical example).
+
 ## 6. ``info default``
 
 ``info default proc arg varName`` walks the proc's params
