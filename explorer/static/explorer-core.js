@@ -760,12 +760,22 @@ function renderWasmInstruction(ins, entry) {
 }
 
 function setupDisasmInteractions(pane, funcs, kind) {
-  // Build a defIdx → entry map from the funcs list so "call N" can
-  // resolve to the function block within the same pane.  Registered
-  // BEFORE setupHoverHighlighting so the call/branch-target short-
-  // circuits run first via ``stopImmediatePropagation``.
-  var funcEntries = funcs.filter(function(f) { return f.kind !== 'module'; });
+  // Stash the current function-entry list on the pane so the
+  // listeners below always see the latest data.  ``renderDisassembly``
+  // replaces ``pane.innerHTML`` on every re-render (e.g. opt-toggle,
+  // diff-close) but keeps the pane element itself, so we guard the
+  // listener attachment and let the handlers read live state from
+  // ``pane._disasmFuncEntries`` instead of closing over the stale
+  // value from the first render.  Without this guard every toggle
+  // stacked a new trio of listeners — harmless today because the
+  // handlers re-query the DOM by ``data-*`` attributes, but fragile
+  // under future refactors.
+  pane._disasmFuncEntries = funcs.filter(function(f) { return f.kind !== 'module'; });
+  if (pane._disasmInteractionsWired) return;
+  pane._disasmInteractionsWired = true;
+
   pane.addEventListener('click', function(e) {
+    var entries = pane._disasmFuncEntries || [];
     var ct = e.target.closest('.wasm-call-target');
     if (ct) {
       e.stopImmediatePropagation();
@@ -773,8 +783,8 @@ function setupDisasmInteractions(pane, funcs, kind) {
       var defIdxStr = ct.dataset.callTargetDefIdx;
       if (defIdxStr !== '') {
         var defIdx = parseInt(defIdxStr);
-        if (!isNaN(defIdx) && defIdx >= 0 && defIdx < funcEntries.length) {
-          navigateToWasmFunction(pane, funcEntries[defIdx]);
+        if (!isNaN(defIdx) && defIdx >= 0 && defIdx < entries.length) {
+          navigateToWasmFunction(pane, entries[defIdx]);
         }
       }
       return;
@@ -837,7 +847,13 @@ function wasmHighlightSource(start, end) {
 
 function navigateToWasmFunction(pane, targetEntry) {
   if (!targetEntry) return;
-  var nameSel = targetEntry.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  // ``CSS.escape`` is the only correct way to quote a dynamic value
+  // inside an attribute selector (it handles every CSS special
+  // character, not just ``\`` and ``"``).  The manual regex
+  // fallback is kept for ancient environments that predate CSS.escape.
+  var nameSel = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function')
+    ? CSS.escape(targetEntry.name)
+    : targetEntry.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   var el = pane.querySelector('.wasm-function[data-func-name="' + nameSel + '"]');
   if (el) {
     el.scrollIntoView({ block: 'start', behavior: 'smooth' });
