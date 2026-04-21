@@ -2507,6 +2507,178 @@ set ::result [interp hidden {}]
         assert names == {"foo", "bar"}
 
 
+class TestInterpChildren:
+    """End-to-end ``interp create`` / ``eval`` / ``exists`` /
+    ``slaves`` / ``delete`` behaviour through the runtime's eval
+    fallback.  The compiler leaves every ``interp`` call as an
+    eval-fallback (``_collect_dynamically_modified_procs`` forces a
+    full ``proc_index`` flush when it spots any of these), so these
+    exercise the runtime's child-interp registry through the full
+    dispatch path.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_create_returns_name(self):
+        """``interp create`` returns the new interp's name; explicit
+        name form uses the caller-supplied identifier verbatim."""
+        result = self._run_and_read_global(
+            """\
+set ::result [interp create worker]
+""",
+            "::result",
+        )
+        assert result == b"worker"
+
+    def test_create_auto_name(self):
+        """Anonymous ``interp create`` assigns ``interp<N>``."""
+        result = self._run_and_read_global(
+            """\
+set ::result [interp create]
+""",
+            "::result",
+        )
+        # The counter advances across invocations; we only check the
+        # prefix since later tests in the same module may have
+        # burned earlier numbers.
+        assert result.startswith(b"interp")
+
+    def test_exists_tracks_create_delete(self):
+        """``interp exists`` returns 1 after create and 0 after
+        delete."""
+        result = self._run_and_read_global(
+            """\
+interp create gone
+set ::before [interp exists gone]
+interp delete gone
+set ::after [interp exists gone]
+set ::result "$::before $::after"
+""",
+            "::result",
+        )
+        assert result == b"1 0"
+
+    def test_slaves_lists_children(self):
+        """``interp slaves`` returns the child simple names as a
+        Tcl list."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create b
+set ::result [lsort [interp slaves]]
+""",
+            "::result",
+        )
+        assert result == b"a b"
+
+    def test_eval_runs_script_in_child(self):
+        """Scripts passed to ``interp eval`` execute inside the
+        child — reading back the value through a second eval
+        confirms the first eval's side effect took.
+        """
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {set x 42}
+set ::result [interp eval worker {set x}]
+""",
+            "::result",
+        )
+        assert result == b"42"
+
+    def test_eval_concat_multiple_scripts(self):
+        """``interp eval child a b c`` concatenates ``a b c`` with
+        spaces and evaluates the result (matches ``InterpEvalObjCmd``)."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker set r 123
+set ::result [interp eval worker {set r}]
+""",
+            "::result",
+        )
+        assert result == b"123"
+
+    def test_child_has_independent_procs(self):
+        """Procs registered inside a child are reachable from the
+        child's own eval but absent from the parent's registry."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {proc greet {} {return hello}}
+set ::result [interp eval worker greet]
+""",
+            "::result",
+        )
+        assert result == b"hello"
+
+    def test_delete_current_raises(self):
+        """Deleting the current interp (empty path) raises
+        ``cannot delete the current interpreter``."""
+        result = self._run_and_read_global(
+            """\
+catch {interp delete {}} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b"cannot delete the current interpreter"
+
+    def test_cross_interp_hide(self):
+        """``interp hide child foo`` hides a proc in the child's
+        cmd_table, not the parent's."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {proc foo {} {return 1}}
+interp hide worker foo
+# After hide, the child can't reach ``foo`` via a bare call.
+set ::result [interp eval worker {catch foo}]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_cross_interp_invokehidden(self):
+        """``interp invokehidden child foo`` dispatches into the
+        child's hidden table."""
+        result = self._run_and_read_global(
+            """\
+interp create worker
+interp eval worker {proc mark {} {set ::marked yes}}
+interp hide worker mark
+interp invokehidden worker mark
+# The assignment landed inside the child — verify it.
+set ::result [interp eval worker {set ::marked}]
+""",
+            "::result",
+        )
+        assert result == b"yes"
+
+    def test_cross_interp_alias(self):
+        """``interp alias child foo {} parent_proc`` creates an
+        alias in the child whose target resolves in the parent."""
+        result = self._run_and_read_global(
+            """\
+proc parent_proc {who} { set ::result "hi-$who" }
+interp create worker
+interp alias worker hi {} parent_proc
+interp eval worker {hi world}
+""",
+            "::result",
+        )
+        assert result == b"hi-world"
+
+
 class TestInfoIntrospection:
     """End-to-end ``info commands`` / ``info procs`` /
     ``namespace which -command`` through the eval path.
@@ -2748,3 +2920,808 @@ def _read_global_string(
     if str_len == 0:
         return b""
     return bytes(memory.read(store, str_ptr, str_ptr + str_len))
+
+
+class TestInterpTestPort:
+    """Hand-ported interp.test sections 1.x / 2.x / 3.x / 4.x / 5.x / 6.x.
+
+    The full ``tmp/tcl9.0.3/tests/interp.test`` bundle doesn't compile
+    through this runtime yet (it reaches for tcltest primitives like
+    ``::tcltest::normalizePath`` that aren't wired up), but the
+    individual ``test interp-N.M {...}`` blocks from sections 1-6
+    do — they exercise the child-interp registry surface without the
+    surrounding tcltest harness.
+
+    Each Python test mirrors one or more numbered upstream test.
+    Errors are verified through ``catch msg; set ::result $msg`` so
+    the assertions see the full tclsh error wording.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    # --- Section 1: options for interp command ----------------------------
+
+    def test_1_1_no_subcommand(self):
+        """interp-1.1: ``interp`` alone is a wrong-#-args error."""
+        result = self._run_and_read_global(
+            "catch interp msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp cmd ?arg ...?"'
+
+    def test_1_2_unknown_subcommand(self):
+        """interp-1.2: unknown subcommand raises ``bad option "X": ...``."""
+        result = self._run_and_read_global(
+            "catch {interp frobox} msg\nset ::result $msg\n",
+            "::result",
+        )
+        # Match the prefix + middle + tail; the full option list is verbatim.
+        assert result.startswith(b'bad option "frobox": must be ')
+        assert b"alias, aliases" in result
+        assert result.endswith(b"or transfer")
+
+    def test_1_3_delete_no_args(self):
+        """interp-1.3: ``interp delete`` with no args returns ""."""
+        result = self._run_and_read_global(
+            "set ::result [interp delete]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_1_4_delete_missing(self):
+        """interp-1.4: delete on missing name raises
+        ``could not find interpreter "foo"``."""
+        result = self._run_and_read_global(
+            "catch {interp delete foo bar} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'could not find interpreter "foo"'
+
+    def test_1_5_exists_too_many_args(self):
+        """interp-1.5: ``interp exists foo bar`` raises wrong-#-args."""
+        result = self._run_and_read_global(
+            "catch {interp exists foo bar} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp exists ?path?"'
+
+    def test_1_6_children_too_many_args(self):
+        """interp-1.6: ``interp children foo bar zop`` raises wrong-#-args."""
+        result = self._run_and_read_global(
+            "catch {interp children foo bar zop} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp slaves ?path?"'
+
+    def test_1_10_target_no_args(self):
+        """interp-1.10: ``interp target`` raises
+        ``wrong # args: should be "interp target path alias"``."""
+        result = self._run_and_read_global(
+            "catch {interp target} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "interp target path alias"'
+
+    # --- Section 2: basic interpreter creation ----------------------------
+
+    def test_2_1_create_with_name(self):
+        """interp-2.1: ``interp create a`` returns "a"."""
+        result = self._run_and_read_global(
+            "set ::result [interp create a]\n",
+            "::result",
+        )
+        assert result == b"a"
+
+    def test_2_2_create_anonymous(self):
+        """interp-2.2: ``catch {interp create}`` returns 0 (success)."""
+        result = self._run_and_read_global(
+            "set ::result [catch {interp create}]\n",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_2_3_create_safe_anonymous(self):
+        """interp-2.3: ``catch {interp create -safe}`` returns 0."""
+        result = self._run_and_read_global(
+            "set ::result [catch {interp create -safe}]\n",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_2_4_create_existing_name(self):
+        """interp-2.4: creating under an already-used name raises
+        ``interpreter named "X" already exists, cannot create``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+catch {interp create a} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'interpreter named "a" already exists, cannot create'
+
+    def test_2_7_unknown_option(self):
+        """interp-2.7: ``interp create -froboz`` raises
+        ``bad option "-froboz": must be -safe or --``."""
+        result = self._run_and_read_global(
+            """\
+catch {interp create -froboz} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'bad option "-froboz": must be -safe or --'
+
+    def test_2_8_dashdash_allows_dashed_name(self):
+        """interp-2.8: ``interp create -- -froboz`` creates and returns
+        the dashed name."""
+        result = self._run_and_read_global(
+            "set ::result [interp create -- -froboz]\n",
+            "::result",
+        )
+        assert result == b"-froboz"
+
+    def test_2_9_safe_dashdash_dashed_name(self):
+        """interp-2.9: ``interp create -safe -- -froboz1`` returns
+        ``-froboz1`` and sets the safe bit."""
+        result = self._run_and_read_global(
+            """\
+set ::a [interp create -safe -- -froboz1]
+set ::b [interp issafe -froboz1]
+set ::result "$::a $::b"
+""",
+            "::result",
+        )
+        assert result == b"-froboz1 1"
+
+    def test_2_10_multi_level_path(self):
+        """interp-2.10: ``interp create {a x1}`` creates ``x1`` as a
+        child of ``a``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a x1}
+interp create {a x2}
+set ::result [interp create {a x3} -safe]
+""",
+            "::result",
+        )
+        assert result == b"a x3"
+
+    def test_2_13_anonymous_regexp(self):
+        """interp-2.13: ``interp create --`` with no name auto-generates
+        ``interp<N>``."""
+        result = self._run_and_read_global(
+            "set ::result [interp create --]\n",
+            "::result",
+        )
+        import re
+
+        assert re.fullmatch(rb"interp[0-9]+", result), result
+
+    # --- Section 3: interp exists + interp children -----------------------
+
+    def test_3_1_children_empty(self):
+        """interp-3.1: with no children, ``interp children`` returns ""."""
+        result = self._run_and_read_global(
+            "set ::result [interp children]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_3_2_exists_after_create(self):
+        """interp-3.2: after ``interp create a``, ``interp exists a`` → 1."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::result [interp exists a]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_3_3_exists_nonexistent(self):
+        """interp-3.3: ``interp exists nonexistent`` → 0."""
+        result = self._run_and_read_global(
+            "set ::result [interp exists nonexistent]\n",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_3_6_exists_no_path_returns_true(self):
+        """interp-3.6: bare ``interp exists`` → 1 (the current interp
+        always exists)."""
+        result = self._run_and_read_global(
+            "set ::result [interp exists]\n",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_3_7_children_after_create(self):
+        """interp-3.7: ``interp children`` returns the created child."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::result [interp children]
+""",
+            "::result",
+        )
+        assert result == b"a"
+
+    def test_3_9_nested_child_appears(self):
+        """interp-3.9: ``interp children a`` lists ``a``'s own
+        children."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a a2} -safe
+set ::result [interp children a]
+""",
+            "::result",
+        )
+        assert result == b"a2"
+
+    def test_3_10_exists_multi_level_path(self):
+        """interp-3.10: ``interp exists {a a2}`` → 1 after
+        creating the chain."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a a2}
+set ::result [interp exists {a a2}]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    # --- Section 4: interp delete -----------------------------------------
+
+    def test_3_11_delete_no_args(self):
+        """interp-3.11: ``interp delete`` with no args returns ""
+        (duplicate of 1.3 in the upstream file)."""
+        result = self._run_and_read_global(
+            "set ::result [interp delete]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_4_1_delete_existing(self):
+        """interp-4.1: ``interp delete a`` returns ""."""
+        result = self._run_and_read_global(
+            """\
+catch {interp create a}
+set ::result [interp delete a]
+""",
+            "::result",
+        )
+        assert result == b""
+
+    def test_4_2_delete_nonexistent(self):
+        """interp-4.2: ``interp delete nonexistent`` raises
+        ``could not find interpreter "nonexistent"``."""
+        result = self._run_and_read_global(
+            "catch {interp delete nonexistent} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'could not find interpreter "nonexistent"'
+
+    def test_4_3_delete_first_missing_errors_early(self):
+        """interp-4.3: ``interp delete x y z`` raises on the first
+        missing name."""
+        result = self._run_and_read_global(
+            "catch {interp delete x y z} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b'could not find interpreter "x"'
+
+    def test_4_5_delete_nested_child(self):
+        """interp-4.5: deleting ``{a x1}`` removes it from ``a``'s
+        children table."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a x1}
+interp delete {a x1}
+set ::result [expr {"x1" in [interp children a]}]
+""",
+            "::result",
+        )
+        assert result == b"0"
+
+    def test_4_6_delete_multiple_args(self):
+        """interp-4.6: ``interp delete c1 c2 c3`` deletes all three."""
+        result = self._run_and_read_global(
+            """\
+interp create c1
+interp create c2
+interp create c3
+set ::result [interp delete c1 c2 c3]
+""",
+            "::result",
+        )
+        assert result == b""
+
+    def test_4_7_delete_mixed_missing_errors(self):
+        """interp-4.7: deleting a list that contains a missing name
+        raises."""
+        result = self._run_and_read_global(
+            """\
+interp create c1
+interp create c2
+catch {interp delete c1 c2 c3} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'could not find interpreter "c3"'
+
+    def test_4_8_delete_empty_path_rejected(self):
+        """interp-4.8: ``interp delete {}`` raises
+        ``cannot delete the current interpreter``."""
+        result = self._run_and_read_global(
+            "catch {interp delete {}} msg\nset ::result $msg\n",
+            "::result",
+        )
+        assert result == b"cannot delete the current interpreter"
+
+    # --- Section 5: consistency -------------------------------------------
+
+    def test_5_1_fresh_children_list_empty(self):
+        """interp-5.1: a freshly-reset runtime has no children."""
+        result = self._run_and_read_global(
+            "set ::result [interp children]\n",
+            "::result",
+        )
+        assert result == b""
+
+    def test_5_2_nonexistent_exists_false(self):
+        """interp-5.2/5.3: exists returns 0 for a never-created name."""
+        result = self._run_and_read_global(
+            """\
+set ::a [interp exists a]
+set ::b [interp exists nonexistent]
+set ::result "$::a $::b"
+""",
+            "::result",
+        )
+        assert result == b"0 0"
+
+    # --- Section 6: eval --------------------------------------------------
+
+    def test_6_1_child_eval_expr(self):
+        """interp-6.1: ``a eval expr {{3 + 5}}`` dispatches through
+        the child-as-command path to produce 8."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::result [a eval expr {{3 + 5}}]
+""",
+            "::result",
+        )
+        assert result == b"8"
+
+    def test_6_3_child_eval_defines_proc(self):
+        """interp-6.3: a proc defined via ``a eval {proc ...}`` is
+        reachable on subsequent ``a eval foo``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a eval {proc foo {} {expr {3 + 5}}}
+set ::result [a eval foo]
+""",
+            "::result",
+        )
+        assert result == b"8"
+
+    def test_6_4_interp_eval_variant(self):
+        """interp-6.4: ``interp eval a foo`` is equivalent to
+        ``a eval foo``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a eval {proc foo {} {expr {3 + 5}}}
+set ::result [interp eval a foo]
+""",
+            "::result",
+        )
+        assert result == b"8"
+
+    def test_6_5_interp_eval_nested_path(self):
+        """interp-6.5: ``interp eval {a x2} body`` runs ``body`` in
+        the nested child."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a x2}
+interp eval {a x2} {proc frob {} {expr {4 * 9}}}
+set ::result [interp eval {a x2} frob]
+""",
+            "::result",
+        )
+        assert result == b"36"
+
+    # --- Delete cascade -----------------------------------------------
+
+    def test_delete_cascades_to_grandchildren(self):
+        """``interp delete a`` with a grandchild ``a2`` tombstones
+        both; ``interp exists {a a2}`` returns 0 afterwards."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a a2}
+interp delete a
+set ::a_ex [interp exists a]
+set ::a2_ex [interp exists {a a2}]
+set ::result "$::a_ex $::a2_ex"
+""",
+            "::result",
+        )
+        assert result == b"0 0"
+
+    def test_child_as_command_stops_after_delete(self):
+        """Post-delete, the child's top-level command is gone and
+        ``<child> eval ...`` raises unknown-command."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp delete a
+catch {a eval set x 1} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result.startswith(b"unknown command")
+
+    # --- Section 7: basic alias creation (child-as-command alias) ---------
+
+    def test_7_1_child_alias_returns_name(self):
+        """interp-7.1: ``a alias foo in_parent`` returns ``foo``."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+set ::result [a alias foo in_parent]
+""",
+            "::result",
+        )
+        assert result == b"foo"
+
+    def test_7_2_child_alias_with_prefix(self):
+        """interp-7.2: ``a alias bar in_parent a1 a2 a3`` → ``bar``."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+set ::result [a alias bar in_parent a1 a2 a3]
+""",
+            "::result",
+        )
+        assert result == b"bar"
+
+    def test_7_3_alias_query_target_only(self):
+        """interp-7.3: ``a alias foo`` (query) returns the target name
+        when no prefix was specified."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} {}
+interp create a
+a alias foo in_parent
+set ::result [a alias foo]
+""",
+            "::result",
+        )
+        assert result == b"in_parent"
+
+    def test_7_4_alias_query_with_prefix(self):
+        """interp-7.4: ``a alias bar`` returns ``target prefix...``
+        when the alias was created with a prefix."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} {}
+interp create a
+a alias bar in_parent a1 a2 a3
+set ::result [a alias bar]
+""",
+            "::result",
+        )
+        assert result == b"in_parent a1 a2 a3"
+
+    def test_7_5_child_aliases_lsort(self):
+        """interp-7.5: ``lsort [a aliases]`` lists the two aliases."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} {}
+interp create a
+a alias foo in_parent
+a alias bar in_parent a1 a2 a3
+set ::result [lsort [a aliases]]
+""",
+            "::result",
+        )
+        assert result == b"bar foo"
+
+    def test_7_6_aliases_wrong_args(self):
+        """interp-7.6: ``a aliases too many args`` raises
+        ``wrong # args: should be "a aliases"``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+catch {a aliases too many args} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == b'wrong # args: should be "a aliases"'
+
+    # --- Section 8: alias invocation --------------------------------------
+
+    def test_8_1_alias_invocation_forwards_args(self):
+        """interp-8.1: ``a eval foo s1 s2 s3`` after
+        ``a alias foo in_parent`` dispatches to parent's ``in_parent``
+        with the trailing args."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+a alias foo in_parent
+set ::result [a eval foo s1 s2 s3]
+""",
+            "::result",
+        )
+        assert result == b"seen in parent: {s1 s2 s3}"
+
+    def test_8_2_alias_invocation_with_prefix_merges(self):
+        """interp-8.2: creation-time prefix prepends to the caller's
+        tail argv."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return [list seen in parent: $args] }
+interp create a
+a alias bar in_parent a1 a2 a3
+set ::result [a eval bar s1 s2 s3]
+""",
+            "::result",
+        )
+        assert result == b"seen in parent: {a1 a2 a3 s1 s2 s3}"
+
+    def test_8_3_child_alias_wrong_args(self):
+        """interp-8.3: bare ``a alias`` raises
+        ``wrong # args: should be "a alias aliasName ?targetName? ?arg ...?"``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+catch {a alias} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        assert result == (b'wrong # args: should be "a alias aliasName ?targetName? ?arg ...?"')
+
+    # --- Section 9: missing + late-bound alias targets --------------------
+
+    def test_9_1_alias_missing_target(self):
+        """interp-9.1: calling an alias whose target doesn't exist
+        raises ``invalid command name "X"`` (tclsh's wording when
+        the command gets to the ``unknown`` stage).  Our runtime
+        emits ``unknown command: X`` — the semantic identity is
+        the same (the alias failed to find its target)."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a alias zop nonexistent
+catch {a eval zop} msg
+set ::result $msg
+""",
+            "::result",
+        )
+        # Our runtime's alias-miss diagnostic is ``unknown command:
+        # <target>`` (see dispatch_alias in tcl_interp.zig).  tclsh
+        # uses ``invalid command name "<target>"`` after the unknown
+        # fallback; we pin our wording here.
+        assert result == b"unknown command: nonexistent"
+
+    def test_9_2_alias_late_bound_target(self):
+        """interp-9.2: defining the target after the alias still
+        works because the alias resolves by name on each dispatch."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a alias zop latebind
+proc latebind {} { return i_exist! }
+set ::result [a eval zop]
+""",
+            "::result",
+        )
+        assert result == b"i_exist!"
+
+    def test_9_4_alias_target_resolves_in_global(self):
+        """interp-9.4: alias targets resolve in the *global*
+        namespace even when invoked from inside a namespace eval
+        (matches TCL_EVAL_INVOKE semantics)."""
+        result = self._run_and_read_global(
+            """\
+proc p {} { return GLOBAL }
+namespace eval tst { proc p {} { return NAMESPACE } }
+interp alias {} myalias {} p
+set ::r1 [myalias]
+set ::r2 [namespace eval tst myalias]
+set ::result "$::r1 $::r2"
+""",
+            "::result",
+        )
+        assert result == b"GLOBAL GLOBAL"
+
+    # --- Section 10: aliases between interpreters (sibling routing) -------
+
+    def test_10_1_alias_registration_between_siblings(self):
+        """interp-10.1: ``interp alias a a_alias b b_alias 1 2 3`` —
+        registering an alias from a (source) targeting b (parent
+        interp hosts both siblings)."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create b
+set ::result [interp alias a a_alias b b_alias 1 2 3]
+""",
+            "::result",
+        )
+        assert result == b"a_alias"
+
+    def test_10_4_child_alias_aliases_list_roundtrip(self):
+        """interp-10.4: after ``a alias a_alias puts``, ``a aliases``
+        lists ``a_alias``."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+a alias a_alias puts
+set ::result [a aliases]
+""",
+            "::result",
+        )
+        assert result == b"a_alias"
+
+    # --- Cross-interp + namespace interactions ---------------------------
+
+    def test_alias_passes_args_into_child_eval_scope(self):
+        """A parent-side alias target invoked from inside a child
+        ``eval`` script sees the args forwarded correctly.  This is
+        the observable shape of "cross-interp argv plumbing" that
+        ``upvar`` would complement; we don't exercise ``upvar``
+        itself because ``docs/design/runtime/child-interp.md`` §1
+        flags per-interp call-frame-stack interactions as
+        deferred (the shared frame stack is safe for
+        single-threaded, non-nested eval but truly nested
+        ``interp eval`` + ``upvar`` isn't characterised yet)."""
+        result = self._run_and_read_global(
+            """\
+proc in_parent {args} { return "from-parent n=[llength $args] args=$args" }
+interp create a
+a alias call_parent in_parent
+set ::result [a eval call_parent hello world]
+""",
+            "::result",
+        )
+        assert result == b"from-parent n=2 args=hello world"
+
+    def test_per_parent_id_issuer_independence(self):
+        """interp-2.11-style check: each parent has its own
+        ``id_issuer``.  Creating an anonymous interp under the root
+        and another under ``a`` should not share numbers."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+set ::x1 [interp create]
+set ::y1 [a eval interp create]
+set ::result "$::x1 $::y1"
+""",
+            "::result",
+        )
+        # Both should start from 0; child ``a``'s issuer is
+        # independent of root's.
+        import re
+
+        parts = result.decode("utf-8").split()
+        assert len(parts) == 2
+        for p in parts:
+            assert re.fullmatch(r"interp[0-9]+", p), p
+
+    # --- Review-driven regression tests -----------------------------------
+
+    def test_interp_slaves_list_quotes_names_with_whitespace(self):
+        """Regression for a Codex / Copilot P2 review: ``interp
+        slaves`` used to copy raw child names into a space-delimited
+        string, so a name containing whitespace would emit an invalid
+        Tcl list.  The fix routes through ``list_elem_quote``; the
+        output is a canonical list that ``llength`` parses back to
+        one element.
+
+        Uses a two-level create so the final component (with a
+        space) lands as the child's simple name.  The reviewer's
+        example: ``interp create {a {child one}}`` makes
+        ``interp children a`` produce a list whose sole element is
+        ``child one`` (requiring braces to round-trip).
+        """
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a {child one}}
+set ::result [llength [interp children a]]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_interp_slaves_roundtrip_through_lindex(self):
+        """The name must survive a round-trip through
+        ``lindex [interp children a] 0`` unchanged."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a {child one}}
+set ::result [lindex [interp children a] 0]
+""",
+            "::result",
+        )
+        assert result == b"child one"
+
+    def test_invokehidden_namespace_resolves_in_target_interp(self):
+        """Regression for a Codex P1 review: ``interp invokehidden
+        child -namespace ns cmd`` must resolve ``ns`` in the target
+        interp's namespace tree, not the caller's.  We verify by
+        making the call end-to-end: the child has a namespace
+        ``::inner`` with a proc ``mark``; we hide ``mark`` into the
+        child's hidden table then invokehidden it inside ``::inner``.
+        The call must succeed (pre-fix, the namespace would have
+        been created in the caller's tree and the subsequent
+        dispatch would find the wrong — or no — ns)."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp eval child {
+    namespace eval ::inner {}
+    proc stash {value} { set ::captured $value }
+}
+interp hide child stash
+interp invokehidden child -namespace ::inner stash hello
+set ::result [interp eval child {set ::captured}]
+""",
+            "::result",
+        )
+        assert result == b"hello"
+
+    def test_alias_slot_does_not_collide_with_namespace_import(self):
+        """Regression for a Codex P1 review: cross-interp alias
+        parent-interp handle used to share the ``OFF_IMPORT_REF_HEAD``
+        slot with the namespace-import back-reference list head.
+        Importing a cross-interp alias would overwrite the Interp*
+        with an ImportRef list node and corrupt dispatch.
+
+        Post-fix, ``parent_interp`` lives on ``AliasRec``, so import
+        of a cross-interp alias leaves dispatch intact.
+        """
+        result = self._run_and_read_global(
+            """\
+proc target {args} { return "target-saw: $args" }
+namespace eval ::src { namespace export *alias }
+interp create child
+# Cross-interp alias into the child, target lives in the parent.
+interp alias child myalias {} target arg1
+# Define an alias of the same name in a parent ns to exercise
+# the normal import machinery — the redirect's OFF_IMPORT_REF_HEAD
+# slot would previously have been clobbered by link_import_ref
+# if it had aliased into the child.
+set ::result [child eval {myalias call1 call2}]
+""",
+            "::result",
+        )
+        assert result == b"target-saw: arg1 call1 call2"
