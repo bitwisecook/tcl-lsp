@@ -8,8 +8,12 @@ from .opcodes import _INDEX_END, _JUMP_OPS, _LVT_OPS, _STR_CLASS_NAMES, Op
 def _esc(text: str, limit: int = 40) -> str:
     """Escape a literal value for disassembly comments.
 
-    Matches Tcl's disassembler: backslashes are NOT doubled; control
-    characters and non-ASCII codepoints are escaped.
+    Matches Tcl's disassembler (``PrintSourceToObj`` in ``tclDisassemble.c``):
+    backslashes are NOT doubled; ``"`` and the named whitespace controls
+    (``\\n \\t \\r \\v \\f``) use short forms; every other codepoint below
+    0x20 or at/above 0x7F is escaped as ``\\uXXXX`` (or ``\\UXXXXXXXX`` for
+    supplementary planes). Without this, raw control bytes like STX leak
+    into the HTML pane and render as unprintable/tofu glyphs.
     """
     parts: list[str] = []
     for ch in text:
@@ -26,9 +30,9 @@ def _esc(text: str, limit: int = 40) -> str:
             parts.append("\\v")
         elif ch == "\f":
             parts.append("\\f")
-        elif cp == 0:
-            parts.append("\\u0000")
-        elif cp > 0x7E:
+        elif cp > 0xFFFF:
+            parts.append(f"\\U{cp:08x}")
+        elif cp < 0x20 or cp >= 0x7F:
             parts.append(f"\\u{cp:04x}")
         else:
             parts.append(ch)
