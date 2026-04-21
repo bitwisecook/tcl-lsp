@@ -260,3 +260,43 @@ def test_namespace_which_survives_hide(runtime: RuntimeHandle):
     assert runtime.namespace_which("vanish") == "::vanish"
     assert runtime.hide(root, "vanish", "vanish") == 0
     assert runtime.namespace_which("vanish") == ""
+
+
+def test_info_default_missing_arg_raises_error(runtime: RuntimeHandle):
+    """``info default`` on an arg not in the proc's params list
+    raises ``procedure "X" doesn't have an argument "Y"`` — Tcl 9
+    ``InfoDefaultCmd`` wording.  Exercises the interpreted-proc
+    path (``proc_register``, not ``proc_register_compiled``) so the
+    resolver sees a params TclObj and we reach the inner error."""
+    exports = runtime.instance.exports(runtime.store)
+    info_default = exports["info_default"]
+    catch_enter = exports["catch_enter"]
+    catch_leave = exports["catch_leave"]
+    catch_has_error = exports["catch_has_error"]
+    catch_result = exports["catch_result"]
+
+    # Register an interpreted proc with params ``a b`` via
+    # ``proc_register`` (same path as the runtime tests use to
+    # stage interpreted bodies).
+    runtime.register_proc("::p1", params="a b", body=" ")
+
+    # Stage inputs + a scratch var.
+    pn_ptr, pn_len = runtime.stage("::p1")
+    proc_obj = runtime.obj_new_string(runtime.store, pn_ptr, pn_len)
+    arg_ptr, arg_len = runtime.stage("missing_arg")
+    arg_obj = runtime.obj_new_string(runtime.store, arg_ptr, arg_len)
+    var_ptr, var_len = runtime.stage("result_var")
+    var_obj = runtime.obj_new_string(runtime.store, var_ptr, var_len)
+
+    catch_enter(runtime.store)
+    info_default(runtime.store, proc_obj, arg_obj, var_obj)
+    has_err = catch_has_error(runtime.store)
+    # ``catch_leave`` snapshots ``error_flag`` into
+    # ``last_catch_had_error`` and then clears it — ``catch_result``
+    # consults the snapshot, so the read has to come after leave.
+    catch_leave(runtime.store)
+    result_obj = catch_result(runtime.store)
+
+    assert has_err == 1, "info default with missing arg should raise"
+    msg = runtime.read_obj_string(result_obj)
+    assert msg == 'procedure "::p1" doesn\'t have an argument "missing_arg"'
