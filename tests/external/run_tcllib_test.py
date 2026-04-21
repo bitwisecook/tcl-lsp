@@ -73,8 +73,26 @@ proc useLocal        {args} {}
 proc useLocalKeep    {args} {}
 proc useTcllibC      {args} { return 0 }
 proc testsuiteCleanup {} { ::tcltest::cleanupTests }
-# The test file does ``namespace import ::tcltest::*`` via the tcltest
-# harness itself; nothing to do here.
+# The real testutilities.tcl (tmp/tcllib-2.0/modules/devtools/
+# testutilities.tcl:190) runs ``namespace import -force ::tcltest::*``
+# at ``uplevel \#0`` so unqualified names like ``test``,
+# ``testConstraint``, and ``cleanupTests`` resolve in the caller's
+# context.  Our stub has to mirror that or every bundled test file
+# traps on ``unknown command: test`` the first time it invokes
+# the ``test name desc body`` form.
+namespace eval :: { namespace import -force ::tcltest::* }
+# Pre-declare the constraints that tcllib test files gate on so
+# tcltest's ``Skipped`` correctly returns true instead of letting
+# the test body run against stubs that don't implement the
+# underlying capability.  Real tcltest picks these up from
+# ``testConstraint`` invocations in devtools/testutilities.tcl;
+# our stub sets them explicitly.
+#
+# ``load-dependent`` marks tests that depend on timing / load
+# conditions the WASM sandbox can't reproduce (e.g.
+# ``counter-timehist`` calls ``after 4000`` twice and depends
+# on real wall-clock progression).
+::tcltest::testConstraint load-dependent 0
 """
 
 
@@ -182,10 +200,29 @@ class TestCounterBundle:
 
     @pytest.mark.xfail(
         reason=(
-            "Whole-bundle run depends on the tcltest stage-2 init "
-            "finishing (see TestTcltestTopRuns); blocked on the same "
-            "downstream gaps.  Drop the xfail marker when the bundle "
-            "prints a ``Total N Passed N Failed 0 Skipped 0`` summary."
+            "Bundle trap: integer divide-by-zero inside ``counter::init`` "
+            "(WASM function 173, offset ~0x13279).  Three prior traps in "
+            "the chain are fixed in this wave:\n"
+            "  1. ``unknown command: test`` — testutilities.tcl stub now "
+            "     runs ``namespace import -force ::tcltest::*``.\n"
+            "  2. ``double($x) = 0`` — expr compiler now treats "
+            "     ``double`` / ``float`` as numeric identity casts "
+            "     alongside ``int``/``entier``/``wide``.\n"
+            "  3. ``testConstraint load-dependent`` — stub now "
+            "     pre-declares this constraint as 0 so tcltest's "
+            "     ``Skipped`` has something to bind against.\n"
+            "\n"
+            "Remaining gap: tcltest's default ``-match *`` option "
+            "isn't initialised correctly in our compiled runtime "
+            "(the ``Option`` array isn't reaching its default state), "
+            "which makes ``Skipped`` return true for every test — yet a "
+            "trap still surfaces from inside ``counter::init``.  "
+            "Investigation narrowed the offset but the specific "
+            "call chain that reaches the division with a zero divisor "
+            "wasn't pinned down in this wave.  The clock-scan / "
+            "tcltest Option-init pipeline belongs to a later wave.  "
+            "Drop the xfail marker when the bundle prints a "
+            "``Total N Passed N Failed 0 Skipped 0`` summary."
         ),
         strict=False,
     )

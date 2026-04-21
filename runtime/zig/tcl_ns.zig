@@ -98,6 +98,77 @@ pub const Namespace = extern struct {
 /// ``ns_root``.  Zero before then.
 var root_addr: u32 = 0;
 
+/// Interpreter-wide hidden-commands table.  C Tcl keeps one
+/// ``hiddenCmdTable`` per interp (``tclBasic.c:Interp.hiddenCmdTablePtr``)
+/// and inserts / removes entries via ``Tcl_HideCommand`` /
+/// ``Tcl_ExposeCommand``.  Mirrors the same shape as a namespace's
+/// ``cmd_table`` so the same ``ns_cmd_put`` / ``ns_cmd_find`` /
+/// ``ns_cmd_clear`` helpers work on it unmodified.
+///
+/// Keyed by the entry's simple (unqualified) name: ``interp hide {}
+/// cmd ?hiddenName?`` rejects qualified hidden names (hidden commands
+/// always live in the root hidden table, never inside a namespace).
+///
+/// Lazy-initialised on first insert; ``buf == 0`` means "no hidden
+/// commands yet" and all lookups early-return 0.
+var hidden_cmd_table: CmdTable = .{};
+
+/// Insert (or update) a hidden-table entry.  Mirrors :func:`ns_cmd_put`
+/// but targets the interpreter-wide ``hidden_cmd_table`` rather than a
+/// namespace's ``cmd_table``.  The hidden table has no ``cmd_ref_epoch``
+/// cascade — no namespace paths target it.  Returns the bucket base
+/// so the caller can re-read / rewrite the value.
+pub fn hidden_put(name_ptr: u32, name_len: u32, value: u32) u32 {
+    hidden_cmd_table.init(NS_INITIAL_CAP);
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (hidden_cmd_table.find(name_ptr, name_len, hash)) |bucket| {
+        write_i32(bucket + OFF_HANDLE, @bitCast(value));
+        return bucket;
+    }
+    if (hidden_cmd_table.needs_grow()) hidden_cmd_table.grow();
+    const bucket = hidden_cmd_table.insert_header(name_ptr, name_len, hash);
+    write_i32(bucket + OFF_HANDLE, @bitCast(value));
+    return bucket;
+}
+
+/// Find a hidden-table entry by simple name.  Returns the stored
+/// Command handle or 0 if absent.
+pub fn hidden_find(name_ptr: u32, name_len: u32) u32 {
+    if (hidden_cmd_table.buf == 0) return 0;
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (hidden_cmd_table.find(name_ptr, name_len, hash)) |bucket| {
+        return @bitCast(read_i32(bucket + OFF_HANDLE));
+    }
+    return 0;
+}
+
+/// Clear a hidden-table bucket by zeroing its value slot.  The
+/// bucket header (name / hash) stays intact so probe chains aren't
+/// broken — same tombstone-via-zero-value pattern ``ns_cmd_clear``
+/// uses.  Returns true if an entry was cleared.
+pub fn hidden_clear(name_ptr: u32, name_len: u32) bool {
+    if (hidden_cmd_table.buf == 0) return false;
+    const hash = ht.fnv1a(name_ptr, name_len);
+    if (hidden_cmd_table.find(name_ptr, name_len, hash)) |bucket| {
+        if (read_i32(bucket + OFF_HANDLE) == 0) return false;
+        write_i32(bucket + OFF_HANDLE, 0);
+        return true;
+    }
+    return false;
+}
+
+/// Expose read-only access to the hidden table for iterators (e.g.
+/// ``interp hidden``).  Callers walk buckets directly using the
+/// shared ``16``-byte bucket layout: ``[0..3]`` name_ptr, ``[4..7]``
+/// name_len, ``[8..11]`` hash, ``[12..15]`` value.
+pub fn hidden_table_buf() u32 {
+    return hidden_cmd_table.buf;
+}
+
+pub fn hidden_table_cap() u32 {
+    return hidden_cmd_table.cap;
+}
+
 /// Currently-active namespace handle.  Zero means "no explicit
 /// context set" — readers should treat that as root.  Compiled
 /// procs flip this via ``ns_set`` / ``ns_restore`` (in
@@ -563,6 +634,54 @@ pub fn ns_cmd_find(ns_addr: u32, name_ptr: u32, name_len: u32) u32 {
         return @bitCast(read_i32(bucket + OFF_HANDLE));
     }
     return 0;
+}
+
+/// Recursive walker over every namespace reachable from ``ns`` via
+/// the ``child_table`` links.  For each populated ``cmd_table``
+/// bucket encountered, invokes ``visit(ctx, ns, name_ptr, name_len, cmd)``.
+/// ``cmd == 0`` entries (tombstones from ``ns_cmd_clear`` / delete)
+/// are skipped before the visitor sees them.
+///
+/// The visitor is a comptime function pointer so the generic
+/// ``ctx: anytype`` stays monomorphised per call site — no vtable,
+/// no dispatch overhead.  Callers use the visitor for both sizing
+/// and filling passes (``interp aliases``, any future ns-tree
+/// introspection walker) by toggling behaviour on a field inside
+/// ``ctx``.
+///
+/// The ``interp hidden`` walker does NOT use this helper — hidden
+/// commands live in the interpreter-wide flat table, not the ns
+/// tree, so they have a different traversal shape.
+pub fn walk_tree_cmd_tables(
+    ns: u32,
+    ctx: anytype,
+    comptime visit: fn (@TypeOf(ctx), u32, u32, u32, u32) void,
+) void {
+    const n: *const Namespace = @ptrFromInt(ns);
+    if (n.cmd_table.buf != 0) {
+        const bucket_size: u32 = 16;
+        var i: u32 = 0;
+        while (i < n.cmd_table.cap) : (i += 1) {
+            const bucket = n.cmd_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const cmd: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
+            if (cmd == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            visit(ctx, ns, name_ptr, name_len, cmd);
+        }
+    }
+    if (n.child_table.buf != 0) {
+        const bucket_size: u32 = 16;
+        var i: u32 = 0;
+        while (i < n.child_table.cap) : (i += 1) {
+            const bucket = n.child_table.buf + i * bucket_size;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const child: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
+            if (child != 0) walk_tree_cmd_tables(child, ctx, visit);
+        }
+    }
 }
 
 /// Clear the value of a cmd_table bucket so future ``ns_cmd_find``

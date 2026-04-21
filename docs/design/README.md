@@ -63,6 +63,11 @@ ownership matrices.
   namespace tree.  Covers `CMD_ALIAS` flag, `AliasRec`, dispatch
   trampoline, and the compiled-proc name-slot preservation
   caveat.
+- [runtime/command-introspection.md](runtime/command-introspection.md)
+  — interpreter-wide hidden-commands table, `interp hide` / `expose`
+  semantics, the `OFF_EXPORT_NAME_BUCKET` sidecar that unblocks
+  compiled-proc rename, and the `info commands` / `info procs` /
+  `namespace which -command` walkers.
 
 ## Contracts and interfaces
 

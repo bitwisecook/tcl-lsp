@@ -216,27 +216,19 @@ pub fn rename_command(
 
     // Update the Command's own FQN slot so ``proc_get_name_ptr``,
     // ``info commands``, and the host-bridge dispatcher see the new
-    // identity.  CMD_IMPORTED redirects keep their real_cmd
-    // pointer intact — only the Command's name slot moves, which
-    // matches the C contract where renaming a redirect doesn't
-    // touch the source.
+    // identity.  CMD_IMPORTED redirects keep their real_cmd pointer
+    // intact — only the Command's name slot moves, which matches the
+    // C contract where renaming a redirect doesn't touch the source.
     //
-    // Exception: compiled procs (``func_idx != 0``) are dispatched
-    // via the host bridge using the Command's stored name as the
-    // WASM export key.  That export name is fixed at compile time
-    // and can't change at runtime — so we preserve the Command's
-    // name slot for compiled procs.  The cmd_table entry still
-    // moves under the new simple name (so callers looking up the
-    // new name find the Command), but the internal identity used
-    // by ``tcl_dispatch`` stays tied to the original export.
-    // Renaming a compiled proc and then calling it under the new
-    // name therefore works via the host-bridge's export lookup
-    // unchanged; ``info commands`` sees the new name via the
-    // cmd_table key, not the Command's stored name.
-    const func_idx = read_i32(cmd + tcl_procs.OFF_FUNC_IDX);
-    if (func_idx == 0) {
-        write_command_fqn(cmd, new_ns, new_simple_ptr, new_simple_len);
-    }
+    // Compiled procs used to be an exception here — their dispatch
+    // key was the Command's live name slot, so rewriting it would
+    // break host-bridge lookup.  The sidecar at
+    // ``OFF_EXPORT_NAME_BUCKET`` (populated by
+    // ``proc_register_compiled``) now carries the immutable
+    // registration-time export name, and ``tcl_dispatch.dispatch``
+    // reads it first — so renaming a compiled proc is safe and the
+    // live name slot can always reflect the user-visible identity.
+    write_command_fqn(cmd, new_ns, new_simple_ptr, new_simple_len);
 
     // ``ns_cmd_put`` and ``ns_cmd_clear`` each bump their respective
     // ns's ``cmd_ref_epoch`` and cascade through ``path_source_head``,
