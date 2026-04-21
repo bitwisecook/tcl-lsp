@@ -3634,3 +3634,94 @@ set ::result "$::x1 $::y1"
         assert len(parts) == 2
         for p in parts:
             assert re.fullmatch(r"interp[0-9]+", p), p
+
+    # --- Review-driven regression tests -----------------------------------
+
+    def test_interp_slaves_list_quotes_names_with_whitespace(self):
+        """Regression for a Codex / Copilot P2 review: ``interp
+        slaves`` used to copy raw child names into a space-delimited
+        string, so a name containing whitespace would emit an invalid
+        Tcl list.  The fix routes through ``list_elem_quote``; the
+        output is a canonical list that ``llength`` parses back to
+        one element.
+
+        Uses a two-level create so the final component (with a
+        space) lands as the child's simple name.  The reviewer's
+        example: ``interp create {a {child one}}`` makes
+        ``interp children a`` produce a list whose sole element is
+        ``child one`` (requiring braces to round-trip).
+        """
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a {child one}}
+set ::result [llength [interp children a]]
+""",
+            "::result",
+        )
+        assert result == b"1"
+
+    def test_interp_slaves_roundtrip_through_lindex(self):
+        """The name must survive a round-trip through
+        ``lindex [interp children a] 0`` unchanged."""
+        result = self._run_and_read_global(
+            """\
+interp create a
+interp create {a {child one}}
+set ::result [lindex [interp children a] 0]
+""",
+            "::result",
+        )
+        assert result == b"child one"
+
+    def test_invokehidden_namespace_resolves_in_target_interp(self):
+        """Regression for a Codex P1 review: ``interp invokehidden
+        child -namespace ns cmd`` must resolve ``ns`` in the target
+        interp's namespace tree, not the caller's.  We verify by
+        making the call end-to-end: the child has a namespace
+        ``::inner`` with a proc ``mark``; we hide ``mark`` into the
+        child's hidden table then invokehidden it inside ``::inner``.
+        The call must succeed (pre-fix, the namespace would have
+        been created in the caller's tree and the subsequent
+        dispatch would find the wrong — or no — ns)."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp eval child {
+    namespace eval ::inner {}
+    proc stash {value} { set ::captured $value }
+}
+interp hide child stash
+interp invokehidden child -namespace ::inner stash hello
+set ::result [interp eval child {set ::captured}]
+""",
+            "::result",
+        )
+        assert result == b"hello"
+
+    def test_alias_slot_does_not_collide_with_namespace_import(self):
+        """Regression for a Codex P1 review: cross-interp alias
+        parent-interp handle used to share the ``OFF_IMPORT_REF_HEAD``
+        slot with the namespace-import back-reference list head.
+        Importing a cross-interp alias would overwrite the Interp*
+        with an ImportRef list node and corrupt dispatch.
+
+        Post-fix, ``parent_interp`` lives on ``AliasRec``, so import
+        of a cross-interp alias leaves dispatch intact.
+        """
+        result = self._run_and_read_global(
+            """\
+proc target {args} { return "target-saw: $args" }
+namespace eval ::src { namespace export *alias }
+interp create child
+# Cross-interp alias into the child, target lives in the parent.
+interp alias child myalias {} target arg1
+# Define an alias of the same name in a parent ns to exercise
+# the normal import machinery — the redirect's OFF_IMPORT_REF_HEAD
+# slot would previously have been clobbered by link_import_ref
+# if it had aliased into the child.
+set ::result [child eval {myalias call1 call2}]
+""",
+            "::result",
+        )
+        assert result == b"target-saw: arg1 call1 call2"

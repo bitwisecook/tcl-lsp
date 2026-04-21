@@ -168,14 +168,21 @@ Post-child-interp:
 For single-interp (both paths empty), both collapse to the
 current interp.  For cross-interp, the alias redirect Command is
 inserted into `childPath`'s cmd_table, and the parent interp is
-stashed in the Command's `OFF_IMPORT_REF_HEAD` slot (aliases
-never have importers, so the slot is free for reuse).
+stashed in `AliasRec.parent_interp`.
 
 `dispatch_alias` reads that slot on every invocation: when non-
 zero and different from the current interp, it calls
 `interp_reg.enter(parent_interp)` before `proc_lookup` so the
 target resolves against the parent's cmd_table, then
 `interp_reg.leave` restores on return.
+
+`parent_interp` used to live in the Command's
+`OFF_IMPORT_REF_HEAD` slot on the theory "aliases never have
+importers so the slot is free" — but that assumption doesn't
+hold in the presence of `namespace import` of an alias: the
+importer-list tracking in `link_import_ref` would clobber the
+stashed `Interp*`.  Moving the handle onto `AliasRec` keeps
+the Command's import-machinery slots independent.
 
 ## 7. Compiler: conservative proc-index flush
 
