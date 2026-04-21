@@ -159,8 +159,8 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 		$(EXT_DIR)/ $(STAGE_DIR)/
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
-	@echo "==> Building LSP server zipapp (minified)"
-	$(PYTHON) $(ROOT)scripts/build_zipapp.py --minify lsp \
+	@echo "==> Building LSP server zipapp"
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py lsp \
 		--version $(VERSION) \
 		--output $(STAGE_DIR)/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
