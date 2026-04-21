@@ -84,6 +84,11 @@ GIT_HASH         := $(shell git rev-parse --short HEAD 2>/dev/null || echo unkno
 VERSION          := $(shell echo "$(GIT_DESCRIBE)" | sed 's/^v//')
 SEMVER_VERSION   := $(shell sh -c 'v="$(VERSION)"; if echo "$$v" | grep -Eq "^[0-9]+\\.[0-9]+\\.[0-9]+([-.][0-9A-Za-z.-]+)*$$"; then echo "$$v"; else echo "0.0.0-dev"; fi')
 FULL_VERSION     := $(VERSION)
+# Wheel filename tracks pyproject.toml's [project].version (what `uv build`
+# reads), not the git-describe VERSION above — so that worker.js can discover
+# the wheel at runtime via build_info.json rather than hard-coding a number.
+PYPROJECT_VERSION := $(shell grep -E '^version = ' $(ROOT)pyproject.toml | head -1 | sed 's/.*= *"//;s/".*//')
+WHEEL_FILENAME   := tcl_lsp-$(PYPROJECT_VERSION)-py3-none-any.whl
 BUILD_TIMESTAMP := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Derived paths
@@ -473,8 +478,8 @@ $(BUILD_INFO): .FORCE
 		"$(VERSION)" "$(GIT_DESCRIBE)" "$(GIT_HASH)" "$(FULL_VERSION)" "$(BUILD_TIMESTAMP)" > $@
 
 $(BUILD_INFO_JSON): .FORCE
-	@printf '{"version":"%s","git_describe":"%s","git_hash":"%s","full_version":"%s","build_timestamp":"%s"}\n' \
-		"$(VERSION)" "$(GIT_DESCRIBE)" "$(GIT_HASH)" "$(FULL_VERSION)" "$(BUILD_TIMESTAMP)" > $@
+	@printf '{"version":"%s","git_describe":"%s","git_hash":"%s","full_version":"%s","build_timestamp":"%s","wheel_filename":"%s"}\n' \
+		"$(VERSION)" "$(GIT_DESCRIBE)" "$(GIT_HASH)" "$(FULL_VERSION)" "$(BUILD_TIMESTAMP)" "$(WHEEL_FILENAME)" > $@
 
 # Generated editor catalogs
 #

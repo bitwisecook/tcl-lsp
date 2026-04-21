@@ -30,6 +30,20 @@ async function init() {
 
   postMessage({ type: "status", message: "Fetching compiler wheel..." });
 
+  // Discover the wheel filename from build_info.json (populated by the
+  // Makefile from pyproject.toml's version) so the worker doesn't need to
+  // be rewritten every time the package version bumps.
+  const buildInfoResponse = await fetch(baseUrl + "build_info.json");
+  if (!buildInfoResponse.ok) {
+    throw new Error(
+      `Failed to fetch build_info.json: ${buildInfoResponse.status} ${buildInfoResponse.statusText}`,
+    );
+  }
+  const buildInfo = await buildInfoResponse.json();
+  if (!buildInfo.wheel_filename) {
+    throw new Error("build_info.json is missing wheel_filename");
+  }
+
   // Fetch the wheel and extract it directly into site-packages.
   //
   // We deliberately avoid micropip: the version shipped with Pyodide 0.27.3
@@ -42,7 +56,7 @@ async function init() {
   // Our wheel is pure Python and the worker only imports modules under
   // `core` and `explorer`, none of which need pygls/lsprotocol/jinja2 at
   // import time, so we don't need a dependency resolver here.
-  const wheelUrl = baseUrl + "tcl_lsp-1.7.1-py3-none-any.whl";
+  const wheelUrl = baseUrl + buildInfo.wheel_filename;
   const wheelResponse = await fetch(wheelUrl);
   if (!wheelResponse.ok) {
     throw new Error(
