@@ -93,6 +93,9 @@ are its rules, and what are the failure modes". One contract per file.
   — VM and bytecode identity and fixture boundary guidance.
 - [vscode-extension.md](contracts/vscode-extension.md) — VS Code
   extension integration contracts.
+- [wasm-explorer-view.md](contracts/wasm-explorer-view.md) — JSON
+  shape produced by `WasmModule.to_explorer_json()` and consumed by
+  the compiler explorer disassembly panel.
 - [differential-fuzzing.md](contracts/differential-fuzzing.md) —
   differential fuzzing oracle and coverage-guided mutation contracts.
 - [pipeline-lsp-first.md](contracts/pipeline-lsp-first.md) — pipeline

@@ -632,31 +632,58 @@ def _collect_annotations(result: CompilerExplorerResult) -> list[dict]:
 
 
 def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
-    """Generate Tcl bytecode assembly for all functions in the module."""
-    from core.compiler.codegen import codegen_module, format_function_asm
+    """Generate a structured Tcl bytecode disassembly view for the explorer.
+
+    Mirrors ``_serialise_wasm``: each function entry carries both a
+    ``text`` WAT snippet (for copy/paste and the legacy renderer) and
+    an ``instructions`` list with resolved jump targets, source
+    ranges, and label anchors.  The frontend switches to the rich
+    renderer when ``instructions`` is present.
+    """
+    from core.compiler.codegen import codegen_module, format_module_explorer
 
     if cfg_module is None:
         from core.compiler.cfg import build_cfg
 
         cfg_module = build_cfg(ir_module)
     module_asm = codegen_module(cfg_module, ir_module)
-    result = []
-    result.append(
-        {
-            "name": module_asm.top_level.name,
-            "text": format_function_asm(module_asm.top_level),
-            "instrCount": len(module_asm.top_level.instructions),
-        }
-    )
-    for name in sorted(module_asm.procedures):
-        fa = module_asm.procedures[name]
-        result.append(
-            {
-                "name": name,
-                "text": format_function_asm(fa),
-                "instrCount": len(fa.instructions),
+    result = format_module_explorer(module_asm)
+    # Tag each entry with ``instrCount`` at the top level (the
+    # function-explorer already records it) and wire proc source
+    # ranges from the IR so the UI can jump to the proc body on
+    # click.  ``::top`` spans the whole script; procs use their
+    # IRProcedure.range.
+    top_stmts = ir_module.top_level.statements
+    top_range = None
+    if top_stmts:
+        first = getattr(top_stmts[0], "range", None)
+        last = getattr(top_stmts[-1], "range", None)
+        if first is not None and last is not None:
+            top_range = {
+                "startLine": first.start.line,
+                "startCol": first.start.character,
+                "startOffset": first.start.offset,
+                "endLine": last.end.line,
+                "endCol": last.end.character,
+                "endOffset": last.end.offset,
             }
-        )
+    for entry in result:
+        if entry["kind"] == "top":
+            entry["sourceRange"] = top_range
+        else:
+            ir_proc = ir_module.procedures.get(entry["name"])
+            if ir_proc is not None:
+                rng = ir_proc.range
+                entry["sourceRange"] = {
+                    "startLine": rng.start.line,
+                    "startCol": rng.start.character,
+                    "startOffset": rng.start.offset,
+                    "endLine": rng.end.line,
+                    "endCol": rng.end.character,
+                    "endOffset": rng.end.offset,
+                }
+            else:
+                entry["sourceRange"] = None
     return result
 
 
@@ -664,7 +691,17 @@ def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
 
 
 def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=None) -> list[dict]:
-    """Generate WAT (WebAssembly Text) for all functions in the module."""
+    """Generate a structured WASM disassembly view for the compiler explorer.
+
+    Returns one entry per function (plus a synthetic ``(module)`` entry
+    with imports, types, and data segments).  Each entry carries both
+    a flat WAT ``text`` (for copy/paste and the old renderer) and a
+    rich ``instructions`` list with per-instruction metadata — resolved
+    call targets, paired branch targets, source ranges, indent levels,
+    and explorer labels.  The frontend switches to the rich renderer
+    when ``instructions`` is present; consumers that don't understand
+    the new shape can continue to read ``text``.
+    """
     from core.compiler.codegen.wasm import wasm_codegen_module
 
     if cfg_module is None:
@@ -672,15 +709,56 @@ def _serialise_wasm(ir_module: IRModule, *, optimise: bool = False, cfg_module=N
 
         cfg_module = build_cfg(ir_module)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=optimise)
-    wat = wasm_module.to_wat()
-    instr_count = sum(len(f.body) for f in wasm_module.functions)
-    return [
-        {
-            "name": "(module)",
-            "text": wat,
-            "instrCount": instr_count,
-        }
-    ]
+    explorer_entries = wasm_module.to_explorer_json()
+    # Attach ``text`` (a per-function WAT snippet) to each function so
+    # the old text-only renderer still works on consumers that do not
+    # understand the structured shape.  The synthetic ``(module)``
+    # header carries the full-module WAT as its ``text``.
+    full_wat = wasm_module.to_wat()
+    result: list[dict] = []
+    for entry in explorer_entries:
+        if entry["kind"] == "module":
+            # ``instrCount`` on the synthetic module header is left at 0
+            # so the tab-badge total (computed as the sum over all
+            # entries in ``data.wasm``) doesn't double-count the body
+            # instructions.  The real total is available as
+            # ``totalInstrCount`` for UI that wants to display it.
+            result.append(
+                {
+                    **entry,
+                    "text": full_wat,
+                    "totalInstrCount": sum(len(f.body) for f in wasm_module.functions),
+                }
+            )
+        else:
+            result.append(
+                {
+                    **entry,
+                    "text": _format_function_wat_snippet(entry),
+                }
+            )
+    return result
+
+
+def _format_function_wat_snippet(entry: dict) -> str:
+    """Render a single function's instructions as a WAT snippet.
+
+    Used as a legacy fallback for consumers that haven't migrated to
+    the structured ``instructions`` list — emits ``func $name``
+    followed by each instruction's ``fullText`` at its ``indent``.
+    """
+    sig_parts = [f"(param {p['name']} {p['type']})" for p in entry.get("params", [])]
+    for r in entry.get("results", []):
+        sig_parts.append(f"(result {r})")
+    sig = " ".join(sig_parts)
+    lines = [f"(func ${entry['name']} {sig}".rstrip()]
+    for loc in entry.get("locals", []):
+        lines.append(f"  (local {loc['name']} {loc['type']})")
+    for instr in entry.get("instructions", []):
+        prefix = "  " + ("    " * instr["indent"])
+        lines.append(f"{prefix}{instr['fullText']}")
+    lines.append(")")
+    return "\n".join(lines)
 
 
 # Top-level serialisation

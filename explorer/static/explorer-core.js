@@ -298,33 +298,44 @@ function computeLCS(a,b) {
 }
 
 function drawOptBrackets(pane) {
-  var container=pane.querySelector('.opt-diff-container');
-  if(!container)return;
-  container.querySelectorAll('.opt-diff-svg').forEach(function(s){s.remove()});
-  var groupIds=new Set();
-  container.querySelectorAll('[data-opt-group]').forEach(function(el){groupIds.add(el.dataset.optGroup)});
-  if(!groupIds.size)return;
-  var containerRect=container.getBoundingClientRect();
-  var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.classList.add('opt-diff-svg');
-  svg.setAttribute('width','36');svg.setAttribute('height',container.offsetHeight);
-  for(var gid of groupIds){
-    var origEls=container.querySelectorAll('.opt-original[data-opt-group="'+gid+'"]');
-    var replEls=container.querySelectorAll('.opt-replacement[data-opt-group="'+gid+'"]');
-    if(!origEls.length||!replEls.length)continue;
-    var firstOrigRect=origEls[0].getBoundingClientRect();
-    var lastReplRect=replEls[replEls.length-1].getBoundingClientRect();
-    var y1=firstOrigRect.top-containerRect.top+firstOrigRect.height/2;
-    var y2=lastReplRect.top-containerRect.top+lastReplRect.height/2;
-    var xR=32,xL=14;var R=Math.min(4,Math.abs(y2-y1)/2);
-    var d;
-    if(Math.abs(y2-y1)<2){d='M '+xR+' '+y1+' L '+xR+' '+y2;}
-    else{d='M '+xR+' '+y1+' L '+(xL+R)+' '+y1+' A '+R+' '+R+' 0 0 1 '+xL+' '+(y1+R)+' L '+xL+' '+(y2-R)+' A '+R+' '+R+' 0 0 0 '+(xL+R)+' '+y2+' L '+xR+' '+y2;}
-    var path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d',d);path.classList.add('opt-bracket');path.dataset.optGroup=gid;
-    svg.appendChild(path);
+  var container = pane.querySelector('.opt-diff-container');
+  if (!container) return;
+  var groupIds = [];
+  container.querySelectorAll('[data-opt-group]').forEach(function(el) {
+    var gid = el.dataset.optGroup;
+    if (groupIds.indexOf(gid) < 0) groupIds.push(gid);
+  });
+  var edges = [];
+  for (var idx = 0; idx < groupIds.length; idx++) {
+    var gid = groupIds[idx];
+    var origEls = container.querySelectorAll('.opt-original[data-opt-group="' + gid + '"]');
+    var replEls = container.querySelectorAll('.opt-replacement[data-opt-group="' + gid + '"]');
+    if (!origEls.length || !replEls.length) continue;
+    edges.push({
+      from: origEls[0],
+      to: replEls[replEls.length - 1],
+      fromId: gid,
+      toId: gid,
+      fromPos: idx,
+      toPos: idx,
+      kind: 'bracket',
+      directed: false,
+    });
   }
-  container.insertBefore(svg,container.firstChild);
+  drawOrthogonalEdges(container, edges, {
+    svgClass: 'opt-diff-svg',
+    edgeClass: 'opt-bracket',
+    edgeKindClass: function() { return ''; },
+    markerKinds: [],  // brackets have no arrowhead
+    gutter: { laneWidth: 8, innerX: 14, entryX: 32, exitX: 32, cornerRadius: 4, minX: 6 },
+    endpointSelector: '[data-opt-group]',
+    endpointIdAttr: 'optGroup',
+  });
+  // Preserve the legacy data-opt-group attr so existing hover/click
+  // hooks in opt-item/diff wiring still resolve groups.
+  container.querySelectorAll('.opt-bracket').forEach(function(p) {
+    if (!p.dataset.optGroup && p.dataset.edgeFrom) p.dataset.optGroup = p.dataset.edgeFrom;
+  });
 }
 
 function clearOptHighlights(container) {
@@ -477,7 +488,7 @@ function renderCallouts() {
 }
 
 // Assembly / WASM helpers
-function instrCount(arr) { return arr ? arr.reduce(function(n, f) { return n + f.instrCount; }, 0) : 0; }
+function instrCount(arr) { return arr ? arr.reduce(function(n, f) { return n + (f.instrCount || 0); }, 0) : 0; }
 function funcListHtml(funcs) {
   var html = '';
   for (var func of funcs) {
@@ -488,16 +499,942 @@ function funcListHtml(funcs) {
   }
   return html;
 }
-function renderFuncList(paneId, funcs, emptyMsg) {
+
+// Per-pane opt toggle state: true = optimised, false = original.
+var wasmOptState = { 'pane-asm': false, 'pane-wasm': false };
+
+// Tcl ASM and WASM share the same structured rendering pipeline.  The
+// only differences are the data source (``data.asm`` vs ``data.wasm``)
+// and a few WASM-specific node shapes (the ``(module)`` header,
+// ``callTarget``, ``branchTarget``).  The renderer below handles both.
+function renderAsm() { renderDisassembly('pane-asm', 'asm'); }
+function renderWasm() { renderDisassembly('pane-wasm', 'wasm'); }
+
+function renderDisassembly(paneId, kind) {
   var pane = $('#' + paneId);
-  if (!funcs || !funcs.length) { pane.innerHTML = '<div class="empty-state">' + emptyMsg + '</div>'; return; }
-  pane.innerHTML = funcListHtml(funcs);
+  var origFuncs = kind === 'asm' ? data.asm : data.wasm;
+  var optFuncs = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
+  var emptyMsg = kind === 'asm' ? 'No assembly' : 'No WASM output';
+  if (!origFuncs || !origFuncs.length) {
+    pane.innerHTML = '<div class="empty-state">' + emptyMsg + '</div>';
+    return;
+  }
+  var optAvailable = !!(optFuncs && optFuncs.length);
+  // Preserve user's prior opt-toggle choice across re-renders.
+  var optOn = optAvailable && wasmOptState[paneId] === true;
+  var funcs = optOn ? optFuncs : origFuncs;
+  var hasStructured = funcs.some(function(f) { return Array.isArray(f.instructions); });
+  if (!hasStructured) {
+    // Legacy text-only payload — plain <pre>.
+    pane.innerHTML = funcListHtml(funcs);
+    return;
+  }
+  var toolbar = renderDisasmToolbar(paneId, kind, optAvailable, optOn);
+  var body = funcs.map(function(entry) { return renderDisasmEntry(entry, kind); }).join('');
+  pane.innerHTML = toolbar + '<div class="disasm-body">' + body + '</div>';
+  setupDisasmInteractions(pane, funcs, kind);
+  setupDisasmToolbar(pane, paneId, kind, optAvailable);
+  requestAnimationFrame(function() {
+    pane.querySelectorAll('.wasm-edges-container').forEach(function(c) { drawWasmEdges(c); });
+  });
 }
 
-function renderAsm() { renderFuncList('pane-asm', data.asm, 'No assembly'); }
-function renderWasm() { renderFuncList('pane-wasm', data.wasm, 'No WASM output'); }
-function renderAsmOpt() { renderFuncList('pane-asm-opt', data.asmOptimised, 'No optimised assembly (source unchanged by optimiser)'); }
-function renderWasmOpt() { renderFuncList('pane-wasm-opt', data.wasmOptimised, 'No optimised WASM output (source unchanged by optimiser)'); }
+function renderDisasmToolbar(paneId, kind, optAvailable, optOn) {
+  var optLabel = kind === 'asm' ? 'Tcl ASM optimisations' : 'WASM optimisations';
+  var disabledAttr = optAvailable ? '' : ' disabled';
+  var hint = optAvailable ? '' : ' <span class="disasm-toolbar-hint">(source unchanged by optimiser)</span>';
+  return '<div class="disasm-toolbar">'
+       + '<label class="disasm-toolbar-opt"><input type="checkbox" data-disasm-opt-toggle' + (optOn ? ' checked' : '') + disabledAttr + '> ' + optLabel + '</label>'
+       + '<button class="disasm-toolbar-diff" data-disasm-diff' + disabledAttr + '>Show optimiser diff</button>'
+       + hint
+       + '</div>';
+}
+
+function setupDisasmToolbar(pane, paneId, kind, optAvailable) {
+  var toggle = pane.querySelector('[data-disasm-opt-toggle]');
+  if (toggle) {
+    toggle.addEventListener('change', function() {
+      wasmOptState[paneId] = toggle.checked;
+      renderDisassembly(paneId, kind);
+    });
+  }
+  var diffBtn = pane.querySelector('[data-disasm-diff]');
+  if (diffBtn && optAvailable) {
+    diffBtn.addEventListener('click', function() {
+      openOptDiffView(paneId, kind);
+    });
+  }
+}
+
+function renderDisasmEntry(entry, kind) {
+  if (entry.kind === 'module') return renderWasmModuleHeader(entry);
+  return renderDisasmFunction(entry, kind);
+}
+
+function renderDisasmFunction(entry, kind) {
+  var sr = entry.sourceRange;
+  var headerAttrs = sr ? ' data-start="' + sr.startOffset + '" data-end="' + sr.endOffset + '"' : '';
+  var html = '<div class="wasm-function" data-kind="' + esc(kind) + '" data-func-idx="' + (entry.funcIdx !== undefined ? entry.funcIdx : '') + '" data-func-name="' + esc(entry.name) + '">';
+  var kindBadge = '';
+  if (entry.kind === 'top') kindBadge = ' <span class="wasm-kind-badge">top</span>';
+  else if (entry.kind === 'method') kindBadge = ' <span class="wasm-kind-badge">method</span>';
+  var sig = '';
+  if (kind === 'wasm') {
+    var params = (entry.params || []).map(function(p) { return '(param ' + esc(p.name) + ' ' + esc(p.type) + ')'; }).join(' ');
+    var results = (entry.results || []).map(function(r) { return '(result ' + esc(r) + ')'; }).join(' ');
+    sig = '(func <span class="wasm-func-name">$' + esc(entry.name) + '</span>' + kindBadge + (params ? ' ' + params : '') + (results ? ' ' + results : '') + ')';
+  } else {
+    sig = 'ByteCode <span class="wasm-func-name">' + esc(entry.name) + '</span>' + kindBadge;
+  }
+  var meta = '';
+  if (kind === 'asm') {
+    meta = ' <span class="wasm-comment">; ' + entry.instrCount + ' instructions, ' + (entry.byteCount || 0) + ' bytes, ' + ((entry.literals || []).length) + ' literals, ' + ((entry.locals || []).length) + ' locals</span>';
+  } else {
+    meta = ' <span class="wasm-comment">; ' + entry.instrCount + ' instructions</span>';
+  }
+  html += '<div class="wasm-func-header"' + headerAttrs + '>' + sig + meta + '</div>';
+  if (kind === 'wasm' && entry.locals && entry.locals.length) {
+    html += '<div class="wasm-func-locals">';
+    for (var loc of entry.locals) html += '<div class="wasm-local">(local ' + esc(loc.name) + ' ' + esc(loc.type) + ')</div>';
+    html += '</div>';
+  } else if (kind === 'asm' && ((entry.literals || []).length || (entry.locals || []).length)) {
+    html += '<details class="disasm-tables"><summary>literals &amp; locals</summary>';
+    if ((entry.literals || []).length) {
+      html += '<div class="disasm-tables-section">Literals:</div>';
+      for (var i = 0; i < entry.literals.length; i++) {
+        html += '<div class="wasm-local">' + i + ': "' + esc(entry.literals[i]) + '"</div>';
+      }
+    }
+    if ((entry.locals || []).length) {
+      html += '<div class="disasm-tables-section">Local variables:</div>';
+      for (var i = 0; i < entry.locals.length; i++) {
+        html += '<div class="wasm-local">%v' + i + ': "' + esc(entry.locals[i]) + '"</div>';
+      }
+    }
+    html += '</details>';
+  }
+  html += '<div class="wasm-func-body wasm-edges-container" data-func-idx="' + (entry.funcIdx !== undefined ? entry.funcIdx : '') + '">';
+  var source = getSource();
+  var prevRangeKey = null;
+  for (var ins of (entry.instructions || [])) {
+    if (ins.kind === 'label') {
+      html += renderDisasmLabel(ins);
+      continue;
+    }
+    var r = ins.range;
+    var rkey = r ? r.startOffset + '/' + r.endOffset : null;
+    if (rkey && rkey !== prevRangeKey) {
+      var snippet = wasmSourceSnippet(source, r);
+      html += '<div class="wasm-src-comment" data-start="' + r.startOffset + '" data-end="' + r.endOffset + '">'
+            + '<span class="wasm-gutter-pad"></span>'
+            + '<span class="wasm-idx">' + (r.startLine + 1) + '</span>'
+            + '<span class="wasm-src-text">; ' + esc(snippet) + '</span>'
+            + '</div>';
+      prevRangeKey = rkey;
+    }
+    if (kind === 'wasm') html += renderWasmInstruction(ins, entry);
+    else html += renderAsmInstruction(ins, entry);
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderDisasmLabel(ins) {
+  return '<div class="wasm-instr disasm-label-row" data-idx="' + ins.idx + '" data-label-name="' + esc(ins.label) + '">'
+       + '<span class="wasm-gutter-pad"></span>'
+       + '<span class="wasm-idx">' + ins.idx + '</span>'
+       + '<span class="wasm-code"><span class="disasm-label-anchor"># ' + esc(ins.label) + ':</span></span>'
+       + '</div>';
+}
+
+function renderAsmInstruction(ins, entry) {
+  var range = ins.range;
+  var rngAttrs = range ? ' data-start="' + range.startOffset + '" data-end="' + range.endOffset + '"' : '';
+  var operandHtml = '';
+  var jt = ins.jumpTarget;
+  if (jt) {
+    var btAttrs = ' data-branch-target-idx="' + (jt.targetIdx !== null && jt.targetIdx !== undefined ? jt.targetIdx : '') + '"'
+                + ' data-branch-target-label="' + esc(jt.label) + '"';
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>'
+                + ' <span class="wasm-branch-target"' + btAttrs + '>; ' + esc(jt.label) + '</span>';
+  } else if (ins.operandText) {
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>';
+  }
+  var jumpTableHtml = '';
+  if (ins.jumpTable && ins.jumpTable.length) {
+    var jtEntries = [];
+    for (var e of ins.jumpTable) {
+      jtEntries.push('<span class="wasm-branch-target" data-branch-target-idx="' + (e.targetIdx !== null && e.targetIdx !== undefined ? e.targetIdx : '') + '" data-branch-target-label="' + esc(e.label) + '">&quot;' + esc(e.pattern) + '&quot;-&gt;' + esc(e.label) + '</span>');
+    }
+    jumpTableHtml = ' <span class="wasm-comment">[' + jtEntries.join(', ') + ']</span>';
+  }
+  var comment = ins.comment ? ' <span class="wasm-comment">; ' + esc(ins.comment) + '</span>' : '';
+  return '<div class="wasm-instr" data-idx="' + ins.idx + '"' + rngAttrs + '>'
+       + '<span class="wasm-gutter-pad"></span>'
+       + '<span class="wasm-idx">(' + ins.offset + ')</span>'
+       + '<span class="wasm-code">'
+       + '<span class="wasm-mnemonic">' + esc(ins.op) + '</span>'
+       + operandHtml
+       + jumpTableHtml
+       + comment
+       + '</span></div>';
+}
+
+function renderWasmModuleHeader(entry) {
+  var html = '<div class="wasm-module">';
+  html += '<div class="wasm-func-header">(module) <span class="wasm-comment">' + entry.imports.length + ' imports, ' + entry.types.length + ' types, ' + entry.dataSegments.length + ' data segments</span></div>';
+  if (entry.imports.length) {
+    html += '<details class="wasm-module-details"><summary>imports (' + entry.imports.length + ')</summary>';
+    for (var imp of entry.imports) {
+      html += '<div class="wasm-import-entry">';
+      html += '<span class="wasm-idx">' + imp.funcIdx + '</span>';
+      html += '<span class="wasm-mnemonic">import</span> ';
+      html += '<span class="wasm-operand">&quot;' + esc(imp.module) + '&quot;.&quot;' + esc(imp.name) + '&quot;</span> ';
+      html += '<span class="wasm-comment">; type $t' + imp.typeIdx + '</span>';
+      html += '</div>';
+    }
+    html += '</details>';
+  }
+  if (entry.dataSegments.length) {
+    html += '<details class="wasm-module-details"><summary>data segments (' + entry.dataSegments.length + ')</summary>';
+    for (var seg of entry.dataSegments) {
+      html += '<div class="wasm-import-entry"><span class="wasm-idx">' + seg.offset + '</span><span class="wasm-comment">; ' + seg.size + ' bytes</span></div>';
+    }
+    html += '</details>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function wasmSourceSnippet(source, range) {
+  // Grab the entire source line that contains range.startOffset, then
+  // trim to at most 160 characters for the comment.
+  var nl = source.indexOf('\n', range.startOffset);
+  var lineEnd = nl === -1 ? source.length : nl;
+  // Find start of line
+  var lineStart = source.lastIndexOf('\n', range.startOffset - 1) + 1;
+  var line = source.substring(lineStart, lineEnd).replace(/^\s+/, '');
+  if (line.length > 160) line = line.substring(0, 157) + '...';
+  return line;
+}
+
+function renderWasmInstruction(ins, entry) {
+  var range = ins.range;
+  var rngAttrs = range ? ' data-start="' + range.startOffset + '" data-end="' + range.endOffset + '"' : '';
+  var indentSpaces = '    '.repeat(Math.max(0, ins.indent));
+  var operandHtml = '';
+  if (ins.callTarget) {
+    var ct = ins.callTarget;
+    var ctLabel = ct.kind === 'import' ? ('import ' + ct.name) : ct.name;
+    var ctAttrs = ' data-call-target-def-idx="' + (ct.defIdx !== null && ct.defIdx !== undefined ? ct.defIdx : '') + '"'
+                + ' data-call-target-kind="' + esc(ct.kind) + '"'
+                + ' data-call-target-name="' + esc(ct.name) + '"';
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>'
+                + ' <span class="wasm-call-target"' + ctAttrs + '>; ' + esc(ctLabel) + '</span>';
+  } else if (ins.branchTarget) {
+    var bt = ins.branchTarget;
+    var btAttrs = ' data-branch-target-idx="' + (bt.targetIdx !== null && bt.targetIdx !== undefined ? bt.targetIdx : '') + '"';
+    var btLabel = bt.kind || '';
+    if (bt.label) btLabel += ' ' + bt.label;
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>'
+                + ' <span class="wasm-branch-target"' + btAttrs + '>; ' + esc(btLabel) + '</span>';
+  } else if (ins.op === 'local.get' || ins.op === 'local.set' || ins.op === 'local.tee') {
+    var parts = ins.fullText.split(' ');
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>';
+    if (parts.length > 2) operandHtml += ' <span class="wasm-operand-name">' + esc(parts.slice(2).join(' ')) + '</span>';
+  } else if (ins.operandText) {
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>';
+  }
+  var label = ins.label ? ' <span class="wasm-comment">;; ' + esc(ins.label) + '</span>' : '';
+  var blockLbl = ins.blockLabel ? ' <span class="wasm-block-label">' + esc(ins.blockLabel) + '</span>' : '';
+  var gutter = '<span class="wasm-gutter-pad"></span>';
+  return '<div class="wasm-instr" data-idx="' + ins.idx + '" data-func-idx="' + entry.funcIdx + '"' + rngAttrs + '>'
+       + gutter
+       + '<span class="wasm-idx">' + ins.idx + '</span>'
+       + '<span class="wasm-code"><span class="wasm-indent">' + indentSpaces + '</span>'
+       + '<span class="wasm-mnemonic">' + esc(ins.op) + '</span>'
+       + blockLbl
+       + operandHtml
+       + label
+       + '</span></div>';
+}
+
+function setupDisasmInteractions(pane, funcs, kind) {
+  // Stash the current function-entry list on the pane so the
+  // listeners below always see the latest data.  ``renderDisassembly``
+  // replaces ``pane.innerHTML`` on every re-render (e.g. opt-toggle,
+  // diff-close) but keeps the pane element itself, so we guard the
+  // listener attachment and let the handlers read live state from
+  // ``pane._disasmFuncEntries`` instead of closing over the stale
+  // value from the first render.  Without this guard every toggle
+  // stacked a new trio of listeners — harmless today because the
+  // handlers re-query the DOM by ``data-*`` attributes, but fragile
+  // under future refactors.
+  pane._disasmFuncEntries = funcs.filter(function(f) { return f.kind !== 'module'; });
+  if (pane._disasmInteractionsWired) return;
+  pane._disasmInteractionsWired = true;
+
+  pane.addEventListener('click', function(e) {
+    var entries = pane._disasmFuncEntries || [];
+    var ct = e.target.closest('.wasm-call-target');
+    if (ct) {
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      var defIdxStr = ct.dataset.callTargetDefIdx;
+      if (defIdxStr !== '') {
+        var defIdx = parseInt(defIdxStr);
+        if (!isNaN(defIdx) && defIdx >= 0 && defIdx < entries.length) {
+          navigateToWasmFunction(pane, entries[defIdx]);
+        }
+      }
+      return;
+    }
+    var bt = e.target.closest('.wasm-branch-target');
+    if (bt) {
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      var targetIdxStr = bt.dataset.branchTargetIdx;
+      if (targetIdxStr !== '') {
+        var targetIdx = parseInt(targetIdxStr);
+        if (!isNaN(targetIdx)) {
+          navigateToWasmInstruction(bt.closest('.wasm-function'), targetIdx);
+        }
+      }
+      return;
+    }
+  });
+  // Hover highlights matching branch arrows and block/end pairs.
+  pane.addEventListener('mouseover', function(e) {
+    var ins = e.target.closest('.wasm-instr');
+    if (!ins) return;
+    var idx = ins.dataset.idx;
+    var funcEl = ins.closest('.wasm-function');
+    if (!funcEl) return;
+    funcEl.querySelectorAll('.wasm-edge').forEach(function(p) {
+      if (p.dataset.from === idx || p.dataset.to === idx) p.classList.add('highlighted');
+    });
+  });
+  pane.addEventListener('mouseout', function(e) {
+    var ins = e.target.closest('.wasm-instr');
+    if (!ins) return;
+    var funcEl = ins.closest('.wasm-function');
+    if (!funcEl) return;
+    funcEl.querySelectorAll('.wasm-edge.highlighted').forEach(function(p) { p.classList.remove('highlighted'); });
+  });
+  // Delegate the normal [data-start] click-to-source behaviour to the
+  // consumer-supplied hook; registered second so the call/branch
+  // short-circuits above can intercept first.
+  setupHoverHighlighting(pane);
+}
+
+// Back-compat alias — the old name is referenced elsewhere in this
+// file and may be inlined by external consumers.
+var setupWasmInteractions = setupDisasmInteractions;
+
+// Source-range highlight abstraction: standalone index.html defines
+// ``highlightSourceRanges`` for inline highlighting; the VS Code
+// webview uses postMessage.  We probe both so the WASM pane works in
+// either consumer.
+function wasmHighlightSource(start, end) {
+  if (typeof highlightSourceRanges === 'function') {
+    highlightSourceRanges([{start: start, end: end}]);
+    return;
+  }
+  if (typeof vscode !== 'undefined' && vscode.postMessage) {
+    vscode.postMessage({ type: 'highlightSource', start: start, end: end });
+  }
+}
+
+function navigateToWasmFunction(pane, targetEntry) {
+  if (!targetEntry) return;
+  // ``CSS.escape`` is the only correct way to quote a dynamic value
+  // inside an attribute selector (it handles every CSS special
+  // character, not just ``\`` and ``"``).  The manual regex
+  // fallback is kept for ancient environments that predate CSS.escape.
+  var nameSel = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function')
+    ? CSS.escape(targetEntry.name)
+    : targetEntry.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  var el = pane.querySelector('.wasm-function[data-func-name="' + nameSel + '"]');
+  if (el) {
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    // Flash-highlight the function header briefly.
+    var hdr = el.querySelector('.wasm-func-header');
+    if (hdr) {
+      hdr.classList.add('wasm-func-flash');
+      setTimeout(function() { hdr.classList.remove('wasm-func-flash'); }, 1200);
+    }
+    if (targetEntry.sourceRange) {
+      wasmHighlightSource(targetEntry.sourceRange.startOffset, targetEntry.sourceRange.endOffset);
+    }
+  }
+}
+
+function navigateToWasmInstruction(funcEl, targetIdx) {
+  if (!funcEl) return;
+  var el = funcEl.querySelector('.wasm-instr[data-idx="' + targetIdx + '"]');
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.add('wasm-instr-flash');
+  setTimeout(function() { el.classList.remove('wasm-instr-flash'); }, 1200);
+  var start = parseInt(el.dataset.start);
+  var end = parseInt(el.dataset.end);
+  if (!isNaN(start) && !isNaN(end)) wasmHighlightSource(start, end);
+}
+
+// Draw orthogonal control-flow arrows in the gutter of each function.
+function drawWasmEdges(container) {
+  var instrs = Array.from(container.querySelectorAll('.wasm-instr'));
+  if (!instrs.length) return;
+  var byIdx = {};
+  for (var el of instrs) byIdx[el.dataset.idx] = el;
+  var edges = [];
+  for (var el of instrs) {
+    // One row can carry multiple branch targets — a ``jumpTable``
+    // instruction in Tcl ASM renders one ``.wasm-branch-target``
+    // span per ``pattern->label`` pair, plus potentially a fallback
+    // target.  Emit one edge per target so every arm in a switch
+    // dispatch shows up in the gutter.  ``querySelector`` (which we
+    // previously used) only caught the first span.
+    var bts = el.querySelectorAll('.wasm-branch-target');
+    if (!bts.length) continue;
+    var fromIdx = el.dataset.idx;
+    var fromPos = parseInt(fromIdx);
+    for (var bt of bts) {
+      var toIdxStr = bt.dataset.branchTargetIdx;
+      if (!toIdxStr) continue;
+      var tgt = byIdx[toIdxStr];
+      if (!tgt) continue;
+      edges.push({
+        from: el,
+        to: tgt,
+        fromId: fromIdx,
+        toId: toIdxStr,
+        fromPos: fromPos,
+        toPos: parseInt(toIdxStr),
+        kind: parseInt(toIdxStr) >= fromPos ? 'forward' : 'back',
+      });
+    }
+  }
+  drawOrthogonalEdges(container, edges, {
+    svgClass: 'wasm-edges-svg',
+    edgeClass: 'wasm-edge',
+    edgeKindClass: function(e) { return 'wasm-edge-' + e.kind; },
+    arrowheadClass: 'wasm-arrowhead',
+    arrowheadIdPrefix: 'wasm-ah-' + ((container.dataset.funcIdx || '0').replace(/[^A-Za-z0-9]/g, '_')),
+    markerKinds: ['default'],
+    markerForEdge: function() { return 'default'; },
+    gutter: { laneWidth: 6, innerX: 24, entryX: 28, exitX: 28, cornerRadius: 4 },
+    endpointSelector: '.wasm-instr',
+    endpointIdAttr: 'idx',
+  });
+}
+
+// Shared orthogonal-edge renderer.  All four current edge views
+// (CFG pre- and post-SSA, WASM/ASM disassembly, and the optimiser
+// diff brackets) go through this helper so improvements to the
+// drawing, lane-assignment, hover, and accessibility story apply
+// uniformly.
+//
+// Contract:
+//
+//   drawOrthogonalEdges(container, edges, options)
+//
+// Inputs:
+//   container  — the DOM element that owns the edge SVG.  Must be
+//                position-relative so the absolutely-positioned SVG
+//                lines up with the endpoints.
+//   edges      — list of {from, to, fromId?, toId?, fromPos, toPos,
+//                kind?, directed?} descriptors.  ``from`` / ``to``
+//                are DOM elements whose bounding rects we anchor to.
+//                ``fromPos`` / ``toPos`` are monotonic integers used
+//                for lane assignment (smallest span gets innermost
+//                lane).  ``kind`` controls the CSS modifier class
+//                and the arrowhead picker.  ``directed`` (default
+//                true) toggles the arrowhead at the ``to`` end.
+//   options    — renderer knobs; see below.
+//
+// Options:
+//   svgClass            — class to put on the generated <svg>
+//                         element (also the "remove previous" key).
+//   edgeClass           — common class on every edge <path>
+//                         (default 'oe-edge').
+//   edgeKindClass       — function(edge) → class suffix, or a string
+//                         prefix appended with edge.kind.
+//   arrowheadClass      — class on the arrowhead <polygon> inside
+//                         each marker (default 'oe-arrowhead').
+//   arrowheadIdPrefix   — unique prefix for arrowhead marker IDs so
+//                         multiple SVGs on one page don't collide.
+//   markerKinds         — list of arrowhead kinds to define.
+//   markerForEdge       — function(edge) → kind name used as
+//                         ``marker-end="url(#<prefix>-<kind>)"``.
+//   gutter              — geometry: {laneWidth, innerX, entryX,
+//                         exitX, cornerRadius}.
+//   endpointSelector    — CSS selector for endpoint DOM elements
+//                         (used to wire hover-highlighting between
+//                         edges and their endpoints).
+//   endpointIdAttr      — data- attribute on each endpoint whose
+//                         value matches edge.fromId / edge.toId
+//                         (e.g. "block", "idx", "opt-group").
+//
+// The rendered edges carry three stable data-* attributes:
+//   data-edge-from  — edge.fromId (or edge.from's matching
+//                     endpoint id, if fromId is not given).
+//   data-edge-to    — edge.toId (as above).
+//   data-edge-kind  — edge.kind.
+//
+// Hover wiring (enabled whenever ``endpointSelector`` is provided):
+//   - Hovering an endpoint adds ``highlighted`` to every edge whose
+//     from-id or to-id matches that endpoint's data id, and adds
+//     ``oe-endpoint-highlight`` to the related endpoints.
+//   - Hovering an edge path adds ``highlighted`` to the edge and
+//     ``oe-endpoint-highlight`` to both endpoints.
+function drawOrthogonalEdges(container, edges, options) {
+  // Clean up any previous render so re-layouts don't stack SVGs.
+  if (options.svgClass) {
+    container.querySelectorAll('.' + options.svgClass).forEach(function(s) { s.remove(); });
+  }
+  if (!edges.length) return null;
+
+  // Lane assignment: shortest span first → innermost lane.
+  var sorted = edges.slice().sort(function(a, b) {
+    return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos);
+  });
+  var assigned = [];
+  for (var edge of sorted) {
+    var lane = 0;
+    while (true) {
+      var clash = false;
+      for (var other of assigned) {
+        if (other.lane !== lane) continue;
+        var a1 = Math.min(edge.fromPos, edge.toPos), a2 = Math.max(edge.fromPos, edge.toPos);
+        var b1 = Math.min(other.fromPos, other.toPos), b2 = Math.max(other.fromPos, other.toPos);
+        if (!(a2 < b1 || a1 > b2)) { clash = true; break; }
+      }
+      if (!clash) break;
+      lane++;
+    }
+    edge.lane = lane;
+    assigned.push(edge);
+  }
+
+  var rect = container.getBoundingClientRect();
+  var svgNs = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(svgNs, 'svg');
+  if (options.svgClass) svg.classList.add(options.svgClass);
+  svg.classList.add('oe-svg');
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+
+  // Arrowhead markers (one per distinct kind).
+  var markerPrefix = options.arrowheadIdPrefix || 'oe-ah';
+  var markerKinds = options.markerKinds || ['default'];
+  if (markerKinds.length) {
+    var defs = document.createElementNS(svgNs, 'defs');
+    for (var kind of markerKinds) {
+      var marker = document.createElementNS(svgNs, 'marker');
+      marker.setAttribute('id', markerPrefix + '-' + kind);
+      marker.setAttribute('viewBox', '0 0 8 6');
+      marker.setAttribute('refX', '8');
+      marker.setAttribute('refY', '3');
+      marker.setAttribute('markerWidth', '7');
+      marker.setAttribute('markerHeight', '5');
+      marker.setAttribute('orient', 'auto');
+      var poly = document.createElementNS(svgNs, 'polygon');
+      poly.setAttribute('points', '0 0, 8 3, 0 6');
+      if (options.arrowheadClass) {
+        poly.classList.add(options.arrowheadClass);
+        poly.classList.add(options.arrowheadClass + '-' + kind);
+      }
+      marker.appendChild(poly);
+      defs.appendChild(marker);
+    }
+    svg.appendChild(defs);
+  }
+
+  var g = options.gutter || {};
+  var laneW = g.laneWidth != null ? g.laneWidth : 8;
+  var innerX = g.innerX != null ? g.innerX : 24;
+  var entryX = g.entryX != null ? g.entryX : 0;
+  var exitX = g.exitX != null ? g.exitX : 0;
+  var R = g.cornerRadius != null ? g.cornerRadius : 4;
+  var minX = g.minX != null ? g.minX : 4;
+
+  for (var edge of edges) {
+    var fromRect = edge.from.getBoundingClientRect();
+    var toRect = edge.to.getBoundingClientRect();
+    var y1 = g.anchorFromY === 'bottom'
+      ? fromRect.bottom - rect.top - 4
+      : (g.anchorFromY === 'top' ? fromRect.top - rect.top + 4 : fromRect.top - rect.top + fromRect.height / 2);
+    var y2 = g.anchorToY === 'top'
+      ? toRect.top - rect.top + 8
+      : (g.anchorToY === 'bottom' ? toRect.bottom - rect.top - 4 : toRect.top - rect.top + toRect.height / 2);
+    var laneX = innerX - edge.lane * laneW;
+    if (laneX < minX) laneX = minX;
+    // Compute from/to X anchors: CFG edges anchor to each block's
+    // left edge (so the gutter is outside the block); disassembly
+    // edges anchor to a fixed exit column.
+    var xFrom, xTo;
+    if (g.anchorFromX === 'left-of') {
+      xFrom = fromRect.left - rect.left;
+    } else {
+      xFrom = entryX;
+    }
+    if (g.anchorToX === 'left-of') {
+      xTo = toRect.left - rect.left;
+    } else {
+      xTo = exitX;
+    }
+    var goingDown = y2 >= y1;
+    var d;
+    if (Math.abs(y2 - y1) < 2) {
+      d = 'M ' + xFrom + ' ' + y1 + ' L ' + xTo + ' ' + y2;
+    } else {
+      var dy = goingDown ? 1 : -1;
+      d = 'M ' + xFrom + ' ' + y1
+        + ' L ' + (laneX + R) + ' ' + y1
+        + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 1 : 0) + ' ' + laneX + ' ' + (y1 + dy * R)
+        + ' L ' + laneX + ' ' + (y2 - dy * R)
+        + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 0 : 1) + ' ' + (laneX + R) + ' ' + y2
+        + ' L ' + xTo + ' ' + y2;
+    }
+    var path = document.createElementNS(svgNs, 'path');
+    path.setAttribute('d', d);
+    path.classList.add('oe-edge');
+    if (options.edgeClass) path.classList.add(options.edgeClass);
+    var kindClass = typeof options.edgeKindClass === 'function' ? options.edgeKindClass(edge) : (options.edgeKindClass && edge.kind ? options.edgeKindClass + edge.kind : '');
+    if (kindClass) path.classList.add(kindClass);
+    if (edge.fromId != null) path.dataset.edgeFrom = edge.fromId;
+    if (edge.toId != null) path.dataset.edgeTo = edge.toId;
+    if (edge.kind != null) path.dataset.edgeKind = edge.kind;
+    // Preserve legacy data attrs that older CSS and hover handlers
+    // keyed off of, so existing styles keep working.
+    if (edge.fromId != null) path.dataset.from = edge.fromId;
+    if (edge.toId != null) path.dataset.to = edge.toId;
+    if (edge.directed !== false) {
+      var marker = options.markerForEdge ? options.markerForEdge(edge) : 'default';
+      if (marker) path.setAttribute('marker-end', 'url(#' + markerPrefix + '-' + marker + ')');
+    }
+    svg.appendChild(path);
+  }
+  container.insertBefore(svg, container.firstChild);
+
+  // Hover wiring — happens once per container.  Re-renders replace
+  // the SVG but keep the container, so we only install the listener
+  // on first mount.
+  if (options.endpointSelector && !container._oeHoverWired) {
+    container._oeHoverWired = true;
+    container.addEventListener('mouseover', function(e) {
+      // 1) hover a path → highlight endpoints
+      var path = e.target.closest && e.target.closest('.oe-edge');
+      if (path) {
+        path.classList.add('highlighted');
+        highlightOrthogonalEndpoints(container, options, path.dataset.edgeFrom, path.dataset.edgeTo);
+        return;
+      }
+      // 2) hover an endpoint → highlight related edges + paired endpoints
+      var endpoint = e.target.closest(options.endpointSelector);
+      if (!endpoint) return;
+      var id = endpoint.dataset[options.endpointIdAttr];
+      if (id == null) return;
+      container.querySelectorAll('.oe-edge').forEach(function(p) {
+        if (p.dataset.edgeFrom === id || p.dataset.edgeTo === id) {
+          p.classList.add('highlighted');
+        }
+      });
+      container.querySelectorAll('.oe-edge.highlighted').forEach(function(p) {
+        highlightOrthogonalEndpoints(container, options, p.dataset.edgeFrom, p.dataset.edgeTo);
+      });
+    });
+    container.addEventListener('mouseout', function(e) {
+      var path = e.target.closest && e.target.closest('.oe-edge');
+      if (path) {
+        path.classList.remove('highlighted');
+        clearOrthogonalEndpointHighlights(container);
+        return;
+      }
+      var endpoint = e.target.closest(options.endpointSelector);
+      if (!endpoint) return;
+      container.querySelectorAll('.oe-edge.highlighted').forEach(function(p) { p.classList.remove('highlighted'); });
+      clearOrthogonalEndpointHighlights(container);
+    });
+  }
+  return svg;
+}
+
+function highlightOrthogonalEndpoints(container, options, fromId, toId) {
+  if (!options.endpointSelector) return;
+  var idAttr = options.endpointIdAttr;
+  container.querySelectorAll(options.endpointSelector).forEach(function(el) {
+    var id = el.dataset[idAttr];
+    if (id != null && (id === fromId || id === toId)) {
+      el.classList.add('oe-endpoint-highlight');
+    }
+  });
+}
+
+function clearOrthogonalEndpointHighlights(container) {
+  container.querySelectorAll('.oe-endpoint-highlight').forEach(function(el) {
+    el.classList.remove('oe-endpoint-highlight');
+  });
+}
+
+// Opt diff — semantic-change-only comparison between the original and
+// optimised disassembly.  The diff ignores instruction sequence
+// numbers, byte offsets, literal/local indices (comparing by literal
+// text and local name instead), and ``+N``/``pc N`` jump relatives
+// (comparing by label name instead).  Changes to named targets
+// (labels, call targets, literals, locals) surface as red/green rows.
+
+function openOptDiffView(paneId, kind) {
+  var pane = $('#' + paneId);
+  if (!pane) return;
+  var orig = kind === 'asm' ? data.asm : data.wasm;
+  var opt = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
+  if (!orig || !opt) return;
+  // Match entries by name; render one diff block per function that
+  // appears in either side.
+  var byName = {};
+  for (var e of orig) { if (e.kind !== 'module') byName[e.name] = { orig: e }; }
+  for (var e of opt) {
+    if (e.kind === 'module') continue;
+    if (!byName[e.name]) byName[e.name] = {};
+    byName[e.name].opt = e;
+  }
+  var ordered = [];
+  for (var e of orig) { if (e.kind !== 'module') ordered.push(e.name); }
+  for (var e of opt) {
+    if (e.kind !== 'module' && ordered.indexOf(e.name) < 0) ordered.push(e.name);
+  }
+  var html = renderDisasmToolbar(paneId, kind, true, wasmOptState[paneId] === true);
+  html += '<div class="disasm-diff-header">';
+  html += '<div class="disasm-diff-title">Optimiser diff &mdash; original vs optimised</div>';
+  html += '<div class="disasm-diff-legend">'
+       + '<span class="disasm-diff-legend-removed">&minus; removed</span> '
+       + '<span class="disasm-diff-legend-added">+ added</span> '
+       + '<span class="disasm-diff-legend-dim">sequence numbers &amp; offsets ignored</span>'
+       + '</div>';
+  html += '<button class="disasm-diff-close" data-disasm-diff-close>Close diff</button>';
+  html += '</div><div class="disasm-body disasm-diff-body">';
+  var anyDiff = false;
+  for (var name of ordered) {
+    var pair = byName[name];
+    var block = buildOptDiffBlockHtml(name, pair.orig, pair.opt, kind);
+    if (block.changed) anyDiff = true;
+    html += block.html;
+  }
+  if (!anyDiff) {
+    html += '<div class="empty-state">No semantic changes detected (sequence numbers and offsets ignored).</div>';
+  }
+  html += '</div>';
+  pane.innerHTML = html;
+  setupDisasmToolbar(pane, paneId, kind, true);
+  var closeBtn = pane.querySelector('[data-disasm-diff-close]');
+  if (closeBtn) closeBtn.addEventListener('click', function() { renderDisassembly(paneId, kind); });
+  setupHoverHighlighting(pane);
+  // Draw control-flow arrows on the green (new) code in each diff
+  // block — only edges whose source and target are both visible
+  // opt-side rows get rendered, so same-segment elisions don't
+  // produce dangling arrows.
+  requestAnimationFrame(function() {
+    pane.querySelectorAll('.disasm-diff-rows.wasm-edges-container').forEach(function(c) {
+      drawWasmEdges(c);
+    });
+  });
+}
+
+function buildOptDiffBlockHtml(name, origEntry, optEntry, kind) {
+  var origRows = origEntry ? normaliseForDiff(origEntry, kind) : [];
+  var optRows = optEntry ? normaliseForDiff(optEntry, kind) : [];
+  var segments = computeDiffSegments(origRows.map(function(r) { return r.key; }), optRows.map(function(r) { return r.key; }));
+  var changed = segments.some(function(s) { return s.type !== 'same'; });
+  // Visible opt-side rows contribute to the control-flow arrow
+  // overlay (drawn alongside the green/new code).  Track which opt
+  // instruction indices are shown so we can wire edges to them.
+  var visibleOptIdx = new Set();
+  var html = '<div class="wasm-function disasm-diff-block" data-func-name="' + esc(name) + '">';
+  var badge = !origEntry ? '<span class="disasm-diff-badge disasm-diff-added">new</span>'
+             : !optEntry ? '<span class="disasm-diff-badge disasm-diff-removed">removed</span>'
+             : !changed ? '<span class="disasm-diff-badge disasm-diff-same">unchanged</span>'
+             : '<span class="disasm-diff-badge disasm-diff-modified">modified</span>';
+  html += '<div class="wasm-func-header">' + esc(name) + ' ' + badge + '</div>';
+  if (!changed && origEntry) {
+    html += '<div class="disasm-diff-unchanged-note">' + origRows.length + ' instructions — no semantic changes</div>';
+    html += '</div>';
+    return { html: html, changed: false };
+  }
+  // Wrap the rows in a ``wasm-edges-container`` so the shared
+  // orthogonal-edge renderer can target it directly, keyed by the
+  // ``data-idx`` stamped onto each visible opt-side row.
+  html += '<div class="disasm-diff-rows wasm-edges-container" data-diff-func-name="' + esc(name) + '">';
+  for (var seg of segments) {
+    if (seg.type === 'same') {
+      // For same segments show the opt-side row (not the orig side)
+      // so ``data-idx`` stays in the opt instruction space and
+      // arrows land correctly.
+      var shown = Math.min(seg.optEnd - seg.optStart, 1);
+      for (var i = 0; i < shown; i++) {
+        var row = optRows[seg.optStart + i];
+        if (row && row.instrIdx != null) visibleOptIdx.add(row.instrIdx);
+        html += renderDiffRow(row, 'same', 'opt');
+      }
+      var hiddenCount = (seg.optEnd - seg.optStart) - shown;
+      if (hiddenCount > 0) {
+        html += '<div class="disasm-diff-elide">&hellip; ' + hiddenCount + ' unchanged instruction' + (hiddenCount === 1 ? '' : 's') + '</div>';
+      }
+    } else {
+      for (var i = seg.origStart; i < seg.origEnd; i++) html += renderDiffRow(origRows[i], 'removed', 'orig');
+      for (var i = seg.optStart; i < seg.optEnd; i++) {
+        var row = optRows[i];
+        if (row && row.instrIdx != null) visibleOptIdx.add(row.instrIdx);
+        html += renderDiffRow(row, 'added', 'opt');
+      }
+    }
+  }
+  html += '</div></div>';
+  return { html: html, changed: changed, visibleOptIdx: visibleOptIdx };
+}
+
+function renderDiffRow(row, state, side) {
+  if (!row) return '';
+  var cls = 'disasm-diff-row disasm-diff-' + state;
+  // Added/same rows double as control-flow arrow endpoints via the
+  // same ``wasm-instr`` / ``data-idx`` contract that the live
+  // disassembly uses.  Removed rows are just text.
+  if (side === 'opt' && row.instrIdx != null) cls += ' wasm-instr';
+  var sigil = state === 'added' ? '+' : (state === 'removed' ? '−' : ' ');
+  var rng = row.range;
+  var rngAttrs = rng ? ' data-start="' + rng.startOffset + '" data-end="' + rng.endOffset + '"' : '';
+  var idxAttr = (side === 'opt' && row.instrIdx != null) ? ' data-idx="' + row.instrIdx + '"' : '';
+  // The normalised display already carries a ``.wasm-branch-target``
+  // span for branching instructions; for opt-side rows we thread
+  // ``data-branch-target-idx`` onto it so ``drawWasmEdges`` can
+  // find the endpoint from inside the diff container.
+  var displayHtml = row.displayHtml;
+  if (side === 'opt' && row.branchTargetIdx != null) {
+    displayHtml = displayHtml.replace(
+      /<span class="wasm-branch-target"/,
+      '<span class="wasm-branch-target" data-branch-target-idx="' + row.branchTargetIdx + '"'
+    );
+  }
+  return '<div class="' + cls + '"' + idxAttr + rngAttrs + '>'
+       + '<span class="disasm-diff-sigil">' + sigil + '</span>'
+       + '<span class="disasm-diff-text">' + displayHtml + '</span>'
+       + '</div>';
+}
+
+function normaliseForDiff(entry, kind) {
+  // Map each instruction (or label) into a ``{key, displayHtml,
+  // range}`` tuple where ``key`` is a string uniquely identifying the
+  // semantic content — explicitly excluding sequence numbers, byte
+  // offsets, and ``+N``/``pc N`` jump relatives.  The frontend diff
+  // engine (``computeDiffSegments``) compares keys; rows with equal
+  // keys are grouped into ``same`` segments regardless of where they
+  // sit in the stream.
+  var rows = [];
+  var literals = entry.literals || [];
+  var locals = entry.locals || [];
+  for (var ins of (entry.instructions || [])) {
+    if (ins.kind === 'label') {
+      rows.push({
+        key: 'LABEL:' + ins.label,
+        displayHtml: '<span class="disasm-label-anchor"># ' + esc(ins.label) + ':</span>',
+        range: null,
+        instrIdx: ins.idx,
+        branchTargetIdx: null,
+      });
+      continue;
+    }
+    var parts = [ins.op];
+    var displayParts = ['<span class="wasm-mnemonic">' + esc(ins.op) + '</span>'];
+    if (kind === 'asm') {
+      var jt = ins.jumpTarget;
+      if (jt) {
+        parts.push('JMP:' + jt.label);
+        displayParts.push('<span class="wasm-branch-target">; ' + esc(jt.label) + '</span>');
+      } else if (ins.operandText) {
+        // Preserve literal/local refs as names, but strip bare numbers
+        // (they're indices whose identity depends on table order).
+        var norm = normaliseAsmOperand(ins, literals, locals);
+        parts.push(norm.key);
+        displayParts.push('<span class="wasm-operand">' + esc(norm.display) + '</span>');
+      }
+      if (ins.jumpTable && ins.jumpTable.length) {
+        var jtKeys = ins.jumpTable.map(function(e) { return e.pattern + '->' + e.label; });
+        parts.push('JT:' + jtKeys.join('|'));
+        var jtDisplay = ins.jumpTable.map(function(e) { return '&quot;' + esc(e.pattern) + '&quot;->' + esc(e.label); });
+        displayParts.push('<span class="wasm-comment">[' + jtDisplay.join(', ') + ']</span>');
+      }
+    } else {
+      // WASM operands: resolve call/branch by target name.
+      if (ins.callTarget) {
+        var ct = ins.callTarget;
+        parts.push('CALL:' + ct.kind + ':' + ct.name);
+        displayParts.push('<span class="wasm-call-target">; ' + esc(ct.kind === 'import' ? ('import ' + ct.name) : ct.name) + '</span>');
+      } else if (ins.branchTarget) {
+        var bt = ins.branchTarget;
+        parts.push('BR:' + (bt.kind || '') + ':' + (bt.label || ''));
+        var lbl = (bt.kind || '') + (bt.label ? ' ' + bt.label : '');
+        displayParts.push('<span class="wasm-branch-target">; ' + esc(lbl) + '</span>');
+      } else if (ins.op === 'local.get' || ins.op === 'local.set' || ins.op === 'local.tee') {
+        var localParts = ins.fullText.split(' ');
+        var localName = localParts.length > 2 ? localParts.slice(2).join(' ') : '';
+        parts.push('LOCAL:' + (localName || ins.operandText));
+        displayParts.push('<span class="wasm-operand-name">' + esc(localName || ins.operandText) + '</span>');
+      } else if (ins.op === 'i32.const' || ins.op === 'i64.const' || ins.op === 'f64.const') {
+        // Constant value IS semantic — keep it.
+        parts.push('K:' + ins.operandText);
+        displayParts.push('<span class="wasm-operand">' + esc(ins.operandText) + '</span>');
+      } else if (ins.operandText) {
+        // Other ops: operand is typically a type descriptor or a
+        // local/global idx.  Keep the text but strip bare numerics.
+        var stripped = ins.operandText.replace(/\b\d+\b/g, '#');
+        parts.push(stripped);
+        if (stripped !== '#') displayParts.push('<span class="wasm-operand">' + esc(ins.operandText) + '</span>');
+      }
+      if (ins.label) {
+        parts.push('LBL:' + ins.label);
+        displayParts.push('<span class="wasm-comment">;; ' + esc(ins.label) + '</span>');
+      }
+    }
+    // Record the stable instruction idx + resolved branch target so
+    // the diff view can draw control-flow arrows on the green side.
+    var branchTargetIdx = null;
+    if (kind === 'asm' && ins.jumpTarget && ins.jumpTarget.targetIdx != null) {
+      branchTargetIdx = ins.jumpTarget.targetIdx;
+    } else if (kind === 'wasm' && ins.branchTarget && ins.branchTarget.targetIdx != null) {
+      branchTargetIdx = ins.branchTarget.targetIdx;
+    }
+    rows.push({
+      key: parts.join(' '),
+      displayHtml: displayParts.join(' '),
+      range: ins.range,
+      instrIdx: ins.idx,
+      branchTargetIdx: branchTargetIdx,
+    });
+  }
+  return rows;
+}
+
+function normaliseAsmOperand(ins, literals, locals) {
+  // Map push1/push4 N → literal text; loadScalar1/storeScalar1 %vN →
+  // local name; jump/pc-anchored ops are handled via ``jumpTarget``.
+  // Returns ``{key, display}``.
+  var op = ins.op;
+  var text = ins.operandText;
+  if ((op === 'push1' || op === 'push4') && ins.operandText) {
+    var idx = parseInt(ins.operandText);
+    if (!isNaN(idx) && idx >= 0 && idx < literals.length) {
+      return { key: 'LIT:' + literals[idx], display: '"' + literals[idx] + '" (#' + idx + ')' };
+    }
+  }
+  if (ins.lvtRef !== null && ins.lvtRef !== undefined) {
+    var name = locals[ins.lvtRef] || ('v' + ins.lvtRef);
+    return { key: 'VAR:' + name, display: '%' + name };
+  }
+  // Strip bare "+N" / "-N" / "pc N" relatives from non-label ops.
+  var stripped = text.replace(/[+-]?\d+/g, '#').replace(/pc #/g, 'pc');
+  return { key: stripped, display: text };
+}
 
 // SSA variable spans with hover tooltips
 function renderVarSpan(name,version,type,lattice,role){
@@ -537,65 +1474,51 @@ function showVarTooltip(el,v){
 function hideVarTooltip(){if(activeTooltip){activeTooltip.remove();activeTooltip=null;}}
 
 // CFG edge arrows
-function drawAllCfgEdges(pane,funcs){
-  pane.querySelectorAll('.cfg-edges-svg').forEach(function(s){s.remove()});
-  for(var func of funcs){
-    var container=pane.querySelector('.cfg-edges-container[data-func="'+func.name+'"]');
-    if(!container)continue;
-    var edges=[];
-    for(var block of func.blocks){
-      if(!block.successors)continue;
-      var term=block.terminator;
-      for(var target of block.successors){
-        var edgeType='goto';
-        if(term&&term.type==='branch')edgeType=target===term.trueTarget?'true':'false';
-        edges.push({from:block.name,to:target,edgeType:edgeType});
+function drawAllCfgEdges(pane, funcs) {
+  for (var func of funcs) {
+    var container = pane.querySelector('.cfg-edges-container[data-func="' + func.name + '"]');
+    if (!container) continue;
+    var blockEls = {};
+    container.querySelectorAll('.cfg-block[data-block]').forEach(function(el) { blockEls[el.dataset.block] = el; });
+    var edges = [];
+    var positions = {};
+    Object.keys(blockEls).forEach(function(name, i) { positions[name] = i; });
+    for (var block of func.blocks) {
+      if (!block.successors) continue;
+      var term = block.terminator;
+      for (var target of block.successors) {
+        var kind = 'goto';
+        if (term && term.type === 'branch') kind = target === term.trueTarget ? 'true' : 'false';
+        var fromEl = blockEls[block.name];
+        var toEl = blockEls[target];
+        if (!fromEl || !toEl) continue;
+        edges.push({
+          from: fromEl,
+          to: toEl,
+          fromId: block.name,
+          toId: target,
+          fromPos: positions[block.name] != null ? positions[block.name] : 0,
+          toPos: positions[target] != null ? positions[target] : 0,
+          kind: kind,
+        });
       }
     }
-    if(!edges.length)continue;
-    var containerRect=container.getBoundingClientRect();
-    var blockEls={};container.querySelectorAll('.cfg-block[data-block]').forEach(function(el){blockEls[el.dataset.block]=el;});
-    var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.classList.add('cfg-edges-svg');svg.setAttribute('width',containerRect.width);svg.setAttribute('height',containerRect.height);
-    var defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
-    var fid=func.name.replace(/[^A-Za-z0-9]/g,'_');
-    for(var type of ['goto','true','false']){
-      var marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
-      marker.setAttribute('id','ah-'+type+'-'+fid);marker.setAttribute('viewBox','0 0 8 6');marker.setAttribute('refX','8');marker.setAttribute('refY','3');marker.setAttribute('markerWidth','7');marker.setAttribute('markerHeight','5');marker.setAttribute('orient','auto');
-      var poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');poly.setAttribute('points','0 0, 8 3, 0 6');poly.classList.add('cfg-arrowhead','cfg-arrowhead-'+type);
-      marker.appendChild(poly);defs.appendChild(marker);
-    }
-    svg.appendChild(defs);
-    var R=4,LANE_W=8,GUTTER_BASE=36;
-    for(var i=0;i<edges.length;i++){
-      var edge=edges[i];var fromEl=blockEls[edge.from];var toEl=blockEls[edge.to];
-      if(!fromEl||!toEl)continue;
-      var fromRect=fromEl.getBoundingClientRect();var toRect=toEl.getBoundingClientRect();
-      var blockLeft=fromRect.left-containerRect.left;
-      var x1=blockLeft,y1=fromRect.bottom-containerRect.top-4;
-      var x2=toRect.left-containerRect.left,y2=toRect.top-containerRect.top+8;
-      var laneX=GUTTER_BASE-i*LANE_W;var goingDown=y2>y1;
-      var d;
-      if(Math.abs(y2-y1)<2){d='M '+x1+' '+y1+' L '+x2+' '+y2;}
-      else{
-        var dy=goingDown?1:-1;
-        d='M '+x1+' '+y1+' L '+(laneX+R)+' '+y1+' A '+R+' '+R+' 0 0 '+(goingDown?1:0)+' '+laneX+' '+(y1+dy*R)+' L '+laneX+' '+(y2-dy*R)+' A '+R+' '+R+' 0 0 '+(goingDown?0:1)+' '+(laneX+R)+' '+y2+' L '+x2+' '+y2;
-      }
-      var path=document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d',d);path.classList.add('cfg-edge','cfg-edge-'+edge.edgeType);
-      path.dataset.from=edge.from;path.dataset.to=edge.to;
-      path.setAttribute('marker-end','url(#ah-'+edge.edgeType+'-'+fid+')');
-      svg.appendChild(path);
-    }
-    container.insertBefore(svg,container.firstChild);
-    container.addEventListener('mouseover',function(e){
-      var block=e.target.closest('.cfg-block[data-block]');if(!block)return;
-      var bn=block.dataset.block;
-      svg.querySelectorAll('.cfg-edge').forEach(function(p){if(p.dataset.from===bn||p.dataset.to===bn)p.classList.add('highlighted');});
-    });
-    container.addEventListener('mouseout',function(e){
-      var block=e.target.closest('.cfg-block[data-block]');if(!block)return;
-      svg.querySelectorAll('.cfg-edge.highlighted').forEach(function(p){p.classList.remove('highlighted')});
+    var fid = func.name.replace(/[^A-Za-z0-9]/g, '_');
+    drawOrthogonalEdges(container, edges, {
+      svgClass: 'cfg-edges-svg',
+      edgeClass: 'cfg-edge',
+      edgeKindClass: function(e) { return 'cfg-edge-' + e.kind; },
+      arrowheadClass: 'cfg-arrowhead',
+      arrowheadIdPrefix: 'cfg-ah-' + fid,
+      markerKinds: ['true', 'false', 'goto'],
+      markerForEdge: function(e) { return e.kind; },
+      gutter: {
+        laneWidth: 8, innerX: 36, cornerRadius: 4,
+        anchorFromX: 'left-of', anchorToX: 'left-of',
+        anchorFromY: 'bottom', anchorToY: 'top',
+      },
+      endpointSelector: '.cfg-block[data-block]',
+      endpointIdAttr: 'block',
     });
   }
 }

@@ -344,6 +344,16 @@ def wasm_codegen_module(
 
     # Phase 4: Compile top-level with shared state
     top_escape = escape_summaries.get("::top") if escape_summaries is not None else None
+    # Cover the whole file for the ``::top`` pseudo-proc so a click on
+    # any top-level instruction resolves to somewhere inside the script.
+    top_range: Range | None
+    top_stmts = ir_module.top_level.statements
+    if top_stmts:
+        first = getattr(top_stmts[0], "range", None)
+        last = getattr(top_stmts[-1], "range", None)
+        top_range = Range(start=first.start, end=last.end) if first and last else None
+    else:
+        top_range = None
     emitter = _WasmEmitter(
         cfg_module.top_level,
         optimise=optimise,
@@ -371,6 +381,8 @@ def wasm_codegen_module(
     emitter.set_compiled_proc_registrations(ir_module)
     top_func = emitter.generate()
     top_func.name = "::top"
+    top_func.kind = "top"
+    top_func.source_range = top_range
     module.functions.append(top_func)
     # ::top occupies the first function index after imports.
     if diag_map is not None:
@@ -398,6 +410,16 @@ def wasm_codegen_module(
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname
+        # Stamp the callable's original source range so clicking a
+        # ``call N`` in the explorer jumps to the proc's definition.
+        ir_proc = ir_module.procedures.get(qname)
+        if ir_proc is not None:
+            callable_func.source_range = ir_proc.range
+            callable_func.kind = "proc"
+        elif ir_module.methods and qname in ir_module.methods:
+            ir_method = ir_module.methods[qname]
+            callable_func.source_range = ir_method.range
+            callable_func.kind = "method"
         module.functions.append(callable_func)
         # Record the proc's WASM function index so the sidecar can
         # resolve ``<wasm function N>`` backtraces to proc names.

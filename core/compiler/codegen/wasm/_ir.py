@@ -16,6 +16,7 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 from ._encoding import (
     _encode_string,
@@ -23,6 +24,9 @@ from ._encoding import (
     _leb128_signed,
     _leb128_unsigned,
 )
+
+if TYPE_CHECKING:
+    from ....analysis.semantic_model import Range
 
 # WASM type constants
 
@@ -138,10 +142,24 @@ _BLOCK_I64 = ValType.I64
 
 @dataclass(slots=True)
 class WasmInstruction:
-    """A single WASM instruction with optional operands."""
+    """A single WASM instruction with optional operands.
+
+    ``range`` captures the source range of the originating Tcl statement
+    (when the instruction was emitted from inside ``_emit_stmt``) so the
+    compiler explorer can offer click-to-source navigation and render
+    per-statement comments above each instruction group.  ``label`` is a
+    free-form hint set by callers that want to attach a human-readable
+    tag to a structural instruction — for example the emitter tags
+    ``block``/``loop``/``if`` opens with the Tcl command that produced
+    them (``foreach`` / ``while`` / ``if``).  Both fields are ignored by
+    the binary encoder and WAT formatter; only the explorer view
+    consumes them.
+    """
 
     op: int
     operands: bytes = b""
+    range: Range | None = None
+    label: str | None = None
 
     def encode(self) -> bytes:
         return bytes([self.op]) + self.operands
@@ -149,7 +167,14 @@ class WasmInstruction:
 
 @dataclass(slots=True)
 class WasmFunction:
-    """Compiled WASM function."""
+    """Compiled WASM function.
+
+    ``source_range`` records the proc's original source range (from
+    :class:`~core.compiler.ir.IRProcedure`) so the explorer can place
+    the cursor inside the proc body when the user clicks on a call
+    target that resolves to this function.  ``kind`` distinguishes the
+    synthetic ``::top`` wrapper from real Tcl procs and methods.
+    """
 
     name: str
     params: list[ValType]
@@ -158,6 +183,8 @@ class WasmFunction:
     body: list[WasmInstruction]
     local_names: list[str] = field(default_factory=list)
     exported: bool = False
+    source_range: Range | None = None
+    kind: str = "proc"  # "top" | "proc" | "method"
 
     def encode_body(self) -> bytes:
         """Encode function body (locals + instructions + end)."""
@@ -391,6 +418,102 @@ class WasmModule:
 
         return _WASM_MAGIC + _WASM_VERSION + b"".join(sections)
 
+    def to_explorer_json(self) -> list[dict]:
+        """Structured per-instruction view for the compiler explorer.
+
+        Returns a list of function entries (one per function in the
+        module; the synthetic ``(module)`` entry carries types, imports
+        and data).  Each function entry carries its instruction list
+        with:
+
+        - resolved ``call`` target names (imports and internal
+          functions),
+        - resolved ``br`` / ``br_if`` targets (opening/closing of the
+          enclosing structured-control-flow construct),
+        - a ``range`` dict of the originating Tcl statement (when
+          available), for click-to-source navigation, and
+        - any explorer label attached by the emitter
+          (``"foreach"``, ``"if"``, ``"catch body"``, …).
+
+        The shape matches what ``explorer/serialise.py`` ships to the
+        frontend.  Indices into the returned instruction list are
+        stable, so the UI can cross-link a branch instruction to its
+        matching block/loop/if open/close.
+        """
+        # Indices: imports occupy 0..N-1, defined functions follow.
+        num_imports = len(self.imports)
+
+        def _func_label(idx: int) -> dict:
+            if idx < num_imports:
+                imp = self.imports[idx]
+                return {
+                    "kind": "import",
+                    "name": imp.name,
+                    "module": imp.module,
+                    "funcIdx": idx,
+                    "defIdx": None,
+                }
+            def_idx = idx - num_imports
+            if 0 <= def_idx < len(self.functions):
+                f = self.functions[def_idx]
+                return {
+                    "kind": "top" if f.kind == "top" else f.kind,
+                    "name": f.name,
+                    "module": None,
+                    "funcIdx": idx,
+                    "defIdx": def_idx,
+                }
+            return {
+                "kind": "unknown",
+                "name": f"<func {idx}>",
+                "module": None,
+                "funcIdx": idx,
+                "defIdx": None,
+            }
+
+        module_header = {
+            "name": "(module)",
+            "kind": "module",
+            "funcIdx": None,
+            "params": [],
+            "results": [],
+            "locals": [],
+            "sourceRange": None,
+            "instrCount": 0,
+            "instructions": [],
+            "imports": [
+                {
+                    "module": imp.module,
+                    "name": imp.name,
+                    "typeIdx": imp.type_idx,
+                    "funcIdx": i,
+                }
+                for i, imp in enumerate(self.imports)
+            ],
+            "types": [
+                {
+                    "index": i,
+                    "params": [_valtype_name(p) for p in params],
+                    "results": [_valtype_name(r) for r in results],
+                }
+                for i, (params, results) in enumerate(self._types)
+            ],
+            "dataSegments": [
+                {"offset": seg.offset, "size": len(seg.data)} for seg in self.data_segments
+            ],
+        }
+
+        entries: list[dict] = [module_header]
+        for def_idx, func in enumerate(self.functions):
+            entries.append(
+                _function_to_explorer_json(
+                    func,
+                    func_idx=num_imports + def_idx,
+                    resolve_func=_func_label,
+                )
+            )
+        return entries
+
     def to_wat(self) -> str:
         """Generate a human-readable WAT (WebAssembly Text) representation."""
         lines: list[str] = ["(module"]
@@ -473,79 +596,80 @@ def _valtype_name(vt: ValType | int) -> str:
     return names.get(ValType(vt), f"unknown({vt})")
 
 
+_WAT_NAMES: dict[int, str] = {
+    WasmOp.UNREACHABLE: "unreachable",
+    WasmOp.NOP: "nop",
+    WasmOp.BLOCK: "block",
+    WasmOp.LOOP: "loop",
+    WasmOp.IF: "if",
+    WasmOp.ELSE: "else",
+    WasmOp.END: "end",
+    WasmOp.BR: "br",
+    WasmOp.BR_IF: "br_if",
+    WasmOp.BR_TABLE: "br_table",
+    WasmOp.RETURN: "return",
+    WasmOp.CALL: "call",
+    WasmOp.DROP: "drop",
+    WasmOp.SELECT: "select",
+    WasmOp.LOCAL_GET: "local.get",
+    WasmOp.LOCAL_SET: "local.set",
+    WasmOp.LOCAL_TEE: "local.tee",
+    WasmOp.GLOBAL_GET: "global.get",
+    WasmOp.GLOBAL_SET: "global.set",
+    WasmOp.I32_CONST: "i32.const",
+    WasmOp.I64_CONST: "i64.const",
+    WasmOp.F64_CONST: "f64.const",
+    WasmOp.I32_EQZ: "i32.eqz",
+    WasmOp.I32_EQ: "i32.eq",
+    WasmOp.I32_NE: "i32.ne",
+    WasmOp.I32_LT_S: "i32.lt_s",
+    WasmOp.I32_GT_S: "i32.gt_s",
+    WasmOp.I32_LE_S: "i32.le_s",
+    WasmOp.I32_GE_S: "i32.ge_s",
+    WasmOp.I64_EQZ: "i64.eqz",
+    WasmOp.I64_EQ: "i64.eq",
+    WasmOp.I64_NE: "i64.ne",
+    WasmOp.I64_LT_S: "i64.lt_s",
+    WasmOp.I64_GT_S: "i64.gt_s",
+    WasmOp.I64_LE_S: "i64.le_s",
+    WasmOp.I64_GE_S: "i64.ge_s",
+    WasmOp.I32_ADD: "i32.add",
+    WasmOp.I32_SUB: "i32.sub",
+    WasmOp.I32_MUL: "i32.mul",
+    WasmOp.I32_DIV_S: "i32.div_s",
+    WasmOp.I32_REM_S: "i32.rem_s",
+    WasmOp.I32_AND: "i32.and",
+    WasmOp.I32_OR: "i32.or",
+    WasmOp.I32_XOR: "i32.xor",
+    WasmOp.I32_SHL: "i32.shl",
+    WasmOp.I32_SHR_S: "i32.shr_s",
+    WasmOp.I64_ADD: "i64.add",
+    WasmOp.I64_SUB: "i64.sub",
+    WasmOp.I64_MUL: "i64.mul",
+    WasmOp.I64_DIV_S: "i64.div_s",
+    WasmOp.I64_REM_S: "i64.rem_s",
+    WasmOp.I64_AND: "i64.and",
+    WasmOp.I64_OR: "i64.or",
+    WasmOp.I64_XOR: "i64.xor",
+    WasmOp.I64_SHL: "i64.shl",
+    WasmOp.I64_SHR_S: "i64.shr_s",
+    WasmOp.I32_WRAP_I64: "i32.wrap_i64",
+    WasmOp.I64_EXTEND_I32_S: "i64.extend_i32_s",
+    WasmOp.I32_STORE: "i32.store",
+    WasmOp.I64_STORE: "i64.store",
+    WasmOp.I32_LOAD: "i32.load",
+    WasmOp.I64_LOAD: "i64.load",
+    WasmOp.MEMORY_SIZE: "memory.size",
+    WasmOp.MEMORY_GROW: "memory.grow",
+}
+
+
 def _format_wat_instr(instr: WasmInstruction, indent: int) -> str | None:
     """Format a single instruction for WAT output."""
     prefix = "    " * indent
     op = instr.op
 
-    wat_names: dict[int, str] = {
-        WasmOp.UNREACHABLE: "unreachable",
-        WasmOp.NOP: "nop",
-        WasmOp.BLOCK: "block",
-        WasmOp.LOOP: "loop",
-        WasmOp.IF: "if",
-        WasmOp.ELSE: "else",
-        WasmOp.END: "end",
-        WasmOp.BR: "br",
-        WasmOp.BR_IF: "br_if",
-        WasmOp.BR_TABLE: "br_table",
-        WasmOp.RETURN: "return",
-        WasmOp.CALL: "call",
-        WasmOp.DROP: "drop",
-        WasmOp.SELECT: "select",
-        WasmOp.LOCAL_GET: "local.get",
-        WasmOp.LOCAL_SET: "local.set",
-        WasmOp.LOCAL_TEE: "local.tee",
-        WasmOp.GLOBAL_GET: "global.get",
-        WasmOp.GLOBAL_SET: "global.set",
-        WasmOp.I32_CONST: "i32.const",
-        WasmOp.I64_CONST: "i64.const",
-        WasmOp.F64_CONST: "f64.const",
-        WasmOp.I32_EQZ: "i32.eqz",
-        WasmOp.I32_EQ: "i32.eq",
-        WasmOp.I32_NE: "i32.ne",
-        WasmOp.I32_LT_S: "i32.lt_s",
-        WasmOp.I32_GT_S: "i32.gt_s",
-        WasmOp.I32_LE_S: "i32.le_s",
-        WasmOp.I32_GE_S: "i32.ge_s",
-        WasmOp.I64_EQZ: "i64.eqz",
-        WasmOp.I64_EQ: "i64.eq",
-        WasmOp.I64_NE: "i64.ne",
-        WasmOp.I64_LT_S: "i64.lt_s",
-        WasmOp.I64_GT_S: "i64.gt_s",
-        WasmOp.I64_LE_S: "i64.le_s",
-        WasmOp.I64_GE_S: "i64.ge_s",
-        WasmOp.I32_ADD: "i32.add",
-        WasmOp.I32_SUB: "i32.sub",
-        WasmOp.I32_MUL: "i32.mul",
-        WasmOp.I32_DIV_S: "i32.div_s",
-        WasmOp.I32_REM_S: "i32.rem_s",
-        WasmOp.I32_AND: "i32.and",
-        WasmOp.I32_OR: "i32.or",
-        WasmOp.I32_XOR: "i32.xor",
-        WasmOp.I32_SHL: "i32.shl",
-        WasmOp.I32_SHR_S: "i32.shr_s",
-        WasmOp.I64_ADD: "i64.add",
-        WasmOp.I64_SUB: "i64.sub",
-        WasmOp.I64_MUL: "i64.mul",
-        WasmOp.I64_DIV_S: "i64.div_s",
-        WasmOp.I64_REM_S: "i64.rem_s",
-        WasmOp.I64_AND: "i64.and",
-        WasmOp.I64_OR: "i64.or",
-        WasmOp.I64_XOR: "i64.xor",
-        WasmOp.I64_SHL: "i64.shl",
-        WasmOp.I64_SHR_S: "i64.shr_s",
-        WasmOp.I32_WRAP_I64: "i32.wrap_i64",
-        WasmOp.I64_EXTEND_I32_S: "i64.extend_i32_s",
-        WasmOp.I32_STORE: "i32.store",
-        WasmOp.I64_STORE: "i64.store",
-        WasmOp.I32_LOAD: "i32.load",
-        WasmOp.I64_LOAD: "i64.load",
-        WasmOp.MEMORY_SIZE: "memory.size",
-        WasmOp.MEMORY_GROW: "memory.grow",
-    }
-
-    name = wat_names.get(op)
+    name = _WAT_NAMES.get(op)
     if name is None:
         return f"{prefix};; unknown op 0x{op:02x}"
 
@@ -604,3 +728,251 @@ def _decode_leb128_signed(data: bytes) -> int:
                 result -= 1 << shift
             break
     return result
+
+
+# Explorer view helpers
+
+
+def _range_to_explorer_dict(rng: Range | None) -> dict | None:
+    """Serialise a Range for the explorer frontend."""
+    if rng is None:
+        return None
+    return {
+        "startLine": rng.start.line,
+        "startCol": rng.start.character,
+        "startOffset": rng.start.offset,
+        "endLine": rng.end.line,
+        "endCol": rng.end.character,
+        "endOffset": rng.end.offset,
+    }
+
+
+def _function_to_explorer_json(
+    func: WasmFunction,
+    *,
+    func_idx: int,
+    resolve_func,
+) -> dict:
+    """Build a structured explorer view for a single ``WasmFunction``.
+
+    Resolves each instruction's display text, its ``call`` / ``br``
+    target (when any), its indent level, and emits a stable index so
+    the UI can cross-link a branch to the control-flow construct it
+    targets.  ``resolve_func`` is a callable taking a 0-based WASM
+    function index (including imports) and returning a label dict.
+    """
+    local_names = list(func.local_names)
+    param_count = len(func.params)
+
+    def _local_label(idx: int) -> str:
+        if 0 <= idx < len(local_names):
+            return local_names[idx]
+        return f"$l{idx}"
+
+    # First pass: pair BLOCK/LOOP/IF opens with their matching END (and
+    # ELSE).  Control-stack entry: (opcode, open_idx, else_idx | None,
+    # end_idx | None, label).  Built by a single linear walk.
+    stack: list[dict] = []
+    open_info: dict[int, dict] = {}  # open_idx → info
+
+    for i, instr in enumerate(func.body):
+        if instr.op in (WasmOp.BLOCK, WasmOp.LOOP, WasmOp.IF):
+            entry = {
+                "op": instr.op,
+                "openIdx": i,
+                "elseIdx": None,
+                "endIdx": None,
+                "label": instr.label,
+            }
+            stack.append(entry)
+            open_info[i] = entry
+        elif instr.op == WasmOp.ELSE:
+            if stack:
+                stack[-1]["elseIdx"] = i
+        elif instr.op == WasmOp.END:
+            if stack:
+                entry = stack.pop()
+                entry["endIdx"] = i
+
+    # Resolve each instruction
+    instructions: list[dict] = []
+    indent = 0
+    ctrl_stack: list[dict] = []  # mirrors the open stack while walking forward
+
+    for i, instr in enumerate(func.body):
+        op = instr.op
+        mnemonic = _WAT_NAMES.get(op, f"0x{op:02x}")
+
+        # Structural tracking first so indent reflects the instruction
+        # we're about to emit rather than the one after it.
+        this_indent = indent
+        block_label = None
+        block_kind = None
+        if op in (WasmOp.BLOCK, WasmOp.LOOP, WasmOp.IF):
+            # Opens are rendered at the outer indent.  New frame pushed
+            # after we record the instruction so following body ops
+            # render one level deeper.
+            info = open_info.get(i)
+            if info is not None:
+                block_label = f"$L{i}"
+            if op == WasmOp.BLOCK:
+                block_kind = "block"
+            elif op == WasmOp.LOOP:
+                block_kind = "loop"
+            elif op == WasmOp.IF:
+                block_kind = "if"
+            ctrl_stack.append(info or {"op": op, "openIdx": i, "endIdx": None, "label": None})
+            indent += 1
+        elif op == WasmOp.ELSE:
+            # Render at one less indent (matches structured CFG style).
+            this_indent = max(0, indent - 1)
+        elif op == WasmOp.END:
+            if ctrl_stack:
+                ctrl_stack.pop()
+            indent = max(0, indent - 1)
+            this_indent = indent
+
+        # Operand decoding
+        operand_text = ""
+        full_text = mnemonic
+        call_target = None
+        branch_target = None
+        local_index: int | None = None
+
+        if op in (
+            WasmOp.LOCAL_GET,
+            WasmOp.LOCAL_SET,
+            WasmOp.LOCAL_TEE,
+        ):
+            if instr.operands:
+                idx = _decode_leb128_unsigned(instr.operands)
+                local_index = idx
+                name = _local_label(idx)
+                operand_text = str(idx)
+                full_text = (
+                    f"{mnemonic} {idx} {name}" if name != f"$l{idx}" else f"{mnemonic} {idx}"
+                )
+        elif op in (WasmOp.GLOBAL_GET, WasmOp.GLOBAL_SET):
+            if instr.operands:
+                idx = _decode_leb128_unsigned(instr.operands)
+                operand_text = str(idx)
+                full_text = f"{mnemonic} {idx}"
+        elif op == WasmOp.CALL:
+            if instr.operands:
+                idx = _decode_leb128_unsigned(instr.operands)
+                operand_text = str(idx)
+                call_target = resolve_func(idx)
+                full_text = f"{mnemonic} {idx}"
+        elif op in (WasmOp.BR, WasmOp.BR_IF):
+            if instr.operands:
+                depth = _decode_leb128_unsigned(instr.operands)
+                operand_text = str(depth)
+                full_text = f"{mnemonic} {depth}"
+                # Resolve target: depth-th from top of ctrl_stack, or
+                # the function body when depth == len(ctrl_stack).
+                if depth < len(ctrl_stack):
+                    frame = ctrl_stack[len(ctrl_stack) - 1 - depth]
+                    target_op = frame.get("op")
+                    if target_op == WasmOp.LOOP:
+                        target_idx = frame.get("openIdx")
+                        target_kind = "loop_header"
+                    else:
+                        target_idx = frame.get("endIdx")
+                        target_kind = "block_end" if target_op == WasmOp.BLOCK else "if_end"
+                    branch_target = {
+                        "depth": depth,
+                        "targetIdx": target_idx,
+                        "kind": target_kind,
+                        "label": frame.get("label"),
+                    }
+                else:
+                    branch_target = {
+                        "depth": depth,
+                        "targetIdx": None,
+                        "kind": "function_return",
+                        "label": None,
+                    }
+        elif op == WasmOp.I32_CONST:
+            if instr.operands:
+                val = _decode_leb128_signed(instr.operands)
+                operand_text = str(val)
+                full_text = f"{mnemonic} {val}"
+        elif op == WasmOp.I64_CONST:
+            if instr.operands:
+                val = _decode_leb128_signed(instr.operands)
+                operand_text = str(val)
+                full_text = f"{mnemonic} {val}"
+        elif op in (WasmOp.BLOCK, WasmOp.LOOP, WasmOp.IF):
+            if instr.operands:
+                bt = instr.operands[0]
+                if bt == _BLOCK_VOID:
+                    full_text = mnemonic
+                else:
+                    full_text = f"{mnemonic} (result {_valtype_name(bt)})"
+            else:
+                full_text = mnemonic
+
+        instructions.append(
+            {
+                "idx": i,
+                "indent": this_indent,
+                "op": mnemonic,
+                "opcode": int(op),
+                "operandText": operand_text,
+                "fullText": full_text,
+                "range": _range_to_explorer_dict(instr.range),
+                "label": instr.label,
+                "callTarget": call_target,
+                "branchTarget": branch_target,
+                "blockLabel": block_label,
+                "blockKind": block_kind,
+                "localIndex": local_index,
+            }
+        )
+
+    # Attach closing metadata onto BLOCK/LOOP/IF opens and their END
+    # counterparts so the UI can cross-link them.
+    for i, instr in enumerate(instructions):
+        op_int = instr["opcode"]
+        if op_int in (int(WasmOp.BLOCK), int(WasmOp.LOOP), int(WasmOp.IF)):
+            info = open_info.get(i)
+            if info is not None:
+                instr["endIdx"] = info["endIdx"]
+                instr["elseIdx"] = info["elseIdx"]
+        elif op_int == int(WasmOp.END):
+            # Find the matching open via open_info iteration.
+            for info in open_info.values():
+                if info["endIdx"] == i:
+                    instr["openIdx"] = info["openIdx"]
+                    instructions[info["openIdx"]].setdefault("endIdx", i)
+                    break
+        elif op_int == int(WasmOp.ELSE):
+            for info in open_info.values():
+                if info["elseIdx"] == i:
+                    instr["openIdx"] = info["openIdx"]
+                    instr["endIdx"] = info["endIdx"]
+                    break
+
+    return {
+        "name": func.name,
+        "kind": func.kind,
+        "funcIdx": func_idx,
+        "exported": func.exported,
+        "params": [
+            {"name": local_names[i] if i < len(local_names) else f"$p{i}", "type": _valtype_name(p)}
+            for i, p in enumerate(func.params)
+        ],
+        "results": [_valtype_name(r) for r in func.results],
+        "locals": [
+            {
+                "name": local_names[param_count + i]
+                if (param_count + i) < len(local_names)
+                else f"$l{i}",
+                "type": _valtype_name(lt),
+            }
+            for i, lt in enumerate(func.locals)
+        ],
+        "sourceRange": _range_to_explorer_dict(func.source_range),
+        "instrCount": len(func.body),
+        "instructions": instructions,
+    }
