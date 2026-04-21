@@ -2010,11 +2010,19 @@ class _WasmEmitter:
                 self._emit_local_set(running)
                 self._emit(WasmOp.END)
             self._emit_local_get(running)
-        elif func in ("int", "entier", "wide") and len(args) == 1:
-            # Integer cast is a no-op at the i64 level — the operand is
+        elif func in ("int", "entier", "wide", "double", "float") and len(args) == 1:
+            # Numeric cast is a no-op at the i64 level — the operand is
             # already evaluated to i64.  Tcl's ``int`` / ``entier`` /
             # ``wide`` all produce a platform-native integer from a
-            # numeric value; in our i64 VM they're identity.
+            # numeric value; in our i64 VM they're identity.  ``double``
+            # / ``float`` are handled the same way since our expr stack
+            # is single-width i64: the semantic difference only matters
+            # when downstream math preserves float precision, which
+            # our codegen doesn't today anyway.  Crucially this keeps
+            # ``expr {$x / double($y)}`` from truncating ``double($y)``
+            # to ``0`` (the pre-wave fallback for "unknown function"),
+            # which triggered an integer divide-by-zero trap in procs
+            # like tcllib ``counter::get ... -avg``.
             self._emit_expr(args[0])
         elif func == "bool" and len(args) == 1:
             # bool(x) == x != 0

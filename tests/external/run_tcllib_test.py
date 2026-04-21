@@ -73,8 +73,14 @@ proc useLocal        {args} {}
 proc useLocalKeep    {args} {}
 proc useTcllibC      {args} { return 0 }
 proc testsuiteCleanup {} { ::tcltest::cleanupTests }
-# The test file does ``namespace import ::tcltest::*`` via the tcltest
-# harness itself; nothing to do here.
+# The real testutilities.tcl (tmp/tcllib-2.0/modules/devtools/
+# testutilities.tcl:190) runs ``namespace import -force ::tcltest::*``
+# at ``uplevel \#0`` so unqualified names like ``test``,
+# ``testConstraint``, and ``cleanupTests`` resolve in the caller's
+# context.  Our stub has to mirror that or every bundled test file
+# traps on ``unknown command: test`` the first time it invokes
+# the ``test name desc body`` form.
+namespace eval :: { namespace import -force ::tcltest::* }
 """
 
 
@@ -182,15 +188,21 @@ class TestCounterBundle:
 
     @pytest.mark.xfail(
         reason=(
-            "Bundle trap: ``unknown command: test`` at counter.test's "
-            "first ``test counter-1.1 ...`` invocation.  tcltest's "
-            "stage-1 sourcing completes but the ``::tcltest::test`` "
-            "proc isn't reachable by the time counter.test runs — "
-            "root cause is the tcltest-init / namespace-path resolver "
-            "interaction, unrelated to the command-manipulation + "
-            "introspection wave (rename / alias / hide / info).  Drop "
-            "the xfail marker when the bundle prints a ``Total N "
-            "Passed N Failed 0 Skipped 0`` summary."
+            "Bundle trap: integer divide-by-zero inside ``counter::init`` "
+            "(``-timehist`` branch) reached via ``counter-timehist``.  "
+            "The test carries a ``load-dependent`` constraint which tcltest "
+            "should skip, but our constraint machinery evaluates the body "
+            "anyway and hits ``expr {$delta / ($secsPerMinute * 60)}`` "
+            "with clock-scan fallback values that zero the divisor.  The "
+            "earlier ``unknown command: test`` and ``double(...)=0`` "
+            "traps are both fixed in this wave (testutilities.tcl stub "
+            "adds ``namespace import -force ::tcltest::*`` and the expr "
+            "compiler now treats ``double``/``float`` as numeric "
+            "identity casts).  Remaining gap is scoped to the "
+            "clock-scan + testConstraint-skip pipeline — outside the "
+            "command-manipulation + introspection wave.  Drop the "
+            "xfail marker when the bundle prints a ``Total N Passed "
+            "N Failed 0 Skipped 0`` summary."
         ),
         strict=False,
     )
