@@ -305,6 +305,17 @@ class _ExpressionsMixin:
     def _emit_term(
         self: _Emitter, term: CFGGoto | CFGBranch | CFGReturn, next_block: str | None
     ) -> None:
+        # Refresh the source-range context before emitting terminator
+        # ops.  ``_current_source_range`` is primarily kept up to date
+        # by ``_emit_stmt``; terminators are emitted after the last
+        # statement in a block, so without this stamp a ``jumpFalse1``
+        # or ``done`` inherits the previous statement's range — which
+        # misroutes click-to-source in the explorer (e.g. an ``if`` 's
+        # conditional jump would point at the preceding ``set``).
+        term_range = getattr(term, "range", None)
+        if term_range is not None:
+            self._current_source_range = term_range
+            self._current_source_line = term_range.start.line + 1
         match term:
             case CFGGoto(target=target):
                 if target != next_block:
@@ -386,6 +397,13 @@ class _ExpressionsMixin:
         tclsh also emits a dead-code ``jump`` past the else path
         after the ``done``.
         """
+        # Stamp the terminator's source range onto the startCommand
+        # wrapper and the ``done`` so the explorer can click back to
+        # the ``return`` source instead of the preceding statement.
+        term_range = getattr(term, "range", None)
+        if term_range is not None:
+            self._current_source_range = term_range
+            self._current_source_line = term_range.start.line + 1
         val = term.value if term.value is not None else ""
         is_cmd_subst = val.startswith("[") and val.endswith("]")
         is_final = next_block is None

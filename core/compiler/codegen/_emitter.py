@@ -502,6 +502,19 @@ class _Emitter(
             blk = self._cfg.blocks[bname]
             self._place_label(bname)
 
+            # Seed the source-range context for this block with its
+            # terminator's range (when present) so non-stmt ops
+            # emitted before any statement (e.g. startCommand wrappers
+            # for foreach / while / for-body branch terminators) carry
+            # the block's own source location rather than a stale
+            # range left behind by whichever stmt the previous block
+            # emitted.  Individual ``_emit_stmt`` calls will still
+            # re-stamp per statement as they run.
+            _term_range = getattr(blk.terminator, "range", None) if blk.terminator else None
+            if _term_range is not None:
+                self._current_source_range = _term_range
+                self._current_source_line = _term_range.start.line + 1
+
             # try/finally inline compilation: emit the entire
             # try/finally sequence when we reach the try_body block.
             if bname in try_finally_info:
