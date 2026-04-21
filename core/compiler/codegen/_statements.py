@@ -120,9 +120,13 @@ class _StatementsMixin:
         self._cmd_index += 1
 
     def _emit_stmt(self: _Emitter, stmt: IRStatement) -> None:  # noqa: C901
-        # Track source line for errorInfo (1-based).
+        # Track source line for errorInfo (1-based) and full source range
+        # so every instruction emitted below this statement carries the
+        # originating Tcl span — consumed by the compiler explorer for
+        # click-to-source and per-source-line group comments.
         if hasattr(stmt, "range"):
             self._current_source_line = stmt.range.start.line + 1
+            self._current_source_range = stmt.range
         match stmt:
             case IRAssignConst(name=name, value=value):
                 if self._needs_stk_var_ref(name):

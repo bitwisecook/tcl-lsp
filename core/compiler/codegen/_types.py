@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from .opcodes import _OP_INFO, Op
+
+if TYPE_CHECKING:
+    from ...analysis.semantic_model import Range
 
 
 @dataclass(slots=True)
@@ -19,6 +23,7 @@ class Instruction:
     no_fold: bool = False  # prevent push-pop folding (jump target result)
     source_line: int = 0  # 1-based line within compilation unit (for errorInfo)
     source_cmd_text: str = ""  # original command text (pre-substitution) for errorInfo
+    source_range: Range | None = None  # full source range of the originating statement
 
     @property
     def size(self) -> int:

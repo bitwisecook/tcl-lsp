@@ -19,7 +19,13 @@ from __future__ import annotations
 
 from ._emitter import codegen_function, codegen_module
 from ._types import FunctionAsm, Instruction, LiteralTable, LocalVarTable, ModuleAsm
-from .format import _esc, format_function_asm, format_module_asm
+from .format import (
+    _esc,
+    format_function_asm,
+    format_function_explorer,
+    format_module_asm,
+    format_module_explorer,
+)
 from .opcodes import Op
 from .wasm import (  # noqa: F401
     WasmFunction,
@@ -41,5 +47,7 @@ __all__ = [
     "codegen_function",
     "codegen_module",
     "format_function_asm",
+    "format_function_explorer",
     "format_module_asm",
+    "format_module_explorer",
 ]

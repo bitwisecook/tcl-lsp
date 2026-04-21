@@ -632,31 +632,58 @@ def _collect_annotations(result: CompilerExplorerResult) -> list[dict]:
 
 
 def _serialise_asm(ir_module: IRModule, *, cfg_module=None) -> list[dict]:
-    """Generate Tcl bytecode assembly for all functions in the module."""
-    from core.compiler.codegen import codegen_module, format_function_asm
+    """Generate a structured Tcl bytecode disassembly view for the explorer.
+
+    Mirrors ``_serialise_wasm``: each function entry carries both a
+    ``text`` WAT snippet (for copy/paste and the legacy renderer) and
+    an ``instructions`` list with resolved jump targets, source
+    ranges, and label anchors.  The frontend switches to the rich
+    renderer when ``instructions`` is present.
+    """
+    from core.compiler.codegen import codegen_module, format_module_explorer
 
     if cfg_module is None:
         from core.compiler.cfg import build_cfg
 
         cfg_module = build_cfg(ir_module)
     module_asm = codegen_module(cfg_module, ir_module)
-    result = []
-    result.append(
-        {
-            "name": module_asm.top_level.name,
-            "text": format_function_asm(module_asm.top_level),
-            "instrCount": len(module_asm.top_level.instructions),
-        }
-    )
-    for name in sorted(module_asm.procedures):
-        fa = module_asm.procedures[name]
-        result.append(
-            {
-                "name": name,
-                "text": format_function_asm(fa),
-                "instrCount": len(fa.instructions),
+    result = format_module_explorer(module_asm)
+    # Tag each entry with ``instrCount`` at the top level (the
+    # function-explorer already records it) and wire proc source
+    # ranges from the IR so the UI can jump to the proc body on
+    # click.  ``::top`` spans the whole script; procs use their
+    # IRProcedure.range.
+    top_stmts = ir_module.top_level.statements
+    top_range = None
+    if top_stmts:
+        first = getattr(top_stmts[0], "range", None)
+        last = getattr(top_stmts[-1], "range", None)
+        if first is not None and last is not None:
+            top_range = {
+                "startLine": first.start.line,
+                "startCol": first.start.character,
+                "startOffset": first.start.offset,
+                "endLine": last.end.line,
+                "endCol": last.end.character,
+                "endOffset": last.end.offset,
             }
-        )
+    for entry in result:
+        if entry["kind"] == "top":
+            entry["sourceRange"] = top_range
+        else:
+            ir_proc = ir_module.procedures.get(entry["name"])
+            if ir_proc is not None:
+                rng = ir_proc.range
+                entry["sourceRange"] = {
+                    "startLine": rng.start.line,
+                    "startCol": rng.start.character,
+                    "startOffset": rng.start.offset,
+                    "endLine": rng.end.line,
+                    "endCol": rng.end.character,
+                    "endOffset": rng.end.offset,
+                }
+            else:
+                entry["sourceRange"] = None
     return result
 
 

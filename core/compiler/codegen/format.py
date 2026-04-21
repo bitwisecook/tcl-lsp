@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .opcodes import _INDEX_END, _JUMP_OPS, _LVT_OPS, _STR_CLASS_NAMES, Op
+
+if TYPE_CHECKING:
+    from ...analysis.semantic_model import Range
+    from ._types import FunctionAsm
 
 
 def _esc(text: str, limit: int = 40) -> str:
@@ -144,3 +150,263 @@ def format_module_asm(module) -> str:
         parts.append("")
         parts.append(format_function_asm(module.procedures[name]))
     return "\n".join(parts)
+
+
+# Structured explorer view
+
+
+def _range_to_explorer_dict(rng: "Range | None") -> dict | None:
+    if rng is None:
+        return None
+    return {
+        "startLine": rng.start.line,
+        "startCol": rng.start.character,
+        "startOffset": rng.start.offset,
+        "endLine": rng.end.line,
+        "endCol": rng.end.character,
+        "endOffset": rng.end.offset,
+    }
+
+
+def format_function_explorer(asm: FunctionAsm, *, func_name: str | None = None) -> dict:
+    """Structured per-instruction explorer view for one FunctionAsm.
+
+    Mirrors the shape produced by ``WasmModule.to_explorer_json()`` so
+    the frontend renderer can reuse the same DOM structure and
+    interaction wiring.  Each instruction carries:
+
+    - resolved jump targets (``jumpTarget.targetIdx`` is the index of
+      the matching label's defining instruction),
+    - the literal / LVT / immediate operand decoded as text
+      (``operandText``),
+    - the source range of the originating Tcl statement
+      (``range``) for click-to-source, and
+    - the label attached to its offset (``blockLabel``) so label rows
+      render as named anchors in the UI.
+
+    Labels not bound to any instruction (end-of-block labels that land
+    on the byte just past the last instruction) are emitted as
+    synthetic ``label`` rows at the tail of the instruction list so
+    forward-jumps to "after the last op" still have a visible anchor
+    for the UI to point the arrow at.
+    """
+    name = func_name or asm.name
+    instructions = asm.instructions
+
+    # Build offset → instruction index map and offset → labels[] map.
+    offset_to_idx: dict[int, int] = {
+        instr.offset: i for i, instr in enumerate(instructions) if instr.offset >= 0
+    }
+    # End-of-function byte offset so a label pointing past the last
+    # instruction still resolves to a synthetic tail anchor.
+    end_offset = 0
+    if instructions:
+        last = instructions[-1]
+        end_offset = last.offset + last.size
+
+    # Labels keyed by offset (preserving emission order).
+    off2labels: dict[int, list[str]] = {}
+    for label, off in asm.labels.items():
+        off2labels.setdefault(off, []).append(label)
+
+    def _resolve_label(label: str) -> tuple[int | None, int | None]:
+        """Return (idx, offset) for a label.  idx is None when the
+        label points past the last real instruction (end-of-proc
+        synthetic anchor, rendered at the tail)."""
+        if label not in asm.labels:
+            return None, None
+        off = asm.labels[label]
+        if off in offset_to_idx:
+            return offset_to_idx[off], off
+        return None, off
+
+    result_instructions: list[dict] = []
+
+    for i, instr in enumerate(instructions):
+        # Emit label-row markers for every label bound to this offset.
+        for lbl in off2labels.get(instr.offset, ()):
+            result_instructions.append(
+                {
+                    "idx": len(result_instructions),
+                    "kind": "label",
+                    "label": lbl,
+                    "targetIdx": i,  # first instr at that offset
+                    "offset": instr.offset,
+                }
+            )
+
+        # Decode operand text the same way format_function_asm does so
+        # the frontend can render consistent text.  The key difference:
+        # we also populate a structured ``jumpTarget`` when the op's
+        # operand is a label ref.
+        parts: list[str] = []
+        jump_target = None
+        lvt_ref = None
+        for j, operand in enumerate(instr.operands):
+            if isinstance(operand, str) and instr.op in _JUMP_OPS:
+                tgt_off = asm.labels.get(operand, 0)
+                rel = tgt_off - instr.offset
+                parts.append(f"+{rel}" if rel >= 0 else str(rel))
+                tgt_idx, _ = _resolve_label(operand)
+                jump_target = {
+                    "label": operand,
+                    "offset": tgt_off,
+                    "targetIdx": tgt_idx,
+                    "relative": rel,
+                }
+            elif isinstance(operand, str) and instr.op == Op.START_CMD and j == 0:
+                tgt_off = asm.labels.get(operand, 0)
+                rel = tgt_off - instr.offset
+                parts.append(f"+{rel}" if rel >= 0 else str(rel))
+                tgt_idx, _ = _resolve_label(operand)
+                jump_target = {
+                    "label": operand,
+                    "offset": tgt_off,
+                    "targetIdx": tgt_idx,
+                    "relative": rel,
+                    "kind": "start_cmd_end",
+                }
+            elif isinstance(operand, str):
+                tgt_off = asm.labels.get(operand, 0)
+                parts.append(f"pc {tgt_off}")
+            elif instr.op in _LVT_OPS and j == 0:
+                parts.append(f"%v{operand}")
+                lvt_ref = int(operand)
+            elif instr.op in (Op.DICT_SET, Op.DICT_UNSET, Op.DICT_INCR_IMM) and j == 1:
+                parts.append(f"%v{operand}")
+                lvt_ref = int(operand)
+            elif instr.op in (
+                Op.INCR_SCALAR1_IMM,
+                Op.INCR_STK_IMM,
+                Op.INCR_ARRAY_STK_IMM,
+                Op.DICT_INCR_IMM,
+                Op.STR_MATCH,
+                Op.REGEXP,
+            ):
+                parts.append(f"+{operand}" if operand >= 0 else str(operand))
+            elif instr.op in (Op.RETURN_IMM, Op.SYNTAX) and j == 0:
+                parts.append(f"+{operand}" if operand >= 0 else str(operand))
+            elif instr.op == Op.STR_CLASS and isinstance(operand, int):
+                parts.append(_STR_CLASS_NAMES.get(operand, str(operand)))
+            elif (
+                instr.op in (Op.LIST_INDEX_IMM, Op.LIST_RANGE_IMM, Op.STR_RANGE_IMM)
+                and isinstance(operand, int)
+                and operand <= _INDEX_END
+            ):
+                if operand == _INDEX_END:
+                    parts.append("end")
+                else:
+                    parts.append(f"end{operand - _INDEX_END}")
+            else:
+                parts.append(str(operand))
+
+        operand_text = " ".join(parts)
+
+        # JumpTable entries list (pattern → label → target index).
+        jump_table_entries: list[dict] | None = None
+        if instr.op == Op.JUMP_TABLE and instr.jump_table:
+            jump_table_entries = []
+            for pattern, label in instr.jump_table.items():
+                tgt_off = asm.labels.get(label, 0)
+                tgt_idx, _ = _resolve_label(label)
+                jump_table_entries.append(
+                    {
+                        "pattern": pattern,
+                        "label": label,
+                        "offset": tgt_off,
+                        "targetIdx": tgt_idx,
+                    }
+                )
+
+        result_instructions.append(
+            {
+                "idx": len(result_instructions),
+                "kind": "instr",
+                "seq": i,  # emission order (not line number)
+                "op": instr.mnemonic,
+                "operandText": operand_text,
+                "fullText": f"{instr.mnemonic} {operand_text}".rstrip(),
+                "offset": instr.offset,
+                "size": instr.size,
+                "range": _range_to_explorer_dict(instr.source_range),
+                "sourceLine": instr.source_line,
+                "comment": instr.comment,
+                "jumpTarget": jump_target,
+                "jumpTable": jump_table_entries,
+                "lvtRef": lvt_ref,
+            }
+        )
+
+    # Synthetic tail label rows for labels pointing past the last real
+    # instruction (end-of-proc anchor for forward jumps).  De-dup
+    # against labels we already placed inline.
+    placed_labels = {lbl for lbls in off2labels.values() for lbl in lbls}
+    tail_labels: list[str] = sorted(
+        lbl for lbl, off in asm.labels.items() if lbl not in placed_labels and off >= end_offset
+    )
+    for lbl in tail_labels:
+        off = asm.labels[lbl]
+        idx = len(result_instructions)
+        result_instructions.append(
+            {
+                "idx": idx,
+                "kind": "label",
+                "label": lbl,
+                "targetIdx": idx,  # points at itself
+                "offset": off,
+            }
+        )
+
+    # Resolve jumpTarget.targetIdx from asm.instructions-index to
+    # result_instructions-index so the UI can cross-link directly.
+    # Prefer pointing to the label row (if one exists at the target
+    # offset) rather than the first instruction at that offset — the
+    # label row IS the visible anchor the arrow should point to.
+    label_row_by_name: dict[str, int] = {
+        row["label"]: row["idx"] for row in result_instructions if row["kind"] == "label"
+    }
+    asm_idx_to_result_idx: dict[int, int] = {}
+    for row in result_instructions:
+        if row["kind"] == "instr":
+            asm_idx_to_result_idx[row["seq"]] = row["idx"]
+
+    def _retarget(tgt: dict) -> None:
+        lbl = tgt.get("label")
+        if lbl and lbl in label_row_by_name:
+            tgt["targetIdx"] = label_row_by_name[lbl]
+            return
+        old = tgt.get("targetIdx")
+        if old is not None and old in asm_idx_to_result_idx:
+            tgt["targetIdx"] = asm_idx_to_result_idx[old]
+
+    for row in result_instructions:
+        if row["kind"] != "instr":
+            continue
+        jt = row.get("jumpTarget")
+        if jt:
+            _retarget(jt)
+        for entry in row.get("jumpTable") or []:
+            _retarget(entry)
+
+    return {
+        "name": name,
+        "kind": "proc" if func_name else "top",
+        "instrCount": len(instructions),
+        "byteCount": sum(i.size for i in instructions),
+        "literals": list(asm.literals.entries()),
+        "locals": list(asm.lvt.entries()),
+        "instructions": result_instructions,
+        "text": format_function_asm(asm),
+    }
+
+
+def format_module_explorer(module) -> list[dict]:
+    """Structured explorer view for a whole ModuleAsm."""
+    entries: list[dict] = []
+    entries.append(format_function_explorer(module.top_level))
+    # Ensure ``::top`` is tagged as such even when callers pass the
+    # top-level in via a synthetic name.
+    entries[0]["kind"] = "top"
+    for name in sorted(module.procedures):
+        entries.append(format_function_explorer(module.procedures[name], func_name=name))
+    return entries

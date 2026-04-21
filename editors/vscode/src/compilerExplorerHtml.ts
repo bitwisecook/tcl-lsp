@@ -639,6 +639,115 @@ body {
   0% { background: rgba(249, 226, 175, 0.5); }
   100% { background: transparent; }
 }
+/* Disassembly toolbar + opt diff */
+.disasm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 3;
+}
+.disasm-toolbar-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.disasm-toolbar-opt input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.disasm-toolbar-opt input:disabled { cursor: not-allowed; opacity: 0.4; }
+.disasm-toolbar-diff {
+  background: var(--bg-surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.disasm-toolbar-diff:hover { border-color: var(--accent); background: var(--bg-hover); }
+.disasm-toolbar-diff:disabled { opacity: 0.4; cursor: not-allowed; }
+.disasm-toolbar-hint { font-size: 11px; color: var(--text-dim); font-style: italic; }
+.disasm-tables { margin-left: 40px; margin-bottom: 4px; color: var(--text-dim); font-size: 11px; }
+.disasm-tables summary { cursor: pointer; padding: 2px 0; }
+.disasm-tables summary:hover { color: var(--accent); }
+.disasm-tables-section { color: var(--text-dim); font-weight: 600; margin-top: 4px; }
+.disasm-label-row { cursor: default !important; }
+.disasm-label-row:hover { background: transparent; }
+.disasm-label-anchor { color: var(--magenta); font-weight: 500; }
+.disasm-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.disasm-diff-title { font-weight: 600; color: var(--accent); font-size: 12px; }
+.disasm-diff-legend { font-size: 10px; display: flex; gap: 10px; }
+.disasm-diff-legend-removed { color: var(--red); }
+.disasm-diff-legend-added { color: var(--green); }
+.disasm-diff-legend-dim { color: var(--text-dim); font-style: italic; }
+.disasm-diff-close {
+  margin-left: auto;
+  background: var(--bg-surface);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.disasm-diff-close:hover { border-color: var(--accent); color: var(--text); }
+.disasm-diff-block { border: 1px solid var(--border); background: var(--bg-surface); }
+.disasm-diff-badge {
+  font-size: 10px;
+  font-weight: 400;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.disasm-diff-added { background: rgba(166, 227, 161, 0.15); color: var(--green); }
+.disasm-diff-removed { background: rgba(243, 139, 168, 0.15); color: var(--red); }
+.disasm-diff-same { background: rgba(108, 112, 134, 0.15); color: var(--text-dim); }
+.disasm-diff-modified { background: rgba(249, 226, 175, 0.18); color: var(--yellow); }
+.disasm-diff-rows { padding-left: 4px; }
+.disasm-diff-row {
+  display: flex;
+  gap: 6px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  white-space: pre;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.disasm-diff-row.disasm-diff-removed { background: rgba(243, 139, 168, 0.1); color: var(--text); }
+.disasm-diff-row.disasm-diff-removed .disasm-diff-sigil { color: var(--red); }
+.disasm-diff-row.disasm-diff-removed .disasm-diff-text { text-decoration: line-through; opacity: 0.75; }
+.disasm-diff-row.disasm-diff-added { background: rgba(166, 227, 161, 0.1); color: var(--text); }
+.disasm-diff-row.disasm-diff-added .disasm-diff-sigil { color: var(--green); }
+.disasm-diff-row.disasm-diff-same { background: transparent; color: var(--text-dim); opacity: 0.7; }
+.disasm-diff-row.disasm-diff-same .disasm-diff-sigil { color: var(--text-dim); }
+.disasm-diff-sigil { min-width: 14px; text-align: center; user-select: none; font-weight: 600; flex-shrink: 0; }
+.disasm-diff-text { flex: 1; white-space: pre; }
+.disasm-diff-elide {
+  padding: 2px 22px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-style: italic;
+}
+.disasm-diff-unchanged-note { padding: 4px 8px; color: var(--text-dim); font-size: 11px; font-style: italic; }
 </style>
 </head>
 <body>
@@ -679,8 +788,6 @@ body {
         <div class="tab" data-tab="callouts">Callouts</div>
         <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
-        <div class="tab" data-tab="asm-opt">Tcl ASM (opt)</div>
-        <div class="tab" data-tab="wasm-opt">WASM (opt)</div>
       </div>
       <div class="output-content" id="outputContent">
         <div class="tab-pane active" id="pane-ir">
@@ -698,8 +805,6 @@ body {
         <div class="tab-pane" id="pane-callouts"></div>
         <div class="tab-pane" id="pane-asm"></div>
         <div class="tab-pane" id="pane-wasm"></div>
-        <div class="tab-pane" id="pane-asm-opt"></div>
-        <div class="tab-pane" id="pane-wasm-opt"></div>
       </div>
     </div>
   </div>
@@ -972,8 +1077,6 @@ function renderAll() {
   renderCallouts();
   renderAsm();
   renderWasm();
-  renderAsmOpt();
-  renderWasmOpt();
   updateBadges();
 }
 
@@ -992,8 +1095,6 @@ function updateBadges() {
     'callouts': data.annotations.length,
     'asm': instrCount(data.asm),
     'wasm': instrCount(data.wasm),
-    'asm-opt': instrCount(data.asmOptimised),
-    'wasm-opt': instrCount(data.wasmOptimised),
   };
   $$('.tab').forEach(tab => {
     const key = tab.dataset.tab;
