@@ -28,17 +28,50 @@ async function init() {
     indexURL: pyodideUrl,
   });
 
+  postMessage({ type: "status", message: "Fetching compiler wheel..." });
+
+  // Discover the wheel filename from build_info.json (populated by the
+  // Makefile from pyproject.toml's version) so the worker doesn't need to
+  // be rewritten every time the package version bumps.
+  const buildInfoResponse = await fetch(baseUrl + "build_info.json");
+  if (!buildInfoResponse.ok) {
+    throw new Error(
+      `Failed to fetch build_info.json: ${buildInfoResponse.status} ${buildInfoResponse.statusText}`,
+    );
+  }
+  const buildInfo = await buildInfoResponse.json();
+  if (!buildInfo.wheel_filename) {
+    throw new Error("build_info.json is missing wheel_filename");
+  }
+
+  // Fetch the wheel and extract it directly into site-packages.
+  //
+  // We deliberately avoid micropip: the version shipped with Pyodide 0.27.3
+  // (micropip 0.8.0) has a race in its `deps=False` code path — it creates a
+  // download task with `asyncio.create_task` but never awaits it, so
+  // `install()` runs before the wheel bytes are loaded and fails with
+  // "Micropip internal error: attempted to install wheel before downloading
+  // it?". Fixed upstream in micropip 0.9.0 (pyodide/micropip#180).
+  //
+  // Our wheel is pure Python and the worker only imports modules under
+  // `core` and `explorer`, none of which need pygls/lsprotocol/jinja2 at
+  // import time, so we don't need a dependency resolver here.
+  const wheelUrl = baseUrl + buildInfo.wheel_filename;
+  const wheelResponse = await fetch(wheelUrl);
+  if (!wheelResponse.ok) {
+    throw new Error(
+      `Failed to fetch ${wheelUrl}: ${wheelResponse.status} ${wheelResponse.statusText}`,
+    );
+  }
+  const wheelBytes = new Uint8Array(await wheelResponse.arrayBuffer());
+
   postMessage({ type: "status", message: "Installing compiler package..." });
 
-  await pyodide.loadPackage("micropip");
-  const micropip = pyodide.pyimport("micropip");
-
-  // Install our wheel without pulling pygls/lsprotocol (not needed in worker).
-  // NB: JS objects passed to Python functions become positional args; to pass
-  // Python kwargs we must use `callKwargs`, otherwise `deps=True` stays in
-  // effect and micropip tries to fetch every transitive dep.
-  const wheelUrl = baseUrl + "tcl_lsp-1.7.1-py3-none-any.whl";
-  await micropip.install.callKwargs(wheelUrl, { deps: false });
+  const sitePackages = pyodide.runPython(
+    "import site; site.getsitepackages()[0]",
+  );
+  pyodide.unpackArchive(wheelBytes, "zip", { extractDir: sitePackages });
+  pyodide.runPython("import importlib; importlib.invalidate_caches()");
 
   postMessage({ type: "status", message: "Initialising compiler..." });
 
