@@ -48,6 +48,7 @@ const write_i32 = obj.write_i32;
 
 const tcl_ns = @import("tcl_ns.zig");
 const tcl_procs = @import("tcl_procs.zig");
+const interp_reg = @import("tcl_interp_registry.zig");
 
 /// Outcome of :func:`hide_command`.  Mapped onto user-visible error
 /// messages by the ``interp hide`` built-in in ``tcl_interp.zig``.
@@ -111,14 +112,17 @@ fn deactivate_importers(source_cmd: u32) void {
     write_i32(source_cmd + tcl_procs.OFF_IMPORT_REF_HEAD, 0);
 }
 
-/// Implement ``interp hide {} cmd ?hiddenName?``.  ``src_*`` is the
-/// simple source name (qualified names already rejected by the
+/// Implement ``interp hide ?path? cmd ?hiddenName?``.  ``src_*`` is
+/// the simple source name (qualified names already rejected by the
 /// caller via :func:`has_qualifier`); ``hidden_*`` is the target
 /// name in the hidden table (defaults to ``src_*`` when caller
 /// didn't provide an explicit destination).  ``src_ns`` is the
-/// namespace where the source currently lives — typically
-/// ``tcl_ns.ns_current()`` at the call site.
+/// namespace where the source currently lives — typically the target
+/// interp's ``root_ns`` at the call site.  ``target_interp`` is the
+/// interp whose hidden table receives the Command; the single-interp
+/// form passes ``interp_reg.interp_current()``.
 pub fn hide_command(
+    target_interp: u32,
     src_ns: u32,
     src_simple_ptr: u32,
     src_simple_len: u32,
@@ -134,7 +138,7 @@ pub fn hide_command(
     // Refuse to overwrite an existing hidden entry.  Matches C Tcl's
     // ``Tcl_HideCommand`` which raises
     // ``hidden command named "X" already exists``.
-    if (tcl_ns.hidden_find(hidden_name_ptr, hidden_name_len) != 0) {
+    if (interp_reg.hidden_find(target_interp, hidden_name_ptr, hidden_name_len) != 0) {
         return .hidden_name_taken;
     }
 
@@ -151,7 +155,7 @@ pub fn hide_command(
     // returns the hidden name).  We *don't* rebuild an FQN because
     // hidden commands have no namespace parent; the hidden name
     // stands alone.
-    _ = tcl_ns.hidden_put(hidden_name_ptr, hidden_name_len, cmd);
+    _ = interp_reg.hidden_put(target_interp, hidden_name_ptr, hidden_name_len, cmd);
     _ = tcl_ns.ns_cmd_clear(src_ns, src_simple_ptr, src_simple_len);
 
     const nbuf = alloc(hidden_name_len);
@@ -163,10 +167,14 @@ pub fn hide_command(
     return .ok;
 }
 
-/// Implement ``interp expose {} hiddenName ?newName?``.  ``new_*``
+/// Implement ``interp expose ?path? hiddenName ?newName?``.  ``new_*``
 /// is the simple destination name in ``dest_ns`` (defaults to
 /// ``hidden_*`` when caller didn't provide an explicit destination).
+/// ``target_interp`` is the interp whose hidden table the entry
+/// currently lives in; single-interp callers pass
+/// ``interp_reg.interp_current()``.
 pub fn expose_command(
+    target_interp: u32,
     hidden_name_ptr: u32,
     hidden_name_len: u32,
     dest_ns: u32,
@@ -175,7 +183,7 @@ pub fn expose_command(
 ) ExposeResult {
     if (has_qualifier(new_simple_ptr, new_simple_len)) return .qualified_name_rejected;
 
-    const cmd = tcl_ns.hidden_find(hidden_name_ptr, hidden_name_len);
+    const cmd = interp_reg.hidden_find(target_interp, hidden_name_ptr, hidden_name_len);
     if (cmd == 0) return .not_found;
 
     if (tcl_ns.ns_cmd_find(dest_ns, new_simple_ptr, new_simple_len) != 0) {
@@ -189,7 +197,7 @@ pub fn expose_command(
     // form so ``info commands`` and the host-bridge dispatcher see
     // the exposed identity.
     _ = tcl_ns.ns_cmd_put(dest_ns, new_simple_ptr, new_simple_len, cmd);
-    _ = tcl_ns.hidden_clear(hidden_name_ptr, hidden_name_len);
+    _ = interp_reg.hidden_clear(target_interp, hidden_name_ptr, hidden_name_len);
 
     const fqn = tcl_ns.ns_build_fqn(dest_ns, new_simple_ptr, new_simple_len);
     write_i32(cmd, @bitCast(fqn.ptr));

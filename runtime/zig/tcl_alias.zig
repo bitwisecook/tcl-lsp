@@ -66,10 +66,23 @@ pub const AliasRec = extern struct {
     target_name_len: u32,
     n_prefix: u32,
     prefix_args_addr: u32,
+    /// Cross-interp alias source: the parent ``Interp*`` whose
+    /// ``cmd_table`` holds the target command.  Zero for same-
+    /// interp aliases (matches C Tcl where the parent is implicit);
+    /// non-zero triggers a ``tcl_interp_registry.enter`` / ``leave``
+    /// pair around ``proc_lookup`` in ``dispatch_alias``.
+    ///
+    /// Used to live in the Command's ``OFF_IMPORT_REF_HEAD`` slot,
+    /// which was unsafe — that slot is shared with
+    /// ``link_import_ref``'s back-reference list, so a later
+    /// ``namespace import`` of the alias would overwrite the
+    /// stashed Interp*.  Keeping it inside ``AliasRec`` keeps the
+    /// Command's import-machinery slots intact.
+    parent_interp: u32,
 };
 
 comptime {
-    if (@sizeOf(AliasRec) != 16) @compileError("AliasRec layout drift");
+    if (@sizeOf(AliasRec) != 20) @compileError("AliasRec layout drift");
 }
 
 /// Allocate and populate a fresh alias redirect Command.  Returns
@@ -84,7 +97,9 @@ comptime {
 /// ``info commands``, the host-bridge dispatcher) see the same
 /// FQN shape they'd get from an interpreted ``proc`` definition.
 /// ``dest_ns`` is the destination namespace the caller will insert
-/// the Command into.
+/// the Command into.  ``parent_interp`` is the ``Interp*`` whose
+/// ``cmd_table`` holds the target command (zero for same-interp
+/// aliases where dispatch stays in the current interp).
 pub fn alias_alloc(
     dest_ns: u32,
     new_simple_ptr: u32,
@@ -93,6 +108,7 @@ pub fn alias_alloc(
     target_name_len: u32,
     n_prefix: u32,
     prefix_args_addr: u32,
+    parent_interp: u32,
 ) u32 {
     const cmd = alloc(tcl_procs.COMMAND_SIZE);
     const slice: [*]u8 = @ptrFromInt(cmd);
@@ -131,6 +147,7 @@ pub fn alias_alloc(
     r.target_name_len = target_name_len;
     r.n_prefix = n_prefix;
     r.prefix_args_addr = pbuf;
+    r.parent_interp = parent_interp;
     write_i32(cmd + tcl_procs.OFF_PARAMS_OBJ, @bitCast(rec));
 
     return cmd;
@@ -163,6 +180,7 @@ pub fn alias_clear(cmd: u32) void {
     r.target_name_ptr = 0;
     r.n_prefix = 0;
     r.prefix_args_addr = 0;
+    r.parent_interp = 0;
 }
 
 /// Produce the query form for ``interp alias {} newName``: the
