@@ -495,9 +495,342 @@ function renderFuncList(paneId, funcs, emptyMsg) {
 }
 
 function renderAsm() { renderFuncList('pane-asm', data.asm, 'No assembly'); }
-function renderWasm() { renderFuncList('pane-wasm', data.wasm, 'No WASM output'); }
 function renderAsmOpt() { renderFuncList('pane-asm-opt', data.asmOptimised, 'No optimised assembly (source unchanged by optimiser)'); }
-function renderWasmOpt() { renderFuncList('pane-wasm-opt', data.wasmOptimised, 'No optimised WASM output (source unchanged by optimiser)'); }
+
+// WASM disassembly — structured per-instruction renderer with
+// click-to-source, call/branch target cross-navigation, source-line
+// comments above each instruction group, and control-flow arrows.
+
+function renderWasm() { renderWasmFuncList('pane-wasm', data.wasm, 'No WASM output'); }
+function renderWasmOpt() { renderWasmFuncList('pane-wasm-opt', data.wasmOptimised, 'No optimised WASM output (source unchanged by optimiser)'); }
+
+function renderWasmFuncList(paneId, funcs, emptyMsg) {
+  var pane = $('#' + paneId);
+  if (!funcs || !funcs.length) { pane.innerHTML = '<div class="empty-state">' + emptyMsg + '</div>'; return; }
+  // Legacy text-only payload from old Python builds — fall back to the
+  // plain <pre> renderer so the pane still has something to show.
+  var hasStructured = funcs.some(function(f) { return Array.isArray(f.instructions); });
+  if (!hasStructured) { pane.innerHTML = funcListHtml(funcs); return; }
+  var html = funcs.map(renderWasmEntry).join('');
+  pane.innerHTML = html;
+  setupWasmInteractions(pane, funcs);
+  requestAnimationFrame(function() {
+    pane.querySelectorAll('.wasm-edges-container').forEach(function(c) { drawWasmEdges(c); });
+  });
+}
+
+function renderWasmEntry(entry) {
+  if (entry.kind === 'module') return renderWasmModuleHeader(entry);
+  return renderWasmFunction(entry);
+}
+
+function renderWasmModuleHeader(entry) {
+  var html = '<div class="wasm-module">';
+  html += '<div class="wasm-func-header">(module) <span class="wasm-comment">' + entry.imports.length + ' imports, ' + entry.types.length + ' types, ' + entry.dataSegments.length + ' data segments</span></div>';
+  if (entry.imports.length) {
+    html += '<details class="wasm-module-details"><summary>imports (' + entry.imports.length + ')</summary>';
+    for (var imp of entry.imports) {
+      html += '<div class="wasm-import-entry">';
+      html += '<span class="wasm-idx">' + imp.funcIdx + '</span>';
+      html += '<span class="wasm-mnemonic">import</span> ';
+      html += '<span class="wasm-operand">&quot;' + esc(imp.module) + '&quot;.&quot;' + esc(imp.name) + '&quot;</span> ';
+      html += '<span class="wasm-comment">; type $t' + imp.typeIdx + '</span>';
+      html += '</div>';
+    }
+    html += '</details>';
+  }
+  if (entry.dataSegments.length) {
+    html += '<details class="wasm-module-details"><summary>data segments (' + entry.dataSegments.length + ')</summary>';
+    for (var seg of entry.dataSegments) {
+      html += '<div class="wasm-import-entry"><span class="wasm-idx">' + seg.offset + '</span><span class="wasm-comment">; ' + seg.size + ' bytes</span></div>';
+    }
+    html += '</details>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderWasmFunction(entry) {
+  var sr = entry.sourceRange;
+  var headerAttrs = sr ? ' data-start="' + sr.startOffset + '" data-end="' + sr.endOffset + '"' : '';
+  var html = '<div class="wasm-function" data-func-idx="' + entry.funcIdx + '" data-func-name="' + esc(entry.name) + '">';
+  var params = (entry.params || []).map(function(p) { return '(param ' + esc(p.name) + ' ' + esc(p.type) + ')'; }).join(' ');
+  var results = (entry.results || []).map(function(r) { return '(result ' + esc(r) + ')'; }).join(' ');
+  var kindBadge = entry.kind === 'top' ? ' <span class="wasm-kind-badge">top</span>' : (entry.kind === 'method' ? ' <span class="wasm-kind-badge">method</span>' : '');
+  html += '<div class="wasm-func-header"' + headerAttrs + '>';
+  html += '(func <span class="wasm-func-name">$' + esc(entry.name) + '</span>' + kindBadge + ' ' + params + (results ? ' ' + results : '') + ')';
+  html += ' <span class="wasm-comment">; ' + entry.instrCount + ' instructions</span>';
+  html += '</div>';
+  if (entry.locals && entry.locals.length) {
+    html += '<div class="wasm-func-locals">';
+    for (var loc of entry.locals) {
+      html += '<div class="wasm-local">(local ' + esc(loc.name) + ' ' + esc(loc.type) + ')</div>';
+    }
+    html += '</div>';
+  }
+  html += '<div class="wasm-func-body wasm-edges-container" data-func-idx="' + entry.funcIdx + '">';
+  var source = getSource();
+  var prevRangeKey = null;
+  for (var ins of entry.instructions) {
+    var r = ins.range;
+    var rkey = r ? r.startOffset + '/' + r.endOffset : null;
+    if (rkey && rkey !== prevRangeKey) {
+      var snippet = wasmSourceSnippet(source, r);
+      html += '<div class="wasm-src-comment" data-start="' + r.startOffset + '" data-end="' + r.endOffset + '">'
+            + '<span class="wasm-gutter-pad"></span>'
+            + '<span class="wasm-idx">' + (r.startLine + 1) + '</span>'
+            + '<span class="wasm-src-text">; ' + esc(snippet) + '</span>'
+            + '</div>';
+      prevRangeKey = rkey;
+    }
+    html += renderWasmInstruction(ins, entry);
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function wasmSourceSnippet(source, range) {
+  // Grab the entire source line that contains range.startOffset, then
+  // trim to at most 160 characters for the comment.
+  var nl = source.indexOf('\n', range.startOffset);
+  var lineEnd = nl === -1 ? source.length : nl;
+  // Find start of line
+  var lineStart = source.lastIndexOf('\n', range.startOffset - 1) + 1;
+  var line = source.substring(lineStart, lineEnd).replace(/^\s+/, '');
+  if (line.length > 160) line = line.substring(0, 157) + '...';
+  return line;
+}
+
+function renderWasmInstruction(ins, entry) {
+  var range = ins.range;
+  var rngAttrs = range ? ' data-start="' + range.startOffset + '" data-end="' + range.endOffset + '"' : '';
+  var indentSpaces = '    '.repeat(Math.max(0, ins.indent));
+  var operandHtml = '';
+  if (ins.callTarget) {
+    var ct = ins.callTarget;
+    var ctLabel = ct.kind === 'import' ? ('import ' + ct.name) : ct.name;
+    var ctAttrs = ' data-call-target-def-idx="' + (ct.defIdx !== null && ct.defIdx !== undefined ? ct.defIdx : '') + '"'
+                + ' data-call-target-kind="' + esc(ct.kind) + '"'
+                + ' data-call-target-name="' + esc(ct.name) + '"';
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>'
+                + ' <span class="wasm-call-target"' + ctAttrs + '>; ' + esc(ctLabel) + '</span>';
+  } else if (ins.branchTarget) {
+    var bt = ins.branchTarget;
+    var btAttrs = ' data-branch-target-idx="' + (bt.targetIdx !== null && bt.targetIdx !== undefined ? bt.targetIdx : '') + '"';
+    var btLabel = bt.kind || '';
+    if (bt.label) btLabel += ' ' + bt.label;
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>'
+                + ' <span class="wasm-branch-target"' + btAttrs + '>; ' + esc(btLabel) + '</span>';
+  } else if (ins.op === 'local.get' || ins.op === 'local.set' || ins.op === 'local.tee') {
+    var parts = ins.fullText.split(' ');
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>';
+    if (parts.length > 2) operandHtml += ' <span class="wasm-operand-name">' + esc(parts.slice(2).join(' ')) + '</span>';
+  } else if (ins.operandText) {
+    operandHtml = ' <span class="wasm-operand">' + esc(ins.operandText) + '</span>';
+  }
+  var label = ins.label ? ' <span class="wasm-comment">;; ' + esc(ins.label) + '</span>' : '';
+  var blockLbl = ins.blockLabel ? ' <span class="wasm-block-label">' + esc(ins.blockLabel) + '</span>' : '';
+  var gutter = '<span class="wasm-gutter-pad"></span>';
+  return '<div class="wasm-instr" data-idx="' + ins.idx + '" data-func-idx="' + entry.funcIdx + '"' + rngAttrs + '>'
+       + gutter
+       + '<span class="wasm-idx">' + ins.idx + '</span>'
+       + '<span class="wasm-code"><span class="wasm-indent">' + indentSpaces + '</span>'
+       + '<span class="wasm-mnemonic">' + esc(ins.op) + '</span>'
+       + blockLbl
+       + operandHtml
+       + label
+       + '</span></div>';
+}
+
+function setupWasmInteractions(pane, funcs) {
+  // Build a defIdx → entry map from the funcs list so "call N" can
+  // resolve to the function block within the same pane.  Registered
+  // BEFORE setupHoverHighlighting so the call/branch-target short-
+  // circuits run first via ``stopImmediatePropagation``.
+  var funcEntries = funcs.filter(function(f) { return f.kind !== 'module'; });
+  pane.addEventListener('click', function(e) {
+    var ct = e.target.closest('.wasm-call-target');
+    if (ct) {
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      var defIdxStr = ct.dataset.callTargetDefIdx;
+      if (defIdxStr !== '') {
+        var defIdx = parseInt(defIdxStr);
+        if (!isNaN(defIdx) && defIdx >= 0 && defIdx < funcEntries.length) {
+          navigateToWasmFunction(pane, funcEntries[defIdx]);
+        }
+      }
+      return;
+    }
+    var bt = e.target.closest('.wasm-branch-target');
+    if (bt) {
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      var targetIdxStr = bt.dataset.branchTargetIdx;
+      if (targetIdxStr !== '') {
+        var targetIdx = parseInt(targetIdxStr);
+        if (!isNaN(targetIdx)) {
+          navigateToWasmInstruction(bt.closest('.wasm-function'), targetIdx);
+        }
+      }
+      return;
+    }
+  });
+  // Hover highlights matching branch arrows and block/end pairs.
+  pane.addEventListener('mouseover', function(e) {
+    var ins = e.target.closest('.wasm-instr');
+    if (!ins) return;
+    var idx = ins.dataset.idx;
+    var funcEl = ins.closest('.wasm-function');
+    if (!funcEl) return;
+    funcEl.querySelectorAll('.wasm-edge').forEach(function(p) {
+      if (p.dataset.from === idx || p.dataset.to === idx) p.classList.add('highlighted');
+    });
+  });
+  pane.addEventListener('mouseout', function(e) {
+    var ins = e.target.closest('.wasm-instr');
+    if (!ins) return;
+    var funcEl = ins.closest('.wasm-function');
+    if (!funcEl) return;
+    funcEl.querySelectorAll('.wasm-edge.highlighted').forEach(function(p) { p.classList.remove('highlighted'); });
+  });
+  // Delegate the normal [data-start] click-to-source behaviour to the
+  // consumer-supplied hook; registered second so the call/branch
+  // short-circuits above can intercept first.
+  setupHoverHighlighting(pane);
+}
+
+// Source-range highlight abstraction: standalone index.html defines
+// ``highlightSourceRanges`` for inline highlighting; the VS Code
+// webview uses postMessage.  We probe both so the WASM pane works in
+// either consumer.
+function wasmHighlightSource(start, end) {
+  if (typeof highlightSourceRanges === 'function') {
+    highlightSourceRanges([{start: start, end: end}]);
+    return;
+  }
+  if (typeof vscode !== 'undefined' && vscode.postMessage) {
+    vscode.postMessage({ type: 'highlightSource', start: start, end: end });
+  }
+}
+
+function navigateToWasmFunction(pane, targetEntry) {
+  if (!targetEntry) return;
+  var nameSel = targetEntry.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  var el = pane.querySelector('.wasm-function[data-func-name="' + nameSel + '"]');
+  if (el) {
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    // Flash-highlight the function header briefly.
+    var hdr = el.querySelector('.wasm-func-header');
+    if (hdr) {
+      hdr.classList.add('wasm-func-flash');
+      setTimeout(function() { hdr.classList.remove('wasm-func-flash'); }, 1200);
+    }
+    if (targetEntry.sourceRange) {
+      wasmHighlightSource(targetEntry.sourceRange.startOffset, targetEntry.sourceRange.endOffset);
+    }
+  }
+}
+
+function navigateToWasmInstruction(funcEl, targetIdx) {
+  if (!funcEl) return;
+  var el = funcEl.querySelector('.wasm-instr[data-idx="' + targetIdx + '"]');
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.add('wasm-instr-flash');
+  setTimeout(function() { el.classList.remove('wasm-instr-flash'); }, 1200);
+  var start = parseInt(el.dataset.start);
+  var end = parseInt(el.dataset.end);
+  if (!isNaN(start) && !isNaN(end)) wasmHighlightSource(start, end);
+}
+
+// Draw orthogonal control-flow arrows in the gutter of each function.
+function drawWasmEdges(container) {
+  container.querySelectorAll('.wasm-edges-svg').forEach(function(s) { s.remove(); });
+  var instrs = Array.from(container.querySelectorAll('.wasm-instr'));
+  if (!instrs.length) return;
+  var byIdx = {};
+  for (var el of instrs) byIdx[el.dataset.idx] = el;
+  var edges = [];
+  for (var el of instrs) {
+    var bt = el.querySelector('.wasm-branch-target');
+    if (!bt) continue;
+    var toIdxStr = bt.dataset.branchTargetIdx;
+    if (!toIdxStr) continue;
+    var tgt = byIdx[toIdxStr];
+    if (!tgt) continue;
+    edges.push({ from: el, to: tgt, fromIdx: el.dataset.idx, toIdx: toIdxStr, fromPos: parseInt(el.dataset.idx), toPos: parseInt(toIdxStr) });
+  }
+  if (!edges.length) return;
+  // Assign lanes by sorting edges by span length (shortest first, so
+  // the shortest occupy the innermost lanes).
+  edges.sort(function(a, b) { return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos); });
+  var laneAssignments = [];
+  for (var edge of edges) {
+    var lane = 0;
+    while (true) {
+      var conflict = false;
+      for (var other of laneAssignments) {
+        if (other.lane !== lane) continue;
+        var a1 = Math.min(edge.fromPos, edge.toPos), a2 = Math.max(edge.fromPos, edge.toPos);
+        var b1 = Math.min(other.fromPos, other.toPos), b2 = Math.max(other.fromPos, other.toPos);
+        if (!(a2 < b1 || a1 > b2)) { conflict = true; break; }
+      }
+      if (!conflict) break;
+      lane++;
+    }
+    edge.lane = lane;
+    laneAssignments.push(edge);
+  }
+  var rect = container.getBoundingClientRect();
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('wasm-edges-svg');
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+  var fid = (container.dataset.funcIdx || '0').replace(/[^A-Za-z0-9]/g, '_');
+  // Arrowhead marker definitions
+  var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+  marker.setAttribute('id', 'wasm-ah-' + fid);
+  marker.setAttribute('viewBox', '0 0 8 6');
+  marker.setAttribute('refX', '8'); marker.setAttribute('refY', '3');
+  marker.setAttribute('markerWidth', '7'); marker.setAttribute('markerHeight', '5');
+  marker.setAttribute('orient', 'auto');
+  var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  poly.setAttribute('points', '0 0, 8 3, 0 6');
+  poly.classList.add('wasm-arrowhead');
+  marker.appendChild(poly);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  var laneW = 6; var innerX = 24;  // right edge of arrow lanes
+  var R = 4;
+  for (var edge of edges) {
+    var fRect = edge.from.getBoundingClientRect();
+    var tRect = edge.to.getBoundingClientRect();
+    var y1 = fRect.top - rect.top + fRect.height / 2;
+    var y2 = tRect.top - rect.top + tRect.height / 2;
+    var laneX = innerX - edge.lane * laneW;
+    if (laneX < 4) laneX = 4;
+    var goingDown = y2 >= y1;
+    var dy = goingDown ? 1 : -1;
+    var xFrom = 28, xTo = 28;
+    var d = 'M ' + xFrom + ' ' + y1
+          + ' L ' + (laneX + R) + ' ' + y1
+          + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 1 : 0) + ' ' + laneX + ' ' + (y1 + dy * R)
+          + ' L ' + laneX + ' ' + (y2 - dy * R)
+          + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 0 : 1) + ' ' + (laneX + R) + ' ' + y2
+          + ' L ' + xTo + ' ' + y2;
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.classList.add('wasm-edge');
+    path.classList.add(goingDown ? 'wasm-edge-forward' : 'wasm-edge-back');
+    path.dataset.from = edge.fromIdx;
+    path.dataset.to = edge.toIdx;
+    path.setAttribute('marker-end', 'url(#wasm-ah-' + fid + ')');
+    svg.appendChild(path);
+  }
+  container.insertBefore(svg, container.firstChild);
+}
 
 // SSA variable spans with hover tooltips
 function renderVarSpan(name,version,type,lattice,role){

@@ -675,6 +675,61 @@ textarea#source::selection { background: rgba(137, 180, 250, 0.3); }
 }
 .tab.irules-only { display: none; }
 .tab.irules-only.irules-visible { display: flex; }
+/* WASM disassembly view */
+.wasm-module { margin-bottom: 16px; }
+.wasm-module-details { margin-left: 16px; font-size: 11px; color: var(--text-dim); }
+.wasm-module-details summary { cursor: pointer; color: var(--text); }
+.wasm-module-details summary:hover { color: var(--accent); }
+.wasm-import-entry { padding: 1px 0; white-space: pre; display: flex; gap: 6px; align-items: baseline; }
+.wasm-function { margin-bottom: 16px; border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; background: var(--bg-surface); }
+.wasm-function[data-func-idx] { position: relative; }
+.wasm-func-header { font-weight: 600; color: var(--cyan); margin-bottom: 4px; padding: 2px 4px; cursor: pointer; border-radius: 3px; transition: background 0.15s; font-size: 12px; }
+.wasm-func-header:hover { background: var(--highlight); }
+.wasm-func-header.wasm-func-flash { background: rgba(137, 180, 250, 0.3); animation: wasm-flash 1.2s ease-out; }
+.wasm-func-header .wasm-kind-badge { font-size: 10px; background: var(--bg-hover); color: var(--text-dim); padding: 1px 5px; border-radius: 8px; margin-left: 2px; font-weight: 400; }
+.wasm-func-name { color: var(--accent); }
+.wasm-func-locals { margin-left: 40px; padding: 2px 0; color: var(--text-dim); font-size: 11px; }
+.wasm-local { padding: 0 4px; }
+.wasm-func-body { font-size: 12px; line-height: 1.5; position: relative; padding-left: 36px; }
+.wasm-instr, .wasm-src-comment { display: flex; align-items: baseline; gap: 4px; padding: 1px 0; border-radius: 2px; position: relative; z-index: 2; white-space: pre; }
+.wasm-instr { cursor: pointer; }
+.wasm-instr:hover { background: var(--highlight); }
+.wasm-instr.highlighted { background: var(--highlight-strong); }
+.wasm-instr.wasm-instr-flash { background: rgba(249, 226, 175, 0.3); animation: wasm-flash 1.2s ease-out; }
+.wasm-src-comment { color: var(--green); cursor: pointer; padding-top: 4px; font-size: 11px; opacity: 0.85; }
+.wasm-src-comment:hover { background: var(--highlight); opacity: 1; }
+.wasm-src-comment .wasm-src-text { color: var(--green); }
+.wasm-gutter-pad { width: 0; flex-shrink: 0; }
+.wasm-idx { color: var(--gutter); min-width: 36px; user-select: none; text-align: right; font-size: 10px; padding-right: 8px; flex-shrink: 0; }
+.wasm-code { display: inline; flex: 1; min-width: 0; }
+.wasm-indent { color: transparent; }
+.wasm-mnemonic { color: var(--text-bright); font-weight: 500; }
+.wasm-operand { color: var(--text); }
+.wasm-operand-name { color: var(--green); }
+.wasm-block-label { color: var(--magenta); opacity: 0.6; font-size: 10px; margin-left: 2px; }
+.wasm-call-target, .wasm-branch-target { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; padding: 0 2px; border-radius: 2px; }
+.wasm-call-target { color: var(--cyan); }
+.wasm-call-target:hover { color: var(--accent); background: rgba(137, 180, 250, 0.15); }
+.wasm-branch-target { color: var(--yellow); }
+.wasm-branch-target:hover { color: var(--orange); background: rgba(250, 179, 135, 0.15); }
+.wasm-comment { color: var(--text-dim); font-style: italic; }
+.wasm-edges-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 36px; height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+.wasm-edge { fill: none; stroke-width: 1.2; opacity: 0.4; transition: opacity 0.15s, stroke-width 0.15s; }
+.wasm-edge-forward { stroke: var(--blue); }
+.wasm-edge-back { stroke: var(--yellow); stroke-dasharray: 3,2; }
+.wasm-edge.highlighted { opacity: 1; stroke-width: 2; }
+.wasm-arrowhead { fill: var(--blue); }
+@keyframes wasm-flash {
+  0% { background: rgba(249, 226, 175, 0.5); }
+  100% { background: transparent; }
+}
 </style>
 <script src="mermaid.min.js"></script>
 <script>
