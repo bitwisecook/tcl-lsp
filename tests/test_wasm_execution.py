@@ -2298,6 +2298,133 @@ g bottom
         assert result == b"top/bottom"
 
 
+class TestInterpHideExpose:
+    """End-to-end ``interp hide`` / ``interp expose`` / ``interp
+    hidden`` behaviour through the runtime's eval fallback.  The
+    compiler leaves ``interp`` as an eval call, so these exercise
+    the full dispatch path.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_hide_then_expose_restores_proc(self):
+        """Hiding a proc removes it from the command table; exposing
+        puts it back so subsequent calls dispatch normally."""
+        result = self._run_and_read_global(
+            """\
+proc greet {} { set ::result hello }
+interp hide {} greet
+interp expose {} greet
+greet
+""",
+            "::result",
+        )
+        assert result == b"hello"
+
+    def test_hidden_lists_hidden_commands(self):
+        """``interp hidden {}`` returns a space-separated list of
+        currently-hidden names."""
+        result = self._run_and_read_global(
+            """\
+proc foo {} {}
+proc bar {} {}
+interp hide {} foo
+interp hide {} bar
+set ::result [interp hidden {}]
+""",
+            "::result",
+        )
+        names = set(result.decode("utf-8").split())
+        assert names == {"foo", "bar"}
+
+
+class TestInfoIntrospection:
+    """End-to-end ``info commands`` / ``info procs`` /
+    ``namespace which -command`` through the eval path.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_info_commands_lists_user_procs(self):
+        result = self._run_and_read_global(
+            """\
+proc alpha {} {}
+proc beta {} {}
+set ::result [info commands]
+""",
+            "::result",
+        )
+        names = set(result.decode("utf-8").split())
+        assert "::alpha" in names
+        assert "::beta" in names
+
+    def test_info_commands_pattern(self):
+        result = self._run_and_read_global(
+            """\
+proc alpha {} {}
+proc beta {} {}
+set ::result [info commands a*]
+""",
+            "::result",
+        )
+        assert result.decode("utf-8").split() == ["::alpha"]
+
+    def test_info_commands_qualified_pattern(self):
+        """``info commands ::ns::*`` — qualified pattern walks the
+        target ns only.  We use ``info commands`` rather than ``info
+        procs`` because the WASM compiler compiles all user procs
+        via ``proc_register_compiled`` — those come out of the
+        interpreted-proc filter but remain visible as commands."""
+        result = self._run_and_read_global(
+            """\
+proc ::ns::p1 {} { set ::unused 1 }
+proc ::ns::p2 {} { set ::unused 2 }
+proc outside {} { set ::unused 3 }
+set ::result [info commands ::ns::*]
+""",
+            "::result",
+        )
+        names = set(result.decode("utf-8").split())
+        assert names == {"::ns::p1", "::ns::p2"}
+
+    def test_namespace_which_returns_fqn(self):
+        result = self._run_and_read_global(
+            """\
+namespace eval ::ns { proc here {} {} }
+set ::result [namespace which -command ::ns::here]
+""",
+            "::result",
+        )
+        assert result == b"::ns::here"
+
+    def test_namespace_which_miss_returns_empty(self):
+        result = self._run_and_read_global(
+            """\
+set ::result "<[namespace which -command missing]>"
+""",
+            "::result",
+        )
+        assert result == b"<>"
+
+
 def _read_global_string(
     rt_instance: wasmtime.Instance,
     store: wasmtime.Store,
