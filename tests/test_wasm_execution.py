@@ -2679,6 +2679,152 @@ interp eval worker {hi world}
         assert result == b"hi-world"
 
 
+class TestNamespaceEvalPostFlush:
+    """Regression tests: inside a ``namespace eval ::ns { … }`` body
+    that is inlined into the enclosing script, unqualified calls to
+    helper procs defined in the same block must resolve via the
+    runtime's namespace tree even after a full ``proc_index`` flush
+    triggered by ``interp create`` / ``eval`` / ``delete``.
+
+    The codegen wraps every ``IRBlock`` body with
+    ``tcl_ns_set(block_ns)`` / ``tcl_ns_restore`` so that any
+    eval-fallback inside the body sees ``ns_current() == ::ns``.
+    Without that wrapper the ``callable_proc_index.clear()`` path
+    in :func:`wasm_codegen_module` leaves every call inside the
+    block routed through ``tcl_eval``, and ``proc_lookup`` runs
+    with the outer namespace (typically ``::``) so unqualified
+    names never find their ``::ns::`` siblings.
+
+    This is the concrete symptom that surfaced when sourcing
+    ``tmp/tcl9.0.3/library/tcltest/tcltest.tcl`` through the WASM
+    runtime: the top-level ``namespace eval tcltest { …
+    ArrayDefault originalEnv [array get ::env] … }`` trapped with
+    ``unknown command: ArrayDefault`` despite the proc being
+    defined immediately above.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_unqualified_call_inside_namespace_eval_body_without_flush(self):
+        """Baseline: without ``interp create`` in scope, no
+        full-flush happens; the compile-time ``proc_index`` knows
+        about ``::foo::bar`` and the call is specialised.  This
+        case already worked before the fix, pinned here so
+        regressions to the specialised path also fail loudly.
+        """
+        result = self._run_and_read_global(
+            """\
+namespace eval ::foo {
+    proc bar {} { return 42 }
+    set ::result [bar]
+}
+""",
+            "::result",
+        )
+        assert result == b"42"
+
+    def test_unqualified_call_inside_namespace_eval_body_post_flush(self):
+        """Post-flush path: ``interp create`` forces
+        ``callable_proc_index.clear()`` so every call inside the
+        body falls back to ``tcl_eval``.  The runtime
+        ``ns_current`` must be ``::foo`` for ``bar`` to resolve.
+
+        This is the direct repro of the ArrayDefault trap that
+        blocked sourcing tcltest.tcl before the fix."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc bar {} { return 42 }
+    set ::result [bar]
+}
+""",
+            "::result",
+        )
+        assert result == b"42"
+
+    def test_nested_namespace_eval_bodies_post_flush(self):
+        """Nested ``namespace eval`` bodies must push / restore
+        correctly so the inner block's helpers shadow the outer
+        block's helpers by simple name, and on return the outer
+        block's resolution is restored."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::outer {
+    proc helper {} { return from-outer }
+    namespace eval ::outer::inner {
+        proc helper {} { return from-inner }
+        set ::inner_result [helper]
+    }
+    set ::outer_result [helper]
+}
+set ::result $::outer_result:$::inner_result
+""",
+            "::result",
+        )
+        assert result == b"from-outer:from-inner"
+
+    def test_tcltest_like_array_default_pattern(self):
+        """Closest-to-upstream repro: a proc defined inside the
+        block is invoked from the same block with a literal list
+        argument — the exact shape of tcltest's
+        ``ArrayDefault originalEnv [list …]`` call that trapped
+        before the fix."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::tcltest {
+    proc ArrayDefault {varName value} {
+        variable $varName
+        array set $varName $value
+        return ok
+    }
+    set ::result [ArrayDefault originalEnv {a 1 b 2}]
+}
+""",
+            "::result",
+        )
+        assert result == b"ok"
+
+    def test_namespace_eval_body_wat_contains_ns_set_and_restore(self):
+        """Compile-time invariant: the IRBlock wrapper emits calls
+        to both ``ns_set`` and ``ns_restore`` so the runtime
+        namespace context is pushed and popped around the body.
+        """
+        source = """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc bar {} { return 42 }
+    set ::result [bar]
+}
+"""
+        wasm_module, _ = _compile_to_wasm(source)
+        wat = wasm_module.to_wat()
+        assert 'import "tcl" "ns_set"' in wat, (
+            "tcl_ns_set import must be present for namespace eval body wrapper"
+        )
+        assert 'import "tcl" "ns_restore"' in wat, (
+            "tcl_ns_restore import must be present for namespace eval body wrapper"
+        )
+        assert "call $::foo::bar" not in wat, (
+            "callable proc index should be flushed by interp create"
+        )
+
+
 class TestInfoIntrospection:
     """End-to-end ``info commands`` / ``info procs`` /
     ``namespace which -command`` through the eval path.

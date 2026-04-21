@@ -2324,13 +2324,53 @@ class _WasmEmitter:
                 # the block's namespace so ``_emit_call_stmt`` can
                 # resolve unqualified command names (``Option …`` →
                 # ``::tcltest::Option``) for the duration of the body.
+                #
+                # We also push the block namespace onto the runtime
+                # ``ns_current`` via ``tcl_ns_set`` so that any
+                # eval-fallback inside the body (``tcl_eval("bar")``)
+                # performs its ``proc_lookup`` with the correct
+                # context namespace.  Without this, under
+                # ``full_flush`` (``interp create``/``eval``/``delete``)
+                # every unqualified call inside ``namespace eval ::foo
+                # { … }`` routes through ``tcl_eval`` with
+                # ``ns_current() == ::`` and fails to find
+                # ``::foo::bar`` — the concrete symptom is the
+                # ``ArrayDefault`` trap when sourcing tcltest.tcl.
                 prev_ns = self._block_namespace
                 self._block_namespace = block_ns
+                ns_saved_local: int | None = None
+                ns_set_idx = self._shared_imports.get("tcl_ns_set")
+                ns_restore_idx = self._shared_imports.get("tcl_ns_restore")
+                should_wrap_runtime_ns = (
+                    ns_set_idx is not None
+                    and ns_restore_idx is not None
+                    and block_ns is not None
+                    and block_ns != "::"
+                )
+                if should_wrap_runtime_ns:
+                    ns_saved_local = self._add_extra_local(
+                        prefix="_block_ns_saved", val_type=ValType.I64
+                    )
+                    ns_literal = block_ns
+                    offset = self._intern_string(ns_literal)
+                    encoded = ns_literal.encode("utf-8", errors="surrogatepass")
+                    # _intern_string stores a 4-byte length prefix
+                    # before the bytes at ``offset`` — the
+                    # pointer the runtime wants is ``offset + 4``.
+                    assert ns_set_idx is not None  # for type-checker
+                    self._emit_i32_const(offset + 4)
+                    self._emit_i32_const(len(encoded))
+                    self._emit_call(ns_set_idx)
+                    self._emit_local_set(ns_saved_local)
                 try:
                     for stmt in body.statements:
                         self._emit_stmt(stmt)
                 finally:
                     self._block_namespace = prev_ns
+                if should_wrap_runtime_ns and ns_saved_local is not None:
+                    assert ns_restore_idx is not None  # for type-checker
+                    self._emit_local_get(ns_saved_local)
+                    self._emit_call(ns_restore_idx)
                 if self._optimise:
                     self._const_map.clear()
 
