@@ -298,33 +298,44 @@ function computeLCS(a,b) {
 }
 
 function drawOptBrackets(pane) {
-  var container=pane.querySelector('.opt-diff-container');
-  if(!container)return;
-  container.querySelectorAll('.opt-diff-svg').forEach(function(s){s.remove()});
-  var groupIds=new Set();
-  container.querySelectorAll('[data-opt-group]').forEach(function(el){groupIds.add(el.dataset.optGroup)});
-  if(!groupIds.size)return;
-  var containerRect=container.getBoundingClientRect();
-  var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.classList.add('opt-diff-svg');
-  svg.setAttribute('width','36');svg.setAttribute('height',container.offsetHeight);
-  for(var gid of groupIds){
-    var origEls=container.querySelectorAll('.opt-original[data-opt-group="'+gid+'"]');
-    var replEls=container.querySelectorAll('.opt-replacement[data-opt-group="'+gid+'"]');
-    if(!origEls.length||!replEls.length)continue;
-    var firstOrigRect=origEls[0].getBoundingClientRect();
-    var lastReplRect=replEls[replEls.length-1].getBoundingClientRect();
-    var y1=firstOrigRect.top-containerRect.top+firstOrigRect.height/2;
-    var y2=lastReplRect.top-containerRect.top+lastReplRect.height/2;
-    var xR=32,xL=14;var R=Math.min(4,Math.abs(y2-y1)/2);
-    var d;
-    if(Math.abs(y2-y1)<2){d='M '+xR+' '+y1+' L '+xR+' '+y2;}
-    else{d='M '+xR+' '+y1+' L '+(xL+R)+' '+y1+' A '+R+' '+R+' 0 0 1 '+xL+' '+(y1+R)+' L '+xL+' '+(y2-R)+' A '+R+' '+R+' 0 0 0 '+(xL+R)+' '+y2+' L '+xR+' '+y2;}
-    var path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d',d);path.classList.add('opt-bracket');path.dataset.optGroup=gid;
-    svg.appendChild(path);
+  var container = pane.querySelector('.opt-diff-container');
+  if (!container) return;
+  var groupIds = [];
+  container.querySelectorAll('[data-opt-group]').forEach(function(el) {
+    var gid = el.dataset.optGroup;
+    if (groupIds.indexOf(gid) < 0) groupIds.push(gid);
+  });
+  var edges = [];
+  for (var idx = 0; idx < groupIds.length; idx++) {
+    var gid = groupIds[idx];
+    var origEls = container.querySelectorAll('.opt-original[data-opt-group="' + gid + '"]');
+    var replEls = container.querySelectorAll('.opt-replacement[data-opt-group="' + gid + '"]');
+    if (!origEls.length || !replEls.length) continue;
+    edges.push({
+      from: origEls[0],
+      to: replEls[replEls.length - 1],
+      fromId: gid,
+      toId: gid,
+      fromPos: idx,
+      toPos: idx,
+      kind: 'bracket',
+      directed: false,
+    });
   }
-  container.insertBefore(svg,container.firstChild);
+  drawOrthogonalEdges(container, edges, {
+    svgClass: 'opt-diff-svg',
+    edgeClass: 'opt-bracket',
+    edgeKindClass: function() { return ''; },
+    markerKinds: [],  // brackets have no arrowhead
+    gutter: { laneWidth: 8, innerX: 14, entryX: 32, exitX: 32, cornerRadius: 4, minX: 6 },
+    endpointSelector: '[data-opt-group]',
+    endpointIdAttr: 'optGroup',
+  });
+  // Preserve the legacy data-opt-group attr so existing hover/click
+  // hooks in opt-item/diff wiring still resolve groups.
+  container.querySelectorAll('.opt-bracket').forEach(function(p) {
+    if (!p.dataset.optGroup && p.dataset.edgeFrom) p.dataset.optGroup = p.dataset.edgeFrom;
+  });
 }
 
 function clearOptHighlights(container) {
@@ -856,7 +867,6 @@ function navigateToWasmInstruction(funcEl, targetIdx) {
 
 // Draw orthogonal control-flow arrows in the gutter of each function.
 function drawWasmEdges(container) {
-  container.querySelectorAll('.wasm-edges-svg').forEach(function(s) { s.remove(); });
   var instrs = Array.from(container.querySelectorAll('.wasm-instr'));
   if (!instrs.length) return;
   var byIdx = {};
@@ -869,77 +879,277 @@ function drawWasmEdges(container) {
     if (!toIdxStr) continue;
     var tgt = byIdx[toIdxStr];
     if (!tgt) continue;
-    edges.push({ from: el, to: tgt, fromIdx: el.dataset.idx, toIdx: toIdxStr, fromPos: parseInt(el.dataset.idx), toPos: parseInt(toIdxStr) });
+    edges.push({
+      from: el,
+      to: tgt,
+      fromId: el.dataset.idx,
+      toId: toIdxStr,
+      fromPos: parseInt(el.dataset.idx),
+      toPos: parseInt(toIdxStr),
+      kind: parseInt(toIdxStr) >= parseInt(el.dataset.idx) ? 'forward' : 'back',
+    });
   }
-  if (!edges.length) return;
-  // Assign lanes by sorting edges by span length (shortest first, so
-  // the shortest occupy the innermost lanes).
-  edges.sort(function(a, b) { return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos); });
-  var laneAssignments = [];
-  for (var edge of edges) {
+  drawOrthogonalEdges(container, edges, {
+    svgClass: 'wasm-edges-svg',
+    edgeClass: 'wasm-edge',
+    edgeKindClass: function(e) { return 'wasm-edge-' + e.kind; },
+    arrowheadClass: 'wasm-arrowhead',
+    arrowheadIdPrefix: 'wasm-ah-' + ((container.dataset.funcIdx || '0').replace(/[^A-Za-z0-9]/g, '_')),
+    markerKinds: ['default'],
+    markerForEdge: function() { return 'default'; },
+    gutter: { laneWidth: 6, innerX: 24, entryX: 28, exitX: 28, cornerRadius: 4 },
+    endpointSelector: '.wasm-instr',
+    endpointIdAttr: 'idx',
+  });
+}
+
+// Shared orthogonal-edge renderer.  All four current edge views
+// (CFG pre- and post-SSA, WASM/ASM disassembly, and the optimiser
+// diff brackets) go through this helper so improvements to the
+// drawing, lane-assignment, hover, and accessibility story apply
+// uniformly.
+//
+// Contract:
+//
+//   drawOrthogonalEdges(container, edges, options)
+//
+// Inputs:
+//   container  — the DOM element that owns the edge SVG.  Must be
+//                position-relative so the absolutely-positioned SVG
+//                lines up with the endpoints.
+//   edges      — list of {from, to, fromId?, toId?, fromPos, toPos,
+//                kind?, directed?} descriptors.  ``from`` / ``to``
+//                are DOM elements whose bounding rects we anchor to.
+//                ``fromPos`` / ``toPos`` are monotonic integers used
+//                for lane assignment (smallest span gets innermost
+//                lane).  ``kind`` controls the CSS modifier class
+//                and the arrowhead picker.  ``directed`` (default
+//                true) toggles the arrowhead at the ``to`` end.
+//   options    — renderer knobs; see below.
+//
+// Options:
+//   svgClass            — class to put on the generated <svg>
+//                         element (also the "remove previous" key).
+//   edgeClass           — common class on every edge <path>
+//                         (default 'oe-edge').
+//   edgeKindClass       — function(edge) → class suffix, or a string
+//                         prefix appended with edge.kind.
+//   arrowheadClass      — class on the arrowhead <polygon> inside
+//                         each marker (default 'oe-arrowhead').
+//   arrowheadIdPrefix   — unique prefix for arrowhead marker IDs so
+//                         multiple SVGs on one page don't collide.
+//   markerKinds         — list of arrowhead kinds to define.
+//   markerForEdge       — function(edge) → kind name used as
+//                         ``marker-end="url(#<prefix>-<kind>)"``.
+//   gutter              — geometry: {laneWidth, innerX, entryX,
+//                         exitX, cornerRadius}.
+//   endpointSelector    — CSS selector for endpoint DOM elements
+//                         (used to wire hover-highlighting between
+//                         edges and their endpoints).
+//   endpointIdAttr      — data- attribute on each endpoint whose
+//                         value matches edge.fromId / edge.toId
+//                         (e.g. "block", "idx", "opt-group").
+//
+// The rendered edges carry three stable data-* attributes:
+//   data-edge-from  — edge.fromId (or edge.from's matching
+//                     endpoint id, if fromId is not given).
+//   data-edge-to    — edge.toId (as above).
+//   data-edge-kind  — edge.kind.
+//
+// Hover wiring (enabled whenever ``endpointSelector`` is provided):
+//   - Hovering an endpoint adds ``highlighted`` to every edge whose
+//     from-id or to-id matches that endpoint's data id, and adds
+//     ``oe-endpoint-highlight`` to the related endpoints.
+//   - Hovering an edge path adds ``highlighted`` to the edge and
+//     ``oe-endpoint-highlight`` to both endpoints.
+function drawOrthogonalEdges(container, edges, options) {
+  // Clean up any previous render so re-layouts don't stack SVGs.
+  if (options.svgClass) {
+    container.querySelectorAll('.' + options.svgClass).forEach(function(s) { s.remove(); });
+  }
+  if (!edges.length) return null;
+
+  // Lane assignment: shortest span first → innermost lane.
+  var sorted = edges.slice().sort(function(a, b) {
+    return Math.abs(a.toPos - a.fromPos) - Math.abs(b.toPos - b.fromPos);
+  });
+  var assigned = [];
+  for (var edge of sorted) {
     var lane = 0;
     while (true) {
-      var conflict = false;
-      for (var other of laneAssignments) {
+      var clash = false;
+      for (var other of assigned) {
         if (other.lane !== lane) continue;
         var a1 = Math.min(edge.fromPos, edge.toPos), a2 = Math.max(edge.fromPos, edge.toPos);
         var b1 = Math.min(other.fromPos, other.toPos), b2 = Math.max(other.fromPos, other.toPos);
-        if (!(a2 < b1 || a1 > b2)) { conflict = true; break; }
+        if (!(a2 < b1 || a1 > b2)) { clash = true; break; }
       }
-      if (!conflict) break;
+      if (!clash) break;
       lane++;
     }
     edge.lane = lane;
-    laneAssignments.push(edge);
+    assigned.push(edge);
   }
+
   var rect = container.getBoundingClientRect();
-  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.classList.add('wasm-edges-svg');
+  var svgNs = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(svgNs, 'svg');
+  if (options.svgClass) svg.classList.add(options.svgClass);
+  svg.classList.add('oe-svg');
   svg.setAttribute('width', rect.width);
   svg.setAttribute('height', rect.height);
-  var fid = (container.dataset.funcIdx || '0').replace(/[^A-Za-z0-9]/g, '_');
-  // Arrowhead marker definitions
-  var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-  var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-  marker.setAttribute('id', 'wasm-ah-' + fid);
-  marker.setAttribute('viewBox', '0 0 8 6');
-  marker.setAttribute('refX', '8'); marker.setAttribute('refY', '3');
-  marker.setAttribute('markerWidth', '7'); marker.setAttribute('markerHeight', '5');
-  marker.setAttribute('orient', 'auto');
-  var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  poly.setAttribute('points', '0 0, 8 3, 0 6');
-  poly.classList.add('wasm-arrowhead');
-  marker.appendChild(poly);
-  defs.appendChild(marker);
-  svg.appendChild(defs);
-  var laneW = 6; var innerX = 24;  // right edge of arrow lanes
-  var R = 4;
+
+  // Arrowhead markers (one per distinct kind).
+  var markerPrefix = options.arrowheadIdPrefix || 'oe-ah';
+  var markerKinds = options.markerKinds || ['default'];
+  if (markerKinds.length) {
+    var defs = document.createElementNS(svgNs, 'defs');
+    for (var kind of markerKinds) {
+      var marker = document.createElementNS(svgNs, 'marker');
+      marker.setAttribute('id', markerPrefix + '-' + kind);
+      marker.setAttribute('viewBox', '0 0 8 6');
+      marker.setAttribute('refX', '8');
+      marker.setAttribute('refY', '3');
+      marker.setAttribute('markerWidth', '7');
+      marker.setAttribute('markerHeight', '5');
+      marker.setAttribute('orient', 'auto');
+      var poly = document.createElementNS(svgNs, 'polygon');
+      poly.setAttribute('points', '0 0, 8 3, 0 6');
+      if (options.arrowheadClass) {
+        poly.classList.add(options.arrowheadClass);
+        poly.classList.add(options.arrowheadClass + '-' + kind);
+      }
+      marker.appendChild(poly);
+      defs.appendChild(marker);
+    }
+    svg.appendChild(defs);
+  }
+
+  var g = options.gutter || {};
+  var laneW = g.laneWidth != null ? g.laneWidth : 8;
+  var innerX = g.innerX != null ? g.innerX : 24;
+  var entryX = g.entryX != null ? g.entryX : 0;
+  var exitX = g.exitX != null ? g.exitX : 0;
+  var R = g.cornerRadius != null ? g.cornerRadius : 4;
+  var minX = g.minX != null ? g.minX : 4;
+
   for (var edge of edges) {
-    var fRect = edge.from.getBoundingClientRect();
-    var tRect = edge.to.getBoundingClientRect();
-    var y1 = fRect.top - rect.top + fRect.height / 2;
-    var y2 = tRect.top - rect.top + tRect.height / 2;
+    var fromRect = edge.from.getBoundingClientRect();
+    var toRect = edge.to.getBoundingClientRect();
+    var y1 = g.anchorFromY === 'bottom'
+      ? fromRect.bottom - rect.top - 4
+      : (g.anchorFromY === 'top' ? fromRect.top - rect.top + 4 : fromRect.top - rect.top + fromRect.height / 2);
+    var y2 = g.anchorToY === 'top'
+      ? toRect.top - rect.top + 8
+      : (g.anchorToY === 'bottom' ? toRect.bottom - rect.top - 4 : toRect.top - rect.top + toRect.height / 2);
     var laneX = innerX - edge.lane * laneW;
-    if (laneX < 4) laneX = 4;
+    if (laneX < minX) laneX = minX;
+    // Compute from/to X anchors: CFG edges anchor to each block's
+    // left edge (so the gutter is outside the block); disassembly
+    // edges anchor to a fixed exit column.
+    var xFrom, xTo;
+    if (g.anchorFromX === 'left-of') {
+      xFrom = fromRect.left - rect.left;
+    } else {
+      xFrom = entryX;
+    }
+    if (g.anchorToX === 'left-of') {
+      xTo = toRect.left - rect.left;
+    } else {
+      xTo = exitX;
+    }
     var goingDown = y2 >= y1;
-    var dy = goingDown ? 1 : -1;
-    var xFrom = 28, xTo = 28;
-    var d = 'M ' + xFrom + ' ' + y1
-          + ' L ' + (laneX + R) + ' ' + y1
-          + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 1 : 0) + ' ' + laneX + ' ' + (y1 + dy * R)
-          + ' L ' + laneX + ' ' + (y2 - dy * R)
-          + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 0 : 1) + ' ' + (laneX + R) + ' ' + y2
-          + ' L ' + xTo + ' ' + y2;
-    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    var d;
+    if (Math.abs(y2 - y1) < 2) {
+      d = 'M ' + xFrom + ' ' + y1 + ' L ' + xTo + ' ' + y2;
+    } else {
+      var dy = goingDown ? 1 : -1;
+      d = 'M ' + xFrom + ' ' + y1
+        + ' L ' + (laneX + R) + ' ' + y1
+        + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 1 : 0) + ' ' + laneX + ' ' + (y1 + dy * R)
+        + ' L ' + laneX + ' ' + (y2 - dy * R)
+        + ' A ' + R + ' ' + R + ' 0 0 ' + (goingDown ? 0 : 1) + ' ' + (laneX + R) + ' ' + y2
+        + ' L ' + xTo + ' ' + y2;
+    }
+    var path = document.createElementNS(svgNs, 'path');
     path.setAttribute('d', d);
-    path.classList.add('wasm-edge');
-    path.classList.add(goingDown ? 'wasm-edge-forward' : 'wasm-edge-back');
-    path.dataset.from = edge.fromIdx;
-    path.dataset.to = edge.toIdx;
-    path.setAttribute('marker-end', 'url(#wasm-ah-' + fid + ')');
+    path.classList.add('oe-edge');
+    if (options.edgeClass) path.classList.add(options.edgeClass);
+    var kindClass = typeof options.edgeKindClass === 'function' ? options.edgeKindClass(edge) : (options.edgeKindClass && edge.kind ? options.edgeKindClass + edge.kind : '');
+    if (kindClass) path.classList.add(kindClass);
+    if (edge.fromId != null) path.dataset.edgeFrom = edge.fromId;
+    if (edge.toId != null) path.dataset.edgeTo = edge.toId;
+    if (edge.kind != null) path.dataset.edgeKind = edge.kind;
+    // Preserve legacy data attrs that older CSS and hover handlers
+    // keyed off of, so existing styles keep working.
+    if (edge.fromId != null) path.dataset.from = edge.fromId;
+    if (edge.toId != null) path.dataset.to = edge.toId;
+    if (edge.directed !== false) {
+      var marker = options.markerForEdge ? options.markerForEdge(edge) : 'default';
+      if (marker) path.setAttribute('marker-end', 'url(#' + markerPrefix + '-' + marker + ')');
+    }
     svg.appendChild(path);
   }
   container.insertBefore(svg, container.firstChild);
+
+  // Hover wiring — happens once per container.  Re-renders replace
+  // the SVG but keep the container, so we only install the listener
+  // on first mount.
+  if (options.endpointSelector && !container._oeHoverWired) {
+    container._oeHoverWired = true;
+    container.addEventListener('mouseover', function(e) {
+      // 1) hover a path → highlight endpoints
+      var path = e.target.closest && e.target.closest('.oe-edge');
+      if (path) {
+        path.classList.add('highlighted');
+        highlightOrthogonalEndpoints(container, options, path.dataset.edgeFrom, path.dataset.edgeTo);
+        return;
+      }
+      // 2) hover an endpoint → highlight related edges + paired endpoints
+      var endpoint = e.target.closest(options.endpointSelector);
+      if (!endpoint) return;
+      var id = endpoint.dataset[options.endpointIdAttr];
+      if (id == null) return;
+      container.querySelectorAll('.oe-edge').forEach(function(p) {
+        if (p.dataset.edgeFrom === id || p.dataset.edgeTo === id) {
+          p.classList.add('highlighted');
+        }
+      });
+      container.querySelectorAll('.oe-edge.highlighted').forEach(function(p) {
+        highlightOrthogonalEndpoints(container, options, p.dataset.edgeFrom, p.dataset.edgeTo);
+      });
+    });
+    container.addEventListener('mouseout', function(e) {
+      var path = e.target.closest && e.target.closest('.oe-edge');
+      if (path) {
+        path.classList.remove('highlighted');
+        clearOrthogonalEndpointHighlights(container);
+        return;
+      }
+      var endpoint = e.target.closest(options.endpointSelector);
+      if (!endpoint) return;
+      container.querySelectorAll('.oe-edge.highlighted').forEach(function(p) { p.classList.remove('highlighted'); });
+      clearOrthogonalEndpointHighlights(container);
+    });
+  }
+  return svg;
+}
+
+function highlightOrthogonalEndpoints(container, options, fromId, toId) {
+  if (!options.endpointSelector) return;
+  var idAttr = options.endpointIdAttr;
+  container.querySelectorAll(options.endpointSelector).forEach(function(el) {
+    var id = el.dataset[idAttr];
+    if (id != null && (id === fromId || id === toId)) {
+      el.classList.add('oe-endpoint-highlight');
+    }
+  });
+}
+
+function clearOrthogonalEndpointHighlights(container) {
+  container.querySelectorAll('.oe-endpoint-highlight').forEach(function(el) {
+    el.classList.remove('oe-endpoint-highlight');
+  });
 }
 
 // Opt diff — semantic-change-only comparison between the original and
@@ -995,6 +1205,15 @@ function openOptDiffView(paneId, kind) {
   var closeBtn = pane.querySelector('[data-disasm-diff-close]');
   if (closeBtn) closeBtn.addEventListener('click', function() { renderDisassembly(paneId, kind); });
   setupHoverHighlighting(pane);
+  // Draw control-flow arrows on the green (new) code in each diff
+  // block — only edges whose source and target are both visible
+  // opt-side rows get rendered, so same-segment elisions don't
+  // produce dangling arrows.
+  requestAnimationFrame(function() {
+    pane.querySelectorAll('.disasm-diff-rows.wasm-edges-container').forEach(function(c) {
+      drawWasmEdges(c);
+    });
+  });
 }
 
 function buildOptDiffBlockHtml(name, origEntry, optEntry, kind) {
@@ -1002,7 +1221,11 @@ function buildOptDiffBlockHtml(name, origEntry, optEntry, kind) {
   var optRows = optEntry ? normaliseForDiff(optEntry, kind) : [];
   var segments = computeDiffSegments(origRows.map(function(r) { return r.key; }), optRows.map(function(r) { return r.key; }));
   var changed = segments.some(function(s) { return s.type !== 'same'; });
-  var html = '<div class="wasm-function disasm-diff-block">';
+  // Visible opt-side rows contribute to the control-flow arrow
+  // overlay (drawn alongside the green/new code).  Track which opt
+  // instruction indices are shown so we can wire edges to them.
+  var visibleOptIdx = new Set();
+  var html = '<div class="wasm-function disasm-diff-block" data-func-name="' + esc(name) + '">';
   var badge = !origEntry ? '<span class="disasm-diff-badge disasm-diff-added">new</span>'
              : !optEntry ? '<span class="disasm-diff-badge disasm-diff-removed">removed</span>'
              : !changed ? '<span class="disasm-diff-badge disasm-diff-same">unchanged</span>'
@@ -1013,36 +1236,63 @@ function buildOptDiffBlockHtml(name, origEntry, optEntry, kind) {
     html += '</div>';
     return { html: html, changed: false };
   }
-  html += '<div class="disasm-diff-rows">';
+  // Wrap the rows in a ``wasm-edges-container`` so the shared
+  // orthogonal-edge renderer can target it directly, keyed by the
+  // ``data-idx`` stamped onto each visible opt-side row.
+  html += '<div class="disasm-diff-rows wasm-edges-container" data-diff-func-name="' + esc(name) + '">';
   for (var seg of segments) {
     if (seg.type === 'same') {
-      var shown = Math.min(seg.origEnd - seg.origStart, 1);
+      // For same segments show the opt-side row (not the orig side)
+      // so ``data-idx`` stays in the opt instruction space and
+      // arrows land correctly.
+      var shown = Math.min(seg.optEnd - seg.optStart, 1);
       for (var i = 0; i < shown; i++) {
-        var row = origRows[seg.origStart + i];
-        html += renderDiffRow(row, 'same');
+        var row = optRows[seg.optStart + i];
+        if (row && row.instrIdx != null) visibleOptIdx.add(row.instrIdx);
+        html += renderDiffRow(row, 'same', 'opt');
       }
-      var hiddenCount = (seg.origEnd - seg.origStart) - shown;
+      var hiddenCount = (seg.optEnd - seg.optStart) - shown;
       if (hiddenCount > 0) {
         html += '<div class="disasm-diff-elide">&hellip; ' + hiddenCount + ' unchanged instruction' + (hiddenCount === 1 ? '' : 's') + '</div>';
       }
     } else {
-      for (var i = seg.origStart; i < seg.origEnd; i++) html += renderDiffRow(origRows[i], 'removed');
-      for (var i = seg.optStart; i < seg.optEnd; i++) html += renderDiffRow(optRows[i], 'added');
+      for (var i = seg.origStart; i < seg.origEnd; i++) html += renderDiffRow(origRows[i], 'removed', 'orig');
+      for (var i = seg.optStart; i < seg.optEnd; i++) {
+        var row = optRows[i];
+        if (row && row.instrIdx != null) visibleOptIdx.add(row.instrIdx);
+        html += renderDiffRow(row, 'added', 'opt');
+      }
     }
   }
   html += '</div></div>';
-  return { html: html, changed: changed };
+  return { html: html, changed: changed, visibleOptIdx: visibleOptIdx };
 }
 
-function renderDiffRow(row, state) {
+function renderDiffRow(row, state, side) {
   if (!row) return '';
   var cls = 'disasm-diff-row disasm-diff-' + state;
+  // Added/same rows double as control-flow arrow endpoints via the
+  // same ``wasm-instr`` / ``data-idx`` contract that the live
+  // disassembly uses.  Removed rows are just text.
+  if (side === 'opt' && row.instrIdx != null) cls += ' wasm-instr';
   var sigil = state === 'added' ? '+' : (state === 'removed' ? '−' : ' ');
   var rng = row.range;
   var rngAttrs = rng ? ' data-start="' + rng.startOffset + '" data-end="' + rng.endOffset + '"' : '';
-  return '<div class="' + cls + '"' + rngAttrs + '>'
+  var idxAttr = (side === 'opt' && row.instrIdx != null) ? ' data-idx="' + row.instrIdx + '"' : '';
+  // The normalised display already carries a ``.wasm-branch-target``
+  // span for branching instructions; for opt-side rows we thread
+  // ``data-branch-target-idx`` onto it so ``drawWasmEdges`` can
+  // find the endpoint from inside the diff container.
+  var displayHtml = row.displayHtml;
+  if (side === 'opt' && row.branchTargetIdx != null) {
+    displayHtml = displayHtml.replace(
+      /<span class="wasm-branch-target"/,
+      '<span class="wasm-branch-target" data-branch-target-idx="' + row.branchTargetIdx + '"'
+    );
+  }
+  return '<div class="' + cls + '"' + idxAttr + rngAttrs + '>'
        + '<span class="disasm-diff-sigil">' + sigil + '</span>'
-       + '<span class="disasm-diff-text">' + row.displayHtml + '</span>'
+       + '<span class="disasm-diff-text">' + displayHtml + '</span>'
        + '</div>';
 }
 
@@ -1063,6 +1313,8 @@ function normaliseForDiff(entry, kind) {
         key: 'LABEL:' + ins.label,
         displayHtml: '<span class="disasm-label-anchor"># ' + esc(ins.label) + ':</span>',
         range: null,
+        instrIdx: ins.idx,
+        branchTargetIdx: null,
       });
       continue;
     }
@@ -1118,10 +1370,20 @@ function normaliseForDiff(entry, kind) {
         displayParts.push('<span class="wasm-comment">;; ' + esc(ins.label) + '</span>');
       }
     }
+    // Record the stable instruction idx + resolved branch target so
+    // the diff view can draw control-flow arrows on the green side.
+    var branchTargetIdx = null;
+    if (kind === 'asm' && ins.jumpTarget && ins.jumpTarget.targetIdx != null) {
+      branchTargetIdx = ins.jumpTarget.targetIdx;
+    } else if (kind === 'wasm' && ins.branchTarget && ins.branchTarget.targetIdx != null) {
+      branchTargetIdx = ins.branchTarget.targetIdx;
+    }
     rows.push({
       key: parts.join(' '),
       displayHtml: displayParts.join(' '),
       range: ins.range,
+      instrIdx: ins.idx,
+      branchTargetIdx: branchTargetIdx,
     });
   }
   return rows;
@@ -1186,65 +1448,51 @@ function showVarTooltip(el,v){
 function hideVarTooltip(){if(activeTooltip){activeTooltip.remove();activeTooltip=null;}}
 
 // CFG edge arrows
-function drawAllCfgEdges(pane,funcs){
-  pane.querySelectorAll('.cfg-edges-svg').forEach(function(s){s.remove()});
-  for(var func of funcs){
-    var container=pane.querySelector('.cfg-edges-container[data-func="'+func.name+'"]');
-    if(!container)continue;
-    var edges=[];
-    for(var block of func.blocks){
-      if(!block.successors)continue;
-      var term=block.terminator;
-      for(var target of block.successors){
-        var edgeType='goto';
-        if(term&&term.type==='branch')edgeType=target===term.trueTarget?'true':'false';
-        edges.push({from:block.name,to:target,edgeType:edgeType});
+function drawAllCfgEdges(pane, funcs) {
+  for (var func of funcs) {
+    var container = pane.querySelector('.cfg-edges-container[data-func="' + func.name + '"]');
+    if (!container) continue;
+    var blockEls = {};
+    container.querySelectorAll('.cfg-block[data-block]').forEach(function(el) { blockEls[el.dataset.block] = el; });
+    var edges = [];
+    var positions = {};
+    Object.keys(blockEls).forEach(function(name, i) { positions[name] = i; });
+    for (var block of func.blocks) {
+      if (!block.successors) continue;
+      var term = block.terminator;
+      for (var target of block.successors) {
+        var kind = 'goto';
+        if (term && term.type === 'branch') kind = target === term.trueTarget ? 'true' : 'false';
+        var fromEl = blockEls[block.name];
+        var toEl = blockEls[target];
+        if (!fromEl || !toEl) continue;
+        edges.push({
+          from: fromEl,
+          to: toEl,
+          fromId: block.name,
+          toId: target,
+          fromPos: positions[block.name] != null ? positions[block.name] : 0,
+          toPos: positions[target] != null ? positions[target] : 0,
+          kind: kind,
+        });
       }
     }
-    if(!edges.length)continue;
-    var containerRect=container.getBoundingClientRect();
-    var blockEls={};container.querySelectorAll('.cfg-block[data-block]').forEach(function(el){blockEls[el.dataset.block]=el;});
-    var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.classList.add('cfg-edges-svg');svg.setAttribute('width',containerRect.width);svg.setAttribute('height',containerRect.height);
-    var defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
-    var fid=func.name.replace(/[^A-Za-z0-9]/g,'_');
-    for(var type of ['goto','true','false']){
-      var marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
-      marker.setAttribute('id','ah-'+type+'-'+fid);marker.setAttribute('viewBox','0 0 8 6');marker.setAttribute('refX','8');marker.setAttribute('refY','3');marker.setAttribute('markerWidth','7');marker.setAttribute('markerHeight','5');marker.setAttribute('orient','auto');
-      var poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');poly.setAttribute('points','0 0, 8 3, 0 6');poly.classList.add('cfg-arrowhead','cfg-arrowhead-'+type);
-      marker.appendChild(poly);defs.appendChild(marker);
-    }
-    svg.appendChild(defs);
-    var R=4,LANE_W=8,GUTTER_BASE=36;
-    for(var i=0;i<edges.length;i++){
-      var edge=edges[i];var fromEl=blockEls[edge.from];var toEl=blockEls[edge.to];
-      if(!fromEl||!toEl)continue;
-      var fromRect=fromEl.getBoundingClientRect();var toRect=toEl.getBoundingClientRect();
-      var blockLeft=fromRect.left-containerRect.left;
-      var x1=blockLeft,y1=fromRect.bottom-containerRect.top-4;
-      var x2=toRect.left-containerRect.left,y2=toRect.top-containerRect.top+8;
-      var laneX=GUTTER_BASE-i*LANE_W;var goingDown=y2>y1;
-      var d;
-      if(Math.abs(y2-y1)<2){d='M '+x1+' '+y1+' L '+x2+' '+y2;}
-      else{
-        var dy=goingDown?1:-1;
-        d='M '+x1+' '+y1+' L '+(laneX+R)+' '+y1+' A '+R+' '+R+' 0 0 '+(goingDown?1:0)+' '+laneX+' '+(y1+dy*R)+' L '+laneX+' '+(y2-dy*R)+' A '+R+' '+R+' 0 0 '+(goingDown?0:1)+' '+(laneX+R)+' '+y2+' L '+x2+' '+y2;
-      }
-      var path=document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d',d);path.classList.add('cfg-edge','cfg-edge-'+edge.edgeType);
-      path.dataset.from=edge.from;path.dataset.to=edge.to;
-      path.setAttribute('marker-end','url(#ah-'+edge.edgeType+'-'+fid+')');
-      svg.appendChild(path);
-    }
-    container.insertBefore(svg,container.firstChild);
-    container.addEventListener('mouseover',function(e){
-      var block=e.target.closest('.cfg-block[data-block]');if(!block)return;
-      var bn=block.dataset.block;
-      svg.querySelectorAll('.cfg-edge').forEach(function(p){if(p.dataset.from===bn||p.dataset.to===bn)p.classList.add('highlighted');});
-    });
-    container.addEventListener('mouseout',function(e){
-      var block=e.target.closest('.cfg-block[data-block]');if(!block)return;
-      svg.querySelectorAll('.cfg-edge.highlighted').forEach(function(p){p.classList.remove('highlighted')});
+    var fid = func.name.replace(/[^A-Za-z0-9]/g, '_');
+    drawOrthogonalEdges(container, edges, {
+      svgClass: 'cfg-edges-svg',
+      edgeClass: 'cfg-edge',
+      edgeKindClass: function(e) { return 'cfg-edge-' + e.kind; },
+      arrowheadClass: 'cfg-arrowhead',
+      arrowheadIdPrefix: 'cfg-ah-' + fid,
+      markerKinds: ['true', 'false', 'goto'],
+      markerForEdge: function(e) { return e.kind; },
+      gutter: {
+        laneWidth: 8, innerX: 36, cornerRadius: 4,
+        anchorFromX: 'left-of', anchorToX: 'left-of',
+        anchorFromY: 'bottom', anchorToY: 'top',
+      },
+      endpointSelector: '.cfg-block[data-block]',
+      endpointIdAttr: 'block',
     });
   }
 }

@@ -424,14 +424,7 @@ body {
 }
 .source-line .code-text { white-space: pre; flex: 1; }
 .opt-diff-container { position: relative; padding-left: 36px; }
-.opt-diff-svg {
-  position: absolute;
-  top: 0; left: 0;
-  width: 36px; height: 100%;
-  pointer-events: none;
-  z-index: 1;
-  overflow: visible;
-}
+.opt-diff-svg { width: 36px; }
 .opt-diff-line {
   display: flex;
   font-size: 12px;
@@ -455,8 +448,8 @@ body {
 .opt-diff-line.opt-replacement .gutter { color: var(--green); }
 .opt-diff-line.opt-input-highlight { background: rgba(137, 180, 250, 0.18) !important; opacity: 1 !important; }
 .opt-diff-line.opt-output-highlight { background: rgba(166, 227, 161, 0.18) !important; }
-.opt-bracket { fill: none; stroke: var(--text-dim); stroke-width: 1.5; opacity: 0.4; transition: opacity 0.15s, stroke 0.15s; }
-.opt-bracket.highlighted { stroke: var(--accent); opacity: 1; }
+.opt-bracket { fill: none; stroke: var(--text-dim); stroke-width: 1.5; }
+.opt-bracket.highlighted, .opt-bracket:hover { stroke: var(--accent); }
 .analysis-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -506,24 +499,18 @@ body {
 .status-light.dirty      { background: var(--red);    box-shadow: 0 0 6px var(--red); }
 .status-light.loading    { background: var(--text-dim); box-shadow: none; }
 .cfg-edges-container { position: relative; padding-left: 40px; }
-.cfg-edges-svg {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 1;
-  overflow: visible;
-}
-.cfg-edge { fill: none; stroke-width: 1.5; opacity: 0.45; transition: opacity 0.15s, stroke-width 0.15s; }
+/* Shared orthogonal-edge SVG (see index.html for full comment). */
+.oe-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible; }
+.oe-edge { fill: none; stroke-width: 1.5; opacity: 0.45; pointer-events: stroke; cursor: pointer; transition: opacity 0.15s, stroke-width 0.15s; }
+.oe-edge:hover, .oe-edge.highlighted { opacity: 1; stroke-width: 2.5; }
+.oe-endpoint-highlight { outline: 1px solid var(--accent); outline-offset: -1px; border-radius: 2px; background: rgba(137, 180, 250, 0.1); }
+.cfg-edge { fill: none; stroke-width: 1.5; }
 .cfg-edge-true { stroke: var(--green); }
 .cfg-edge-false { stroke: var(--red); }
 .cfg-edge-goto { stroke: var(--text-dim); }
-.cfg-edge.highlighted { opacity: 1; stroke-width: 2; }
-.cfg-arrowhead { opacity: 0.45; transition: opacity 0.15s; }
 .cfg-arrowhead-true { fill: var(--green); }
 .cfg-arrowhead-false { fill: var(--red); }
 .cfg-arrowhead-goto { fill: var(--text-dim); }
-.cfg-arrowhead.highlighted { opacity: 1; }
 .cfg-block[data-block] { position: relative; z-index: 2; }
 .var-tooltip {
   position: fixed;
@@ -622,19 +609,12 @@ body {
 .wasm-branch-target { color: var(--yellow); }
 .wasm-branch-target:hover { color: var(--orange); background: rgba(250, 179, 135, 0.15); }
 .wasm-comment { color: var(--text-dim); font-style: italic; }
-.wasm-edges-svg {
-  position: absolute;
-  top: 0; left: 0;
-  width: 36px; height: 100%;
-  pointer-events: none;
-  z-index: 1;
-  overflow: visible;
-}
-.wasm-edge { fill: none; stroke-width: 1.2; opacity: 0.4; transition: opacity 0.15s, stroke-width 0.15s; }
+.wasm-edges-svg { width: 36px; }
+.wasm-edge { fill: none; stroke-width: 1.2; }
 .wasm-edge-forward { stroke: var(--blue); }
 .wasm-edge-back { stroke: var(--yellow); stroke-dasharray: 3,2; }
-.wasm-edge.highlighted { opacity: 1; stroke-width: 2; }
 .wasm-arrowhead { fill: var(--blue); }
+.wasm-arrowhead-default { fill: var(--blue); }
 @keyframes wasm-flash {
   0% { background: rgba(249, 226, 175, 0.5); }
   100% { background: transparent; }
