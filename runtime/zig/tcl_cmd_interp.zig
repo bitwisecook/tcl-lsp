@@ -1,9 +1,9 @@
-// Tcl interpreter — interp/rename/namespace-which management commands.
+// Tcl command management: interp, rename, namespace-which.
 //
-// Extracted from tcl_interp.zig: all ``interp``, ``rename``, and
-// ``namespace which`` command implementations that are called from the
-// eval core but do NOT themselves call eval_script or eval_command.
-// This one-way dependency breaks the import cycle.
+// Implements the ``interp``, ``rename``, and ``namespace which``
+// command groups.  These do not call eval_script or eval_command,
+// so they can be imported from tcl_interp.zig without a cycle.
+// Renamed from tcl_interp_interp.zig (the old name was misleading).
 
 const rt = @import("tcl_runtime.zig");
 const procs = @import("tcl_procs.zig");

@@ -50,8 +50,8 @@ fn has_signal() bool {
 
 const parse = @import("tcl_parse.zig");
 const MAX_WORDS: u32 = parse.MAX_WORDS;
-const interp_impl = @import("tcl_interp_interp.zig");
-const str_impl = @import("tcl_interp_string.zig");
+const interp_impl = @import("tcl_cmd_interp.zig");
+const cmd_table = @import("tcl_cmd_table.zig");
 const interp_reg = @import("tcl_interp_registry.zig");
 
 // -- Variable substitution --
@@ -438,6 +438,11 @@ fn eval_command(words: []const i32) i32 {
         if (bucket != 0) return eval_proc_call_bucket(words, bucket);
     }
 
+    // Registered builtin dispatch — commands extracted to per-module
+    // files under cmds/ and assembled in tcl_cmd_table.zig.  Checked
+    // before the legacy if-else chain; add new commands there, not here.
+    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words);
+
     if (str_eq(cmd, cmd_s.len, "set")) {
         if (words.len >= 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
         else if (words.len >= 2) { return frames.var_resolve(words[1]); }
@@ -719,9 +724,6 @@ fn eval_command(words: []const i32) i32 {
         }
         return 0;
     }
-    if (str_eq(cmd, cmd_s.len, "string")) return str_impl.eval_string_cmd(words);
-    if (str_eq(cmd, cmd_s.len, "dict")) return str_impl.eval_dict_cmd(words);
-    if (str_eq(cmd, cmd_s.len, "array")) return str_impl.eval_array_cmd(words);
     if (str_eq(cmd, cmd_s.len, "subst")) {
         // ``subst ?-nobackslashes? ?-nocommands? ?-novariables? string``
         // — walk the switches, then subst the final arg with the
