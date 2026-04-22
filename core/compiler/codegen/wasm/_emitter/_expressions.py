@@ -113,7 +113,7 @@ class _WasmEmitterExprMixin:
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
             # Parse and emit the nested expression
-            from ....parsing.expr_parser import parse_expr
+            from .....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)
@@ -572,7 +572,7 @@ class _WasmEmitterExprMixin:
         For ExprLiteral, creates a boxed string/int.
         For other nodes, evaluates as i64 and boxes.
         """
-        from ...expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
+        from ....expr_ast import ExprCommand, ExprLiteral, ExprRaw, ExprString, ExprVar
 
         match node:
             case ExprVar(text=text):

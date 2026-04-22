@@ -379,7 +379,7 @@ class _WasmEmitterCtrlMixin:
         For statements that naturally produce no value (declarations,
         ``unset``, etc.) we push a null TclObj (0) as the result.
         """
-        from ...ir import (
+        from ....ir import (
             IRAssignConst,
             IRAssignExpr,
             IRAssignValue,
@@ -509,7 +509,7 @@ class _WasmEmitterCtrlMixin:
                 self._emit_i32_const(0)
             return
 
-        from ....compiler.lowering import lower_to_ir
+        from ....lowering import lower_to_ir
 
         try:
             ir_module = lower_to_ir(body_text)
