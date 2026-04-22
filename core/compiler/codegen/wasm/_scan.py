@@ -753,5 +753,18 @@ def _scan_needed_imports(
         # the invocation argv list, element by element, before
         # stashing it via frame_set_argv.
         needed.add("tcl_list_create")
+        # Variadic (``args`` tail) procs need ``llength`` / ``lindex``
+        # in the prologue so the argv-capture loop can expand the
+        # packed ``args`` list into individual elements — otherwise
+        # ``[llength [info level 0]]`` is off by one for
+        # ``proc p {args} {}`` and collapses surplus words into one
+        # element for ``proc p {x args} {}``.  Only add when at least
+        # one proc in the module has an ``args`` tail; pure-arith
+        # fixtures stay minimal.
+        for proc in ir_module.procedures.values():
+            if proc.params and proc.params[-1] == "args":
+                needed.add("tcl_list_length")
+                needed.add("tcl_list_index")
+                break
 
     return needed
