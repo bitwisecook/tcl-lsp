@@ -14,6 +14,13 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     if len(args) >= 2:
         emitter._emit_value(args[1])
         emitter._emit_var_write_obj(var)
+    else:
+        emitter._emit_var_read_obj(var)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
     return True
 
 
@@ -33,12 +40,22 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
             emitter._emit_unbox_int()
             emitter._emit(WasmOp.I64_ADD)
             emitter._emit_box_int()
-            emitter._emit_var_write_obj(var)
+            if defs:
+                emitter._emit_var_write_obj_keep(var)
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit_var_write_obj(var)
             return True
     emitter._emit_i64_const(amt)
     emitter._emit(WasmOp.I64_ADD)
     emitter._emit_box_int()
-    emitter._emit_var_write_obj(var)
+    if defs:
+        emitter._emit_var_write_obj_keep(var)
+        def_idx = emitter._intern_local(defs[0])
+        emitter._emit_local_set(def_idx)
+    else:
+        emitter._emit_var_write_obj(var)
     return True
 
 
