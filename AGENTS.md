@@ -359,8 +359,18 @@ callers don't break, but new code should go to the canonical module.
 | `tcl_list_parse.zig` | input side — `count_elements`, `element_at`, `copy_unbraced_elem` | `tclUtil.c` `TclFindElement` / `Tcl_SplitList` |
 | `tcl_parse.zig` | script / word tokeniser — `parse_command` (flat-array legacy API) and `ParseCommand` (Token-tree API with per-word `braced` flag) | `tclParse.c` `Tcl_ParseCommand` / `Tcl_ParseBraces` / `Tcl_ParseQuotedString` |
 | `tcl_obj.zig` | TclObj memory model, type dispatch, `try_parse_int` / `try_parse_bool` | `tclObj.c` |
-| `tcl_interp.zig` | eval loop + built-in command dispatch + proc frames (consumer) | `tclBasic.c` / `tclExecute.c` |
+| `tcl_interp.zig` | eval loop + built-in command dispatch + proc frames (consumer); imports `tcl_interp_interp.zig` and `tcl_interp_string.zig` for leaf impls | `tclBasic.c` / `tclExecute.c` |
+| `tcl_interp_interp.zig` | `interp`/`rename`/`namespace which` management functions extracted from `tcl_interp.zig` — no eval recursion, so no import cycle | `tclInterp.c` |
+| `tcl_interp_string.zig` | `string`, `array`, and `dict` built-in command handlers extracted from `tcl_interp.zig` — purely functional leaf impls | `tclCmdIL.c` / `tclDictObj.c` |
 | `tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
+
+**Rebuilding the WASM binary:** always use `ReleaseFast` (the binary committed to the repo was built with that flag):
+
+```
+cd runtime/zig && zig build -Doptimize=ReleaseFast
+```
+
+A plain `zig build` defaults to `Debug` mode (3× larger, safety-check panics) and will break tests that depend on the pre-built binary size or behaviour.
 
 A few invariants to preserve when adding features:
 
