@@ -27,9 +27,7 @@ _WHEN_EVENT_PATTERN = re.compile(r"\bwhen\s+([A-Z_][A-Z0-9_]*)")
 
 
 @verb("symbols", aliases=("syms",), help="Emit symbol definitions for the resolved input.")
-def _configure_symbols(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_symbols(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
@@ -40,9 +38,7 @@ def _configure_symbols(
 
 
 @verb("diagram", help="Extract control-flow diagram data from compiler IR.")
-def _configure_diagram(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_diagram(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
@@ -166,9 +162,7 @@ def _collect_scope_symbol_entries(scope: Any, *, depth: int = 0) -> list[dict[st
     return entries
 
 
-def _append_symbolgraph_scope(
-    lines: list[str], scope: dict[str, Any], *, depth: int = 0
-) -> None:
+def _append_symbolgraph_scope(lines: list[str], scope: dict[str, Any], *, depth: int = 0) -> None:
     indent = "  " * depth
     kind = str(scope.get("kind", "?"))
     name = str(scope.get("name", "?"))

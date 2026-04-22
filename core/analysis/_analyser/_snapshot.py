@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from ..semantic_model import AnalysisResult, Range, Scope
 
+
 @dataclass
 class AnalyserSnapshot:
     """Checkpoint of ``Analyser`` state at a chunk boundary.
@@ -28,4 +29,3 @@ class AnalyserSnapshot:
     var_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
     # Command-substitution-as-command sites: (cmd_text, method_name_or_None, range, in_method).
     cmd_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
-

@@ -1,48 +1,12 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
-from dataclasses import dataclass, field
 
 from ...commands.registry import REGISTRY
-from ...commands.registry.runtime import (
-    SIGNATURES,
-    ArgRole,
-    CommandSig,
-    SubcommandSig,
-    arg_indices_for_role,
-    iter_body_arguments,
-)
-from ...commands.registry.signatures import Arity
-from ...common.alias import detect_interp_alias, resolve_alias
-from ...common.codes import diag
 from ...common.dialect import active_dialect
-from ...common.naming import (
-    normalise_qualified_name as _normalise_qualified_name,
-)
-from ...common.naming import (
-    normalise_var_name as _normalise_var_name,
-)
 from ...common.ranges import position_from_relative, range_from_token
-from ...compiler.cfg import CFGBranch, CFGFunction
-from ...compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
-from ...compiler.compiler_checks import iter_ir_statements, run_compiler_checks
-from ...compiler.core_analyses import FunctionAnalysis, LatticeKind, LatticeValue
-from ...compiler.ir import (
-    IRAssignConst,
-    IRAssignExpr,
-    IRAssignValue,
-    IRBarrier,
-    IRCall,
-    IRIncr,
-    IRProcedure,
-    IRStatement,
-    IRSwitch,
-    when_event_name,
-)
-from ...compiler.ssa import SSAFunction
-from ...parsing.argv import widen_argv_tokens_to_word_spans
+from ...compiler.compilation_unit import CompilationUnit
 from ...parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
 from ...parsing.expr_lexer import (
     BUILTIN_EXPR_OPS,
@@ -51,45 +15,23 @@ from ...parsing.expr_lexer import (
     ExprTokenType,
     tokenise_expr,
 )
-from ...parsing.known_commands import known_command_names
-from ...parsing.lexer import TclLexer
 from ...parsing.recovery import segment_with_recovery
-from ...parsing.tokens import SourcePosition, Token, TokenType
-from ..proc_arg_traits import infer_param_traits
+from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
     AnalysisResult,
-    AutoPathEntry,
-    ClassDef,
-    CodeFix,
-    CommandInvocation,
     Diagnostic,
-    MethodDef,
-    NamespaceImport,
-    PackageProvide,
-    PackageRequire,
-    ParamDef,
-    ProcDef,
-    PropertyDef,
     Range,
-    RegexPattern,
     Scope,
     Severity,
-    SourceTarget,
-    UnknownProcInfo,
-    VarDef,
 )
 from ..stub_comments import scan_source_for_stubs
 from ._snapshot import AnalyserSnapshot
 from ._utils import (
-    _irules_top_level_only,
     _NOQA_ALL,
-    _UNUSED_VAR_RE,
-    _possible_paste_fingerprint,
-    _format_literal_for_message,
-    _argv_with_word_spans,
 )
 
 log = logging.getLogger(__name__)
+
 
 class _AnalyserBase:
     """Core analysis loop — init, public API, body/expr traversal."""
@@ -655,4 +597,3 @@ class _AnalyserBase:
             seen.add(key)
             deduped.append(d)
         self.result.diagnostics = deduped
-

@@ -217,7 +217,7 @@ class ProcEscapeSummary:
 Codegen consumes `ProcEscapeSummary` through these rewired hooks:
 
 Every hook lives in the emitter
-([`core/compiler/codegen/wasm/_emitter.py`](../../../core/compiler/codegen/wasm/_emitter.py));
+([`core/compiler/codegen/wasm/_emitter/`](../../../core/compiler/codegen/wasm/_emitter/__init__.py));
 the package layout is a single large class split only for readability.
 
 - **`_intern_local(name)`**: non-parameter FRAME-tagged vars skip the

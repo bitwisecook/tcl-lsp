@@ -1,4 +1,5 @@
 """Single-pass Tcl analyser — implementation split into _analyser/ package."""
+
 from ._analyser import Analyser, AnalyserSnapshot, parse_param_list
 from .semantic_model import AnalysisResult
 

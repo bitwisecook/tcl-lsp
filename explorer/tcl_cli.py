@@ -51,7 +51,6 @@ from core.formatting.config import FormatterConfig
 
 from .verbs._registry import apply_verb_registrations, get_verb_catalogue
 from .verbs._utils import TclCliError
-from .verbs.lookup import _load_help_queries  # re-exported; tests monkeypatch this attribute
 
 _ALL_DIAGNOSTIC_CODES = _diagnostic_codes()
 
@@ -327,9 +326,9 @@ def parse_args(
     apply_verb_registrations(sub, prog_name=prog_name, default_dialect=default_dialect)
 
     # Complex verb groups with sub-sub-commands (unchanged pattern).
+    from .verbs.docker import add_docker_subparser
     from .verbs.pkg import add_pkg_subparser
     from .verbs.venv import add_venv_subparser
-    from .verbs.docker import add_docker_subparser
 
     add_pkg_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
     add_venv_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)

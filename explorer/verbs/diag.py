@@ -18,16 +18,13 @@ from ._utils import (
     _format_diagnostic_line,
     _read_input_documents,
     _resolve_disabled_diagnostics,
-    _write_text_output,
 )
 
 _PROBLEM_SEVERITIES = frozenset({Severity.ERROR, Severity.WARNING})
 
 
 @verb("diag", aliases=("diagnostics",), help="Run diagnostics across all resolved inputs.")
-def _configure_diag(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_diag(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--json",
@@ -39,9 +36,7 @@ def _configure_diag(
 
 
 @verb("lint", help="Run lint diagnostics across all resolved inputs.")
-def _configure_lint(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_lint(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--json",

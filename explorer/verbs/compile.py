@@ -27,9 +27,7 @@ from ._utils import (
     aliases=("asm", "disassemble"),
     help="Compile and emit bytecode disassembly.",
 )
-def _configure_dis(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_dis(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--optimise",

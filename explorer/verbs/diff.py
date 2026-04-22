@@ -10,16 +10,16 @@ from typing import Any, cast
 from core.commands.registry import REGISTRY
 from core.parsing.command_segmenter import segment_commands
 
-from ._registry import verb
-from ._utils import (
-    _combine_sources,
-    _read_input_documents,
-    _write_text_output,
-    TclCliError,
-)
 from ..formatters import range_dict
 from ..pipeline import AVAILABLE_DIALECTS, run_pipeline
 from ..serialise import serialise_result
+from ._registry import verb
+from ._utils import (
+    TclCliError,
+    _combine_sources,
+    _read_input_documents,
+    _write_text_output,
+)
 
 _DIFF_LAYERS = ("ast", "ir", "cfg")
 
@@ -29,9 +29,7 @@ _DIFF_LAYERS = ("ast", "ir", "cfg")
     help="Diff two sources using AST, IR, and CFG representations.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
-def _configure_diff(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_diff(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     p.description = "Diff two sources using AST, IR, and CFG representations."
     p.epilog = (
         "Examples:\n"

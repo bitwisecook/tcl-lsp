@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ._core import _AnalyserBase
 from ._commands import _AnalyserCommandsMixin
+from ._core import _AnalyserBase
 from ._diagnostics import _AnalyserDiagsMixin
 from ._handlers import _AnalyserHandlersMixin
 from ._oo import _AnalyserOOMixin
