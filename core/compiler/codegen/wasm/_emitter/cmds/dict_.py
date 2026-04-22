@@ -88,12 +88,16 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
         param_count = len(spec[2])
         sub_args = args[1:]
         if subcmd == "set" and len(sub_args) >= 3:
-            var_idx = emitter._intern_local(sub_args[0])
-            emitter._emit_local_get(var_idx)
+            emitter._emit_var_read_obj(sub_args[0])
             emitter._emit_value(sub_args[1])
             emitter._emit_value(sub_args[2])
             emitter._emit_call(func_idx)
-            emitter._emit_local_set(var_idx)
+            if defs:
+                emitter._emit_var_write_obj_keep(sub_args[0])
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit_var_write_obj(sub_args[0])
             return True
         for i in range(min(param_count, len(sub_args))):
             emitter._emit_value(sub_args[i])

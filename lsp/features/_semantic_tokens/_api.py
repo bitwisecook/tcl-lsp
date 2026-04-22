@@ -43,14 +43,17 @@ def semantic_tokens_full(
 
     # Check if we have a full cache hit (before building regex_positions).
     if chunk_token_cache is not None and chunk_line_ranges is not None:
-        if all(entry is not None for entry in chunk_token_cache):
+        n = len(chunk_line_ranges)
+        relevant = chunk_token_cache[:n]
+        if len(relevant) == n and all(entry is not None for entry in relevant):
             # Full cache hit — assemble from cached absolute tokens.
             raw_tokens: list[tuple[int, int, int, int, int]] = []
-            for entry in chunk_token_cache:
+            for entry in relevant:
                 assert entry is not None
                 raw_tokens.extend(entry)
+            raw_tokens.sort(key=lambda t: (t[0], t[1]))
             result = _delta_encode(raw_tokens)
-            log.info(
+            log.debug(
                 "[timing] semantic_tokens_full %.0fms (full cache hit, tokens=%d)",
                 (time.perf_counter() - t0) * 1000,
                 len(result) // 5,
@@ -118,7 +121,7 @@ def semantic_tokens_full(
 
     result = _delta_encode(raw_tokens)
     t_end = time.perf_counter()
-    log.info(
+    log.debug(
         "[timing] semantic_tokens_full %.0fms (collect=%.0fms, encode=%.0fms, tokens=%d, lines=%d)",
         (t_end - t0) * 1000,
         (t_after_collect - t_collect) * 1000,
