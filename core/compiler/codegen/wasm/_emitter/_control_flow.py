@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._core import _WasmEmitterBase as _Base
+else:
+    _Base = object
+
 from ....expr_ast import (
     ExprNode,
 )
@@ -17,7 +24,25 @@ from .._ir import (
 )
 
 
-class _WasmEmitterCtrlMixin:
+class _WasmEmitterCtrlMixin(_Base):
+    if TYPE_CHECKING:
+        # From _WasmEmitterExprMixin
+        def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_literal(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterStmtMixin
+        def _emit_stmt(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_call_stmt_tail(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterValuesMixin
+        def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_obj_literal(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_box_int(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_unbox_int(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterVarMixin
+        def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
+
     def _emit_if(
         self,
         clauses: tuple[IRIfClause, ...],

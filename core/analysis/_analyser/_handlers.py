@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._core import _AnalyserBase as _Base
+else:
+    _Base = object
 
 from ...commands.registry import REGISTRY
 from ...common.alias import detect_interp_alias, resolve_alias
@@ -14,8 +20,21 @@ from ..semantic_model import (
 log = logging.getLogger(__name__)
 
 
-class _AnalyserHandlersMixin:
+class _AnalyserHandlersMixin(_Base):
     """Special-case command handlers."""
+
+    if TYPE_CHECKING:
+        # From _AnalyserProcMixin
+        def _handle_proc(self, *a: Any, **kw: Any) -> None: ...
+        def _handle_set(self, *a: Any, **kw: Any) -> None: ...
+        def _handle_switch(self, *a: Any, **kw: Any) -> None: ...
+        def _handle_try(self, *a: Any, **kw: Any) -> None: ...
+        # From _AnalyserScopeMixin
+        def _set_const_string(self, *a: Any, **kw: Any) -> None: ...
+        def _clear_const_string(self, *a: Any, **kw: Any) -> None: ...
+        def _define_var(self, *a: Any, **kw: Any) -> Any: ...
+        def _define_vars_from_list(self, *a: Any, **kw: Any) -> None: ...
+        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
 
     def _handle_proc_command(
         self,

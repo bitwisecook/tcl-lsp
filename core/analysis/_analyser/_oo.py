@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._core import _AnalyserBase as _Base
+else:
+    _Base = object
 
 from ...common.ranges import range_from_token
 from ...compiler.compiler_checks import iter_ir_statements
@@ -26,8 +32,16 @@ from ._utils import parse_param_list
 log = logging.getLogger(__name__)
 
 
-class _AnalyserOOMixin:
+class _AnalyserOOMixin(_Base):
     """TclOO class/method analysis."""
+
+    if TYPE_CHECKING:
+        # Class constants defined in _AnalyserProcMixin
+        _OO_METACLASSES: frozenset[str]
+        _OO_DEFINE_SUBCMDS: frozenset[str]
+        # From _AnalyserBase (also declared here for clarity via inherited _Base)
+        # From _AnalyserCommandsMixin
+        def _analyse_body(self, *a: Any, **kw: Any) -> None: ...
 
     def _handle_oo_class_command(
         self,

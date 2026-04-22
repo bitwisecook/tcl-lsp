@@ -13,7 +13,6 @@ from ._utils import parse_param_list
 
 
 class Analyser(
-    _AnalyserBase,
     _AnalyserRecoveryMixin,
     _AnalyserScopeMixin,
     _AnalyserCommandsMixin,
@@ -21,6 +20,7 @@ class Analyser(
     _AnalyserProcMixin,
     _AnalyserOOMixin,
     _AnalyserDiagsMixin,
+    _AnalyserBase,
 ):
     "Single-pass Tcl analyser assembled from mixin groups."
 

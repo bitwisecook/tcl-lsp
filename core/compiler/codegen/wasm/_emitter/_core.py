@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from .....analysis.semantic_model import Range
 from ....cfg import (
     CFGFunction,
@@ -30,6 +32,18 @@ from .._parsing import (
 
 
 class _WasmEmitterBase:
+    if TYPE_CHECKING:
+        # From sibling mixins — declared here so generate() and helpers in _core.py
+        # can resolve them when type-checked in isolation.
+        def _emit_obj_literal(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_box_int(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_unbox_int(self, *a: Any, **kw: Any) -> Any: ...
+        def _intern_string(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_block(self, *a: Any, **kw: Any) -> Any: ...
+        def _run_optimisations(self, *a: Any, **kw: Any) -> Any: ...
+        def _body_references_info_level(self, *a: Any, **kw: Any) -> Any: ...
+        def _is_frame_only_var(self, *a: Any, **kw: Any) -> Any: ...
+
     def __init__(
         self,
         cfg: CFGFunction,

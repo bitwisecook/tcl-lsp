@@ -51,6 +51,9 @@ from core.formatting.config import FormatterConfig
 
 from .verbs._registry import apply_verb_registrations, get_verb_catalogue
 from .verbs._utils import TclCliError
+from .verbs.lookup import (
+    _load_help_queries as _load_help_queries,  # re-exported; tests monkeypatch this attribute
+)
 
 _ALL_DIAGNOSTIC_CODES = _diagnostic_codes()
 

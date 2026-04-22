@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._core import _AnalyserBase as _Base
+else:
+    _Base = object
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.runtime import (
@@ -44,7 +50,7 @@ from ._utils import (
 log = logging.getLogger(__name__)
 
 
-class _AnalyserDiagsMixin:
+class _AnalyserDiagsMixin(_Base):
     """Diagnostic emission methods."""
 
     def _emit_unresolved_command_diagnostics(

@@ -46,6 +46,7 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
+"lsp/features/semantic_tokens.py" = ["I001"]  # re-export split across two blocks from same module
 
 [tool.coverage.run]
 source = ["lsp", "core", "explorer"]

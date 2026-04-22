@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._core import _AnalyserBase as _Base
+else:
+    _Base = object
 
 from ...commands.registry import REGISTRY
 from ...common.ranges import position_from_relative
@@ -18,7 +24,7 @@ from ..semantic_model import (
 log = logging.getLogger(__name__)
 
 
-class _AnalyserRecoveryMixin:
+class _AnalyserRecoveryMixin(_Base):
     """Parser-error recovery heuristics."""
 
     def _recover_stray_close_bracket(
