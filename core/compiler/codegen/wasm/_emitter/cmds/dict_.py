@@ -1,0 +1,113 @@
+"""WASM emit hook for ``dict``."""
+
+from __future__ import annotations
+
+from ......commands.registry import REGISTRY
+from ..._imports import (
+    _DICT_SUBCMD_IMPORT,
+    _RUNTIME_IMPORTS,
+)
+from ..._ir import WasmOp
+
+
+def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+    """``dict subcommand ...`` — dispatch to runtime import (i32 args)."""
+    if not args:
+        emitter._emit_unsupported_trap("dict (no subcommand)")
+        return True
+    subcmd = args[0]
+
+    if subcmd == "merge":
+        sub_args = args[1:]
+        merge_idx = emitter._shared_imports.get("tcl_dict_merge_pair")
+        if not sub_args:
+            emitter._emit_obj_literal("")
+        elif merge_idx is None:
+            emitter._emit_value(sub_args[0])
+        else:
+            emitter._emit_value(sub_args[0])
+            for rest in sub_args[1:]:
+                emitter._emit_value(rest)
+                emitter._emit_call(merge_idx)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
+        return True
+
+    if subcmd == "create":
+        kv = args[1:]
+        if not kv:
+            emitter._emit_obj_literal("")
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit(WasmOp.DROP)
+            return True
+        if all(
+            not a.startswith("$")
+            and not a.startswith("[")
+            and not emitter._has_embedded_subst(a)
+            and a not in emitter._aliases
+            and a not in emitter._local_index
+            for a in kv
+        ):
+            emitter._emit_obj_literal(" ".join(kv))
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit(WasmOp.DROP)
+            return True
+        lappend_idx = emitter._shared_imports.get("tcl_lappend")
+        if lappend_idx is None:
+            emitter._emit_eval_fallback("dict", args)
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit(WasmOp.DROP)
+            return True
+        emitter._emit_obj_literal("")
+        for elem in kv:
+            emitter._emit_value(elem)
+            emitter._emit_call(lappend_idx)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
+        return True
+
+    import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
+    if import_key is not None and import_key in emitter._shared_imports:
+        func_idx = emitter._shared_imports[import_key]
+        spec = _RUNTIME_IMPORTS[import_key]
+        param_count = len(spec[2])
+        sub_args = args[1:]
+        if subcmd == "set" and len(sub_args) >= 3:
+            var_idx = emitter._intern_local(sub_args[0])
+            emitter._emit_local_get(var_idx)
+            emitter._emit_value(sub_args[1])
+            emitter._emit_value(sub_args[2])
+            emitter._emit_call(func_idx)
+            emitter._emit_local_set(var_idx)
+            return True
+        for i in range(min(param_count, len(sub_args))):
+            emitter._emit_value(sub_args[i])
+        for _ in range(param_count - len(sub_args)):
+            emitter._emit_i32_const(0)
+        emitter._emit_call(func_idx)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        elif spec[3]:
+            emitter._emit(WasmOp.DROP)
+    else:
+        emitter._emit_unsupported_trap(f"dict {subcmd}")
+    return True
+
+
+REGISTRY.register_wasm_emitter("dict", _emit_dict)

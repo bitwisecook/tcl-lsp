@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from .....commands.registry import REGISTRY as _REGISTRY
 from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
 from .....parsing.tokens import TokenType
 from ....ir import (
@@ -42,7 +43,6 @@ from .._imports import (
     _SCOPE_NOP_COMMANDS,
     _STRING_IS_IMPORT,
     _STRING_SUBCMD_IMPORT,
-    _UNSUPPORTED_COMMANDS,
 )
 from .._ir import (
     DiagSite,
@@ -83,24 +83,16 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_try(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_catch_from_args(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCmdMixin
-        def _emit_cmd_set(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_cmd_incr(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_return(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_cmd_dict(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_cmd_info(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_cmd_lassign(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_cmd_lset(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_proc_call(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_runtime(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_cmd_string(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_uplevel(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_upvar(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_variable(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_array_subcmd_value(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_list_value(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_unset_array_elems(self, *a: Any, **kw: Any) -> Any: ...
-        def _emit_clock_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_cmd_lassign(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_clock_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_array_subcmd_value(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_stmt(self, stmt: IRStatement) -> None:
         """Emit WASM for a single IR statement."""
@@ -629,105 +621,14 @@ class _WasmEmitterStmtMixin(_Base):
             )
             return
 
-        # set/incr: only inline the canonical 1-or-2 arg forms that the
-        # lowering emits as IRCall fallbacks.  Non-canonical shapes
-        # ({*} expansion, dict set, wrong arity) fall through to NOP.
-        if command == "set" and 1 <= len(args) <= 2:
-            self._emit_cmd_set(args)
-            return
-
-        if command == "incr" and 1 <= len(args) <= 2:
-            self._emit_cmd_incr(args)
-            return
-
-        # return: emit WASM return
-        if command == "return":
-            self._emit_cmd_return(args)
-            return
-
-        # string sub-commands
-        if command == "string" and args:
-            self._emit_cmd_string(args, defs)
-            return
-
-        # dict sub-commands
-        if command == "dict" and args:
-            self._emit_cmd_dict(args, defs)
-            return
-
-        # info sub-commands
-        if command == "info" and args:
-            self._emit_cmd_info(args, defs)
-            return
-
-        # lassign list ?varName ...? — destructure a list.
-        if command == "lassign" and args:
-            self._emit_cmd_lassign(args, defs, keep_on_stack=False)
-            return
-
-        # lset varName ?index ...? newValue — mutate a list element.
-        # Routed directly to the emitter so the generic fallback never
-        # sees ``lset`` (the runtime dispatch traps it as diagnostic).
-        if command == "lset" and len(args) >= 2:
-            self._emit_cmd_lset(args)
-            return
-
-        # clock seconds / clicks / milliseconds — WASI-backed timer.
-        if command == "clock" and args:
-            self._emit_clock_value(args)
-            if defs:
-                def_idx = self._intern_local(defs[0])
-                self._emit_local_set(def_idx)
-            else:
-                self._emit(WasmOp.DROP)
-            return
-
-        # uplevel ?level? body — run script in a caller's scope.
-        if command == "uplevel" and args:
-            self._emit_cmd_uplevel(args)
-            if defs:
-                def_idx = self._intern_local(defs[0])
-                self._emit_local_set(def_idx)
-            else:
-                self._emit(WasmOp.DROP)
-            return
-
-        # array subcommand dispatch — reads/writes route through the
-        # dedicated array hash tables.
-        if command == "array" and args:
-            self._emit_array_subcmd_value(args)
-            if defs:
-                def_idx = self._intern_local(defs[0])
-                self._emit_local_set(def_idx)
-            else:
-                self._emit(WasmOp.DROP)
-            return
-
-        # unset — handle array elements specially so ``unset arr(key)``
-        # actually removes the element from the array storage.  Plain
-        # scalar unset is fine to fall through for now (compiled procs
-        # don't need to clear WASM locals).
-        if command == "unset" and args:
-            if self._emit_unset_array_elems(args):
+        # Registry-driven dispatch — covers set, incr, return, string,
+        # dict, info, lassign, lset, clock, uplevel, array, unset, list,
+        # and all runtime-import commands.  Each hook returns True when
+        # handled and False to fall through (e.g. unset with no array elems).
+        spec = _REGISTRY.get_any(command)
+        if spec is not None and (hook := spec.codegens.get("wasm")) is not None:
+            if hook(self, args, defs):
                 return
-
-        # ``list`` — variadic list builder.  Bypass _CMD_RUNTIME's
-        # 2-arg tcl_list (which would silently drop the remaining
-        # elements) and emit a flat space-joined string instead.
-        if command == "list":
-            self._emit_list_value(args)
-            self._emit(WasmOp.DROP)
-            return
-
-        # Commands backed by runtime imports
-        if command in _CMD_RUNTIME:
-            self._emit_cmd_runtime(command, args, defs)
-            return
-
-        # Unsupported commands — emit runtime error trap
-        if command in _UNSUPPORTED_COMMANDS:
-            self._emit_unsupported_trap(command)
-            return
 
         # Unknown command — fall back to interpreter
         self._emit_eval_fallback(command, args, tokens=tokens)
