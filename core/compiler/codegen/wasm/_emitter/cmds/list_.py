@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY
-from ..._ir import ValType, WasmOp
+from ..._ir import WasmOp
 
 
 def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
@@ -54,9 +54,12 @@ def _emit_lset(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     emitter._emit_value(new_value)
     emitter._emit_call(list_set_idx)
 
-    result_local = emitter._add_extra_local(prefix="_lset_result", val_type=ValType.I32)
-    emitter._emit_local_tee(result_local)
-    emitter._emit_var_write_obj(var_name)
+    if defs:
+        emitter._emit_var_write_obj_keep(var_name)
+        def_idx = emitter._intern_local(defs[0])
+        emitter._emit_local_set(def_idx)
+    else:
+        emitter._emit_var_write_obj(var_name)
     if emitter._optimise:
         emitter._const_map.pop(var_name, None)
     return True
