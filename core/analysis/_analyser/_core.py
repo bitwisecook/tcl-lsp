@@ -40,6 +40,7 @@ class _AnalyserBase:
     if TYPE_CHECKING:
         # Set in analyse()/analyse_chunked() before any usage; not in __init__.
         _source: str
+
         # Stubs for methods provided by sibling mixins when composed into Analyser.
         def _emit_unresolved_command_diagnostics(self, *a: Any, **kw: Any) -> None: ...
         def _emit_variable_usage_diagnostics(self, *a: Any, **kw: Any) -> None: ...
