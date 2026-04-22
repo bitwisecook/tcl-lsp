@@ -45,8 +45,8 @@ class _WasmEmitterOptMixin:
         values, which is silently wrong.  Run once per proc at
         prologue time; linear in the number of statements.
         """
-        from ...cfg import CFGFunction
-        from ...ir import IRCall
+        from ....cfg import CFGFunction
+        from ....ir import IRCall
 
         def _walk(stmt) -> bool:
             if isinstance(stmt, IRCall):

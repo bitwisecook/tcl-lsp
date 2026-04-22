@@ -381,7 +381,7 @@ class _WasmEmitterCmdMixin:
         Leaves an empty string TclObj on the stack as the command's
         return value.
         """
-        from .._helpers import _split_list_simple
+        from ..._helpers import _split_list_simple
 
         fidx = self._shared_imports.get("tcl_array_set")
         if fidx is None:
