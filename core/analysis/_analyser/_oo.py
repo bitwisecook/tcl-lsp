@@ -39,6 +39,7 @@ class _AnalyserOOMixin(_Base):
         # Class constants defined in _AnalyserProcMixin
         _OO_METACLASSES: frozenset[str]
         _OO_DEFINE_SUBCMDS: frozenset[str]
+
         # From _AnalyserBase (also declared here for clarity via inherited _Base)
         # From _AnalyserCommandsMixin
         def _analyse_body(self, *a: Any, **kw: Any) -> None: ...
