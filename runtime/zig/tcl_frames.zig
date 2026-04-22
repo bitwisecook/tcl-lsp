@@ -69,7 +69,7 @@ const FRAME_BUCKET_SIZE: u32 = 16;
 // land this cap can move back down; the trap is load-bearing so
 // callers notice rather than silently looping.
 const FRAME_BUCKET_COUNT: u32 = 256;
-const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 1024 bytes
+const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 4096 bytes
 const OFF_VALUE: u32 = ht.HEADER_SIZE; // 12 — value follows header
 
 const FrameTable = ht.Table(FRAME_BUCKET_SIZE);

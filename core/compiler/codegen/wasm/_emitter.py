@@ -6748,11 +6748,72 @@ class _WasmEmitter:
             self._emit_obj_literal(tail)
             self._emit_call(list_idx)
             self._emit_local_set(argv_local)
+            # Determine which param (if any) is the variadic ``args``
+            # tail — last declared param, and only when the proc's
+            # registered signature recorded it as such.  Variadic
+            # dispatch packs surplus caller words into a list before
+            # the call, so appending the tail slot as a single
+            # element would collapse ``p 1 2 3`` (args = ``{2 3}``)
+            # into ``{p 1 {2 3}}`` and break ``[llength [info level
+            # 0]]``.  Expand the list contents instead so the argv
+            # matches the caller's actual word count.
+            has_args_tail = (
+                self._proc_qname in self._proc_args_tail
+                and bool(self._params)
+                and self._params[-1] == "args"
+            )
+            args_tail_slot = len(self._params) - 1 if has_args_tail else -1
+            llength_idx = self._shared_imports.get("tcl_list_length") if has_args_tail else None
+            lindex_idx = self._shared_imports.get("tcl_list_index") if has_args_tail else None
+            expand_tail = llength_idx is not None and lindex_idx is not None
             # For each real param: if the WASM local is non-null
             # (caller supplied a value), append it; otherwise
-            # leave the list alone.
+            # leave the list alone.  The ``args`` tail slot gets
+            # its list contents expanded element-by-element.
             for i, pname in enumerate(self._params):
-                if not pname or pname.startswith("_"):
+                if not pname:
+                    continue
+                if i == args_tail_slot and expand_tail:
+                    assert llength_idx is not None
+                    assert lindex_idx is not None
+                    # Loop: for n = llength(args_local); i < n; i++
+                    #   argv_local = tcl_list(argv_local,
+                    #                         tcl_list_index(args_local, i))
+                    counter_local = self._add_extra_local(prefix="_argv_i", val_type=ValType.I64)
+                    limit_local = self._add_extra_local(prefix="_argv_n", val_type=ValType.I64)
+                    # limit = unbox(tcl_list_length(args_local))
+                    self._emit_local_get(i)
+                    self._emit_call(llength_idx)
+                    self._emit_unbox_int()
+                    self._emit_local_set(limit_local)
+                    # counter = 0
+                    self._emit_i64_const(0)
+                    self._emit_local_set(counter_local)
+                    self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="args_expand_end")
+                    self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="args_expand_body")
+                    # if counter >= limit, break
+                    self._emit_local_get(counter_local)
+                    self._emit_local_get(limit_local)
+                    self._emit(WasmOp.I64_GE_S)
+                    self._emit_br_if(1)
+                    # argv_local = tcl_list(argv_local,
+                    #                       tcl_list_index(args, box(counter)))
+                    self._emit_local_get(argv_local)
+                    self._emit_local_get(i)
+                    self._emit_local_get(counter_local)
+                    self._emit_box_int()
+                    self._emit_call(lindex_idx)
+                    self._emit_call(list_idx)
+                    self._emit_local_set(argv_local)
+                    # counter++
+                    self._emit_local_get(counter_local)
+                    self._emit_i64_const(1)
+                    self._emit(WasmOp.I64_ADD)
+                    self._emit_local_set(counter_local)
+                    # br to loop header
+                    self._emit_br(0)
+                    self._emit(WasmOp.END)  # loop
+                    self._emit(WasmOp.END)  # block
                     continue
                 self._emit_local_get(i)
                 self._emit(WasmOp.I32_EQZ)
@@ -6787,7 +6848,7 @@ class _WasmEmitter:
         own_defaults = self._proc_defaults.get(self._proc_qname, ()) if self._proc_qname else ()
         if self._is_proc and own_defaults:
             for i, pname in enumerate(self._params):
-                if not pname or pname.startswith("_"):
+                if not pname:
                     continue
                 if i >= len(own_defaults):
                     break
@@ -6805,7 +6866,7 @@ class _WasmEmitter:
         if wants_frame:
             local_set_idx = self._shared_imports["tcl_local_set"]
             for i, pname in enumerate(self._params):
-                if not pname or pname.startswith("_"):
+                if not pname:
                     continue
                 self._emit_obj_literal(pname)
                 self._emit_local_get(i)

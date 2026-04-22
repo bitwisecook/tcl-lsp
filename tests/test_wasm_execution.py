@@ -3097,6 +3097,22 @@ myp hello world
         )
         assert out == "3"
 
+    def test_leading_underscore_param_is_not_skipped(self):
+        """Leading-underscore parameter names are valid user-visible
+        Tcl identifiers — the prologue must bind them into the
+        frame, substitute declared defaults when null, and include
+        them in the ``info level 0`` argv list.  A stale filter
+        that skipped them (``pname.startswith("_")``) produced a
+        wrong argv list and made ``$_x`` resolve to empty inside
+        the body.  Pinned here so that filter never comes back."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {_x _y} { puts "[info level 0] /// $_x $_y" }
+myp hello world
+"""
+        )
+        assert out == "myp hello world /// hello world"
+
     def test_level_zero_llength_for_no_arg_call(self):
         """A zero-param proc called with no args returns llength 1
         — just the proc name.  tcltest's accessor pattern uses
@@ -3108,6 +3124,68 @@ myp
 """
         )
         assert out == "1"
+
+    def test_variadic_args_tail_expands_in_argv(self):
+        """``proc p {args}`` is variadic: caller dispatch packs
+        surplus words into a list before the call.  The prologue
+        must expand that list back into individual argv elements
+        so ``[info level 0]`` reports the caller's true words
+        (``p a b c``), not a nested list (``p {a b c}``).
+        """
+        out = self._run_and_read_stdout(
+            """\
+proc p {args} {
+    set l [info level 0]
+    puts "L=[llength $l] V=<$l>"
+}
+p alpha beta gamma
+"""
+        )
+        assert out == "L=4 V=<p alpha beta gamma>"
+
+    def test_variadic_args_tail_empty_yields_llength_one(self):
+        """``proc p {args}`` called with no arguments must report
+        ``llength == 1`` (just the proc name) — the packed empty
+        ``args`` list must not contribute a spurious element."""
+        out = self._run_and_read_stdout(
+            """\
+proc p {args} { puts [llength [info level 0]] }
+p
+"""
+        )
+        assert out == "1"
+
+    def test_variadic_mixed_fixed_and_args_tail(self):
+        """``proc p {x args}`` with a fixed param plus a variadic
+        tail: the argv list should contain the proc name, the
+        fixed arg, then each tail element as its own list
+        element.  Pins the "no collapse into nested list" shape
+        (``{p one {two three}}`` would be wrong)."""
+        out = self._run_and_read_stdout(
+            """\
+proc p {x args} {
+    set l [info level 0]
+    puts "L=[llength $l] V=<$l>"
+}
+p one two three
+"""
+        )
+        assert out == "L=4 V=<p one two three>"
+
+    def test_info_level_large_integer_raises_bad_level(self):
+        """An integer argument that overflows the i32 range must
+        surface ``bad level "..."`` rather than wrap silently.
+        Pins the ``parse_signed_int`` overflow guard."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {} {
+    catch {info level 99999999999} msg
+    puts $msg
+}
+myp
+"""
+        )
+        assert out == 'bad level "99999999999"'
 
     def test_level_minus_one_reads_caller(self):
         """``info level -1`` inside a proc returns the caller's

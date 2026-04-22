@@ -313,27 +313,40 @@ pub fn info_level(arg: i32) i32 {
 }
 
 /// Parse a signed integer from a byte span.  Returns ``ok = false``
-/// on empty input or a non-digit after an optional leading sign.
+/// on empty input, a non-digit after an optional leading sign, or
+/// an integer that would overflow an i32 (the caller treats
+/// ``ok = false`` as "not a number" and surfaces ``bad level``,
+/// which matches what tclsh does for out-of-range arguments).
 const ParsedInt = struct { value: i32, ok: bool };
 fn parse_signed_int(ptr: u32, len: u32) ParsedInt {
     if (len == 0) return .{ .value = 0, .ok = false };
     const p: [*]const u8 = @ptrFromInt(ptr);
     var i: u32 = 0;
-    var sign: i32 = 1;
+    var negative: bool = false;
     if (p[0] == '-') {
-        sign = -1;
+        negative = true;
         i = 1;
     } else if (p[0] == '+') {
         i = 1;
     }
     if (i >= len) return .{ .value = 0, .ok = false };
-    var v: i32 = 0;
+    // Accumulate into an i64 so the overflow check at the end
+    // reliably catches values outside the i32 range — doing the
+    // multiply in i32 would itself wrap before we could test.
+    var v: i64 = 0;
     while (i < len) : (i += 1) {
         const c = p[i];
         if (c < '0' or c > '9') return .{ .value = 0, .ok = false };
-        v = v * 10 + @as(i32, @intCast(c - '0'));
+        v = v * 10 + @as(i64, @intCast(c - '0'));
+        // Bail the moment the magnitude exceeds i32's positive
+        // range + 1 — that covers both ``+2147483648`` and any
+        // larger input without having to special-case
+        // ``-2147483648``.
+        if (v > 2147483648) return .{ .value = 0, .ok = false };
     }
-    return .{ .value = v * sign, .ok = true };
+    if (negative) v = -v;
+    if (v > 2147483647 or v < -2147483648) return .{ .value = 0, .ok = false };
+    return .{ .value = @intCast(v), .ok = true };
 }
 
 fn raise_bad_level(arg_s: anytype) i32 {
