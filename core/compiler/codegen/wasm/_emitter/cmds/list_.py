@@ -9,7 +9,11 @@ from ..._ir import ValType, WasmOp
 def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     """``list ?arg ...?`` — variadic list builder; delegates to _emit_list_value."""
     emitter._emit_list_value(args)
-    emitter._emit(WasmOp.DROP)
+    if defs:
+        def_idx = emitter._intern_local(defs[0])
+        emitter._emit_local_set(def_idx)
+    else:
+        emitter._emit(WasmOp.DROP)
     return True
 
 
