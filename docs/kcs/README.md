@@ -61,6 +61,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — write sample files and cursor marker comments for screenshots.
 - [kcs-howto-manage-tcl-packages.md](kcs-howto-manage-tcl-packages.md)
   — add, install, and lock Tcl package dependencies with tclpkg.
+- [kcs-how-to-run-tcltest-bundles.md](kcs-how-to-run-tcltest-bundles.md)
+  — run the Tcl 9 tcltest test files through the WASM runtime and
+  interpret the triage roll-up.
 
 ## Tcl 9 correctness
 

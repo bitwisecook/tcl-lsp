@@ -126,6 +126,10 @@ pub const continue_flag = &tcl_catch.continue_flag;
 // Frames
 pub const frame_push = tcl_frames.frame_push;
 pub const frame_pop = tcl_frames.frame_pop;
+pub const frame_set_argv = tcl_frames.frame_set_argv;
+pub const frame_get_argv = tcl_frames.frame_get_argv;
+pub const frame_set_pending_argv0 = tcl_frames.frame_set_pending_argv0;
+pub const frame_take_pending_argv0 = tcl_frames.frame_take_pending_argv0;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const frame_depth_stash = tcl_frames.frame_depth_stash;
 pub const frame_depth_restore = tcl_frames.frame_depth_restore;
@@ -334,6 +338,10 @@ comptime {
     // tcl_frames exports
     _ = &tcl_frames.frame_push;
     _ = &tcl_frames.frame_pop;
+    _ = &tcl_frames.frame_set_argv;
+    _ = &tcl_frames.frame_get_argv;
+    _ = &tcl_frames.frame_set_pending_argv0;
+    _ = &tcl_frames.frame_take_pending_argv0;
     _ = &tcl_frames.frame_get_depth;
     _ = &tcl_frames.frame_depth_stash;
     _ = &tcl_frames.frame_depth_restore;

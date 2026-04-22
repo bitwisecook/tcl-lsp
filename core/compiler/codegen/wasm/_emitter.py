@@ -734,8 +734,14 @@ class _WasmEmitter:
         if proc_info is not None:
             func_idx, n_params = proc_info
             qname = self._resolve_proc_qname(cmd_name)
-            defaults = self._proc_defaults.get(qname, ()) if qname else ()
             has_args_tail = qname is not None and qname in self._proc_args_tail
+            # Stash the exact word the caller wrote so the callee's
+            # prologue can report it as argv[0] via
+            # ``take_pending_argv0``.  Must happen BEFORE args are
+            # evaluated so inner compiled calls that own their own
+            # pending slot don't clobber ours, and the push right
+            # before ``call`` consumes it immediately.
+            argv0_local = self._emit_prepare_pending_argv0(cmd_name)
             if has_args_tail and n_params > 0:
                 # ``proc p {... args}``: pack all surplus call-site args
                 # into a list TclObj for the trailing slot.  Without
@@ -746,13 +752,14 @@ class _WasmEmitter:
                 fixed = n_params - 1
                 for i in range(min(fixed, len(cmd_args))):
                     self._emit_value(cmd_args[i])
-                for slot in range(len(cmd_args), fixed):
-                    default = defaults[slot] if slot < len(defaults) else None
-                    if default is None:
-                        self._emit_default_arg()
-                    else:
-                        self._emit_obj_literal(default)
+                for _slot in range(len(cmd_args), fixed):
+                    # Pad with null TclObj; the compiled-proc prologue
+                    # substitutes the declared default (if any) and
+                    # the unsubstituted null lets ``frame_set_argv``
+                    # report an accurate argv for ``info level 0``.
+                    self._emit_i32_const(0)
                 self._emit_args_list(tuple(cmd_args[fixed:]))
+                self._emit_push_pending_argv0(argv0_local)
                 self._emit_call(func_idx)
                 return
             for i in range(min(n_params, len(cmd_args))):
@@ -767,12 +774,13 @@ class _WasmEmitter:
             # {{filename ""}}`` spec declares, making ``info level
             # 0`` report a 2-element list and the no-args early-
             # return check fail.
-            for slot in range(len(cmd_args), n_params):
-                default = defaults[slot] if slot < len(defaults) else None
-                if default is None:
-                    self._emit_default_arg()
-                else:
-                    self._emit_obj_literal(default)
+            for _slot in range(len(cmd_args), n_params):
+                # Pad with null TclObj; the compiled-proc prologue
+                # substitutes the declared default (if any) and
+                # the unsubstituted null lets ``frame_set_argv``
+                # report an accurate argv for ``info level 0``.
+                self._emit_i32_const(0)
+            self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             return
 
@@ -1089,14 +1097,70 @@ class _WasmEmitter:
         self._emit_call(self._shared_imports["tcl_obj_get_int"])
 
     def _emit_default_arg(self) -> None:
-        """Emit a boxed integer zero as a default/missing argument.
+        """Emit a null TclObj (``i32.const 0``) for a missing
+        call-site argument.
 
-        Unlike ``i32.const 0`` (null pointer), this creates a real
-        TclObj so that ``tcl_obj_get_int`` in the callee reads 0
-        instead of arbitrary memory.
+        The compiled-proc prologue inspects each param slot: if
+        it's null, substitutes the declared default (see the
+        prologue in :meth:`generate`); if still null after
+        substitution, the callee reads empty via ``var_resolve``.
+        This approach keeps the "was the slot supplied?" bit
+        recoverable so the prologue's argv-list capture
+        (``frame_set_argv``) reports the caller's real word
+        count — the invariant tcltest's
+        ``[llength [info level 0]] == 1`` accessor pattern
+        depends on.
         """
-        self._emit_i64_const(0)
-        self._emit_box_int()
+        self._emit_i32_const(0)
+
+    def _emit_prepare_pending_argv0(self, invoked_name: str) -> int | None:
+        """Stash *invoked_name* in a reserved local so the caller
+        can push it onto the pending-argv0 slot right before a
+        compiled ``call``.
+
+        Why a reserved local rather than emitting the ``obj_literal
+        → set_pending_argv0`` pair straight away?  Argument
+        evaluation between the prepare and the call may itself
+        invoke other compiled procs (``foo [bar 1]``), and those
+        inner calls will consume their own pending-argv0 slot via
+        ``take_pending_argv0``.  Stashing the TclObj pointer in a
+        local keeps our outer caller's argv0 alive until its own
+        call, so the inner bar/outer foo sequence reports the
+        right invoked word for each callee.
+
+        Returns the local index (i32) on success, or ``None`` when
+        the pending-argv0 imports aren't available (either the
+        scan layer didn't pull them in or this is a runtime that
+        pre-dates the ABI).  Callers should pass the returned
+        handle to :meth:`_emit_push_pending_argv0` immediately
+        before ``self._emit_call(func_idx)``.
+        """
+        if "tcl_frame_set_pending_argv0" not in self._shared_imports:
+            return None
+        loc = self._add_extra_local(prefix="_pending_argv0", val_type=ValType.I32)
+        # Evaluate the literal now (pushes TclObj pointer) and
+        # stash it — the value is inert, so intervening code can
+        # execute without affecting the stored word.
+        self._emit_obj_literal(invoked_name)
+        self._emit_local_set(loc)
+        return loc
+
+    def _emit_push_pending_argv0(self, saved_local: int | None) -> None:
+        """Publish the stashed invoked word to the runtime's
+        pending-argv0 slot.  Emit immediately before the
+        corresponding compiled ``call`` — the callee's prologue
+        consumes the slot on entry.  No-op when *saved_local* is
+        ``None`` (the paired :meth:`_emit_prepare_pending_argv0`
+        returned ``None``, typically because the runtime import
+        isn't available).
+        """
+        if saved_local is None:
+            return
+        set_idx = self._shared_imports.get("tcl_frame_set_pending_argv0")
+        if set_idx is None:
+            return
+        self._emit_local_get(saved_local)
+        self._emit_call(set_idx)
 
     def _emit_args_list(
         self,
@@ -1391,18 +1455,20 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(cmd_name)
         if proc_info is not None:
             func_idx, n_params = proc_info
-            qname = self._resolve_proc_qname(cmd_name)
-            defaults = self._proc_defaults.get(qname, ()) if qname else ()
+            # Stash the caller's invoked word for the callee's
+            # ``info level 0`` — see :meth:`_emit_prepare_pending_argv0`.
+            argv0_local = self._emit_prepare_pending_argv0(cmd_name)
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
             # Pad missing args with declared defaults (see the mirror
             # comment in ``_emit_command_subst_value``).
-            for slot in range(len(cmd_args), n_params):
-                default = defaults[slot] if slot < len(defaults) else None
-                if default is None:
-                    self._emit_default_arg()
-                else:
-                    self._emit_obj_literal(default)
+            for _slot in range(len(cmd_args), n_params):
+                # Pad with null TclObj; the compiled-proc prologue
+                # substitutes the declared default (if any) and
+                # the unsubstituted null lets ``frame_set_argv``
+                # report an accurate argv for ``info level 0``.
+                self._emit_i32_const(0)
+            self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             # Result is i32 TclObj — unbox to i64 for expression context
             self._emit_unbox_int()
@@ -2324,13 +2390,53 @@ class _WasmEmitter:
                 # the block's namespace so ``_emit_call_stmt`` can
                 # resolve unqualified command names (``Option …`` →
                 # ``::tcltest::Option``) for the duration of the body.
+                #
+                # We also push the block namespace onto the runtime
+                # ``ns_current`` via ``tcl_ns_set`` so that any
+                # eval-fallback inside the body (``tcl_eval("bar")``)
+                # performs its ``proc_lookup`` with the correct
+                # context namespace.  Without this, under
+                # ``full_flush`` (``interp create``/``eval``/``delete``)
+                # every unqualified call inside ``namespace eval ::foo
+                # { … }`` routes through ``tcl_eval`` with
+                # ``ns_current() == ::`` and fails to find
+                # ``::foo::bar`` — the concrete symptom is the
+                # ``ArrayDefault`` trap when sourcing tcltest.tcl.
                 prev_ns = self._block_namespace
                 self._block_namespace = block_ns
+                ns_saved_local: int | None = None
+                ns_set_idx = self._shared_imports.get("tcl_ns_set")
+                ns_restore_idx = self._shared_imports.get("tcl_ns_restore")
+                should_wrap_runtime_ns = (
+                    ns_set_idx is not None
+                    and ns_restore_idx is not None
+                    and block_ns is not None
+                    and block_ns != "::"
+                )
+                if should_wrap_runtime_ns:
+                    ns_saved_local = self._add_extra_local(
+                        prefix="_block_ns_saved", val_type=ValType.I64
+                    )
+                    ns_literal = block_ns
+                    offset = self._intern_string(ns_literal)
+                    encoded = ns_literal.encode("utf-8", errors="surrogatepass")
+                    # _intern_string stores a 4-byte length prefix
+                    # before the bytes at ``offset`` — the
+                    # pointer the runtime wants is ``offset + 4``.
+                    assert ns_set_idx is not None  # for type-checker
+                    self._emit_i32_const(offset + 4)
+                    self._emit_i32_const(len(encoded))
+                    self._emit_call(ns_set_idx)
+                    self._emit_local_set(ns_saved_local)
                 try:
                     for stmt in body.statements:
                         self._emit_stmt(stmt)
                 finally:
                     self._block_namespace = prev_ns
+                if should_wrap_runtime_ns and ns_saved_local is not None:
+                    assert ns_restore_idx is not None  # for type-checker
+                    self._emit_local_get(ns_saved_local)
+                    self._emit_call(ns_restore_idx)
                 if self._optimise:
                     self._const_map.clear()
 
@@ -2596,6 +2702,25 @@ class _WasmEmitter:
                 # silently skip (statement context has no stack commitments).
                 self._emit_namespace_eval_bridge(args[2:], drop_result=True)
                 return
+            # ``namespace import`` / ``namespace export`` / ``namespace
+            # forget`` — record the side effect at runtime so the
+            # interpreter's ``ns_import`` / ``ns_export`` / ``ns_forget``
+            # creates real redirects / export patterns.  The compile-time
+            # resolver (``module.namespace_imports`` / ``namespace_exports``)
+            # still shortens specialised calls when the proc index is live,
+            # but under full flush (``interp create`` / ``eval`` /
+            # ``delete``) that table is cleared and every call routes
+            # through ``tcl_eval`` — the runtime then needs the import
+            # redirect to resolve ``testConstraint`` → ``::tcltest::testConstraint``.
+            #
+            # Only emit for subcommands with real runtime side effects.
+            # ``namespace eval`` is handled above; ``namespace current``,
+            # ``namespace which`` etc. are lookups with no side effect
+            # and remain NOPs at codegen.
+            if command == "namespace" and args and args[0] in ("import", "export", "forget"):
+                self._emit_eval_fallback(command, args)
+                self._emit(WasmOp.DROP)
+                return
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
@@ -2633,6 +2758,7 @@ class _WasmEmitter:
                 defs,
                 qname=qname,
                 tokens=tokens,
+                invoked_name=command,
             )
             return
 
@@ -3036,11 +3162,16 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             func_idx, n_params = proc_info
+            # Stash the invoked word for the callee's
+            # ``info level 0`` argv0 — see
+            # :meth:`_emit_prepare_pending_argv0`.
+            argv0_local = self._emit_prepare_pending_argv0(command)
             # Push exactly n_params args (truncate surplus, pad missing)
             for i in range(min(n_params, len(args))):
                 self._emit_value(args[i])
             for _ in range(n_params - len(args)):
                 self._emit_i32_const(0)
+            self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             # i32 result stays on the stack
             return
@@ -4728,21 +4859,19 @@ class _WasmEmitter:
             return
         subcmd = args[0]
 
-        # ``info level 0`` — return the current proc's invocation as
-        # a list (proc-name + all args).  tcltest's ``outputChannel``
-        # uses ``[llength [info level 0]] == 1`` as a "was I called
-        # without a filename arg?" check; without a real impl the
-        # runtime's ``info_dispatch`` returns empty, llength = 0, and
-        # the check falls through to the ``open $filename`` branch
-        # that traps on the unsupported ``open`` stub.
+        # ``info level 0`` — return the current proc's invocation
+        # list.  The prologue stashed the real argv via
+        # ``frame_set_argv`` (a proper list TclObj built with
+        # ``tcl_list``), so the inline shortcut just reads it back
+        # with ``frame_get_argv(0)``.  This matches tclsh's
+        # semantics exactly: the list's length, element contents,
+        # and quoting are all consistent with the invocation site.
         #
-        # We know the proc's param list at compile time, so emit a
-        # list whose length tracks the real invocation: one element
-        # per declared parameter, space-joined (elements aren't
-        # list-quoted because we only care about the llength here —
-        # callers that inspect element contents via ``lindex`` would
-        # need proper quoting; extend then).  The proc name itself
-        # is the first element.
+        # Falls through to the eval fallback when the required
+        # imports aren't available (``frame_get_argv`` is pulled
+        # in with the other frame primitives whenever the module
+        # defines procs, so this is really a belt-and-braces
+        # guard).
         if (
             subcmd == "level"
             and len(args) == 2
@@ -4750,30 +4879,15 @@ class _WasmEmitter:
             and self._is_proc
             and self._proc_qname is not None
         ):
-            append_idx = self._shared_imports.get("tcl_append")
-            # proc-name as the first word (use the unqualified tail
-            # rather than the fully qualified name — tcltest's
-            # ``outputChannel`` call-site compares against the
-            # command name a script would've used, not its
-            # namespace-qualified form).
-            tail = self._proc_qname.rsplit("::", 1)[-1] or self._proc_qname
-            self._emit_obj_literal(tail)
-            if append_idx is not None:
-                for pname in self._params:
-                    # Space separator + param value.
-                    self._emit_obj_literal(" ")
-                    self._emit_call(append_idx)
-                    # Read the local — parameters are the first
-                    # N locals in a compiled proc.
-                    idx = self._local_index.get(pname)
-                    if idx is None:
-                        # Shouldn't happen for param names, but fall
-                        # back to empty string.
-                        self._emit_obj_literal("")
-                    else:
-                        self._emit_local_get(idx)
-                    self._emit_call(append_idx)
-            return
+            get_argv_idx = self._shared_imports.get("tcl_frame_get_argv")
+            if get_argv_idx is not None:
+                # offset 0 = current (topmost) frame's argv.
+                self._emit_i32_const(0)
+                self._emit_call(get_argv_idx)
+                return
+            # Fall through when the import is absent — the generic
+            # ``info`` dispatch below will pick it up and route to
+            # ``info_dispatch`` at runtime.
 
         if subcmd == "exists" and len(args) >= 2:
             # ``info exists var`` — resolve the variable reference with
@@ -5186,6 +5300,7 @@ class _WasmEmitter:
         defs: tuple[str, ...],
         qname: str | None = None,
         tokens: "CommandTokens | None" = None,
+        invoked_name: str | None = None,
     ) -> None:
         """Emit a direct call to a compiled procedure.
 
@@ -5206,12 +5321,24 @@ class _WasmEmitter:
         unbraced ones.  Braced args must skip backslash / interpolation
         substitution at emit time (Tcl semantics: braces suppress all
         substitution).
-        """
-        defaults: tuple[str | None, ...] = ()
-        if qname is not None:
-            defaults = self._proc_defaults.get(qname, ())
 
+        *invoked_name* is the exact word the source used for the
+        call (``::foo::bar``, ``bar``, ``renamed_bar``, …).  Stashed
+        in the runtime's pending-argv0 slot immediately before the
+        ``call`` so the callee's prologue can report it via
+        ``info level 0``.  When ``None`` — callers that don't have
+        the source word handy — the callee's prologue falls back
+        to its qname tail.
+        """
+        # The callee's prologue (see :meth:`generate`) applies
+        # declared defaults on null-TclObj slots, so callers just
+        # pad with ``i32.const 0`` via :meth:`_emit_default_arg`
+        # for missing args — no per-call-site default lookup
+        # needed.
         has_args_tail = qname is not None and qname in self._proc_args_tail
+        argv0_local = (
+            self._emit_prepare_pending_argv0(invoked_name) if invoked_name is not None else None
+        )
 
         def _was_braced(call_arg_idx: int) -> bool:
             """Return True if the call-site word at *call_arg_idx* was braced.
@@ -5233,12 +5360,12 @@ class _WasmEmitter:
             for i in range(min(fixed, len(args))):
                 self._emit_value(args[i], was_braced=_was_braced(i))
             # Pad missing fixed slots with defaults / null
-            for slot in range(len(args), fixed):
-                default = defaults[slot] if slot < len(defaults) else None
-                if default is None:
-                    self._emit_default_arg()
-                else:
-                    self._emit_obj_literal(default)
+            for _slot in range(len(args), fixed):
+                # Pad with null TclObj; the compiled-proc prologue
+                # substitutes the declared default (if any) and
+                # the unsubstituted null lets ``frame_set_argv``
+                # report an accurate argv for ``info level 0``.
+                self._emit_i32_const(0)
             # Last slot: list of all remaining call args.  Pass a
             # per-tail-arg ``was_braced`` probe so braced tokens in
             # the args tail keep their exact source bytes (no
@@ -5257,13 +5384,17 @@ class _WasmEmitter:
             # and ``{[clock seconds]}`` must reach the callee unchanged,
             # *not* be substituted at call time.  Emit as an obj literal
             # so no ``$var`` / ``[cmd]`` interpolation happens.
-            for slot in range(len(args), n_params):
-                default = defaults[slot] if slot < len(defaults) else None
-                if default is None:
-                    self._emit_default_arg()
-                else:
-                    self._emit_obj_literal(default)
+            for _slot in range(len(args), n_params):
+                # Pad with null TclObj; the compiled-proc prologue
+                # substitutes the declared default (if any) and
+                # the unsubstituted null lets ``frame_set_argv``
+                # report an accurate argv for ``info level 0``.
+                self._emit_i32_const(0)
 
+        # Publish the caller's invoked word to the pending-argv0
+        # slot right before the call — the callee's prologue
+        # consumes it on entry.
+        self._emit_push_pending_argv0(argv0_local)
         self._emit_call(func_idx)
 
         # Store result in def variable if present
@@ -5787,6 +5918,74 @@ class _WasmEmitter:
         for stmt in script.statements:
             self._emit_stmt(stmt)
 
+    def _body_references_info_level(self) -> bool:
+        """Walk the CFG's IR for any ``info level`` call so the
+        prologue knows to push a frame even when the escape
+        analysis says one isn't needed for local storage.
+
+        Two shapes count:
+          * bare ``info level`` (returns depth),
+          * ``info level <arg>`` (returns the argv list for the
+            referenced frame).
+
+        Both need a real ``frame_depth`` / ``frame_argv`` slot —
+        without ``frame_push`` the callee observes its caller's
+        values, which is silently wrong.  Run once per proc at
+        prologue time; linear in the number of statements.
+        """
+        from ...cfg import CFGFunction
+        from ...ir import IRCall
+
+        def _walk(stmt) -> bool:
+            if isinstance(stmt, IRCall):
+                if stmt.command == "info" and stmt.args and stmt.args[0] == "level":
+                    return True
+                # ``info level`` can also appear as a bracketed
+                # command substitution inside another call's
+                # arguments (``puts [llength [info level 0]]``).
+                # Those are stored verbatim in the IR arg strings;
+                # a substring scan finds them without re-parsing.
+                for a in stmt.args:
+                    if "[info level" in a:
+                        return True
+            # Recurse into bodies of compound statements.
+            for attr in ("body", "init", "next", "else_body", "finally_body"):
+                sub = getattr(stmt, attr, None)
+                if sub is not None and hasattr(sub, "statements"):
+                    for s in sub.statements:
+                        if _walk(s):
+                            return True
+            arms = getattr(stmt, "arms", None)
+            if arms is not None:
+                for arm in arms:
+                    arm_body = getattr(arm, "body", None)
+                    if arm_body is not None and hasattr(arm_body, "statements"):
+                        for s in arm_body.statements:
+                            if _walk(s):
+                                return True
+            clauses = getattr(stmt, "clauses", None)
+            if clauses is not None:
+                for clause in clauses:
+                    clause_body = getattr(clause, "body", None)
+                    if clause_body is not None and hasattr(clause_body, "statements"):
+                        for s in clause_body.statements:
+                            if _walk(s):
+                                return True
+            return False
+
+        if not isinstance(self._cfg, CFGFunction):
+            return False
+        # Walk every statement in every block of the CFG.  The
+        # structured bodies we care about (``if``, ``for``,
+        # ``foreach``, ``switch``) are flattened into the block
+        # graph by the CFG builder, so block statements are the
+        # complete expression of the proc body's IR calls.
+        for block in self._cfg.blocks.values():
+            for stmt in block.statements:
+                if _walk(stmt):
+                    return True
+        return False
+
     # -- Optimisation passes applied after emission --
 
     def _run_optimisations(self) -> None:
@@ -6256,6 +6455,7 @@ class _WasmEmitter:
         # empty-string TclObjs from the runtime, matching reference
         # Tcl's ``foreach {a b} {1 2 3}`` semantics (b="" last iter).
         lindex_idx = self._shared_imports.get("tcl_list_index")
+        global_set_idx = self._shared_imports.get("tcl_global_set")
         for slot, var_name in enumerate(loop_vars):
             var_local = self._intern_local(var_name)
             if lindex_idx is not None:
@@ -6273,6 +6473,20 @@ class _WasmEmitter:
                     self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
             self._emit_local_set(var_local)
+            # At top level (not inside a proc), also publish the
+            # iteration value as a global so eval-fallbacks inside
+            # the body can resolve ``$var_name`` via
+            # ``tcl_global_get``.  Without this, a top-level
+            # ``foreach i [list a b c] { ... $i ... }`` where the
+            # body falls back to ``tcl_eval`` (e.g. ``interp
+            # delete $i``) sees ``i`` as empty and traps.  This
+            # only fires at top level — inside a proc the body
+            # can reach the value via the proc's frame-sync path.
+            if not self._is_proc and global_set_idx is not None:
+                self._emit_obj_literal(var_name)
+                self._emit_local_get(var_local)
+                self._emit_call(global_set_idx)
+                self._emit(WasmOp.DROP)
 
         # Wrap body in block for break/continue
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
@@ -6526,26 +6740,261 @@ class _WasmEmitter:
         # a runtime frame at all.  Skip frame_push / param mirrors /
         # frame_pop entirely in that case.  Falls back to "push the
         # frame" whenever the analysis is missing or indefinite.
+        #
+        # Elision is also disabled when the proc's body references
+        # ``info level`` — the runtime's ``info_level`` reads the
+        # frame stack, so without a push the caller's frame would
+        # answer the callee's query.  A more aggressive ("does any
+        # proc reachable from here use info level?") transitive
+        # check would let more procs elide, but computing it
+        # inside the emitter requires a whole-module pass; the
+        # per-proc check is a reasonable trade-off until a
+        # profiler justifies more work.
         summary = self._escape_summary
         if (
             wants_frame
             and summary is not None
             and not summary.frame_needed
             and not summary.has_fallback
+            and not self._body_references_info_level()
         ):
             wants_frame = False
         if wants_frame:
             push_idx = self._shared_imports["tcl_frame_push"]
             self._emit_call(push_idx)
             self._emit(WasmOp.DROP)  # discard frame idx
+
+        # Stamp the proc's namespace onto ``ns_current`` for the
+        # duration of the body.  Without this, an unqualified
+        # call from inside a ``::ns::foo`` proc (e.g. tcltest's
+        # ``::tcltest::cleanupTests`` calling ``preserveCore``
+        # — an accessor proc created by ``Option``) routes
+        # through ``tcl_eval`` with ``ns_current() == ::`` and
+        # fails to find ``::ns::preserveCore``.  This mirrors
+        # the IRBlock wrapper that Stage 1 put around inlined
+        # ``namespace eval`` bodies, extended to cover procs
+        # whose qualified name already implies a non-root ns.
+        #
+        # Only fires when the proc lives outside root — root
+        # procs keep ``ns_current == ::`` and need no push.
+        ns_saved_proc_local: int | None = None
+        if (
+            self._is_proc
+            and self._proc_namespace
+            and self._proc_namespace != "::"
+            and "tcl_ns_set" in self._shared_imports
+            and "tcl_ns_restore" in self._shared_imports
+        ):
+            ns_set_idx = self._shared_imports["tcl_ns_set"]
+            ns_saved_proc_local = self._add_extra_local(
+                prefix="_proc_ns_saved", val_type=ValType.I64
+            )
+            ns_literal = self._proc_namespace
+            offset = self._intern_string(ns_literal)
+            encoded = ns_literal.encode("utf-8", errors="surrogatepass")
+            self._emit_i32_const(offset + 4)
+            self._emit_i32_const(len(encoded))
+            self._emit_call(ns_set_idx)
+            self._emit_local_set(ns_saved_proc_local)
+
+        # Stash the invocation argv for ``info level 0`` / ``info
+        # level -N``.  Build a list TclObj of the form
+        # ``<proc-tail> <param-1> <param-2> ...`` — but only
+        # include params that were actually *supplied* (non-null)
+        # by the caller.  Defaulted-or-missing slots are skipped
+        # so ``[llength [info level 0]]`` accurately reports the
+        # call's argument count — the key invariant tcltest's
+        # accessor wrappers depend on
+        # (``[llength [info level 0]] == 1`` ⇒ "called without
+        # args").
+        #
+        # This runs *before* the default-substitution block so we
+        # can still distinguish null slots (missing args) from
+        # slots that contain the declared default value.  The
+        # argv list lives in a reserved WASM local through the
+        # rest of the prologue; ``frame_set_argv`` is called once
+        # the default-sub + param-bind loop is done.
+        argv_local: int | None = None
+        if (
+            wants_frame
+            and self._is_proc
+            and self._proc_qname is not None
+            and "tcl_list_create" in self._shared_imports
+            and "tcl_frame_set_argv" in self._shared_imports
+        ):
+            list_idx = self._shared_imports["tcl_list_create"]
+            tail = self._proc_qname.rsplit("::", 1)[-1] or self._proc_qname
+            argv_local = self._add_extra_local(prefix="_argv", val_type=ValType.I32)
+            # argv0 comes from the caller's pending-argv0 slot —
+            # the *exact word* the caller wrote for the invocation
+            # (imported name, qualified form, or rename target).  If
+            # no caller recorded one (e.g. entry reached via the
+            # host bridge or as ``::top``), ``take_pending_argv0``
+            # returns 0 and we fall back to ``obj_new_string(tail)``
+            # so the argv list still carries a sensible proc name.
+            #
+            # Emit structure:
+            #   take_pending_argv0 -> argv0_local
+            #   if argv0_local == 0 { argv0_local = obj_new_string(tail) }
+            #   argv_local = tcl_list("", argv0_local)
+            take_argv0_idx = self._shared_imports.get("tcl_frame_take_pending_argv0")
+            argv0_local: int | None = None
+            if take_argv0_idx is not None:
+                argv0_local = self._add_extra_local(prefix="_argv0", val_type=ValType.I32)
+                self._emit_call(take_argv0_idx)
+                self._emit_local_set(argv0_local)
+                # if argv0_local == 0: argv0_local = obj_new_string(tail)
+                self._emit_local_get(argv0_local)
+                self._emit(WasmOp.I32_EQZ)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="argv0_fallback")
+                self._emit_obj_literal(tail)
+                self._emit_local_set(argv0_local)
+                self._emit(WasmOp.END)
+                # Seed argv_local with tcl_list("", argv0_local).
+                self._emit_obj_literal("")
+                self._emit_local_get(argv0_local)
+                self._emit_call(list_idx)
+                self._emit_local_set(argv_local)
+            else:
+                # Legacy fallback: no pending-argv0 import available.
+                # Seed with the qname tail as before.
+                self._emit_obj_literal("")
+                self._emit_obj_literal(tail)
+                self._emit_call(list_idx)
+                self._emit_local_set(argv_local)
+            # Determine which param (if any) is the variadic ``args``
+            # tail — last declared param, and only when the proc's
+            # registered signature recorded it as such.  Variadic
+            # dispatch packs surplus caller words into a list before
+            # the call, so appending the tail slot as a single
+            # element would collapse ``p 1 2 3`` (args = ``{2 3}``)
+            # into ``{p 1 {2 3}}`` and break ``[llength [info level
+            # 0]]``.  Expand the list contents instead so the argv
+            # matches the caller's actual word count.
+            has_args_tail = (
+                self._proc_qname in self._proc_args_tail
+                and bool(self._params)
+                and self._params[-1] == "args"
+            )
+            args_tail_slot = len(self._params) - 1 if has_args_tail else -1
+            llength_idx = self._shared_imports.get("tcl_list_length") if has_args_tail else None
+            lindex_idx = self._shared_imports.get("tcl_list_index") if has_args_tail else None
+            expand_tail = llength_idx is not None and lindex_idx is not None
+            # For each real param: if the WASM local is non-null
+            # (caller supplied a value), append it; otherwise
+            # leave the list alone.  The ``args`` tail slot gets
+            # its list contents expanded element-by-element.
+            for i, pname in enumerate(self._params):
+                if not pname:
+                    continue
+                if i == args_tail_slot and expand_tail:
+                    assert llength_idx is not None
+                    assert lindex_idx is not None
+                    # Loop: for n = llength(args_local); i < n; i++
+                    #   argv_local = tcl_list(argv_local,
+                    #                         tcl_list_index(args_local, i))
+                    counter_local = self._add_extra_local(prefix="_argv_i", val_type=ValType.I64)
+                    limit_local = self._add_extra_local(prefix="_argv_n", val_type=ValType.I64)
+                    # limit = unbox(tcl_list_length(args_local))
+                    self._emit_local_get(i)
+                    self._emit_call(llength_idx)
+                    self._emit_unbox_int()
+                    self._emit_local_set(limit_local)
+                    # counter = 0
+                    self._emit_i64_const(0)
+                    self._emit_local_set(counter_local)
+                    self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="args_expand_end")
+                    self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="args_expand_body")
+                    # if counter >= limit, break
+                    self._emit_local_get(counter_local)
+                    self._emit_local_get(limit_local)
+                    self._emit(WasmOp.I64_GE_S)
+                    self._emit_br_if(1)
+                    # argv_local = tcl_list(argv_local,
+                    #                       tcl_list_index(args, box(counter)))
+                    self._emit_local_get(argv_local)
+                    self._emit_local_get(i)
+                    self._emit_local_get(counter_local)
+                    self._emit_box_int()
+                    self._emit_call(lindex_idx)
+                    self._emit_call(list_idx)
+                    self._emit_local_set(argv_local)
+                    # counter++
+                    self._emit_local_get(counter_local)
+                    self._emit_i64_const(1)
+                    self._emit(WasmOp.I64_ADD)
+                    self._emit_local_set(counter_local)
+                    # br to loop header
+                    self._emit_br(0)
+                    self._emit(WasmOp.END)  # loop
+                    self._emit(WasmOp.END)  # block
+                    continue
+                self._emit_local_get(i)
+                self._emit(WasmOp.I32_EQZ)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="argv_append_skip")
+                self._emit(WasmOp.ELSE)
+                self._emit_local_get(argv_local)
+                self._emit_local_get(i)
+                self._emit_call(list_idx)
+                self._emit_local_set(argv_local)
+                self._emit(WasmOp.END)
+
+        # Default-value substitution for null (0) param slots.  Applies
+        # whether or not we push a runtime frame — body code reads
+        # params via ``local.get i`` directly, so the WASM local must
+        # already hold the default if the caller omitted the slot.
+        #
+        # Needed because the host-bridge dispatch path
+        # (``env.call_compiled_proc`` in ``tcl_dispatch.zig``) pads
+        # missing argv slots with literal 0 (null TclObj): the bridge
+        # doesn't know the callee's declared defaults.  The
+        # compile-time specialised call-site path (``_emit_cmd_proc_call``)
+        # pads with a real TclObj (boxed int 0 or the declared default),
+        # so this substitution is a no-op for that path — the
+        # ``i32.eqz`` check fails on a valid TclObj pointer.
+        #
+        # Without this, ``proc Opt {v {verify ident}} { ... }`` called
+        # via the eval fallback (``Opt hello``) ends up with
+        # ``verify`` bound to null — ``$verify`` resolves to the empty
+        # string and dynamic dispatch patterns like
+        # ``catch {$verify $v}`` silently produce an empty result.
+        # tcltest's ``Option`` proc relies on this shape.
+        own_defaults = self._proc_defaults.get(self._proc_qname, ()) if self._proc_qname else ()
+        if self._is_proc and own_defaults:
+            for i, pname in enumerate(self._params):
+                if not pname:
+                    continue
+                if i >= len(own_defaults):
+                    break
+                default_val = own_defaults[i]
+                if default_val is None:
+                    continue
+                # if local.get(i) == 0 { local.set(i, obj_literal(default_val)) }
+                self._emit_local_get(i)
+                self._emit(WasmOp.I32_EQZ)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="default_sub")
+                self._emit_obj_literal(default_val)
+                self._emit_local_set(i)
+                self._emit(WasmOp.END)
+
+        if wants_frame:
             local_set_idx = self._shared_imports["tcl_local_set"]
             for i, pname in enumerate(self._params):
-                if not pname or pname.startswith("_"):
+                if not pname:
                     continue
                 self._emit_obj_literal(pname)
                 self._emit_local_get(i)
                 self._emit_call(local_set_idx)
                 self._emit(WasmOp.DROP)
+
+        # Publish the argv list built before default-substitution.
+        # The list is the real "only supplied args" invocation so
+        # ``[llength [info level 0]]`` reports the caller's true
+        # word count.
+        if argv_local is not None and "tcl_frame_set_argv" in self._shared_imports:
+            set_argv_idx = self._shared_imports["tcl_frame_set_argv"]
+            self._emit_local_get(argv_local)
+            self._emit_call(set_argv_idx)
 
         # Record where the body begins — we need to walk only the
         # body instructions in the frame_pop post-process, not the
@@ -6562,34 +7011,52 @@ class _WasmEmitter:
             self._emit(WasmOp.END)
 
         # Compiled-proc exit epilogue: pop the frame we pushed in the
-        # prologue.  Inject a CALL to ``tcl_frame_pop`` immediately
-        # before every ``WasmOp.RETURN`` and at the natural implicit
-        # fall-through (between the last body instruction and the
-        # final END).  Confining the walk to instructions *after*
-        # ``prologue_end`` means we don't accidentally treat the
-        # prologue's own call/drop as a RETURN site.
+        # prologue, and restore the namespace context if we stamped
+        # one.  Inject the CALLs immediately before every
+        # ``WasmOp.RETURN`` and at the natural implicit fall-through
+        # (between the last body instruction and the final END).
+        # Confining the walk to instructions *after* ``prologue_end``
+        # means we don't accidentally treat the prologue's own
+        # call/drop as a RETURN site.
+        #
+        # The ns-restore needs the saved i64 token from the
+        # prologue's ``ns_set``; we emit it after any frame_pop and
+        # before the END so the stack is ordered
+        # ``[return_val] -> (frame_pop drop) -> (local.get saved ->
+        # ns_restore) -> END``.
+        cleanup_instrs: list[WasmInstruction] = []
         if wants_frame:
             pop_idx = self._shared_imports.get("tcl_frame_pop")
             if pop_idx is not None:
-                call_pop = WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(pop_idx))
-                new_body = list(self._body[:prologue_end])
-                body_tail = list(self._body[prologue_end:])
-                for instr in body_tail:
-                    if instr.op == WasmOp.RETURN:
-                        new_body.append(call_pop)
-                    new_body.append(instr)
-                # Insert pop between the last non-END instruction and
-                # the trailing END(s) for the natural fallthrough.
-                i = len(new_body) - 1
-                while i >= 0 and new_body[i].op == WasmOp.END:
-                    i -= 1
-                if i >= 0 and new_body[i].op != WasmOp.RETURN:
-                    # Natural fallthrough — stack has the implicit
-                    # return value at position i.  Insert pop right
-                    # after it so the stack is ordered
-                    # [return_val, (no change from pop)] when END fires.
-                    new_body = new_body[: i + 1] + [call_pop] + new_body[i + 1 :]
-                self._body = new_body
+                cleanup_instrs.append(
+                    WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(pop_idx))
+                )
+        if ns_saved_proc_local is not None and "tcl_ns_restore" in self._shared_imports:
+            ns_restore_idx = self._shared_imports["tcl_ns_restore"]
+            cleanup_instrs.extend(
+                [
+                    WasmInstruction(
+                        op=WasmOp.LOCAL_GET,
+                        operands=_leb128_unsigned(ns_saved_proc_local),
+                    ),
+                    WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(ns_restore_idx)),
+                ]
+            )
+        if cleanup_instrs:
+            new_body = list(self._body[:prologue_end])
+            body_tail = list(self._body[prologue_end:])
+            for instr in body_tail:
+                if instr.op == WasmOp.RETURN:
+                    new_body.extend(cleanup_instrs)
+                new_body.append(instr)
+            # Insert cleanup between the last non-END instruction and
+            # the trailing END(s) for the natural fallthrough.
+            i = len(new_body) - 1
+            while i >= 0 and new_body[i].op == WasmOp.END:
+                i -= 1
+            if i >= 0 and new_body[i].op != WasmOp.RETURN:
+                new_body = new_body[: i + 1] + cleanup_instrs + new_body[i + 1 :]
+            self._body = new_body
 
         # Apply optimisations
         self._run_optimisations()

@@ -745,7 +745,34 @@ def _scan_needed_imports(
         needed.add("tcl_proc_register_compiled")
         needed.add("tcl_frame_push")
         needed.add("tcl_frame_pop")
+        needed.add("tcl_frame_set_argv")
+        needed.add("tcl_frame_get_argv")
+        # Pending-argv0 ABI: the callee prologue reads this slot
+        # (cleared on read) to pick up the invoked word recorded by
+        # the caller immediately before the compiled ``call``.  The
+        # set side is emitted per-call-site; always pulling in both
+        # halves keeps host-bridge entry points working (the take
+        # returns 0 and the prologue falls back to the qname tail).
+        needed.add("tcl_frame_set_pending_argv0")
+        needed.add("tcl_frame_take_pending_argv0")
         needed.add("tcl_local_set")
         needed.add("tcl_local_get")
+        # tcl_list is used by the compiled-proc prologue to build
+        # the invocation argv list, element by element, before
+        # stashing it via frame_set_argv.
+        needed.add("tcl_list_create")
+        # Variadic (``args`` tail) procs need ``llength`` / ``lindex``
+        # in the prologue so the argv-capture loop can expand the
+        # packed ``args`` list into individual elements — otherwise
+        # ``[llength [info level 0]]`` is off by one for
+        # ``proc p {args} {}`` and collapses surplus words into one
+        # element for ``proc p {x args} {}``.  Only add when at least
+        # one proc in the module has an ``args`` tail; pure-arith
+        # fixtures stay minimal.
+        for proc in ir_module.procedures.values():
+            if proc.params and proc.params[-1] == "args":
+                needed.add("tcl_list_length")
+                needed.add("tcl_list_index")
+                break
 
     return needed

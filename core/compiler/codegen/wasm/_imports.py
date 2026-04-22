@@ -191,6 +191,29 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     # Frame stack (local variable scoping)
     "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
     "tcl_frame_pop": ("tcl", "frame_pop", [], []),
+    # Per-frame invocation argv — set by the compiled-proc prologue
+    # so ``info level 0`` / ``info level -N`` inside the body reads
+    # the real invocation list rather than a placeholder.
+    "tcl_frame_set_argv": ("tcl", "frame_set_argv", [ValType.I32], []),
+    "tcl_frame_get_argv": ("tcl", "frame_get_argv", [ValType.I32], [ValType.I32]),
+    # Pending ``argv0`` slot — a compiled caller writes the exact
+    # word it invoked the callee with immediately before the
+    # compiled ``call``; the callee's prologue reads-and-clears it
+    # via ``take_pending_argv0`` so ``info level 0`` reports the
+    # caller's word (including imported / renamed / qualified
+    # forms) rather than the callee's registered qname tail.
+    "tcl_frame_set_pending_argv0": (
+        "tcl",
+        "frame_set_pending_argv0",
+        [ValType.I32],
+        [],
+    ),
+    "tcl_frame_take_pending_argv0": (
+        "tcl",
+        "frame_take_pending_argv0",
+        [],
+        [ValType.I32],
+    ),
     "tcl_var_resolve": ("tcl", "var_resolve", [ValType.I32], [ValType.I32]),
     "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),

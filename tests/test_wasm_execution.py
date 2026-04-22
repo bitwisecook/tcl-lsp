@@ -771,6 +771,23 @@ class TestCommandDispatch:
             "proc_register_compiled",
             "frame_push",
             "frame_pop",
+            # ``frame_set_argv`` / ``frame_get_argv`` / ``tcl_list``
+            # are pulled in whenever the module defines procs so
+            # the prologue can stash the invocation list for
+            # ``info level 0`` and the inline reader can retrieve
+            # it.
+            "frame_set_argv",
+            "frame_get_argv",
+            # ``frame_set_pending_argv0`` / ``frame_take_pending_argv0``
+            # back the call-site → callee ABI for ``argv0``: the
+            # caller writes the invoked word into the pending slot
+            # immediately before the compiled ``call``, and the
+            # callee's prologue consumes it so ``info level 0``
+            # reports the source-level command word (imported /
+            # renamed / qualified forms all survive intact).
+            "frame_set_pending_argv0",
+            "frame_take_pending_argv0",
+            "tcl_list",
             "local_set",
             "local_get",
         }
@@ -2677,6 +2694,681 @@ interp eval worker {hi world}
             "::result",
         )
         assert result == b"hi-world"
+
+
+class TestNamespaceEvalPostFlush:
+    """Regression tests: inside a ``namespace eval ::ns { … }`` body
+    that is inlined into the enclosing script, unqualified calls to
+    helper procs defined in the same block must resolve via the
+    runtime's namespace tree even after a full ``proc_index`` flush
+    triggered by ``interp create`` / ``eval`` / ``delete``.
+
+    The codegen wraps every ``IRBlock`` body with
+    ``tcl_ns_set(block_ns)`` / ``tcl_ns_restore`` so that any
+    eval-fallback inside the body sees ``ns_current() == ::ns``.
+    Without that wrapper the ``callable_proc_index.clear()`` path
+    in :func:`wasm_codegen_module` leaves every call inside the
+    block routed through ``tcl_eval``, and ``proc_lookup`` runs
+    with the outer namespace (typically ``::``) so unqualified
+    names never find their ``::ns::`` siblings.
+
+    This is the concrete symptom that surfaced when sourcing
+    ``tmp/tcl9.0.3/library/tcltest/tcltest.tcl`` through the WASM
+    runtime: the top-level ``namespace eval tcltest { …
+    ArrayDefault originalEnv [array get ::env] … }`` trapped with
+    ``unknown command: ArrayDefault`` despite the proc being
+    defined immediately above.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_unqualified_call_inside_namespace_eval_body_without_flush(self):
+        """Baseline: without ``interp create`` in scope, no
+        full-flush happens; the compile-time ``proc_index`` knows
+        about ``::foo::bar`` and the call is specialised.  This
+        case already worked before the fix, pinned here so
+        regressions to the specialised path also fail loudly.
+        """
+        result = self._run_and_read_global(
+            """\
+namespace eval ::foo {
+    proc bar {} { return 42 }
+    set ::result [bar]
+}
+""",
+            "::result",
+        )
+        assert result == b"42"
+
+    def test_unqualified_call_inside_namespace_eval_body_post_flush(self):
+        """Post-flush path: ``interp create`` forces
+        ``callable_proc_index.clear()`` so every call inside the
+        body falls back to ``tcl_eval``.  The runtime
+        ``ns_current`` must be ``::foo`` for ``bar`` to resolve.
+
+        This is the direct repro of the ArrayDefault trap that
+        blocked sourcing tcltest.tcl before the fix."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc bar {} { return 42 }
+    set ::result [bar]
+}
+""",
+            "::result",
+        )
+        assert result == b"42"
+
+    def test_nested_namespace_eval_bodies_post_flush(self):
+        """Nested ``namespace eval`` bodies must push / restore
+        correctly so the inner block's helpers shadow the outer
+        block's helpers by simple name, and on return the outer
+        block's resolution is restored."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::outer {
+    proc helper {} { return from-outer }
+    namespace eval ::outer::inner {
+        proc helper {} { return from-inner }
+        set ::inner_result [helper]
+    }
+    set ::outer_result [helper]
+}
+set ::result $::outer_result:$::inner_result
+""",
+            "::result",
+        )
+        assert result == b"from-outer:from-inner"
+
+    def test_tcltest_like_array_default_pattern(self):
+        """Closest-to-upstream repro: a proc defined inside the
+        block is invoked from the same block with a literal list
+        argument — the exact shape of tcltest's
+        ``ArrayDefault originalEnv [list …]`` call that trapped
+        before the fix."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::tcltest {
+    proc ArrayDefault {varName value} {
+        variable $varName
+        array set $varName $value
+        return ok
+    }
+    set ::result [ArrayDefault originalEnv {a 1 b 2}]
+}
+""",
+            "::result",
+        )
+        assert result == b"ok"
+
+    def test_namespace_eval_body_wat_contains_ns_set_and_restore(self):
+        """Compile-time invariant: the IRBlock wrapper emits calls
+        to both ``ns_set`` and ``ns_restore`` so the runtime
+        namespace context is pushed and popped around the body.
+        """
+        source = """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc bar {} { return 42 }
+    set ::result [bar]
+}
+"""
+        wasm_module, _ = _compile_to_wasm(source)
+        wat = wasm_module.to_wat()
+        assert 'import "tcl" "ns_set"' in wat, (
+            "tcl_ns_set import must be present for namespace eval body wrapper"
+        )
+        assert 'import "tcl" "ns_restore"' in wat, (
+            "tcl_ns_restore import must be present for namespace eval body wrapper"
+        )
+        assert "call $::foo::bar" not in wat, (
+            "callable proc index should be flushed by interp create"
+        )
+
+
+class TestProcDefaultsUnderFlush:
+    """Regression tests: when a compiled proc is reached via the host
+    bridge (``env.call_compiled_proc``) from an eval-fallback caller,
+    missing param slots arrive as null TclObj pointers (``0``).  The
+    proc's prologue must substitute the declared default for each
+    null slot, otherwise ``$param`` resolves to the empty string and
+    dynamic-dispatch patterns like ``catch {$verify $value}`` return
+    an empty result instead of invoking the default verifier.
+
+    This is the bug that caused tcltest's ``Option`` proc to
+    silently lose its ``verify`` parameter when invoked via
+    ``tcl_eval`` (the post–``interp create`` full-flush path).
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_default_applied_for_missing_arg_under_flush(self):
+        """``interp create`` → full flush → call via eval.  The
+        proc's default for a missing trailing arg must be applied
+        by the prologue."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+proc Opt {v {verify ident}} {
+    set ::result "v=$v verify=$verify"
+}
+Opt hello
+""",
+            "::result",
+        )
+        assert result == b"v=hello verify=ident"
+
+    def test_default_preserved_when_explicit_empty_string(self):
+        """Explicit empty-string arg must NOT be replaced by the
+        default — empty string is a valid value distinct from
+        "missing slot".  ``$verify`` should be empty, not the
+        default."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+proc Opt {v {verify ident}} {
+    set ::result "<$verify>"
+}
+Opt hello ""
+""",
+            "::result",
+        )
+        assert result == b"<>"
+
+    def test_tcltest_option_verify_pattern_post_flush(self):
+        """The exact shape tcltest's ``Option`` uses:
+        ``catch {$verify $value}`` with ``verify`` defaulted to
+        ``AcceptAll``.  Under the host-bridge call path the
+        default must reach the catch body."""
+        result = self._run_and_read_global(
+            """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc AcceptAll {value} { return $value }
+    proc Option {opt value {verify AcceptAll}} {
+        if {[catch {$verify $value} msg]} {
+            return -code error $msg
+        }
+        set ::result $msg
+    }
+    Option -match {body error}
+}
+""",
+            "::result",
+        )
+        assert result == b"body error"
+
+
+class TestNamespaceImportRuntime:
+    """Regression tests: ``namespace import`` / ``namespace export``
+    / ``namespace forget`` must have their runtime side effects —
+    creating / removing command redirects in the current
+    ``cmd_table`` — executed so eval-fallback dispatch can resolve
+    imported names.
+
+    The codegen's compile-time resolver already shortens
+    ``testConstraint`` → ``::tcltest::testConstraint`` for
+    specialised calls, but under ``interp create`` / ``eval`` /
+    ``delete`` the callable proc index is cleared and every call
+    routes through ``tcl_eval``.  Without the runtime redirect,
+    the interpreter's ``proc_lookup`` can't find the short name
+    and raises ``unknown command``.
+    """
+
+    def _run_and_read_global(self, source: str, name: str) -> bytes:
+        _, wasm_bytes = _compile_to_wasm(source)
+        engine = _get_engine()
+        store = wasmtime.Store(engine)
+        store.set_wasi(wasmtime.WasiConfig())
+        tcl_instance, rt_instance = _link_and_instantiate(store, wasm_bytes)
+        top = tcl_instance.exports(store).get("::top")
+        if top is not None:
+            top(store)
+        return _read_global_string(rt_instance, store, name)
+
+    def test_import_resolves_short_name_under_flush(self):
+        """After ``interp create`` triggers full flush,
+        unqualified calls to an imported name must resolve
+        through the runtime redirect."""
+        result = self._run_and_read_global(
+            """\
+namespace eval ::src {
+    namespace export foo
+    proc foo {} { return from-src }
+}
+namespace import -force ::src::foo
+interp create child
+interp delete child
+set ::result [foo]
+""",
+            "::result",
+        )
+        assert result == b"from-src"
+
+    def test_import_wat_uses_eval_fallback(self):
+        """The WAT for ``namespace import`` must contain a
+        ``tcl_eval`` invocation so the runtime's ``ns_import``
+        actually creates redirects at runtime.  Without it, the
+        compile-time resolver is the only mechanism and runtime
+        dispatch has no visibility."""
+        source = """\
+namespace eval ::src { namespace export foo; proc foo {} {} }
+namespace import -force ::src::foo
+"""
+        wasm_module, _ = _compile_to_wasm(source)
+        wat = wasm_module.to_wat()
+        # The eval-fallback for the namespace import statement
+        # reconstructs its script and passes it to tcl_eval.
+        assert "namespace import" in wat, (
+            "namespace import script text must be in the WASM data segment"
+        )
+
+
+class TestTopLevelForeachIterVarVisible:
+    """Regression: at top level, a ``foreach`` iteration variable
+    must be reachable from an eval-fallback in the body.  The
+    compiler emits the iter var as a WASM local (fast path), so
+    an eval-fallback reference like ``[eval $i]`` or ``interp
+    delete $i`` couldn't resolve ``$i`` via the global table and
+    saw the empty string, silently passing "" to the runtime.
+
+    ``interp.test`` trips this with
+    ``foreach i [interp children] { interp delete $i }`` — after
+    earlier tests create children, the delete loop would fail
+    with "cannot delete the current interpreter" because ``$i``
+    resolved to empty.  The emitter now publishes each iteration
+    value as a global (``tcl_global_set``) immediately after
+    binding the WASM local, so the eval-fallback sees the real
+    element.
+    """
+
+    def _run_and_read_stdout(self, source: str) -> str:
+        import tempfile
+
+        from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+        wasm, _diag = _compile_tcl_with_diag(source, "toplevel_foreach")
+        with tempfile.TemporaryDirectory() as tmpd:
+            r = _run_wasm(wasm, capture_stdout=True, preopen_tmpdir=tmpd)
+        return r[1].strip() if len(r) >= 2 else ""
+
+    def test_foreach_iter_visible_to_interp_delete(self):
+        """The top-level-foreach + ``interp delete $i`` pattern
+        from ``interp.test``."""
+        out = self._run_and_read_stdout(
+            """\
+interp create a
+interp create b
+foreach i [interp children] {
+    interp delete $i
+}
+puts "remaining=<[interp children]>"
+"""
+        )
+        assert out == "remaining=<>"
+
+    def test_foreach_iter_visible_to_eval_fallback(self):
+        """Generic shape: an eval-fallback in the loop body
+        reads ``$i`` and sees the real iteration value."""
+        out = self._run_and_read_stdout(
+            """\
+set result ""
+foreach i {alpha beta gamma} {
+    # ``append`` goes through the runtime for dynamic args.
+    append result [string toupper $i] ","
+}
+puts $result
+"""
+        )
+        assert out == "ALPHA,BETA,GAMMA,"
+
+
+class TestInfoLevelArgv:
+    """Regression tests: ``info level 0`` / ``info level -N`` must
+    return the actual list of words (proc name + call args) that
+    entered the target frame.  tcltest leans on this pattern
+    heavily (``if {[llength [info level 0]] == 1} { return
+    $current } else { set $var $arg }``), so a stub that returns a
+    placeholder list breaks every accessor.
+
+    The runtime stores per-frame argv in ``tcl_frames.frame_argv``
+    and the compiled-proc prologue calls ``frame_set_argv`` with
+    a list built element-by-element from ``[<proc-tail>,
+    <param-1>, <param-2>, ...]``.  ``info level 0`` reads slot 0
+    (top frame); ``info level -N`` reads N frames up.
+    """
+
+    def _run_and_read_stdout(self, source: str) -> str:
+        """Compile the source to WASM and return captured stdout.
+
+        Separate helper from ``_run_and_read_global`` because these
+        tests probe ``puts`` output — ``info level 0`` inside a
+        proc and a ``[llength [info level 0]]`` branch each print
+        their measured value so the assertion is against a concrete
+        string.
+        """
+        import tempfile
+
+        from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm
+
+        wasm, _diag = _compile_tcl_with_diag(source, "info_level")
+        with tempfile.TemporaryDirectory() as tmpd:
+            r = _run_wasm(wasm, capture_stdout=True, preopen_tmpdir=tmpd)
+        return r[1].strip() if len(r) >= 2 else ""
+
+    def test_level_zero_returns_real_invocation(self):
+        """``info level 0`` inside a proc returns the full invocation
+        list (proc name + all args)."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {a b} { puts [info level 0] }
+myp hello world
+"""
+        )
+        assert out == "myp hello world"
+
+    def test_level_zero_llength_matches_arg_count(self):
+        """The llength of ``info level 0`` equals (n_params + 1)
+        when the caller supplied every declared arg."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {a b} { puts [llength [info level 0]] }
+myp hello world
+"""
+        )
+        assert out == "3"
+
+    def test_leading_underscore_param_is_not_skipped(self):
+        """Leading-underscore parameter names are valid user-visible
+        Tcl identifiers — the prologue must bind them into the
+        frame, substitute declared defaults when null, and include
+        them in the ``info level 0`` argv list.  A stale filter
+        that skipped them (``pname.startswith("_")``) produced a
+        wrong argv list and made ``$_x`` resolve to empty inside
+        the body.  Pinned here so that filter never comes back."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {_x _y} { puts "[info level 0] /// $_x $_y" }
+myp hello world
+"""
+        )
+        assert out == "myp hello world /// hello world"
+
+    def test_level_zero_llength_for_no_arg_call(self):
+        """A zero-param proc called with no args returns llength 1
+        — just the proc name.  tcltest's accessor pattern uses
+        this case for "was I called without args?"."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {} { puts [llength [info level 0]] }
+myp
+"""
+        )
+        assert out == "1"
+
+    def test_variadic_args_tail_expands_in_argv(self):
+        """``proc p {args}`` is variadic: caller dispatch packs
+        surplus words into a list before the call.  The prologue
+        must expand that list back into individual argv elements
+        so ``[info level 0]`` reports the caller's true words
+        (``p a b c``), not a nested list (``p {a b c}``).
+        """
+        out = self._run_and_read_stdout(
+            """\
+proc p {args} {
+    set l [info level 0]
+    puts "L=[llength $l] V=<$l>"
+}
+p alpha beta gamma
+"""
+        )
+        assert out == "L=4 V=<p alpha beta gamma>"
+
+    def test_variadic_args_tail_empty_yields_llength_one(self):
+        """``proc p {args}`` called with no arguments must report
+        ``llength == 1`` (just the proc name) — the packed empty
+        ``args`` list must not contribute a spurious element."""
+        out = self._run_and_read_stdout(
+            """\
+proc p {args} { puts [llength [info level 0]] }
+p
+"""
+        )
+        assert out == "1"
+
+    def test_variadic_mixed_fixed_and_args_tail(self):
+        """``proc p {x args}`` with a fixed param plus a variadic
+        tail: the argv list should contain the proc name, the
+        fixed arg, then each tail element as its own list
+        element.  Pins the "no collapse into nested list" shape
+        (``{p one {two three}}`` would be wrong)."""
+        out = self._run_and_read_stdout(
+            """\
+proc p {x args} {
+    set l [info level 0]
+    puts "L=[llength $l] V=<$l>"
+}
+p one two three
+"""
+        )
+        assert out == "L=4 V=<p one two three>"
+
+    def test_info_level_large_integer_raises_bad_level(self):
+        """An integer argument that overflows the i32 range must
+        surface ``bad level "..."`` rather than wrap silently.
+        Pins the ``parse_signed_int`` overflow guard."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {} {
+    catch {info level 99999999999} msg
+    puts $msg
+}
+myp
+"""
+        )
+        assert out == 'bad level "99999999999"'
+
+    def test_level_minus_one_reads_caller(self):
+        """``info level -1`` inside a proc returns the caller's
+        invocation list.
+
+        Note: ``outer`` also references ``info level`` so its
+        frame is not elided by the escape-analysis path.  A
+        caller that elides its frame (because its own body
+        doesn't use ``info level``) wouldn't appear in the
+        ``info level -N`` walk — a known limitation of the
+        per-proc elision check.  Fixing it needs a
+        whole-module transitive-reachability pass; tracked as a
+        follow-up.
+        """
+        out = self._run_and_read_stdout(
+            """\
+proc inner {} { puts [info level -1] }
+proc outer {a b} {
+    # Reference info level so outer's frame isn't elided.
+    set n [info level]
+    inner
+}
+outer foo bar
+"""
+        )
+        assert out == "outer foo bar"
+
+    def test_accessor_pattern_switches_on_llength(self):
+        """End-to-end tcltest-style accessor pattern: the proc
+        takes an optional ``dir`` param and branches on
+        ``llength [info level 0] == 1`` (no args) vs 2 (with
+        arg).  Both cases must route correctly."""
+        out = self._run_and_read_stdout(
+            """\
+proc workingDirectory { {dir ""} } {
+    if {[llength [info level 0]] == 1} {
+        return "no-args"
+    } else {
+        return "with-arg:$dir"
+    }
+}
+set r1 [workingDirectory]
+set r2 [workingDirectory /tmp]
+puts "$r1 // $r2"
+"""
+        )
+        assert out == "no-args // with-arg:/tmp"
+
+    def test_argv0_reports_qualified_caller_word(self):
+        """A call-site written as ``::ns::foo`` reports
+        ``::ns::foo`` at ``[lindex [info level 0] 0]`` — the
+        compile-time specialised call must pass the caller's
+        invoked word through the pending-argv0 slot rather than
+        the callee's qname tail."""
+        out = self._run_and_read_stdout(
+            """\
+proc ::ns::foo {} { puts [lindex [info level 0] 0] }
+::ns::foo
+"""
+        )
+        assert out == "::ns::foo"
+
+    def test_argv0_reports_renamed_call_word(self):
+        """After ``rename foo bar``, calling ``bar`` must report
+        ``bar`` as argv0 — the compile-time proc-index is flushed
+        for the renamed name, so the call routes through
+        ``tcl_eval``, and the runtime must forward
+        ``words[0]`` through the pending-argv0 slot before
+        dispatching to the compiled callee."""
+        out = self._run_and_read_stdout(
+            """\
+proc foo {} { puts [lindex [info level 0] 0] }
+rename foo bar
+bar
+"""
+        )
+        assert out == "bar"
+
+    def test_argv0_reports_imported_short_name(self):
+        """After ``namespace import ::src::foo``, calling the
+        short name ``foo`` must report ``foo`` (not
+        ``::src::foo``) as argv0 — matches Tcl's ``info level
+        0`` semantics for import-redirected callers."""
+        out = self._run_and_read_stdout(
+            """\
+namespace eval ::src {
+    namespace export foo
+    proc foo {} { puts [lindex [info level 0] 0] }
+}
+namespace import -force ::src::foo
+foo
+"""
+        )
+        assert out == "foo"
+
+    def test_argv0_is_taken_not_leaked(self):
+        """The pending-argv0 slot is consumed on proc entry, so a
+        call from a compiled proc into another compiled proc
+        doesn't leak the outer caller's word into the inner
+        callee's ``info level 0``."""
+        out = self._run_and_read_stdout(
+            """\
+proc inner {} { puts "inner=[lindex [info level 0] 0]" }
+proc outer {} {
+    puts "outer=[lindex [info level 0] 0]"
+    inner
+}
+outer
+"""
+        )
+        assert out == "outer=outer\ninner=inner"
+
+    def test_accessor_pattern_works_post_flush(self):
+        """Same accessor pattern after ``interp create`` triggers
+        full flush — the proc is now invoked through the host
+        bridge, not a compile-time specialised call.  The
+        prologue must still stash argv so the accessor works."""
+        out = self._run_and_read_stdout(
+            """\
+interp create child
+interp delete child
+namespace eval ::foo {
+    proc Opt { {value {}}} {
+        if {[llength [info level 0]] == 2} {
+            return "set:$value"
+        }
+        return "get"
+    }
+    set r1 [Opt]
+    set r2 [Opt hello]
+    puts "$r1 // $r2"
+}
+"""
+        )
+        assert out == "get // set:hello"
+
+    def test_level_with_no_arg_returns_depth(self):
+        """``info level`` (no arg) returns the integer frame
+        depth — Tcl 9's ``InfoLevelCmd`` zero-arg form."""
+        out = self._run_and_read_stdout(
+            """\
+proc outer {} {
+    proc inner {} { return [info level] }
+    return [inner]
+}
+puts [outer]
+"""
+        )
+        assert out == "2"
+
+    def test_level_bad_positive_raises(self):
+        """``info level 99`` (beyond current depth) raises ``bad
+        level "99"`` just like tclsh."""
+        out = self._run_and_read_stdout(
+            """\
+proc myp {} {
+    catch {info level 99} msg
+    puts $msg
+}
+myp
+"""
+        )
+        assert out == 'bad level "99"'
+
+    def test_level_zero_outside_proc_raises(self):
+        """Calling ``info level 0`` at the global scope (no
+        frames pushed) raises ``bad level "0"``."""
+        out = self._run_and_read_stdout(
+            """\
+catch {info level 0} msg
+puts $msg
+"""
+        )
+        assert out == 'bad level "0"'
 
 
 class TestInfoIntrospection:
