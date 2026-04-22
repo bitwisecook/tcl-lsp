@@ -65,11 +65,13 @@ pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
     // Fall back to bytewise string comparison (Unicode code-point order for
     // single-character values, which is what Asciify and similar procs need).
     const min_len = if (sa.len < sb.len) sa.len else sb.len;
-    const pa: [*]const u8 = @ptrFromInt(sa.ptr);
-    const pb: [*]const u8 = @ptrFromInt(sb.ptr);
-    for (0..min_len) |i| {
-        if (pa[i] < pb[i]) return obj_new_int(-1);
-        if (pa[i] > pb[i]) return obj_new_int(1);
+    if (min_len > 0) {
+        const pa: [*]const u8 = @ptrFromInt(sa.ptr);
+        const pb: [*]const u8 = @ptrFromInt(sb.ptr);
+        for (0..min_len) |i| {
+            if (pa[i] < pb[i]) return obj_new_int(-1);
+            if (pa[i] > pb[i]) return obj_new_int(1);
+        }
     }
     if (sa.len < sb.len) return obj_new_int(-1);
     if (sa.len > sb.len) return obj_new_int(1);

@@ -1324,7 +1324,6 @@ fn eval_upvar(words: []const i32) i32 {
     // Determine whether words[1] is a level specifier.
     // A leading '#' or a digit sequence marks it as a level.
     const w1 = obj_ensure_string(words[1]);
-    const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
 
     var pairs_start: u32 = 1;
     var is_global: bool = false;
@@ -1333,6 +1332,7 @@ fn eval_upvar(words: []const i32) i32 {
     var abs_target: i32 = @as(i32, @intCast(frames.frame_depth)) - 1;
 
     if (w1.len > 0) {
+        const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
         if (w1p[0] == '#') {
             // Absolute level: #0 = global, #N = abs frame N
             pairs_start = 2;
@@ -1612,6 +1612,7 @@ fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
         return 0;
     }
     const sub = obj_ensure_string(words[1]);
+    if (sub.len == 0) return 0;
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
 
     // ``alias`` diverges from the other subcommands because its
@@ -1852,7 +1853,7 @@ fn eval_proc_call(words: []const i32) i32 {
         // still win when they shadow a core command.
         const stub_dispatch = @import("tcl_cmd_dispatch.zig");
         const cmd_s = obj_ensure_string(words[0]);
-        if (stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
+        if (cmd_s.len > 0 and stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
             return 0;
         }
         // Unknown command — build a "unknown command: <name>"
