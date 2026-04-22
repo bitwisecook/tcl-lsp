@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.analyser import analyse
-from lsp.features.semantic_tokens import (
+from core.analysis import analyse
+from lsp.features import (
     SEMANTIC_TOKEN_MODIFIERS,
     SEMANTIC_TOKEN_TYPES,
     semantic_tokens_full,
@@ -1142,7 +1142,7 @@ class TestE100StrayBracketRecovery:
         injected into argv.
         """
         from core.parsing.tokens import SourcePosition, Token, TokenType
-        from lsp.features.semantic_tokens import _recover_stray_close_bracket_in_flush
+        from lsp.features import _recover_stray_close_bracket_in_flush
 
         def pos(offset: int) -> SourcePosition:
             return SourcePosition(line=0, character=offset, offset=offset)

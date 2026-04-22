@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range, Scope
 from core.analysis.var_scoping import (
     global_declaration_indices,

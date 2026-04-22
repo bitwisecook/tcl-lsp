@@ -577,7 +577,7 @@ def _compact_names(
 
     Returns (renamed_source, symbol_map).
     """
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.analysis.semantic_model import Scope
     from core.commands.registry import REGISTRY
     from lsp.features.references import find_proc_call_sites
@@ -1023,7 +1023,7 @@ def _alias_repeated_commands(source: str) -> tuple[str, dict[str, str]]:
 
     Returns ``(modified_source, {original_name: alias_var})``.
     """
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     try:
         analysis = analyse(source)

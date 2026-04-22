@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range, Scope
 from core.common.lsp import to_lsp_range
 from core.common.position import find_command_at_position, find_token_in_command

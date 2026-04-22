@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef
 from core.common.lsp import to_lsp_location
 from core.compiler.core_analyses import analyse_source

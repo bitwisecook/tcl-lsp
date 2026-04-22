@@ -6,7 +6,7 @@ import logging
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope, VarDef
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
@@ -22,7 +22,7 @@ from core.compiler.types import TypeKind
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import TokenType
 
-from .semantic_tokens import (
+from ._semantic_tokens import (
     _BINARY_FORMAT_SPECIFIERS,
     _CLOCK_FORMAT_RE,
     _GLOB_META_RE,

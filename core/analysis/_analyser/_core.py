@@ -4,10 +4,12 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+if TYPE_CHECKING:
+    from ...compiler.compilation_unit import CompilationUnit
+
 from ...commands.registry import REGISTRY
 from ...common.dialect import active_dialect
 from ...common.ranges import position_from_relative, range_from_token
-from ...compiler.compilation_unit import CompilationUnit
 from ...parsing.command_segmenter import SegmentedCommand, UnclosedDelimiter
 from ...parsing.expr_lexer import (
     BUILTIN_EXPR_OPS,

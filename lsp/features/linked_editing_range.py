@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef, Range
 from core.common.lsp import to_lsp_range
 from core.common.position import position_in_range

@@ -6,7 +6,7 @@ duplicated across multiple test files.
 
 from __future__ import annotations
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.compiler.cfg import build_cfg
 from core.compiler.core_analyses import analyse_function
 from core.compiler.lowering import lower_to_ir

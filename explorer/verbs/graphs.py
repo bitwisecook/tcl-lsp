@@ -7,7 +7,7 @@ import json
 import re
 from typing import Any, cast
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_graph import (
     build_call_graph,
     build_dataflow_graph,

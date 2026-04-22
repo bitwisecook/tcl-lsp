@@ -74,7 +74,7 @@ def build_call_graph(
     ``roots`` (uncalled entry points), and ``leaf_procs`` (procs with
     no outgoing calls).
     """
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, cu, context="semantic_graph.call_graph")
@@ -268,7 +268,7 @@ def build_symbol_graph(
     Returns scope hierarchy, proc definitions with reference counts,
     variable definitions with reference locations, and package dependencies.
     """
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, cu, context="semantic_graph.symbol_graph")
@@ -510,7 +510,7 @@ def build_dataflow_graph(
 
 def build_semantic_graph_bundle(source: str) -> dict[str, Any]:
     """Build call/symbol/dataflow graphs via one shared ``CompilationUnit``."""
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.compiler.compilation_unit import ensure_compilation_unit
 
     cu = ensure_compilation_unit(source, context="semantic_graph.bundle")
