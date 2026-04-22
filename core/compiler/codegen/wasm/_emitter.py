@@ -735,6 +735,13 @@ class _WasmEmitter:
             func_idx, n_params = proc_info
             qname = self._resolve_proc_qname(cmd_name)
             has_args_tail = qname is not None and qname in self._proc_args_tail
+            # Stash the exact word the caller wrote so the callee's
+            # prologue can report it as argv[0] via
+            # ``take_pending_argv0``.  Must happen BEFORE args are
+            # evaluated so inner compiled calls that own their own
+            # pending slot don't clobber ours, and the push right
+            # before ``call`` consumes it immediately.
+            argv0_local = self._emit_prepare_pending_argv0(cmd_name)
             if has_args_tail and n_params > 0:
                 # ``proc p {... args}``: pack all surplus call-site args
                 # into a list TclObj for the trailing slot.  Without
@@ -752,6 +759,7 @@ class _WasmEmitter:
                     # report an accurate argv for ``info level 0``.
                     self._emit_i32_const(0)
                 self._emit_args_list(tuple(cmd_args[fixed:]))
+                self._emit_push_pending_argv0(argv0_local)
                 self._emit_call(func_idx)
                 return
             for i in range(min(n_params, len(cmd_args))):
@@ -772,6 +780,7 @@ class _WasmEmitter:
                 # the unsubstituted null lets ``frame_set_argv``
                 # report an accurate argv for ``info level 0``.
                 self._emit_i32_const(0)
+            self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             return
 
@@ -1104,6 +1113,55 @@ class _WasmEmitter:
         """
         self._emit_i32_const(0)
 
+    def _emit_prepare_pending_argv0(self, invoked_name: str) -> int | None:
+        """Stash *invoked_name* in a reserved local so the caller
+        can push it onto the pending-argv0 slot right before a
+        compiled ``call``.
+
+        Why a reserved local rather than emitting the ``obj_literal
+        → set_pending_argv0`` pair straight away?  Argument
+        evaluation between the prepare and the call may itself
+        invoke other compiled procs (``foo [bar 1]``), and those
+        inner calls will consume their own pending-argv0 slot via
+        ``take_pending_argv0``.  Stashing the TclObj pointer in a
+        local keeps our outer caller's argv0 alive until its own
+        call, so the inner bar/outer foo sequence reports the
+        right invoked word for each callee.
+
+        Returns the local index (i32) on success, or ``None`` when
+        the pending-argv0 imports aren't available (either the
+        scan layer didn't pull them in or this is a runtime that
+        pre-dates the ABI).  Callers should pass the returned
+        handle to :meth:`_emit_push_pending_argv0` immediately
+        before ``self._emit_call(func_idx)``.
+        """
+        if "tcl_frame_set_pending_argv0" not in self._shared_imports:
+            return None
+        loc = self._add_extra_local(prefix="_pending_argv0", val_type=ValType.I32)
+        # Evaluate the literal now (pushes TclObj pointer) and
+        # stash it — the value is inert, so intervening code can
+        # execute without affecting the stored word.
+        self._emit_obj_literal(invoked_name)
+        self._emit_local_set(loc)
+        return loc
+
+    def _emit_push_pending_argv0(self, saved_local: int | None) -> None:
+        """Publish the stashed invoked word to the runtime's
+        pending-argv0 slot.  Emit immediately before the
+        corresponding compiled ``call`` — the callee's prologue
+        consumes the slot on entry.  No-op when *saved_local* is
+        ``None`` (the paired :meth:`_emit_prepare_pending_argv0`
+        returned ``None``, typically because the runtime import
+        isn't available).
+        """
+        if saved_local is None:
+            return
+        set_idx = self._shared_imports.get("tcl_frame_set_pending_argv0")
+        if set_idx is None:
+            return
+        self._emit_local_get(saved_local)
+        self._emit_call(set_idx)
+
     def _emit_args_list(
         self,
         tail_args: tuple[str, ...],
@@ -1397,8 +1455,9 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(cmd_name)
         if proc_info is not None:
             func_idx, n_params = proc_info
-            qname = self._resolve_proc_qname(cmd_name)
-            _ = qname  # callee's prologue applies defaults from the proc-index
+            # Stash the caller's invoked word for the callee's
+            # ``info level 0`` — see :meth:`_emit_prepare_pending_argv0`.
+            argv0_local = self._emit_prepare_pending_argv0(cmd_name)
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
             # Pad missing args with declared defaults (see the mirror
@@ -1409,6 +1468,7 @@ class _WasmEmitter:
                 # the unsubstituted null lets ``frame_set_argv``
                 # report an accurate argv for ``info level 0``.
                 self._emit_i32_const(0)
+            self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             # Result is i32 TclObj — unbox to i64 for expression context
             self._emit_unbox_int()
@@ -2698,6 +2758,7 @@ class _WasmEmitter:
                 defs,
                 qname=qname,
                 tokens=tokens,
+                invoked_name=command,
             )
             return
 
@@ -3101,11 +3162,16 @@ class _WasmEmitter:
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             func_idx, n_params = proc_info
+            # Stash the invoked word for the callee's
+            # ``info level 0`` argv0 — see
+            # :meth:`_emit_prepare_pending_argv0`.
+            argv0_local = self._emit_prepare_pending_argv0(command)
             # Push exactly n_params args (truncate surplus, pad missing)
             for i in range(min(n_params, len(args))):
                 self._emit_value(args[i])
             for _ in range(n_params - len(args)):
                 self._emit_i32_const(0)
+            self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             # i32 result stays on the stack
             return
@@ -5234,6 +5300,7 @@ class _WasmEmitter:
         defs: tuple[str, ...],
         qname: str | None = None,
         tokens: "CommandTokens | None" = None,
+        invoked_name: str | None = None,
     ) -> None:
         """Emit a direct call to a compiled procedure.
 
@@ -5254,6 +5321,14 @@ class _WasmEmitter:
         unbraced ones.  Braced args must skip backslash / interpolation
         substitution at emit time (Tcl semantics: braces suppress all
         substitution).
+
+        *invoked_name* is the exact word the source used for the
+        call (``::foo::bar``, ``bar``, ``renamed_bar``, …).  Stashed
+        in the runtime's pending-argv0 slot immediately before the
+        ``call`` so the callee's prologue can report it via
+        ``info level 0``.  When ``None`` — callers that don't have
+        the source word handy — the callee's prologue falls back
+        to its qname tail.
         """
         # The callee's prologue (see :meth:`generate`) applies
         # declared defaults on null-TclObj slots, so callers just
@@ -5261,6 +5336,9 @@ class _WasmEmitter:
         # for missing args — no per-call-site default lookup
         # needed.
         has_args_tail = qname is not None and qname in self._proc_args_tail
+        argv0_local = (
+            self._emit_prepare_pending_argv0(invoked_name) if invoked_name is not None else None
+        )
 
         def _was_braced(call_arg_idx: int) -> bool:
             """Return True if the call-site word at *call_arg_idx* was braced.
@@ -5313,6 +5391,10 @@ class _WasmEmitter:
                 # report an accurate argv for ``info level 0``.
                 self._emit_i32_const(0)
 
+        # Publish the caller's invoked word to the pending-argv0
+        # slot right before the call — the callee's prologue
+        # consumes it on entry.
+        self._emit_push_pending_argv0(argv0_local)
         self._emit_call(func_idx)
 
         # Store result in def variable if present
@@ -6743,11 +6825,43 @@ class _WasmEmitter:
             list_idx = self._shared_imports["tcl_list_create"]
             tail = self._proc_qname.rsplit("::", 1)[-1] or self._proc_qname
             argv_local = self._add_extra_local(prefix="_argv", val_type=ValType.I32)
-            # Seed with ``tcl_list("", tail)`` — a 1-element list.
-            self._emit_obj_literal("")
-            self._emit_obj_literal(tail)
-            self._emit_call(list_idx)
-            self._emit_local_set(argv_local)
+            # argv0 comes from the caller's pending-argv0 slot —
+            # the *exact word* the caller wrote for the invocation
+            # (imported name, qualified form, or rename target).  If
+            # no caller recorded one (e.g. entry reached via the
+            # host bridge or as ``::top``), ``take_pending_argv0``
+            # returns 0 and we fall back to ``obj_new_string(tail)``
+            # so the argv list still carries a sensible proc name.
+            #
+            # Emit structure:
+            #   take_pending_argv0 -> argv0_local
+            #   if argv0_local == 0 { argv0_local = obj_new_string(tail) }
+            #   argv_local = tcl_list("", argv0_local)
+            take_argv0_idx = self._shared_imports.get("tcl_frame_take_pending_argv0")
+            argv0_local: int | None = None
+            if take_argv0_idx is not None:
+                argv0_local = self._add_extra_local(prefix="_argv0", val_type=ValType.I32)
+                self._emit_call(take_argv0_idx)
+                self._emit_local_set(argv0_local)
+                # if argv0_local == 0: argv0_local = obj_new_string(tail)
+                self._emit_local_get(argv0_local)
+                self._emit(WasmOp.I32_EQZ)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="argv0_fallback")
+                self._emit_obj_literal(tail)
+                self._emit_local_set(argv0_local)
+                self._emit(WasmOp.END)
+                # Seed argv_local with tcl_list("", argv0_local).
+                self._emit_obj_literal("")
+                self._emit_local_get(argv0_local)
+                self._emit_call(list_idx)
+                self._emit_local_set(argv_local)
+            else:
+                # Legacy fallback: no pending-argv0 import available.
+                # Seed with the qname tail as before.
+                self._emit_obj_literal("")
+                self._emit_obj_literal(tail)
+                self._emit_call(list_idx)
+                self._emit_local_set(argv_local)
             # Determine which param (if any) is the variadic ``args``
             # tail — last declared param, and only when the proc's
             # registered signature recorded it as such.  Variadic

@@ -778,6 +778,15 @@ class TestCommandDispatch:
             # it.
             "frame_set_argv",
             "frame_get_argv",
+            # ``frame_set_pending_argv0`` / ``frame_take_pending_argv0``
+            # back the call-site → callee ABI for ``argv0``: the
+            # caller writes the invoked word into the pending slot
+            # immediately before the compiled ``call``, and the
+            # callee's prologue consumes it so ``info level 0``
+            # reports the source-level command word (imported /
+            # renamed / qualified forms all survive intact).
+            "frame_set_pending_argv0",
+            "frame_take_pending_argv0",
             "tcl_list",
             "local_set",
             "local_get",
@@ -3233,6 +3242,70 @@ puts "$r1 // $r2"
 """
         )
         assert out == "no-args // with-arg:/tmp"
+
+    def test_argv0_reports_qualified_caller_word(self):
+        """A call-site written as ``::ns::foo`` reports
+        ``::ns::foo`` at ``[lindex [info level 0] 0]`` — the
+        compile-time specialised call must pass the caller's
+        invoked word through the pending-argv0 slot rather than
+        the callee's qname tail."""
+        out = self._run_and_read_stdout(
+            """\
+proc ::ns::foo {} { puts [lindex [info level 0] 0] }
+::ns::foo
+"""
+        )
+        assert out == "::ns::foo"
+
+    def test_argv0_reports_renamed_call_word(self):
+        """After ``rename foo bar``, calling ``bar`` must report
+        ``bar`` as argv0 — the compile-time proc-index is flushed
+        for the renamed name, so the call routes through
+        ``tcl_eval``, and the runtime must forward
+        ``words[0]`` through the pending-argv0 slot before
+        dispatching to the compiled callee."""
+        out = self._run_and_read_stdout(
+            """\
+proc foo {} { puts [lindex [info level 0] 0] }
+rename foo bar
+bar
+"""
+        )
+        assert out == "bar"
+
+    def test_argv0_reports_imported_short_name(self):
+        """After ``namespace import ::src::foo``, calling the
+        short name ``foo`` must report ``foo`` (not
+        ``::src::foo``) as argv0 — matches Tcl's ``info level
+        0`` semantics for import-redirected callers."""
+        out = self._run_and_read_stdout(
+            """\
+namespace eval ::src {
+    namespace export foo
+    proc foo {} { puts [lindex [info level 0] 0] }
+}
+namespace import -force ::src::foo
+foo
+"""
+        )
+        assert out == "foo"
+
+    def test_argv0_is_taken_not_leaked(self):
+        """The pending-argv0 slot is consumed on proc entry, so a
+        call from a compiled proc into another compiled proc
+        doesn't leak the outer caller's word into the inner
+        callee's ``info level 0``."""
+        out = self._run_and_read_stdout(
+            """\
+proc inner {} { puts "inner=[lindex [info level 0] 0]" }
+proc outer {} {
+    puts "outer=[lindex [info level 0] 0]"
+    inner
+}
+outer
+"""
+        )
+        assert out == "outer=outer\ninner=inner"
 
     def test_accessor_pattern_works_post_flush(self):
         """Same accessor pattern after ``interp create`` triggers

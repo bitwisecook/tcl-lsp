@@ -1935,6 +1935,19 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     const func_idx = procs.proc_get_func_idx(bucket);
     if (func_idx != 0) {
         const dispatch_mod = @import("tcl_dispatch.zig");
+        // Forward the invoked word (``words[0]``) through the
+        // pending-argv0 slot so the compiled callee's prologue
+        // reports the caller's source-level command name via
+        // ``info level 0`` — tcltest's renamed / imported
+        // entry points rely on this, and the host bridge
+        // otherwise loses the information (it resolves by the
+        // proc's compile-time export name, not the invoked
+        // word).  The slot is consumed on entry by
+        // ``frame_take_pending_argv0`` so it can't leak into
+        // subsequent calls.
+        if (words.len > 0) {
+            frames.frame_set_pending_argv0(words[0]);
+        }
         return dispatch_mod.dispatch(bucket, words);
     }
     const body_obj = procs.proc_get_body(bucket);

@@ -125,6 +125,46 @@ pub var frame_depth: u32 = 0;
 // against 0 and fall back to an empty list.
 var frame_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
 
+// Pending ``argv0`` for the next compiled-proc entry.  Set by a
+// compiled caller via ``frame_set_pending_argv0`` immediately
+// before it transfers control to a compiled callee, and consumed
+// (cleared) by the callee's prologue via
+// ``frame_take_pending_argv0``.  Holds the *exact word the caller
+// wrote* for the invocation — imported names, renamed entry points,
+// and qualified forms (``::foo::bar`` / ``foo::bar``) all show up
+// here intact, so ``info level 0`` can report the caller's invoked
+// word rather than the proc's registered tail.
+//
+// Entries reached via the host bridge (``tcl_eval`` →
+// ``eval_proc_call_bucket`` → ``call_compiled_proc``) don't touch
+// this slot; those callers build the full argv list directly with
+// ``build_invocation_list`` + ``frame_set_argv``, so the prologue's
+// ``frame_take_pending_argv0`` returns 0 and the prologue falls
+// back to the qname tail baked in at compile time.  That fallback
+// is also why every entry point — ``::top``, methods, procs
+// invoked from C — keeps working without the call-site ABI hook.
+var pending_argv0: i32 = 0;
+
+/// Record the invoked word a compiled caller is about to use for
+/// a compiled callee.  Must be immediately followed by the callee
+/// call — no other compiled-proc invocation may happen in between
+/// or the pending slot will be consumed by the wrong callee.
+pub export fn frame_set_pending_argv0(argv0: i32) void {
+    pending_argv0 = argv0;
+}
+
+/// Consume and clear the pending argv0.  Returns 0 when no caller
+/// recorded a word (e.g. host-bridge dispatch, ``::top`` entry, or
+/// a compiled call emitted by an older codegen without the ABI
+/// hook); the prologue falls back to its qname-derived tail in
+/// that case.
+pub export fn frame_take_pending_argv0() i32 {
+    const v = pending_argv0;
+    pending_argv0 = 0;
+    return v;
+}
+
+
 // -- Frame operations --
 
 /// Push a new call frame. Returns the frame index.
