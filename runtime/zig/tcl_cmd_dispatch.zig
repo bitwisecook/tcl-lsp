@@ -113,25 +113,13 @@ fn match_stub(c: []const u8) bool {
     if (eql(c, "interp")) return trap("interp");
     if (eql(c, "apply")) return trap("apply");
     if (eql(c, "rename")) return trap("rename");
-    // ``subst`` is handled directly in eval_command with support for
-    // -nobackslashes / -nocommands / -novariables flags.
+    // ``subst`` is handled by cmds/subst_.zig in the cmd_table.
     if (eql(c, "time")) return trap("time");
-    // ``auto_load`` and friends are stdlib loaders — without the Tcl
-    // stdlib there's nothing to load.  The correct Tcl return is 0
-    // ("not auto-loaded") / empty string, but this bool-only
-    // dispatcher can't communicate a TclObj result — returning true
-    // here would drop the intended value and eval_proc_call would
-    // emit null.  Return false instead so eval_proc_call falls
-    // through to the unknown-command error, which in turn surfaces
-    // as a clean ``unknown command: auto_load`` trap.  A future
-    // refactor could have ``try_stub`` return ``(handled: bool,
-    // result: i32)`` so stdlib stubs can supply their proper value.
-    if (eql(c, "auto_load") or eql(c, "auto_reset") or eql(c, "auto_mkindex") or
-        eql(c, "auto_import") or eql(c, "auto_execok") or eql(c, "auto_qualify") or
-        eql(c, "unknown"))
-    {
-        return false;
-    }
+    // ``auto_load`` and friends are now handled by cmds/stubs_.zig and
+    // intercepted by cmd_table.lookup() before reaching here.  ``unknown``
+    // is still a recognised-but-unhandled name so we return false to let
+    // the "unknown command" error path fire naturally.
+    if (eql(c, "unknown")) return false;
     if (eql(c, "try")) return trap("try");
     if (eql(c, "throw")) return trap("throw");
     // ``unknown`` is handled below as a pass-through no-op; a missing

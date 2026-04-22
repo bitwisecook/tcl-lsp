@@ -5,10 +5,10 @@
 // ``tcl_interp.zig:eval_command``.
 //
 // To add a new command:
-//   1. Create ``cmds/<name>.zig`` exporting a ``registration``
-//      constant of type ``tcl_cmd_registry.CmdEntry``.
+//   1. Create ``cmds/<name>.zig`` exporting a ``registrations``
+//      constant of type ``[N]tcl_cmd_registry.CmdEntry``.
 //   2. Add a ``const <name>_cmd = @import("cmds/<name>.zig")`` line.
-//   3. Append ``<name>_cmd.registration`` to the BUILTINS slice.
+//   3. Append ``++ <name>_cmd.registrations`` to the BUILTINS slice.
 //
 // No other file needs to change — eval_command probes this table
 // before the legacy if-else chain, so new commands take effect
@@ -16,15 +16,47 @@
 
 const reg = @import("tcl_cmd_registry.zig");
 
-const string_cmd = @import("cmds/string.zig");
-const array_cmd  = @import("cmds/array.zig");
-const dict_cmd   = @import("cmds/dict.zig");
+const string_cmd    = @import("cmds/string.zig");
+const array_cmd     = @import("cmds/array.zig");
+const dict_cmd      = @import("cmds/dict.zig");
+const var_cmd       = @import("cmds/var.zig");
+const scope_cmd     = @import("cmds/scope.zig");
+const flow_cmd      = @import("cmds/flow.zig");
+const loop_cmd      = @import("cmds/loop.zig");
+const eval_cmd      = @import("cmds/eval_.zig");
+const proc_cmd      = @import("cmds/proc_.zig");
+const list_cmd      = @import("cmds/list_.zig");
+const io_cmd        = @import("cmds/io.zig");
+const chan_cmd      = @import("cmds/chan.zig");
+const fs_cmd        = @import("cmds/fs.zig");
+const subst_cmd     = @import("cmds/subst_.zig");
+const regexp_cmd    = @import("cmds/regexp_.zig");
+const inspect_cmd   = @import("cmds/inspect.zig");
+const namespace_cmd = @import("cmds/namespace_.zig");
+const interp_cmd    = @import("cmds/interp_.zig");
+const stubs_cmd     = @import("cmds/stubs_.zig");
 
-const BUILTINS: []const reg.CmdEntry = &.{
-    string_cmd.registration,
-    array_cmd.registration,
-    dict_cmd.registration,
-};
+const BUILTINS: []const reg.CmdEntry = &(
+    [_]reg.CmdEntry{string_cmd.registration} ++
+    [_]reg.CmdEntry{array_cmd.registration} ++
+    [_]reg.CmdEntry{dict_cmd.registration} ++
+    var_cmd.registrations ++
+    scope_cmd.registrations ++
+    flow_cmd.registrations ++
+    loop_cmd.registrations ++
+    eval_cmd.registrations ++
+    proc_cmd.registrations ++
+    list_cmd.registrations ++
+    io_cmd.registrations ++
+    chan_cmd.registrations ++
+    fs_cmd.registrations ++
+    subst_cmd.registrations ++
+    regexp_cmd.registrations ++
+    inspect_cmd.registrations ++
+    namespace_cmd.registrations ++
+    interp_cmd.registrations ++
+    stubs_cmd.registrations
+);
 
 /// Look up a command by name.  Returns the handler function pointer on
 /// hit, null on miss.  Called from ``tcl_interp.zig:eval_command``
