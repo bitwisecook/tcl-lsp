@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.commands.registry.runtime import configure_signatures
 
 from ..cli import main as explorer_main

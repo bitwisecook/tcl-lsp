@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult
 from lsp.features.workspace_file_ops import (
     compute_batch_rename_edits,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..semantic_model import AnalysisResult
 from ._commands import _AnalyserCommandsMixin
 from ._core import _AnalyserBase
 from ._diag_branches import _AnalyserDiagBranchesMixin
@@ -39,4 +40,8 @@ class Analyser(
     "Single-pass Tcl analyser assembled from mixin groups."
 
 
-__all__ = ["Analyser", "AnalyserSnapshot", "parse_param_list"]
+def analyse(source: str, cu=None) -> AnalysisResult:
+    return Analyser().analyse(source, cu=cu)
+
+
+__all__ = ["Analyser", "AnalyserSnapshot", "AnalysisResult", "parse_param_list", "analyse"]

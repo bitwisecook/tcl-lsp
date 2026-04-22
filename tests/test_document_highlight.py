@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from lsp.features.document_highlight import get_document_highlights
 
 

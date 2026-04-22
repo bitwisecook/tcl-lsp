@@ -56,7 +56,7 @@ from ai.shared.diagnostics import (
 
 
 def cmd_diagnostics(source: str, file_path: str) -> None:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -78,7 +78,7 @@ def cmd_diagnostics(source: str, file_path: str) -> None:
 
 
 def cmd_symbols(source: str, file_path: str) -> None:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     events = _detect_events(source)
@@ -325,7 +325,7 @@ def cmd_command_info(command_name: str) -> None:
 
 
 def cmd_validate(source: str, file_path: str) -> None:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -365,7 +365,7 @@ def cmd_validate(source: str, file_path: str) -> None:
 
 
 def cmd_review(source: str, file_path: str) -> None:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -400,7 +400,7 @@ def cmd_review(source: str, file_path: str) -> None:
 
 
 def cmd_convert(source: str, file_path: str) -> None:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     diags = result.diagnostics
@@ -427,7 +427,7 @@ def cmd_convert(source: str, file_path: str) -> None:
 
 def cmd_context(source: str, file_path: str) -> None:
     from ai.shared.irule_analysis import ordered_events as _ordered_events
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     basename = os.path.basename(file_path)
     ext = os.path.splitext(file_path)[1].lower()
@@ -2183,7 +2183,7 @@ def cmd_proc_docs(source: str, file_path: str) -> None:
     """Extract structured documentation from all procs."""
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import collect_proc_docs
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     print(json.dumps({"procs": collect_proc_docs(result)}, indent=2))
@@ -2194,7 +2194,7 @@ def cmd_generate_docstring(
 ) -> None:
     """Generate a docstring stub for a specific proc."""
     _configure_dialect_from_path(file_path)
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
@@ -2213,7 +2213,7 @@ def cmd_update_docstrings(source: str, file_path: str, style: str, decoration: b
     """Add docstring stubs to all undocumented procs."""
     _configure_dialect_from_path(file_path)
     from ai.shared.docstring_ops import insert_docstring_stubs
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.formatting.docstring import resolve_tag_style
 
     result = analyse(source)

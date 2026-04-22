@@ -11,7 +11,7 @@ from __future__ import annotations
 from ..bigip.rule_extract import EmbeddedRule, find_embedded_rules
 from ..common.document_buffer import DocumentBuffer
 from ..parsing.tokens import SourcePosition
-from .analyser import Analyser
+from . import Analyser
 from .semantic_model import (
     AnalysisResult,
     ClassDef,

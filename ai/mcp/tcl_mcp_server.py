@@ -431,7 +431,7 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
     from ai.shared.irule_analysis import ordered_events_as_dicts
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     diags = [_diagnostic_to_dict(d) for d in result.diagnostics]
@@ -461,7 +461,7 @@ def _tool_analyze(source: str, dialect: str = "") -> str:
 def _tool_validate(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     groups: dict[str, list[dict]] = {}
@@ -490,7 +490,7 @@ def _tool_validate(source: str, dialect: str = "") -> str:
 def _tool_review(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     security = [
@@ -517,7 +517,7 @@ def _tool_review(source: str, dialect: str = "") -> str:
 def _tool_convert(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     patterns = []
@@ -1484,7 +1484,7 @@ def _tool_generate_docstring(
     style: str = "doxygen",
     decoration: str = "false",
 ) -> str:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.formatting.docstring import generate_stub_for_proc, resolve_tag_style
 
     result = analyse(source)
@@ -1509,7 +1509,7 @@ def _tool_generate_docstring(
 )
 def _tool_read_proc_docs(source: str) -> str:
     from ai.shared.docstring_ops import collect_proc_docs
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
 
     result = analyse(source)
     return json.dumps({"procs": collect_proc_docs(result)}, indent=2)
@@ -1538,7 +1538,7 @@ def _tool_update_docstrings(
     decoration: str = "false",
 ) -> str:
     from ai.shared.docstring_ops import insert_docstring_stubs
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.formatting.docstring import resolve_tag_style
 
     tag = resolve_tag_style(style)

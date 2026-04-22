@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult
 from core.common.lsp import find_var_in_scopes, to_lsp_range
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, Range
 from core.common.lsp import to_lsp_range
 from core.parsing.command_segmenter import segment_commands
