@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._core import _WasmEmitterBase as _Base
+else:
+    _Base = object
+
 from .._ir import (
     _BLOCK_VOID,
     ValType,
@@ -12,7 +19,14 @@ from .._parsing import (
 )
 
 
-class _WasmEmitterVarMixin:
+class _WasmEmitterVarMixin(_Base):
+    if TYPE_CHECKING:
+        # From _WasmEmitterValuesMixin
+        def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_obj_literal(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterStmtMixin
+        def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
+
     def _emit_var_read_obj(self, name: str) -> None:
         """Push the current TclObj value of local Tcl variable *name* on the stack.
 

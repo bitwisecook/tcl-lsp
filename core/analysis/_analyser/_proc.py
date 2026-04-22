@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ._core import _AnalyserBase as _Base
+else:
+    _Base = object
 
 from ...commands.registry import REGISTRY
 from ...commands.registry.signatures import Arity
@@ -25,8 +31,17 @@ from ._utils import parse_param_list
 log = logging.getLogger(__name__)
 
 
-class _AnalyserProcMixin:
+class _AnalyserProcMixin(_Base):
     """Proc definition, resolution, call-arity checks, and low-level handlers."""
+
+    if TYPE_CHECKING:
+        # From _AnalyserScopeMixin
+        def _define_var(self, *a: Any, **kw: Any) -> Any: ...
+        def _record_var_read(self, *a: Any, **kw: Any) -> None: ...
+        def _lookup_const_string(self, *a: Any, **kw: Any) -> Any: ...
+        def _record_defining_set_as_regex(self, *a: Any, **kw: Any) -> None: ...
+        # From _AnalyserOOMixin
+        def _extract_unknown_proc_info(self, *a: Any, **kw: Any) -> Any: ...
 
     def _handle_proc(
         self,

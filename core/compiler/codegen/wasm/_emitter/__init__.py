@@ -14,7 +14,6 @@ from ._variables import _WasmEmitterVarMixin
 
 
 class _WasmEmitter(
-    _WasmEmitterBase,
     _WasmEmitterValuesMixin,
     _WasmEmitterExprMixin,
     _WasmEmitterStmtMixin,
@@ -22,5 +21,6 @@ class _WasmEmitter(
     _WasmEmitterCmdMixin,
     _WasmEmitterCtrlMixin,
     _WasmEmitterOptMixin,
+    _WasmEmitterBase,  # last — must follow all mixins that inherit from it (TYPE_CHECKING)
 ):
     pass

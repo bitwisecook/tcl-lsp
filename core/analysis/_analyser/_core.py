@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import TYPE_CHECKING, Any
 
 from ...commands.registry import REGISTRY
 from ...common.dialect import active_dialect
@@ -35,6 +36,19 @@ log = logging.getLogger(__name__)
 
 class _AnalyserBase:
     """Core analysis loop — init, public API, body/expr traversal."""
+
+    if TYPE_CHECKING:
+        # Set in analyse()/analyse_chunked() before any usage; not in __init__.
+        _source: str
+        # Stubs for methods provided by sibling mixins when composed into Analyser.
+        def _emit_unresolved_command_diagnostics(self, *a: Any, **kw: Any) -> None: ...
+        def _emit_variable_usage_diagnostics(self, *a: Any, **kw: Any) -> None: ...
+        def _emit_cfg_ssa_diagnostics(self, *a: Any, **kw: Any) -> None: ...
+        def _detect_stolen_close_brace(self, *a: Any, **kw: Any) -> Any: ...
+        def _recover_stray_close_bracket(self, *a: Any, **kw: Any) -> Any: ...
+        def _recover_missing_open_brace(self, *a: Any, **kw: Any) -> Any: ...
+        def _record_var_read(self, *a: Any, **kw: Any) -> None: ...
+        def _process_command(self, *a: Any, **kw: Any) -> None: ...
 
     def __init__(self, *, disabled_diagnostics: frozenset[str] | None = None) -> None:
         self.result = AnalysisResult()

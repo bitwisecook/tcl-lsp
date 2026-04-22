@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._core import _AnalyserBase as _Base
+else:
+    _Base = object
 
 from ...common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
@@ -20,7 +26,7 @@ from ..semantic_model import (
 log = logging.getLogger(__name__)
 
 
-class _AnalyserScopeMixin:
+class _AnalyserScopeMixin(_Base):
     """Variable & scope tracking helpers."""
 
     def _set_const_string(
