@@ -1862,6 +1862,46 @@ fn eval_proc_call(words: []const i32) i32 {
     return eval_proc_call_bucket(words, bucket);
 }
 
+/// Build a Tcl list TclObj from every word in ``words`` (the proc
+/// name at ``words[0]`` plus its call arguments).  Used by
+/// :func:`eval_proc_call_bucket` to stash the invocation argv so
+/// ``info level 0`` inside the body can read the real list.
+///
+/// Uses :func:`obj.list_elem_quote` / :func:`obj.list_elem_quote_nth`
+/// so each word is properly escaped for list-element placement
+/// — matching the shape :func:`tcl_dispatch.build_args_list`
+/// produces for the ``args`` tail slot.
+fn build_invocation_list(words: []const i32) i32 {
+    if (words.len == 0) return obj_new_string(0, 0);
+    // Worst-case expansion per element: 2x + 2 (full escape mode)
+    // plus one separator byte per gap.
+    var total: u32 = 0;
+    var i: u32 = 0;
+    while (i < words.len) : (i += 1) {
+        const s = obj_ensure_string(words[i]);
+        total += s.len * 2 + 2;
+        if (i > 0) total += 1;
+    }
+    if (total == 0) return obj_new_string(0, 0);
+    const buf = obj_mod.alloc(total);
+    var off: u32 = 0;
+    i = 0;
+    while (i < words.len) : (i += 1) {
+        if (i > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const s = obj_ensure_string(words[i]);
+        if (i == 0) {
+            off = obj_mod.list_elem_quote(buf, off, s.ptr, s.len);
+        } else {
+            off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
+        }
+    }
+    return obj_new_string(@intCast(buf), @intCast(off));
+}
+
 /// Internal: dispatch once the proc bucket is already resolved.
 /// Shared between ``eval_proc_call`` (legacy path) and the proc-first
 /// fast path in ``eval_command``.
@@ -1895,6 +1935,19 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     const func_idx = procs.proc_get_func_idx(bucket);
     if (func_idx != 0) {
         const dispatch_mod = @import("tcl_dispatch.zig");
+        // Forward the invoked word (``words[0]``) through the
+        // pending-argv0 slot so the compiled callee's prologue
+        // reports the caller's source-level command name via
+        // ``info level 0`` — tcltest's renamed / imported
+        // entry points rely on this, and the host bridge
+        // otherwise loses the information (it resolves by the
+        // proc's compile-time export name, not the invoked
+        // word).  The slot is consumed on entry by
+        // ``frame_take_pending_argv0`` so it can't leak into
+        // subsequent calls.
+        if (words.len > 0) {
+            frames.frame_set_pending_argv0(words[0]);
+        }
         return dispatch_mod.dispatch(bucket, words);
     }
     const body_obj = procs.proc_get_body(bucket);
@@ -1903,6 +1956,47 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Stash the invocation argv (proc name + all call args) so
+    // ``info level 0`` inside the body returns the real list
+    // rather than the placeholder emitted by legacy callers.
+    frames.frame_set_argv(build_invocation_list(words));
+
+    // Stamp the proc's namespace onto ``current_ns`` for the
+    // duration of the body so unqualified calls inside the body
+    // resolve via the right ns tree.  Mirrors the compiled-proc
+    // prologue's ``tcl_ns_set`` emission.  The proc's qualified
+    // name lives in its Command bucket; the enclosing ns is the
+    // prefix up to the last ``::``.
+    const saved_proc_ns: u32 = tcl_ns.current_ns;
+    defer tcl_ns.current_ns = saved_proc_ns;
+    {
+        const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
+        const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
+        if (name_len >= 2) {
+            const nsrc: [*]const u8 = @ptrFromInt(name_ptr);
+            // Find the LAST ``::`` so ``::ns::sub::foo`` maps to
+            // ``::ns::sub``.  Loop from the end.
+            var j: u32 = name_len;
+            var found: u32 = 0;
+            while (j >= 2) : (j -= 1) {
+                if (nsrc[j - 2] == ':' and nsrc[j - 1] == ':') {
+                    found = j - 2;
+                    break;
+                }
+            }
+            if (found >= 2) {
+                // ns prefix is name[0..found], which is ``::ns…``
+                // without the trailing ``::``.
+                tcl_ns.current_ns = tcl_ns.ns_create_from_fqn(
+                    @bitCast(name_ptr),
+                    @bitCast(found),
+                );
+            } else if (found == 0 and name_len >= 2 and nsrc[0] == ':' and nsrc[1] == ':') {
+                // Root-level proc (``::foo``) — ns_current stays
+                // at root; nothing to push.
+            }
+        }
+    }
 
     // Bind parameters: walk the params list, assign each from argv.
     // If the last parameter is named "args", it collects all remaining
