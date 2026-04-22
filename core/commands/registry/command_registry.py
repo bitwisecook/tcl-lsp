@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from ...compiler.side_effects import SideEffect
-    from .models import CodegenHook, CommandHandler, LoweringHook, SubcommandHandler
+    from .models import CodegenHook, CommandHandler, LoweringHook, SubcommandHandler, WasmEmitHook
 
 from .models import (
     ArgumentValueSpec,
@@ -382,6 +382,32 @@ class CommandRegistry:
                     sub.lowering = hook
             else:
                 spec.lowering = hook
+
+    def register_wasm_emitter(
+        self,
+        name: str,
+        hook: "WasmEmitHook",
+        *,
+        target: str = "wasm",
+        subcommand: str | None = None,
+    ) -> None:
+        """Back-register a WASM emit hook for *name* under *target*.
+
+        *target* defaults to ``"wasm"`` and is the key used in
+        ``CommandSpec.codegens`` / ``SubCommand.codegens``.  Multiple
+        WASM-like targets (e.g. future ``"wasm64"``) can coexist under
+        different keys.
+        """
+        specs = self.specs_by_name.get(name)
+        if specs is None:
+            return
+        for spec in specs:
+            if subcommand is not None:
+                sub = spec.subcommands.get(subcommand)
+                if sub is not None:
+                    sub.codegens[target] = hook
+            else:
+                spec.codegens[target] = hook
 
     def lookup_handler(self, name: str) -> "CommandHandler | None":
         """Return the VM handler for *name*, or ``None``."""

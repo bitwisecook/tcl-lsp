@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from . import cmds as _cmds  # side-effect: registers all WASM emit hooks via REGISTRY
 from ._commands import _WasmEmitterCmdMixin
 from ._control_flow import _WasmEmitterCtrlMixin
 from ._core import _WasmEmitterBase

@@ -70,6 +70,14 @@ CodegenHook = Callable[..., bool]
 LoweringHook = Callable[..., object]
 """IR lowering specialisation hook: (lowerer, ir_call) -> IRStatement | None."""
 
+WasmEmitHook = Callable[..., bool]
+"""WASM emit hook: (emitter, args, defs) -> emitted?
+
+Keyed by target name (e.g. ``"wasm"``) in the ``codegens`` dict on
+``CommandSpec`` and ``SubCommand``.  Unimplemented commands should emit
+a trap instruction so execution fails loudly rather than silently.
+"""
+
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 
@@ -357,6 +365,7 @@ class SubCommand:
     handler: SubcommandHandler | None = None
     codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
+    codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
 
     # Taint transform — colour bits added to tainted output by this subcommand.
     taint_transform: TaintColour | None = None
@@ -548,6 +557,7 @@ class CommandSpec:
     handler: CommandHandler | None = None
     codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
+    codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
 
     # Static arg roles and type info for commands WITHOUT subcommands.
     # Replaces role_hints() -> CommandSig and type_hints() -> CommandTypeHint.
