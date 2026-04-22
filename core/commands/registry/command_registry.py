@@ -409,6 +409,27 @@ class CommandRegistry:
             else:
                 spec.codegens[target] = hook
 
+    def get_wasm_hook(
+        self,
+        name: str,
+        target: str = "wasm",
+    ) -> "WasmEmitHook | None":
+        """Return the first WASM emit hook registered for *name* under *target*.
+
+        Searches all specs (not just the last/latest) because hooks are set at
+        emitter import time.  Dialect packs loaded after that point add new
+        specs with empty ``codegens`` dicts; the hook is still present on the
+        earlier spec and this method finds it.
+        """
+        specs = self.specs_by_name.get(name)
+        if specs is None:
+            return None
+        for spec in specs:
+            hook = spec.codegens.get(target)
+            if hook is not None:
+                return hook
+        return None
+
     def lookup_handler(self, name: str) -> "CommandHandler | None":
         """Return the VM handler for *name*, or ``None``."""
         specs = self.specs_by_name.get(name)

@@ -625,8 +625,11 @@ class _WasmEmitterStmtMixin(_Base):
         # dict, info, lassign, lset, clock, uplevel, array, unset, list,
         # and all runtime-import commands.  Each hook returns True when
         # handled and False to fall through (e.g. unset with no array elems).
-        spec = _REGISTRY.get_any(command)
-        if spec is not None and (hook := spec.codegens.get("wasm")) is not None:
+        # Uses get_wasm_hook (not get_any) to scan all specs: dialect packs
+        # loaded after the emitter was first imported add new specs without
+        # hooks, but the hook is still on an earlier spec.
+        hook = _REGISTRY.get_wasm_hook(command)
+        if hook is not None:
             if hook(self, args, defs):
                 return
 
