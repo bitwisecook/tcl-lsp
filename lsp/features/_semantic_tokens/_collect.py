@@ -1,29 +1,14 @@
 from __future__ import annotations
 
 import logging
-import re
-import time
-from bisect import bisect_right
 
-from core.analysis.semantic_model import AnalysisResult
-from core.bigip.apl_parser import AplTokenKind, tokenise_apl
-from core.bigip.iapp_extract import find_embedded_iapp_sections
-from core.bigip.irules_refs import extract_irules_object_references
-from core.bigip.rule_extract import find_embedded_rules
 from core.commands.registry.command_registry import REGISTRY
 from core.commands.registry.runtime import (
-    SIGNATURES,
     ArgRole,
-    SubcommandSig,
-    arg_indices_for_role,
     arg_indices_for_roles,
     iter_switch_case_list,
-    options_with_value,
-    regexp_pattern_index,
-    skip_options,
 )
 from core.common.dialect import active_dialect
-from core.common.document_buffer import DocumentBuffer
 from core.common.ranges import position_from_offset
 from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
 from core.parsing.known_commands import known_command_names
@@ -31,43 +16,44 @@ from core.parsing.lexer import TclLexer
 from core.parsing.recovery import compute_virtual_insertions
 from core.parsing.token_positions import token_content_base, token_content_shift
 from core.parsing.tokens import SourcePosition, Token, TokenType
+
 from ._constants import (
-    _TYPE_INDEX,
-    _MOD_INDEX,
     _BUILTIN_COMMANDS,
     _EVENT_RE,
+    _MOD_INDEX,
+    _TYPE_INDEX,
+)
+from ._format_args import (
+    _binary_format_arg_index,
+    _clock_format_arg_index,
+    _collect_binary_format_spec_tokens,
+    _collect_clock_format_spec_tokens,
+    _collect_glob_pattern_tokens,
+    _collect_param_list_tokens,
+    _collect_regsub_subspec_tokens,
+    _collect_sprintf_format_spec_tokens,
+    _collect_string_map_pairs_tokens,
+    _emit_regex_token,
+    _glob_pattern_arg_indices,
+    _is_known_subcommand,
+    _option_arg_indices,
+    _proc_param_list_arg_index,
+    _procedure_name_arg_index,
+    _regsub_subspec_arg_index,
+    _sprintf_format_arg_index,
+    _string_map_mapping_arg_index,
+    _subcommand_arg_index,
 )
 from ._primitives import (
-    _classify_token,
-    _classify_expr_token,
-    _append_token,
     _append_text_token,
+    _classify_expr_token,
+    _classify_token,
     _emit_namespace_qualified,
     _emit_string_with_escapes,
 )
-from ._format_args import (
-    _proc_param_list_arg_index,
-    _collect_param_list_tokens,
-    _procedure_name_arg_index,
-    _binary_format_arg_index,
-    _collect_binary_format_spec_tokens,
-    _subcommand_arg_index,
-    _is_known_subcommand,
-    _sprintf_format_arg_index,
-    _collect_sprintf_format_spec_tokens,
-    _clock_format_arg_index,
-    _collect_clock_format_spec_tokens,
-    _regsub_subspec_arg_index,
-    _collect_regsub_subspec_tokens,
-    _string_map_mapping_arg_index,
-    _collect_string_map_pairs_tokens,
-    _glob_pattern_arg_indices,
-    _collect_glob_pattern_tokens,
-    _option_arg_indices,
-    _emit_regex_token,
-)
 
 log = logging.getLogger(__name__)
+
 
 def _collect_expression_tokens(
     out: list[tuple[int, int, int, int, int]],
@@ -209,6 +195,7 @@ def _collect_expression_tokens(
             modifiers=modifiers,
         )
 
+
 def _collect_switch_case_bodies(
     out: list[tuple[int, int, int, int, int]],
     args: list[str],
@@ -293,6 +280,7 @@ def _collect_switch_case_bodies(
             )
 
     return {i}
+
 
 def _recover_stray_close_bracket_in_flush(
     argv: list[Token],
@@ -1019,5 +1007,3 @@ def _collect_tokens(
 
     # Handle trailing command without final EOL
     _flush_command()
-
-

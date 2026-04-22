@@ -32,9 +32,7 @@ from ._utils import (
     aliases=("optimise", "optimize"),
     help="Optimise source and output rewritten Tcl.",
 )
-def _configure_opt(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_opt(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     _add_colour_arguments(p)
     p.add_argument(
@@ -53,9 +51,7 @@ def _configure_opt(
     help="Format source and emit rewritten Tcl.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
-def _configure_format(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_format(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     p.description = "Format source and emit rewritten Tcl."
     p.epilog = (
         "Examples:\n"
@@ -74,9 +70,7 @@ def _configure_format(
     help="Minify source: strip comments, collapse whitespace, join commands.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
-def _configure_minify(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_minify(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     p.description = (
         "Minify Tcl source code: strip comments, collapse whitespace, "
         "join commands with semicolons."

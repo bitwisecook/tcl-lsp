@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from ._api import (
+    _delta_encode,
+    compute_semantic_tokens_edits,
+    precompute_chunk_tokens,
+    semantic_tokens_full,
+)
+from ._collect import _recover_stray_close_bracket_in_flush
 from ._constants import (
-    SEMANTIC_TOKEN_TYPES,
-    SEMANTIC_TOKEN_MODIFIERS,
     _BINARY_FORMAT_SPECIFIERS,
+    SEMANTIC_TOKEN_MODIFIERS,
+    SEMANTIC_TOKEN_TYPES,
 )
 from ._format_args import (
     _CLOCK_FORMAT_RE,
@@ -17,13 +24,6 @@ from ._format_args import (
     _regex_pattern_arg_index,
     _regsub_subspec_arg_index,
     _sprintf_format_arg_index,
-)
-from ._collect import _recover_stray_close_bracket_in_flush
-from ._api import (
-    semantic_tokens_full,
-    precompute_chunk_tokens,
-    _delta_encode,
-    compute_semantic_tokens_edits,
 )
 
 __all__ = [

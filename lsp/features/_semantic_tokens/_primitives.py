@@ -1,46 +1,25 @@
 from __future__ import annotations
 
 import logging
-import re
-import time
-from bisect import bisect_right
 
-from core.analysis.semantic_model import AnalysisResult
-from core.bigip.apl_parser import AplTokenKind, tokenise_apl
-from core.bigip.iapp_extract import find_embedded_iapp_sections
-from core.bigip.irules_refs import extract_irules_object_references
-from core.bigip.rule_extract import find_embedded_rules
-from core.commands.registry.command_registry import REGISTRY
 from core.commands.registry.runtime import (
-    SIGNATURES,
     ArgRole,
-    SubcommandSig,
     arg_indices_for_role,
-    arg_indices_for_roles,
-    iter_switch_case_list,
-    options_with_value,
-    regexp_pattern_index,
-    skip_options,
 )
-from core.common.dialect import active_dialect
-from core.common.document_buffer import DocumentBuffer
 from core.common.ranges import position_from_offset
-from core.parsing.expr_lexer import ExprTokenType, tokenise_expr
-from core.parsing.known_commands import known_command_names
-from core.parsing.lexer import TclLexer
-from core.parsing.recovery import compute_virtual_insertions
-from core.parsing.token_positions import token_content_base, token_content_shift
+from core.parsing.expr_lexer import ExprTokenType
+from core.parsing.token_positions import token_content_base
 from core.parsing.tokens import SourcePosition, Token, TokenType
+
 from ._constants import (
-    _TYPE_INDEX,
-    _MOD_INDEX,
+    _ESCAPE_RE,
     _LANGUAGE_KEYWORDS,
     _OPERATORS,
-    _BUILTIN_COMMANDS,
-    _ESCAPE_RE,
+    _TYPE_INDEX,
 )
 
 log = logging.getLogger(__name__)
+
 
 def _classify_token(tok_type: TokenType, text: str, *, is_command_name: bool) -> int | None:
     """Return semantic token type index, or None to skip this token."""
@@ -250,5 +229,3 @@ def _emit_string_with_escapes(
             type_idx=_TYPE_INDEX["string"],
         )
     return True
-
-

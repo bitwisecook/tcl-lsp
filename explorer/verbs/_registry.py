@@ -57,8 +57,7 @@ def verb(
 def get_verb_catalogue() -> list[tuple[str, str, str]]:
     """Return ``(name, primary_alias, help)`` tuples for the brief help screen."""
     return [
-        (spec.name, spec.aliases[0] if spec.aliases else "", spec.help)
-        for spec in _VERB_REGISTRY
+        (spec.name, spec.aliases[0] if spec.aliases else "", spec.help) for spec in _VERB_REGISTRY
     ]
 
 

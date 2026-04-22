@@ -8,6 +8,7 @@ import json
 from core.analysis.analyser import analyse
 from core.commands.registry.runtime import configure_signatures
 
+from ..cli import main as explorer_main
 from ._registry import verb
 from ._utils import (
     _add_input_arguments,
@@ -15,7 +16,6 @@ from ._utils import (
     _read_input_documents,
     _write_text_output,
 )
-from ..cli import main as explorer_main
 
 _CONVERTIBLE_CODES = frozenset(
     {
@@ -38,9 +38,7 @@ _CONVERSION_MAP: dict[str, str] = {
 
 
 @verb("explore", help="Run compiler-explorer views on aggregated input.")
-def _configure_explore(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_explore(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--show",
@@ -74,9 +72,7 @@ def _configure_explore(
 
 
 @verb("convert", help="Detect legacy patterns eligible for modernisation.")
-def _configure_convert(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_convert(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",

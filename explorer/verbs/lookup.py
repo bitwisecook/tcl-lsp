@@ -10,15 +10,15 @@ from core.commands.registry.info import lookup_command_info, lookup_event_info
 from core.commands.registry.namespace_data import event_multiplicity, order_events_for_file
 from core.commands.registry.runtime import configure_signatures
 
+from ..pipeline import AVAILABLE_DIALECTS
 from ._registry import verb
 from ._utils import (
+    TclCliError,
     _add_input_arguments,
     _combine_sources,
     _read_input_documents,
     _write_text_output,
-    TclCliError,
 )
-from ..pipeline import AVAILABLE_DIALECTS
 
 _HELP_DIALECT_TERMS: dict[str, tuple[str, ...]] = {
     "synopsys-eda-tcl": (
@@ -184,9 +184,7 @@ def _configure_command_info(
     help="Search KCS help docs from the bundled SQLite index.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
-def _configure_help(
-    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
-) -> None:
+def _configure_help(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     help_default_dialect = "f5-irules" if default_dialect == "f5-irules" else "all"
     p.description = "Search KCS help docs from the bundled SQLite index."
     p.epilog = (
