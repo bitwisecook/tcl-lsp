@@ -364,13 +364,19 @@ callers don't break, but new code should go to the canonical module.
 | `tcl_interp_string.zig` | `string`, `array`, and `dict` built-in command handlers extracted from `tcl_interp.zig` — purely functional leaf impls | `tclCmdIL.c` / `tclDictObj.c` |
 | `tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
 
-**Rebuilding the WASM binary:** always use `ReleaseFast` (the binary committed to the repo was built with that flag):
+**Rebuilding the WASM binary:** use `Debug` mode (the default — no `-Doptimize` flag) during development so Zig's safety checks catch pointer bugs early:
+
+```
+cd runtime/zig && zig build
+```
+
+Use `ReleaseFast` only for release builds:
 
 ```
 cd runtime/zig && zig build -Doptimize=ReleaseFast
 ```
 
-A plain `zig build` defaults to `Debug` mode (3× larger, safety-check panics) and will break tests that depend on the pre-built binary size or behaviour.
+Debug builds are ~3× larger but expose real bugs (e.g. `@ptrFromInt(0)` panics, buffer-offset vs address misuse) that are silently masked in release mode.
 
 A few invariants to preserve when adding features:
 
