@@ -747,6 +747,14 @@ def _scan_needed_imports(
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")
         needed.add("tcl_frame_get_argv")
+        # Pending-argv0 ABI: the callee prologue reads this slot
+        # (cleared on read) to pick up the invoked word recorded by
+        # the caller immediately before the compiled ``call``.  The
+        # set side is emitted per-call-site; always pulling in both
+        # halves keeps host-bridge entry points working (the take
+        # returns 0 and the prologue falls back to the qname tail).
+        needed.add("tcl_frame_set_pending_argv0")
+        needed.add("tcl_frame_take_pending_argv0")
         needed.add("tcl_local_set")
         needed.add("tcl_local_get")
         # tcl_list is used by the compiled-proc prologue to build
