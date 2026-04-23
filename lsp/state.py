@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import multiprocessing
 import threading
 from concurrent.futures import ProcessPoolExecutor
@@ -20,6 +21,8 @@ from .workspace.workspace_index import WorkspaceIndex
 
 if TYPE_CHECKING:
     from pygls.lsp.server import LanguageServer
+
+log = logging.getLogger(__name__)
 
 # Singleton state
 
@@ -104,5 +107,8 @@ def _get_doc_source(uri: str) -> str:
     try:
         doc = _server.workspace.get_text_document(uri)
         return doc.source
+    except OSError:
+        return ""
     except Exception:
+        log.debug("Unexpected error reading document source for %s", uri, exc_info=True)
         return ""
