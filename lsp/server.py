@@ -2,20 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
-import functools
 import logging
 import threading
 import time
-from collections.abc import Callable
-from concurrent.futures.process import BrokenProcessPool
+
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
 import core.common.codes_all  # noqa: F401  # trigger all code registrations
-from core.analysis import analyse
-from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
-from core.commands.registry import REGISTRY
 from core.common.lsp import to_lsp_location
 
 from .features import (
@@ -38,7 +32,6 @@ from .features.code_lens import get_code_lenses, resolve_code_lens
 from .features.completion import get_completions
 from .features.declaration import get_declaration
 from .features.definition import get_bigip_definition, get_definition
-from .features.diagnostics import get_deep_diagnostics, get_diagnostics
 from .features.document_highlight import get_document_highlights
 from .features.document_links import get_document_links
 from .features.document_symbols import get_document_symbols
@@ -64,7 +57,6 @@ from .features.type_hierarchy import (
     supertypes as get_supertypes,
 )
 from .features.workspace_symbols import get_workspace_symbols
-from .workspace.workspace_index import WorkspaceIndex
 
 log = logging.getLogger(__name__)
 
@@ -227,33 +219,29 @@ server.protocol._handle_request = _log_request  # type: ignore[assignment]
 server.protocol._handle_notification = _log_notification  # type: ignore[assignment]
 
 
-import lsp.state as _state
-import lsp.diagnostics_pipeline as _dp
-import lsp.commands as _commands
-import lsp.workspace_init as _workspace_init
-import lsp.lifecycle as _lifecycle
-from .state import (
-    workspace_state,
-    workspace_index,
-    background_scanner,
-    package_resolver,
-    diagnostic_scheduler,
-    feature_config,
-    _loaded_packages,
-    _SAFE_FIX_CODES,
+import lsp.commands as _commands  # noqa: E402
+import lsp.diagnostics_pipeline as _dp  # noqa: E402
+import lsp.lifecycle as _lifecycle  # noqa: E402
+import lsp.settings as _settings  # noqa: E402
+import lsp.state as _state  # noqa: E402
+import lsp.workspace_init as _workspace_init  # noqa: E402
+
+from .state import (  # noqa: E402
     _get_doc_source,
-    _camel_to_snake,
-    _normalise_formatter_settings,
-    _KNOWN_TCL_LSP_SECTIONS,
-    _KNOWN_TCL_LSP_TOPLEVEL,
-    _extract_tcl_lsp_settings,
+    _semantic_token_result_counter,
     _semantic_token_results,
     _semantic_token_results_lock,
-    _semantic_token_result_counter,
+    background_scanner,
+    feature_config,
+    package_resolver,
+    workspace_index,
+    workspace_state,
 )
 
 _state.configure(server)
 _dp.configure(server)
+_settings.configure(server)
+_settings.register(server)
 _commands.register(server)
 _workspace_init.register(server)
 _lifecycle.register(server)
@@ -329,9 +317,9 @@ def on_semantic_tokens_full(
     data = semantic_tokens_full(
         source,
         analysis=analysis,
-        is_bigip_conf=_dp._dp._is_bigip_conf(uri) or is_cw,
-        is_irules=_dp._dp._is_irules_source(uri) or is_cw,
-        is_apl=_dp._dp._is_apl_source(uri),
+        is_bigip_conf=_dp._is_bigip_conf(uri) or is_cw,
+        is_irules=_dp._is_irules_source(uri) or is_cw,
+        is_apl=_dp._is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
@@ -393,9 +381,9 @@ def on_semantic_tokens_delta(
     new_data = semantic_tokens_full(
         source,
         analysis=analysis,
-        is_bigip_conf=_dp._dp._is_bigip_conf(uri) or is_cw_delta,
-        is_irules=_dp._dp._is_irules_source(uri) or is_cw_delta,
-        is_apl=_dp._dp._is_apl_source(uri),
+        is_bigip_conf=_dp._is_bigip_conf(uri) or is_cw_delta,
+        is_irules=_dp._is_irules_source(uri) or is_cw_delta,
+        is_apl=_dp._is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
@@ -1160,18 +1148,3 @@ def on_will_save_wait_until(
     )
     return edits or None
 
-# Configuration (extracted to lsp/settings.py)
-
-from .settings import (
-    _ALL_DIAGNOSTIC_CODES,
-    _ALL_OPTIMISATION_CODES,
-    _FEATURE_TOGGLE_KEYS,
-    _apply_feature_settings,
-    _apply_all_settings,
-    _apply_all_settings_now,
-    _pull_and_apply_configuration,
-)
-from .settings import configure as _configure_settings
-from .settings import register as _register_settings
-_configure_settings(server)
-_register_settings(server)

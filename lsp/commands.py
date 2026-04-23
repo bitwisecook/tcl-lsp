@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
+import lsp.state as _state
 from core.analysis import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from core.commands.registry import REGISTRY
@@ -32,8 +33,6 @@ from .feature_config import FeatureConfig
 from .features.diagnostics import get_basic_diagnostics
 from .features.package_suggestions import rank_package_suggestions
 from .workspace.scanner import uri_to_path
-
-import lsp.state as _state
 
 if TYPE_CHECKING:
     pass

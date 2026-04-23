@@ -12,14 +12,13 @@ from typing import TYPE_CHECKING
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
+import lsp.state as _state
 from core.commands.registry.runtime import configure_signatures
-from core.formatting import FormatterConfig
 from core.common.user_config import get_all_settings, load_user_config
+from core.formatting import FormatterConfig
 
 from .workspace.scanner import path_to_uri
 from .workspace.workspace_index import EntrySource
-
-import lsp.state as _state
 
 if TYPE_CHECKING:
     pass

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from lsprotocol import types
 
 import lsp.state as _state
+
 from .features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
 from .workspace.scanner import path_to_uri, uri_to_path
 from .workspace.workspace_index import EntrySource

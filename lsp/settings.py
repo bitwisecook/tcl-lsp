@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 from lsprotocol import types
 
 import core.common.codes_all  # noqa: F401  # trigger all code registrations
+import lsp.state as _state
+from core.commands.registry.runtime import configure_signatures
 from core.common.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from core.common.optimisation_profiles import (
     DEFAULT_EDITOR_PROFILE,
@@ -17,14 +19,12 @@ from core.common.optimisation_profiles import (
     profile_from_name,
     profile_to_disabled,
 )
-from core.commands.registry.runtime import configure_signatures
 from core.formatting import FormatterConfig
 
-import lsp.state as _state
 from .state import (
     _camel_to_snake,
-    _normalise_formatter_settings,
     _extract_tcl_lsp_settings,
+    _normalise_formatter_settings,
 )
 
 if TYPE_CHECKING:

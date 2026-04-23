@@ -10,14 +10,13 @@ from typing import TYPE_CHECKING
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
+import lsp.diagnostics_pipeline as _dp
+import lsp.state as _state
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
 
+from .features.workspace_file_ops import compute_batch_rename_edits
 from .workspace.scanner import uri_to_path
 from .workspace.workspace_index import EntrySource
-from .features.workspace_file_ops import compute_batch_rename_edits
-
-import lsp.state as _state
-import lsp.diagnostics_pipeline as _dp
 
 if TYPE_CHECKING:
     pass
@@ -129,13 +128,13 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     _state.diagnostic_scheduler.cancel(uri)
     if _dp._is_bigip_conf(uri):
         _state.background_scanner.remove_bigip_config(uri)
-        _server.text_document_dp._publish_diagnostics(  # type: ignore[union-attr]
+        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
     if _dp._is_apl_source(uri):
         _state.background_scanner.remove_apl_model(uri)
-        _server.text_document_dp._publish_diagnostics(  # type: ignore[union-attr]
+        _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
@@ -147,7 +146,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
         _state.workspace_index.update(uri, bg_analysis, EntrySource.BACKGROUND)
     else:
         _state.workspace_index.remove(uri)
-    _server.text_document_dp._publish_diagnostics(  # type: ignore[union-attr]
+    _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
         types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
     )
 

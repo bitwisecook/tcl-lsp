@@ -6,7 +6,6 @@ import itertools
 import multiprocessing
 import re
 import threading
-from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from typing import TYPE_CHECKING
 
