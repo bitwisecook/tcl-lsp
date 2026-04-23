@@ -188,7 +188,7 @@ def _start_scan_with_progress() -> None:
         try:
             await asyncio.wait_for(
                 _server.work_done_progress.create_async(token),  # type: ignore[union-attr]
-                timeout=5.0,  # type: ignore[union-attr]
+                timeout=5.0,
             )
         except (Exception, asyncio.TimeoutError):
             log.debug(

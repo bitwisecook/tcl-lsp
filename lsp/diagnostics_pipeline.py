@@ -444,7 +444,7 @@ async def _publish_diagnostics(
                 functools.partial(
                     _run_deep_diagnostics,
                     source=source,
-                    suppressed=dict(suppressed),
+                    suppressed=dict(suppressed),  # type: ignore[arg-type]
                     dialect=_dialect,
                     optimiser_enabled=opt_enabled,
                     shimmer_enabled=shimmer_enabled,
@@ -462,7 +462,7 @@ async def _publish_diagnostics(
             result = await asyncio.to_thread(
                 get_deep_diagnostics,
                 source,
-                suppressed,
+                suppressed,  # type: ignore[arg-type]
                 cu=cu,
                 analysis=analysis_result,
                 optimiser_enabled=opt_enabled,
@@ -479,7 +479,7 @@ async def _publish_diagnostics(
             result = await asyncio.to_thread(
                 get_deep_diagnostics,
                 source,
-                suppressed,
+                suppressed,  # type: ignore[arg-type]
                 cu=cu,
                 analysis=analysis_result,
                 optimiser_enabled=opt_enabled,
