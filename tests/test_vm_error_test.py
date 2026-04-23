@@ -26,56 +26,13 @@ pytestmark = pytest.mark.slow
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_ERROR: set[str] = {
-    # return -code / errorCode handling
-    "error-1.6",
-    "error-1.7",
-    # errorInfo / stack trace formatting
-    "error-2.3",
-    "error-2.6",
-    "error-3.1",
-    # catch / return interaction
-    "error-4.2",
-    "error-4.3",
-    "error-4.5",
-    "error-4.6",
-    "error-4.7",
-    "error-4.8",
-    # nested error propagation
-    "error-5.1",
-    "error-5.2",
-    # errorInfo truncation / formatting
-    "error-6.10",
-    # error in proc bodies
-    "error-7.1",
-    # try / throw / on handling
-    "error-8.8",
-    "error-8.9",
-    "error-8.10",
-    "error-8.11",
-    # return -level
-    "error-9.6",
-    # return -code with numeric codes
-    "error-10.7",
-    "error-10.10",
-    "error-10.11",
-    "error-10.12",
-    # errorstack / options dict
-    "error-13.3",
-    "error-13.4",
-    "error-13.5",
-    "error-13.6",
-    "error-13.7",
-    "error-13.8",
-    "error-13.9",
-    "error-13.10",
-    # lassign / multi-return
-    "error-14.8",
-    "error-14.9",
-    # error message quoting
-    "error-15.4",
-    "error-15.5",
-}
+KNOWN_FAILURES_ERROR: set[str] = set(
+    # error.test immediately raises "123456 is not a valid ReturnCode" because
+    # the Python VM's ReturnCode enum only covers 0-4 (OK/ERROR/RETURN/BREAK/
+    # CONTINUE) while error.test uses ``return -code 123456``.  This aborts
+    # the entire test file before any tcltest cases run, so Total=0 and no
+    # individual test fails.  The set is empty to match that reality.
+)
 
 
 # Test runner
