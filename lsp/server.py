@@ -4,17 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import itertools
 import logging
-import multiprocessing
-import re
 import threading
 import time
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
-from dataclasses import dataclass, field
-
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
@@ -25,7 +19,6 @@ from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import configure_signatures, is_irules_dialect
-from core.common.codes import default_disabled_diagnostics, diagnostic_codes, optimisation_codes
 from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import to_lsp_location
 from core.common.optimisation_profiles import (
@@ -44,11 +37,9 @@ from core.common.user_config import (
 from core.compiler.optimiser import optimise_source
 from core.formatting import FormatterConfig
 from core.minifier import minify_tcl
-from core.packages import PackageResolver
 from explorer.pipeline import run_pipeline as explorer_run_pipeline
 from explorer.serialise import serialise_result as explorer_serialise_result
 
-from .async_diagnostics import DiagnosticScheduler
 from .features import (
     SEMANTIC_TOKEN_MODIFIERS,
     SEMANTIC_TOKEN_TYPES,
@@ -97,89 +88,13 @@ from .features.type_hierarchy import (
 )
 from .features.workspace_file_ops import compute_batch_rename_edits
 from .features.workspace_symbols import get_workspace_symbols
-from .workspace.document_state import WorkspaceState
-from .workspace.scanner import BackgroundScanner, path_to_uri, uri_to_path
+from .workspace.scanner import path_to_uri, uri_to_path
 from .workspace.workspace_index import EntrySource, WorkspaceIndex
 
 log = logging.getLogger(__name__)
 
 
-@dataclass
-class FeatureConfig:
-    """Runtime feature flags and diagnostic/optimiser filter state."""
-
-    # Feature-level toggles
-    hover_enabled: bool = True
-    completion_enabled: bool = True
-    diagnostics_enabled: bool = True
-    semantic_tokens_enabled: bool = True
-    code_actions_enabled: bool = True
-    definition_enabled: bool = True
-    references_enabled: bool = True
-    document_symbols_enabled: bool = True
-    folding_enabled: bool = True
-    rename_enabled: bool = True
-    signature_help_enabled: bool = True
-    workspace_symbols_enabled: bool = True
-    inlay_hints_enabled: bool = False
-    call_hierarchy_enabled: bool = True
-    document_links_enabled: bool = True
-    selection_range_enabled: bool = True
-    document_highlight_enabled: bool = True
-    code_lens_enabled: bool = True
-    workspace_file_ops_enabled: bool = True
-    # Pull-model diagnostics are opt-in.  vscode-languageclient auto-enables
-    # its pull flow whenever the server advertises ``diagnosticProvider`` in
-    # ServerCapabilities, which disables the push pipeline that the existing
-    # test suite and most clients rely on.  Users who explicitly want the
-    # pull model can opt in via ``tclLsp.features.pullDiagnostics``.
-    pull_diagnostics_enabled: bool = False
-    # willSaveWaitUntil is off by default.  Editors that support a native
-    # "format on save" mechanism (VS Code's editor.formatOnSave, JetBrains'
-    # on-save actions, etc.) should use that instead — it routes through the
-    # standard textDocument/formatting handler.  This toggle exists as a
-    # fallback for editors without a native format-on-save mechanism.
-    will_save_wait_until_enabled: bool = False
-    progress_enabled: bool = True
-    implementation_enabled: bool = True
-    type_definition_enabled: bool = True
-    declaration_enabled: bool = True
-    linked_editing_range_enabled: bool = True
-
-    # Per-code diagnostic filters -- codes present here are *disabled*.
-    # Initialised from codes with ``default=False`` (opt-in diagnostics).
-    disabled_diagnostics: set[str] = field(
-        default_factory=lambda: set(default_disabled_diagnostics())
-    )
-
-    # Optimiser master switch, profile, and per-code filters.
-    optimiser_enabled: bool = True
-    optimiser_profile: str = DEFAULT_EDITOR_PROFILE.value
-    disabled_optimisations: set[str] = field(
-        default_factory=lambda: set(profile_to_disabled(DEFAULT_EDITOR_PROFILE))
-    )
-
-    # Shimmer detection master switch.
-    shimmer_enabled: bool = True
-
-    # XC translatability diagnostics (opt-in, for migration planning).
-    xc_diagnostics_enabled: bool = False
-
-    # Style: maximum line length for W111.
-    line_length: int = 120
-
-    # IRULE4002: regex patterns matching generic static:: / global variable
-    # bare names (after stripping the ``static::`` prefix).  Empty list
-    # disables the check.  Patterns are matched case-insensitively against
-    # the full bare name.
-    generic_variable_patterns: list[str] = field(
-        default_factory=lambda: list(DEFAULT_GENERIC_VARIABLE_PATTERNS)
-    )
-
-    # True once the user explicitly sets ``tclLsp.dialect`` in settings.
-    # When False, the server may auto-detect the dialect from the editor's
-    # ``language_id``.
-    dialect_explicitly_set: bool = False
+from .feature_config import FeatureConfig
 
 
 try:
@@ -338,166 +253,30 @@ server.protocol._handle_request = _log_request  # type: ignore[assignment]
 server.protocol._handle_notification = _log_notification  # type: ignore[assignment]
 
 
-workspace_state = WorkspaceState()
-workspace_index = WorkspaceIndex()
-background_scanner = BackgroundScanner()
-package_resolver = PackageResolver()
-formatter_config = FormatterConfig()
-feature_config = FeatureConfig()
-diagnostic_scheduler = DiagnosticScheduler()
-_process_pool: ProcessPoolExecutor | None = None
-
-
-def _get_process_pool() -> ProcessPoolExecutor:
-    """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis.
-
-    Uses "forkserver" on platforms that support it to avoid deadlocks
-    when forking a multi-threaded process (asyncio + pygls threads).
-    The default "fork" start method can deadlock when a thread holds
-    a lock at fork time.
-    """
-    global _process_pool
-    if _process_pool is None:
-        try:
-            ctx = multiprocessing.get_context("forkserver")
-        except ValueError:
-            ctx = None  # Windows — use default
-        _process_pool = ProcessPoolExecutor(max_workers=2, mp_context=ctx)
-    return _process_pool
-
-
-_loaded_packages: set[str] = set()
-_SAFE_FIX_CODES = frozenset(
-    {
-        "W100",
-        "W105",
-        "W108",
-        "W110",
-        "W201",
-        "W304",
-        "IRULE2001",
-    }
+import lsp.state as _state
+import lsp.diagnostics_pipeline as _dp
+from .state import (
+    workspace_state,
+    workspace_index,
+    background_scanner,
+    package_resolver,
+    diagnostic_scheduler,
+    feature_config,
+    _loaded_packages,
+    _SAFE_FIX_CODES,
+    _get_doc_source,
+    _camel_to_snake,
+    _normalise_formatter_settings,
+    _KNOWN_TCL_LSP_SECTIONS,
+    _KNOWN_TCL_LSP_TOPLEVEL,
+    _extract_tcl_lsp_settings,
+    _semantic_token_results,
+    _semantic_token_results_lock,
+    _semantic_token_result_counter,
 )
 
-
-def _get_doc_source(uri: str) -> str:
-    """Get document source text, handling virtual documents without backing files.
-
-    Prefers the in-memory ``DocumentState`` source (always available for
-    documents opened via ``textDocument/didOpen``).  Falls back to the pygls
-    ``TextDocument`` which may read from disk.  Returns an empty string for
-    virtual or untitled documents that have no backing file.
-    """
-    state = workspace_state.get(uri)
-    if state is not None:
-        return state.source
-    doc = server.workspace.get_text_document(uri)
-    try:
-        return doc.source
-    except (FileNotFoundError, OSError):
-        return ""
-
-
-def _camel_to_snake(name: str) -> str:
-    """Convert lowerCamelCase/PascalCase names to snake_case."""
-    first = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
-    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", first).lower()
-
-
-def _normalise_formatter_settings(raw: dict) -> dict:
-    """Map client formatter settings to FormatterConfig field names."""
-    normalised: dict[str, object] = {}
-    for key, value in raw.items():
-        if not isinstance(key, str):
-            continue
-        field = _camel_to_snake(key)
-        if field == "line_ending" and isinstance(value, str):
-            mapping = {
-                "lf": "\n",
-                "crlf": "\r\n",
-                "cr": "\r",
-            }
-            value = mapping.get(value.lower(), value)
-        normalised[field] = value
-    return normalised
-
-
-# Keys that appear directly inside the ``tclLsp`` configuration namespace.
-# Used both for flat-key routing and for detecting unwrapped payloads from
-# clients that strip the ``tclLsp`` prefix (e.g. JetBrains, vscode-languageclient v10).
-_KNOWN_TCL_LSP_SECTIONS = frozenset(
-    {
-        "formatting",
-        "diagnostics",
-        "optimiser",
-        "shimmer",
-        "features",
-        "style",
-        "xcDiagnostics",
-        "runtimeValidation",
-        "ai",
-        "packageManager",
-    }
-)
-_KNOWN_TCL_LSP_TOPLEVEL = frozenset(
-    {
-        "dialect",
-        "extraCommands",
-        "libraryPaths",
-    }
-)
-
-
-def _extract_tcl_lsp_settings(settings: dict) -> dict:
-    """Extract extension/server settings from multiple client payload shapes.
-
-    Handles three payload formats:
-    1. Nested:   ``{"tclLsp": {"optimiser": {"O109": false}}}``
-    2. Flat:     ``{"tclLsp.optimiser.O109": false}``
-    3. Unwrapped (no ``tclLsp`` prefix — e.g. JetBrains pull-model response):
-       ``{"optimiser": {"O109": false}, "dialect": "tcl8.6"}``
-    """
-    extracted: dict[str, object] = {}
-
-    nested = settings.get("tclLsp")
-    if isinstance(nested, dict):
-        extracted.update(nested)
-
-    for key, value in settings.items():
-        if not isinstance(key, str):
-            continue
-        if key.startswith("tclLsp."):
-            subkey = key[len("tclLsp.") :]
-        else:
-            continue
-
-        # Route dotted subkeys into nested dicts for known sections.
-        section_handled = False
-        for section in _KNOWN_TCL_LSP_SECTIONS:
-            prefix = section + "."
-            if subkey.startswith(prefix):
-                section_key = subkey[len(prefix) :]
-                current = extracted.get(section)
-                if not isinstance(current, dict):
-                    current = {}
-                    extracted[section] = current
-                current[section_key] = value
-                section_handled = True
-                break
-        if not section_handled:
-            extracted[subkey] = value
-
-    # Fallback: detect unwrapped payloads from clients that already stripped
-    # the ``tclLsp`` prefix (e.g. workspace/configuration pull responses or
-    # JetBrains didChangeConfiguration notifications).
-    if not extracted:
-        if any(
-            isinstance(k, str) and k in _KNOWN_TCL_LSP_SECTIONS | _KNOWN_TCL_LSP_TOPLEVEL
-            for k in settings
-        ):
-            extracted.update(settings)
-
-    return extracted
+_state.configure(server)
+_dp.configure(server)
 
 
 # Capabilities
@@ -532,13 +311,6 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
     token_types=SEMANTIC_TOKEN_TYPES,
     token_modifiers=SEMANTIC_TOKEN_MODIFIERS,
 )
-
-# Per-URI storage for semantic tokens delta support (P8).
-# Maps URI → (result_id, flat token data).
-_semantic_token_results: dict[str, tuple[str, list[int]]] = {}
-_semantic_token_results_lock = threading.Lock()
-# Thread-safe counter — pygls may dispatch handlers concurrently.
-_semantic_token_result_counter = itertools.count(1)
 
 
 @server.feature(
@@ -577,9 +349,9 @@ def on_semantic_tokens_full(
     data = semantic_tokens_full(
         source,
         analysis=analysis,
-        is_bigip_conf=_is_bigip_conf(uri) or is_cw,
-        is_irules=_is_irules_source(uri) or is_cw,
-        is_apl=_is_apl_source(uri),
+        is_bigip_conf=_dp._dp._is_bigip_conf(uri) or is_cw,
+        is_irules=_dp._dp._is_irules_source(uri) or is_cw,
+        is_apl=_dp._dp._is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
@@ -641,9 +413,9 @@ def on_semantic_tokens_delta(
     new_data = semantic_tokens_full(
         source,
         analysis=analysis,
-        is_bigip_conf=_is_bigip_conf(uri) or is_cw_delta,
-        is_irules=_is_irules_source(uri) or is_cw_delta,
-        is_apl=_is_apl_source(uri),
+        is_bigip_conf=_dp._dp._is_bigip_conf(uri) or is_cw_delta,
+        is_irules=_dp._dp._is_irules_source(uri) or is_cw_delta,
+        is_apl=_dp._dp._is_apl_source(uri),
         chunk_token_cache=chunk_token_cache,
         chunk_line_ranges=chunk_line_ranges,
         line_starts=ls,
@@ -714,7 +486,7 @@ def on_completion(
         workspace_rule_init_vars=workspace_index.all_rule_init_var_names(),
         workspace_command_usage=workspace_index.command_usage_counts(),
         workspace_proc_usage=workspace_index.proc_usage_counts(),
-        formatter_config=formatter_config,
+        formatter_config=_state.formatter_config,
         lines=state.lines if state else None,
         embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
     )
@@ -754,7 +526,7 @@ def on_definition(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
 
-    if _is_bigip_conf(uri):
+    if _dp._is_bigip_conf(uri):
         cfgs = background_scanner.bigip_configs
         current_cfg = cfgs.get(uri)
         if current_cfg is None:
@@ -1242,65 +1014,11 @@ def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
 # ``tclLsp.features.pullDiagnostics``.  Registering them causes pygls to
 # advertise ``diagnosticProvider`` in ServerCapabilities, which flips
 # vscode-languageclient into pull mode and disables the push pipeline that
-# the existing test suite depends on.  The handler functions stay defined
-# so the unit tests in ``tests/test_pull_diagnostics.py`` can invoke them
-# directly.
+# the existing test suite depends on.
 
-
-def on_document_diagnostic(
-    params: types.DocumentDiagnosticParams,
-) -> types.RelatedFullDocumentDiagnosticReport | types.RelatedUnchangedDocumentDiagnosticReport:
-    uri = params.text_document.uri
-    cached = _pull_diag_cache.get(uri, [])
-    current_result_id = _pull_diag_result_ids.get(uri)
-    previous = getattr(params, "previous_result_id", None)
-    if current_result_id is not None and previous is not None and previous == current_result_id:
-        return types.RelatedUnchangedDocumentDiagnosticReport(
-            result_id=current_result_id,
-        )
-    return types.RelatedFullDocumentDiagnosticReport(
-        items=list(cached),
-        result_id=current_result_id,
-    )
-
-
-def on_workspace_diagnostic(
-    params: types.WorkspaceDiagnosticParams,
-) -> types.WorkspaceDiagnosticReport:
-    previous_ids: dict[str, str] = {}
-    for item in getattr(params, "previous_result_ids", []) or []:
-        previous_ids[item.uri] = item.value
-
-    report_items: list[
-        types.WorkspaceFullDocumentDiagnosticReport
-        | types.WorkspaceUnchangedDocumentDiagnosticReport
-    ] = []
-    for uri, diagnostics in _pull_diag_cache.items():
-        current_result_id = _pull_diag_result_ids.get(uri, "")
-        prev = previous_ids.get(uri)
-        if prev is not None and prev == current_result_id and current_result_id:
-            report_items.append(
-                types.WorkspaceUnchangedDocumentDiagnosticReport(
-                    uri=uri,
-                    result_id=current_result_id,
-                    version=None,
-                )
-            )
-        else:
-            report_items.append(
-                types.WorkspaceFullDocumentDiagnosticReport(
-                    uri=uri,
-                    items=list(diagnostics),
-                    result_id=current_result_id or None,
-                    version=None,
-                )
-            )
-    return types.WorkspaceDiagnosticReport(items=report_items)
-
-
-if feature_config.pull_diagnostics_enabled:
-    server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)(on_document_diagnostic)
-    server.feature(types.WORKSPACE_DIAGNOSTIC)(on_workspace_diagnostic)
+if _state.feature_config.pull_diagnostics_enabled:
+    server.feature(types.TEXT_DOCUMENT_DIAGNOSTIC)(_dp.on_document_diagnostic)
+    server.feature(types.WORKSPACE_DIAGNOSTIC)(_dp.on_workspace_diagnostic)
 
 
 # Selection range
@@ -2094,7 +1812,7 @@ def on_formatting(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     edits = get_formatting(
-        source, params.options, formatter_config, lines=state.lines if state else None
+        source, params.options, _state.formatter_config, lines=state.lines if state else None
     )
     return edits or None
 
@@ -2115,7 +1833,7 @@ def on_range_formatting(
         source,
         params.range,
         params.options,
-        formatter_config,
+        _state.formatter_config,
         lines=state.lines if state else None,
     )
     return edits or None
@@ -2136,786 +1854,17 @@ def on_will_save_wait_until(
     from core.formatting.config import IndentStyle
 
     options = types.FormattingOptions(
-        tab_size=formatter_config.indent_size,
-        insert_spaces=formatter_config.indent_style == IndentStyle.SPACES,
+        tab_size=_state.formatter_config.indent_size,
+        insert_spaces=_state.formatter_config.indent_style == IndentStyle.SPACES,
     )
     edits = get_formatting(
         source,
         options,
-        formatter_config,
+        _state.formatter_config,
         lines=state.lines if state else None,
     )
     return edits or None
 
-
-# Diagnostics
-
-
-# Pull-model diagnostics cache.  Populated on every publish so that
-# textDocument/diagnostic and workspace/diagnostic handlers can serve the
-# latest results without recomputing.
-#
-# We ALWAYS push via textDocument/publishDiagnostics regardless of whether
-# the client advertises pull-diagnostic support.  vscode-languageclient
-# advertises that capability unconditionally in fillClientCapabilities but
-# many clients still rely on push notifications, so a naive short-circuit
-# broke every integration test that waits for pushed diagnostics.  Clients
-# that actively use the pull model can simply ignore the duplicate push or
-# configure diagnosticPullOptions to suppress it; the LSP spec allows both
-# modes to coexist.
-_pull_diag_cache: dict[str, list[types.Diagnostic]] = {}
-_pull_diag_result_ids: dict[str, str] = {}
-_pull_diag_counter: int = 0
-
-
-def _next_pull_diag_result_id() -> str:
-    global _pull_diag_counter
-    _pull_diag_counter += 1
-    return f"tcl-lsp-diag-{_pull_diag_counter}"
-
-
-def _publish_diags_to_client(
-    uri: str,
-    diagnostics: list[types.Diagnostic],
-    version: int | None = None,
-) -> None:
-    """Push a diagnostics notification to the client and update the pull cache."""
-    _pull_diag_cache[uri] = list(diagnostics)
-    _pull_diag_result_ids[uri] = _next_pull_diag_result_id()
-    server.text_document_publish_diagnostics(
-        types.PublishDiagnosticsParams(
-            uri=uri,
-            diagnostics=diagnostics,
-            version=version,
-        )
-    )
-
-
-def _build_workspace_diagnostic_context():
-    """Build a frozen snapshot of cross-file context for diagnostics.
-
-    Must be called on the event-loop thread where ``workspace_index``
-    reads are safe.  The returned object is immutable and can be passed
-    to background threads.
-    """
-    from core.analysis.semantic_model import WorkspaceDiagnosticContext
-
-    # Collect per-URI package names and alias names across the workspace.
-    ws_pkg_names: set[str] = set()
-    pkg_by_uri: dict[str, frozenset[str]] = {}
-    alias_by_uri: dict[str, frozenset[str]] = {}
-    for pkg_uri in workspace_index.all_uris():
-        analysis = workspace_index.get_analysis(pkg_uri)
-        if analysis is not None:
-            names = analysis.active_package_names()
-            ws_pkg_names.update(names)
-            if names:
-                pkg_by_uri[pkg_uri] = names
-            if analysis.command_aliases:
-                tails = frozenset(qn.rsplit("::", 1)[-1] for qn in analysis.command_aliases if qn)
-                if tails:
-                    alias_by_uri[pkg_uri] = tails
-
-    return WorkspaceDiagnosticContext(
-        workspace_proc_names=frozenset(workspace_index.all_proc_names()),
-        workspace_package_names=frozenset(ws_pkg_names),
-        package_names_by_uri=pkg_by_uri,
-        source_graph=workspace_index.source_graph_snapshot(),
-        alias_names_by_uri=alias_by_uri,
-    )
-
-
-def _update_workspace_index(uri: str, source: str, state: object) -> None:
-    """Update workspace index after a stable analysis."""
-    from .workspace.document_state import DocumentState
-
-    if not isinstance(state, DocumentState):
-        return
-    if not state.analysis or state.has_partial_commands:
-        return
-    workspace_index.update(uri, state.analysis, EntrySource.OPEN)
-    # Update source dependency graph.
-    if state.analysis.source_targets:
-        from core.analysis.source_resolver import resolve_source_target
-
-        script_path = uri_to_path(uri) or ""
-        ws_roots = background_scanner.workspace_roots
-        sourced: set[str] = set()
-        for st in state.analysis.source_targets:
-            resolved = resolve_source_target(st.raw_path, st.is_literal, script_path, ws_roots)
-            if resolved:
-                sourced.add(path_to_uri(resolved))
-        workspace_index.update_source_graph(uri, frozenset(sourced))
-    if _is_irules_source(uri) or state.conf_wrapped:
-        if state.analysis.all_procs:
-            workspace_index.update_irules_globals(
-                uri,
-                state.analysis.all_procs,
-            )
-        from core.compiler.irules_flow import extract_rule_init_vars
-
-        if state.conf_wrapped and state.embedded_rules:
-            # For conf-wrapped files, extract RULE_INIT vars from each
-            # rule body independently and merge.
-            all_exports: list = []
-            for rule in state.embedded_rules:
-                all_exports.extend(extract_rule_init_vars(rule.body))
-            workspace_index.update_rule_init_vars(uri, all_exports)
-        else:
-            exports = extract_rule_init_vars(source, cu=state.compilation_unit)
-            workspace_index.update_rule_init_vars(uri, exports)
-    _load_packages_if_needed(state.analysis, uri)
-
-
-def _publish_diagnostics_sync(
-    uri: str,
-    source: str,
-    version: int | None = None,
-    *,
-    force_reanalyse: bool = False,
-) -> None:
-    """Synchronous diagnostic publish — used during configuration changes."""
-    state = workspace_state.update(
-        uri,
-        source,
-        version,
-        force_reanalyse=force_reanalyse,
-        line_length=feature_config.line_length,
-    )
-    partial_mode = state.has_partial_commands
-
-    if feature_config.diagnostics_enabled:
-        ws_ctx = _build_workspace_diagnostic_context()
-        diagnostics = get_diagnostics(
-            source,
-            analysis=state.analysis,
-            cu=state.compilation_unit,
-            optimiser_enabled=feature_config.optimiser_enabled and not partial_mode,
-            shimmer_enabled=feature_config.shimmer_enabled and not partial_mode,
-            taint_enabled=not partial_mode,
-            xc_diagnostics_enabled=feature_config.xc_diagnostics_enabled,
-            disabled_diagnostics=feature_config.disabled_diagnostics,
-            disabled_optimisations=feature_config.disabled_optimisations,
-            uri=uri,
-            line_length=feature_config.line_length,
-            workspace_context=ws_ctx,
-        )
-    else:
-        diagnostics = []
-
-    _publish_diags_to_client(uri, diagnostics, version)
-    _update_workspace_index(uri, source, state)
-
-
-async def _publish_diagnostics(
-    uri: str,
-    source: str,
-    version: int | None = None,
-    *,
-    force_reanalyse: bool = False,
-) -> None:
-    """Analyse source and publish diagnostics with async deep-pass scheduling.
-
-    Phase 1 runs analysis + style checks in a background thread so
-    the asyncio event loop stays responsive (editors can still receive
-    responses to hover, completion, semantic-token requests while
-    analysis is in progress).
-
-    Phase 2 (background): schedules the expensive compiler passes
-    (optimiser, shimmer, taint, GVN, iRules flow) in a background
-    thread.  When complete, the full set (basic + deep) is published
-    in a single notification.  If the document changes before the
-    deep pass finishes, the task is cancelled automatically.
-    """
-    t_start = time.perf_counter()
-
-    # Yield the event loop before doing any CPU work.  This ensures
-    # that responses for any already-dispatched requests are flushed
-    # to the editor before we start blocking.
-    await asyncio.sleep(0)
-
-    # Phase 0 (fast): update source/version/chunks on the event loop
-    # so that queued semantic-token requests can be served immediately
-    # with the new source text — even before analysis completes.
-    t_quick = time.perf_counter()
-    state = workspace_state.get(uri)
-    if state is None:
-        state = workspace_state.open(uri, source, version, analyse=False)
-        needs_analysis = True
-    else:
-        needs_analysis = state.update_source_quick(source, version)
-        # If the source is unchanged but analysis hasn't run yet (e.g.
-        # didOpen created the state with analyse=False), we still need
-        # to perform analysis.
-        if not needs_analysis and state.analysis is None:
-            needs_analysis = True
-    quick_ms = (time.perf_counter() - t_quick) * 1000
-
-    # Eagerly precompute syntax-only tokens on the event loop (~200 ms)
-    # so that semantic token requests get instant cache hits while the
-    # heavy analysis thread holds the GIL.  Only for newly opened files
-    # that don't have a token cache yet.
-    if state.get_semantic_token_cache() is None and state.chunks:
-        is_cw_pre = state.conf_wrapped
-        state.precompute_syntax_tokens(
-            is_irules=_is_irules_source(uri) or is_cw_pre,
-            is_bigip_conf=_is_bigip_conf(uri) or is_cw_pre,
-            is_apl=_is_apl_source(uri),
-        )
-
-    # Yield the event loop so queued requests (e.g. semantic tokens)
-    # can be dispatched with the new source text before the heavy
-    # analysis pass blocks.
-    await asyncio.sleep(0)
-
-    # Snapshot config values before entering the thread — these are
-    # only mutated on the event loop so reading them here is safe.
-    # NOTE: diagnostics_enabled is intentionally NOT snapshotted here.
-    # It is re-read from feature_config after the analysis await so
-    # that configuration changes (e.g. the pull-model response arriving
-    # while analysis is in-flight) take effect immediately.
-    disabled_diagnostics = set(feature_config.disabled_diagnostics)
-    line_length = feature_config.line_length
-    optimiser_enabled = feature_config.optimiser_enabled
-    disabled_optimisations = set(feature_config.disabled_optimisations)
-
-    # Full analysis: compile, analyse, build chunk caches.
-    # Fresh analysis uses ProcessPoolExecutor for true GIL-free
-    # parallelism.  Incremental edits stay on asyncio.to_thread to
-    # preserve the in-process proc/interproc caches.
-    t_update = time.perf_counter()
-    did_analyse = needs_analysis or force_reanalyse
-    subprocess_result: dict | None = None
-    if did_analyse:
-        is_fresh = state.analysis is None or force_reanalyse
-        if is_fresh:
-            from core.common.dialect import active_dialect
-            from lsp.workspace.document_state import _analyse_document_fresh
-
-            try:
-                loop = asyncio.get_running_loop()
-                pool = _get_process_pool()
-                result = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        pool,
-                        functools.partial(
-                            _analyse_document_fresh,
-                            source=source,
-                            version=version,
-                            line_length=line_length,
-                            dialect=active_dialect(),
-                            uri=uri,
-                            disabled_diagnostics=disabled_diagnostics,
-                            disabled_optimisations=disabled_optimisations,
-                            optimiser_enabled=optimiser_enabled,
-                        ),
-                    ),
-                    timeout=15.0,
-                )
-                state.apply_subprocess_result(result, version)
-                subprocess_result = result
-            except BrokenProcessPool:
-                log.warning("Process pool broken, falling back to thread")
-                global _process_pool
-                _process_pool = None
-                await asyncio.to_thread(
-                    state.update,
-                    source,
-                    version,
-                    force_reanalyse=force_reanalyse,
-                    line_length=line_length,
-                )
-            except Exception:
-                log.warning("Subprocess analysis failed, falling back to thread", exc_info=True)
-                await asyncio.to_thread(
-                    state.update,
-                    source,
-                    version,
-                    force_reanalyse=force_reanalyse,
-                    line_length=line_length,
-                )
-        else:
-            await asyncio.to_thread(
-                state.update,
-                source,
-                version,
-                force_reanalyse=force_reanalyse,
-                line_length=line_length,
-            )
-    update_ms = (time.perf_counter() - t_update) * 1000
-    log.info(
-        "[timing] workspace_state.update %.0fms (quick=%.0fms, uri=%s, lines=%d)",
-        update_ms,
-        quick_ms,
-        uri,
-        len(state.buffer.line_starts),
-    )
-
-    # Staleness check: if the document was edited while analysis was
-    # running in the thread, a newer _publish_diagnostics call has
-    # already updated the source.  Bail out to avoid publishing
-    # diagnostics for stale text and doing redundant work.
-    if state.version != version:
-        log.info(
-            "[timing] _publish_diagnostics abandoned (stale: have v%s, want v%s)",
-            state.version,
-            version,
-        )
-        return
-
-    partial_mode = state.has_partial_commands
-
-    # After analysis completes, ask the client to re-request semantic
-    # tokens so they benefit from analysis enrichment (regex_positions),
-    # and folding ranges so that scope-based folds for quoted or
-    # substituted proc/namespace bodies (which the syntactic walker
-    # can't recover) get picked up on top of the syntactic folds that
-    # were served pre-analysis.
-    if did_analyse and state.analysis is not None:
-        try:
-            server.workspace_semantic_tokens_refresh(None)
-        except Exception:
-            pass  # client may not support refresh
-        try:
-            server.workspace_folding_range_refresh(None)
-        except Exception:
-            pass  # client may not support refresh
-
-    if not feature_config.diagnostics_enabled:
-        basic_diags: list[types.Diagnostic] = []
-        analysis_result = None
-        suppressed: set[str] = set()
-    elif subprocess_result is not None and "basic_diags" in subprocess_result:
-        # Use pre-computed diagnostics from the subprocess — avoids
-        # running _phase1 in asyncio.to_thread which would hold the
-        # GIL and block the event loop.
-        basic_diags = subprocess_result["basic_diags"]
-        analysis_result = subprocess_result.get("analysis")
-        suppressed = subprocess_result.get("suppressed", {})
-        log.info("[timing] phase1 diagnostics 0ms (from subprocess, diags=%d)", len(basic_diags))
-    else:
-        # Cache lookup also touches state — do it on the event loop.
-        cached_style = state.get_cached_style_diagnostics(
-            disabled_diagnostics=disabled_diagnostics,
-            line_length=line_length,
-        )
-
-        # Snapshot workspace context for cross-file diagnostics.
-        # Built on the event loop where workspace_index reads are safe.
-        ws_ctx = _build_workspace_diagnostic_context()
-
-        def _phase1():
-            """Run CPU-heavy diagnostics in a thread to keep the event loop free."""
-            return get_basic_diagnostics(
-                source,
-                analysis=state.analysis,
-                cu=state.compilation_unit,
-                optimiser_enabled=optimiser_enabled and not partial_mode,
-                disabled_diagnostics=disabled_diagnostics,
-                disabled_optimisations=disabled_optimisations,
-                line_length=line_length,
-                line_ending=formatter_config.line_ending,
-                cached_style_diagnostics=cached_style,
-                workspace_context=ws_ctx,
-                uri=uri,
-            )
-
-        t_phase1 = time.perf_counter()
-        basic_diags, analysis_result, suppressed = await asyncio.to_thread(_phase1)
-        phase1_ms = (time.perf_counter() - t_phase1) * 1000
-        log.info("[timing] phase1 diagnostics %.0fms (diags=%d)", phase1_ms, len(basic_diags))
-
-    if not feature_config.diagnostics_enabled:
-        _publish_diags_to_client(uri, [], version)
-        _update_workspace_index(uri, source, state)
-        return
-
-    _publish_diags_to_client(uri, basic_diags, version)
-    _update_workspace_index(uri, source, state)
-    total_ms = (time.perf_counter() - t_start) * 1000
-    log.info("[timing] _publish_diagnostics total %.0fms (basic diags published)", total_ms)
-
-    # Phase 2: deep diagnostics — background thread.
-    # Skip deep passes during partial-command states (mid-typing).
-    # Taint and iRules flow always run when not partial, so the only
-    # gate is whether we're in partial mode.
-    if partial_mode:
-        return
-
-    # Skip deep diagnostics when no analysis has been performed yet —
-    # the subprocess analysis hasn't returned, so deep passes would
-    # just waste ProcessPoolExecutor slots doing redundant compilation.
-    # The dialect-change or settings-change path will schedule proper
-    # deep diagnostics after analysis completes.
-    if not did_analyse and state.analysis is None:
-        return
-
-    # Capture current config for the closure (avoid races if config changes).
-    opt_enabled = feature_config.optimiser_enabled and not partial_mode
-    shimmer_enabled = feature_config.shimmer_enabled and not partial_mode
-    taint_enabled = not partial_mode
-    xc_enabled = feature_config.xc_diagnostics_enabled
-    disabled_diags = set(feature_config.disabled_diagnostics)
-    disabled_opts = set(feature_config.disabled_optimisations)
-    cu = state.compilation_unit
-
-    # Deep diagnostic proc cache: if all procs are unchanged, reuse.
-    cached_deep = state.get_cached_deep_diagnostics()
-
-    if cached_deep is not None:
-        # Cache hit — publish immediately, no subprocess needed.
-        _publish_diags_to_client(uri, basic_diags + cached_deep, version)
-        return
-
-    # Capture state ref and version for the closure so a stale background
-    # task does not overwrite a newer document's cached diagnostics.
-    _state_ref = state
-    _scheduled_version = version
-
-    from core.common.dialect import active_dialect
-    from lsp.features.diagnostics import _run_deep_diagnostics
-
-    _dialect = active_dialect()
-    _pool = _get_process_pool()
-    _generic_var_patterns = (
-        list(feature_config.generic_variable_patterns)
-        if feature_config.generic_variable_patterns
-        else None
-    )
-
-    async def _deep_coro() -> list[types.Diagnostic]:
-        try:
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(
-                _pool,
-                functools.partial(
-                    _run_deep_diagnostics,
-                    source=source,
-                    suppressed=dict(suppressed),
-                    dialect=_dialect,
-                    optimiser_enabled=opt_enabled,
-                    shimmer_enabled=shimmer_enabled,
-                    taint_enabled=taint_enabled,
-                    xc_diagnostics_enabled=xc_enabled,
-                    disabled_diagnostics=disabled_diags,
-                    disabled_optimisations=disabled_opts,
-                    uri=uri,
-                    generic_variable_patterns=_generic_var_patterns,
-                ),
-            )
-        except BrokenProcessPool:
-            log.warning("Process pool broken in deep diagnostics, falling back to thread")
-            global _process_pool
-            _process_pool = None
-            result = await asyncio.to_thread(
-                get_deep_diagnostics,
-                source,
-                suppressed,
-                cu=cu,
-                analysis=analysis_result,
-                optimiser_enabled=opt_enabled,
-                shimmer_enabled=shimmer_enabled,
-                taint_enabled=taint_enabled,
-                xc_diagnostics_enabled=xc_enabled,
-                disabled_diagnostics=disabled_diags,
-                disabled_optimisations=disabled_opts,
-                uri=uri,
-                generic_variable_patterns=_generic_var_patterns,
-            )
-        except Exception:
-            log.warning("Subprocess deep diagnostics failed, falling back to thread", exc_info=True)
-            result = await asyncio.to_thread(
-                get_deep_diagnostics,
-                source,
-                suppressed,
-                cu=cu,
-                analysis=analysis_result,
-                optimiser_enabled=opt_enabled,
-                shimmer_enabled=shimmer_enabled,
-                taint_enabled=taint_enabled,
-                xc_diagnostics_enabled=xc_enabled,
-                disabled_diagnostics=disabled_diags,
-                disabled_optimisations=disabled_opts,
-                uri=uri,
-                generic_variable_patterns=_generic_var_patterns,
-            )
-        if _state_ref.version == _scheduled_version:
-            _state_ref.store_deep_diagnostics(result)
-        return result
-
-    diagnostic_scheduler.schedule_async(
-        uri,
-        version,
-        basic_diags,
-        _deep_coro,
-        _publish_diags_to_client,
-    )
-
-
-def _is_unsafe_auto_path(path: str) -> bool:
-    """Return True when *path* is too broad to safely ``os.walk()``.
-
-    Filesystem roots, the user's home directory, and any directory
-    two levels or shallower are rejected — a script that appends
-    ``/`` or ``~`` to ``auto_path`` is almost certainly misusing the
-    idiom, and recursively walking a huge tree on the main LSP thread
-    would make the server unresponsive.
-    """
-    import os
-
-    norm = os.path.abspath(path)
-    if norm in ("/", os.path.sep) or norm == os.path.expanduser("~"):
-        return True
-    # Count meaningful path segments — reject depth < 2 so ``/tmp``
-    # or ``/Users`` never get swept, but ``/tmp/proj/lib`` is fine.
-    parts = [p for p in norm.split(os.sep) if p]
-    return len(parts) < 2
-
-
-def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
-    """Resolve and load packages referenced by ``package require``.
-
-    When the document carries ``lappend auto_path`` entries, resolve each
-    statically and register them with the package resolver so packages
-    provided by those directories become discoverable without requiring
-    an explicit workspace/library path setting — mirroring what Tcl
-    itself would do once the file has executed the ``lappend``.
-    """
-    from core.analysis.semantic_model import AnalysisResult
-
-    if not isinstance(analysis, AnalysisResult):
-        return
-
-    if analysis.auto_path_entries and uri is not None:
-        import os
-
-        from core.analysis.auto_path_eval import evaluate_auto_path_expr
-
-        file_path = uri_to_path(uri)
-        extra_paths: list[str] = []
-        for entry in analysis.auto_path_entries:
-            resolved = evaluate_auto_path_expr(entry.raw, file_path)
-            if not resolved or not os.path.isdir(resolved):
-                continue
-            # Refuse to ``os.walk`` the filesystem root, the user's
-            # home directory, or any path shallow enough to sweep in
-            # unrelated trees.  A legitimate ``lappend auto_path``
-            # target is always a library subdirectory; anything at
-            # depth < 2 is almost certainly a mistake we shouldn't
-            # scan on the main thread.
-            if _is_unsafe_auto_path(resolved):
-                log.warning(
-                    "auto_path: refusing to scan overly broad directory %s (from %s)",
-                    resolved,
-                    file_path,
-                )
-                continue
-            if resolved not in extra_paths:
-                extra_paths.append(resolved)
-        if extra_paths:
-            package_resolver.add_search_paths(extra_paths)
-
-    if not analysis.package_requires:
-        return
-    for pkg_req in analysis.package_requires:
-        if pkg_req.name in _loaded_packages:
-            continue
-        source_files = package_resolver.resolve(pkg_req.name, pkg_req.version)
-        if not source_files:
-            continue
-        _loaded_packages.add(pkg_req.name)
-        for file_path in source_files:
-            pkg_uri = path_to_uri(file_path)
-            if workspace_state.get(pkg_uri) is not None:
-                continue  # Already open
-            if workspace_index.get_analysis(pkg_uri) is not None:
-                continue  # Already indexed
-            scan_result = background_scanner.rescan_file(file_path)
-            if scan_result:
-                workspace_index.update(
-                    pkg_uri,
-                    scan_result.analysis,
-                    EntrySource.PACKAGE,
-                )
-
-
-# Document sync
-
-
-def _is_bigip_conf(uri: str) -> bool:
-    """Check if a URI points to a BIG-IP configuration file."""
-    from .workspace.scanner import _BIGIP_CONF_NAMES
-
-    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
-    return basename in _BIGIP_CONF_NAMES
-
-
-def _is_irules_source(uri: str) -> bool:
-    """Check whether a URI points to an iRules source file.
-
-    Checks the editor's ``language_id`` first (set by the editor when the
-    user selects a language mode), then falls back to the file extension.
-    """
-    lang_id = workspace_state.get_language_id(uri).lower()
-    if lang_id in ("irules", "irul", "irule"):
-        return True
-    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
-    return basename.endswith(".irul") or basename.endswith(".irule")
-
-
-def _is_apl_source(uri: str) -> bool:
-    """Check whether a URI points to an APL (iApp presentation) file.
-
-    Checks the editor's ``language_id`` first, then falls back to the file
-    extension or basename.
-    """
-    lang_id = workspace_state.get_language_id(uri).lower()
-    if lang_id in ("tcl-apl", "apl-lang", "apl"):
-        return True
-    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
-    return basename.endswith(".apl") or basename == "presentation"
-
-
-def _publish_bigip_diagnostics(
-    uri: str,
-    source: str,
-    version: int | None = None,
-) -> None:
-    """Parse a BIG-IP conf file and publish cross-reference diagnostics."""
-    from core.bigip.diagnostics import get_bigip_diagnostics
-    from core.bigip.parser import parse_bigip_conf
-
-    try:
-        config = parse_bigip_conf(source)
-        background_scanner.parse_bigip_source(uri, source)
-    except Exception:
-        log.debug("bigip: failed to parse %s", uri, exc_info=True)
-        server.text_document_publish_diagnostics(
-            types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
-        )
-        return
-
-    if feature_config.diagnostics_enabled:
-        diagnostics = get_bigip_diagnostics(
-            config, disabled_codes=feature_config.disabled_diagnostics
-        )
-    else:
-        diagnostics = []
-
-    server.text_document_publish_diagnostics(
-        types.PublishDiagnosticsParams(
-            uri=uri,
-            diagnostics=diagnostics,
-            version=version,
-        )
-    )
-
-
-def _uri_to_dir(uri: str) -> str | None:
-    """Extract the directory path from a file URI."""
-    if uri.startswith("file://"):
-        path = uri[7:]
-    else:
-        path = uri
-    import os
-
-    return os.path.dirname(path) if path else None
-
-
-def _publish_apl_diagnostics(
-    uri: str,
-    source: str,
-    version: int | None = None,
-) -> None:
-    """Parse an APL presentation file and publish cross-reference diagnostics."""
-
-    from core.analysis.semantic_model import Severity
-    from core.bigip.iapp_diagnostics import validate_iapp_presentation
-    from core.common.lsp import to_lsp_range
-
-    base_dir = _uri_to_dir(uri)
-    model = background_scanner.parse_apl_source(uri, source, base_dir)
-    if model is None:
-        server.text_document_publish_diagnostics(
-            types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
-        )
-        return
-
-    if not feature_config.diagnostics_enabled:
-        server.text_document_publish_diagnostics(
-            types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
-        )
-        return
-
-    # Look for sibling implementation to cross-validate
-    impl_var_refs = _find_sibling_impl_vars(uri, base_dir)
-
-    severity_map = {
-        Severity.ERROR: types.DiagnosticSeverity.Error,
-        Severity.WARNING: types.DiagnosticSeverity.Warning,
-        Severity.INFO: types.DiagnosticSeverity.Information,
-        Severity.HINT: types.DiagnosticSeverity.Hint,
-    }
-    raw = validate_iapp_presentation(model, impl_var_refs)
-    results: list[types.Diagnostic] = []
-    for d in raw:
-        if feature_config.disabled_diagnostics and d.code in feature_config.disabled_diagnostics:
-            continue
-        results.append(
-            types.Diagnostic(
-                range=to_lsp_range(d.range),
-                message=d.message,
-                severity=severity_map.get(d.severity, types.DiagnosticSeverity.Warning),
-                source="tcl-lsp",
-                code=d.code or None,
-            )
-        )
-    server.text_document_publish_diagnostics(
-        types.PublishDiagnosticsParams(uri=uri, diagnostics=results, version=version)
-    )
-
-
-def _find_sibling_impl_vars(uri: str, base_dir: str | None) -> list | None:
-    """Find and extract iApp variable references from a sibling implementation file."""
-    import os
-
-    from core.bigip.iapp_vars import extract_iapp_var_refs
-
-    # Check open documents first
-    impl_uri = background_scanner.find_sibling_impl_source(uri)
-    if impl_uri is not None:
-        try:
-            impl_doc = server.workspace.get_text_document(impl_uri)
-            if impl_doc is not None:
-                return extract_iapp_var_refs(impl_doc.source)
-        except Exception:
-            pass
-
-    # Try to find implementation file on disk
-    if not base_dir:
-        return None
-
-    candidates: list[str] = []
-    # Extensionless "implementation" file
-    impl_path = os.path.join(base_dir, "implementation")
-    if os.path.isfile(impl_path):
-        candidates.append(impl_path)
-    # Files with iApp extensions
-    try:
-        for fname in os.listdir(base_dir):
-            ext = os.path.splitext(fname)[1].lower()
-            if ext in (".iapp", ".iappimpl", ".impl"):
-                candidates.append(os.path.join(base_dir, fname))
-    except OSError:
-        pass
-
-    for path in candidates:
-        try:
-            with open(path, encoding="utf-8", errors="replace") as f:
-                return extract_iapp_var_refs(f.read())
-        except OSError:
-            continue
-    return None
 
 
 @server.feature(types.TEXT_DOCUMENT_DID_OPEN)
@@ -2945,7 +1894,7 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     # override the editor's default setting — the pull-model config
     # reports the package.json default ("tcl8.6") which would otherwise
     # suppress auto-detection via dialect_explicitly_set.
-    if not is_irules_dialect() and _is_irules_source(uri):
+    if not is_irules_dialect() and _dp._is_irules_source(uri):
         log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
         configure_signatures(dialect="f5-irules")
         server.window_show_message(
@@ -2970,15 +1919,15 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
             # Tcl version (e.g. another file has package require Tcl 9.0).
             _upgrade_dialect_from_workspace()
 
-    if _is_bigip_conf(uri):
-        _publish_bigip_diagnostics(
+    if _dp._is_bigip_conf(uri):
+        _dp._publish_bigip_diagnostics(
             uri,
             params.text_document.text,
             params.text_document.version,
         )
         return
-    if _is_apl_source(uri):
-        _publish_apl_diagnostics(
+    if _dp._is_apl_source(uri):
+        _dp._publish_apl_diagnostics(
             uri,
             params.text_document.text,
             params.text_document.version,
@@ -2990,7 +1939,7 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     # for the entire analysis duration (~seconds on large files),
     # starving the event loop due to GIL contention.
     asyncio.create_task(
-        _publish_diagnostics(
+        _dp._publish_diagnostics(
             uri,
             params.text_document.text,
             params.text_document.version,
@@ -3002,21 +1951,21 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
 @server.feature(types.TEXT_DOCUMENT_DID_CHANGE)
 async def did_change(params: types.DidChangeTextDocumentParams) -> None:
     doc = server.workspace.get_text_document(params.text_document.uri)
-    if _is_bigip_conf(params.text_document.uri):
-        _publish_bigip_diagnostics(
+    if _dp._is_bigip_conf(params.text_document.uri):
+        _dp._publish_bigip_diagnostics(
             params.text_document.uri,
             doc.source,
             params.text_document.version,
         )
         return
-    if _is_apl_source(params.text_document.uri):
-        _publish_apl_diagnostics(
+    if _dp._is_apl_source(params.text_document.uri):
+        _dp._publish_apl_diagnostics(
             params.text_document.uri,
             doc.source,
             params.text_document.version,
         )
         return
-    await _publish_diagnostics(
+    await _dp._publish_diagnostics(
         params.text_document.uri,
         doc.source,
         params.text_document.version,
@@ -3028,15 +1977,15 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     uri = params.text_document.uri
     log.info("Closed %s", uri)
     diagnostic_scheduler.cancel(uri)
-    if _is_bigip_conf(uri):
+    if _dp._is_bigip_conf(uri):
         background_scanner.remove_bigip_config(uri)
-        server.text_document_publish_diagnostics(
+        server.text_document_dp._publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
-    if _is_apl_source(uri):
+    if _dp._is_apl_source(uri):
         background_scanner.remove_apl_model(uri)
-        server.text_document_publish_diagnostics(
+        server.text_document_dp._publish_diagnostics(
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
         )
         return
@@ -3051,7 +2000,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     else:
         workspace_index.remove(uri)
     # Clear diagnostics for closed file
-    server.text_document_publish_diagnostics(
+    server.text_document_dp._publish_diagnostics(
         types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
     )
 
@@ -3328,8 +2277,7 @@ def on_initialized(params: types.InitializedParams) -> None:
     if config_settings:
         formatting = config_settings.get("formatting")
         if isinstance(formatting, dict) and formatting:
-            global formatter_config
-            formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
+            _state.formatter_config = FormatterConfig.from_dict(_normalise_formatter_settings(formatting))
         _apply_feature_settings(config_settings)
 
     process_start = getattr(server, "_process_start_time", None)
@@ -3497,7 +2445,7 @@ def _switch_dialect(dialect: str) -> dict:
         for uri, state in workspace_state.items():
             if loop is not None:
                 loop.create_task(
-                    _publish_diagnostics(
+                    _dp._publish_diagnostics(
                         uri,
                         state.source,
                         state.version,
@@ -3505,7 +2453,7 @@ def _switch_dialect(dialect: str) -> dict:
                     )
                 )
             else:
-                _publish_diagnostics_sync(
+                _dp._publish_diagnostics_sync(
                     uri,
                     state.source,
                     state.version,
@@ -3694,429 +2642,19 @@ def on_did_rename_files(params: types.RenameFilesParams) -> None:
             )
 
 
-# Configuration
 
-# Loaded from the self-registering code registry (core.common.codes).
-_ALL_DIAGNOSTIC_CODES = diagnostic_codes()
-_ALL_OPTIMISATION_CODES = optimisation_codes()
+# Configuration (extracted to lsp/settings.py)
 
-_FEATURE_TOGGLE_KEYS = {
-    "hover": "hover_enabled",
-    "completion": "completion_enabled",
-    "diagnostics": "diagnostics_enabled",
-    "semanticTokens": "semantic_tokens_enabled",
-    "codeActions": "code_actions_enabled",
-    "definition": "definition_enabled",
-    "references": "references_enabled",
-    "documentSymbols": "document_symbols_enabled",
-    "folding": "folding_enabled",
-    "rename": "rename_enabled",
-    "signatureHelp": "signature_help_enabled",
-    "workspaceSymbols": "workspace_symbols_enabled",
-    "inlayHints": "inlay_hints_enabled",
-    "callHierarchy": "call_hierarchy_enabled",
-    "documentLinks": "document_links_enabled",
-    "selectionRange": "selection_range_enabled",
-    "documentHighlight": "document_highlight_enabled",
-    "codeLens": "code_lens_enabled",
-    "workspaceFileOps": "workspace_file_ops_enabled",
-    "pullDiagnostics": "pull_diagnostics_enabled",
-    "willSaveWaitUntil": "will_save_wait_until_enabled",
-    "progress": "progress_enabled",
-    "implementation": "implementation_enabled",
-    "typeDefinition": "type_definition_enabled",
-    "declaration": "declaration_enabled",
-    "linkedEditingRange": "linked_editing_range_enabled",
-}
-
-
-# Feature toggles in this set are evaluated only at import time because the
-# associated handler registration happens via the @server.feature decorator
-# before any configuration is read.  Flipping them at runtime via
-# didChangeConfiguration has no effect — a server restart is required.  The
-# config loader logs a warning when it sees one change so users know.
-_RESTART_REQUIRED_TOGGLES = frozenset({"pull_diagnostics_enabled"})
-
-
-def _apply_feature_settings(tcl_settings: dict) -> bool:
-    """Apply feature toggles and diagnostic/optimiser filters.
-
-    Returns True if diagnostics need to be republished.
-    """
-    global feature_config
-    changed = False
-
-    def _set_toggle(attr: str, val: object) -> bool:
-        """Update a toggle and return True if the change affects diagnostics.
-
-        Defensively rejects non-bool inputs.  Both the nested-dict and the
-        flat-key paths already filter on ``isinstance(value, bool)``, but
-        the check lives here too so the invariant survives call-site
-        refactors and catches malformed settings payloads.
-        """
-        nonlocal changed
-        if not isinstance(val, bool):
-            return False
-        if val == getattr(feature_config, attr):
-            return False
-        setattr(feature_config, attr, val)
-        if attr in _RESTART_REQUIRED_TOGGLES:
-            log.warning(
-                "Feature toggle %r changed at runtime but takes effect only "
-                "after a server restart (handler registration is fixed at "
-                "startup).",
-                attr,
-            )
-            # Don't mark diagnostics as changed — the underlying capability
-            # hasn't really moved and republishing would be misleading.
-            return False
-        changed = True
-        return True
-
-    # Feature-level toggles  (tclLsp.features.hover etc.)
-    features = tcl_settings.get("features")
-    if isinstance(features, dict):
-        for json_key, attr in _FEATURE_TOGGLE_KEYS.items():
-            val = features.get(json_key)
-            if val is None:
-                # Also accept snake_case variant from flat key extraction.
-                val = features.get(_camel_to_snake(json_key))
-            if isinstance(val, bool):
-                _set_toggle(attr, val)
-
-    # Also accept flat keys: tclLsp.features.hover -> features.hover
-    for key, value in tcl_settings.items():
-        if isinstance(key, str) and key.startswith("features.") and isinstance(value, bool):
-            json_key = key[len("features.") :]
-            attr = _FEATURE_TOGGLE_KEYS.get(json_key) or _FEATURE_TOGGLE_KEYS.get(
-                _camel_to_snake(json_key)
-            )
-            if attr:
-                _set_toggle(attr, value)
-
-    # Per-diagnostic-code filters  (tclLsp.diagnostics.W100 etc.)
-    diagnostics_section = tcl_settings.get("diagnostics")
-    if isinstance(diagnostics_section, dict):
-        new_disabled: set[str] = set(default_disabled_diagnostics())
-        for code in _ALL_DIAGNOSTIC_CODES:
-            val = diagnostics_section.get(code)
-            if isinstance(val, bool):
-                if not val:
-                    new_disabled.add(code)
-                else:
-                    new_disabled.discard(code)
-        if new_disabled != feature_config.disabled_diagnostics:
-            feature_config.disabled_diagnostics = new_disabled
-            changed = True
-
-        # Warn about unrecognised codes.
-        _DIAG_NON_CODE_KEYS = {"genericVariablePatterns", "generic_variable_patterns"}
-        unknown_diag = {
-            k
-            for k, v in diagnostics_section.items()
-            if v is False and k not in _ALL_DIAGNOSTIC_CODES and k not in _DIAG_NON_CODE_KEYS
-        }
-        if unknown_diag:
-            log.warning(
-                "Unrecognised diagnostic codes in settings (ignored): %s", sorted(unknown_diag)
-            )
-
-    # Style settings  (tclLsp.style.lineLength, tclLsp.style.nonAscii)
-    style_section = tcl_settings.get("style")
-    if isinstance(style_section, dict):
-        ll = style_section.get("lineLength")
-        if isinstance(ll, int) and ll > 0 and ll != feature_config.line_length:
-            feature_config.line_length = ll
-            changed = True
-        non_ascii = style_section.get("nonAscii")
-        if isinstance(non_ascii, str) and non_ascii in ("strict", "confusables", "common", "off"):
-            from core.analysis.checks._style import set_non_ascii_mode
-
-            set_non_ascii_mode(non_ascii)
-            changed = True
-
-    # Shimmer detection toggle  (tclLsp.shimmer.enabled)
-    shimmer_section = tcl_settings.get("shimmer")
-    if isinstance(shimmer_section, dict):
-        shimmer_master = shimmer_section.get("enabled")
-        if isinstance(shimmer_master, bool) and shimmer_master != feature_config.shimmer_enabled:
-            feature_config.shimmer_enabled = shimmer_master
-            changed = True
-
-    # XC diagnostics toggle  (tclLsp.xcDiagnostics.enabled)
-    xc_section = tcl_settings.get("xcDiagnostics")
-    if isinstance(xc_section, dict):
-        xc_enabled = xc_section.get("enabled")
-        if isinstance(xc_enabled, bool) and xc_enabled != feature_config.xc_diagnostics_enabled:
-            feature_config.xc_diagnostics_enabled = xc_enabled
-            changed = True
-
-    # Optimiser master switch, profile, + per-code  (tclLsp.optimiser.*)
-    optimiser_section = tcl_settings.get("optimiser")
-    if isinstance(optimiser_section, dict):
-        master = optimiser_section.get("enabled")
-        if isinstance(master, bool) and master != feature_config.optimiser_enabled:
-            feature_config.optimiser_enabled = master
-            changed = True
-
-        # Profile setting (tclLsp.optimiser.profile).
-        profile_name = optimiser_section.get("profile")
-        if isinstance(profile_name, str) and profile_name in PROFILE_NAMES:
-            if profile_name != feature_config.optimiser_profile:
-                feature_config.optimiser_profile = profile_name
-                changed = True
-        elif isinstance(profile_name, str) and profile_name:
-            log.warning("Unknown optimiser profile %r (ignored)", profile_name)
-
-        # Start from profile baseline, then apply per-code overrides.
-        # null/missing = inherit from profile; true = force-enable; false = force-disable.
-        try:
-            base_disabled = set(
-                profile_to_disabled(profile_from_name(feature_config.optimiser_profile))
-            )
-        except ValueError:
-            base_disabled = set(profile_to_disabled(DEFAULT_EDITOR_PROFILE))
-
-        for code in _ALL_OPTIMISATION_CODES:
-            val = optimiser_section.get(code)
-            if val is True:
-                base_disabled.discard(code)
-            elif val is False:
-                base_disabled.add(code)
-            # val is None/missing → inherit from profile (no change)
-
-        if base_disabled != feature_config.disabled_optimisations:
-            feature_config.disabled_optimisations = base_disabled
-            changed = True
-
-        unknown_opt = {
-            k
-            for k, v in optimiser_section.items()
-            if v is False and k not in _ALL_OPTIMISATION_CODES and k not in ("enabled", "profile")
-        }
-        if unknown_opt:
-            log.warning(
-                "Unrecognised optimisation codes in settings (ignored): %s", sorted(unknown_opt)
-            )
-
-    # Generic variable patterns  (tclLsp.diagnostics.genericVariablePatterns)
-    if isinstance(diagnostics_section, dict):
-        patterns = diagnostics_section.get("genericVariablePatterns")
-        if patterns is None:
-            patterns = diagnostics_section.get("generic_variable_patterns")
-        if isinstance(patterns, list):
-            new_patterns = [str(p) for p in patterns if isinstance(p, str)]
-            if not new_patterns:
-                new_patterns = None  # treat empty list as "use defaults"
-            if (
-                new_patterns is not None
-                and new_patterns != feature_config.generic_variable_patterns
-            ):
-                feature_config.generic_variable_patterns = new_patterns
-                changed = True
-
-    return changed
-
-
-# ---- Settings debounce ----
-# Rapid didChangeConfiguration notifications (e.g. dialect ping-pong during
-# startup) are coalesced so only the final settings are applied.
-_pending_settings: dict | None = None
-_pending_settings_handle: asyncio.TimerHandle | None = None
-_SETTINGS_DEBOUNCE_S = 0.3
-
-
-def _apply_all_settings(tcl_settings: dict) -> None:
-    """Debounced settings application — leading-edge with trailing coalesce.
-
-    On the *first* call (no pending timer) the settings are applied
-    immediately so that the initial dialect switch is not delayed.
-    A cooldown timer is started; if another call arrives within the
-    debounce window the timer is reset so that only the latest settings
-    are applied at the trailing edge.  This prevents the dialect
-    ping-pong problem where two rapid ``didChangeConfiguration``
-    notifications each trigger a full rebuild of every open document.
-    """
-    global _pending_settings, _pending_settings_handle
-
-    first_in_burst = _pending_settings_handle is None
-    _pending_settings = tcl_settings
-    if _pending_settings_handle is not None:
-        _pending_settings_handle.cancel()
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        # No running loop (e.g. during tests) — apply immediately.
-        _apply_all_settings_now()
-        return
-    if first_in_burst:
-        # Leading edge — apply immediately and start cooldown.
-        _apply_all_settings_now()
-    # Schedule trailing-edge apply (resets on each subsequent call).
-    _pending_settings_handle = loop.call_later(
-        _SETTINGS_DEBOUNCE_S,
-        _apply_all_settings_now,
-    )
-
-
-def _apply_all_settings_now() -> None:
-    """Apply the most recent settings (called after debounce timer).
-
-    This is the shared implementation used by both the push-model
-    ``workspace/didChangeConfiguration`` handler and the pull-model
-    ``workspace/configuration`` callback.
-    """
-    global _pending_settings, _pending_settings_handle, formatter_config
-    settings = _pending_settings
-    _pending_settings = None
-    _pending_settings_handle = None
-    if settings is None:
-        return
-
-    tcl_settings = settings
-
-    formatting = tcl_settings.get("formatting")
-    if isinstance(formatting, dict) and formatting:
-        # Merge onto the current config so partial editor settings don't
-        # clobber XDG baseline values for keys the editor didn't send.
-        current = formatter_config.to_dict()
-        current.update(_normalise_formatter_settings(formatting))
-        formatter_config = FormatterConfig.from_dict(current)
-
-    extra_commands_setting = tcl_settings.get("extraCommands")
-    if extra_commands_setting is None:
-        extra_commands_setting = tcl_settings.get("extra_commands")
-    if extra_commands_setting is None:
-        extra_commands = None
-    elif isinstance(extra_commands_setting, list):
-        extra_commands = [str(cmd) for cmd in extra_commands_setting]
-    else:
-        extra_commands = []
-
-    # Library paths for background scanning and package resolution
-    library_paths_setting = tcl_settings.get("libraryPaths")
-    if library_paths_setting is None:
-        library_paths_setting = tcl_settings.get("library_paths")
-    if isinstance(library_paths_setting, list):
-        library_paths = [str(p) for p in library_paths_setting]
-        background_scanner.configure(library_paths=library_paths)
-        # Prepend workspace roots so a local copy of a package still
-        # wins over the configured library paths.  The scanner's
-        # ``workspace_roots`` accessor returns a snapshot of the list
-        # set in ``on_initialized``, which this settings update leaves
-        # unchanged.
-        resolver_paths = background_scanner.workspace_roots + library_paths
-        package_resolver.configure(search_paths=resolver_paths)
-        _loaded_packages.clear()
-        threading.Thread(target=_run_background_scan, daemon=True).start()
-
-    dialect_setting = tcl_settings.get("dialect")
-    if isinstance(dialect_setting, str) and dialect_setting:
-        feature_config.dialect_explicitly_set = True
-    signatures_changed = configure_signatures(
-        dialect=dialect_setting if isinstance(dialect_setting, str) else None,
-        extra_commands=extra_commands,
-    )
-    if signatures_changed:
-        from core.common.dialect import active_dialect
-
-        log.info(
-            "Dialect changed to %s (explicit=%s)",
-            active_dialect(),
-            feature_config.dialect_explicitly_set,
-        )
-
-    diags_were_enabled = feature_config.diagnostics_enabled
-    features_changed = _apply_feature_settings(tcl_settings)
-
-    if not signatures_changed and not features_changed:
-        return
-
-    if signatures_changed:
-        # Cancel any in-flight background deep-diagnostic tasks so they
-        # do not overwrite the fresh diagnostics we are about to publish
-        # with stale results computed under the old dialect/signatures.
-        diagnostic_scheduler.cancel_all()
-
-    # Dialect/signature changes: use async re-analysis so the event
-    # loop stays responsive — semantic token requests can be served
-    # while analysis runs in a background thread.
-    #
-    # Feature-only changes: use the sync path because state.update()
-    # properly detects files that haven't been analyzed yet (analysis
-    # is None) and triggers initial analysis, which the async path's
-    # update_source_quick does not detect.
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    for uri, state in workspace_state.items():
-        if signatures_changed and loop is not None:
-            loop.create_task(
-                _publish_diagnostics(
-                    uri,
-                    state.source,
-                    state.version,
-                    force_reanalyse=True,
-                )
-            )
-        elif state.analysis is not None:
-            # Only sync-republish files that already have analysis.
-            # Files with analysis=None are being analysed in a subprocess
-            # and will publish diagnostics when complete — running
-            # state.update synchronously here would trigger a redundant
-            # full rebuild on the main thread, blocking the event loop.
-            _publish_diagnostics_sync(
-                uri,
-                state.source,
-                state.version,
-                force_reanalyse=signatures_changed,
-            )
-
-    # When the diagnostics master switch was just turned off, clear
-    # diagnostics for files still mid-analysis (analysis is None).
-    # The loop above skips these to avoid redundant rebuilds, but we
-    # must still publish empty diagnostics so the editor removes any
-    # stale markers immediately.
-    if diags_were_enabled and not feature_config.diagnostics_enabled:
-        for uri, state in workspace_state.items():
-            if state.analysis is None:
-                _publish_diags_to_client(uri, [], state.version)
-
-
-def _pull_and_apply_configuration() -> None:
-    """Pull configuration from the client via ``workspace/configuration``.
-
-    Used as a fallback when ``didChangeConfiguration`` arrives with null
-    settings (pull-model clients such as vscode-languageclient v10 and
-    JetBrains).  Also called proactively from ``on_initialized`` to pick
-    up initial editor settings.
-    """
-    params = types.ConfigurationParams(items=[types.ConfigurationItem(section="tclLsp")])
-
-    def _on_result(result: list[object] | None) -> None:  # type: ignore[type-arg]
-        if not result:
-            return
-        item = result[0]
-        if not isinstance(item, dict):
-            return
-        # The response is already unwrapped (section was "tclLsp"), so it
-        # matches the format _extract_tcl_lsp_settings would produce.
-        _apply_all_settings(item)
-
-    try:
-        server.workspace_configuration(params, callback=_on_result)
-    except Exception:
-        log.debug("workspace/configuration pull failed", exc_info=True)
-
-
-@server.feature(types.WORKSPACE_DID_CHANGE_CONFIGURATION)
-def did_change_configuration(params: types.DidChangeConfigurationParams) -> None:
-    settings = params.settings
-    if not settings:
-        # Pull-model: client sent a bare notification; fetch the actual values.
-        _pull_and_apply_configuration()
-        return
-
-    tcl_settings = _extract_tcl_lsp_settings(settings)
-    _apply_all_settings(tcl_settings)
+from .settings import (
+    _ALL_DIAGNOSTIC_CODES,
+    _ALL_OPTIMISATION_CODES,
+    _FEATURE_TOGGLE_KEYS,
+    _apply_feature_settings,
+    _apply_all_settings,
+    _apply_all_settings_now,
+    _pull_and_apply_configuration,
+)
+from .settings import configure as _configure_settings
+from .settings import register as _register_settings
+_configure_settings(server)
+_register_settings(server)
