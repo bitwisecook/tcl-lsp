@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.analyser import Analyser
+from core.analysis import Analyser
 from core.compiler.lowering import lower_commands_to_ir, lower_to_ir
 from core.parsing.command_segmenter import (
     segment_commands,
@@ -370,7 +370,7 @@ class TestSemanticTokenCaching:
 
     def test_semantic_token_cache_roundtrip(self):
         """Cached semantic tokens should produce same result as full computation."""
-        from lsp.features.semantic_tokens import semantic_tokens_full
+        from lsp.features import semantic_tokens_full
 
         source = "set x 10\nset y 20\nproc foo {a} { return $a }\n"
         state = DocumentState(uri="test")
@@ -416,7 +416,7 @@ class TestSemanticTokenCaching:
         state.update(source1)
 
         # Populate semantic token cache.
-        from lsp.features.semantic_tokens import semantic_tokens_full
+        from lsp.features import semantic_tokens_full
 
         cache_info = state.get_semantic_token_cache()
         assert cache_info is not None

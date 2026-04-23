@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.analysis.analyser import Analyser, AnalyserSnapshot, AnalysisResult
+from core.analysis import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
 from core.common.codes import default_disabled_diagnostics
@@ -70,7 +70,7 @@ def _get_precompute_chunk_tokens_fn():
     """Lazily import ``precompute_chunk_tokens``."""
     global _precompute_chunk_tokens_fn
     if _precompute_chunk_tokens_fn is None:
-        from lsp.features.semantic_tokens import precompute_chunk_tokens
+        from lsp.features import precompute_chunk_tokens
 
         _precompute_chunk_tokens_fn = precompute_chunk_tokens
     return _precompute_chunk_tokens_fn
@@ -781,7 +781,7 @@ class DocumentState:
         if snap.chunk_caches or not snap.chunks or snap.buffer is None:
             return False  # already have caches, or no chunks to work from
 
-        from lsp.features.semantic_tokens import precompute_chunk_tokens
+        from lsp.features import precompute_chunk_tokens
 
         t0 = time.perf_counter()
         buf = snap.buffer

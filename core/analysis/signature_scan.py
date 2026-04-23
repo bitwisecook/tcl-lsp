@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.analysis.analyser import parse_param_list
+from core.analysis import parse_param_list
 from core.analysis.semantic_model import (
     AnalysisResult,
     AutoPathEntry,

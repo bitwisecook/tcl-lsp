@@ -14,10 +14,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.parsing.lexer import TclLexer
 from core.parsing.tokens import TokenType
-from lsp.features.semantic_tokens import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
+from lsp.features import SEMANTIC_TOKEN_TYPES, semantic_tokens_full
 
 from .helpers import lex
 

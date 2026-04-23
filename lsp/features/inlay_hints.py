@@ -6,7 +6,7 @@ import logging
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult
 from core.compiler.core_analyses import analyse_source
 from core.compiler.types import TypeKind
@@ -14,7 +14,7 @@ from core.parsing.lexer import TclLexer
 from core.parsing.token_positions import token_content_shift
 from core.parsing.tokens import TokenType
 
-from .semantic_tokens import (
+from ._semantic_tokens import (
     _BINARY_FORMAT_SPECIFIERS,
     _CLOCK_FORMAT_RE,
     _REGSUB_BACKREF_RE,

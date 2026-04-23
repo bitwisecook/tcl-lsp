@@ -19,7 +19,7 @@ from lsprotocol import types
 from pygls.lsp.server import LanguageServer
 
 import core.common.codes_all  # noqa: F401  # trigger all code registrations
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.irules_checks import DEFAULT_GENERIC_VARIABLE_PATTERNS
 from core.commands.registry import REGISTRY
 from core.commands.registry.info import effective_event_requires
@@ -49,6 +49,12 @@ from explorer.pipeline import run_pipeline as explorer_run_pipeline
 from explorer.serialise import serialise_result as explorer_serialise_result
 
 from .async_diagnostics import DiagnosticScheduler
+from .features import (
+    SEMANTIC_TOKEN_MODIFIERS,
+    SEMANTIC_TOKEN_TYPES,
+    compute_semantic_tokens_edits,
+    semantic_tokens_full,
+)
 from .features.call_hierarchy import (
     incoming_calls as get_incoming_calls,
 )
@@ -77,12 +83,6 @@ from .features.package_suggestions import rank_package_suggestions
 from .features.references import find_proc_call_sites, get_references
 from .features.rename import get_rename_edits, prepare_rename
 from .features.selection_range import get_selection_ranges
-from .features.semantic_tokens import (
-    SEMANTIC_TOKEN_MODIFIERS,
-    SEMANTIC_TOKEN_TYPES,
-    compute_semantic_tokens_edits,
-    semantic_tokens_full,
-)
 from .features.signature_help import get_signature_help
 from .features.symbol_resolution import find_word_at_position
 from .features.type_definition import get_type_definition
@@ -3073,10 +3073,10 @@ def _warm_imports() -> None:
     try:
         # These imports trigger the heavy attrs class compilation in
         # lsprotocol.types and the diagnostic/compiler pipelines.
-        import core.analysis.analyser  # noqa: F811, F401
+        import core.analysis  # noqa: F811, F401
         import core.compiler.compilation_unit  # noqa: F811, F401
+        import lsp.features._semantic_tokens  # noqa: F811, F401
         import lsp.features.diagnostics  # noqa: F811, F401
-        import lsp.features.semantic_tokens  # noqa: F811, F401
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
         log.info("[timing] import warming %.0fms", elapsed_ms)

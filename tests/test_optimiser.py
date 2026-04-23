@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import Range
 from core.commands.registry.runtime import configure_signatures
 from core.compiler.optimiser import (
@@ -1926,7 +1926,7 @@ class TestTailCallOptimisation:
 
     def test_o122_output_is_valid_tcl(self):
         """O122 rewrite should not produce trailing syntax errors."""
-        from core.analysis.analyser import analyse
+        from core.analysis import analyse
 
         source = textwrap.dedent("""\
             proc gcd {a b} {

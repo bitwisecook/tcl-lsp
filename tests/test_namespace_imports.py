@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.auto_path_eval import evaluate_auto_path_expr
 from core.analysis.namespace_imports import rewrite_via_imports
 from core.analysis.semantic_model import NamespaceImport, Range

@@ -18,6 +18,7 @@ from .models import (
     PatternType,
     SubCommand,
     ValidationSpec,
+    WasmEmitHook,
 )
 
 __all__ = [
@@ -36,8 +37,9 @@ __all__ = [
     "OptionSpec",
     "PatternType",
     "REGISTRY",
-    "lookup_command_info",
-    "lookup_event_info",
     "SubCommand",
     "ValidationSpec",
+    "WasmEmitHook",
+    "lookup_command_info",
+    "lookup_event_info",
 ]

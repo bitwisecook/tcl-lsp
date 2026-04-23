@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.tk.common import is_widget_path, parent_widget_path
 from core.tk.diagnostics import check_tk_diagnostics
 from core.tk.extract import extract_tk_layout

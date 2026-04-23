@@ -681,15 +681,17 @@ pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
     var i: i64 = 0;
     while (i < count) : (i += 1) {
         const elt = obj.list_element_at(params_s.ptr, params_s.len, i);
+        // elt.start is an offset from params_s.ptr, not an absolute address.
+        const elt_ptr = params_s.ptr + elt.start;
         // Is this a two-element ``{name default}`` pair?  Split the
         // element into its own sub-elements and compare.
-        const sub_count = obj.list_count_elements(elt.start, elt.len);
+        const sub_count = obj.list_count_elements(elt_ptr, elt.len);
         if (sub_count == 0) continue;
-        const name_sub = obj.list_element_at(elt.start, elt.len, 0);
+        const name_sub = obj.list_element_at(elt_ptr, elt.len, 0);
         if (name_sub.len != arg_s.len) continue;
         if (name_sub.len == 0) continue;
         const ap: [*]const u8 = @ptrFromInt(arg_s.ptr);
-        const np: [*]const u8 = @ptrFromInt(name_sub.start);
+        const np: [*]const u8 = @ptrFromInt(elt_ptr + name_sub.start);
         var match = true;
         var k: u32 = 0;
         while (k < arg_s.len) : (k += 1) {
@@ -708,8 +710,8 @@ pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
             _ = frames.var_set(var_name, obj_new_string(0, 0));
             return obj_new_int(0);
         }
-        const default_sub = obj.list_element_at(elt.start, elt.len, 1);
-        const default_obj = obj_new_string(@bitCast(default_sub.start), @bitCast(default_sub.len));
+        const default_sub = obj.list_element_at(elt_ptr, elt.len, 1);
+        const default_obj = obj_new_string(@bitCast(elt_ptr + default_sub.start), @bitCast(default_sub.len));
         _ = frames.var_set(var_name, default_obj);
         return obj_new_int(1);
     }

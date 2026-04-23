@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.commands.registry.runtime import configure_signatures
 from core.compiler.compilation_unit import compile_source
 from core.compiler.gvn import find_redundant_computations

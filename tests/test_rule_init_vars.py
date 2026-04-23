@@ -266,7 +266,7 @@ class TestWorkspaceIndexRuleInitVars:
         assert len(results) == 2
 
     def test_remove_cleans_rule_init_vars(self):
-        from core.analysis.analyser import analyse
+        from core.analysis import analyse
 
         idx = WorkspaceIndex()
         result = analyse("set x 1")

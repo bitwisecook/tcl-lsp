@@ -6,7 +6,7 @@ via :mod:`core.common.codes`.  Each module registers its codes via
 """
 
 # analysis
-import core.analysis.analyser  # noqa: F401
+import core.analysis  # noqa: F401
 import core.analysis.checks._domain  # noqa: F401
 import core.analysis.checks._security  # noqa: F401
 import core.analysis.checks._style  # noqa: F401
