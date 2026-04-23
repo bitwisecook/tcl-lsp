@@ -7,23 +7,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import lsp.server as server_module
+import lsp.settings as _lsp_settings
+import lsp.state as _lsp_state
+from lsp.feature_config import FeatureConfig
+from lsp.settings import _extract_tcl_lsp_settings
 
 
 def test_optimiser_filters_include_o103_o104():
-    original = server_module.feature_config
+    original = _lsp_state.feature_config
     try:
-        server_module.feature_config = server_module.FeatureConfig()
-        # Use ``full`` profile as baseline so all codes start enabled,
-        # then disable O103/O104 to verify the per-code override works.
-        changed = server_module._apply_feature_settings(
+        _lsp_state.feature_config = FeatureConfig()
+        changed = _lsp_settings._apply_feature_settings(
             {"optimiser": {"profile": "full", "O103": False, "O104": False}}
         )
         assert changed
-        assert "O103" in server_module.feature_config.disabled_optimisations
-        assert "O104" in server_module.feature_config.disabled_optimisations
+        assert "O103" in _lsp_state.feature_config.disabled_optimisations
+        assert "O104" in _lsp_state.feature_config.disabled_optimisations
     finally:
-        server_module.feature_config = original
+        _lsp_state.feature_config = original
 
 
 # -- _extract_tcl_lsp_settings -----------------------------------------------
@@ -35,7 +36,7 @@ class TestExtractSettings:
     def test_nested_payload(self):
         """Standard nested shape: {\"tclLsp\": {...}}."""
         settings = {"tclLsp": {"dialect": "tcl8.6", "optimiser": {"O109": False}}}
-        result = server_module._extract_tcl_lsp_settings(settings)
+        result = _extract_tcl_lsp_settings(settings)
         assert result["dialect"] == "tcl8.6"
         assert result["optimiser"]["O109"] is False
 
@@ -46,7 +47,7 @@ class TestExtractSettings:
             "tclLsp.optimiser.enabled": True,
             "tclLsp.dialect": "f5-irules",
         }
-        result = server_module._extract_tcl_lsp_settings(settings)
+        result = _extract_tcl_lsp_settings(settings)
         assert result["dialect"] == "f5-irules"
         assert result["optimiser"]["O109"] is False
         assert result["optimiser"]["enabled"] is True
@@ -58,7 +59,7 @@ class TestExtractSettings:
             "optimiser": {"O109": False, "enabled": True},
             "diagnostics": {"W111": False},
         }
-        result = server_module._extract_tcl_lsp_settings(settings)
+        result = _extract_tcl_lsp_settings(settings)
         assert result["dialect"] == "tcl8.6"
         assert result["optimiser"]["O109"] is False
         assert result["diagnostics"]["W111"] is False
@@ -66,24 +67,24 @@ class TestExtractSettings:
     def test_unwrapped_not_triggered_for_random_keys(self):
         """Unrelated settings dicts should not trigger the unwrapped fallback."""
         settings = {"some_other_setting": 42, "another": "value"}
-        result = server_module._extract_tcl_lsp_settings(settings)
+        result = _extract_tcl_lsp_settings(settings)
         assert result == {}
 
     def test_flat_keys_xcDiagnostics(self):
         """xcDiagnostics section is routed from flat keys."""
         settings = {"tclLsp.xcDiagnostics.enabled": True}
-        result = server_module._extract_tcl_lsp_settings(settings)
+        result = _extract_tcl_lsp_settings(settings)
         assert result["xcDiagnostics"]["enabled"] is True
 
     def test_flat_keys_runtimeValidation(self):
         """runtimeValidation section is routed from flat keys."""
         settings = {"tclLsp.runtimeValidation.enabled": False}
-        result = server_module._extract_tcl_lsp_settings(settings)
+        result = _extract_tcl_lsp_settings(settings)
         assert result["runtimeValidation"]["enabled"] is False
 
     def test_empty_settings(self):
         """Empty settings dict returns empty extraction."""
-        assert server_module._extract_tcl_lsp_settings({}) == {}
+        assert _extract_tcl_lsp_settings({}) == {}
 
 
 # -- _apply_feature_settings --------------------------------------------------
@@ -94,13 +95,13 @@ class TestApplyFeatureSettings:
 
     def _with_fresh_config(self, settings):
         """Apply settings on a fresh FeatureConfig, return (changed, config)."""
-        original = server_module.feature_config
+        original = _lsp_state.feature_config
         try:
-            server_module.feature_config = server_module.FeatureConfig()
-            changed = server_module._apply_feature_settings(settings)
-            return changed, server_module.feature_config
+            _lsp_state.feature_config = FeatureConfig()
+            changed = _lsp_settings._apply_feature_settings(settings)
+            return changed, _lsp_state.feature_config
         finally:
-            server_module.feature_config = original
+            _lsp_state.feature_config = original
 
     def test_disable_diagnostics(self):
         changed, cfg = self._with_fresh_config(
@@ -112,8 +113,6 @@ class TestApplyFeatureSettings:
         assert "IRULE1005" in cfg.disabled_diagnostics
 
     def test_disable_optimisations(self):
-        # Use ``full`` profile so all codes start enabled, then verify
-        # per-code overrides disable them.
         changed, cfg = self._with_fresh_config(
             {"optimiser": {"profile": "full", "O109": False, "O126": False}}
         )
@@ -167,7 +166,6 @@ class TestApplyFeatureSettings:
     def test_unrecognised_codes_ignored(self):
         """Codes not in the manifest are silently stored but don't crash."""
         changed, cfg = self._with_fresh_config({"diagnostics": {"FAKE999": False}})
-        # FAKE999 is not in _ALL_DIAGNOSTIC_CODES, so it should not appear
         assert "FAKE999" not in cfg.disabled_diagnostics
 
     def test_wrong_type_line_length_ignored(self):
