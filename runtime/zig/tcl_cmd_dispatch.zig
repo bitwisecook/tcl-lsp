@@ -85,7 +85,6 @@ fn match_stub(c: []const u8) bool {
     if (eql(c, "scan")) return trap("scan");
     if (eql(c, "binary")) return trap("binary");
     if (eql(c, "regexp")) return trap("regexp");
-    if (eql(c, "regsub")) return trap("regsub");
 
     // Time / event loop.  ``clock seconds`` / ``clock clicks`` /
     // ``clock milliseconds`` are hot-path and handled in
@@ -99,7 +98,6 @@ fn match_stub(c: []const u8) bool {
     if (eql(c, "yield")) return trap("yield");
     if (eql(c, "yieldto")) return trap("yieldto");
     if (eql(c, "yieldmeta")) return trap("yieldmeta");
-    if (eql(c, "tailcall")) return trap("tailcall");
 
     // Environment / metadata.  ``namespace eval`` is handled by the
     // compiler (barrier fallback); this entry catches every other
@@ -111,17 +109,13 @@ fn match_stub(c: []const u8) bool {
     // ``trace`` is handled directly in eval_command via tcl_trace.zig
     // (pass-through add/remove, trap on info).
     if (eql(c, "interp")) return trap("interp");
-    if (eql(c, "apply")) return trap("apply");
     if (eql(c, "rename")) return trap("rename");
     // ``subst`` is handled by cmds/subst_.zig in the cmd_table.
-    if (eql(c, "time")) return trap("time");
     // ``auto_load`` and friends are now handled by cmds/stubs_.zig and
     // intercepted by cmd_table.lookup() before reaching here.  ``unknown``
     // is still a recognised-but-unhandled name so we return false to let
     // the "unknown command" error path fire naturally.
     if (eql(c, "unknown")) return false;
-    if (eql(c, "try")) return trap("try");
-    if (eql(c, "throw")) return trap("throw");
     // ``unknown`` is handled below as a pass-through no-op; a missing
     // ``unknown`` handler just means the stock "unknown command" error
     // triggers, which is exactly what we want here.
@@ -132,11 +126,6 @@ fn match_stub(c: []const u8) bool {
     // of them, something routed around the hot path — treat as
     // unhandled so the generic ``unknown command`` error fires with
     // a useful diagnostic.
-    if (eql(c, "lreverse")) return trap("lreverse");
-    if (eql(c, "lrepeat")) return trap("lrepeat");
-    if (eql(c, "lmap")) return trap("lmap");
-    if (eql(c, "lassign")) return trap("lassign");
-    if (eql(c, "lseq")) return trap("lseq");
 
     // Object system (TclOO, 8.6+).
     if (eql(c, "oo::class")) return trap("oo::class");

@@ -206,6 +206,170 @@ pub export fn tcl_cmd_regexp(pattern: i32, subject: i32) i32 {
     return obj_new_int(if (matched) 1 else 0);
 }
 
+/// Convert a codepoint index into its byte offset in a UTF-8 string.
+fn codepoint_to_byte(src_ptr: u32, src_len: u32, cp_offset: u32) u32 {
+    const src: [*]const u8 = @ptrFromInt(src_ptr);
+    var byte_pos: u32 = 0;
+    var cp_count: u32 = 0;
+    while (byte_pos < src_len and cp_count < cp_offset) {
+        const b0 = src[byte_pos];
+        const nbytes: u32 = if (b0 < 0x80) 1
+            else if ((b0 & 0xE0) == 0xC0) 2
+            else if ((b0 & 0xF0) == 0xE0) 3
+            else if ((b0 & 0xF8) == 0xF0) 4
+            else 1;
+        byte_pos += nbytes;
+        cp_count += 1;
+    }
+    return byte_pos;
+}
+
+/// Run regex with capture support.  Returns the match pmatch buffer address
+/// (or 0 on no-match).  Caller passes a pre-allocated pmatch_buf.
+/// All positions are codepoint offsets relative to the start of sub_u_ptr.
+fn run_match_cap(
+    re_ptr: *anyopaque,
+    sub_u_ptr: u32,
+    sub_u_len: usize,
+    nmatch: usize,
+    pmatch_buf: u32,
+) bool {
+    const pmatch: [*]u8 = @ptrFromInt(pmatch_buf);
+    const rc = TclReExec(re_ptr, @ptrFromInt(sub_u_ptr), sub_u_len, null, nmatch, pmatch, 0);
+    return rc == REG_OKAY;
+}
+
+/// Substitute matches in ``string`` using ``subspec``.
+/// ``&`` in subspec → whole match; ``\N`` (N 1-9) → capture group N.
+/// If ``all`` is true, replaces every non-overlapping occurrence.
+pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: bool) i32 {
+    const pat_s = obj_ensure_string(pattern);
+    const str_s = obj_ensure_string(string);
+    const sub_s = obj_ensure_string(subspec);
+
+    const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
+    const str_u = decode_utf8(str_s.ptr, str_s.len);
+
+    const re_addr = alloc(REGEX_T_SIZE);
+    const re_ptr: *anyopaque = @ptrFromInt(re_addr);
+    const comp_flags: c_int = REG_ADVANCED | (if (nocase) REG_ICASE else @as(c_int, 0));
+    const comp_rc = TclReComp(re_ptr, @ptrFromInt(pat_u.ptr), pat_u.len, comp_flags);
+    if (comp_rc != REG_OKAY) {
+        stubs.raise("regsub: couldn't compile regular expression pattern");
+        return rt.obj_new_string(0, 0);
+    }
+
+    // Allocate result buffer — worst case: every char triggers a full subspec.
+    const sub_len: u32 = sub_s.len;
+    const max_result: u32 = str_s.len * (sub_len + 2) + 256;
+    const result_buf = alloc(max_result);
+    var result_off: u32 = 0;
+
+    const nmatch: usize = 10; // whole match + up to 9 capture groups
+    const pmatch_buf = alloc(@intCast(nmatch * REGMATCH_T_SIZE));
+
+    const str_bytes: [*]const u8 = @ptrFromInt(str_s.ptr);
+    const sub_bytes: [*]const u8 = if (sub_s.len > 0) @ptrFromInt(sub_s.ptr) else undefined;
+    const res_bytes: [*]u8 = @ptrFromInt(result_buf);
+
+    var pos_byte: u32 = 0; // byte position in str_s
+    var pos_cp:   u32 = 0; // codepoint position in str_u
+
+    while (true) {
+        const remaining_cp: usize = str_u.len - pos_cp;
+        const sub_u_start: u32 = str_u.ptr + pos_cp * 4;
+
+        const matched = run_match_cap(re_ptr, sub_u_start, remaining_cp, nmatch, pmatch_buf);
+        if (!matched) break;
+
+        // regmatch_t fields: rm_so then rm_eo, each size_t (4 bytes on wasm32)
+        const pm: [*]const i32 = @ptrFromInt(pmatch_buf);
+        const rm_so: u32 = @intCast(pm[0]); // codepoint offset from pos_cp
+        const rm_eo: u32 = @intCast(pm[1]);
+
+        const match_start_cp   = pos_cp + rm_so;
+        const match_end_cp     = pos_cp + rm_eo;
+        const match_start_byte = codepoint_to_byte(str_s.ptr, str_s.len, match_start_cp);
+        const match_end_byte   = codepoint_to_byte(str_s.ptr, str_s.len, match_end_cp);
+
+        // Append pre-match portion.
+        const pre_len = match_start_byte - pos_byte;
+        rt.memcpy(result_buf + result_off, str_s.ptr + pos_byte, pre_len);
+        result_off += pre_len;
+
+        // Apply subspec substitution.
+        var si: u32 = 0;
+        while (si < sub_s.len) : (si += 1) {
+            const c = sub_bytes[si];
+            if (c == '&') {
+                const mlen = match_end_byte - match_start_byte;
+                rt.memcpy(result_buf + result_off, str_s.ptr + match_start_byte, mlen);
+                result_off += mlen;
+            } else if (c == '\\' and si + 1 < sub_s.len) {
+                si += 1;
+                const c2 = sub_bytes[si];
+                if (c2 >= '1' and c2 <= '9') {
+                    const grp: usize = c2 - '0';
+                    if (grp < nmatch) {
+                        const g_so = pm[grp * 2];
+                        const g_eo = pm[grp * 2 + 1];
+                        if (g_so >= 0 and g_eo > g_so) {
+                            const cap_s_cp = pos_cp + @as(u32, @intCast(g_so));
+                            const cap_e_cp = pos_cp + @as(u32, @intCast(g_eo));
+                            const cap_s_b = codepoint_to_byte(str_s.ptr, str_s.len, cap_s_cp);
+                            const cap_e_b = codepoint_to_byte(str_s.ptr, str_s.len, cap_e_cp);
+                            rt.memcpy(result_buf + result_off, str_s.ptr + cap_s_b, cap_e_b - cap_s_b);
+                            result_off += cap_e_b - cap_s_b;
+                        }
+                    }
+                } else if (c2 == '\\' or c2 == '&') {
+                    res_bytes[result_off] = c2;
+                    result_off += 1;
+                } else {
+                    res_bytes[result_off] = '\\';
+                    res_bytes[result_off + 1] = c2;
+                    result_off += 2;
+                }
+            } else {
+                res_bytes[result_off] = c;
+                result_off += 1;
+            }
+        }
+
+        pos_byte = match_end_byte;
+        pos_cp   = match_end_cp;
+
+        // Avoid infinite loop on zero-length match: advance one codepoint.
+        if (rm_eo == rm_so) {
+            if (pos_byte >= str_s.len) break;
+            const b0 = str_bytes[pos_byte];
+            const step: u32 = if (b0 < 0x80) 1
+                else if ((b0 & 0xE0) == 0xC0) 2
+                else if ((b0 & 0xF0) == 0xE0) 3
+                else if ((b0 & 0xF8) == 0xF0) 4
+                else 1;
+            var ki: u32 = 0;
+            while (ki < step) : (ki += 1) {
+                res_bytes[result_off + ki] = str_bytes[pos_byte + ki];
+            }
+            result_off += step;
+            pos_byte   += step;
+            pos_cp     += 1;
+        }
+
+        if (!all or pos_byte >= str_s.len) break;
+    }
+
+    TclReFree(re_ptr);
+
+    // Append remaining unmatched tail.
+    const tail_len = str_s.len - pos_byte;
+    rt.memcpy(result_buf + result_off, str_s.ptr + pos_byte, tail_len);
+    result_off += tail_len;
+
+    return rt.obj_new_string(@intCast(result_buf), @intCast(result_off));
+}
+
 /// Interpreter-side ``regexp`` command handler.  Called from
 /// ``tcl_interp.zig``'s command dispatch when ``regexp`` appears
 /// in a script evaluated via ``tcl_eval``.  Handles the switch
