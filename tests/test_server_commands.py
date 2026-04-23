@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import lsp.server as server_module
+import lsp.commands as server_module
+import lsp.state as _lsp_state
 from core.bigip.parser import parse_bigip_conf
 
 
@@ -80,9 +81,9 @@ def test_extract_linked_objects_command_returns_graph(monkeypatch: pytest.Monkey
             self._cfgs[parse_uri] = parsed
             return parsed
 
-    monkeypatch.setattr(server_module, "background_scanner", _DummyScanner())
+    monkeypatch.setattr(_lsp_state, "background_scanner", _DummyScanner())
     monkeypatch.setattr(
-        server_module,
+        _lsp_state,
         "_get_doc_source",
         lambda requested_uri: source if requested_uri == uri else "",
     )
@@ -126,9 +127,9 @@ def test_extract_linked_objects_command_with_extra_offsets(
             self._cfgs[parse_uri] = parsed
             return parsed
 
-    monkeypatch.setattr(server_module, "background_scanner", _DummyScanner())
+    monkeypatch.setattr(_lsp_state, "background_scanner", _DummyScanner())
     monkeypatch.setattr(
-        server_module,
+        _lsp_state,
         "_get_doc_source",
         lambda requested_uri: source if requested_uri == uri else "",
     )

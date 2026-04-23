@@ -323,10 +323,8 @@ def _apply_all_settings_now() -> None:
         resolver_paths = _state.background_scanner.workspace_roots + library_paths
         _state.package_resolver.configure(search_paths=resolver_paths)
         _state._loaded_packages.clear()
-        # Lazy import — avoids circular dependency at module load time.
-        # Updated to lsp.workspace_init after Phase 6.
-        import lsp.server as _srv
-        threading.Thread(target=_srv._run_background_scan, daemon=True).start()
+        import lsp.workspace_init as _wi
+        threading.Thread(target=_wi._run_background_scan, daemon=True).start()
 
     dialect_setting = tcl_settings.get("dialect")
     if isinstance(dialect_setting, str) and dialect_setting:
