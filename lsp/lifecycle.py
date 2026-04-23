@@ -21,11 +21,14 @@ log = logging.getLogger(__name__)
 
 _server: LanguageServer | None = None
 
+
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
 
+
 # Document lifecycle handlers
+
 
 async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     t_open = time.perf_counter()
@@ -89,6 +92,7 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     )
     log.info("[timing] did_open total %.0fms (uri=%s)", (time.perf_counter() - t_open) * 1000, uri)
 
+
 async def did_change(params: types.DidChangeTextDocumentParams) -> None:
     doc = _server.workspace.get_text_document(params.text_document.uri)  # type: ignore[union-attr]
     if _dp._is_bigip_conf(params.text_document.uri):
@@ -110,6 +114,7 @@ async def did_change(params: types.DidChangeTextDocumentParams) -> None:
         doc.source,
         params.text_document.version,
     )
+
 
 def did_close(params: types.DidCloseTextDocumentParams) -> None:
     uri = params.text_document.uri
@@ -139,7 +144,9 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
         types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
     )
 
+
 # Shutdown
+
 
 def on_shutdown(params: None) -> None:
     """Cancel pending background tasks and shut down process pool."""
@@ -148,7 +155,9 @@ def on_shutdown(params: None) -> None:
         _state._process_pool.shutdown(wait=False, cancel_futures=True)
         _state._process_pool = None
 
+
 # File-system watch and rename hooks
+
 
 def did_change_watched_files(
     params: types.DidChangeWatchedFilesParams,
@@ -186,6 +195,7 @@ def did_change_watched_files(
                                 scan_result.rule_init_exports,
                             )
 
+
 _RENAME_FILE_OPERATION_OPTIONS = types.FileOperationRegistrationOptions(
     filters=[
         types.FileOperationFilter(
@@ -195,6 +205,7 @@ _RENAME_FILE_OPERATION_OPTIONS = types.FileOperationRegistrationOptions(
         ),
     ],
 )
+
 
 def on_will_rename_files(
     params: types.RenameFilesParams,
@@ -211,6 +222,7 @@ def on_will_rename_files(
         _state.workspace_index,
         workspace_roots=roots,
     )
+
 
 def on_did_rename_files(params: types.RenameFilesParams) -> None:
     """Reindex renamed files after the client applies the rename on disk."""
@@ -232,7 +244,9 @@ def on_did_rename_files(params: types.RenameFilesParams) -> None:
                 EntrySource.BACKGROUND,
             )
 
+
 # Registration
+
 
 def register(server_instance: LanguageServer) -> None:
     """Register all lifecycle handlers with the server."""
@@ -242,9 +256,9 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.feature(types.TEXT_DOCUMENT_DID_CLOSE)(did_close)
     server_instance.feature(types.SHUTDOWN)(on_shutdown)
     server_instance.feature(types.WORKSPACE_DID_CHANGE_WATCHED_FILES)(did_change_watched_files)
-    server_instance.feature(
-        types.WORKSPACE_WILL_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS
-    )(on_will_rename_files)
-    server_instance.feature(
-        types.WORKSPACE_DID_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS
-    )(on_did_rename_files)
+    server_instance.feature(types.WORKSPACE_WILL_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)(
+        on_will_rename_files
+    )
+    server_instance.feature(types.WORKSPACE_DID_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)(
+        on_did_rename_files
+    )

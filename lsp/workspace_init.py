@@ -32,11 +32,14 @@ except ImportError:
 
 _server: LanguageServer | None = None
 
+
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
 
+
 # Import warming
+
 
 def _warm_imports() -> None:
     """Eagerly import heavy modules to eliminate cold-start latency."""
@@ -52,11 +55,13 @@ def _warm_imports() -> None:
     except Exception:
         log.debug("Import warming failed (non-fatal)", exc_info=True)
 
+
 # Background scan
 
 _scan_lock = threading.Lock()
 
 _TCL_VERSION_ORDER = {"tcl8.4": 0, "tcl8.5": 1, "tcl8.6": 2, "tcl9.0": 3}
+
 
 def _upgrade_dialect_from_workspace() -> None:
     """Upgrade the global dialect if any workspace file requires a higher Tcl version."""
@@ -89,6 +94,7 @@ def _upgrade_dialect_from_workspace() -> None:
                 "Auto-upgraded dialect to %s (detected from workspace Tcl version)",
                 best_dialect,
             )
+
 
 def _run_background_scan(
     progress_cb: Callable[[int, int, str], None] | None = None,
@@ -136,8 +142,10 @@ def _run_background_scan(
     finally:
         _scan_lock.release()
 
+
 # Strong reference to prevent GC of the coordinator task between scans.
 _scan_progress_task: "asyncio.Task[None] | None" = None
+
 
 def _start_scan_with_progress() -> None:
     """Run the background scan with $/progress notifications."""
@@ -179,7 +187,8 @@ def _start_scan_with_progress() -> None:
         nonlocal progress_active
         try:
             await asyncio.wait_for(
-                _server.work_done_progress.create_async(token), timeout=5.0  # type: ignore[union-attr]
+                _server.work_done_progress.create_async(token),
+                timeout=5.0,  # type: ignore[union-attr]
             )
         except (Exception, asyncio.TimeoutError):
             log.debug(
@@ -227,7 +236,9 @@ def _start_scan_with_progress() -> None:
 
     _scan_progress_task = loop.create_task(_coordinator())
 
+
 # on_initialized handler
+
 
 def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
@@ -328,7 +339,9 @@ def on_initialized(params: types.InitializedParams) -> None:
 
     _pull_and_apply_configuration()
 
+
 # Registration
+
 
 def register(server_instance: LanguageServer) -> None:
     """Register the initialized handler with the server."""

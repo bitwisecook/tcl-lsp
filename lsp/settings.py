@@ -78,11 +78,14 @@ _RESTART_REQUIRED_TOGGLES = frozenset({"pull_diagnostics_enabled"})
 
 _server: LanguageServer | None = None
 
+
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
 
+
 # Feature settings application
+
 
 def _apply_feature_settings(tcl_settings: dict) -> bool:
     """Apply feature toggles and diagnostic/optimiser filters.
@@ -122,7 +125,7 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     # Also accept flat keys: tclLsp.features.hover -> features.hover
     for key, value in tcl_settings.items():
         if isinstance(key, str) and key.startswith("features.") and isinstance(value, bool):
-            json_key = key[len("features."):]
+            json_key = key[len("features.") :]
             attr = _FEATURE_TOGGLE_KEYS.get(json_key) or _FEATURE_TOGGLE_KEYS.get(
                 _camel_to_snake(json_key)
             )
@@ -173,7 +176,10 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     shimmer_section = tcl_settings.get("shimmer")
     if isinstance(shimmer_section, dict):
         shimmer_master = shimmer_section.get("enabled")
-        if isinstance(shimmer_master, bool) and shimmer_master != _state.feature_config.shimmer_enabled:
+        if (
+            isinstance(shimmer_master, bool)
+            and shimmer_master != _state.feature_config.shimmer_enabled
+        ):
             _state.feature_config.shimmer_enabled = shimmer_master
             changed = True
 
@@ -181,7 +187,10 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     xc_section = tcl_settings.get("xcDiagnostics")
     if isinstance(xc_section, dict):
         xc_enabled = xc_section.get("enabled")
-        if isinstance(xc_enabled, bool) and xc_enabled != _state.feature_config.xc_diagnostics_enabled:
+        if (
+            isinstance(xc_enabled, bool)
+            and xc_enabled != _state.feature_config.xc_diagnostics_enabled
+        ):
             _state.feature_config.xc_diagnostics_enabled = xc_enabled
             changed = True
 
@@ -247,11 +256,13 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
 
     return changed
 
+
 # Settings debounce
 
 _pending_settings: dict | None = None
 _pending_settings_handle: asyncio.TimerHandle | None = None
 _SETTINGS_DEBOUNCE_S = 0.3
+
 
 def _apply_all_settings(tcl_settings: dict) -> None:
     """Debounced settings application — leading-edge with trailing coalesce."""
@@ -272,6 +283,7 @@ def _apply_all_settings(tcl_settings: dict) -> None:
         _SETTINGS_DEBOUNCE_S,
         _apply_all_settings_now,
     )
+
 
 def _apply_all_settings_now() -> None:
     """Apply the most recent settings (called after debounce timer)."""
@@ -310,6 +322,7 @@ def _apply_all_settings_now() -> None:
         _state.package_resolver.configure(search_paths=resolver_paths)
         _state._loaded_packages.clear()
         import lsp.workspace_init as _wi
+
         threading.Thread(target=_wi._run_background_scan, daemon=True).start()
 
     dialect_setting = tcl_settings.get("dialect")
@@ -338,6 +351,7 @@ def _apply_all_settings_now() -> None:
         _state.diagnostic_scheduler.cancel_all()
 
     import lsp.diagnostics_pipeline as _dp
+
     _publish_diagnostics = _dp._publish_diagnostics
     _publish_diagnostics_sync = _dp._publish_diagnostics_sync
     _publish_diags_to_client = _dp._publish_diags_to_client
@@ -369,6 +383,7 @@ def _apply_all_settings_now() -> None:
             if doc_state.analysis is None:
                 _publish_diags_to_client(uri, [], doc_state.version)
 
+
 def _pull_and_apply_configuration() -> None:
     """Pull configuration from the client via ``workspace/configuration``."""
     params = types.ConfigurationParams(items=[types.ConfigurationItem(section="tclLsp")])
@@ -386,7 +401,9 @@ def _pull_and_apply_configuration() -> None:
     except Exception:
         log.debug("workspace/configuration pull failed", exc_info=True)
 
+
 # Registration
+
 
 def register(server_instance: LanguageServer) -> None:
     """Register the didChangeConfiguration handler."""
