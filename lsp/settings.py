@@ -32,9 +32,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Code registries
-# ---------------------------------------------------------------------------
 
 # Loaded from the self-registering code registry (core.common.codes).
 _ALL_DIAGNOSTIC_CODES = diagnostic_codes()
@@ -76,22 +74,15 @@ _FEATURE_TOGGLE_KEYS = {
 # config loader logs a warning when it sees one change so users know.
 _RESTART_REQUIRED_TOGGLES = frozenset({"pull_diagnostics_enabled"})
 
-# ---------------------------------------------------------------------------
 # Server reference injection
-# ---------------------------------------------------------------------------
 
 _server: LanguageServer | None = None
-
 
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
 
-
-# ---------------------------------------------------------------------------
 # Feature settings application
-# ---------------------------------------------------------------------------
-
 
 def _apply_feature_settings(tcl_settings: dict) -> bool:
     """Apply feature toggles and diagnostic/optimiser filters.
@@ -256,15 +247,11 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
 
     return changed
 
-
-# ---------------------------------------------------------------------------
 # Settings debounce
-# ---------------------------------------------------------------------------
 
 _pending_settings: dict | None = None
 _pending_settings_handle: asyncio.TimerHandle | None = None
 _SETTINGS_DEBOUNCE_S = 0.3
-
 
 def _apply_all_settings(tcl_settings: dict) -> None:
     """Debounced settings application — leading-edge with trailing coalesce."""
@@ -285,7 +272,6 @@ def _apply_all_settings(tcl_settings: dict) -> None:
         _SETTINGS_DEBOUNCE_S,
         _apply_all_settings_now,
     )
-
 
 def _apply_all_settings_now() -> None:
     """Apply the most recent settings (called after debounce timer)."""
@@ -383,7 +369,6 @@ def _apply_all_settings_now() -> None:
             if doc_state.analysis is None:
                 _publish_diags_to_client(uri, [], doc_state.version)
 
-
 def _pull_and_apply_configuration() -> None:
     """Pull configuration from the client via ``workspace/configuration``."""
     params = types.ConfigurationParams(items=[types.ConfigurationItem(section="tclLsp")])
@@ -401,11 +386,7 @@ def _pull_and_apply_configuration() -> None:
     except Exception:
         log.debug("workspace/configuration pull failed", exc_info=True)
 
-
-# ---------------------------------------------------------------------------
 # Registration
-# ---------------------------------------------------------------------------
-
 
 def register(server_instance: LanguageServer) -> None:
     """Register the didChangeConfiguration handler."""

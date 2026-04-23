@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import lsp.state as _lsp_state
 import lsp.settings as _lsp_settings
+import lsp.state as _lsp_state
 from lsp.feature_config import FeatureConfig
 from lsp.state import _extract_tcl_lsp_settings
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import itertools
 import logging
 import time
 from concurrent.futures.process import BrokenProcessPool
@@ -22,32 +23,23 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Server reference
-# ---------------------------------------------------------------------------
 
 _server: LanguageServer | None = None
-
 
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
 
-
-# ---------------------------------------------------------------------------
 # Pull diagnostics cache
-# ---------------------------------------------------------------------------
 
 _pull_diag_cache: dict[str, list[types.Diagnostic]] = {}
 _pull_diag_result_ids: dict[str, str] = {}
-_pull_diag_counter: int = 0
+_pull_diag_counter = itertools.count(1)
 
 
 def _next_pull_diag_result_id() -> str:
-    global _pull_diag_counter
-    _pull_diag_counter += 1
-    return f"tcl-lsp-diag-{_pull_diag_counter}"
-
+    return f"tcl-lsp-diag-{next(_pull_diag_counter)}"
 
 def _publish_diags_to_client(
     uri: str,
@@ -65,11 +57,7 @@ def _publish_diags_to_client(
         )
     )
 
-
-# ---------------------------------------------------------------------------
 # Pull-model handlers
-# ---------------------------------------------------------------------------
-
 
 def on_document_diagnostic(
     params: types.DocumentDiagnosticParams,
@@ -86,7 +74,6 @@ def on_document_diagnostic(
         items=list(cached),
         result_id=current_result_id,
     )
-
 
 def on_workspace_diagnostic(
     params: types.WorkspaceDiagnosticParams,
@@ -121,11 +108,7 @@ def on_workspace_diagnostic(
             )
     return types.WorkspaceDiagnosticReport(items=report_items)
 
-
-# ---------------------------------------------------------------------------
 # Workspace diagnostic context
-# ---------------------------------------------------------------------------
-
 
 def _build_workspace_diagnostic_context():
     from core.analysis.semantic_model import WorkspaceDiagnosticContext
@@ -153,11 +136,7 @@ def _build_workspace_diagnostic_context():
         alias_names_by_uri=alias_by_uri,
     )
 
-
-# ---------------------------------------------------------------------------
 # Workspace index update
-# ---------------------------------------------------------------------------
-
 
 def _update_workspace_index(uri: str, source: str, state: object) -> None:
     from .workspace.document_state import DocumentState
@@ -196,11 +175,7 @@ def _update_workspace_index(uri: str, source: str, state: object) -> None:
             _state.workspace_index.update_rule_init_vars(uri, exports)
     _load_packages_if_needed(state.analysis, uri)
 
-
-# ---------------------------------------------------------------------------
 # Synchronous publish (used during config changes)
-# ---------------------------------------------------------------------------
-
 
 def _publish_diagnostics_sync(
     uri: str,
@@ -240,11 +215,7 @@ def _publish_diagnostics_sync(
     _publish_diags_to_client(uri, diagnostics, version)
     _update_workspace_index(uri, source, state)
 
-
-# ---------------------------------------------------------------------------
 # Async publish pipeline
-# ---------------------------------------------------------------------------
-
 
 async def _publish_diagnostics(
     uri: str,
@@ -518,11 +489,7 @@ async def _publish_diagnostics(
         _publish_diags_to_client,
     )
 
-
-# ---------------------------------------------------------------------------
 # Auto-path safety check
-# ---------------------------------------------------------------------------
-
 
 def _is_unsafe_auto_path(path: str) -> bool:
     import os
@@ -533,11 +500,7 @@ def _is_unsafe_auto_path(path: str) -> bool:
     parts = [p for p in norm.split(os.sep) if p]
     return len(parts) < 2
 
-
-# ---------------------------------------------------------------------------
 # Package loading
-# ---------------------------------------------------------------------------
-
 
 def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
     from core.analysis.semantic_model import AnalysisResult
@@ -591,18 +554,13 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
                     EntrySource.PACKAGE,
                 )
 
-
-# ---------------------------------------------------------------------------
 # Dialect / file-type detection
-# ---------------------------------------------------------------------------
-
 
 def _is_bigip_conf(uri: str) -> bool:
     from .workspace.scanner import _BIGIP_CONF_NAMES
 
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     return basename in _BIGIP_CONF_NAMES
-
 
 def _is_irules_source(uri: str) -> bool:
     lang_id = _state.workspace_state.get_language_id(uri).lower()
@@ -611,7 +569,6 @@ def _is_irules_source(uri: str) -> bool:
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     return basename.endswith(".irul") or basename.endswith(".irule")
 
-
 def _is_apl_source(uri: str) -> bool:
     lang_id = _state.workspace_state.get_language_id(uri).lower()
     if lang_id in ("tcl-apl", "apl-lang", "apl"):
@@ -619,11 +576,7 @@ def _is_apl_source(uri: str) -> bool:
     basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
     return basename.endswith(".apl") or basename == "presentation"
 
-
-# ---------------------------------------------------------------------------
 # BIG-IP / APL specialised publishers
-# ---------------------------------------------------------------------------
-
 
 def _publish_bigip_diagnostics(
     uri: str,
@@ -658,7 +611,6 @@ def _publish_bigip_diagnostics(
         )
     )
 
-
 def _uri_to_dir(uri: str) -> str | None:
     if uri.startswith("file://"):
         path = uri[7:]
@@ -667,7 +619,6 @@ def _uri_to_dir(uri: str) -> str | None:
     import os
 
     return os.path.dirname(path) if path else None
-
 
 def _publish_apl_diagnostics(
     uri: str,
@@ -717,7 +668,6 @@ def _publish_apl_diagnostics(
     _server.text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(uri=uri, diagnostics=results, version=version)
     )
-
 
 def _find_sibling_impl_vars(uri: str, base_dir: str | None) -> list | None:
     import os

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING
 
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
@@ -18,23 +17,15 @@ from .features.workspace_file_ops import compute_batch_rename_edits
 from .workspace.scanner import uri_to_path
 from .workspace.workspace_index import EntrySource
 
-if TYPE_CHECKING:
-    pass
-
 log = logging.getLogger(__name__)
 
 _server: LanguageServer | None = None
-
 
 def configure(server_instance: LanguageServer) -> None:
     global _server
     _server = server_instance
 
-
-# ---------------------------------------------------------------------------
 # Document lifecycle handlers
-# ---------------------------------------------------------------------------
-
 
 async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     t_open = time.perf_counter()
@@ -98,7 +89,6 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     )
     log.info("[timing] did_open total %.0fms (uri=%s)", (time.perf_counter() - t_open) * 1000, uri)
 
-
 async def did_change(params: types.DidChangeTextDocumentParams) -> None:
     doc = _server.workspace.get_text_document(params.text_document.uri)  # type: ignore[union-attr]
     if _dp._is_bigip_conf(params.text_document.uri):
@@ -120,7 +110,6 @@ async def did_change(params: types.DidChangeTextDocumentParams) -> None:
         doc.source,
         params.text_document.version,
     )
-
 
 def did_close(params: types.DidCloseTextDocumentParams) -> None:
     uri = params.text_document.uri
@@ -150,11 +139,7 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
         types.PublishDiagnosticsParams(uri=uri, diagnostics=[])
     )
 
-
-# ---------------------------------------------------------------------------
 # Shutdown
-# ---------------------------------------------------------------------------
-
 
 def on_shutdown(params: None) -> None:
     """Cancel pending background tasks and shut down process pool."""
@@ -163,11 +148,7 @@ def on_shutdown(params: None) -> None:
         _state._process_pool.shutdown(wait=False, cancel_futures=True)
         _state._process_pool = None
 
-
-# ---------------------------------------------------------------------------
 # File-system watch and rename hooks
-# ---------------------------------------------------------------------------
-
 
 def did_change_watched_files(
     params: types.DidChangeWatchedFilesParams,
@@ -205,7 +186,6 @@ def did_change_watched_files(
                                 scan_result.rule_init_exports,
                             )
 
-
 _RENAME_FILE_OPERATION_OPTIONS = types.FileOperationRegistrationOptions(
     filters=[
         types.FileOperationFilter(
@@ -215,7 +195,6 @@ _RENAME_FILE_OPERATION_OPTIONS = types.FileOperationRegistrationOptions(
         ),
     ],
 )
-
 
 def on_will_rename_files(
     params: types.RenameFilesParams,
@@ -232,7 +211,6 @@ def on_will_rename_files(
         _state.workspace_index,
         workspace_roots=roots,
     )
-
 
 def on_did_rename_files(params: types.RenameFilesParams) -> None:
     """Reindex renamed files after the client applies the rename on disk."""
@@ -254,11 +232,7 @@ def on_did_rename_files(params: types.RenameFilesParams) -> None:
                 EntrySource.BACKGROUND,
             )
 
-
-# ---------------------------------------------------------------------------
 # Registration
-# ---------------------------------------------------------------------------
-
 
 def register(server_instance: LanguageServer) -> None:
     """Register all lifecycle handlers with the server."""
