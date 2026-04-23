@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import lsp.workspace_init as server_module
 import lsp.state as _lsp_state
+import lsp.workspace_init as server_module
 
 
 class TestRunBackgroundScanProgress:

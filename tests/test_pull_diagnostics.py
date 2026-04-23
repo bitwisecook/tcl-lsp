@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import sys
 from pathlib import Path
 
@@ -16,7 +17,7 @@ import lsp.server as server_module
 def _reset_cache() -> None:
     _dp._pull_diag_cache.clear()
     _dp._pull_diag_result_ids.clear()
-    _dp._pull_diag_counter = 0
+    _dp._pull_diag_counter = itertools.count(1)
 
 
 def _mk_diag(line: int, msg: str) -> types.Diagnostic:

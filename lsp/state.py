@@ -22,9 +22,7 @@ from .workspace.workspace_index import WorkspaceIndex
 if TYPE_CHECKING:
     from pygls.lsp.server import LanguageServer
 
-# ---------------------------------------------------------------------------
 # Singleton state
-# ---------------------------------------------------------------------------
 
 workspace_state = WorkspaceState()
 workspace_index = WorkspaceIndex()
@@ -35,7 +33,6 @@ feature_config = FeatureConfig()
 diagnostic_scheduler = DiagnosticScheduler()
 
 _process_pool: ProcessPoolExecutor | None = None
-
 
 def _get_process_pool() -> ProcessPoolExecutor:
     """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis.
@@ -54,7 +51,6 @@ def _get_process_pool() -> ProcessPoolExecutor:
         _process_pool = ProcessPoolExecutor(max_workers=2, mp_context=ctx)
     return _process_pool
 
-
 _loaded_packages: set[str] = set()
 _SAFE_FIX_CODES = frozenset(
     {
@@ -68,9 +64,7 @@ _SAFE_FIX_CODES = frozenset(
     }
 )
 
-# ---------------------------------------------------------------------------
 # Semantic token delta cache (shared between server.py handlers and lifecycle)
-# ---------------------------------------------------------------------------
 
 # Per-URI storage for semantic tokens delta support.
 # Maps URI → (result_id, flat token data).
@@ -79,23 +73,16 @@ _semantic_token_results_lock = threading.Lock()
 # Thread-safe counter — pygls may dispatch handlers concurrently.
 _semantic_token_result_counter = itertools.count(1)
 
-# ---------------------------------------------------------------------------
 # Server reference injection (for _get_doc_source fallback)
-# ---------------------------------------------------------------------------
 
 _server: LanguageServer | None = None
-
 
 def configure(server_instance: LanguageServer) -> None:
     """Inject the LanguageServer instance so _get_doc_source can fall back to it."""
     global _server
     _server = server_instance
 
-
-# ---------------------------------------------------------------------------
 # Utility helpers
-# ---------------------------------------------------------------------------
-
 
 def _get_doc_source(uri: str) -> str:
     """Get document source text, handling virtual documents without backing files.
@@ -116,12 +103,10 @@ def _get_doc_source(uri: str) -> str:
     except (FileNotFoundError, OSError):
         return ""
 
-
 def _camel_to_snake(name: str) -> str:
     """Convert lowerCamelCase/PascalCase names to snake_case."""
     first = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", first).lower()
-
 
 def _normalise_formatter_settings(raw: dict) -> dict:
     """Map client formatter settings to FormatterConfig field names."""
@@ -139,7 +124,6 @@ def _normalise_formatter_settings(raw: dict) -> dict:
             value = mapping.get(value.lower(), value)
         normalised[field] = value
     return normalised
-
 
 # Keys that appear directly inside the ``tclLsp`` configuration namespace.
 # Used both for flat-key routing and for detecting unwrapped payloads from
@@ -165,7 +149,6 @@ _KNOWN_TCL_LSP_TOPLEVEL = frozenset(
         "libraryPaths",
     }
 )
-
 
 def _extract_tcl_lsp_settings(settings: dict) -> dict:
     """Extract extension/server settings from multiple client payload shapes.
