@@ -167,6 +167,8 @@ fn eval_scan(words: []const i32) i32 {
     var fi: u32 = 0;   // position in the format string
     var vi: u32 = 0;   // next variable index
     var assigned: u32 = 0;
+    // In no-variable form, collected values are appended here.
+    var list_result: i32 = obj_new_string(0, 0);
 
     while (fi < fs.len) {
         // Non-% literal: must match a character in the source.
@@ -215,8 +217,14 @@ fn eval_scan(words: []const i32) i32 {
 
         // %n — number of chars consumed so far (no input consumed).
         if (spec == 'n') {
-            if (!suppress and vi < n_vars) {
-                _ = frames.var_set(words[3 + vi], obj_new_int(@intCast(si)));
+            if (!suppress) {
+                const val = obj_new_int(@intCast(si));
+                if (has_vars) {
+                    if (vi >= n_vars) break;
+                    _ = frames.var_set(words[3 + vi], val);
+                } else {
+                    list_result = rt.tcl_list(list_result, val);
+                }
                 vi += 1;
                 assigned += 1;
             }
@@ -232,8 +240,12 @@ fn eval_scan(words: []const i32) i32 {
             const cp = read_utf8_cp(src, ss.len, &tmp_i);
             const val = obj_new_int(cp);
             if (!suppress) {
-                if (vi >= n_vars) break;
-                _ = frames.var_set(words[3 + vi], val);
+                if (has_vars) {
+                    if (vi >= n_vars) break;
+                    _ = frames.var_set(words[3 + vi], val);
+                } else {
+                    list_result = rt.tcl_list(list_result, val);
+                }
                 vi += 1;
                 assigned += 1;
             }
@@ -250,8 +262,12 @@ fn eval_scan(words: []const i32) i32 {
             const val = scan_int(src, ss.len, &si, base, accept_0x, &matched);
             if (!matched) break;
             if (!suppress) {
-                if (vi >= n_vars) break;
-                _ = frames.var_set(words[3 + vi], val);
+                if (has_vars) {
+                    if (vi >= n_vars) break;
+                    _ = frames.var_set(words[3 + vi], val);
+                } else {
+                    list_result = rt.tcl_list(list_result, val);
+                }
                 vi += 1;
                 assigned += 1;
             }
@@ -285,8 +301,12 @@ fn eval_scan(words: []const i32) i32 {
             if (!has_digits) break;
             const val = obj_new_int(if (neg) -int_val else int_val);
             if (!suppress) {
-                if (vi >= n_vars) break;
-                _ = frames.var_set(words[3 + vi], val);
+                if (has_vars) {
+                    if (vi >= n_vars) break;
+                    _ = frames.var_set(words[3 + vi], val);
+                } else {
+                    list_result = rt.tcl_list(list_result, val);
+                }
                 vi += 1;
                 assigned += 1;
             }
@@ -306,8 +326,12 @@ fn eval_scan(words: []const i32) i32 {
             if (end_si == start_si) break; // no word
             const val = obj_new_string(@bitCast(ss.ptr + start_si), @bitCast(end_si - start_si));
             if (!suppress) {
-                if (vi >= n_vars) break;
-                _ = frames.var_set(words[3 + vi], val);
+                if (has_vars) {
+                    if (vi >= n_vars) break;
+                    _ = frames.var_set(words[3 + vi], val);
+                } else {
+                    list_result = rt.tcl_list(list_result, val);
+                }
                 vi += 1;
                 assigned += 1;
             }
@@ -320,9 +344,8 @@ fn eval_scan(words: []const i32) i32 {
     }
 
     if (!has_vars) {
-        // Return the single matched value (only if exactly one specifier).
-        // If no assignment was made, return empty.
-        return if (assigned == 0) obj_new_string(0, 0) else obj_new_int(@intCast(assigned));
+        // No-variable form: return the list of parsed values.
+        return list_result;
     }
     return obj_new_int(@intCast(assigned));
 }

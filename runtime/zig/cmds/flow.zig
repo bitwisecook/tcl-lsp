@@ -107,12 +107,6 @@ fn eval_try(words: []const i32) i32 {
     const code_obj  = rt.catch_leave();
     const had_error: bool = rt.obj_get_int(code_obj) != 0;
 
-    // Snapshot non-error signals (return/break/continue) — they pass through.
-    const snap_return   = rt.return_flag.*;
-    const snap_ret_val  = rt.return_val.*;
-    const snap_break    = rt.break_flag.*;
-    const snap_continue = rt.continue_flag.*;
-
     var final_result: i32 = if (had_error) catch_val else body_res;
     var error_raised = had_error;
     var handled = false;
@@ -198,6 +192,13 @@ fn eval_try(words: []const i32) i32 {
         wi += 1;
     }
 
+    // Snapshot after handlers so that a handler-issued return/break/continue
+    // is preserved across the finally block (not overwritten by the old state).
+    const snap_return   = rt.return_flag.*;
+    const snap_ret_val  = rt.return_val.*;
+    const snap_break    = rt.break_flag.*;
+    const snap_continue = rt.continue_flag.*;
+
     // Finally: run in an isolated catch frame, preserving caller signal state.
     if (finally_body != 0) {
         const c = @import("../tcl_catch.zig");
@@ -207,7 +208,7 @@ fn eval_try(words: []const i32) i32 {
         const fb_s = obj_ensure_string(finally_body);
         _ = interp.eval_script(fb_s.ptr, fb_s.len);
         _ = rt.catch_leave();
-        // Restore non-error signals from before finally ran
+        // Restore signals from after handlers ran (not before).
         rt.return_flag.*   = snap_return;
         rt.return_val.*    = snap_ret_val;
         rt.break_flag.*    = snap_break;
