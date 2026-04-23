@@ -199,6 +199,8 @@ pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
             vi += 1;
         } else if (star_pi < plen) {
             pi = star_pi + 1;
+            // No more value positions to try — value exhausted, no match.
+            if (star_vi >= vlen) return false;
             star_vi += 1;
             vi = star_vi;
         } else {

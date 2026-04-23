@@ -108,6 +108,166 @@ class _WasmEmitterExprMixin(_Base):
                 # Fallback for unsupported expression types (ExprRaw)
                 self._emit_i64_const(0)
 
+    # --- Float-aware arithmetic path ---
+    # Maps arithmetic BinOp to the float-aware runtime function name.
+    _ARITH_FLOAT_FUNC: dict[BinOp, str] = {
+        BinOp.ADD: "tcl_arith_add",
+        BinOp.SUB: "tcl_arith_sub",
+        BinOp.MUL: "tcl_arith_mul",
+        BinOp.DIV: "tcl_arith_div",
+        BinOp.MOD: "tcl_arith_mod",
+    }
+
+    def _emit_expr_obj(self, node: ExprNode) -> None:
+        """Emit WASM instructions leaving a TclObj i32 on the stack.
+
+        Counterpart to ``_emit_expr`` (which leaves i64).  Used for
+        float-aware arithmetic: tcl_arith_* take and return i32 TclObjs,
+        so operands must not be unboxed to i64 beforehand.
+
+        Falls back to ``_emit_expr`` + ``_emit_box_int`` for nodes that
+        don't need special handling (e.g. comparison results, logical
+        ops).
+        """
+        match node:
+            case ExprVar(name=name, text=text):
+                # Read variable as TclObj directly (no unbox).
+                resolved = name
+                if "(" in text and text.endswith(")"):
+                    bare = text[1:] if text.startswith("$") else text
+                    if bare.startswith("{") and bare.endswith("}"):
+                        bare = bare[1:-1]
+                    resolved = bare
+                self._emit_var_read_obj(resolved)
+            case ExprLiteral(text=value):
+                # Emit TclObj literal.
+                self._emit_obj_literal_for_expr(value)
+            case ExprString(text=value):
+                self._emit_obj_literal_for_expr(value)
+            case ExprBinary(op=op, left=left, right=right):
+                func_name = self._ARITH_FLOAT_FUNC.get(op)
+                if func_name is not None:
+                    func_idx = self._shared_imports.get(func_name)
+                    if func_idx is not None:
+                        self._emit_expr_obj(left)
+                        self._emit_expr_obj(right)
+                        self._emit_call(func_idx)
+                        return
+                # Non-arithmetic or missing import: fall back to i64 path.
+                self._emit_expr(node)
+                self._emit_box_int()
+            case ExprCall(function=func, args=args):
+                # Math functions that return TclObj.
+                func_idx = None
+                if func == "double" and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_double")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func in ("int", "entier", "wide") and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_int")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func == "round" and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_round")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func == "log" and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_log")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func == "sqrt" and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_sqrt")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func == "exp" and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_exp")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func == "log10" and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_log10")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func in ("sin", "cos") and len(args) == 1:
+                    fn = "tcl_math_sin" if func == "sin" else "tcl_math_cos"
+                    func_idx = self._shared_imports.get(fn)
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func in ("fabs", "abs") and len(args) == 1:
+                    func_idx = self._shared_imports.get("tcl_math_fabs")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                # Fall through to i64 path.
+                self._emit_func_call(func, args)
+                self._emit_box_int()
+            case ExprCommand(text=text):
+                # Command substitution already returns a TclObj.
+                self._emit_command_subst_obj(text)
+            case _:
+                # Fall back: evaluate as i64, box to TclObj.
+                self._emit_expr(node)
+                self._emit_box_int()
+
+    def _emit_obj_literal_for_expr(self, value: str) -> None:
+        """Emit a TclObj for a literal value in expression context."""
+        new_int_idx = self._shared_imports.get("tcl_obj_new_int")
+        new_float_idx = self._shared_imports.get("tcl_obj_new_float")
+        new_str_idx = self._shared_imports.get("tcl_obj_new_string")
+        try:
+            int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
+            if new_int_idx is not None:
+                self._emit_i64_const(int_val)
+                self._emit_call(new_int_idx)
+            else:
+                self._emit_i64_const(int_val)
+                self._emit_box_int()
+            return
+        except ValueError:
+            pass
+        try:
+            float_val = float(value)
+            if new_float_idx is not None:
+                self._emit_f64_const(float_val)
+                self._emit_call(new_float_idx)
+            else:
+                self._emit_i64_const(int(float_val))
+                self._emit_box_int()
+            return
+        except ValueError:
+            pass
+        # String literal: create string TclObj.
+        if new_str_idx is not None:
+            offset = self._intern_string(value)
+            encoded = value.encode("utf-8", errors="surrogatepass")
+            self._emit_i32_const(offset + 4)
+            self._emit_i32_const(len(encoded))
+            self._emit_call(new_str_idx)
+        else:
+            self._emit_i64_const(0)
+            self._emit_box_int()
+
+    def _emit_command_subst_obj(self, text: str) -> None:
+        """Like _emit_command_subst but leaves TclObj i32 on stack."""
+        self._emit_command_subst(text)
+        self._emit_box_int()
+
     def _emit_command_subst(self, text: str) -> None:
         """Emit WASM for a command substitution in expression context.
 
@@ -465,6 +625,19 @@ class _WasmEmitterExprMixin(_Base):
         if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
             self._emit_expr_order_cmp(op, left, right)
             return
+
+        # Float-aware arithmetic: delegate to tcl_arith_* runtime helpers
+        # which check at runtime whether either operand is a float and
+        # produce the correct result (float or int) accordingly.
+        arith_func = self._ARITH_FLOAT_FUNC.get(op)
+        if arith_func is not None:
+            arith_idx = self._shared_imports.get(arith_func)
+            if arith_idx is not None:
+                self._emit_expr_obj(left)
+                self._emit_expr_obj(right)
+                self._emit_call(arith_idx)     # → i32 TclObj
+                self._emit_unbox_int()          # → i64
+                return
 
         wasm_op = _BINOP_WASM.get(op)
         if wasm_op is not None:
@@ -830,20 +1003,73 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_local_set(running)
                 self._emit(WasmOp.END)
             self._emit_local_get(running)
-        elif func in ("int", "entier", "wide", "double", "float") and len(args) == 1:
-            # Numeric cast is a no-op at the i64 level — the operand is
-            # already evaluated to i64.  Tcl's ``int`` / ``entier`` /
-            # ``wide`` all produce a platform-native integer from a
-            # numeric value; in our i64 VM they're identity.  ``double``
-            # / ``float`` are handled the same way since our expr stack
-            # is single-width i64: the semantic difference only matters
-            # when downstream math preserves float precision, which
-            # our codegen doesn't today anyway.  Crucially this keeps
-            # ``expr {$x / double($y)}`` from truncating ``double($y)``
-            # to ``0`` (the pre-wave fallback for "unknown function"),
-            # which triggered an integer divide-by-zero trap in procs
-            # like tcllib ``counter::get ... -avg``.
-            self._emit_expr(args[0])
+        elif func in ("int", "entier", "wide") and len(args) == 1:
+            # Truncate to integer — use runtime helper that handles TYPE_FLOAT.
+            int_idx = self._shared_imports.get("tcl_math_int")
+            if int_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(int_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+        elif func in ("double", "float") and len(args) == 1:
+            # Coerce to float — use runtime helper so downstream / stays float.
+            dbl_idx = self._shared_imports.get("tcl_math_double")
+            if dbl_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(dbl_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+        elif func == "log" and len(args) == 1:
+            log_idx = self._shared_imports.get("tcl_math_log")
+            if log_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(log_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func == "sqrt" and len(args) == 1:
+            sqrt_idx = self._shared_imports.get("tcl_math_sqrt")
+            if sqrt_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(sqrt_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func == "exp" and len(args) == 1:
+            exp_idx = self._shared_imports.get("tcl_math_exp")
+            if exp_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(exp_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func in ("log10",) and len(args) == 1:
+            l10_idx = self._shared_imports.get("tcl_math_log10")
+            if l10_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(l10_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func == "round" and len(args) == 1:
+            rnd_idx = self._shared_imports.get("tcl_math_round")
+            if rnd_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(rnd_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+        elif func in ("sin", "cos") and len(args) == 1:
+            fn = "tcl_math_sin" if func == "sin" else "tcl_math_cos"
+            trig_idx = self._shared_imports.get(fn)
+            if trig_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(trig_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
         elif func == "bool" and len(args) == 1:
             # bool(x) == x != 0
             self._emit_expr(args[0])

@@ -252,41 +252,59 @@ class _WasmEmitterCtrlMixin(_Base):
             self._emit_value(subject)
             self._emit_local_set(subject_local)
 
-            arm_count = len(arms)
-            for i, arm in enumerate(arms):
-                if arm.body is None:
-                    continue
+            # Build groups: consecutive fallthrough arms share a body.
+            # Each group is (list_of_patterns, body).  "default" arms are
+            # excluded here and handled separately after the chain.
+            groups: list[tuple[list[str], object]] = []
+            pending: list[str] = []
+            for arm in arms:
                 if arm.pattern == "default":
-                    # default arm handled after all others
                     continue
-                # Compare: for glob, args are (pattern, subject)
-                # For exact, args are (subject, pattern)
+                pending.append(arm.pattern)
+                if arm.body is not None:
+                    groups.append((pending, arm.body))
+                    pending = []
+
+            group_count = len(groups)
+            for g_idx, (patterns, body) in enumerate(groups):
+                # Emit the first pattern comparison
                 if mode == "glob":
-                    self._emit_obj_literal(arm.pattern)
+                    self._emit_obj_literal(patterns[0])
                     self._emit_local_get(subject_local)
                 else:
                     self._emit_local_get(subject_local)
-                    self._emit_obj_literal(arm.pattern)
+                    self._emit_obj_literal(patterns[0])
                 self._emit_call(cmp_import)
                 # string_equal/string_match returns TclObj wrapping 0 or 1
                 self._emit_unbox_int()
                 self._emit(WasmOp.I32_WRAP_I64)
+                # OR in any additional fallthrough patterns
+                for pattern in patterns[1:]:
+                    if mode == "glob":
+                        self._emit_obj_literal(pattern)
+                        self._emit_local_get(subject_local)
+                    else:
+                        self._emit_local_get(subject_local)
+                        self._emit_obj_literal(pattern)
+                    self._emit_call(cmp_import)
+                    self._emit_unbox_int()
+                    self._emit(WasmOp.I32_WRAP_I64)
+                    self._emit(WasmOp.I32_OR)
                 self._emit(
                     WasmOp.IF,
                     bytes([_BLOCK_VOID]),
-                    label=f"switch arm {arm.pattern!r}",
+                    label=f"switch arm group {patterns!r}",
                 )
-                self._emit_script(arm.body)
-                if i < arm_count - 1 or default_body:
+                self._emit_script(body)
+                if g_idx < group_count - 1 or default_body:
                     self._emit(WasmOp.ELSE)
 
             if default_body:
                 self._emit_script(default_body)
 
-            # Close all if blocks
-            for arm in arms:
-                if arm.body is not None and arm.pattern != "default":
-                    self._emit(WasmOp.END)
+            # Close one IF block per group
+            for _ in groups:
+                self._emit(WasmOp.END)
         else:
             # Fallback: integer comparison
             subject_local = self._add_extra_local(f"_switch_{subject}")
@@ -491,8 +509,7 @@ class _WasmEmitterCtrlMixin(_Base):
                 if self._optimise:
                     self._const_map.pop(name, None)
             case IRAssignExpr(name=name, expr=expr):
-                self._emit_expr(expr)
-                self._emit_box_int()
+                self._emit_expr_obj(expr)
                 self._emit_var_write_obj_keep(name)
                 if self._optimise:
                     self._const_map.pop(name, None)

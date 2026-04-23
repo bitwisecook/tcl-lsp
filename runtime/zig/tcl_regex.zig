@@ -30,8 +30,10 @@
 const std = @import("std");
 const rt = @import("tcl_runtime.zig");
 const stubs = @import("tcl_stubs.zig");
+const frames = @import("tcl_frames.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int = rt.obj_new_int;
+const obj_new_string = rt.obj_new_string;
 const alloc = rt.alloc;
 
 // ``regex_t`` layout (32-bit WASM, from regex.h):
@@ -427,4 +429,236 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     // observable but closer to correct than trapping.
     const matched = run_match(pattern, subject, flags);
     return obj_new_int(if (matched) 1 else 0);
+}
+
+// ---------------------------------------------------------------------------
+// regsub
+// ---------------------------------------------------------------------------
+
+/// Encode one Unicode codepoint ``cp`` into ``dst`` at byte offset ``off``.
+/// Returns the number of bytes written (1–4).
+fn encode_cp(dst: [*]u8, off: usize, cp: u32) usize {
+    if (cp < 0x80) {
+        dst[off] = @intCast(cp);
+        return 1;
+    } else if (cp < 0x800) {
+        dst[off]     = @intCast(0xC0 | (cp >> 6));
+        dst[off + 1] = @intCast(0x80 | (cp & 0x3F));
+        return 2;
+    } else if (cp < 0x10000) {
+        dst[off]     = @intCast(0xE0 | (cp >> 12));
+        dst[off + 1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        dst[off + 2] = @intCast(0x80 | (cp & 0x3F));
+        return 3;
+    } else {
+        dst[off]     = @intCast(0xF0 | (cp >> 18));
+        dst[off + 1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+        dst[off + 2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        dst[off + 3] = @intCast(0x80 | (cp & 0x3F));
+        return 4;
+    }
+}
+
+/// Append UniChar codepoints ``ustr[from..to]`` as UTF-8 into ``dst``
+/// starting at byte offset ``off``.  Returns number of bytes written.
+fn append_ucs_range(
+    dst: [*]u8,
+    off: usize,
+    ustr: [*]const i32,
+    from: usize,
+    to: usize,
+) usize {
+    var w: usize = off;
+    var j: usize = from;
+    while (j < to) : (j += 1) {
+        w += encode_cp(dst, w, @intCast(ustr[j]));
+    }
+    return w - off;
+}
+
+/// Apply regsub replacement string ``repl[0..repl_len]`` into ``dst``
+/// at byte offset ``off``.  ``&`` and ``\0`` expand to the matched
+/// text ``ustr[match_from..match_to]``.  Returns bytes written.
+fn append_repl(
+    dst: [*]u8,
+    off: usize,
+    repl: [*]const u8,
+    repl_len: usize,
+    ustr: [*]const i32,
+    match_from: usize,
+    match_to: usize,
+) usize {
+    var w: usize = off;
+    var ri: usize = 0;
+    while (ri < repl_len) {
+        const c = repl[ri];
+        if (c == '&') {
+            w += append_ucs_range(dst, w, ustr, match_from, match_to);
+            ri += 1;
+        } else if (c == '\\' and ri + 1 < repl_len) {
+            const nc = repl[ri + 1];
+            if (nc == '0') {
+                w += append_ucs_range(dst, w, ustr, match_from, match_to);
+            } else {
+                dst[w] = nc;
+                w += 1;
+            }
+            ri += 2;
+        } else {
+            dst[w] = c;
+            w += 1;
+            ri += 1;
+        }
+    }
+    return w - off;
+}
+
+/// Interpreter-side ``regsub`` command handler.
+/// Syntax: ``regsub ?-all? ?-nocase? ?--? exp string subSpec ?varName?``
+pub fn eval_regsub_cmd(words: []const i32) i32 {
+    if (words.len < 4) {
+        stubs.raise("regsub: wrong # args: should be \"regsub ?switches? exp string subSpec ?varName?\"");
+        return obj_new_int(0);
+    }
+
+    var flags: c_int = 0;
+    var do_all = false;
+    var i: usize = 1;
+
+    // Parse options.
+    while (i < words.len) : (i += 1) {
+        const w = obj_ensure_string(words[i]);
+        if (w.len == 0) break;
+        const p: [*]const u8 = @ptrFromInt(w.ptr);
+        if (p[0] != '-') break;
+        if (w.len == 2 and p[1] == '-') { i += 1; break; }
+        if (w.len == 4 and p[1] == 'a' and p[2] == 'l' and p[3] == 'l') {
+            do_all = true;
+        } else if (w.len == 7 and p[1] == 'n' and p[2] == 'o' and p[3] == 'c' and
+                   p[4] == 'a' and p[5] == 's' and p[6] == 'e')
+        {
+            flags |= REG_ICASE;
+        } else {
+            stubs.raise("regsub: unsupported option");
+            return obj_new_int(0);
+        }
+    }
+
+    // After options: exp string subSpec ?varName?
+    if (i + 2 >= words.len) {
+        stubs.raise("regsub: wrong # args: should be \"regsub ?switches? exp string subSpec ?varName?\"");
+        return obj_new_int(0);
+    }
+
+    const pattern  = words[i];
+    const subject  = words[i + 1];
+    const repl_obj = words[i + 2];
+    const has_var  = (i + 3 < words.len);
+    const varname  = if (has_var) words[i + 3] else 0;
+
+    const pat_s  = obj_ensure_string(pattern);
+    const sub_s  = obj_ensure_string(subject);
+    const repl_s = obj_ensure_string(repl_obj);
+
+    const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
+    const sub_u = decode_utf8(sub_s.ptr, sub_s.len);
+
+    // Compile the regular expression.
+    const re_addr = alloc(REGEX_T_SIZE);
+    const re_ptr: *anyopaque = @ptrFromInt(re_addr);
+    const comp_rc = TclReComp(
+        re_ptr,
+        @ptrFromInt(pat_u.ptr),
+        pat_u.len,
+        REG_ADVANCED | flags,
+    );
+    if (comp_rc != REG_OKAY) {
+        TclReFree(re_ptr);
+        stubs.raise("regexp: couldn't compile regular expression pattern");
+        return obj_new_int(0);
+    }
+
+    // Allocate output buffer.  Worst case: every codepoint matches and
+    // is replaced by the full replacement — so (sub_u.len + 1) *
+    // (repl_s.len + 4) + 64 bytes covers any UTF-8 expansion.
+    const max_out: u32 = @intCast((sub_u.len + 1) * (repl_s.len + 4) + 64);
+    const out_addr = alloc(max_out);
+    const out: [*]u8 = @ptrFromInt(out_addr);
+    var out_len: usize = 0;
+
+    const dummy_repl = [1]u8{0};
+    const repl_bytes: [*]const u8 = if (repl_s.len > 0)
+        @ptrFromInt(repl_s.ptr)
+    else
+        @ptrCast(&dummy_repl);
+
+    const ustr: [*]const i32 = @ptrFromInt(sub_u.ptr);
+    var pos: usize = 0;          // current codepoint position in subject
+    var match_count: i64 = 0;
+
+    // One regmatch_t = two size_t (u32 on 32-bit) = 8 bytes.
+    var pmatch: [REGMATCH_T_SIZE]u8 = undefined;
+
+    while (pos <= sub_u.len) {
+        const remaining = sub_u.len - pos;
+
+        // Pass the remaining subject suffix to TclReExec.
+        const sub_from: [*]const i32 = @ptrFromInt(sub_u.ptr + pos * 4);
+        const exec_rc = TclReExec(
+            re_ptr,
+            sub_from,
+            remaining,
+            null,
+            1,
+            &pmatch,
+            0,
+        );
+        if (exec_rc != REG_OKAY) break; // no more matches
+
+        // Read rm_so / rm_eo as little-endian u32.
+        const rm_so: u32 = @bitCast([4]u8{ pmatch[0], pmatch[1], pmatch[2], pmatch[3] });
+        const rm_eo: u32 = @bitCast([4]u8{ pmatch[4], pmatch[5], pmatch[6], pmatch[7] });
+
+        // Append pre-match text (absolute indices in ustr).
+        out_len += append_ucs_range(out, out_len, ustr, pos, pos + rm_so);
+
+        // Apply replacement (``&`` → matched text).
+        out_len += append_repl(
+            out,
+            out_len,
+            repl_bytes,
+            repl_s.len,
+            ustr,
+            pos + rm_so,
+            pos + rm_eo,
+        );
+
+        match_count += 1;
+
+        if (rm_eo > 0) {
+            pos += rm_eo;
+        } else {
+            // Zero-length match: output the current codepoint and advance
+            // to prevent an infinite loop.
+            if (pos < sub_u.len) {
+                out_len += encode_cp(out, out_len, @intCast(ustr[pos]));
+            }
+            pos += 1;
+        }
+
+        if (!do_all) break;
+    }
+
+    // Append any remaining unmatched suffix.
+    out_len += append_ucs_range(out, out_len, ustr, pos, sub_u.len);
+
+    TclReFree(re_ptr);
+
+    const result = obj_new_string(@intCast(out_addr), @intCast(out_len));
+
+    if (has_var) {
+        _ = frames.var_set(varname, result);
+        return obj_new_int(match_count);
+    }
+    return result;
 }

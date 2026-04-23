@@ -22,6 +22,25 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_obj_new_int": ("tcl", "obj_new_int", [ValType.I64], [ValType.I32]),
     "tcl_obj_new_string": ("tcl", "obj_new_string", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
+    "tcl_obj_new_float": ("tcl", "obj_new_float", [ValType.F64], [ValType.I32]),
+    "tcl_obj_get_float": ("tcl", "obj_get_float", [ValType.I32], [ValType.F64]),
+    # Float-aware arithmetic — handle int/float dispatch at runtime
+    "tcl_arith_add": ("tcl", "tcl_arith_add", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_sub": ("tcl", "tcl_arith_sub", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_mul": ("tcl", "tcl_arith_mul", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_div": ("tcl", "tcl_arith_div", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_mod": ("tcl", "tcl_arith_mod", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Math functions
+    "tcl_math_double": ("tcl", "tcl_math_double", [ValType.I32], [ValType.I32]),
+    "tcl_math_int": ("tcl", "tcl_math_int", [ValType.I32], [ValType.I32]),
+    "tcl_math_round": ("tcl", "tcl_math_round", [ValType.I32], [ValType.I32]),
+    "tcl_math_log": ("tcl", "tcl_math_log", [ValType.I32], [ValType.I32]),
+    "tcl_math_sqrt": ("tcl", "tcl_math_sqrt", [ValType.I32], [ValType.I32]),
+    "tcl_math_exp": ("tcl", "tcl_math_exp", [ValType.I32], [ValType.I32]),
+    "tcl_math_log10": ("tcl", "tcl_math_log10", [ValType.I32], [ValType.I32]),
+    "tcl_math_sin": ("tcl", "tcl_math_sin", [ValType.I32], [ValType.I32]),
+    "tcl_math_cos": ("tcl", "tcl_math_cos", [ValType.I32], [ValType.I32]),
+    "tcl_math_fabs": ("tcl", "tcl_math_fabs", [ValType.I32], [ValType.I32]),
     # Command runtime — all parameters/results are i32 TclObj pointers
     "tcl_puts": ("tcl", "tcl_cmd_puts", [ValType.I32], [ValType.I32]),
     "tcl_puts_nonewline": (
@@ -229,7 +248,7 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_proc_register_compiled": (
         "tcl",
         "proc_register_compiled",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
     # Info command

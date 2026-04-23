@@ -17,12 +17,17 @@
 // new code should import ``tcl_chars.zig`` directly.
 
 const chars = @import("tcl_chars.zig");
+const std = @import("std");
 
 // Type tags
 pub const TYPE_STRING: i32 = 0;
 pub const TYPE_INT: i32 = 1;
 pub const TYPE_LIST: i32 = 2;
 pub const TYPE_DICT: i32 = 3;
+// TYPE_FLOAT: f64 bits stored in the int_cache field via @bitCast.
+// The str_ptr/str_len fields hold a cached string representation
+// once obj_ensure_string has been called.
+pub const TYPE_FLOAT: i32 = 4;
 
 // TclObj field offsets
 pub const OBJ_REFCOUNT: u32 = 0;
@@ -46,6 +51,10 @@ pub fn alloc(size: u32) callconv(.c) u32 {
     const ptr = heap_ptr;
     heap_ptr += aligned;
     return ptr;
+}
+
+pub export fn tcl_test_heap_ptr() i32 {
+    return @bitCast(heap_ptr);
 }
 
 fn free_obj(addr: u32) void {
@@ -111,6 +120,28 @@ pub export fn obj_new_string(data_ptr: i32, length: i32) i32 {
     return @as(i32, @intCast(ptr));
 }
 
+pub export fn obj_new_float(value: f64) i32 {
+    const ptr = obj_alloc();
+    write_i32(ptr + OBJ_TYPE_TAG, TYPE_FLOAT);
+    write_i64(ptr + OBJ_INT_CACHE, @bitCast(value));
+    return @as(i32, @intCast(ptr));
+}
+
+pub export fn obj_get_float(obj: i32) f64 {
+    if (obj == 0) return 0.0;
+    const addr: u32 = @intCast(obj);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_FLOAT) return @bitCast(read_i64(addr + OBJ_INT_CACHE));
+    if (tag == TYPE_INT) return @floatFromInt(read_i64(addr + OBJ_INT_CACHE));
+    if (tag == TYPE_STRING) {
+        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        if (try_parse_float(sptr, slen)) |val| return val;
+        if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
+    }
+    return 0.0;
+}
+
 pub export fn obj_get_int(obj: i32) i64 {
     // Null/zero pointer sentinel — return 0 rather than reading
     // arbitrary bytes from address 0 (the pre-heap WASM stack area).
@@ -120,6 +151,10 @@ pub export fn obj_get_int(obj: i32) i64 {
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
+    if (tag == TYPE_FLOAT) {
+        const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
+        return @intFromFloat(fval);
+    }
     if (tag == TYPE_STRING) {
         const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
@@ -127,6 +162,12 @@ pub export fn obj_get_int(obj: i32) i64 {
             write_i32(addr + OBJ_TYPE_TAG, TYPE_INT);
             write_i64(addr + OBJ_INT_CACHE, val);
             return val;
+        }
+        // Float string: parse and truncate to integer (Tcl semantics:
+        // ``expr {int("2.7")}`` = 2).  Do not cache as TYPE_INT since
+        // the value retains its fractional form.
+        if (try_parse_float(sptr, slen)) |fval| {
+            return @intFromFloat(fval);
         }
         // Tcl boolean literals — ``true`` / ``yes`` / ``on`` → 1,
         // ``false`` / ``no`` / ``off`` → 0 (case-insensitive, and
@@ -196,6 +237,52 @@ pub fn try_parse_int(ptr: u32, len: u32) ?i64 {
     while (i < len and is_space(src[i])) i += 1;
     if (i != len) return null;
     return if (negative) -val else val;
+}
+
+/// Parse a decimal float literal (e.g. "3.14", "2.2e5", "-0.5").
+/// Returns null if the string is not a valid float or is a plain integer.
+/// Requires a decimal point or exponent to distinguish from integers.
+pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
+    if (len == 0) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len and is_space(src[i])) i += 1;
+    if (i >= len) return null;
+    const start = i;
+    if (src[i] == '-' or src[i] == '+') i += 1;
+    if (i >= len) return null;
+    var has_dot = false;
+    var has_exp = false;
+    var has_digit = false;
+    while (i < len) {
+        const c = src[i];
+        if (c >= '0' and c <= '9') { has_digit = true; i += 1; }
+        else if (c == '.' and !has_dot and !has_exp) { has_dot = true; i += 1; }
+        else if ((c == 'e' or c == 'E') and !has_exp and has_digit) {
+            has_exp = true;
+            i += 1;
+            if (i < len and (src[i] == '+' or src[i] == '-')) i += 1;
+        }
+        else break;
+    }
+    while (i < len and is_space(src[i])) i += 1;
+    if (i != len) return null;
+    if (!has_digit) return null;
+    if (!has_dot and !has_exp) return null; // plain integer — not a float
+    // Copy the non-whitespace slice to a stack buffer and parse.
+    if (len > 64) return null;
+    _ = start;
+    // Find end of non-whitespace content.
+    var end = len;
+    while (end > 0 and is_space(src[end - 1])) end -= 1;
+    // Find start of non-whitespace.
+    var beg: u32 = 0;
+    while (beg < end and is_space(src[beg])) beg += 1;
+    if (beg >= end) return null;
+    var buf: [65]u8 = undefined;
+    const blen = end - beg;
+    for (0..blen) |k| buf[k] = src[beg + k];
+    return std.fmt.parseFloat(f64, buf[0..blen]) catch null;
 }
 
 pub export fn tcl_obj_retain(obj: i32) void {
@@ -283,7 +370,27 @@ pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
 }
 
-/// Render an integer TclObj to its string representation.
+// Scratch buffer for float-to-string conversion (max 32 bytes).
+var ftoa_buf: [32]u8 = undefined;
+
+fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
+    const result = std.fmt.bufPrint(&ftoa_buf, "{d}", .{value}) catch ftoa_buf[0..1];
+    const len = result.len;
+    // Tcl requires floats to look like floats: ensure the string contains
+    // a '.', 'e', or 'E' so that "5.0" is not confused with integer "5".
+    var has_dot = false;
+    for (result) |c| {
+        if (c == '.' or c == 'e' or c == 'E') { has_dot = true; break; }
+    }
+    if (!has_dot and len + 2 <= ftoa_buf.len) {
+        ftoa_buf[len] = '.';
+        ftoa_buf[len + 1] = '0';
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(len + 2) };
+    }
+    return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(len) };
+}
+
+/// Render a TclObj to its string representation (integer, float, or string).
 pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     if (obj == 0) return .{ .ptr = 0, .len = 0 };
     const addr: u32 = @intCast(obj);
@@ -300,6 +407,15 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
             .ptr = sptr,
             .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
         };
+    }
+    if (tag == TYPE_FLOAT) {
+        const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
+        const result = ftoa(fval);
+        const buf = alloc(result.len);
+        memcpy(buf, @intFromPtr(result.ptr), result.len);
+        write_i32(addr + OBJ_STR_PTR, @intCast(buf));
+        write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+        return .{ .ptr = buf, .len = result.len };
     }
     const val = read_i64(addr + OBJ_INT_CACHE);
     const result = itoa(val);

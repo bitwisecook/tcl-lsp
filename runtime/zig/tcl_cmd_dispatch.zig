@@ -90,7 +90,9 @@ fn match_stub(c: []const u8) bool {
     // ``eval_command``; the formatting subcommands need per-subcmd
     // discrimination and surface as ``unsupported command: clock
     // <sub>`` from tcl_time_stubs.
-    if (eql(c, "after")) return trap("after");
+    // ``after``, ``vwait``, and ``update`` are handled by the cmd_table
+    // (stubs_.zig) as no-ops before we're called; these lines are kept
+    // as documentation but should never fire.
     if (eql(c, "vwait")) return trap("vwait");
     if (eql(c, "update")) return trap("update");
     if (eql(c, "coroutine")) return trap("coroutine");

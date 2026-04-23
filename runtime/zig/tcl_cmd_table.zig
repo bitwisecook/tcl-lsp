@@ -31,6 +31,7 @@ const chan_cmd      = @import("cmds/chan.zig");
 const fs_cmd        = @import("cmds/fs.zig");
 const subst_cmd     = @import("cmds/subst_.zig");
 const regexp_cmd    = @import("cmds/regexp_.zig");
+const regsub_cmd    = @import("cmds/regsub_.zig");
 const inspect_cmd   = @import("cmds/inspect.zig");
 const namespace_cmd = @import("cmds/namespace_.zig");
 const interp_cmd    = @import("cmds/interp_.zig");
@@ -54,6 +55,7 @@ const BUILTINS: []const reg.CmdEntry = &(
     fs_cmd.registrations ++
     subst_cmd.registrations ++
     regexp_cmd.registrations ++
+    regsub_cmd.registrations ++
     inspect_cmd.registrations ++
     namespace_cmd.registrations ++
     interp_cmd.registrations ++

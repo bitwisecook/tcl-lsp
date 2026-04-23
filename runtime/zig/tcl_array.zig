@@ -301,11 +301,44 @@ fn ar_grow(old_table: u32) u32 {
     return t;
 }
 
-fn find_or_create(name: i32) u32 {
+/// Normalise a variable name that contains ``::`` but does not start
+/// with ``::`` (e.g. ``ns::var``) by prepending ``::`` to produce a
+/// fully-qualified name (``::ns::var``).  Names that are already
+/// qualified or that contain no ``::`` (local arrays) are returned
+/// unchanged.  Keeps the array directory consistent with Tcl's view
+/// that unqualified namespace paths in global scope are equivalent
+/// to their ``::``-prefixed forms, so ``info vars ::ns::T-*`` can
+/// find arrays created via ``upvar #0 ns::T-$tag local``.
+fn normalize_ns_name(name: i32) i32 {
     const sn = obj_ensure_string(name);
+    if (sn.len < 2) return name;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sp[0] == ':' and sp[1] == ':') return name; // already qualified
+    var i: u32 = 0;
+    while (i + 1 < sn.len) : (i += 1) {
+        if (sp[i] == ':' and sp[i + 1] == ':') {
+            const buf = alloc(2 + sn.len);
+            const d: [*]u8 = @ptrFromInt(buf);
+            d[0] = ':';
+            d[1] = ':';
+            memcpy(buf + 2, sn.ptr, sn.len);
+            return obj_new_string(@bitCast(buf), @bitCast(2 + sn.len));
+        }
+    }
+    return name; // no '::' in name — local array, no normalization
+}
+
+fn find_or_create(name: i32) u32 {
+    const n = normalize_ns_name(name);
+    const sn = obj_ensure_string(n);
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
-        return @bitCast(read_i32(bucket + 12));
+        const existing: u32 = @bitCast(read_i32(bucket + 12));
+        if (existing != 0) return existing;
+        // Bucket was nulled by array_unset — re-create a fresh table.
+        const fresh = ar_new();
+        write_i32(bucket + 12, @bitCast(fresh));
+        return fresh;
     }
     const t = ar_new();
     dir_insert(sn.ptr, sn.len, hash, t);
@@ -313,7 +346,8 @@ fn find_or_create(name: i32) u32 {
 }
 
 fn find_table(name: i32) u32 {
-    const sn = obj_ensure_string(name);
+    const n = normalize_ns_name(name);
+    const sn = obj_ensure_string(n);
     if (dir_buf == 0) return 0;
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
@@ -425,14 +459,16 @@ pub export fn array_size(arr: i32) i32 {
 
 /// array_unset arrName — remove the entire array (all elements).
 pub export fn array_unset(arr: i32) i32 {
-    const sn = obj_ensure_string(arr);
+    const n = normalize_ns_name(arr);
+    const sn = obj_ensure_string(n);
     if (dir_buf == 0) return obj_new_int(0);
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
-        // Replace the array's table with a fresh empty one rather
-        // than trying to free — the bump allocator can't free.
-        const fresh = ar_new();
-        write_i32(bucket + 12, @bitCast(fresh));
+        // Null out the table pointer so array_exists / find_table
+        // treat this array as non-existent.  The directory entry itself
+        // stays so the open-addressing chain isn't broken; find_or_create
+        // will re-allocate a fresh table when the array is re-created.
+        write_i32(bucket + 12, 0);
     }
     return obj_new_int(0);
 }
@@ -530,6 +566,57 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         }
         memcpy(buf + off, ep, el);
         off += el;
+        written += 1;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(off));
+}
+
+/// Scan the array directory for names matching the glob pattern
+/// ``(pat_ptr, pat_len)`` and return a space-separated list of
+/// matching array names as a TclObj.  Used by ``tcl_cmd_info.info_vars``
+/// to include array variables in ``info vars`` results.
+/// ``pat_len == 0`` means "no pattern — return all array names".
+pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
+    if (dir_buf == 0) return obj_new_string(0, 0);
+    const str_mod = @import("tcl_string.zig");
+    const use_filter = pat_len > 0;
+
+    var total: u32 = 0;
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < dir_cap) : (i += 1) {
+        const bucket = dir_buf + i * DIR_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        const table_ptr: u32 = @bitCast(read_i32(bucket + 12));
+        if (table_ptr == 0) continue; // array_unset'd
+        if (use_filter and !str_mod.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        if (count > 0) total += 1;
+        total += name_len;
+        count += 1;
+    }
+    if (total == 0) return obj_new_string(0, 0);
+
+    const buf = alloc(total);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < dir_cap) : (i += 1) {
+        const bucket = dir_buf + i * DIR_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        const table_ptr: u32 = @bitCast(read_i32(bucket + 12));
+        if (table_ptr == 0) continue;
+        if (use_filter and !str_mod.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        if (written > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        memcpy(buf + off, name_ptr, name_len);
+        off += name_len;
         written += 1;
     }
     return obj_new_string(@bitCast(buf), @bitCast(off));
