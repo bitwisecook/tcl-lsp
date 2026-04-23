@@ -254,6 +254,10 @@ fn ns_qualifiers(ptr: u32, len: u32) i32 {
     var i: u32 = len;
     while (i > 0 and sp[i - 1] != ':') i -= 1;
     while (i > 0 and sp[i - 1] == ':') i -= 1;
+    // ::foo → qualifiers are "::" (not empty string)
+    if (i == 0 and len >= 3 and sp[0] == ':' and sp[1] == ':') {
+        return obj_new_string(@bitCast(ptr), 2);
+    }
     return obj_new_string(@bitCast(ptr), @bitCast(i));
 }
 

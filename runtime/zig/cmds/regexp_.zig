@@ -48,13 +48,19 @@ fn eval_regsub(words: []const i32) i32 {
     const pattern = words[i];     i += 1;
     const string  = words[i];     i += 1;
     const subspec = words[i];     i += 1;
-    const has_var = i < words.len;
+    const has_var = (i < words.len);
     const var_name = if (has_var) words[i] else 0;
+    i += if (has_var) 1 else 0;
+    if (i < words.len) {
+        stubs.raise("wrong # args: regsub ?-nocase? ?-all? ?--? pattern string subSpec ?varName?");
+        return obj_new_int(0);
+    }
 
-    const result = regex_mod.do_regsub(pattern, string, subspec, nocase, all);
+    var n_subs: i32 = 0;
+    const result = regex_mod.do_regsub(pattern, string, subspec, nocase, all, &n_subs);
     if (has_var) {
         _ = frames.var_set(var_name, result);
-        return obj_new_int(1);
+        return obj_new_int(n_subs);
     }
     return result;
 }
