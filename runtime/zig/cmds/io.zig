@@ -1,12 +1,10 @@
-// ``puts``, ``append``, ``format``, ``scan`` — I/O and string output commands.
+// ``puts``, ``append``, ``format`` — I/O and string output commands.
+// ``scan`` moved to cmds/scan_.zig for full multi-varname support.
 
 const rt       = @import("../tcl_runtime.zig");
 const frames   = @import("../tcl_frames.zig");
 const fmt_mod  = @import("../tcl_format.zig");
-const fmt_stubs = @import("../tcl_fmt_stubs.zig");
 const reg      = @import("../tcl_cmd_registry.zig");
-
-const obj_new_int  = rt.obj_new_int;
 
 fn eval_puts(words: []const i32) i32 {
     if (words.len >= 2) return rt.tcl_cmd_puts(words[words.len - 1]);
@@ -34,21 +32,8 @@ fn eval_format(words: []const i32) i32 {
     return fmt_mod.tcl_cmd_format(fmt, a1, a2, a3);
 }
 
-fn eval_scan(words: []const i32) i32 {
-    if (words.len >= 3) {
-        const val = fmt_stubs.tcl_cmd_scan(words[1], words[2]);
-        if (words.len >= 4) {
-            _ = frames.var_set(words[3], val);
-            return obj_new_int(1);
-        }
-        return val;
-    }
-    return obj_new_int(-1);
-}
-
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "puts",   .handler = &eval_puts },
     .{ .name = "append", .handler = &eval_append },
     .{ .name = "format", .handler = &eval_format },
-    .{ .name = "scan",   .handler = &eval_scan },
 };

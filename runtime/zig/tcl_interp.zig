@@ -1488,6 +1488,136 @@ fn eval_interp_eval(words: []const i32) i32 {
 // on the WASM stack.
 const MAX_EXPANDED_WORDS: u32 = 128;
 
+/// Public entry point into ``eval_command`` — lets cmds/flow.zig (tailcall)
+/// dispatch a command by words slice without exposing the private function.
+pub fn eval_call(words: []const i32) i32 {
+    return eval_command(words);
+}
+
+/// ``apply`` — invoke an anonymous lambda: apply {paramList body ?ns?} ?arg ...?
+/// Public so tcl_env_stubs.zig can call it from the 2-arg compiled export.
+pub fn eval_apply(words: []const i32) i32 {
+    if (words.len < 2) {
+        const stubs = @import("tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
+        return 0;
+    }
+    const tcl_ns_mod = @import("tcl_ns.zig");
+
+    // Parse lambda tuple: {paramList body ?ns?}
+    const lambda_s = obj_ensure_string(words[1]);
+    const n_parts = list_count_elements(lambda_s.ptr, lambda_s.len);
+    if (n_parts < 2) {
+        const stubs = @import("tcl_stubs.zig");
+        stubs.raise("bad lambda expression: must have 2 or 3 elements");
+        return 0;
+    }
+
+    const params_elem = list_element_at(lambda_s.ptr, lambda_s.len, 0);
+    const body_elem   = list_element_at(lambda_s.ptr, lambda_s.len, 1);
+
+    const params_obj = if (params_elem.braced)
+        obj_new_string_copy(lambda_s.ptr + params_elem.start, params_elem.len)
+    else blk: {
+        const buf = alloc(params_elem.len + 4);
+        const out_len = copy_unbraced_elem(buf, lambda_s.ptr + params_elem.start, params_elem.len);
+        break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+    };
+    const body_obj = if (body_elem.braced)
+        obj_new_string_copy(lambda_s.ptr + body_elem.start, body_elem.len)
+    else blk: {
+        const buf = alloc(body_elem.len + 4);
+        const out_len = copy_unbraced_elem(buf, lambda_s.ptr + body_elem.start, body_elem.len);
+        break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+    };
+
+    // Optional namespace from third lambda element
+    const saved_ns: u32 = tcl_ns_mod.current_ns;
+    defer tcl_ns_mod.current_ns = saved_ns;
+    if (n_parts >= 3) {
+        const ns_elem = list_element_at(lambda_s.ptr, lambda_s.len, 2);
+        if (ns_elem.len > 0) {
+            const ns_ptr: u32 = lambda_s.ptr + ns_elem.start;
+            tcl_ns_mod.current_ns = tcl_ns_mod.ns_create_from_fqn(
+                @bitCast(ns_ptr), @bitCast(ns_elem.len),
+            );
+        }
+    }
+
+    _ = frames.frame_push();
+
+    // Bind parameters — same pattern as eval_proc_call_bucket but user
+    // args start at words[2] (words[0]=apply, words[1]=lambda).
+    const ps = obj_ensure_string(params_obj);
+    const n_params: u32 = @intCast(list_count_elements(ps.ptr, ps.len));
+    if (ps.len > 0 and n_params > 0) {
+        var pi: u32 = 0;
+        while (pi < n_params) : (pi += 1) {
+            const param_elem = list_element_at(ps.ptr, ps.len, @intCast(pi));
+            const param_name_ptr = ps.ptr + param_elem.start;
+            const param_name_len = param_elem.len;
+            const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
+            const param_name_s: [*]const u8 = @ptrFromInt(param_name_ptr);
+            const arg_idx = pi + 2; // skip words[0]=apply, words[1]=lambda
+            const is_args_param = (pi == n_params - 1) and (param_name_len == 4) and
+                param_name_s[0] == 'a' and param_name_s[1] == 'r' and
+                param_name_s[2] == 'g' and param_name_s[3] == 's';
+            if (is_args_param) {
+                if (arg_idx >= words.len) {
+                    _ = frames.local_set(param_name, obj_new_string(0, 0));
+                } else if (arg_idx + 1 == words.len) {
+                    _ = frames.local_set(param_name, words[arg_idx]);
+                } else {
+                    var total: u32 = 0;
+                    var ai: u32 = arg_idx;
+                    while (ai < words.len) : (ai += 1) {
+                        const sv = obj_ensure_string(words[ai]);
+                        total += sv.len * 2 + 4;
+                        if (ai > arg_idx) total += 1;
+                    }
+                    const buf = alloc(total + 4);
+                    var off: u32 = 0;
+                    ai = arg_idx;
+                    while (ai < words.len) : (ai += 1) {
+                        if (ai > arg_idx) {
+                            const d: [*]u8 = @ptrFromInt(buf + off);
+                            d[0] = ' ';
+                            off += 1;
+                        }
+                        const sv = obj_ensure_string(words[ai]);
+                        if (ai == arg_idx) {
+                            off = obj_mod.list_elem_quote(buf, off, sv.ptr, sv.len);
+                        } else {
+                            off = obj_mod.list_elem_quote_nth(buf, off, sv.ptr, sv.len);
+                        }
+                    }
+                    _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
+                }
+                break;
+            } else {
+                const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
+                _ = frames.local_set(param_name, arg_val);
+            }
+        }
+    }
+
+    const body_s = obj_ensure_string(body_obj);
+    const result = eval_script(body_s.ptr, body_s.len);
+
+    frames.frame_pop();
+
+    if (rt.return_flag.* != 0) {
+        rt.return_flag.* = 0;
+        return rt.return_val.*;
+    }
+    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
+        rt.break_flag.* = 0;
+        rt.continue_flag.* = 0;
+        rt.tcl_cmd_error(words[1]);
+    }
+    return result;
+}
+
 pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     if (script_len == 0) return 0;
 
