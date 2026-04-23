@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import threading
 from typing import TYPE_CHECKING
 
@@ -21,16 +22,106 @@ from core.common.optimisation_profiles import (
 )
 from core.formatting import FormatterConfig
 
-from .state import (
-    _camel_to_snake,
-    _extract_tcl_lsp_settings,
-    _normalise_formatter_settings,
-)
-
 if TYPE_CHECKING:
     from pygls.lsp.server import LanguageServer
 
 log = logging.getLogger(__name__)
+
+
+def _camel_to_snake(name: str) -> str:
+    """Convert lowerCamelCase/PascalCase names to snake_case."""
+    first = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", first).lower()
+
+
+def _normalise_formatter_settings(raw: dict) -> dict:
+    """Map client formatter settings to FormatterConfig field names."""
+    normalised: dict[str, object] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str):
+            continue
+        field = _camel_to_snake(key)
+        if field == "line_ending" and isinstance(value, str):
+            mapping = {
+                "lf": "\n",
+                "crlf": "\r\n",
+                "cr": "\r",
+            }
+            value = mapping.get(value.lower(), value)
+        normalised[field] = value
+    return normalised
+
+
+_KNOWN_TCL_LSP_SECTIONS = frozenset(
+    {
+        "formatting",
+        "diagnostics",
+        "optimiser",
+        "shimmer",
+        "features",
+        "style",
+        "xcDiagnostics",
+        "runtimeValidation",
+        "ai",
+        "packageManager",
+    }
+)
+_KNOWN_TCL_LSP_TOPLEVEL = frozenset(
+    {
+        "dialect",
+        "extraCommands",
+        "libraryPaths",
+    }
+)
+
+
+def _extract_tcl_lsp_settings(settings: dict) -> dict:
+    """Extract extension/server settings from multiple client payload shapes.
+
+    Handles three payload formats:
+    1. Nested:   ``{"tclLsp": {"optimiser": {"O109": false}}}``
+    2. Flat:     ``{"tclLsp.optimiser.O109": false}``
+    3. Unwrapped (no ``tclLsp`` prefix — e.g. JetBrains pull-model response):
+       ``{"optimiser": {"O109": false}, "dialect": "tcl8.6"}``
+    """
+    extracted: dict[str, object] = {}
+
+    nested = settings.get("tclLsp")
+    if isinstance(nested, dict):
+        extracted.update(nested)
+
+    for key, value in settings.items():
+        if not isinstance(key, str):
+            continue
+        if key.startswith("tclLsp."):
+            subkey = key[len("tclLsp.") :]
+        else:
+            continue
+
+        section_handled = False
+        for section in _KNOWN_TCL_LSP_SECTIONS:
+            prefix = section + "."
+            if subkey.startswith(prefix):
+                section_key = subkey[len(prefix) :]
+                current = extracted.get(section)
+                if not isinstance(current, dict):
+                    current = {}
+                    extracted[section] = current
+                current[section_key] = value
+                section_handled = True
+                break
+        if not section_handled:
+            extracted[subkey] = value
+
+    if not extracted:
+        if any(
+            isinstance(k, str) and k in _KNOWN_TCL_LSP_SECTIONS | _KNOWN_TCL_LSP_TOPLEVEL
+            for k in settings
+        ):
+            extracted.update(settings)
+
+    return extracted
+
 
 # Code registries
 

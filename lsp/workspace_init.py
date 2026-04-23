@@ -243,7 +243,11 @@ def _start_scan_with_progress() -> None:
 def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
     from core.common.dialect import active_dialect
-    from lsp.settings import _apply_feature_settings, _pull_and_apply_configuration
+    from lsp.settings import (
+        _apply_feature_settings,
+        _normalise_formatter_settings,
+        _pull_and_apply_configuration,
+    )
 
     user_config = load_user_config()
     config_settings = get_all_settings(user_config)
@@ -251,7 +255,7 @@ def on_initialized(params: types.InitializedParams) -> None:
         formatting = config_settings.get("formatting")
         if isinstance(formatting, dict) and formatting:
             _state.formatter_config = FormatterConfig.from_dict(
-                _state._normalise_formatter_settings(formatting)
+                _normalise_formatter_settings(formatting)
             )
         _apply_feature_settings(config_settings)
 
