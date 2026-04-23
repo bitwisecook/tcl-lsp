@@ -34,6 +34,7 @@ diagnostic_scheduler = DiagnosticScheduler()
 
 _process_pool: ProcessPoolExecutor | None = None
 
+
 def _get_process_pool() -> ProcessPoolExecutor:
     """Lazy singleton ProcessPoolExecutor for CPU-intensive analysis.
 
@@ -50,6 +51,7 @@ def _get_process_pool() -> ProcessPoolExecutor:
             ctx = None  # Windows — use default
         _process_pool = ProcessPoolExecutor(max_workers=2, mp_context=ctx)
     return _process_pool
+
 
 _loaded_packages: set[str] = set()
 _SAFE_FIX_CODES = frozenset(
@@ -77,12 +79,15 @@ _semantic_token_result_counter = itertools.count(1)
 
 _server: LanguageServer | None = None
 
+
 def configure(server_instance: LanguageServer) -> None:
     """Inject the LanguageServer instance so _get_doc_source can fall back to it."""
     global _server
     _server = server_instance
 
+
 # Utility helpers
+
 
 def _get_doc_source(uri: str) -> str:
     """Get document source text, handling virtual documents without backing files.
@@ -103,10 +108,12 @@ def _get_doc_source(uri: str) -> str:
     except (FileNotFoundError, OSError):
         return ""
 
+
 def _camel_to_snake(name: str) -> str:
     """Convert lowerCamelCase/PascalCase names to snake_case."""
     first = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", first).lower()
+
 
 def _normalise_formatter_settings(raw: dict) -> dict:
     """Map client formatter settings to FormatterConfig field names."""
@@ -124,6 +131,7 @@ def _normalise_formatter_settings(raw: dict) -> dict:
             value = mapping.get(value.lower(), value)
         normalised[field] = value
     return normalised
+
 
 # Keys that appear directly inside the ``tclLsp`` configuration namespace.
 # Used both for flat-key routing and for detecting unwrapped payloads from
@@ -150,6 +158,7 @@ _KNOWN_TCL_LSP_TOPLEVEL = frozenset(
     }
 )
 
+
 def _extract_tcl_lsp_settings(settings: dict) -> dict:
     """Extract extension/server settings from multiple client payload shapes.
 
@@ -169,7 +178,7 @@ def _extract_tcl_lsp_settings(settings: dict) -> dict:
         if not isinstance(key, str):
             continue
         if key.startswith("tclLsp."):
-            subkey = key[len("tclLsp."):]
+            subkey = key[len("tclLsp.") :]
         else:
             continue
 
@@ -178,7 +187,7 @@ def _extract_tcl_lsp_settings(settings: dict) -> dict:
         for section in _KNOWN_TCL_LSP_SECTIONS:
             prefix = section + "."
             if subkey.startswith(prefix):
-                section_key = subkey[len(prefix):]
+                section_key = subkey[len(prefix) :]
                 current = extracted.get(section)
                 if not isinstance(current, dict):
                     current = {}

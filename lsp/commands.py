@@ -844,4 +844,3 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.command("tcl-lsp.tclpkg.search")(on_tclpkg_search)
     server_instance.command(_DIALECT_COMMAND)(on_set_dialect)
     server_instance.command(_EXPORT_CONFIG_COMMAND)(on_export_config)
-

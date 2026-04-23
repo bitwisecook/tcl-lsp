@@ -61,8 +61,6 @@ from .features.workspace_symbols import get_workspace_symbols
 log = logging.getLogger(__name__)
 
 
-
-
 try:
     from ._build_info import FULL_VERSION as _version
 except ImportError:
@@ -1079,6 +1077,7 @@ def on_code_action(
             action.edit.changes = remapped
     return actions or None
 
+
 # Formatting
 
 
@@ -1147,4 +1146,3 @@ def on_will_save_wait_until(
         lines=state.lines if state else None,
     )
     return edits or None
-
