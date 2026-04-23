@@ -633,7 +633,13 @@ class _WasmEmitterStmtMixin(_Base):
             if hook(self, args, defs):
                 return
 
-        # Unknown command — fall back to interpreter
+        # Unknown command — fall back to interpreter.
+        # Pre-intern defs so _emit_frame_readback (inside the fallback)
+        # can reload them.  Without this, a first-time defs variable like
+        # ``scan ... v`` is not yet in _tcl_var_locals and the readback
+        # silently skips it, leaving the WASM local at 0.
+        for _def_var in defs:
+            self._intern_local(_def_var)
         self._emit_eval_fallback(command, args, tokens=tokens)
         self._emit(WasmOp.DROP)  # statement context — discard result
 
