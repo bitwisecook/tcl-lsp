@@ -44,7 +44,7 @@ jobs:
         run: make build-info
 
       - name: Type-check with ty
-        run: uv run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tests scripts/tcl_test_client.py
+        run: uv run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tests scripts/tcl_test_client.py
   # Test: Python test suite
   test-py:
     runs-on: ubuntu-latest

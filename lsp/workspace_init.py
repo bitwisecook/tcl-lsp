@@ -187,7 +187,7 @@ def _start_scan_with_progress() -> None:
         nonlocal progress_active
         try:
             await asyncio.wait_for(
-                _server.work_done_progress.create_async(token),
+                _server.work_done_progress.create_async(token),  # type: ignore[union-attr]
                 timeout=5.0,  # type: ignore[union-attr]
             )
         except (Exception, asyncio.TimeoutError):
