@@ -5,6 +5,7 @@ const rt     = @import("../tcl_runtime.zig");
 const frames = @import("../tcl_frames.zig");
 const reg    = @import("../tcl_cmd_registry.zig");
 
+const stubs             = @import("../tcl_stubs.zig");
 const str_eq            = @import("../tcl_chars.zig").str_eq;
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int       = rt.obj_new_int;
@@ -85,7 +86,7 @@ fn eval_catch(words: []const i32) i32 {
 // ``throw type message`` — raise error with explicit errorCode.
 fn eval_throw(words: []const i32) i32 {
     if (words.len < 3) {
-        rt.tcl_cmd_error(obj_new_string(0, 0));
+        stubs.raise("wrong # args: should be \"throw type message\"");
         return 0;
     }
     const catch_mod = @import("../tcl_catch.zig");
@@ -199,16 +200,28 @@ fn eval_try(words: []const i32) i32 {
     const snap_break    = rt.break_flag.*;
     const snap_continue = rt.continue_flag.*;
 
-    // Finally: run in an isolated catch frame, preserving caller signal state.
+    // Finally: run in an isolated catch frame.  An error/return/break/continue
+    // from the finally body overrides the handler outcome per Tcl semantics.
     if (finally_body != 0) {
         const c = @import("../tcl_catch.zig");
         c.error_flag = 0; c.error_msg = 0;
         rt.return_flag.* = 0; rt.break_flag.* = 0; rt.continue_flag.* = 0;
         rt.catch_enter();
         const fb_s = obj_ensure_string(finally_body);
-        _ = interp.eval_script(fb_s.ptr, fb_s.len);
-        _ = rt.catch_leave();
-        // Restore signals from after handlers ran (not before).
+        const fb_result = interp.eval_script(fb_s.ptr, fb_s.len);
+        rt.catch_set_ok_result(fb_result);
+        const fb_val      = rt.catch_result();
+        const finally_code = rt.catch_leave();
+        if (rt.obj_get_int(finally_code) != 0) {
+            // Finally raised an error — propagate it, overriding handler result.
+            catch_mod.tcl_cmd_error(fb_val);
+            return fb_result;
+        }
+        // If finally set a return/break/continue signal, propagate it.
+        if (rt.return_flag.* != 0 or rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
+            return fb_result;
+        }
+        // Finally completed normally: restore signals from after handlers ran.
         rt.return_flag.*   = snap_return;
         rt.return_val.*    = snap_ret_val;
         rt.break_flag.*    = snap_break;

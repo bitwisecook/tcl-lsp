@@ -242,7 +242,8 @@ fn run_match_cap(
 /// Substitute matches in ``string`` using ``subspec``.
 /// ``&`` in subspec → whole match; ``\N`` (N 1-9) → capture group N.
 /// If ``all`` is true, replaces every non-overlapping occurrence.
-pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: bool) i32 {
+/// ``n_subs_out`` receives the substitution count when non-null.
+pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: bool, n_subs_out: ?*i32) i32 {
     const pat_s = obj_ensure_string(pattern);
     const str_s = obj_ensure_string(string);
     const sub_s = obj_ensure_string(subspec);
@@ -274,6 +275,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
 
     var pos_byte: u32 = 0; // byte position in str_s
     var pos_cp:   u32 = 0; // codepoint position in str_u
+    var n_subs:   i32 = 0; // substitution count
 
     while (true) {
         const remaining_cp: usize = str_u.len - pos_cp;
@@ -281,6 +283,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
 
         const matched = run_match_cap(re_ptr, sub_u_start, remaining_cp, nmatch, pmatch_buf);
         if (!matched) break;
+        n_subs += 1;
 
         // regmatch_t fields: rm_so then rm_eo, each size_t (4 bytes on wasm32)
         const pm: [*]const i32 = @ptrFromInt(pmatch_buf);
@@ -367,6 +370,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     rt.memcpy(result_buf + result_off, str_s.ptr + pos_byte, tail_len);
     result_off += tail_len;
 
+    if (n_subs_out) |p| p.* = n_subs;
     return rt.obj_new_string(@intCast(result_buf), @intCast(result_off));
 }
 

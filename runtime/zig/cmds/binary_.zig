@@ -98,9 +98,10 @@ fn read_le_signed(src: u32, off: u32, nbytes: u32) i64 {
         v |= @as(u64, p[k]) << @intCast(k * 8);
     }
     if (nbytes >= 8) return @bitCast(v);
-    // Sign-extend: shift is always 1..63 when nbytes is 1..7.
+    // Sign-extend via arithmetic right shift on i64.
     const shift: u6 = @intCast(64 - nbytes * 8);
-    return @bitCast((v << shift) >> shift);
+    const sval: i64 = @bitCast(v << shift);
+    return sval >> @intCast(shift);
 }
 
 /// Read an unsigned little-endian integer.
@@ -121,8 +122,10 @@ fn read_be_signed(src: u32, off: u32, nbytes: u32) i64 {
         v = (v << 8) | @as(u64, p[k]);
     }
     if (nbytes >= 8) return @bitCast(v);
+    // Sign-extend via arithmetic right shift on i64.
     const shift: u6 = @intCast(64 - nbytes * 8);
-    return @bitCast((v << shift) >> shift);
+    const sval: i64 = @bitCast(v << shift);
+    return sval >> @intCast(shift);
 }
 
 /// Read an unsigned big-endian integer.
