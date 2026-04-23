@@ -1625,11 +1625,8 @@ class TestDiagMap:
             # run in the WASM sandbox (no real filesystem to glob).
             # See TestGlob for the positive assertion.
             ("exec /bin/true\n", "exec"),
-            # ``regexp`` has a real impl in tcl_regex.zig backed by
-            # Tcl's Henry-Spencer engine — see TestRegexp.  ``regsub``
-            # remains a trapping stub until the substitution path is
-            # wired up.
-            ("regsub {foo} bar baz\n", "regsub"),
+            # ``regexp`` and ``regsub`` have real impls — see TestRegexp
+            # and the regsub tests in TestDiagMap.
             # ``format`` has a minimal real impl in tcl_format.zig —
             # see TestFormat.  ``scan`` now has a minimal real impl
             # in tcl_fmt_stubs.zig covering %c / %d / %i / %x / %o /
@@ -1672,22 +1669,20 @@ class TestDiagMap:
         # A standalone ``[cmd …]`` at top level compiles as an eval
         # fallback, so the interpreter walks it command-by-command
         # and the eval-context stamping runs before each dispatch.
-        # Use ``regsub`` — still a trapping stub and not in the
+        # Use ``exec`` — still a trapping stub not in the
         # interpreter's implemented-command set, so the eval path
-        # exercises the unsupported-command branch.  ``regexp`` used
-        # to sit here but now routes to a real impl; ``regsub`` is
-        # the obvious shape-matching substitute.
-        source = "[regsub foo bar baz]\n"
+        # exercises the unsupported-command branch.
+        source = "[exec /bin/true]\n"
         wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
             pytest.fail("expected trap")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "unsupported command: regsub" in stderr
+            assert "unsupported command: exec" in stderr
             assert "in eval-script at offset" in stderr
             # The snippet must contain at least the command name.
-            assert "regsub" in stderr
+            assert "exec" in stderr
 
     def test_parse_bare_tracks_bracket_nesting(self):
         """``parse_bare`` must keep ``[cmd arg]`` as a single word.

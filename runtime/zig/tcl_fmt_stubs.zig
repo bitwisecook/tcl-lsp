@@ -182,10 +182,10 @@ pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {
 // stub until we add the substitution path.
 
 pub export fn tcl_cmd_regsub(pattern: i32, str: i32) i32 {
-    _ = pattern;
-    _ = str;
-    stubs.unsupported("regsub");
-    return 0;
+    // 2-arg compiled form: subSpec defaults to empty string (deletion mode).
+    const regex_mod = @import("tcl_regex.zig");
+    const rt        = @import("tcl_runtime.zig");
+    return regex_mod.do_regsub(pattern, str, rt.obj_new_string(0, 0), false, false, null);
 }
 
 // ``encoding`` moved to tcl_encoding.zig — has a real (UTF-8 only)
