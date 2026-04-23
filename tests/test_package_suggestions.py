@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-import lsp.server as server_module
+import lsp.commands as server_module
+import lsp.state as _lsp_state
 from lsp.features.code_actions import get_code_actions
 from lsp.features.package_suggestions import rank_package_suggestions
 
@@ -38,7 +39,7 @@ def test_code_actions_and_server_command_use_identical_ranking(
     packages = ["tls", "json", "json-tools", "xjsonx", "ajson", "sqlite"]
     symbol = "json::parse"
 
-    monkeypatch.setattr(server_module.package_resolver, "all_package_names", lambda: packages)
+    monkeypatch.setattr(_lsp_state.package_resolver, "all_package_names", lambda: packages)
     server_suggestions = server_module.on_suggest_packages_for_symbol(symbol)["suggestions"]
 
     source = f"{symbol}\n"

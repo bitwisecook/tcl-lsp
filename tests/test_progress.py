@@ -8,7 +8,8 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import lsp.server as server_module
+import lsp.state as _lsp_state
+import lsp.workspace_init as server_module
 
 
 class TestRunBackgroundScanProgress:
@@ -20,10 +21,10 @@ class TestRunBackgroundScanProgress:
         fake_scanner.irules_rule_init_vars = {}
         fake_scanner.auto_index_entries = {}
 
-        monkeypatch.setattr(server_module, "background_scanner", fake_scanner)
+        monkeypatch.setattr(_lsp_state, "background_scanner", fake_scanner)
 
         # Prevent dialect upgrade from touching real state.
-        monkeypatch.setattr(server_module.feature_config, "dialect_explicitly_set", True)
+        monkeypatch.setattr(_lsp_state.feature_config, "dialect_explicitly_set", True)
 
         observed = []
 
@@ -42,8 +43,8 @@ class TestRunBackgroundScanProgress:
         fake_scanner.irules_procs = {}
         fake_scanner.irules_rule_init_vars = {}
         fake_scanner.auto_index_entries = {}
-        monkeypatch.setattr(server_module, "background_scanner", fake_scanner)
-        monkeypatch.setattr(server_module.feature_config, "dialect_explicitly_set", True)
+        monkeypatch.setattr(_lsp_state, "background_scanner", fake_scanner)
+        monkeypatch.setattr(_lsp_state.feature_config, "dialect_explicitly_set", True)
         server_module._run_background_scan()
         fake_scanner.scan_all.assert_called_once()
         assert fake_scanner.scan_all.call_args.kwargs.get("progress_cb") is None
