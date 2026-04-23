@@ -52,7 +52,12 @@ def _publish_diags_to_client(
     """Push a diagnostics notification to the client and update the pull cache."""
     _pull_diag_cache[uri] = list(diagnostics)
     _pull_diag_result_ids[uri] = _next_pull_diag_result_id()
-    _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
+    if _server is None:
+        log.error(
+            "_publish_diags_to_client called before configure(); dropping publish for %s", uri
+        )
+        return
+    _server.text_document_publish_diagnostics(
         types.PublishDiagnosticsParams(
             uri=uri,
             diagnostics=diagnostics,
@@ -358,7 +363,7 @@ async def _publish_diagnostics(
     if not _state.feature_config.diagnostics_enabled:
         basic_diags: list[types.Diagnostic] = []
         analysis_result = None
-        suppressed: set[str] = set()
+        suppressed: dict[int, frozenset[str]] = {}
     elif subprocess_result is not None and "basic_diags" in subprocess_result:
         basic_diags = subprocess_result["basic_diags"]
         analysis_result = subprocess_result.get("analysis")
