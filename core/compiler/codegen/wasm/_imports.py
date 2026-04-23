@@ -416,8 +416,10 @@ _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
     "unload": ("tcl_unload", 1),
     # Format / regex / encoding stubs.
     "format": ("tcl_format", 4),
-    "scan": ("tcl_scan", 2),
-    "binary": ("tcl_binary", 2),
+    # ``scan`` and ``binary`` are no longer in _CMD_RUNTIME — they route through
+    # the eval fallback so the interpreter can see all args (varnames for scan,
+    # format-values for binary format).  The tcl_cmd_scan / tcl_cmd_binary exports
+    # remain in the runtime for ABI continuity with old compiled modules.
     "regexp": ("tcl_regexp", 2),
     "regsub": ("tcl_regsub", 2),
     "encoding": ("tcl_encoding", 3),

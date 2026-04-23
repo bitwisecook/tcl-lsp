@@ -82,8 +82,7 @@ fn match_stub(c: []const u8) bool {
     // proc-lookup / error path run (but eval_command should have
     // caught it before getting here).
     if (eql(c, "format")) return false;
-    if (eql(c, "scan")) return trap("scan");
-    if (eql(c, "binary")) return trap("binary");
+    // ``scan`` and ``binary`` are handled by cmds/scan_.zig and cmds/binary_.zig.
     if (eql(c, "regexp")) return trap("regexp");
 
     // Time / event loop.  ``clock seconds`` / ``clock clicks`` /
@@ -104,7 +103,8 @@ fn match_stub(c: []const u8) bool {
     // ``namespace`` subcommand (current, qualifiers, which, tail,
     // code, delete, import, export, exists, parent, children,
     // inscope, origin, forget, path, ensemble).
-    if (eql(c, "namespace")) return trap("namespace");
+    // ``namespace`` is handled by cmds/namespace_.zig (eval, export, import, forget,
+    // which, current, path, qualifiers, tail, parent, exists, children, delete, inscope, code).
     if (eql(c, "package")) return trap("package");
     // ``trace`` is handled directly in eval_command via tcl_trace.zig
     // (pass-through add/remove, trap on info).
@@ -139,7 +139,7 @@ fn match_stub(c: []const u8) bool {
     // Misc that tcltest specifically references.
     if (eql(c, "zlib")) return trap("zlib");
     if (eql(c, "registry")) return trap("registry");
-    if (eql(c, "pid")) return trap("pid");
+    // ``pid`` is handled by cmds/inspect.zig.
 
     return false;
 }

@@ -35,7 +35,13 @@ fn eval_trace(words: []const i32) i32 {
     return trace_mod.tcl_cmd_trace_cmd(sub, arg_obj);
 }
 
+fn eval_pid(words: []const i32) i32 {
+    _ = words;
+    return rt.obj_new_int(12345);
+}
+
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "info",  .handler = &eval_info },
     .{ .name = "trace", .handler = &eval_trace },
+    .{ .name = "pid",   .handler = &eval_pid },
 };
