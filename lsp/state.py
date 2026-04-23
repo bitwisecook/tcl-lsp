@@ -101,8 +101,8 @@ def _get_doc_source(uri: str) -> str:
         return state.source
     if _server is None:
         return ""
-    doc = _server.workspace.get_text_document(uri)
     try:
+        doc = _server.workspace.get_text_document(uri)
         return doc.source
-    except (FileNotFoundError, OSError):
+    except Exception:
         return ""

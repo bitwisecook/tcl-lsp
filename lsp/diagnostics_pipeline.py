@@ -430,11 +430,7 @@ async def _publish_diagnostics(
 
     _dialect = active_dialect()
     _pool = _state._get_process_pool()
-    _generic_var_patterns = (
-        list(_state.feature_config.generic_variable_patterns)
-        if _state.feature_config.generic_variable_patterns
-        else None
-    )
+    _generic_var_patterns = list(_state.feature_config.generic_variable_patterns)
 
     async def _deep_coro() -> list[types.Diagnostic]:
         try:

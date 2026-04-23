@@ -330,18 +330,17 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             )
 
     # Generic variable patterns  (tclLsp.diagnostics.genericVariablePatterns)
+    # An explicit empty list disables IRULE4002; absent key leaves the default.
     if isinstance(diagnostics_section, dict):
-        patterns = diagnostics_section.get("genericVariablePatterns")
-        if patterns is None:
+        has_generic_patterns = "genericVariablePatterns" in diagnostics_section
+        if has_generic_patterns:
+            patterns = diagnostics_section.get("genericVariablePatterns")
+        else:
+            has_generic_patterns = "generic_variable_patterns" in diagnostics_section
             patterns = diagnostics_section.get("generic_variable_patterns")
-        if isinstance(patterns, list):
+        if has_generic_patterns and isinstance(patterns, list):
             new_patterns = [str(p) for p in patterns if isinstance(p, str)]
-            if not new_patterns:
-                new_patterns = None
-            if (
-                new_patterns is not None
-                and new_patterns != _state.feature_config.generic_variable_patterns
-            ):
+            if new_patterns != _state.feature_config.generic_variable_patterns:
                 _state.feature_config.generic_variable_patterns = new_patterns
                 changed = True
 
