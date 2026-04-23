@@ -388,7 +388,7 @@ def _pull_and_apply_configuration() -> None:
     """Pull configuration from the client via ``workspace/configuration``."""
     params = types.ConfigurationParams(items=[types.ConfigurationItem(section="tclLsp")])
 
-    def _on_result(result: list[object] | None) -> None:  # type: ignore[type-arg]
+    def _on_result(result: list[object] | None) -> None:
         if not result:
             return
         item = result[0]

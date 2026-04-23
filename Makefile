@@ -251,7 +251,7 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 
 typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
 	@echo "==> Type-checking Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
 	@echo "==> Type-checking all Python code with ty"
