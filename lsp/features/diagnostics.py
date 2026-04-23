@@ -7,7 +7,7 @@ import time
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import (
     AnalysisResult,
     CodeFix,

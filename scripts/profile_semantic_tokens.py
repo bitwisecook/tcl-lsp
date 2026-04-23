@@ -48,11 +48,11 @@ def main() -> None:
     print(f"File: {abs_path.name} ({n_lines} lines, {len(source)} bytes)")
 
     # Import server-side modules.
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.compiler.compilation_unit import compile_source
     from core.parsing.command_segmenter import segment_top_level_chunks
     from core.parsing.lexer import TclLexer
-    from lsp.features.semantic_tokens import semantic_tokens_full
+    from lsp.features import semantic_tokens_full
     from lsp.workspace.document_state import DocumentState
 
     if args.phase in ("all", "update"):
@@ -187,12 +187,12 @@ def main() -> None:
 
 def _profile_sub_phases(source: str, abs_path: Path, args: argparse.Namespace) -> None:
     """Profile individual sub-phases of the update pipeline."""
-    from core.analysis.analyser import Analyser, analyse
+    from core.analysis import Analyser, analyse
     from core.compiler.compilation_unit import compile_source
     from core.compiler.lowering import lower_commands_to_ir
     from core.parsing.command_segmenter import segment_top_level_chunks
     from core.parsing.lexer import TclLexer
-    from lsp.features.semantic_tokens import semantic_tokens_full
+    from lsp.features import semantic_tokens_full
 
     print(f"\n{'=' * 60}")
     print("Sub-phase breakdown")

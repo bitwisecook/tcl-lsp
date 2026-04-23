@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lsprotocol import types
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ProcDef, Scope
 from core.commands.registry import REGISTRY
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY

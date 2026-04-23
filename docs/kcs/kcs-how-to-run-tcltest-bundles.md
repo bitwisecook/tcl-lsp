@@ -20,8 +20,8 @@ through our compile-to-WASM path and interpret the outcome?
 - The Zig runtime must be built (`cd runtime/zig && zig build
   -Doptimize=ReleaseFast`). Many of the fixes that let tcltest's
   preamble complete live in `tcl_cmd_info.zig`, `tcl_frames.zig`,
-  and `tcl_interp.zig` — a stale runtime will trap earlier than the
-  bundle expects.
+  `tcl_interp.zig`, and the per-command modules under `runtime/zig/cmds/`
+  — a stale runtime will trap earlier than the bundle expects.
 - `uv sync --extra dev` has been run so the `pytest` / `wasmtime`
   Python dependencies are in the venv.
 
@@ -135,7 +135,7 @@ today. None are preamble-level (tcltest.tcl itself initialises
 cleanly); they all fire once individual test cases start running.
 
 - **Top-level vars not visible to nested eval-fallbacks** — fixed
-  for `foreach` iter vars in `_emitter.py`; analogous patterns with
+  for `foreach` iter vars in the `wasm/_emitter/` package; analogous patterns with
   `lassign`, `try` bindings, or deeply-nested `eval [list set]`
   still slip through.
 - **`interp create` collision after test-local cleanup fails** —

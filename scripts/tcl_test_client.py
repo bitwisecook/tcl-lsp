@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.analysis.semantic_model import Diagnostic, Severity
     from core.common.source_map import offset_to_line_col as _offset_to_line_col
     from core.parsing.lexer import TclLexer
@@ -26,7 +26,7 @@ except ModuleNotFoundError:
     ROOT = Path(__file__).resolve().parent
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    from core.analysis.analyser import analyse
+    from core.analysis import analyse
     from core.analysis.semantic_model import Diagnostic, Severity
     from core.common.source_map import offset_to_line_col as _offset_to_line_col
     from core.parsing.lexer import TclLexer

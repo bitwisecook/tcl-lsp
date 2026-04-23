@@ -10,14 +10,14 @@ Tests the centralised error recovery architecture:
 
 from __future__ import annotations
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from core.parsing.lexer import TclLexer
 from core.parsing.recovery import (
     compute_virtual_insertions,
     segment_with_recovery,
 )
 from core.parsing.tokens import TokenType
-from lsp.features.semantic_tokens import semantic_tokens_full
+from lsp.features import semantic_tokens_full
 
 
 class TestVirtualTokenLexer:

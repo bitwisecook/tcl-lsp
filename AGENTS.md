@@ -359,8 +359,28 @@ callers don't break, but new code should go to the canonical module.
 | `tcl_list_parse.zig` | input side — `count_elements`, `element_at`, `copy_unbraced_elem` | `tclUtil.c` `TclFindElement` / `Tcl_SplitList` |
 | `tcl_parse.zig` | script / word tokeniser — `parse_command` (flat-array legacy API) and `ParseCommand` (Token-tree API with per-word `braced` flag) | `tclParse.c` `Tcl_ParseCommand` / `Tcl_ParseBraces` / `Tcl_ParseQuotedString` |
 | `tcl_obj.zig` | TclObj memory model, type dispatch, `try_parse_int` / `try_parse_bool` | `tclObj.c` |
-| `tcl_interp.zig` | eval loop + built-in command dispatch + proc frames (consumer) | `tclBasic.c` / `tclExecute.c` |
+| `tcl_subst.zig` | `subst_flagged` — `$var`, `[cmd]`, and `\bs` substitution engine shared by the word expander and the `subst` command; lazy-imports `tcl_interp.zig` for `eval_script` | `tclParse.c` `Tcl_SubstObj` |
+| `tcl_interp.zig` | eval loop, proc frame management, and `pub` helpers (`eval_if`, `eval_while`, `eval_for`, `eval_foreach`, `eval_expr_str`, `qualify_name`, …) called by `cmds/` modules; dispatches builtins via `tcl_cmd_table.lookup()` | `tclBasic.c` / `tclExecute.c` |
+| `tcl_cmd_registry.zig` | `CmdEntry { name, handler }` type and linear-scan `lookup(entries, name_ptr, name_len)` used by `tcl_cmd_table.zig` | local shim |
+| `tcl_cmd_table.zig` | assembles the `BUILTINS` slice from all `cmds/*.zig` modules via `++` concatenation; exposes `lookup()` called by `eval_command` | local shim |
+| `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval_.zig` (`eval`/`uplevel`), `proc_.zig` (`proc`), `list_.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst_.zig` (`subst`/`expr`), `regexp_.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace_.zig` (`namespace`), `interp_.zig` (`rename`/`interp`), `stubs_.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
+| `tcl_cmd_dispatch.zig` | stub dispatch table for Tcl core commands not implemented in WASM; emits `unsupported command: X` via `tcl_stubs.zig` for I/O, filesystem, coroutines, and OO commands | local shim |
+| `tcl_interp_registry.zig` | child interpreter registry — `interp create`/`eval`/`delete`/`exists`/`slaves` primitives and per-interp `hidden_cmd_table` slot | `tclInterp.c` `ChildCreate` / `ChildEval` |
 | `tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
+
+**Rebuilding the WASM binary:** use `Debug` mode (the default — no `-Doptimize` flag) during development so Zig's safety checks catch pointer bugs early:
+
+```
+cd runtime/zig && zig build
+```
+
+Use `ReleaseFast` only for release builds:
+
+```
+cd runtime/zig && zig build -Doptimize=ReleaseFast
+```
+
+Debug builds are ~3× larger but expose real bugs (e.g. `@ptrFromInt(0)` panics, buffer-offset vs address misuse) that are silently masked in release mode.
 
 A few invariants to preserve when adding features:
 

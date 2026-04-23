@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis.analyser import analyse
+from core.analysis import analyse
 from lsp.features.code_lens import get_code_lenses, resolve_code_lens
 
 TEST_URI = "file:///test.tcl"
