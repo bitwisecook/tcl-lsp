@@ -398,7 +398,8 @@ class TestSwitchEdgeCases:
     """Switch with fallthrough, glob mode, many arms."""
 
     def test_switch_fallthrough(self):
-        """Fallthrough arms (body = '-') share a body block."""
+        """Fallthrough arms stay as IRSwitch (multi-predecessor shared-body
+        topology can't be lowered to WASM structured control flow)."""
         source = """\
 proc classify {x} {
     switch -exact $x {
@@ -412,11 +413,14 @@ proc classify {x} {
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         proc_cfg = cfg.procedures["::classify"]
-        # Fallthrough arms create CFGBranch dispatch + goto chains
-        branch_count = sum(
-            1 for b in proc_cfg.blocks.values() if isinstance(b.terminator, CFGBranch)
+        # Fallthrough switch stays as IRSwitch in the block statement list.
+        irswitch_count = sum(
+            1
+            for b in proc_cfg.blocks.values()
+            for s in b.statements
+            if isinstance(s, IRSwitch)
         )
-        assert branch_count >= 6, "6 pattern arms need 6 dispatch branches"
+        assert irswitch_count == 1, "fallthrough switch should stay as IRSwitch"
         # Codegen should still work
         fa = _proc_asm(source, "::classify")
         assert Op.DONE in _opcodes(fa)

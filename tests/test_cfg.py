@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.compiler.cfg import CFGBranch, CFGGoto, CFGReturn, build_cfg
 from core.compiler.expr_ast import expr_text
-from core.compiler.ir import IRAssignConst
+from core.compiler.ir import IRAssignConst, IRSwitch
 from core.compiler.lowering import lower_to_ir
 
 
@@ -34,10 +34,25 @@ class TestCFG:
         assert has_z
 
     def test_switch_creates_dispatch_branches(self):
-        mod = lower_to_ir("switch $x {a {set y 1} b - default {set y 0}}")
+        # Non-fallthrough exact switch goes through the optimised CFG path,
+        # creating one CFGBranch per arm.
+        mod = lower_to_ir("switch $x {a {set y 1} b {set y 2}}")
         cfg = build_cfg(mod).top_level
         branch_count = sum(1 for b in cfg.blocks.values() if isinstance(b.terminator, CFGBranch))
         assert branch_count >= 2
+
+    def test_switch_fallthrough_stays_as_irswitch(self):
+        # Fallthrough arms stay as IRSwitch (multi-predecessor shared-body
+        # topology can't be lowered to WASM structured control flow).
+        mod = lower_to_ir("switch $x {a {set y 1} b - default {set y 0}}")
+        cfg = build_cfg(mod).top_level
+        irswitch_count = sum(
+            1
+            for b in cfg.blocks.values()
+            for s in b.statements
+            if isinstance(s, IRSwitch)
+        )
+        assert irswitch_count == 1
 
     def test_for_creates_loop_cfg(self):
         mod = lower_to_ir("for {set i 0} {$i < 3} {incr i} {set sum [expr {$sum + $i}]}")
