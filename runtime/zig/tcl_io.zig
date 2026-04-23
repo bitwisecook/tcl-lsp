@@ -36,18 +36,9 @@ fn puts_raw(value: i32, want_newline: bool) void {
         if (want_newline) fd_write_all(1, "\n", 1);
         return;
     }
-    const addr: u32 = @intCast(value);
-    const tag = read_i32(addr + OBJ_TYPE_TAG);
-    if (tag == TYPE_STRING) {
-        const sptr = read_i32(addr + OBJ_STR_PTR);
-        const slen = read_i32(addr + OBJ_STR_LEN);
-        if (slen > 0) {
-            fd_write_all(1, @ptrFromInt(@as(u32, @intCast(sptr))), @intCast(slen));
-        }
-    } else {
-        const int_val = read_i64(addr + OBJ_INT_CACHE);
-        const result = itoa(int_val);
-        fd_write_all(1, result.ptr, result.len);
+    const s = obj_ensure_string(value);
+    if (s.len > 0) {
+        fd_write_all(1, @ptrFromInt(s.ptr), s.len);
     }
     if (want_newline) fd_write_all(1, "\n", 1);
 }

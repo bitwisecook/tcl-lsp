@@ -95,6 +95,32 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     const n_params: u32 = @intCast(procs.proc_get_n_params(bucket));
     const has_args_tail: bool = procs.proc_get_args_tail(bucket) != 0;
 
+    // Arity check: if the caller supplied fewer arguments than the
+    // minimum required (params with no declared default), raise
+    // "wrong # args" before calling the compiled WASM function.
+    // This mirrors what the Tcl interpreter does for interpreted procs
+    // and lets ``catch {proc_missing_required_arg}`` return 1.
+    const n_required: u32 = @intCast(procs.proc_get_n_required(bucket));
+    if (n_required > 0 and given < n_required) {
+        const catch_mod = @import("tcl_catch.zig");
+        // name_ptr / name_len are raw bytes (not a TclObj).
+        const proc_len: u32 = @bitCast(name_len);
+        const prefix: []const u8 = "wrong # args: should be \"";
+        const suffix: []const u8 = " arg ...\"";
+        const total: u32 = @as(u32, @intCast(prefix.len)) + proc_len + @as(u32, @intCast(suffix.len));
+        const buf = obj.alloc(total);
+        const d: [*]u8 = @ptrFromInt(buf);
+        for (prefix, 0..) |b, k| d[k] = b;
+        if (proc_len > 0) {
+            const np: [*]const u8 = @ptrFromInt(@as(u32, @bitCast(name_ptr)));
+            for (0..proc_len) |k| d[prefix.len + k] = np[k];
+        }
+        for (suffix, 0..) |b, k| d[prefix.len + proc_len + k] = b;
+        const msg = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
     // Effective argc we pass to the host bridge.  The compiled
     // proc's WASM signature has fixed ``n_params`` arity, so we
     // always pass exactly ``n_params`` values regardless of how

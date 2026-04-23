@@ -824,11 +824,13 @@ class _CFGBuilder:
             return block_name
         # ``-glob`` dispatch: the CFG's STR_EQ branch chain can't
         # represent glob matching.  Keep the ``IRSwitch`` in the
-        # block's statement list so ``_emit_stmt`` (via
-        # ``_emit_switch``) can emit a ``tcl_string_match``-driven
-        # if/else chain.  ``-exact`` continues to use the optimised
-        # branch-per-arm CFG lowering below.
-        if stmt.mode == "glob":
+        # block's statement list so ``codegen/_statements.py`` can emit
+        # an ``invokeStk`` call matching tclsh 9.0's un-compiled approach.
+        # ``-exact`` with fallthrough arms also stays as an ``IRSwitch``
+        # because the CFG's multi-predecessor shared-body topology can't
+        # be lowered to valid WASM structured control flow in general;
+        # ``_emit_switch`` handles OR-matching for fallthrough groups.
+        if stmt.mode == "glob" or any(arm.fallthrough for arm in stmt.arms):
             self._block(block_name).statements.append(stmt)
             return block_name
 

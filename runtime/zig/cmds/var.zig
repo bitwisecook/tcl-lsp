@@ -1,8 +1,10 @@
 // ``set``, ``incr``, ``unset`` — variable read/write commands.
 
-const rt     = @import("../tcl_runtime.zig");
-const frames = @import("../tcl_frames.zig");
-const reg    = @import("../tcl_cmd_registry.zig");
+const rt          = @import("../tcl_runtime.zig");
+const frames      = @import("../tcl_frames.zig");
+const reg         = @import("../tcl_cmd_registry.zig");
+const tcl_array   = @import("../tcl_array.zig");
+const tcl_ns      = @import("../tcl_ns.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string    = rt.obj_new_string;
@@ -26,9 +28,27 @@ fn eval_unset(words: []const i32) i32 {
     var i: u32 = 1;
     while (i < words.len) : (i += 1) {
         const w = obj_ensure_string(words[i]);
+        if (w.len == 0) continue;
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
-        if (w.len >= 1 and wp[0] == '-') continue;
-        _ = frames.var_set(words[i], 0);
+        if (wp[0] == '-') continue;
+        // Clear the array table before nulling the variable so that
+        // ``info exists`` on an upvar alias finds no stale array
+        // entries after an ``unset`` (Tcl semantics: unset removes
+        // both the scalar slot and any associated array).
+        _ = tcl_array.array_unset(words[i]);
+        // Namespace-qualified names (containing ``::``) always live in
+        // the global table, even without a leading ``::`` prefix.
+        var is_global: bool = (w.len >= 2 and wp[0] == ':' and wp[1] == ':');
+        if (!is_global) {
+            for (0..w.len - 1) |k| {
+                if (wp[k] == ':' and wp[k + 1] == ':') { is_global = true; break; }
+            }
+        }
+        if (is_global) {
+            _ = tcl_ns.global_set(words[i], 0);
+        } else {
+            _ = frames.var_set(words[i], 0);
+        }
     }
     return obj_new_string(0, 0);
 }

@@ -1484,16 +1484,6 @@ return [main]
         assert ok, f"error: {err}"
         assert val == 60
 
-    @pytest.mark.xfail(
-        reason=(
-            "uplevel with $-interpolated body: the compiled uplevel codegen "
-            "resolves $var via _emit_value, but the namespace-context / "
-            "frame-sync plumbing added for general eval-fallback hasn't been "
-            "wired into _emit_cmd_uplevel. Returns 0 instead of 99. "
-            "Tracked as follow-up to the Tcl 9 tcltest work."
-        ),
-        strict=False,
-    )
     def test_uplevel_default_level(self):
         """``uplevel {set X V}`` with no level defaults to 1.
 
@@ -1632,7 +1622,9 @@ class TestDiagMap:
             # in tcl_fmt_stubs.zig covering %c / %d / %i / %x / %o /
             # %s; unknown specifiers still trap.
             ("source foo.tcl\n", "source"),
-            ("after 100\n", "after"),
+            # ``after`` is now a no-op (silently succeeds) so that
+            # counter::init -timehist can schedule without erroring in
+            # our WASM event-loop-less sandbox.  See stubs_.zig.
             # encoding + fconfigure have minimal real implementations
             # (tcl_encoding.zig / tcl_chan.zig); see
             # TestEncoding / TestFconfigure for their semantics.
@@ -1736,15 +1728,6 @@ class TestReturnCodeError:
     wraps the message in braces to preserve list structure.
     """
 
-    @pytest.mark.xfail(
-        reason=(
-            "return -code error $msg with $-interpolated message: message "
-            "reaches catch as an empty string rather than the substituted "
-            "text. Related to the frame-sync / eval-fallback rework — "
-            "tracked alongside the uplevel interpolation issue."
-        ),
-        strict=False,
-    )
     def test_error_message_substitutes_vars(self):
         # Wrap the error-raising call in ``catch`` so the test
         # can observe the captured message through the resultVar.

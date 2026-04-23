@@ -25,6 +25,7 @@ const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 
 const ht = @import("hash_table.zig");
+const tcl_array = @import("tcl_array.zig");
 
 /// Sub-table bucket size.  All three (child / cmd / var) tables use
 /// the same 12-byte header + 4-byte u32 value layout, which keeps
@@ -1084,7 +1085,7 @@ pub const ImportedCmdData = extern struct {
 /// ``comptime`` block that asserts these values stay in sync with its
 /// own canonical ``pub const``s, so any drift becomes a compile error.
 pub const tcl_procs_constants = struct {
-    pub const COMMAND_SIZE: u32 = 40;
+    pub const COMMAND_SIZE: u32 = 44;
     pub const OFF_FLAGS: u32 = 8;
     pub const OFF_PARAMS_OBJ: u32 = 12;
     pub const OFF_IMPORT_REF_HEAD: u32 = 32;
@@ -1334,13 +1335,21 @@ pub export fn global_get(name: i32) i32 {
 }
 
 /// ``info exists ::name`` — returns a TclObj 1 if the entry has
-/// ever been written to root's var_table, else 0.  Match the prior
-/// "hash entry exists" behaviour rather than checking value != 0.
+/// been written to root's var_table with a non-null value, OR if
+/// an array with this name exists in the array directory.  A scalar
+/// value of 0 (null TclObj) means the variable has been unset.
+/// Arrays don't have scalar var entries, so the array directory must
+/// be checked separately to support ``info exists arrName``.
 pub export fn global_exists(name: i32) i32 {
     const sn = obj.obj_ensure_string(name);
     const v = ns_var_find(ns_root(), sn.ptr, sn.len);
-    if (v == 0) return obj_new_int_pub(0);
-    return obj_new_int_pub(1);
+    if (v != 0) {
+        const val = var_get_scalar(v);
+        if (val != 0) return obj_new_int_pub(1);
+    }
+    // Also check the array directory — arrays are stored there and
+    // have no scalar entry in the var_table.
+    return tcl_array.array_exists(name);
 }
 
 /// Numeric ``incr`` helper — historically lived in tcl_globals.zig
