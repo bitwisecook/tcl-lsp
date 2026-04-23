@@ -526,7 +526,9 @@ fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
     if (val == 0) { dst[off] = '0'; return 1; }
     var buf: [20]u8 = undefined;
     var pos: u32 = 20;
-    var v: u64 = if (val < 0) @bitCast(-val) else @bitCast(val);
+    // Use wrapping subtraction on the u64 bit pattern to handle INT64_MIN
+    // (-9223372036854775808) without overflow: -(INT64_MIN) overflows i64.
+    var v: u64 = if (val < 0) 0 -% @as(u64, @bitCast(val)) else @bitCast(val);
     while (v > 0) : (v /= 10) {
         pos -= 1;
         buf[pos] = @intCast('0' + (v % 10));

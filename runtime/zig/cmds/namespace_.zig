@@ -200,24 +200,21 @@ fn eval_namespace(words: []const i32) i32 {
                 if (bs.len > 0) return interp.eval_script(bs.ptr, bs.len);
                 return 0;
             }
-            // Append extra args to body
-            var total: u32 = bs.len;
+            // Build a properly-quoted args list via tcl_list, then append to body.
+            // This ensures args containing spaces/braces are re-tokenized correctly.
+            var args_obj: i32 = obj_new_string_copy(0, 0);
             var wi: u32 = 4;
             while (wi < words.len) : (wi += 1) {
-                const ws = obj_ensure_string(words[wi]);
-                total += 1 + ws.len;
+                args_obj = rt.tcl_list(args_obj, words[wi]);
             }
+            const as = obj_ensure_string(args_obj);
+            const total = bs.len + (if (as.len > 0) 1 + as.len else 0);
             const buf = alloc(total);
             memcpy(buf, bs.ptr, bs.len);
-            var off: u32 = bs.len;
-            wi = 4;
-            while (wi < words.len) : (wi += 1) {
-                const ws = obj_ensure_string(words[wi]);
-                const d: [*]u8 = @ptrFromInt(buf + off);
+            if (as.len > 0) {
+                const d: [*]u8 = @ptrFromInt(buf + bs.len);
                 d[0] = ' ';
-                off += 1;
-                memcpy(buf + off, ws.ptr, ws.len);
-                off += ws.len;
+                memcpy(buf + bs.len + 1, as.ptr, as.len);
             }
             return interp.eval_script(buf, total);
         }
