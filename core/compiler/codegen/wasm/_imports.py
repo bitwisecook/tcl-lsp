@@ -446,16 +446,3 @@ _STRING_IS_IMPORT: dict[str, str] = {
 # the interpreter's ``rename`` built-in), so the codegen must route
 # every ``rename`` call through the eval fallback rather than dropping
 # it.  See docs/design/runtime/rename-alias.md.
-# Commands that require capabilities unavailable in the WASM sandbox.
-# The codegen emits a call to the runtime ``error`` function with a
-# descriptive message so the module traps with a clear diagnostic
-# rather than silently emitting a NOP.
-# Commands that have no meaningful implementation in WASM and
-# aren't covered by the ``_CMD_RUNTIME`` stub table.  Kept as an
-# explicit trap path so (a) we reject them at compile time with a
-# clear message and (b) new users see they're intentionally
-# unimplemented rather than silently accepted.  Most commands that
-# used to live here (``exec``, ``socket``, ``interp``, ``after``,
-# etc.) have moved to the stub dispatch table — they still trap,
-# but the diag machinery attributes the trap to a source site.
-_UNSUPPORTED_COMMANDS: frozenset[str] = frozenset()
