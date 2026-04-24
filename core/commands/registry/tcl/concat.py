@@ -5,7 +5,14 @@ from __future__ import annotations
 
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ._base import register
 from .const_fold import fold_concat
@@ -43,4 +50,10 @@ class ConcatCommand(CommandDef):
             return_type=TclType.LIST,
             arg_type_resolver=resolve_concat,
             side_effect_hints=(),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_concat",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

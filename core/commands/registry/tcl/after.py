@@ -6,7 +6,14 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ._base import register
 
@@ -70,5 +77,11 @@ class AfterCommand(CommandDef):
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_after",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
             ),
         )

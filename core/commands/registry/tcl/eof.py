@@ -7,7 +7,14 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import ArgRole, Arity
 from ._base import register
 
@@ -44,5 +51,11 @@ class EofCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.FILE_IO, reads=True, connection_side=ConnectionSide.NONE
                 ),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_eof",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
             ),
         )

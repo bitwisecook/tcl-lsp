@@ -16,10 +16,8 @@ from .._encoding import (
     _tcl_list_quote,
 )
 from .._imports import (
-    _CMD_RUNTIME,
-    _DICT_SUBCMD_IMPORT,
-    _RUNTIME_IMPORTS,
-    _STRING_SUBCMD_IMPORT,
+    runtime_import_for,
+    subcommand_runtime_import_for,
 )
 from .._ir import (
     ValType,
@@ -477,18 +475,17 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_value(elem)
                     self._emit_call(lappend_idx)
                 return
-            import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+            sri = subcommand_runtime_import_for("dict", subcmd)
+            if sri is not None and sri.import_key in self._shared_imports:
+                func_idx = self._shared_imports[sri.import_key]
+                param_count = len(sri.params)
                 sub_args = cmd_args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
                     self._emit_i32_const(0)
                 self._emit_call(func_idx)
-                if not spec[3]:
+                if not sri.results:
                     self._emit_i32_const(0)
                 return
 
@@ -524,18 +521,17 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_value(rest)
                     self._emit_call(append_idx)
                 return
-            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+            sri = subcommand_runtime_import_for("string", subcmd)
+            if sri is not None and sri.import_key in self._shared_imports:
+                func_idx = self._shared_imports[sri.import_key]
+                param_count = len(sri.params)
                 sub_args = cmd_args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
                     self._emit_i32_const(0)
                 self._emit_call(func_idx)
-                if not spec[3]:
+                if not sri.results:
                     self._emit_i32_const(0)
                 return
 
@@ -590,12 +586,11 @@ class _WasmEmitterValuesMixin(_Base):
                 return
 
         # Runtime command in value context (llength, lindex, etc.)
-        if cmd_name in _CMD_RUNTIME:
-            import_key, _ = _CMD_RUNTIME[cmd_name]
-            func_idx = self._shared_imports.get(import_key)
+        rimp = runtime_import_for(cmd_name)
+        if rimp is not None:
+            func_idx = self._shared_imports.get(rimp.import_key)
             if func_idx is not None:
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+                param_count = len(rimp.params)
                 if cmd_name == "linsert" and len(cmd_args) > param_count:
                     # Multi-value ``[linsert list idx v1 v2 …]`` — see
                     # ``_emit_cmd_runtime`` for the index-ordering
@@ -662,7 +657,7 @@ class _WasmEmitterValuesMixin(_Base):
                     for _ in range(param_count - len(cmd_args)):
                         self._emit_i32_const(0)
                 self._emit_call(func_idx)
-                if not spec[3]:
+                if not rimp.results:
                     self._emit_i32_const(0)
                 return
 

@@ -65,18 +65,93 @@ CommandHandler = Callable[..., object]
 """VM execution handler for a command without subcommands."""
 
 CodegenHook = Callable[..., bool]
-"""Bytecode specialisation hook: (emitter, args, ...) -> emitted?"""
+"""Per-backend codegen hook: ``(emitter, args, …) -> emitted?``.
+
+Each command stores its hooks in ``CommandSpec.codegens`` (and
+``SubCommand.codegens``), a ``dict[str, CodegenHook]`` keyed by the
+backend's target name — currently ``"vm"`` (Python bytecode) and
+``"wasm"`` (Zig runtime via WASM).  The hook signature is loose
+because each backend defines its own emitter and context types; the
+registry is target-agnostic.
+
+Unimplemented commands should emit a trap instruction so execution
+fails loudly rather than silently.
+"""
+
+# Backwards-compat alias — older code may still import ``WasmEmitHook``.
+# Prefer ``CodegenHook`` in new code; the alias will be removed once
+# all call sites migrate.
+WasmEmitHook = CodegenHook
 
 LoweringHook = Callable[..., object]
 """IR lowering specialisation hook: (lowerer, ir_call) -> IRStatement | None."""
 
-WasmEmitHook = Callable[..., bool]
-"""WASM emit hook: (emitter, args, defs) -> emitted?
 
-Keyed by target name (e.g. ``"wasm"``) in the ``codegens`` dict on
-``CommandSpec`` and ``SubCommand``.  Unimplemented commands should emit
-a trap instruction so execution fails loudly rather than silently.
-"""
+class EmitContext(enum.Enum):
+    """Result placement expected by the WASM emit-hook caller.
+
+    ``STATEMENT`` — the caller will either store the value into a
+    designated local (``defs[0]``) or drop it.  Hooks in this context
+    must leave *nothing* on the operand stack.
+
+    ``VALUE`` — the caller needs the value on the operand stack
+    (e.g. because the command is in implicit-return / tail position or
+    appears as the RHS of an assignment).  Hooks in this context must
+    leave *exactly one* ``i32`` TclObj pointer on the stack.
+    """
+
+    STATEMENT = "statement"
+    VALUE = "value"
+
+
+@dataclass(frozen=True, slots=True)
+class WasmRuntimeImport:
+    """Describes how a command is dispatched to a Zig runtime import.
+
+    Attached to :class:`CommandSpec` (and :class:`SubCommand`) so the
+    WASM codegen can derive dispatch metadata from the registry
+    instead of from a shadow table.
+
+    Attributes:
+        import_key: Canonical key the compiler uses internally to
+            reference this import (e.g. ``"tcl_puts"``).
+        argc: Fixed argument count the compiler can assume, or ``None``
+            for variadic commands.
+        nontrapping: When ``True`` the Zig implementation is total for
+            every argument shape the compiler emits — the codegen may
+            then elide the per-call diag-site preamble.
+        module: WASM import module name (typically ``"tcl"``).
+        export_name: Exported Zig symbol name.  Defaults to
+            ``"tcl_cmd_" + <import_key.removeprefix("tcl_")>`` when left
+            at ``None``.
+        params: Parameter WASM value types, as strings ("i32", "i64",
+            "f32", "f64").  String typing avoids a dependency from the
+            registry package on the WASM codegen's ``ValType`` enum.
+        results: Result WASM value types (usually ``("i32",)`` or ``()``
+            for void).  Empty tuple means the Zig export has no return
+            value.
+    """
+
+    import_key: str
+    argc: int | None = None
+    nontrapping: bool = False
+    module: str = "tcl"
+    export_name: str | None = None
+    params: tuple[str, ...] = ()
+    results: tuple[str, ...] = ()
+
+    @property
+    def resolved_export_name(self) -> str:
+        """Return the actual Zig export name — explicit or defaulted."""
+        if self.export_name is not None:
+            return self.export_name
+        # Default convention: tcl_puts → tcl_cmd_puts; already-prefixed
+        # keys like ``string_length`` pass through unchanged.
+        key = self.import_key
+        if key.startswith("tcl_"):
+            return "tcl_cmd_" + key[4:]
+        return key
+
 
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
@@ -363,9 +438,15 @@ class SubCommand:
 
     # Execution and compilation hooks — all optional.
     handler: SubcommandHandler | None = None
-    codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
-    codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
+    # Backend codegen hooks keyed by target name — ``"vm"`` for bytecode,
+    # ``"wasm"`` for the Zig WASM runtime, plus any future targets.
+    codegens: dict[str, CodegenHook] = field(default_factory=dict)
+
+    # WASM runtime dispatch metadata for a compiled ``<command>
+    # <subcommand>`` call.  Replaces the ``_STRING_SUBCMD_IMPORT`` /
+    # ``_DICT_SUBCMD_IMPORT`` / ``_CLOCK_SUBCMD_IMPORT`` shadow tables.
+    wasm_runtime_import: WasmRuntimeImport | None = None
 
     # Taint transform — colour bits added to tainted output by this subcommand.
     taint_transform: TaintColour | None = None
@@ -555,9 +636,24 @@ class CommandSpec:
 
     # Execution and compilation hooks (for commands WITHOUT subcommands).
     handler: CommandHandler | None = None
-    codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
-    codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
+    # Backend codegen hooks keyed by target name — ``"vm"`` for bytecode,
+    # ``"wasm"`` for the Zig WASM runtime, plus any future targets.
+    codegens: dict[str, CodegenHook] = field(default_factory=dict)
+
+    # WASM runtime dispatch metadata — when set, the WASM codegen
+    # auto-registers a hook that emits a call to the named runtime
+    # import.  Replaces the ``_CMD_RUNTIME`` shadow table in
+    # ``core/compiler/codegen/wasm/_imports.py``.
+    wasm_runtime_import: WasmRuntimeImport | None = None
+
+    # WASM codegen flag — when ``True`` the command produces no value
+    # on the operand stack (scope declarations, compile-time-only
+    # constructs, CFG placeholders).  The tail-context dispatcher emits
+    # ``i32.const 0`` (null TclObj) for these commands; the
+    # statement-context dispatcher short-circuits without emitting
+    # anything.  Replaces the ``_SCOPE_NOP_COMMANDS`` shadow frozenset.
+    wasm_emits_nothing: bool = False
 
     # Static arg roles and type info for commands WITHOUT subcommands.
     # Replaces role_hints() -> CommandSig and type_hints() -> CommandTypeHint.

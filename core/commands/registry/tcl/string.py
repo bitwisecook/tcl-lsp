@@ -13,6 +13,7 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
@@ -169,7 +170,10 @@ class StringCommand(CommandDef):
                 ),
                 "compare": SubCommand(
                     name="compare",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringCmpOpts``: objc must be 3..6
+                    # (sub-name + ``-nocase?`` + ``-length N?`` + s1 +
+                    # s2).  Args after sub-name: 2..5.
+                    arity=Arity(2, 5),
                     detail="Compare two strings lexicographically.",
                     synopsis="string compare ?-nocase? ?-length length? string1 string2",
                     pure=True,
@@ -179,10 +183,19 @@ class StringCommand(CommandDef):
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-length", takes_value=True, value_hint="int"),
                     ),
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_compare",
+                        export_name="string_compare",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "equal": SubCommand(
                     name="equal",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringEqualCmd`` shares ``StringCmpOpts``:
+                    # objc 3..6, i.e. args after sub-name 2..5 (with
+                    # optional ``-nocase`` and ``-length N``).
+                    arity=Arity(2, 5),
                     detail="Test string equality.",
                     synopsis="string equal ?-nocase? ?-length length? string1 string2",
                     pure=True,
@@ -191,6 +204,12 @@ class StringCommand(CommandDef):
                     options=(
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-length", takes_value=True, value_hint="int"),
+                    ),
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_equal",
+                        export_name="string_equal",
+                        params=("i32", "i32"),
+                        results=("i32",),
                     ),
                 ),
                 "first": SubCommand(
@@ -202,6 +221,12 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_first,
                     return_type=TclType.INT,
                     arg_types={2: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_first",
+                        export_name="string_first",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "index": SubCommand(
                     name="index",
@@ -212,6 +237,12 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_index,
                     return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_index",
+                        export_name="string_index",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "insert": SubCommand(
                     name="insert",
@@ -225,7 +256,10 @@ class StringCommand(CommandDef):
                 ),
                 "is": SubCommand(
                     name="is",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringIsCmd``: objc 3..6 → args after
+                    # sub-name 2..5 (class + ``-strict?`` +
+                    # ``-failindex V?`` + string).
+                    arity=Arity(2, 5),
                     detail="Test if string is a member of a character class.",
                     synopsis="string is class ?-strict? ?-failindex varname? string",
                     const_fold=fold_string_is,
@@ -245,6 +279,12 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_last,
                     return_type=TclType.INT,
                     arg_types={2: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_last",
+                        export_name="string_last",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "length": SubCommand(
                     name="length",
@@ -254,10 +294,18 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_length,
                     return_type=TclType.INT,
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_length",
+                        export_name="string_length",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "map": SubCommand(
                     name="map",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringMapCmd``: objc 3..4 → args after
+                    # sub-name 2..3 (``-nocase?`` + mapping + string).
+                    arity=Arity(2, 3),
                     detail="Map substrings via key-value pairs.",
                     synopsis="string map ?-nocase? mapping string",
                     pure=True,
@@ -265,16 +313,30 @@ class StringCommand(CommandDef):
                     return_type=TclType.STRING,
                     options=(OptionSpec(name="-nocase"),),
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_map",
+                        export_name="string_map",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "match": SubCommand(
                     name="match",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringMatchCmd``: objc 3..4 → args after
+                    # sub-name 2..3 (``-nocase?`` + pattern + string).
+                    arity=Arity(2, 3),
                     detail="Test glob-style pattern match.",
                     synopsis="string match ?-nocase? pattern string",
                     pure=True,
                     const_fold=fold_string_match,
                     return_type=TclType.BOOLEAN,
                     options=(OptionSpec(name="-nocase"),),
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_match",
+                        export_name="string_match",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "range": SubCommand(
                     name="range",
@@ -288,6 +350,12 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_range",
+                        export_name="string_range",
+                        params=("i32", "i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "repeat": SubCommand(
                     name="repeat",
@@ -298,6 +366,12 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_repeat,
                     return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_repeat",
+                        export_name="string_repeat",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "replace": SubCommand(
                     name="replace",
@@ -311,6 +385,12 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_replace",
+                        export_name="string_replace",
+                        params=("i32", "i32", "i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "reverse": SubCommand(
                     name="reverse",
@@ -320,6 +400,12 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_reverse,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_reverse",
+                        export_name="string_reverse",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "tolower": SubCommand(
                     name="tolower",
@@ -333,6 +419,12 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_tolower",
+                        export_name="string_tolower",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "totitle": SubCommand(
                     name="totitle",
@@ -346,6 +438,12 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_totitle",
+                        export_name="string_totitle",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "toupper": SubCommand(
                     name="toupper",
@@ -359,6 +457,12 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_toupper",
+                        export_name="string_toupper",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "trim": SubCommand(
                     name="trim",
@@ -368,6 +472,12 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_trim,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_trim",
+                        export_name="string_trim",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "trimleft": SubCommand(
                     name="trimleft",
@@ -377,6 +487,12 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_trimleft,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_trimleft",
+                        export_name="string_trimleft",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "trimright": SubCommand(
                     name="trimright",
@@ -386,6 +502,12 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_trimright,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_trimright",
+                        export_name="string_trimright",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "wordend": SubCommand(
                     name="wordend",

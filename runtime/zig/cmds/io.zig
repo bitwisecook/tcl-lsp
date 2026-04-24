@@ -1,10 +1,10 @@
 // ``puts``, ``append``, ``format`` — I/O and string output commands.
-// ``scan`` moved to cmds/scan_.zig for full multi-varname support.
+// ``scan`` moved to cmds/scan.zig for full multi-varname support.
 
 const rt       = @import("../tcl_runtime.zig");
-const frames   = @import("../tcl_frames.zig");
-const fmt_mod  = @import("../tcl_format.zig");
-const reg      = @import("../tcl_cmd_registry.zig");
+const frames   = @import("../interp/tcl_frames.zig");
+const fmt_mod  = @import("../valtypes/tcl_format.zig");
+const reg      = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_puts(words: []const i32) i32 {
     if (words.len >= 2) return rt.tcl_cmd_puts(words[words.len - 1]);
@@ -33,7 +33,7 @@ fn eval_format(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "puts",   .handler = &eval_puts },
-    .{ .name = "append", .handler = &eval_append },
-    .{ .name = "format", .handler = &eval_format },
+    .{ .name = "puts", .arity_min = 1, .arity_max = 2, .handler = &eval_puts },
+    .{ .name = "append", .arity_min = 1, .arity_max = null, .handler = &eval_append },
+    .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_format },
 };

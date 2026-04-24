@@ -42,13 +42,11 @@ from ...ir import (
     IRWhile,
 )
 from ._imports import (
-    _CLOCK_SUBCMD_IMPORT,
-    _CMD_RUNTIME,
-    _DICT_SUBCMD_IMPORT,
     _OBJ_LIFECYCLE_IMPORTS,
-    _SCOPE_NOP_COMMANDS,
     _STRING_IS_IMPORT,
-    _STRING_SUBCMD_IMPORT,
+    command_emits_nothing,
+    runtime_import_for,
+    subcommand_runtime_import_for,
 )
 from ._parsing import _has_embedded_subst_scan, _parse_array_ref
 
@@ -147,8 +145,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
             full_parts = cmd_text.split()
             if parts:
                 cmd = parts[0]
-                if cmd in _CMD_RUNTIME:
-                    needed.add(_CMD_RUNTIME[cmd][0])
+                rimp = runtime_import_for(cmd)
+                if rimp is not None:
+                    needed.add(rimp.import_key)
                     if cmd == "puts":
                         # ``puts -nonewline …`` dispatches to a
                         # second helper; include the import whenever
@@ -170,8 +169,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_lappend")
                 elif cmd == "dict" and len(parts) > 1:
                     subcmd = parts[1]
-                    if subcmd in _DICT_SUBCMD_IMPORT:
-                        needed.add(_DICT_SUBCMD_IMPORT[subcmd])
+                    sri = subcommand_runtime_import_for("dict", subcmd)
+                    if sri is not None:
+                        needed.add(sri.import_key)
                     elif subcmd == "create":
                         # ``dict create`` with non-literal k/v args
                         # folds at runtime via ``tcl_lappend`` so each
@@ -184,8 +184,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_dict_merge_pair")
                 elif cmd == "string" and len(parts) > 1:
                     subcmd = parts[1]
-                    if subcmd in _STRING_SUBCMD_IMPORT:
-                        needed.add(_STRING_SUBCMD_IMPORT[subcmd])
+                    sri = subcommand_runtime_import_for("string", subcmd)
+                    if sri is not None:
+                        needed.add(sri.import_key)
                     elif subcmd == "cat":
                         # ``string cat`` is variadic no-trim concat.
                         # Register ``tcl_append`` so the runtime path
@@ -230,9 +231,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
                 elif cmd == "clock" and len(parts) > 1:
-                    key = _CLOCK_SUBCMD_IMPORT.get(parts[1])
-                    if key is not None:
-                        needed.add(key)
+                    sri = subcommand_runtime_import_for("clock", parts[1])
+                    if sri is not None:
+                        needed.add(sri.import_key)
                 elif cmd == "uplevel":
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
@@ -514,8 +515,9 @@ def _scan_needed_imports(
                         # in ``_emit_cmd_lset``.  Without this import,
                         # the emitter raises an internal error.
                         needed.add("tcl_list_create")
-                if command in _CMD_RUNTIME:
-                    needed.add(_CMD_RUNTIME[command][0])
+                rimp = runtime_import_for(command)
+                if rimp is not None:
+                    needed.add(rimp.import_key)
                     if command == "puts":
                         # Include the -nonewline helper alongside tcl_puts
                         # so the dispatch path can choose between them.
@@ -527,8 +529,12 @@ def _scan_needed_imports(
                         # one the base call replaced.  See
                         # ``_emit_cmd_runtime`` for the emit shape.
                         needed.add("tcl_list_insert")
-                elif command == "string" and args and args[0] in _STRING_SUBCMD_IMPORT:
-                    needed.add(_STRING_SUBCMD_IMPORT[args[0]])
+                elif (
+                    command == "string"
+                    and args
+                    and (sri := subcommand_runtime_import_for("string", args[0])) is not None
+                ):
+                    needed.add(sri.import_key)
                 elif command == "string" and args and args[0] == "is" and len(args) >= 3:
                     is_key = _STRING_IS_IMPORT.get(args[1])
                     if is_key:
@@ -542,8 +548,12 @@ def _scan_needed_imports(
                     # ``list $a $b ...`` with variable args uses tcl_lappend
                     # internally in _emit_list_value to quote each element.
                     needed.add("tcl_lappend")
-                elif command == "dict" and args and args[0] in _DICT_SUBCMD_IMPORT:
-                    needed.add(_DICT_SUBCMD_IMPORT[args[0]])
+                elif (
+                    command == "dict"
+                    and args
+                    and (sri := subcommand_runtime_import_for("dict", args[0])) is not None
+                ):
+                    needed.add(sri.import_key)
                 elif command == "dict" and args and args[0] == "create":
                     # ``dict create`` with non-literal k/v args
                     # folds at runtime via ``tcl_lappend`` so
@@ -620,9 +630,9 @@ def _scan_needed_imports(
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
                 elif command == "clock" and args:
-                    key = _CLOCK_SUBCMD_IMPORT.get(args[0])
-                    if key is not None:
-                        needed.add(key)
+                    sri = subcommand_runtime_import_for("clock", args[0])
+                    if sri is not None:
+                        needed.add(sri.import_key)
                 elif command == "array" and args:
                     _scan_array_subcmd(args)
                 elif command == "uplevel":
@@ -668,7 +678,7 @@ def _scan_needed_imports(
                 # ``catch``, etc.) the args are source text re-parsed
                 # by the lowerer, not values emitted at runtime — mark
                 # them so the scan doesn't over-import tcl_append.
-                is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
+                is_body = command_emits_nothing(command) or command == "catch"
                 for arg in args:
                     _scan_value(arg, is_body_text=is_body)
             case IRAssignValue(name=name, value=value):

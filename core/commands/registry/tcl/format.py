@@ -5,7 +5,14 @@ from __future__ import annotations
 
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ._base import register
 from .const_fold import fold_format
@@ -40,4 +47,10 @@ class FormatCommand(CommandDef):
             cse_candidate=True,
             return_type=TclType.STRING,
             side_effect_hints=(),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_format",
+                argc=4,
+                params=("i32", "i32", "i32", "i32"),
+                results=("i32",),
+            ),
         )

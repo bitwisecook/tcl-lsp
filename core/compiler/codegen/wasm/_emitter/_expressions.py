@@ -24,10 +24,8 @@ from ....expr_ast import (
     UnaryOp,
 )
 from .._imports import (
-    _CMD_RUNTIME,
-    _DICT_SUBCMD_IMPORT,
-    _RUNTIME_IMPORTS,
-    _STRING_SUBCMD_IMPORT,
+    runtime_import_for,
+    subcommand_runtime_import_for,
 )
 from .._ir import (
     _BLOCK_I64,
@@ -397,18 +395,17 @@ class _WasmEmitterExprMixin(_Base):
         # dict sub-command — returns i32 TclObj, unbox to i64
         if cmd_name == "dict" and cmd_args:
             subcmd = cmd_args[0]
-            import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+            sri = subcommand_runtime_import_for("dict", subcmd)
+            if sri is not None and sri.import_key in self._shared_imports:
+                func_idx = self._shared_imports[sri.import_key]
+                param_count = len(sri.params)
                 sub_args = cmd_args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
                     self._emit_i32_const(0)
                 self._emit_call(func_idx)
-                if spec[3]:
+                if sri.results:
                     self._emit_unbox_int()
                 else:
                     self._emit_i64_const(0)
@@ -417,18 +414,17 @@ class _WasmEmitterExprMixin(_Base):
         # string sub-command — returns i32 TclObj, unbox to i64
         if cmd_name == "string" and cmd_args:
             subcmd = cmd_args[0]
-            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+            sri = subcommand_runtime_import_for("string", subcmd)
+            if sri is not None and sri.import_key in self._shared_imports:
+                func_idx = self._shared_imports[sri.import_key]
+                param_count = len(sri.params)
                 sub_args = cmd_args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
                     self._emit_i32_const(0)
                 self._emit_call(func_idx)
-                if spec[3]:
+                if sri.results:
                     self._emit_unbox_int()
                 else:
                     self._emit_i64_const(0)
@@ -465,18 +461,17 @@ class _WasmEmitterExprMixin(_Base):
             return
 
         # Runtime command — returns i32 TclObj, unbox to i64
-        if cmd_name in _CMD_RUNTIME:
-            import_key, _ = _CMD_RUNTIME[cmd_name]
-            func_idx = self._shared_imports.get(import_key)
+        rimp = runtime_import_for(cmd_name)
+        if rimp is not None:
+            func_idx = self._shared_imports.get(rimp.import_key)
             if func_idx is not None:
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+                param_count = len(rimp.params)
                 for i in range(min(param_count, len(cmd_args))):
                     self._emit_value(cmd_args[i])
                 for _ in range(param_count - len(cmd_args)):
                     self._emit_i32_const(0)
                 self._emit_call(func_idx)
-                if spec[3]:
+                if rimp.results:
                     self._emit_unbox_int()
                 else:
                     self._emit_i64_const(0)

@@ -4,17 +4,45 @@
 // central command table via the ``registration`` constant.
 
 const rt = @import("../tcl_runtime.zig");
-const frames = @import("../tcl_frames.zig");
+const frames = @import("../interp/tcl_frames.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 
-const str_eq = @import("../tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
-const reg = @import("../tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "dict",
-    .handler = &eval,
+    .arity_min = 1, .arity_max = null, .handler = &eval,
+};
+
+// Sub-command arities — mirrors ``core/commands/registry/tcl/dict.py``.
+// Cross-checked against C Tcl 9.0 ``tclDictObj.c`` (every
+// ``Tcl_WrongNumArgs`` call in every ``Dict*Cmd`` handler).
+pub const subcommands: []const reg.SubEntry = &.{
+    .{ .name = "append", .arity_min = 2, .arity_max = null, .handler = &eval },
+    .{ .name = "create", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "exists", .arity_min = 2, .arity_max = null, .handler = &eval },
+    .{ .name = "filter", .arity_min = 2, .arity_max = null, .handler = &eval },
+    .{ .name = "for", .arity_min = 3, .arity_max = 3, .handler = &eval },
+    .{ .name = "get", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "getdef", .arity_min = 3, .arity_max = null, .handler = &eval },
+    .{ .name = "getwithdefault", .arity_min = 3, .arity_max = null, .handler = &eval },
+    .{ .name = "incr", .arity_min = 2, .arity_max = 3, .handler = &eval },
+    .{ .name = "info", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "keys", .arity_min = 1, .arity_max = 2, .handler = &eval },
+    .{ .name = "lappend", .arity_min = 2, .arity_max = null, .handler = &eval },
+    .{ .name = "map", .arity_min = 3, .arity_max = 3, .handler = &eval },
+    .{ .name = "merge", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "remove", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "replace", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "set", .arity_min = 3, .arity_max = null, .handler = &eval },
+    .{ .name = "size", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "unset", .arity_min = 2, .arity_max = null, .handler = &eval },
+    .{ .name = "update", .arity_min = 4, .arity_max = null, .handler = &eval },
+    .{ .name = "values", .arity_min = 1, .arity_max = 2, .handler = &eval },
+    .{ .name = "with", .arity_min = 2, .arity_max = null, .handler = &eval },
 };
 
 pub fn eval(words: []const i32) i32 {

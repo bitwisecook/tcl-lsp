@@ -68,6 +68,7 @@ from . import (
     lreplace,  # noqa: F401
     lreverse,  # noqa: F401
     lsearch_,  # noqa: F401
+    lseq,  # noqa: F401
     lset,  # noqa: F401
     lsort_,  # noqa: F401
     mathop,  # noqa: F401
@@ -96,6 +97,7 @@ from . import (
     regex_quote,  # noqa: F401
     regexp_,  # noqa: F401
     regexp__quote,  # noqa: F401
+    registry,  # noqa: F401
     regsub_,  # noqa: F401
     rename,  # noqa: F401
     return_,  # noqa: F401
@@ -125,6 +127,7 @@ from . import (
     while_,  # noqa: F401
     yield_,  # noqa: F401
     yieldto,  # noqa: F401
+    zlib,  # noqa: F401
 )
 from ._base import _REGISTRY
 

@@ -6,7 +6,15 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
 from ._base import register
@@ -133,6 +141,12 @@ class SocketCommand(CommandDef):
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_socket",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
             ),
         )
 

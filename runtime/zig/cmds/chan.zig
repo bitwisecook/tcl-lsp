@@ -1,9 +1,9 @@
 // ``encoding``, ``fconfigure`` — channel/encoding commands.
 
 const rt  = @import("../tcl_runtime.zig");
-const enc = @import("../tcl_encoding.zig");
-const chan = @import("../tcl_chan.zig");
-const reg = @import("../tcl_cmd_registry.zig");
+const enc = @import("../valtypes/tcl_encoding.zig");
+const chan = @import("../io/tcl_chan.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 const alloc          = rt.alloc;
 const obj_new_string = rt.obj_new_string;
@@ -33,6 +33,18 @@ fn eval_fconfigure(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "encoding",   .handler = &eval_encoding },
-    .{ .name = "fconfigure", .handler = &eval_fconfigure },
+    .{ .name = "encoding", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
+    .{ .name = "fconfigure", .arity_min = 1, .arity_max = null, .handler = &eval_fconfigure },
+};
+
+// Per-command sub-table — only ``encoding`` has sub-commands here;
+// ``fconfigure`` is variadic ``-option value`` pairs, not an ensemble.
+pub const encoding_subcommands: []const reg.SubEntry = &.{
+    .{ .name = "convertfrom", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
+    .{ .name = "convertto", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
+    .{ .name = "dirs", .arity_min = 0, .arity_max = 1, .handler = &eval_encoding },
+    .{ .name = "names", .arity_min = 0, .arity_max = 0, .handler = &eval_encoding },
+    .{ .name = "profiles", .arity_min = 0, .arity_max = 0, .handler = &eval_encoding },
+    .{ .name = "system", .arity_min = 0, .arity_max = 1, .handler = &eval_encoding },
+    .{ .name = "user", .arity_min = 0, .arity_max = 0, .handler = &eval_encoding },
 };
