@@ -171,7 +171,7 @@ CommandSpec's arity + subcommand arity against the Zig side's
 | `_emitter/_values.py` | Value-context codegen (`[cmd]` in expressions) |
 | `_emitter/_control_flow.py` | `if` / `while` / `for` / `foreach` / `switch` / `try` / `catch` |
 | `_emitter/_variables.py` | `set` / `incr` / alias handling / frame escape routing |
-| `_emitter/_commands.py` | Generic `_emit_cmd_runtime` (runtime-dispatch special cases live inline today — Phase E.3 will split per-command) |
+| `_emitter/_commands.py` | Generic `_emit_cmd_runtime` + `_runtime_prep` / `_runtime_call_end` helpers + `_emit_cmd_proc_call` |
 | `_emitter/_optimisation.py` | Constant folding, barrier short-circuiting |
 | `_emitter/_ops.py` | Expr operator → WASM op translation |
 | `_emitter/cmds/*.py` | Per-command hook registration + helpers |
@@ -180,3 +180,33 @@ CommandSpec's arity + subcommand arity against the Zig side's
 | `_ir.py` | WASM binary format, `ValType`, `WasmOp`, `WasmModule` |
 | `_encoding.py` | LEB128, string interning, list quoting |
 | `_parsing.py` | `_parse_array_ref` and other cheap string lookups |
+
+### `_core.py` cohesion — why it stays as one file
+
+After the Phase E per-command split, `_core.py` holds ~200 lines of
+`__init__` state, the `generate()` prologue/body/epilogue pipeline
+(~320 lines), and a handful of low-level emit helpers.  Decomposing
+it further was considered during Phase E.4 and declined: the state
+it owns — locals, strings, shared imports, proc metadata,
+namespace context, diag map, escape summary — is needed by every
+mixin, and `generate()` reads linearly through the proc prologue
+(frame push, namespace set, argv build, default substitution,
+param mirror) without natural seams.  Splitting would multiply
+mixin interfaces without reducing real complexity.  The Phase E
+per-command migration already achieved the main goal: individual
+command behaviour lives in `cmds/<name>_.py`, not in a central
+helpers mixin.
+
+### Per-command hook file layout
+
+Each file under `_emitter/cmds/` registers one or more
+`(name, hook)` pairs via `REGISTRY.register_wasm_emitter`.  Hooks
+receive `(emitter, args, defs, context)` and return `True` when
+they handled the call — returning `False` falls through to the
+next dispatch layer (generic runtime, eval fallback, trap).
+
+Import order inside `cmds/__init__.py` matters: the generic
+`runtime_.py` auto-registration loop runs last, skipping commands
+that already have a specialised hook (first-writer-wins).  New
+specialised hooks therefore only need to be imported in
+`cmds/__init__.py` before `runtime_` to take effect.

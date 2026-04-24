@@ -1,0 +1,54 @@
+"""WASM emit hook for ``append`` — variadic mutator onto a string variable.
+
+``append var v1 ?v2 ...?`` reads the current value of ``var``, calls
+``tcl_cmd_append(cur, vN)`` once per value, and writes the running
+result back between iterations.  In VALUE context the final write
+keeps the updated value on the stack for implicit return.
+"""
+
+from __future__ import annotations
+
+from ......commands.registry import REGISTRY, EmitContext
+
+
+def _emit_append(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
+    if len(args) < 2:
+        return False
+    prep = emitter._runtime_prep("append", args)
+    if prep is None:
+        return False
+    func_idx, _spec = prep
+
+    var_name = args[0]
+    is_aliased = var_name in emitter._aliases or (
+        "(" in var_name and var_name.split("(")[0] in emitter._aliases
+    )
+    keep_last = context is EmitContext.VALUE
+    last_index = len(args) - 1
+
+    if is_aliased:
+        for i, value_arg in enumerate(args[1:], start=1):
+            emitter._emit_var_read_obj(var_name)
+            emitter._emit_value(value_arg)
+            emitter._emit_call(func_idx)
+            if keep_last and i == last_index:
+                emitter._emit_var_write_obj_keep(var_name)
+            else:
+                emitter._emit_var_write_obj(var_name)
+    else:
+        var_idx = emitter._intern_local(var_name)
+        for i, value_arg in enumerate(args[1:], start=1):
+            emitter._emit_local_get(var_idx)
+            emitter._emit_value(value_arg)
+            emitter._emit_call(func_idx)
+            if keep_last and i == last_index:
+                emitter._emit_local_tee(var_idx)
+            else:
+                emitter._emit_local_set(var_idx)
+
+    return True
+
+
+REGISTRY.register_wasm_emitter("append", _emit_append)
