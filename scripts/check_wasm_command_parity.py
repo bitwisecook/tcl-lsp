@@ -42,6 +42,12 @@ _REGISTRATION_FULL_RE = re.compile(
 )
 _DISPATCH_TRAP_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+trap\(')
 _DISPATCH_FALSE_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+false')
+# Data-table form: ``const STUB_TRAP: []const []const u8 = &.{ "a", "b", ... };``
+# Captures the body between ``&.{`` and the closing ``}``.
+_STUB_TRAP_TABLE_RE = re.compile(
+    r"const\s+STUB_TRAP\s*:\s*\[\]const\s+\[\]const\s+u8\s*=\s*&\.\{([^}]+)\}"
+)
+_QUOTED_NAME_RE = re.compile(r'"([^"]+)"')
 # Matches both ``pub export fn name(...)`` and the keyword-escape form
 # ``pub export fn @"name"(...)`` Zig requires when exporting a symbol
 # whose name collides with a Zig keyword (e.g. ``namespace``).
@@ -85,19 +91,27 @@ def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, str]]:
 
 
 def parse_zig_stub_dispatch(zig_dir: Path) -> dict[str, str]:
-    """Return ``{command_name: action}`` from ``tcl_cmd_dispatch.zig:match_stub``.
+    """Return ``{command_name: action}`` from ``tcl_cmd_dispatch.zig``.
 
-    *action* is ``"trap"`` for ``return trap("…")`` and ``"fallthrough"``
-    for ``return false`` (those names are recognised but explicitly handed
-    back to the caller — typically because they're served by a real
-    handler in another path).
+    *action* is ``"trap"`` when the command traps via
+    ``stubs.unsupported("…")`` — either through the legacy if-chain form
+    (``if (eql(c, "X")) return trap("X");``) or through the data-table
+    form (``const STUB_TRAP = &.{ "X", "Y", ... };``).
+    *action* is ``"fallthrough"`` for names in the legacy
+    ``return false`` form (used for commands served elsewhere).
     """
     src = (zig_dir / "tcl_cmd_dispatch.zig").read_text()
     out: dict[str, str] = {}
+    # Legacy per-line forms.
     for match in _DISPATCH_TRAP_RE.finditer(src):
         out[match.group(1)] = "trap"
     for match in _DISPATCH_FALSE_RE.finditer(src):
         out.setdefault(match.group(1), "fallthrough")
+    # Data-table form — extract quoted names from inside the STUB_TRAP
+    # slice literal.
+    for tbl in _STUB_TRAP_TABLE_RE.finditer(src):
+        for name_match in _QUOTED_NAME_RE.finditer(tbl.group(1)):
+            out[name_match.group(1)] = "trap"
     return out
 
 
