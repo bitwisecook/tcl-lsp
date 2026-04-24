@@ -116,6 +116,11 @@ same sub-commands, same arity bounds — and this alignment is enforced
 by a CI gate that runs on every `make prep-pr` and GitHub Actions
 build.
 
+For a walkthrough of how a Tcl script becomes a WASM module (the
+6-phase codegen pipeline, per-statement dispatch order, per-command
+file layout), see
+[`docs/design/compiler/wasm-codegen.md`](docs/design/compiler/wasm-codegen.md).
+
 Every command must have one of:
 
 - a real Zig handler in `runtime/zig/cmds/*.zig` (visible in
