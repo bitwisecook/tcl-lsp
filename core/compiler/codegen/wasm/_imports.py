@@ -105,9 +105,7 @@ def command_emits_nothing(command: str) -> bool:
     return any(spec.wasm_emits_nothing for spec in specs)
 
 
-def subcommand_runtime_import_for(
-    command: str, subcommand: str
-) -> WasmRuntimeImport | None:
+def subcommand_runtime_import_for(command: str, subcommand: str) -> WasmRuntimeImport | None:
     """Return the runtime-import descriptor for ``<command> <subcommand>``.
 
     Replaces the ``_STRING_SUBCMD_IMPORT`` / ``_DICT_SUBCMD_IMPORT`` /
@@ -123,6 +121,7 @@ def subcommand_runtime_import_for(
         if sub is not None and sub.wasm_runtime_import is not None:
             return sub.wasm_runtime_import
     return None
+
 
 # Infrastructure import signatures — runtime helpers the codegen
 # references directly, with no ``CommandSpec`` owner.  Every entry

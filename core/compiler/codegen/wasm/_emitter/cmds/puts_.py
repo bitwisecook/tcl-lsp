@@ -12,9 +12,7 @@ from __future__ import annotations
 from ......commands.registry import REGISTRY, EmitContext
 
 
-def _emit_puts(
-    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
-) -> bool:
+def _emit_puts(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     prep = emitter._runtime_prep("puts", args)
     if prep is None:
         return False
