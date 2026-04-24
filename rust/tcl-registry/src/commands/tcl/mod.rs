@@ -56,6 +56,7 @@ mod lrepeat;
 mod lreplace;
 mod lreverse;
 mod lsearch_;
+mod lseq;
 mod lset;
 mod lsort_;
 mod mathop;
@@ -83,6 +84,7 @@ mod read_;
 mod regex_quote;
 mod regexp_;
 mod regexp_quote;
+mod registry_;
 mod regsub_;
 mod rename_;
 mod return_;
@@ -112,6 +114,7 @@ mod vwait;
 mod while_;
 mod yield_;
 mod yieldto;
+mod zlib;
 
 use crate::spec::CommandSpec;
 
@@ -176,6 +179,7 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
         lreplace::spec(),
         lreverse::spec(),
         lsearch_::spec(),
+        lseq::spec(),
         lset::spec(),
         lsort_::spec(),
         mathop::spec(),
@@ -203,6 +207,7 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
         regex_quote::spec(),
         regexp_::spec(),
         regexp_quote::spec(),
+        registry_::spec(),
         regsub_::spec(),
         rename_::spec(),
         return_::spec(),
@@ -232,5 +237,6 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
         while_::spec(),
         yield_::spec(),
         yieldto::spec(),
+        zlib::spec(),
     ]
 }

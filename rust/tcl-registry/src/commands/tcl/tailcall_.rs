@@ -8,7 +8,9 @@ pub fn spec() -> CommandSpec {
         name: "tailcall",
         traits: Traits::LANGUAGE_KEYWORD,
         dialects: Some(DialectSet::TCL86_PLUS),
-        arity: Arity::at_least(1),
+        // Tcl 9.0: ``tailcall`` with no args clears any scheduled
+        // tailcall; with args it replaces it.  Real arity is 0..∞.
+        arity: Arity::any(),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
