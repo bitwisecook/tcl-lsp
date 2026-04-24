@@ -24,8 +24,8 @@ fn eval_foreach(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "if",      .handler = &eval_if },
-    .{ .name = "while",   .handler = &eval_while },
-    .{ .name = "for",     .handler = &eval_for },
-    .{ .name = "foreach", .handler = &eval_foreach },
+    .{ .name = "if", .arity_min = 2, .arity_max = null, .handler = &eval_if },
+    .{ .name = "while", .arity_min = 2, .arity_max = 2, .handler = &eval_while },
+    .{ .name = "for", .arity_min = 4, .arity_max = 4, .handler = &eval_for },
+    .{ .name = "foreach", .arity_min = 3, .arity_max = null, .handler = &eval_foreach },
 };

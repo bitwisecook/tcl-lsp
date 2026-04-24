@@ -287,14 +287,14 @@ fn eval_time(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "return",   .handler = &eval_return },
-    .{ .name = "break",    .handler = &eval_break },
-    .{ .name = "continue", .handler = &eval_continue },
-    .{ .name = "error",    .handler = &eval_error },
-    .{ .name = "catch",    .handler = &eval_catch },
-    .{ .name = "throw",    .handler = &eval_throw },
-    .{ .name = "try",      .handler = &eval_try },
-    .{ .name = "apply",    .handler = &eval_apply_cmd },
-    .{ .name = "tailcall", .handler = &eval_tailcall },
-    .{ .name = "time",     .handler = &eval_time },
+    .{ .name = "return", .arity_min = 0, .arity_max = null, .handler = &eval_return },
+    .{ .name = "break", .arity_min = 0, .arity_max = 0, .handler = &eval_break },
+    .{ .name = "continue", .arity_min = 0, .arity_max = 0, .handler = &eval_continue },
+    .{ .name = "error", .arity_min = 1, .arity_max = 3, .handler = &eval_error },
+    .{ .name = "catch", .arity_min = 1, .arity_max = 3, .handler = &eval_catch },
+    .{ .name = "throw", .arity_min = 2, .arity_max = 2, .handler = &eval_throw },
+    .{ .name = "try", .arity_min = 1, .arity_max = null, .handler = &eval_try },
+    .{ .name = "apply", .arity_min = 1, .arity_max = null, .handler = &eval_apply_cmd },
+    .{ .name = "tailcall", .arity_min = 1, .arity_max = null, .handler = &eval_tailcall },
+    .{ .name = "time", .arity_min = 1, .arity_max = 2, .handler = &eval_time },
 };

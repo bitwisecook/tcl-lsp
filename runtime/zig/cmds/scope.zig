@@ -44,7 +44,7 @@ fn eval_upvar(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "global",   .handler = &eval_global },
-    .{ .name = "variable", .handler = &eval_variable },
-    .{ .name = "upvar",    .handler = &eval_upvar },
+    .{ .name = "global", .arity_min = 1, .arity_max = null, .handler = &eval_global },
+    .{ .name = "variable", .arity_min = 1, .arity_max = null, .handler = &eval_variable },
+    .{ .name = "upvar", .arity_min = 2, .arity_max = null, .handler = &eval_upvar },
 };

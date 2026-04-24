@@ -13,6 +13,6 @@ fn eval_interp(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "rename", .handler = &eval_rename },
-    .{ .name = "interp", .handler = &eval_interp },
+    .{ .name = "rename", .arity_min = 2, .arity_max = 2, .handler = &eval_rename },
+    .{ .name = "interp", .arity_min = 1, .arity_max = null, .handler = &eval_interp },
 };

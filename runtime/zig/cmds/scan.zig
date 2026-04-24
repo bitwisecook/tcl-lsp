@@ -351,5 +351,5 @@ fn eval_scan(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "scan", .handler = &eval_scan },
+    .{ .name = "scan", .arity_min = 2, .arity_max = null, .handler = &eval_scan },
 };

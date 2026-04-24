@@ -33,7 +33,7 @@ fn eval_format(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "puts",   .handler = &eval_puts },
-    .{ .name = "append", .handler = &eval_append },
-    .{ .name = "format", .handler = &eval_format },
+    .{ .name = "puts", .arity_min = 1, .arity_max = 2, .handler = &eval_puts },
+    .{ .name = "append", .arity_min = 1, .arity_max = null, .handler = &eval_append },
+    .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_format },
 };

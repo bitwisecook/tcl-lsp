@@ -13,5 +13,5 @@ fn eval_proc(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "proc", .handler = &eval_proc },
+    .{ .name = "proc", .arity_min = 3, .arity_max = 3, .handler = &eval_proc },
 };

@@ -17,7 +17,7 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "string",
-    .handler = &eval,
+    .arity_min = 1, .arity_max = null, .handler = &eval,
 };
 
 pub fn eval(words: []const i32) i32 {

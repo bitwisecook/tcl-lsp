@@ -40,6 +40,23 @@ _REGISTRATION_NAME_RE = re.compile(r'\.name\s*=\s*"([^"]+)"')
 _REGISTRATION_FULL_RE = re.compile(
     r'\.name\s*=\s*"([^"]+)"\s*,\s*\.handler\s*=\s*&(\w+)',
 )
+# Parse a full CmdEntry / SubEntry struct literal capturing the
+# arity_min / arity_max / handler fields.  Matches both the shorthand
+# ``.{ … }`` form (used inside ``[_]reg.CmdEntry{ … }`` arrays) and
+# the explicit ``reg.CmdEntry{ … }`` form used for standalone
+# top-level registrations.  Fields may appear in any order; arity_min
+# / arity_max are optional (default to 0 / null in Zig, represented
+# here as ``None``).
+_ENTRY_FIELDS_RE = re.compile(
+    r"(?:\.\{|(?:reg\.)?CmdEntry\s*\{)"
+    r"\s*(?P<body>[^}]*)"
+    r"\}",
+    re.DOTALL,
+)
+_FIELD_NAME_RE = re.compile(r'\.name\s*=\s*"([^"]+)"')
+_FIELD_ARITY_MIN_RE = re.compile(r"\.arity_min\s*=\s*(\d+)")
+_FIELD_ARITY_MAX_RE = re.compile(r"\.arity_max\s*=\s*(\d+|null)")
+_FIELD_HANDLER_RE = re.compile(r"\.handler\s*=\s*&(\w+)")
 _DISPATCH_TRAP_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+trap\(')
 _DISPATCH_FALSE_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+false')
 # Data-table form: ``const STUB_TRAP: []const []const u8 = &.{ "a", "b", ... };``
@@ -72,21 +89,58 @@ SILENT_STUB_HANDLERS: frozenset[str] = frozenset(
 )
 
 
-def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, str]]:
-    """Return ``{command_name: {module, handler}}`` for every BUILTINS entry.
+def _parse_arity_fields(body: str) -> tuple[int | None, int | None]:
+    """Extract ``arity_min``/``arity_max`` values from a struct-literal body.
 
-    Reads every ``cmds/*.zig`` file and extracts ``.name = "…", .handler = &…``
-    pairs from registration arrays.  The handler name is captured so the
-    classifier can flag silent-stub registrations (see
-    :data:`SILENT_STUB_HANDLERS`).
+    Returns ``(arity_min, arity_max)`` where each component is ``None``
+    if the field isn't present.  ``arity_max = None`` covers both
+    "field absent" and the explicit Zig ``null`` (variadic).
     """
-    result: dict[str, dict[str, str]] = {}
+    arity_min: int | None = None
+    arity_max: int | None = None
+    m_min = _FIELD_ARITY_MIN_RE.search(body)
+    if m_min is not None:
+        arity_min = int(m_min.group(1))
+    m_max = _FIELD_ARITY_MAX_RE.search(body)
+    if m_max is not None:
+        raw = m_max.group(1)
+        arity_max = None if raw == "null" else int(raw)
+    return arity_min, arity_max
+
+
+def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, object]]:
+    """Return ``{command_name: {module, handler, arity_min, arity_max}}``.
+
+    Reads every ``cmds/*.zig`` file and extracts each ``CmdEntry``
+    struct literal's ``.name``/``.handler``/``.arity_min``/``.arity_max``
+    fields.  ``arity_min`` defaults to ``0`` and ``arity_max`` defaults
+    to ``None`` (variadic) when the fields are absent — matching the
+    Zig struct defaults on :class:`CmdEntry`.
+    """
+    result: dict[str, dict[str, object]] = {}
     cmds_dir = zig_dir / "cmds"
     for src in sorted(cmds_dir.glob("*.zig")):
         text = src.read_text()
-        for match in _REGISTRATION_FULL_RE.finditer(text):
-            name, handler = match.group(1), match.group(2)
-            result.setdefault(name, {"module": src.name, "handler": handler})
+        for m in _ENTRY_FIELDS_RE.finditer(text):
+            body = m.group("body")
+            name_match = _FIELD_NAME_RE.search(body)
+            handler_match = _FIELD_HANDLER_RE.search(body)
+            if name_match is None or handler_match is None:
+                continue
+            name = name_match.group(1)
+            handler = handler_match.group(1)
+            a_min, a_max = _parse_arity_fields(body)
+            if a_min is None:
+                a_min = 0
+            result.setdefault(
+                name,
+                {
+                    "module": src.name,
+                    "handler": handler,
+                    "arity_min": a_min,
+                    "arity_max": a_max,
+                },
+            )
     return result
 
 
@@ -172,6 +226,10 @@ def collect_registry_commands() -> dict[str, dict]:
         module = cls.__module__.rsplit(".", 1)[-1]
         tcl_core_sources.setdefault(cls.name, module)
 
+    import sys as _sys  # noqa: PLC0415
+
+    arity_any = _sys.maxsize
+
     out: dict[str, dict] = {}
     for name in sorted(tcl_core_sources):
         specs = REGISTRY.specs_by_name.get(name)
@@ -181,6 +239,9 @@ def collect_registry_commands() -> dict[str, dict]:
         has_wasm = False
         sub_wasm: set[str] = set()
         in_tcl = False
+        arity_min: int | None = None
+        arity_max: int | None = None
+        subcmds: dict[str, dict[str, object]] = {}
         for spec in specs:
             spec_dialects = spec.dialects
             if spec_dialects is None:
@@ -195,9 +256,24 @@ def collect_registry_commands() -> dict[str, dict]:
                     applicable_dialects = set(inter)
             if "wasm" in spec.codegens:
                 has_wasm = True
+            # First spec with validation.arity wins — later dialect packs
+            # only add metadata, not arity overrides.
+            if arity_min is None and spec.validation is not None:
+                a = spec.validation.arity
+                arity_min = a.min
+                # Python's Arity.max uses ``sys.maxsize`` for "unbounded";
+                # flatten to ``None`` so the Zig comparison (``?u32``)
+                # lines up.
+                arity_max = None if a.max == arity_any else a.max
             for sub_name, sub in spec.subcommands.items():
                 if "wasm" in sub.codegens:
                     sub_wasm.add(sub_name)
+                if sub_name not in subcmds:
+                    sa = sub.arity
+                    subcmds[sub_name] = {
+                        "arity_min": sa.min,
+                        "arity_max": None if sa.max == arity_any else sa.max,
+                    }
         if not in_tcl:
             continue
         dialects = (
@@ -208,6 +284,9 @@ def collect_registry_commands() -> dict[str, dict]:
             "source_module": tcl_core_sources[name],
             "has_wasm_codegen": has_wasm,
             "subcommands_with_wasm_codegen": sorted(sub_wasm),
+            "arity_min": arity_min if arity_min is not None else 0,
+            "arity_max": arity_max,
+            "subcommands": subcmds,
         }
     return out
 
@@ -465,6 +544,54 @@ def print_status_report(statuses: dict[str, dict]) -> None:
 # Baseline + diff
 
 
+def find_arity_mismatches(inventory: dict) -> list[dict[str, object]]:
+    """Compare per-command arity between the Python registry and Zig BUILTINS.
+
+    Returns a list of ``{command, python: (min, max), zig: (min, max)}``
+    records for every command that appears in both sides but whose arity
+    bounds disagree.  Commands present in only one side are not
+    considered arity mismatches — that's caught by the orphan /
+    missing-command checks.
+
+    ``max = None`` means "variadic / unbounded" on both sides.
+    """
+    registry = inventory["registry_commands"]
+    builtins = inventory["zig_builtins"]
+    out: list[dict[str, object]] = []
+    for name in sorted(registry.keys() & builtins.keys()):
+        py = registry[name]
+        zig = builtins[name]
+        py_min, py_max = py.get("arity_min", 0), py.get("arity_max")
+        zig_min, zig_max = zig.get("arity_min", 0), zig.get("arity_max")
+        if (py_min, py_max) != (zig_min, zig_max):
+            out.append(
+                {
+                    "command": name,
+                    "python": [py_min, py_max],
+                    "zig": [zig_min, zig_max],
+                }
+            )
+    return out
+
+
+def print_arity_report(mismatches: list[dict[str, object]]) -> None:
+    print()
+    print(f"=== Arity mismatches ({len(mismatches)}) ===")
+    if not mismatches:
+        print("  (none — every command's Zig arity matches the Python registry)")
+        return
+    for m in mismatches:
+        cmd = m["command"]
+        py = m["python"]
+        zig = m["zig"]
+        print(f"  {cmd:28}  python={_fmt_arity(py)}  zig={_fmt_arity(zig)}")
+
+
+def _fmt_arity(bounds: list) -> str:
+    lo, hi = bounds
+    return f"({lo}, {'∞' if hi is None else hi})"
+
+
 def build_snapshot(inventory: dict) -> dict[str, object]:
     """Return the deterministic snapshot to compare against a baseline.
 
@@ -475,8 +602,9 @@ def build_snapshot(inventory: dict) -> dict[str, object]:
     """
     statuses = classify(inventory)
     dangling = find_dangling(inventory)
+    arity_mismatches = find_arity_mismatches(inventory)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "command_status": {name: s["status"] for name, s in statuses.items()},
         "dangling": {
             "orphan_builtins": dangling["orphan_builtins"],
@@ -486,6 +614,7 @@ def build_snapshot(inventory: dict) -> dict[str, object]:
                 {"key": k, "export": v} for k, v in dangling["ffi_imports_without_export"]
             ],
         },
+        "arity_mismatches": arity_mismatches,
     }
 
 
@@ -547,6 +676,30 @@ def diff_against_baseline(
         regressions.append(f"NEW ffi_imports_without_export: {key} → {exp}")
     for key, exp in sorted(base_ffi - cur_ffi):
         improvements.append(f"REMOVED ffi_imports_without_export: {key} → {exp}")
+
+    # Arity mismatch diff.  The baseline stores a list of
+    # ``{command, python, zig}`` records; a mismatch is a regression
+    # whenever a new (command, python-bounds, zig-bounds) triple
+    # appears, and an improvement when one is removed.  The tuple
+    # identity is ``(command, python-bounds, zig-bounds)`` so a
+    # bounds-change on the same command also fires.
+    def _key(rec: dict) -> tuple:
+        py = tuple(rec["python"])
+        zig = tuple(rec["zig"])
+        return (rec["command"], py, zig)
+
+    cur_arity = {_key(r) for r in current.get("arity_mismatches", [])}
+    base_arity = {_key(r) for r in baseline.get("arity_mismatches", [])}
+    for k in sorted(cur_arity - base_arity):
+        cmd, py, zig = k
+        regressions.append(
+            f"NEW arity_mismatch: {cmd} python={_fmt_arity(list(py))} zig={_fmt_arity(list(zig))}"
+        )
+    for k in sorted(base_arity - cur_arity):
+        cmd, py, zig = k
+        improvements.append(
+            f"RESOLVED arity_mismatch: {cmd} python={_fmt_arity(list(py))} zig={_fmt_arity(list(zig))}"
+        )
 
     return regressions, improvements
 
@@ -610,6 +763,8 @@ def main() -> int:
         print_status_report(statuses)
         dangling = find_dangling(inventory)
         print_dangling_report(dangling)
+        arity_mismatches = find_arity_mismatches(inventory)
+        print_arity_report(arity_mismatches)
 
     if args.snapshot:
         args.baseline.parent.mkdir(parents=True, exist_ok=True)

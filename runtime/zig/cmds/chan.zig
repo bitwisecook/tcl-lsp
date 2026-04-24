@@ -33,6 +33,6 @@ fn eval_fconfigure(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "encoding",   .handler = &eval_encoding },
-    .{ .name = "fconfigure", .handler = &eval_fconfigure },
+    .{ .name = "encoding", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
+    .{ .name = "fconfigure", .arity_min = 1, .arity_max = null, .handler = &eval_fconfigure },
 };
