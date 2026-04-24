@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from ......commands.registry import REGISTRY
+from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 
 
-def _emit_uplevel(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_uplevel(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``uplevel ?level? body`` — delegates to _emit_cmd_uplevel."""
     if not args:
         return False
@@ -19,7 +19,7 @@ def _emit_uplevel(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool
     return True
 
 
-def _emit_clock(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_clock(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``clock subcommand ...`` — delegates to _emit_clock_value."""
     if not args:
         return False
@@ -32,7 +32,7 @@ def _emit_clock(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     return True
 
 
-def _emit_array(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_array(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``array subcommand ...`` — delegates to _emit_array_subcmd_value."""
     if not args:
         return False
@@ -45,7 +45,7 @@ def _emit_array(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     return True
 
 
-def _emit_unset(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_unset(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``unset ?-nocomplain? ?--? varName ...`` — array-element unset."""
     if not args:
         return False

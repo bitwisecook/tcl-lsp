@@ -71,12 +71,34 @@ LoweringHook = Callable[..., object]
 """IR lowering specialisation hook: (lowerer, ir_call) -> IRStatement | None."""
 
 WasmEmitHook = Callable[..., bool]
-"""WASM emit hook: (emitter, args, defs) -> emitted?
+"""WASM emit hook: ``(emitter, args, defs, context) -> emitted?``
+
+*context* is an :class:`EmitContext` indicating whether the result is
+being dropped / stored (``STATEMENT``) or left on the WASM operand
+stack (``VALUE``).  Hooks that don't care about result placement can
+ignore the argument.
 
 Keyed by target name (e.g. ``"wasm"``) in the ``codegens`` dict on
 ``CommandSpec`` and ``SubCommand``.  Unimplemented commands should emit
 a trap instruction so execution fails loudly rather than silently.
 """
+
+
+class EmitContext(enum.Enum):
+    """Result placement expected by the WASM emit-hook caller.
+
+    ``STATEMENT`` — the caller will either store the value into a
+    designated local (``defs[0]``) or drop it.  Hooks in this context
+    must leave *nothing* on the operand stack.
+
+    ``VALUE`` — the caller needs the value on the operand stack
+    (e.g. because the command is in implicit-return / tail position or
+    appears as the RHS of an assignment).  Hooks in this context must
+    leave *exactly one* ``i32`` TclObj pointer on the stack.
+    """
+
+    STATEMENT = "statement"
+    VALUE = "value"
 
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""

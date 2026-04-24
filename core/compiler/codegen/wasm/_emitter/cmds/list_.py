@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from ......commands.registry import REGISTRY
+from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 
 
-def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``list ?arg ...?`` — variadic list builder; delegates to _emit_list_value."""
     emitter._emit_list_value(args)
     if defs:
@@ -17,7 +17,7 @@ def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     return True
 
 
-def _emit_lset(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_lset(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``lset varName ?index ...? newValue`` — replace a list element."""
     if len(args) < 2:
         emitter._emit_unsupported_trap("lset (too few args)")
@@ -65,7 +65,7 @@ def _emit_lset(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     return True
 
 
-def _emit_lassign(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_lassign(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``lassign list ?varName ...?`` — destructure a list; delegates to _emit_cmd_lassign."""
     if not args:
         return False

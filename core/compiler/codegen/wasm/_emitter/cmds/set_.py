@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from ......commands.registry import REGISTRY
+from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 
 
-def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``set varName ?value?`` — read or write a local/global/aliased variable."""
     if not (1 <= len(args) <= 2):
         return False
@@ -24,7 +24,7 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
     return True
 
 
-def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``incr varName ?increment?`` — unbox, i64 add, rebox."""
     if not (1 <= len(args) <= 2):
         return False
