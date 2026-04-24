@@ -38,14 +38,18 @@ pytestmark = pytest.mark.slow
 # the crash took hold.  Repopulate the set once the startup crash
 # is fixed and real cases fail.
 
-# concat.test: 9 tests, all passing (no known failures)
+# concat.test crashes at startup in the Python VM (Total=0); the
+# caller passes ``expect_zero_total=True``.  The earlier "9 tests,
+# all passing" note was accurate before the startup crash took hold.
 KNOWN_FAILURES_CONCAT: set[str] = set()
 
-# llength.test: 6 tests, all passing (no known failures)
+# llength.test — same startup crash as concat.test.
 KNOWN_FAILURES_LLENGTH: set[str] = set()
 
+# lrepeat.test — same.
 KNOWN_FAILURES_LREPEAT: set[str] = set()
 
+# lsearch.test — same.
 KNOWN_FAILURES_LSEARCH: set[str] = set()
 
 KNOWN_FAILURES_JOIN: set[str] = set(

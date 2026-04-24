@@ -161,4 +161,6 @@ class TestNamespaceOldNative:
 
     def test_namespace_old(self) -> None:
         results = _run_test_file("namespace-old.test")
-        _check_results(results, KNOWN_FAILURES_NAMESPACE_OLD, "namespace-old.test", expect_zero_total=True)
+        _check_results(
+            results, KNOWN_FAILURES_NAMESPACE_OLD, "namespace-old.test", expect_zero_total=True
+        )

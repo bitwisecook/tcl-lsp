@@ -56,8 +56,14 @@ pub export fn clock_add(base: i32, opts: i32) i32 {
 
 pub export fn tcl_cmd_after(ms: i32) i32 {
     _ = ms;
-    // No event loop in WASM — silently succeed.
-    return 0;
+    // No event loop in WASM — silently succeed with an empty TclObj.
+    //
+    // Returning raw ``0`` breaks callers like ``set ::x [after 1]``
+    // because the runtime treats obj==0 as "unset/null" (see
+    // ``global_exists`` check ``val != 0``).  Match the interpreter
+    // stub path in ``cmds/stubs_.zig::eval_after`` which returns
+    // ``obj_new_string(0, 0)`` — a real empty-string TclObj.
+    return obj.obj_new_string(0, 0);
 }
 
 pub export fn tcl_cmd_vwait(var_name: i32) i32 {

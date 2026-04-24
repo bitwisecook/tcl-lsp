@@ -759,8 +759,10 @@ class TestCommandDispatch:
         import_names = {imp.name for imp in wasm_mod.imports}
         assert import_names == {
             "obj_new_int",
+            "obj_new_float",
             "obj_new_string",
             "obj_get_int",
+            "tcl_arith_add",
             "tcl_cmd_error",
             "tcl_eval",
             "ns_set",

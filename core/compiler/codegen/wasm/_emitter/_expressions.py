@@ -264,7 +264,20 @@ class _WasmEmitterExprMixin(_Base):
             self._emit_box_int()
 
     def _emit_command_subst_obj(self, text: str) -> None:
-        """Like _emit_command_subst but leaves TclObj i32 on stack."""
+        """Like ``_emit_command_subst`` but leaves TclObj i32 on the stack.
+
+        Known limitation: this routes through ``_emit_command_subst``
+        (which unboxes the command result to i64) and then re-boxes
+        via ``_emit_box_int``.  That round-trip preserves integer
+        results exactly but loses non-integer types (float, string)
+        from the original command result.  A true object-preserving
+        path that dispatches known procs directly (without the i64
+        hop) is tracked for a future commit; switching to a blanket
+        ``_emit_eval_fallback`` here breaks recursive proc calls in
+        expr context (the compiled frame sees the callee go through
+        the interpreter and loses its local bindings) so the safer
+        round-trip is kept for now.
+        """
         self._emit_command_subst(text)
         self._emit_box_int()
 
@@ -635,8 +648,8 @@ class _WasmEmitterExprMixin(_Base):
             if arith_idx is not None:
                 self._emit_expr_obj(left)
                 self._emit_expr_obj(right)
-                self._emit_call(arith_idx)     # → i32 TclObj
-                self._emit_unbox_int()          # → i64
+                self._emit_call(arith_idx)  # → i32 TclObj
+                self._emit_unbox_int()  # → i64
                 return
 
         wasm_op = _BINOP_WASM.get(op)

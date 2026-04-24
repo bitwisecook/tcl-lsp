@@ -44,6 +44,9 @@ class _WasmEmitterOptMixin(_Base):
         def _emit_stmt(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_call_stmt_tail(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterCmdMixin
+        def _emit_cmd_return(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_cmd_uplevel(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
@@ -504,6 +507,7 @@ class _WasmEmitterOptMixin(_Base):
                         merge = self._find_merge_block(tt, ft)
                         merge_newly_added = merge is not None and merge not in self._visited
                         if merge_newly_added:
+                            assert merge is not None  # implied by merge_newly_added
                             self._visited.add(merge)
 
                         self._emit_expr(cond)
@@ -516,6 +520,7 @@ class _WasmEmitterOptMixin(_Base):
                         self._emit(WasmOp.END)
 
                         if merge_newly_added:
+                            assert merge is not None  # implied by merge_newly_added
                             self._visited.discard(merge)
                             current = merge
                         else:
@@ -839,6 +844,7 @@ class _WasmEmitterOptMixin(_Base):
                 merge = self._find_merge_block(tt, ft)
                 merge_newly_added = merge is not None and merge not in self._visited
                 if merge_newly_added:
+                    assert merge is not None  # implied by merge_newly_added
                     self._visited.add(merge)
 
                 self._emit_expr(condition)
@@ -851,6 +857,7 @@ class _WasmEmitterOptMixin(_Base):
                 self._emit(WasmOp.END)
 
                 if merge_newly_added:
+                    assert merge is not None  # implied by merge_newly_added
                     self._visited.discard(merge)
                     self._emit_block(merge)
 

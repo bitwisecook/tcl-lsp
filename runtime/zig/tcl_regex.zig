@@ -578,19 +578,87 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         return obj_new_int(0);
     }
 
-    // Allocate output buffer.  Worst case: every codepoint matches and
-    // is replaced by the full replacement — so (sub_u.len + 1) *
-    // (repl_s.len + 4) + 64 bytes covers any UTF-8 expansion.
-    const max_out: u32 = @intCast((sub_u.len + 1) * (repl_s.len + 4) + 64);
-    const out_addr = alloc(max_out);
-    const out: [*]u8 = @ptrFromInt(out_addr);
-    var out_len: usize = 0;
-
     const dummy_repl = [1]u8{0};
     const repl_bytes: [*]const u8 = if (repl_s.len > 0)
         @ptrFromInt(repl_s.ptr)
     else
         @ptrCast(&dummy_repl);
+
+    // Allocate output buffer.  The previous bound was
+    // ``(sub_u.len + 1) * (repl_s.len + 4) + 64`` which silently
+    // overflows when replacement tokens like ``&``, ``\0``, or
+    // ``\1..\9`` expand to the full matched text (potentially much
+    // larger than ``repl_s.len``).  Compute a two-pass conservative
+    // bound that treats each backref/``&`` token as potentially
+    // expanding to ``sub_s.len`` bytes; overflow is turned into an
+    // error rather than a silent buffer overrun.
+    var repl_literal_bytes: usize = 0;
+    var repl_match_expansions: usize = 0;
+    {
+        var ri: usize = 0;
+        while (ri < repl_s.len) : (ri += 1) {
+            const ch = repl_bytes[ri];
+            if (ch == '&') {
+                repl_match_expansions += 1;
+            } else if (ch == '\\' and ri + 1 < repl_s.len) {
+                const next = repl_bytes[ri + 1];
+                if (next == '0' or (next >= '1' and next <= '9')) {
+                    repl_match_expansions += 1;
+                    ri += 1;
+                } else {
+                    repl_literal_bytes += 1;
+                    ri += 1;
+                }
+            } else {
+                repl_literal_bytes += 1;
+            }
+        }
+    }
+    const size_err = "regsub: replacement output too large";
+    const worst_from_matches = std.math.mul(usize, repl_match_expansions, sub_s.len) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    const worst_repl_bytes = std.math.add(usize, repl_literal_bytes, worst_from_matches) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    const per_match_bytes = std.math.add(usize, worst_repl_bytes, 4) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    const match_slots = std.math.add(usize, sub_u.len, 1) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    const all_replacements_bytes = std.math.mul(usize, match_slots, per_match_bytes) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    const with_subject_bytes = std.math.add(usize, sub_s.len, all_replacements_bytes) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    const max_out_usize = std.math.add(usize, with_subject_bytes, 64) catch {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    };
+    if (max_out_usize > std.math.maxInt(u32)) {
+        TclReFree(re_ptr);
+        stubs.raise(size_err);
+        return obj_new_int(0);
+    }
+    const max_out: u32 = @intCast(max_out_usize);
+    const out_addr = alloc(max_out);
+    const out: [*]u8 = @ptrFromInt(out_addr);
+    var out_len: usize = 0;
 
     const ustr: [*]const i32 = @ptrFromInt(sub_u.ptr);
     var pos: usize = 0;          // current codepoint position in subject
