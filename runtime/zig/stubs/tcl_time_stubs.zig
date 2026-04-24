@@ -61,7 +61,7 @@ pub export fn tcl_cmd_after(ms: i32) i32 {
     // Returning raw ``0`` breaks callers like ``set ::x [after 1]``
     // because the runtime treats obj==0 as "unset/null" (see
     // ``global_exists`` check ``val != 0``).  Match the interpreter
-    // stub path in ``cmds/stubs_.zig::eval_after`` which returns
+    // stub path in ``cmds/stubs.zig::eval_after`` which returns
     // ``obj_new_string(0, 0)`` — a real empty-string TclObj.
     return obj.obj_new_string(0, 0);
 }

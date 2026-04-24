@@ -46,11 +46,11 @@ const STUB_TRAP: []const []const u8 = &.{
     // Format / pattern matching — scan/binary are in BUILTINS.
     "regexp",
     // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``
-    // are all handled by BUILTINS (``cmds/stubs_.zig``) before we
+    // are all handled by BUILTINS (``cmds/stubs.zig``) before we
     // reach this table, so they are intentionally absent.
     "coroutine", "yield", "yieldto", "yieldmeta",
     // Environment / metadata — ``package`` is in BUILTINS
-    // (cmds/stubs_.zig); ``trace`` / ``namespace`` / ``subst`` /
+    // (cmds/stubs.zig); ``trace`` / ``namespace`` / ``subst`` /
     // ``auto_*`` are in BUILTINS with real implementations.
     "interp", "rename",
     // Object system (TclOO, 8.6+).

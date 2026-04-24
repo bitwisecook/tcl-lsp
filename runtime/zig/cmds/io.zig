@@ -1,5 +1,5 @@
 // ``puts``, ``append``, ``format`` — I/O and string output commands.
-// ``scan`` moved to cmds/scan_.zig for full multi-varname support.
+// ``scan`` moved to cmds/scan.zig for full multi-varname support.
 
 const rt       = @import("../tcl_runtime.zig");
 const frames   = @import("../interp/tcl_frames.zig");
