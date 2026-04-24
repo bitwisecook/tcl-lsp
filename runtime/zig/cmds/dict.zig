@@ -4,13 +4,13 @@
 // central command table via the ``registration`` constant.
 
 const rt = @import("../tcl_runtime.zig");
-const frames = @import("../tcl_frames.zig");
+const frames = @import("../interp/tcl_frames.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 
-const str_eq = @import("../tcl_chars.zig").str_eq;
+const str_eq = @import("../value/tcl_chars.zig").str_eq;
 
-const reg = @import("../tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "dict",

@@ -60,8 +60,8 @@
 
 const std   = @import("std");
 const rt    = @import("../tcl_runtime.zig");
-const reg   = @import("../tcl_cmd_registry.zig");
-const clock = @import("../tcl_clock.zig");
+const reg   = @import("../dispatch/tcl_cmd_registry.zig");
+const clock = @import("../io/tcl_clock.zig");
 
 fn eval_auto_load(words: []const i32) i32 {
     _ = words;

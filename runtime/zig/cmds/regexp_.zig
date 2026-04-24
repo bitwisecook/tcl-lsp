@@ -1,10 +1,10 @@
 // ``regexp``, ``regsub`` — regular expression commands.
 
 const rt        = @import("../tcl_runtime.zig");
-const regex_mod = @import("../tcl_regex.zig");
-const frames    = @import("../tcl_frames.zig");
-const reg       = @import("../tcl_cmd_registry.zig");
-const stubs     = @import("../tcl_stubs.zig");
+const regex_mod = @import("../value/tcl_regex.zig");
+const frames    = @import("../interp/tcl_frames.zig");
+const reg       = @import("../dispatch/tcl_cmd_registry.zig");
+const stubs     = @import("../stubs/tcl_stubs.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int       = rt.obj_new_int;

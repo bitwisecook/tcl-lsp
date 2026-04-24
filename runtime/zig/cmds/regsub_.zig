@@ -1,7 +1,7 @@
 // ``regsub`` — regular expression substitution command.
 
-const regex_mod = @import("../tcl_regex.zig");
-const reg       = @import("../tcl_cmd_registry.zig");
+const regex_mod = @import("../value/tcl_regex.zig");
+const reg       = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_regsub(words: []const i32) i32 {
     return regex_mod.eval_regsub_cmd(words);

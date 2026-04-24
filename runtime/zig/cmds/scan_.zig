@@ -24,10 +24,10 @@
 // For %s a width field limits the number of characters taken.
 
 const rt     = @import("../tcl_runtime.zig");
-const frames = @import("../tcl_frames.zig");
-const stubs  = @import("../tcl_stubs.zig");
-const chars  = @import("../tcl_chars.zig");
-const reg    = @import("../tcl_cmd_registry.zig");
+const frames = @import("../interp/tcl_frames.zig");
+const stubs  = @import("../stubs/tcl_stubs.zig");
+const chars  = @import("../value/tcl_chars.zig");
+const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 const obj_new_int       = rt.obj_new_int;
 const obj_new_string    = rt.obj_new_string;
@@ -38,7 +38,7 @@ const is_space          = chars.is_space;
 
 // Re-use the saturating integer parser from tcl_fmt_stubs.zig via its
 // module-level helpers.
-const fmt_mod = @import("../tcl_fmt_stubs.zig");
+const fmt_mod = @import("../stubs/tcl_fmt_stubs.zig");
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 

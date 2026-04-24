@@ -8,9 +8,9 @@ const rt = @import("../tcl_runtime.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
 
-const str_eq = @import("../tcl_chars.zig").str_eq;
+const str_eq = @import("../value/tcl_chars.zig").str_eq;
 
-const reg = @import("../tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "array",
@@ -21,7 +21,7 @@ pub fn eval(words: []const i32) i32 {
     if (words.len < 3) return 0;
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
-    const array_mod = @import("../tcl_array.zig");
+    const array_mod = @import("../value/tcl_array.zig");
     if (str_eq(sp, sub.len, "get")) {
         if (words.len >= 4) return array_mod.array_get(words[2], words[3]);
         return array_mod.array_get(words[2], obj_new_string(0, 0));
@@ -54,7 +54,7 @@ pub fn eval(words: []const i32) i32 {
     }
     // Other subcommands (statistics, startsearch, …) not yet wired —
     // fall through to the stub dispatch which raises the exception.
-    const stubs_mod = @import("../tcl_stubs.zig");
+    const stubs_mod = @import("../stubs/tcl_stubs.zig");
     const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(sub.ptr)))[0..sub.len];
     stubs_mod.unsupported_sub("array", sub_slice);
     return 0;

@@ -100,7 +100,11 @@ def parse_zig_stub_dispatch(zig_dir: Path) -> dict[str, str]:
     *action* is ``"fallthrough"`` for names in the legacy
     ``return false`` form (used for commands served elsewhere).
     """
-    src = (zig_dir / "tcl_stub_fallback.zig").read_text()
+    # After Phase D the file lives in ``dispatch/``; fall back to the
+    # flat layout for branches that haven't reorganised yet.
+    candidates = [zig_dir / "dispatch" / "tcl_stub_fallback.zig", zig_dir / "tcl_stub_fallback.zig"]
+    src_path = next((c for c in candidates if c.exists()), candidates[0])
+    src = src_path.read_text()
     out: dict[str, str] = {}
     # Legacy per-line forms.
     for match in _DISPATCH_TRAP_RE.finditer(src):
@@ -118,7 +122,9 @@ def parse_zig_stub_dispatch(zig_dir: Path) -> dict[str, str]:
 def parse_zig_stub_exports(zig_dir: Path) -> dict[str, str]:
     """Return ``{export_fn_name: source_module}`` for ``tcl_*_stubs.zig`` files."""
     result: dict[str, str] = {}
-    for src in sorted(zig_dir.glob("tcl_*_stubs.zig")):
+    # After Phase D, stub files live in ``stubs/``; pre-reorg branches
+    # have them at the top level.  Use rglob so both layouts work.
+    for src in sorted(zig_dir.rglob("tcl_*_stubs.zig")):
         text = src.read_text()
         for match in _EXPORT_FN_RE.finditer(text):
             result[_export_name(match)] = src.name

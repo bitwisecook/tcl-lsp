@@ -1,7 +1,7 @@
 // ``file``, ``pwd``, ``cd`` — filesystem commands.
 
-const fs_mod = @import("../tcl_fs.zig");
-const reg    = @import("../tcl_cmd_registry.zig");
+const fs_mod = @import("../io/tcl_fs.zig");
+const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_file(words: []const i32) i32 {
     const sub = if (words.len >= 2) words[1] else 0;

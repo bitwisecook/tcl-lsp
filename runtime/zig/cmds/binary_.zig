@@ -28,8 +28,8 @@
 // (scan).  ``*`` means "all remaining".
 
 const rt     = @import("../tcl_runtime.zig");
-const frames = @import("../tcl_frames.zig");
-const reg    = @import("../tcl_cmd_registry.zig");
+const frames = @import("../interp/tcl_frames.zig");
+const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 const obj_new_int       = rt.obj_new_int;
 const obj_new_string    = rt.obj_new_string;
