@@ -57,6 +57,13 @@ _FIELD_NAME_RE = re.compile(r'\.name\s*=\s*"([^"]+)"')
 _FIELD_ARITY_MIN_RE = re.compile(r"\.arity_min\s*=\s*(\d+)")
 _FIELD_ARITY_MAX_RE = re.compile(r"\.arity_max\s*=\s*(\d+|null)")
 _FIELD_HANDLER_RE = re.compile(r"\.handler\s*=\s*&(\w+)")
+# Match a ``pub const subcommands: []const reg.SubEntry = &.{ … };``
+# declaration.  The capturing group holds the slice-literal body
+# (between ``&.{`` and the closing ``}``).
+_SUB_TABLE_RE = re.compile(
+    r"pub\s+const\s+subcommands\s*:\s*\[\]const\s+reg\.SubEntry\s*=\s*&\.\{(?P<body>[^}]*)\}",
+    re.DOTALL,
+)
 _DISPATCH_TRAP_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+trap\(')
 _DISPATCH_FALSE_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+false')
 # Data-table form: ``const STUB_TRAP: []const []const u8 = &.{ "a", "b", ... };``
@@ -108,19 +115,55 @@ def _parse_arity_fields(body: str) -> tuple[int | None, int | None]:
     return arity_min, arity_max
 
 
+def _parse_sub_entries(body: str) -> dict[str, dict[str, object]]:
+    """Parse ``SubEntry`` structs from a slice-literal body.
+
+    Expects a stream of ``.{ .name = "X", .arity_min = N, .arity_max =
+    M, .handler = &H },`` entries (or the shorthand missing arity
+    fields).  Returns ``{subcommand_name: {arity_min, arity_max, handler}}``.
+    """
+    out: dict[str, dict[str, object]] = {}
+    for m in _ENTRY_FIELDS_RE.finditer(body):
+        entry_body = m.group("body")
+        name_m = _FIELD_NAME_RE.search(entry_body)
+        if name_m is None:
+            continue
+        a_min, a_max = _parse_arity_fields(entry_body)
+        if a_min is None:
+            a_min = 0
+        handler_m = _FIELD_HANDLER_RE.search(entry_body)
+        handler = handler_m.group(1) if handler_m else None
+        out[name_m.group(1)] = {
+            "arity_min": a_min,
+            "arity_max": a_max,
+            "handler": handler,
+        }
+    return out
+
+
 def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, object]]:
-    """Return ``{command_name: {module, handler, arity_min, arity_max}}``.
+    """Return ``{command_name: {module, handler, arity_min, arity_max, subcommands}}``.
 
     Reads every ``cmds/*.zig`` file and extracts each ``CmdEntry``
     struct literal's ``.name``/``.handler``/``.arity_min``/``.arity_max``
     fields.  ``arity_min`` defaults to ``0`` and ``arity_max`` defaults
     to ``None`` (variadic) when the fields are absent — matching the
     Zig struct defaults on :class:`CmdEntry`.
+
+    When a ``cmds/X.zig`` file also declares
+    ``pub const subcommands: []const reg.SubEntry = &.{…};`` the
+    sub-entries are attached to each command the file registers (so
+    that the parity tool can diff per-sub-command arity).
     """
     result: dict[str, dict[str, object]] = {}
     cmds_dir = zig_dir / "cmds"
     for src in sorted(cmds_dir.glob("*.zig")):
         text = src.read_text()
+        # Parse an optional subcommands table for this file.
+        sub_table: dict[str, dict[str, object]] = {}
+        sub_match = _SUB_TABLE_RE.search(text)
+        if sub_match is not None:
+            sub_table = _parse_sub_entries(sub_match.group("body"))
         for m in _ENTRY_FIELDS_RE.finditer(text):
             body = m.group("body")
             name_match = _FIELD_NAME_RE.search(body)
@@ -139,6 +182,18 @@ def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, object]]:
                     "handler": handler,
                     "arity_min": a_min,
                     "arity_max": a_max,
+                    # Attach the file's sub-entries to each command it
+                    # registers.  Most cmds/*.zig files register a
+                    # single command, so the attribution is
+                    # unambiguous.  For the handful that register
+                    # several (e.g. flow.zig registers return / break
+                    # / continue / error / catch) the subcommands
+                    # table — if present — applies to whichever of
+                    # them dispatches on a sub-command word.  The
+                    # parity tool cross-checks against the Python
+                    # CommandSpec.subcommands by command name, so an
+                    # irrelevant sibling seeing the table is harmless.
+                    "subcommands": sub_table,
                 },
             )
     return result
@@ -574,6 +629,85 @@ def find_arity_mismatches(inventory: dict) -> list[dict[str, object]]:
     return out
 
 
+def find_subcmd_mismatches(inventory: dict) -> list[dict[str, object]]:
+    """Compare per-subcommand data between Python and Zig.
+
+    Returns a list of ``{command, subcommand, kind, python, zig}``
+    records.  ``kind`` is one of:
+
+    * ``"missing_in_zig"``  — Python declares a SubCommand; no matching
+      SubEntry in the parent command's Zig subcommands table.
+    * ``"missing_in_python"`` — Zig declares a SubEntry; no matching
+      SubCommand in the Python registry.
+    * ``"arity"`` — both declare the sub but the arity bounds
+      disagree.
+
+    Commands whose Python spec has no subcommands AND whose Zig file
+    has no ``subcommands`` table are silent — nothing to compare.
+    Commands where Python has subs but Zig has no table at all are
+    reported as ``"no_zig_table"`` once per command (not per
+    subcommand), so the baseline doesn't balloon for every un-migrated
+    subcommand.
+    """
+    registry = inventory["registry_commands"]
+    builtins = inventory["zig_builtins"]
+    out: list[dict[str, object]] = []
+    for name in sorted(registry.keys() & builtins.keys()):
+        py_subs = registry[name].get("subcommands", {}) or {}
+        zig_subs = builtins[name].get("subcommands", {}) or {}
+        if not py_subs and not zig_subs:
+            continue
+        if py_subs and not zig_subs:
+            out.append({"command": name, "subcommand": "*", "kind": "no_zig_table"})
+            continue
+        # Compare each side.
+        for sub in sorted(py_subs.keys() - zig_subs.keys()):
+            out.append({"command": name, "subcommand": sub, "kind": "missing_in_zig"})
+        for sub in sorted(zig_subs.keys() - py_subs.keys()):
+            out.append({"command": name, "subcommand": sub, "kind": "missing_in_python"})
+        for sub in sorted(py_subs.keys() & zig_subs.keys()):
+            py = py_subs[sub]
+            zig = zig_subs[sub]
+            py_pair = (py.get("arity_min", 0), py.get("arity_max"))
+            zig_pair = (zig.get("arity_min", 0), zig.get("arity_max"))
+            if py_pair != zig_pair:
+                out.append(
+                    {
+                        "command": name,
+                        "subcommand": sub,
+                        "kind": "arity",
+                        "python": list(py_pair),
+                        "zig": list(zig_pair),
+                    }
+                )
+    return out
+
+
+def print_subcmd_report(records: list[dict[str, object]]) -> None:
+    print()
+    print(f"=== Sub-command mismatches ({len(records)}) ===")
+    if not records:
+        print("  (none)")
+        return
+    # Bucket for readability.
+    by_kind: dict[str, list] = {}
+    for r in records:
+        by_kind.setdefault(r["kind"], []).append(r)
+    for kind in ("no_zig_table", "missing_in_zig", "missing_in_python", "arity"):
+        bucket = by_kind.get(kind, [])
+        if not bucket:
+            continue
+        print(f"  --- {kind} ({len(bucket)}) ---")
+        for r in bucket:
+            if kind == "arity":
+                print(
+                    f"    {r['command']} {r['subcommand']:20}  "
+                    f"python={_fmt_arity(r['python'])}  zig={_fmt_arity(r['zig'])}"
+                )
+            else:
+                print(f"    {r['command']} {r['subcommand']}")
+
+
 def print_arity_report(mismatches: list[dict[str, object]]) -> None:
     print()
     print(f"=== Arity mismatches ({len(mismatches)}) ===")
@@ -603,8 +737,9 @@ def build_snapshot(inventory: dict) -> dict[str, object]:
     statuses = classify(inventory)
     dangling = find_dangling(inventory)
     arity_mismatches = find_arity_mismatches(inventory)
+    subcmd_mismatches = find_subcmd_mismatches(inventory)
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "command_status": {name: s["status"] for name, s in statuses.items()},
         "dangling": {
             "orphan_builtins": dangling["orphan_builtins"],
@@ -615,6 +750,7 @@ def build_snapshot(inventory: dict) -> dict[str, object]:
             ],
         },
         "arity_mismatches": arity_mismatches,
+        "subcmd_mismatches": subcmd_mismatches,
     }
 
 
@@ -701,6 +837,29 @@ def diff_against_baseline(
             f"RESOLVED arity_mismatch: {cmd} python={_fmt_arity(list(py))} zig={_fmt_arity(list(zig))}"
         )
 
+    # Sub-command diff.  Identity is ``(command, subcommand, kind,
+    # python-bounds, zig-bounds)`` — changes on any dimension count as
+    # a new entry.
+    def _subkey(rec: dict) -> tuple:
+        py = tuple(rec.get("python", []))
+        zig = tuple(rec.get("zig", []))
+        return (rec["command"], rec["subcommand"], rec["kind"], py, zig)
+
+    cur_sub = {_subkey(r) for r in current.get("subcmd_mismatches", [])}
+    base_sub = {_subkey(r) for r in baseline.get("subcmd_mismatches", [])}
+    for k in sorted(cur_sub - base_sub):
+        cmd, sub, kind, py, zig = k
+        if kind == "arity":
+            regressions.append(
+                f"NEW subcmd_mismatch: {cmd} {sub} "
+                f"python={_fmt_arity(list(py))} zig={_fmt_arity(list(zig))}"
+            )
+        else:
+            regressions.append(f"NEW subcmd_mismatch: {cmd} {sub} ({kind})")
+    for k in sorted(base_sub - cur_sub):
+        cmd, sub, kind, _py, _zig = k
+        improvements.append(f"RESOLVED subcmd_mismatch: {cmd} {sub} ({kind})")
+
     return regressions, improvements
 
 
@@ -765,6 +924,8 @@ def main() -> int:
         print_dangling_report(dangling)
         arity_mismatches = find_arity_mismatches(inventory)
         print_arity_report(arity_mismatches)
+        subcmd_mismatches = find_subcmd_mismatches(inventory)
+        print_subcmd_report(subcmd_mismatches)
 
     if args.snapshot:
         args.baseline.parent.mkdir(parents=True, exist_ok=True)
