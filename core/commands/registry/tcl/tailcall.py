@@ -36,7 +36,12 @@ class TailcallCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1),
+                # C Tcl 9.0 ``TclNRTailcallObjCmd``: ``if (objc < 1)``
+                # is unreachable, so any arg count is accepted.
+                # Invocation without args clears a previously
+                # scheduled tailcall; with args it replaces it.  So
+                # the real arity is 0..∞.
+                arity=Arity(0),
             ),
             return_type=TclType.STRING,
             side_effect_hints=(

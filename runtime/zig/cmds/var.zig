@@ -1,10 +1,10 @@
 // ``set``, ``incr``, ``unset`` — variable read/write commands.
 
 const rt          = @import("../tcl_runtime.zig");
-const frames      = @import("../tcl_frames.zig");
-const reg         = @import("../tcl_cmd_registry.zig");
-const tcl_array   = @import("../tcl_array.zig");
-const tcl_ns      = @import("../tcl_ns.zig");
+const frames      = @import("../interp/tcl_frames.zig");
+const reg         = @import("../dispatch/tcl_cmd_registry.zig");
+const tcl_array   = @import("../valtypes/tcl_array.zig");
+const tcl_ns      = @import("../interp/tcl_ns.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string    = rt.obj_new_string;
@@ -54,7 +54,7 @@ fn eval_unset(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "set",   .handler = &eval_set },
-    .{ .name = "incr",  .handler = &eval_incr },
-    .{ .name = "unset", .handler = &eval_unset },
+    .{ .name = "set", .arity_min = 1, .arity_max = 2, .handler = &eval_set },
+    .{ .name = "incr", .arity_min = 1, .arity_max = 2, .handler = &eval_incr },
+    .{ .name = "unset", .arity_min = 1, .arity_max = null, .handler = &eval_unset },
 };

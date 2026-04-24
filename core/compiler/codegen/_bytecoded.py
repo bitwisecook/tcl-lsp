@@ -24,6 +24,9 @@ class _BytecodedMixin:
         from core.commands.registry import REGISTRY
 
         spec = REGISTRY.get_any(cmd)
-        if spec is not None and spec.codegen is not None:
-            return spec.codegen(self, args)
-        return False
+        if spec is None:
+            return False
+        hook = spec.codegens.get("vm")
+        if hook is None:
+            return False
+        return hook(self, args)

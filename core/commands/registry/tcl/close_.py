@@ -5,7 +5,14 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import ArgRole, Arity
 from ._base import register
 
@@ -43,5 +50,11 @@ class CloseCommand(CommandDef):
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_close",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
             ),
         )

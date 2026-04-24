@@ -14,6 +14,7 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -156,6 +157,12 @@ class EncodingCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.UNKNOWN, reads=True, connection_side=ConnectionSide.NONE
                 ),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_encoding",
+                argc=3,
+                params=("i32", "i32", "i32"),
+                results=("i32",),
             ),
         )
 

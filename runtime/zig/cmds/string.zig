@@ -11,13 +11,44 @@ const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 
-const str_eq = @import("../tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
-const reg = @import("../tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "string",
-    .handler = &eval,
+    .arity_min = 1, .arity_max = null, .handler = &eval,
+};
+
+// Sub-command arities — mirrors ``core/commands/registry/tcl/string.py``.
+// Cross-checked against C Tcl 9.0 ``tclCmdMZ.c`` every ``String*Cmd``
+// (``StringCmpOpts`` for compare/equal; the remainder have direct
+// ``if (objc != N)`` / ``objc < A || objc > B`` checks).
+pub const subcommands: []const reg.SubEntry = &.{
+    .{ .name = "bytelength", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "cat", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "compare", .arity_min = 2, .arity_max = 5, .handler = &eval },
+    .{ .name = "equal", .arity_min = 2, .arity_max = 5, .handler = &eval },
+    .{ .name = "first", .arity_min = 2, .arity_max = 3, .handler = &eval },
+    .{ .name = "index", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "insert", .arity_min = 3, .arity_max = 3, .handler = &eval },
+    .{ .name = "is", .arity_min = 2, .arity_max = 5, .handler = &eval },
+    .{ .name = "last", .arity_min = 2, .arity_max = 3, .handler = &eval },
+    .{ .name = "length", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "map", .arity_min = 2, .arity_max = 3, .handler = &eval },
+    .{ .name = "match", .arity_min = 2, .arity_max = 3, .handler = &eval },
+    .{ .name = "range", .arity_min = 3, .arity_max = 3, .handler = &eval },
+    .{ .name = "repeat", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "replace", .arity_min = 3, .arity_max = 4, .handler = &eval },
+    .{ .name = "reverse", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "tolower", .arity_min = 1, .arity_max = 3, .handler = &eval },
+    .{ .name = "totitle", .arity_min = 1, .arity_max = 3, .handler = &eval },
+    .{ .name = "toupper", .arity_min = 1, .arity_max = 3, .handler = &eval },
+    .{ .name = "trim", .arity_min = 1, .arity_max = 2, .handler = &eval },
+    .{ .name = "trimleft", .arity_min = 1, .arity_max = 2, .handler = &eval },
+    .{ .name = "trimright", .arity_min = 1, .arity_max = 2, .handler = &eval },
+    .{ .name = "wordend", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "wordstart", .arity_min = 2, .arity_max = 2, .handler = &eval },
 };
 
 pub fn eval(words: []const i32) i32 {

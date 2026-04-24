@@ -9,6 +9,7 @@ from .models import (
     CommandLegality,
     CommandSpec,
     DialectStatus,
+    EmitContext,
     EventCommandSet,
     FormatType,
     FormSpec,
@@ -19,6 +20,7 @@ from .models import (
     SubCommand,
     ValidationSpec,
     WasmEmitHook,
+    WasmRuntimeImport,
 )
 
 __all__ = [
@@ -28,6 +30,7 @@ __all__ = [
     "CommandSpec",
     "CommandInfo",
     "DialectStatus",
+    "EmitContext",
     "EventInfo",
     "EventCommandSet",
     "FormatType",
@@ -40,6 +43,7 @@ __all__ = [
     "SubCommand",
     "ValidationSpec",
     "WasmEmitHook",
+    "WasmRuntimeImport",
     "lookup_command_info",
     "lookup_event_info",
 ]

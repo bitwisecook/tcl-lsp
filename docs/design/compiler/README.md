@@ -77,6 +77,8 @@ User-facing compiler troubleshooting and how-tos live in
   diagnostic architecture.
 - [codegen-internals.md](codegen-internals.md) — LVT, linearisation,
   labels, and peephole optimisation.
+- [wasm-codegen.md](wasm-codegen.md) — WASM codegen pipeline: scan,
+  imports, per-command dispatch, and runtime interop contract.
 
 ## Side-effects and effect classification
 

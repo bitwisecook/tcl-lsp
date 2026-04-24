@@ -10,6 +10,7 @@ else:
     _Base = object
 
 from .....commands.registry import REGISTRY as _REGISTRY
+from .....commands.registry import EmitContext
 from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
 from .....parsing.tokens import TokenType
 from ....ir import (
@@ -37,20 +38,13 @@ from .._encoding import (
     _tcl_list_quote,
 )
 from .._imports import (
-    _CMD_RUNTIME,
-    _DICT_SUBCMD_IMPORT,
-    _RUNTIME_IMPORTS,
-    _SCOPE_NOP_COMMANDS,
-    _STRING_IS_IMPORT,
-    _STRING_SUBCMD_IMPORT,
+    command_emits_nothing,
+    runtime_import_for,
 )
 from .._ir import (
     DiagSite,
     ValType,
     WasmOp,
-)
-from .._parsing import (
-    _parse_array_ref,
 )
 
 
@@ -229,8 +223,15 @@ class _WasmEmitterStmtMixin(_Base):
                     # (dynamic code, break/continue, numeric) reach
                     # the fallback below where quoting is safe.
                     self._emit_cmd_return(barrier_args)
-                elif barrier_cmd and barrier_cmd in _CMD_RUNTIME:
-                    self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
+                elif barrier_cmd and runtime_import_for(barrier_cmd) is not None:
+                    # Prefer the specialised registry hook (append,
+                    # lappend, puts, format, …) so the barrier path
+                    # picks up the same specialisations as the main
+                    # dispatch.  Fall through to the generic runtime
+                    # call when no hook is registered.
+                    hook = _REGISTRY.get_wasm_hook(barrier_cmd)
+                    if hook is None or not hook(self, barrier_args, (), EmitContext.STATEMENT):
+                        self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
@@ -511,33 +512,6 @@ class _WasmEmitterStmtMixin(_Base):
         if command == "<cond>":
             return
 
-        # global varName — register variable as global-scoped
-        if command == "global":
-            for var_name in args:
-                self._globals.add(var_name)
-                # Pre-load the global value into the local
-                gget_idx = self._shared_imports.get("tcl_global_get")
-                if gget_idx is not None:
-                    local_idx = self._intern_local(var_name)
-                    self._emit_obj_literal(var_name)
-                    self._emit_call(gget_idx)
-                    self._emit_local_set(local_idx)
-            return
-
-        # upvar ?level? otherVar myVar ?otherVar myVar ...? — register
-        # a local alias so subsequent reads/writes route through the
-        # target scope.  Only ``#0`` (global alias) is currently supported.
-        if command == "upvar":
-            self._emit_cmd_upvar(args)
-            return
-
-        # variable name ?value? ?name value ...? — in a namespace proc,
-        # aliases local ``name`` to ``::ns::name`` in the enclosing
-        # namespace and optionally initialises it.
-        if command == "variable":
-            self._emit_cmd_variable(args)
-            return
-
         # Scope declarations are NOPs in the WASM model — EXCEPT when
         # the proc / namespace command has a dynamic name that must be
         # resolved at runtime (tcltest's ``Option`` does ``proc
@@ -545,7 +519,7 @@ class _WasmEmitterStmtMixin(_Base):
         # time registry never learns about them).  Route those through
         # the eval fallback so the interpreter's ``proc`` handler
         # registers under the current namespace.
-        if command in _SCOPE_NOP_COMMANDS:
+        if command_emits_nothing(command):
             if command == "proc" and args and (args[0].startswith("$") or args[0].startswith("[")):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
@@ -598,13 +572,6 @@ class _WasmEmitterStmtMixin(_Base):
             self._emit_br(br_depth)
             return
 
-        # catch {body} ?resultVar? — re-parse body text and emit with
-        # error-flag semantics.  The CFG builder converts IRCatch into
-        # IRCall("catch", (body_text, ...)) with defs listing modified vars.
-        if command == "catch" and args:
-            self._emit_catch_from_args(args, defs)
-            return
-
         # User-defined proc call takes priority over built-ins
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
@@ -629,7 +596,7 @@ class _WasmEmitterStmtMixin(_Base):
         # hooks, but the hook is still on an earlier spec.
         hook = _REGISTRY.get_wasm_hook(command)
         if hook is not None:
-            if hook(self, args, defs):
+            if hook(self, args, defs, EmitContext.STATEMENT):
                 return
 
         # Unknown command — fall back to interpreter.
@@ -897,7 +864,7 @@ class _WasmEmitterStmtMixin(_Base):
         (proc calls first, then built-ins) to ensure consistent behaviour.
         """
         # Scope declarations produce no value — return null TclObj
-        if command in _SCOPE_NOP_COMMANDS:
+        if command_emits_nothing(command):
             # ``namespace eval ns arg1 arg2 ...`` in tail position with dynamic
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
@@ -915,23 +882,6 @@ class _WasmEmitterStmtMixin(_Base):
         # we still need to push a null TclObj.
         if command == "<upvar-invalidate>":
             self._emit_i32_const(0)
-            return
-
-        # upvar/variable in tail position — run the alias-setup side effects,
-        # then push null (upvar returns empty string).
-        if command == "upvar":
-            self._emit_cmd_upvar(args)
-            self._emit_i32_const(0)
-            return
-        if command == "variable":
-            self._emit_cmd_variable(args)
-            self._emit_i32_const(0)
-            return
-
-        # catch in tail position — emit body with error handling,
-        # leave the catch return code (0 or 1) on the stack.
-        if command == "catch" and args:
-            self._emit_catch_from_args(args, defs, keep_on_stack=True)
             return
 
         # User-defined proc call — keep i32 result
@@ -952,244 +902,15 @@ class _WasmEmitterStmtMixin(_Base):
             # i32 result stays on the stack
             return
 
-        # set: inline local operations (returns the i32 TclObj)
-        if command == "set" and 1 <= len(args) <= 2:
-            var = args[0]
-            # Inside ``namespace eval ::ns { ... }`` the
-            # fast-local-path is wrong — unqualified writes must
-            # land in ``::ns::<name>``.  Route through the full
-            # write path (which consults ``_block_namespace``
-            # and emits ``tcl_global_set``).
-            in_ns_block = (
-                not self._is_proc
-                and self._block_namespace is not None
-                and self._block_namespace != "::"
-                and _parse_array_ref(var) is None
-            )
-            if var in self._aliases and len(args) >= 2:
-                # Aliased write: route through global set, which returns the value.
-                self._emit_value(args[1])
-                self._emit_var_write_obj_keep(var)
-                return
-            if var in self._aliases:
-                # Aliased read: tcl_global_get leaves value on stack.
-                self._emit_var_read_obj(var)
-                return
-            if in_ns_block:
-                if len(args) >= 2:
-                    self._emit_value(args[1])
-                    self._emit_var_write_obj_keep(var)
-                else:
-                    self._emit_var_read_obj(var)
-                return
-            idx = self._intern_local(var)
-            if len(args) >= 2:
-                self._emit_value(args[1])
-                self._emit_local_tee(idx)
-            else:
-                self._emit_local_get(idx)
+        # Registry hooks handle every command that has either a
+        # ``register_wasm_emitter`` hook (set/incr/list/info/…) or a
+        # ``CommandSpec.wasm_runtime_import`` (puts/append/lindex/…).
+        # Hooks now fully support EmitContext.VALUE — the runtime hook
+        # emits the import call and leaves the result on the stack via
+        # ``_emit_cmd_runtime(context=VALUE)`` / ``_runtime_call_end``.
+        hook = _REGISTRY.get_wasm_hook(command)
+        if hook is not None and hook(self, args, defs, EmitContext.VALUE):
             return
-
-        # incr: returns the new value as i32 TclObj (Tcl semantics)
-        if command == "incr" and 1 <= len(args) <= 2:
-            var = args[0]
-            in_ns_block = (
-                not self._is_proc
-                and self._block_namespace is not None
-                and self._block_namespace != "::"
-                and _parse_array_ref(var) is None
-            )
-            _incr_array_ref = _parse_array_ref(var)
-            _incr_base = _incr_array_ref[0] if _incr_array_ref else var
-            if var in self._aliases or _incr_base in self._aliases or in_ns_block:
-                # Aliased or namespace-scoped incr: load via the
-                # global table, add, store back.
-                self._emit_var_read_obj(var)
-                self._emit_unbox_int()
-                amt = 1
-                if len(args) >= 2:
-                    try:
-                        amt = int(args[1])
-                    except ValueError:
-                        self._emit_value(args[1])
-                        self._emit_unbox_int()
-                        self._emit(WasmOp.I64_ADD)
-                        self._emit_box_int()
-                        self._emit_var_write_obj_keep(var)
-                        return
-                self._emit_i64_const(amt)
-                self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()
-                self._emit_var_write_obj_keep(var)
-                return
-            idx = self._intern_local(var)
-            self._emit_local_get(idx)
-            self._emit_unbox_int()
-            amt = 1
-            if len(args) >= 2:
-                try:
-                    amt = int(args[1])
-                except ValueError:
-                    self._emit_value(args[1])
-                    self._emit_unbox_int()
-                    self._emit(WasmOp.I64_ADD)
-                    self._emit_box_int()
-                    self._emit_local_tee(idx)
-                    return
-            self._emit_i64_const(amt)
-            self._emit(WasmOp.I64_ADD)
-            self._emit_box_int()
-            self._emit_local_tee(idx)
-            return
-
-        # return: emit WASM return (handled at call site, but can appear in tail)
-        if command == "return":
-            if args:
-                self._emit_value(args[0])
-            else:
-                self._emit_i32_const(0)
-            return
-
-        # info sub-commands — keep result on stack
-        if command == "info" and args:
-            self._emit_info_value(args)
-            return
-
-        # lassign — keep leftover-list result on stack
-        if command == "lassign" and args:
-            self._emit_cmd_lassign(args, defs, keep_on_stack=True)
-            return
-
-        # clock — keep timer result on stack
-        if command == "clock" and args:
-            self._emit_clock_value(args)
-            return
-
-        # array subcommand in tail position — keep result on stack
-        if command == "array" and args:
-            self._emit_array_subcmd_value(args)
-            return
-
-        # uplevel in tail position — keep eval result on stack.
-        if command == "uplevel" and args:
-            self._emit_cmd_uplevel(args)
-            return
-
-        # string sub-commands — keep result on stack
-        if command == "string" and args:
-            subcmd = args[0]
-            # Handle "string is <class> <value>" in tail position
-            if subcmd == "is" and len(args) >= 3:
-                is_key = _STRING_IS_IMPORT.get(args[1])
-                if is_key is not None and is_key in self._shared_imports:
-                    func_idx = self._shared_imports[is_key]
-                    self._emit_value(args[-1])
-                    self._emit_call(func_idx)
-                    return
-            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
-                sub_args = args[1:]
-                for i in range(min(param_count, len(sub_args))):
-                    self._emit_value(sub_args[i])
-                for _ in range(param_count - len(sub_args)):
-                    self._emit_i32_const(0)
-                self._emit_call(func_idx)
-                if not spec[3]:
-                    self._emit_i32_const(0)
-                return
-            self._emit_i32_const(0)
-            return
-
-        # dict sub-commands — keep result on stack
-        if command == "dict" and args:
-            subcmd = args[0]
-            import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
-                sub_args = args[1:]
-                # For dict set, first arg is the variable name
-                if subcmd == "set" and len(sub_args) >= 3:
-                    var_idx = self._intern_local(sub_args[0])
-                    self._emit_local_get(var_idx)  # dict value
-                    self._emit_value(sub_args[1])  # key
-                    self._emit_value(sub_args[2])  # value
-                    self._emit_call(func_idx)
-                    self._emit_local_tee(var_idx)
-                else:
-                    for i in range(min(param_count, len(sub_args))):
-                        self._emit_value(sub_args[i])
-                    for _ in range(param_count - len(sub_args)):
-                        self._emit_i32_const(0)
-                    self._emit_call(func_idx)
-                    if not spec[3]:
-                        self._emit_i32_const(0)
-                return
-            self._emit_i32_const(0)
-            return
-
-        # Runtime command — use the same dispatch logic as non-tail,
-        # but keep the return value on the stack instead of dropping it.
-        if command in _CMD_RUNTIME:
-            import_key, _ = _CMD_RUNTIME[command]
-            fidx = self._shared_imports.get(import_key)
-            if fidx is not None:
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
-                mutates_var = command in ("append", "lappend")
-                if mutates_var and len(args) >= 2:
-                    var_name = args[0]
-                    is_aliased = var_name in self._aliases or (
-                        "(" in var_name and var_name.split("(")[0] in self._aliases
-                    )
-                    if is_aliased:
-                        # Route through alias-aware global table; leave the
-                        # final updated value on the stack for implicit return.
-                        last = len(args) - 1
-                        for i, value_arg in enumerate(args[1:], start=1):
-                            self._emit_var_read_obj(var_name)
-                            self._emit_value(value_arg)
-                            self._emit_call(fidx)
-                            if i == last:
-                                self._emit_var_write_obj_keep(var_name)
-                            else:
-                                self._emit_var_write_obj(var_name)
-                    else:
-                        var_idx = self._intern_local(var_name)
-                        # Loop: each value_arg gets concatenated / appended
-                        # in order.  After the last one we tee — the final
-                        # updated value is left on the stack for implicit
-                        # return.
-                        last = len(args) - 1
-                        for i, value_arg in enumerate(args[1:], start=1):
-                            self._emit_local_get(var_idx)
-                            self._emit_value(value_arg)
-                            self._emit_call(fidx)
-                            if i == last:
-                                self._emit_local_tee(var_idx)
-                            else:
-                                self._emit_local_set(var_idx)
-                elif command == "puts":
-                    if args:
-                        self._emit_value(args[-1])
-                    else:
-                        self._emit_i32_const(0)
-                    self._emit_call(fidx)
-                    if not spec[3]:
-                        self._emit_i32_const(0)
-                else:
-                    for i in range(min(param_count, len(args))):
-                        self._emit_value(args[i])
-                    for _ in range(param_count - len(args)):
-                        self._emit_i32_const(0)
-                    self._emit_call(fidx)
-                    if not spec[3]:
-                        self._emit_i32_const(0)
-                return
 
         # Unknown command in tail position — fall back to interpreter,
         # leaving the result on the stack for implicit return.

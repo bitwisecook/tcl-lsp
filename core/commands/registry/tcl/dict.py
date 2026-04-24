@@ -6,7 +6,15 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget, StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    SubCommand,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import ArgRole, Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
@@ -202,6 +210,12 @@ class DictCommand(CommandDef):
                     const_fold=fold_dict_exists,
                     return_type=TclType.BOOLEAN,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_dict_exists",
+                        export_name="dict_exists",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "filter": SubCommand(
                     name="filter",
@@ -230,6 +244,12 @@ class DictCommand(CommandDef):
                     const_fold=fold_dict_get,
                     return_type=TclType.STRING,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_dict_get",
+                        export_name="dict_get",
+                        params=("i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "incr": SubCommand(
                     name="incr",
@@ -260,6 +280,12 @@ class DictCommand(CommandDef):
                     const_fold=fold_dict_keys,
                     return_type=TclType.LIST,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_dict_keys",
+                        export_name="dict_keys",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "lappend": SubCommand(
                     name="lappend",
@@ -318,6 +344,12 @@ class DictCommand(CommandDef):
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_dict_set",
+                        export_name="dict_set",
+                        params=("i32", "i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "size": SubCommand(
                     name="size",
@@ -328,6 +360,12 @@ class DictCommand(CommandDef):
                     const_fold=fold_dict_size,
                     return_type=TclType.INT,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_dict_size",
+                        export_name="dict_size",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "unset": SubCommand(
                     name="unset",
@@ -356,6 +394,12 @@ class DictCommand(CommandDef):
                     const_fold=fold_dict_values,
                     return_type=TclType.LIST,
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_dict_values",
+                        export_name="dict_values",
+                        params=("i32",),
+                        results=("i32",),
+                    ),
                 ),
                 "with": SubCommand(
                     name="with",
