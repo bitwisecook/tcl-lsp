@@ -22,22 +22,9 @@ pytestmark = pytest.mark.slow
 
 # Known failures
 
-KNOWN_FAILURES_INFO: set[str] = {
-    # info cmdcount not implemented
-    "info-3.1",  # testinfocmdcount compiled cmdcount
-    "info-3.2",  # testinfocmdcount compiled cmdcount
-    "info-3.3",  # testinfocmdcount compiled cmdcount
-    # Missing wrong # args validation
-    "info-2.3",  # extra args to info args
-    "info-3.4",  # extra args to info cmdcount
-    "info-4.5",  # extra args to info commands
-    "info-7.9",  # extra args to info exists
-    "info-8.3",  # extra args to info globals
-    # info globals scope tracking
-    "info-8.4",  # variable existence not tracked correctly
-    # Error message format
-    "info-9.5",  # "bad level" vs "wrong # args"
-}
+KNOWN_FAILURES_INFO: set[str] = set(
+    # info.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 
 # Test runner
