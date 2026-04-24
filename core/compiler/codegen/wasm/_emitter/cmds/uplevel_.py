@@ -28,11 +28,11 @@ def _emit_clock(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
     """``clock subcommand ...`` — delegates to _emit_clock_value."""
-    if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
     if not args:
         return False
+    if context is EmitContext.VALUE:
+        emitter._emit_clock_value(args)
+        return True
     emitter._emit_clock_value(args)
     if defs:
         def_idx = emitter._intern_local(defs[0])
@@ -46,11 +46,11 @@ def _emit_array(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
     """``array subcommand ...`` — delegates to _emit_array_subcmd_value."""
-    if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
     if not args:
         return False
+    if context is EmitContext.VALUE:
+        emitter._emit_array_subcmd_value(args)
+        return True
     emitter._emit_array_subcmd_value(args)
     if defs:
         def_idx = emitter._intern_local(defs[0])
