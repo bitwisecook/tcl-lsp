@@ -40,7 +40,7 @@
 // (cheap — a few bytes per syscall) rather than demanding the
 // caller preserve a NUL-terminated form.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const obj_new_string = obj.obj_new_string;
 const obj_new_string_copy = obj.obj_new_string_copy;
 const obj_ensure_string = obj.obj_ensure_string;
@@ -732,7 +732,7 @@ fn file_stat_cmd(path: i32, arr_name: i32, use_lstat: bool) i32 {
         return 0;
     }
 
-    const array_mod = @import("../value/tcl_array.zig");
+    const array_mod = @import("../valtypes/tcl_array.zig");
 
     // Small helper: set a single field by string key + i64 value.
     const set_i64 = struct {

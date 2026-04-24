@@ -5,11 +5,11 @@ const rt          = @import("../tcl_runtime.zig");
 const tcl_ns      = @import("../interp/tcl_ns.zig");
 const procs       = @import("../interp/tcl_procs.zig");
 const interp_impl = @import("../dispatch/tcl_cmd_interp.zig");
-const obj_mod     = @import("../value/tcl_obj.zig");
+const obj_mod     = @import("../valtypes/tcl_obj.zig");
 const reg         = @import("../dispatch/tcl_cmd_registry.zig");
-const tcl_string  = @import("../value/tcl_string.zig");
+const tcl_string  = @import("../valtypes/tcl_string.zig");
 
-const str_eq              = @import("../value/tcl_chars.zig").str_eq;
+const str_eq              = @import("../valtypes/tcl_chars.zig").str_eq;
 const alloc               = rt.alloc;
 const memcpy              = rt.memcpy;
 const obj_new_string      = rt.obj_new_string;

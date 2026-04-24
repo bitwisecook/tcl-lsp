@@ -1,7 +1,7 @@
 // ``encoding``, ``fconfigure`` — channel/encoding commands.
 
 const rt  = @import("../tcl_runtime.zig");
-const enc = @import("../value/tcl_encoding.zig");
+const enc = @import("../valtypes/tcl_encoding.zig");
 const chan = @import("../io/tcl_chan.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 

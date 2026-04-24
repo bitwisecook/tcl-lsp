@@ -4,38 +4,38 @@
 // the linker keeps their exports even though nothing in this file
 // calls them directly.
 
-const tcl_obj = @import("value/tcl_obj.zig");
+const tcl_obj = @import("valtypes/tcl_obj.zig");
 // ``tcl_globals.zig`` retired in P3.4 — its four exports moved
 // into ``tcl_ns.zig``.  The ``tcl_globals`` alias is kept as a
 // convenience for the re-export block below; new code should
 // import ``tcl_ns`` directly.
 const tcl_globals = @import("interp/tcl_ns.zig");
 const tcl_io = @import("io/tcl_io.zig");
-const tcl_string = @import("value/tcl_string.zig");
-const tcl_list_mod = @import("value/tcl_list.zig");
-const tcl_dict = @import("value/tcl_dict.zig");
+const tcl_string = @import("valtypes/tcl_string.zig");
+const tcl_list_mod = @import("valtypes/tcl_list.zig");
+const tcl_dict = @import("valtypes/tcl_dict.zig");
 const tcl_catch = @import("interp/tcl_catch.zig");
 const tcl_frames = @import("interp/tcl_frames.zig");
 const tcl_procs = @import("interp/tcl_procs.zig");
 const tcl_ns = @import("interp/tcl_ns.zig");
-const parse_cache = @import("value/parse_cache.zig");
+const parse_cache = @import("valtypes/parse_cache.zig");
 const tcl_cmd_info = @import("dispatch/tcl_cmd_info.zig");
 const tcl_clock = @import("io/tcl_clock.zig");
-const tcl_array = @import("value/tcl_array.zig");
+const tcl_array = @import("valtypes/tcl_array.zig");
 const tcl_diag = @import("dispatch/tcl_diag.zig");
 const tcl_stubs = @import("stubs/tcl_stubs.zig");
 const tcl_io_stubs = @import("stubs/tcl_io_stubs.zig");
 const tcl_fs_stubs = @import("stubs/tcl_fs_stubs.zig");
 const tcl_fmt_stubs = @import("stubs/tcl_fmt_stubs.zig");
-const tcl_regex = @import("value/tcl_regex.zig");
+const tcl_regex = @import("valtypes/tcl_regex.zig");
 const tcl_time_stubs = @import("stubs/tcl_time_stubs.zig");
 const tcl_env_stubs = @import("stubs/tcl_env_stubs.zig");
-const tcl_encoding = @import("value/tcl_encoding.zig");
+const tcl_encoding = @import("valtypes/tcl_encoding.zig");
 const tcl_chan = @import("io/tcl_chan.zig");
 const tcl_trace = @import("interp/tcl_trace.zig");
 const tcl_fs = @import("io/tcl_fs.zig");
-const tcl_format = @import("value/tcl_format.zig");
-const tcl_arith = @import("value/tcl_arith.zig");
+const tcl_format = @import("valtypes/tcl_format.zig");
+const tcl_arith = @import("valtypes/tcl_arith.zig");
 const tcl_dispatch = @import("dispatch/tcl_dispatch.zig");
 const tcl_stub_fallback = @import("dispatch/tcl_stub_fallback.zig");
 const tcl_rename = @import("dispatch/tcl_rename.zig");

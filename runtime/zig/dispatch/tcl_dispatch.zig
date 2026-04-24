@@ -36,7 +36,7 @@
 // instantiated.  Tests that don't exercise cross-context calls
 // should still provide it — raising from the callback is fine.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 
 extern "env" fn call_compiled_proc(
     name_ptr: i32,

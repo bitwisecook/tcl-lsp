@@ -5,7 +5,7 @@
 // (``tcl_io_stubs.zig``, ``tcl_fmt_stubs.zig``) and now raise
 // ``unsupported command: <name>`` through :func:`tcl_stubs.unsupported`.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const io = @import("../io/tcl_io.zig");
 const diag = @import("../dispatch/tcl_diag.zig");
 const globals = @import("tcl_ns.zig"); // global_set lives in tcl_ns post-P3.4

@@ -15,7 +15,7 @@
 // pass-throughs (the callback is silently dropped) and ``trace
 // info`` as an error — the caller asked for state we don't keep.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
 const obj_ensure_string = obj.obj_ensure_string;

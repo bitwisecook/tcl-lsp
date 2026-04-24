@@ -11,7 +11,7 @@ const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 
-const str_eq = @import("../value/tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 

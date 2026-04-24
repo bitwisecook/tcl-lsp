@@ -6,7 +6,7 @@
 
 const rt     = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
-const obj_mod = @import("../value/tcl_obj.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
 
 const alloc            = rt.alloc;
 const memcpy           = rt.memcpy;

@@ -4,9 +4,9 @@
 
 const rt       = @import("../tcl_runtime.zig");
 const frames   = @import("../interp/tcl_frames.zig");
-const obj_mod  = @import("../value/tcl_obj.zig");
+const obj_mod  = @import("../valtypes/tcl_obj.zig");
 const reg      = @import("../dispatch/tcl_cmd_registry.zig");
-const list_mod = @import("../value/tcl_list.zig");
+const list_mod = @import("../valtypes/tcl_list.zig");
 const interp   = @import("../interp/tcl_interp.zig");
 
 const alloc             = rt.alloc;

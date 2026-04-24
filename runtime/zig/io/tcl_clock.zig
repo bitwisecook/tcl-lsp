@@ -11,7 +11,7 @@
 // that need formatted output should fall back to the interpreter.
 
 const std = @import("std");
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const obj_new_int = obj.obj_new_int;
 
 const NS_PER_SECOND: i64 = 1_000_000_000;

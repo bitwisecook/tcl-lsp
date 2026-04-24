@@ -36,13 +36,13 @@
 // caller in the rest of the runtime seeing the right root without
 // per-call lookups.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 
-const ht = @import("../value/hash_table.zig");
+const ht = @import("../valtypes/hash_table.zig");
 const tcl_ns = @import("tcl_ns.zig");
 
 /// ``-safe`` marker.  Matches C Tcl's ``INTERP_SAFE`` flag semantics

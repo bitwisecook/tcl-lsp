@@ -36,7 +36,7 @@
 // ``rename`` built-in wrapper in ``tcl_interp.zig`` so we don't
 // pull the error surface into this module.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;

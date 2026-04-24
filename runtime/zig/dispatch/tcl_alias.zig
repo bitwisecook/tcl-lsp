@@ -42,7 +42,7 @@
 // we want the redirect identity preserved for queries like
 // ``interp alias {} foo``.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;

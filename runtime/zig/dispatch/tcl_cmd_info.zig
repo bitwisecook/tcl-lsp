@@ -35,7 +35,7 @@
 // bucket.  Result strings are built in one pass with a
 // bump-allocated output buffer sized up front.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;
@@ -47,9 +47,9 @@ const memcpy = obj.memcpy;
 const frames = @import("../interp/tcl_frames.zig");
 const procs = @import("../interp/tcl_procs.zig");
 const tcl_ns = @import("../interp/tcl_ns.zig");
-const tcl_string = @import("../value/tcl_string.zig");
+const tcl_string = @import("../valtypes/tcl_string.zig");
 
-const str_eq = @import("../value/tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
 const BUCKET_SIZE: u32 = 16;
 
@@ -734,7 +734,7 @@ pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
 ///   ``foreach v [info vars ::counter::T-*] { … }``
 /// which expects fully-qualified names like ``::counter::T-simple``.
 pub fn info_vars(pattern: i32) i32 {
-    const tcl_array = @import("../value/tcl_array.zig");
+    const tcl_array = @import("../valtypes/tcl_array.zig");
 
     var pat_ptr: u32 = 0;
     var pat_len: u32 = 0;
