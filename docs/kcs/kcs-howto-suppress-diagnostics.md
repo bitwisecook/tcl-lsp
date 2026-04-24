@@ -127,14 +127,16 @@ a code overrules an editor or global config that disables it.
 ### Which codes can I disable?
 
 Every code the server emits has a page under
-[`docs/kcs/codes/`](codes/README.md). The four families are:
+[`docs/kcs/codes/`](codes/README.md). The six families are:
 
-- **Errors, warnings, security, taint, and iRule checks (E, W, S, T,
-  IRULE)** — [diagnostics feature page](features/kcs-feature-diagnostics.md).
+- **Errors (E)** and **warnings (W)** — general diagnostics, including
+  security and style checks; see the
+  [diagnostics feature page](features/kcs-feature-diagnostics.md).
+- **Shimmer (S)** — type-instability warnings.
+- **Taint (T)** — tainted-variable flow checks.
+- **iRule checks (IRULE)** — F5 iRule–specific diagnostics.
 - **Optimisations (O)** — automatic rewrite suggestions; see the
   [optimiser pages](codes/README.md).
-- **Shimmer (S)** — type-instability warnings.
-- **iRule flow (IRULE*)** — F5 iRule specific checks.
 
 Every one of these codes is a valid name in a `# noqa`, a file
 directive, or a config file.

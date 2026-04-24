@@ -224,6 +224,10 @@ class _AnalyserBase:
             self.result.stub_commands.extend(cmd_stubs)
             self.result.stub_expr_defs.extend(expr_stubs)
             self._check_stub_shadows()
+        # Pre-scan for top-of-file ``# tcl-lsp: disable=...`` directives.
+        file_codes = parse_file_suppression(source)
+        if file_codes:
+            self.result.suppressed_lines[_FILE_SUPPRESS_KEY] = file_codes
 
         snapshots: list[AnalyserSnapshot] = []
         for cmds in chunk_commands:
@@ -257,6 +261,10 @@ class _AnalyserBase:
         self._source = source
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
+        # Pre-scan for top-of-file ``# tcl-lsp: disable=...`` directives.
+        file_codes = parse_file_suppression(source)
+        if file_codes:
+            self.result.suppressed_lines[_FILE_SUPPRESS_KEY] = file_codes
         self._analyse_commands_inner(commands, self._current_scope, source)
         if finalise:
             self._emit_unresolved_command_diagnostics()
