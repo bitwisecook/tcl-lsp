@@ -34,6 +34,18 @@ formatter_config = FormatterConfig()
 feature_config = FeatureConfig()
 diagnostic_scheduler = DiagnosticScheduler()
 
+# Configuration layers, merged on each apply in the order:
+#   global_config_settings  ← ``~/.config/tcl-lsp/config.ini`` (lowest priority)
+#   editor_config_settings  ← ``workspace/didChangeConfiguration`` payload
+#   project_config_settings ← ``<workspace>/.tcl-lsp.ini`` (highest priority)
+#
+# See ``docs/kcs/kcs-howto-suppress-diagnostics.md`` for the full precedence
+# chain including inline ``# <noqa>`` and file-level ``# tcl-lsp: disable=``
+# directives that override all server-level configuration.
+global_config_settings: dict = {}
+editor_config_settings: dict = {}
+project_config_settings: dict = {}
+
 _process_pool: ProcessPoolExecutor | None = None
 
 

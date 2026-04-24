@@ -221,9 +221,10 @@ def _merge_shifted_result(
     for diag in result.diagnostics:
         merged.diagnostics.append(_shift_diagnostic(diag, base_line, base_char, base_offset))
 
-    # Suppressed lines
+    # Suppressed lines — negative keys are sentinels (e.g. _FILE_SUPPRESS_KEY)
+    # that must not be shifted; only real line numbers (>= 0) need an offset.
     for line_no, codes in result.suppressed_lines.items():
-        merged.suppressed_lines[line_no + base_line] = codes
+        merged.suppressed_lines[line_no if line_no < 0 else line_no + base_line] = codes
 
     # Regex patterns
     for rp in result.regex_patterns:

@@ -9,6 +9,8 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import (
+    _FILE_SUPPRESS_KEY,
+    _NOQA_ALL,
     AnalysisResult,
     CodeFix,
     Diagnostic,
@@ -77,16 +79,19 @@ _IRULES_FLOW_SEVERITY = {
     "IRULE5004": types.DiagnosticSeverity.Warning,
 }
 
-# Sentinel used by the analyser to mean "suppress all codes on this line".
-_NOQA_ALL = frozenset({"*"})
-
 
 def _is_suppressed(
     code: str,
     line: int,
     suppressed_lines: dict[int, frozenset[str]],
 ) -> bool:
-    """Return True if *code* is suppressed on *line* by an inline ``# noqa`` directive."""
+    """Return True if *code* is suppressed by an inline ``# noqa`` or a
+    top-of-file ``# tcl-lsp: disable=...`` directive."""
+    file_codes = suppressed_lines.get(_FILE_SUPPRESS_KEY)
+    if file_codes is not None and (
+        file_codes is _NOQA_ALL or "*" in file_codes or code in file_codes
+    ):
+        return True
     codes = suppressed_lines.get(line)
     if codes is None:
         return False

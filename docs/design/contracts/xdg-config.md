@@ -2,10 +2,15 @@
 
 ## Summary
 
-tcl-lsp reads user-level settings from an INI-format configuration file.
-The file location follows platform-native conventions so it sits where
-users expect application config to live on each OS.  These settings
-provide baseline defaults that editor settings override.
+tcl-lsp reads settings from two INI-format configuration files: a
+**global** file per user and an optional **project** file at the
+workspace root.  Both use the same schema.  The global file sits at
+the platform-native config location on each OS; the project file is
+named `.tcl-lsp.ini` and is checked in with the source tree so every
+contributor on the project picks up the same rules.
+
+For the user-facing answer to "how do I silence a specific code?",
+see [`../../kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md).
 
 ## File Location
 
@@ -28,17 +33,54 @@ Setting `$XDG_CONFIG_HOME` always takes precedence on every platform.
 - **Native Windows**: `sys.platform == "win32"` without `MSYSTEM`.  Uses
   `%APPDATA%`.
 
+## Project-level config file
+
+In addition to the global file above, tcl-lsp looks for a
+`.tcl-lsp.ini` in the workspace root when the server initialises.
+The schema is identical to the global file — every section documented
+below works in either place.  The project file is intended to be
+committed to source control so team conventions follow the code.
+
+| Location | Role |
+|----------|------|
+| `<workspace-root>/.tcl-lsp.ini` | Per-project overrides checked in with the source |
+| Global user config (above) | Per-user defaults across all projects |
+
+The server does not walk upward from the workspace root looking for
+ancestor config files.  Each workspace gets exactly one project file,
+directly at its root.
+
 ## Precedence
 
-Settings are applied in layers — later sources override earlier ones:
+Settings are applied in layers — later sources override earlier ones.
+The full chain, from lowest priority to highest:
 
-1. **Built-in defaults** — hardcoded in `FeatureConfig` and `FormatterConfig`
-2. **Config file** — loaded on server initialisation
-3. **Editor settings** — received via `workspace/didChangeConfiguration` or
-   `workspace/configuration`; always win over the config file
+1. **Built-in defaults** — hardcoded in `FeatureConfig` and `FormatterConfig`.
+2. **Global config file** — `~/.config/tcl-lsp/config.ini` (or the
+   platform equivalent).  Loaded once on server initialisation.
+3. **Editor settings** — received via `workspace/didChangeConfiguration`
+   or `workspace/configuration`.  Overwrite the global file layer.
+4. **Project config file** — `<workspace-root>/.tcl-lsp.ini`.  The
+   most specific server-level source, so a project config enabling or
+   disabling a code always wins over whatever the editor sends.
 
-This means you can set sensible defaults in the config file and then
-fine-tune per-project in your editor.
+Two further document-local suppression scopes are applied after
+server-level filtering and only to the document they appear in.  Both
+scopes only *add* suppressions — neither can re-enable a code
+suppressed by the other.  They are not ordered relative to each other;
+inline is more specific (one command), while file-level is broader
+(the whole file):
+
+- **Inline** — a ``# noqa`` or ``# noqa: CODE`` comment on the line
+  before a command suppresses codes for that command only (most
+  specific scope).
+- **File-level** — a top-of-file ``# tcl-lsp: disable=CODE,CODE``
+  comment suppresses the listed codes for the whole file.
+
+Both scopes override all four server-level layers (1–4) above.
+
+See [`../../kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
+for the user-facing walkthrough of each scope.
 
 ### Interaction with editor settings
 
@@ -165,8 +207,18 @@ line_length = 100
 
 ## Implementation
 
-- Config loading: `core/common/user_config.py`
+- Global + project config loading: `core/common/user_config.py`
+  (`load_user_config`, `load_project_config`, `merge_settings_layers`)
 - Platform detection: `_config_dir()` and `_is_posix_compat_windows()`
-- Server integration: `lsp/server.py` → `on_initialized()`
+- Layer storage: `lsp/state.py`
+  (`global_config_settings`, `editor_config_settings`, `project_config_settings`)
+- Layer merge + apply: `lsp/settings.py` (`_merged_settings`,
+  `_apply_merged_settings_now`)
+- Server integration: `lsp/workspace_init.py` → `on_initialized()`
+  loads global and project layers before any analysis runs
+- File-level directive parser: `core/analysis/_analyser/_utils.py`
+  (`parse_file_suppression`)
+- Per-document suppression filter: `lsp/features/diagnostics.py`
+  (`_is_suppressed`)
 - Export command: `lsp/server.py` → `_export_config()`
 - CLI config: `explorer/tcl_cli.py` → `_config_file_paths()`

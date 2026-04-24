@@ -21,6 +21,8 @@ from ...parsing.expr_lexer import (
 from ...parsing.recovery import segment_with_recovery
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
+    _FILE_SUPPRESS_KEY,
+    _NOQA_ALL,
     AnalysisResult,
     Diagnostic,
     Range,
@@ -29,9 +31,7 @@ from ..semantic_model import (
 )
 from ..stub_comments import scan_source_for_stubs
 from ._snapshot import AnalyserSnapshot
-from ._utils import (
-    _NOQA_ALL,
-)
+from ._utils import parse_file_suppression
 
 log = logging.getLogger(__name__)
 
@@ -222,6 +222,10 @@ class _AnalyserBase:
             self.result.stub_commands.extend(cmd_stubs)
             self.result.stub_expr_defs.extend(expr_stubs)
             self._check_stub_shadows()
+        # Pre-scan for top-of-file ``# tcl-lsp: disable=...`` directives.
+        file_codes = parse_file_suppression(source)
+        if file_codes:
+            self.result.suppressed_lines[_FILE_SUPPRESS_KEY] = file_codes
 
         snapshots: list[AnalyserSnapshot] = []
         for cmds in chunk_commands:
@@ -255,6 +259,10 @@ class _AnalyserBase:
         self._source = source
         self._unresolved_commands_emitted = False
         self._ns_cache.clear()
+        # Pre-scan for top-of-file ``# tcl-lsp: disable=...`` directives.
+        file_codes = parse_file_suppression(source)
+        if file_codes:
+            self.result.suppressed_lines[_FILE_SUPPRESS_KEY] = file_codes
         self._analyse_commands_inner(commands, self._current_scope, source)
         if finalise:
             self._emit_unresolved_command_diagnostics()
@@ -362,6 +370,12 @@ class _AnalyserBase:
         self.result.stub_commands.extend(cmd_stubs)
         self.result.stub_expr_defs.extend(expr_stubs)
         self._check_stub_shadows()
+        # Pre-scan for top-of-file ``# tcl-lsp: disable=...`` directives.
+        # Stored in ``suppressed_lines`` under ``_FILE_SUPPRESS_KEY`` (-1) so
+        # the same per-code filter logic handles both inline and file scopes.
+        file_codes = parse_file_suppression(source)
+        if file_codes:
+            self.result.suppressed_lines[_FILE_SUPPRESS_KEY] = file_codes
         self._analyse_body(source, self._current_scope)
         self._emit_unresolved_command_diagnostics(cu=cu)
         self._emit_variable_usage_diagnostics()
