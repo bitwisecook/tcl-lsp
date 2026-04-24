@@ -6,7 +6,15 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import ArgRole, Arity
 from ._base import register
 
@@ -56,4 +64,5 @@ class FconfigureCommand(CommandDef):
                 ),
             ),
             configures_channel=True,
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_fconfigure", argc=2),
         )

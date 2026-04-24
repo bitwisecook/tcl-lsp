@@ -13,6 +13,7 @@ from ..models import (
     OptionSpec,
     PatternType,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ._base import register
@@ -94,4 +95,5 @@ class RegexpCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_regexp", argc=2),
         )

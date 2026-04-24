@@ -15,6 +15,7 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ._base import register
@@ -220,4 +221,5 @@ class PackageCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_package", argc=2),
         )

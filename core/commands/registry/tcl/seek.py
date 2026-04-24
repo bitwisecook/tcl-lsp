@@ -13,6 +13,7 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ._base import register
@@ -71,4 +72,5 @@ class SeekCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_seek", argc=2),
         )

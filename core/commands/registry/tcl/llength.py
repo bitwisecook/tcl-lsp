@@ -5,7 +5,14 @@ from __future__ import annotations
 
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
@@ -43,4 +50,5 @@ class LlengthCommand(CommandDef):
             return_type=TclType.INT,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
             side_effect_hints=(),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_length", argc=1),
         )

@@ -12,6 +12,7 @@ from ..models import (
     FormSpec,
     OptionSpec,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -51,6 +52,7 @@ class ExecCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_exec", argc=1),
         )
 
     @classmethod

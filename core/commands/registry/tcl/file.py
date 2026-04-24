@@ -15,6 +15,7 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ..taint_hints import TaintColour
@@ -632,4 +633,5 @@ class FileCommand(CommandDef):
                 ),
             ),
             has_destructive_ops=True,
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_file", argc=3),
         )

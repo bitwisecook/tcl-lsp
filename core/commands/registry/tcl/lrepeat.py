@@ -5,7 +5,14 @@ from __future__ import annotations
 from ....compiler.side_effects import StorageType
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
@@ -43,4 +50,5 @@ class LrepeatCommand(CommandDef):
             inferred_storage_type=StorageType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.INT, shimmers=True)},
             side_effect_hints=(),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_repeat", argc=2),
         )
