@@ -114,8 +114,8 @@ The Python command registry (`core/commands/registry/tcl/`) is the
 must have one of:
 
 - a real Zig handler in `runtime/zig/cmds/*.zig` (visible in
-  `tcl_cmd_table.zig`'s `BUILTINS` slice),
-- a trapping stub in `runtime/zig/tcl_stub_fallback.zig` (raises
+  `runtime/zig/dispatch/tcl_cmd_table.zig`'s `BUILTINS` slice),
+- a trapping stub in `runtime/zig/dispatch/tcl_stub_fallback.zig` (raises
   `unsupported command: X`), or
 - an explicit "not required" classification (currently only the
   `tcl::mathop::*` prefix-form operators).
@@ -374,29 +374,60 @@ table and lexer contracts.
 
 ## Zig runtime layering
 
-The WASM runtime under `runtime/zig/` is organised as a stack of
-small modules, each with one responsibility.  Callers should import
-the specific module they need — the old "everything in `tcl_obj.zig`"
-shape is dead.  `tcl_obj.zig` still re-exports the migrated symbols
-(`obj.is_space`, `obj.list_elem_quote`, …) as a compat layer so older
-callers don't break, but new code should go to the canonical module.
+The WASM runtime under `runtime/zig/` is organised into role-based
+subfolders, each holding small single-responsibility modules.  Callers
+should import the specific module they need — the old "everything in
+`tcl_obj.zig`" shape is dead.  `valtypes/tcl_obj.zig` still re-exports
+the migrated symbols (`obj.is_space`, `obj.list_elem_quote`, …) as a
+compat layer so older callers don't break, but new code should go to
+the canonical module.
+
+### Folder layout
+
+```
+runtime/zig/
+├── build.zig
+├── tcl_runtime.zig                      (entry point)
+├── valtypes/                            (TclObj + value utilities)
+├── parse/                               (script tokeniser + subst)
+├── interp/                              (eval loop + frames + ns)
+├── dispatch/                            (command lookup + diag)
+├── commands/                            (big single-command impls)
+├── stubs/                               (trapping / degraded exports)
+├── io/                                  (real I/O + time)
+├── cmds/                                (per-command BUILTINS registrations)
+└── regex_include/                       (C vendor shim for Spencer regex)
+```
+
+### Module reference
 
 | Module | Owns | Reference Tcl 9 analogue |
 |---|---|---|
-| `tcl_chars.zig` | character classification (`is_space`, `is_scan_space`, `is_bareword`, `is_digit`, …) + byte-span comparators (`str_eq`, `str_cmp`, `mem_eq`) | `tclParse.c` `CHAR_TYPE` / `TclIsSpaceProc` / `TclIsBareword` |
-| `tcl_bs.zig` | backslash decoder — `consume_bs_escape` for one ``\x`` escape; `decode_into` for whole-span decode; `encode_utf8` helper | `tclParse.c` `TclParseBackslash` / `Tcl_UtfBackslash` / `TclCopyAndCollapse` |
-| `tcl_list_quote.zig` | output side of the list-string contract — `scan_element` + `convert_element` (COMPAT=1), `list_elem_quote` / `list_elem_quote_nth` | `tclUtil.c` `TclScanElement` / `TclConvertElement` / `Tcl_Merge` |
-| `tcl_list_parse.zig` | input side — `count_elements`, `element_at`, `copy_unbraced_elem` | `tclUtil.c` `TclFindElement` / `Tcl_SplitList` |
-| `tcl_parse.zig` | script / word tokeniser — `parse_command` (flat-array legacy API) and `ParseCommand` (Token-tree API with per-word `braced` flag) | `tclParse.c` `Tcl_ParseCommand` / `Tcl_ParseBraces` / `Tcl_ParseQuotedString` |
-| `tcl_obj.zig` | TclObj memory model, type dispatch, `try_parse_int` / `try_parse_bool` | `tclObj.c` |
-| `tcl_subst.zig` | `subst_flagged` — `$var`, `[cmd]`, and `\bs` substitution engine shared by the word expander and the `subst` command; lazy-imports `tcl_interp.zig` for `eval_script` | `tclParse.c` `Tcl_SubstObj` |
-| `tcl_interp.zig` | eval loop, proc frame management, and `pub` helpers (`eval_if`, `eval_while`, `eval_for`, `eval_foreach`, `eval_expr_str`, `qualify_name`, …) called by `cmds/` modules; dispatches builtins via `tcl_cmd_table.lookup()` | `tclBasic.c` / `tclExecute.c` |
-| `tcl_cmd_registry.zig` | `CmdEntry { name, handler }` type and linear-scan `lookup(entries, name_ptr, name_len)` used by `tcl_cmd_table.zig` | local shim |
-| `tcl_cmd_table.zig` | assembles the `BUILTINS` slice from all `cmds/*.zig` modules via `++` concatenation; exposes `lookup()` called by `eval_command` | local shim |
-| `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval_.zig` (`eval`/`uplevel`), `proc_.zig` (`proc`), `list_.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst_.zig` (`subst`/`expr`), `regexp_.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace_.zig` (`namespace`), `interp_.zig` (`rename`/`interp`), `stubs_.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
-| `tcl_stub_fallback.zig` | stub dispatch table for Tcl core commands not implemented in WASM; emits `unsupported command: X` via `tcl_stubs.zig` for I/O, filesystem, coroutines, and OO commands | local shim |
-| `tcl_interp_registry.zig` | child interpreter registry — `interp create`/`eval`/`delete`/`exists`/`slaves` primitives and per-interp `hidden_cmd_table` slot | `tclInterp.c` `ChildCreate` / `ChildEval` |
-| `tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
+| `valtypes/tcl_chars.zig` | character classification (`is_space`, `is_scan_space`, `is_bareword`, `is_digit`, …) + byte-span comparators (`str_eq`, `str_cmp`, `mem_eq`) | `tclParse.c` `CHAR_TYPE` / `TclIsSpaceProc` / `TclIsBareword` |
+| `valtypes/tcl_bs.zig` | backslash decoder — `consume_bs_escape` for one ``\x`` escape; `decode_into` for whole-span decode; `encode_utf8` helper | `tclParse.c` `TclParseBackslash` / `Tcl_UtfBackslash` / `TclCopyAndCollapse` |
+| `valtypes/tcl_list_quote.zig` | output side of the list-string contract — `scan_element` + `convert_element` (COMPAT=1), `list_elem_quote` / `list_elem_quote_nth` | `tclUtil.c` `TclScanElement` / `TclConvertElement` / `Tcl_Merge` |
+| `valtypes/tcl_list_parse.zig` | input side — `count_elements`, `element_at`, `copy_unbraced_elem` | `tclUtil.c` `TclFindElement` / `Tcl_SplitList` |
+| `valtypes/tcl_obj.zig` | TclObj memory model, type dispatch, `try_parse_int` / `try_parse_bool` | `tclObj.c` |
+| `parse/tcl_parse.zig` | script / word tokeniser — `parse_command` (flat-array legacy API) and `ParseCommand` (Token-tree API with per-word `braced` flag) | `tclParse.c` `Tcl_ParseCommand` / `Tcl_ParseBraces` / `Tcl_ParseQuotedString` |
+| `parse/tcl_subst.zig` | `subst_flagged` — `$var`, `[cmd]`, and `\bs` substitution engine shared by the word expander and the `subst` command; lazy-imports `interp/tcl_interp.zig` for `eval_script` | `tclParse.c` `Tcl_SubstObj` |
+| `interp/tcl_interp.zig` | eval loop, proc frame management, and `pub` helpers (`eval_if`, `eval_while`, `eval_for`, `eval_foreach`, `eval_expr_str`, `qualify_name`, …) called by `cmds/` modules; dispatches builtins via `tcl_cmd_table.lookup()` | `tclBasic.c` / `tclExecute.c` |
+| `interp/tcl_interp_registry.zig` | child interpreter registry — `interp create`/`eval`/`delete`/`exists`/`slaves` primitives and per-interp `hidden_cmd_table` slot | `tclInterp.c` `ChildCreate` / `ChildEval` |
+| `dispatch/tcl_cmd_registry.zig` | `CmdEntry { name, handler }` type and linear-scan `lookup(entries, name_ptr, name_len)` used by `tcl_cmd_table.zig` | local shim |
+| `dispatch/tcl_cmd_table.zig` | assembles the `BUILTINS` slice from all `cmds/*.zig` modules via `++` concatenation; exposes `lookup()` called by `eval_command` | local shim |
+| `dispatch/tcl_stub_fallback.zig` | fallback dispatch for Tcl core commands without a BUILTINS entry; the `STUB_TRAP` data table names commands that emit `unsupported command: X` via `stubs/tcl_stubs.zig` | local shim |
+| `dispatch/tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
+| `dispatch/tcl_diag.zig` | DiagSite / DiagMap — source-location sidecar for runtime traps so stderr `tcl trap: site=<id>` resolves to a file:line:col | local shim |
+| `commands/tcl_cmd_info.zig` | the `info` command — body/args/default/exists/level/frame/commands/procs/functions/… | `tclCmdIL.c` `Tcl_InfoObjCmd` |
+| `commands/tcl_cmd_interp.zig` | the `interp` command — create/eval/delete/alias/hide/expose/target/invokehidden/… | `tclInterp.c` `Tcl_InterpObjCmd` |
+| `commands/tcl_hide.zig` | hidden command table (used by `interp hide` / `interp expose` / `info hidden`) | `tclInterp.c` hidden command table |
+| `commands/tcl_alias.zig` | interp alias table (used by `interp alias`, `rename` across interps) | `tclInterp.c` alias table |
+| `commands/tcl_rename.zig` | `rename` command — remove-or-relocate a command in the BUILTINS registry / user-proc table | `tclBasic.c` `Tcl_RenameObjCmd` |
+| `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval.zig` (`eval`/`uplevel`), `proc.zig` (`proc`), `list.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst.zig` (`subst`/`expr`), `regexp.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace.zig` (`namespace`), `interp.zig` (`rename`/`interp`), `stubs.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
+| `stubs/tcl_stubs.zig` | `unsupported(name)` / `unsupported_sub(cmd, sub)` / `raise(msg)` — routes through the error path so inside `catch` it sets `error_flag` + `error_msg`, outside a catch it writes to stderr and traps | local shim |
+| `io/tcl_io.zig` | real `puts` implementation on WASI `fd_write` | `tclIO.c` |
+| `io/tcl_chan.zig` | `fconfigure` NOP accepting option-set, returning empty for queries | `tclIO.c` |
+| `io/tcl_fs.zig` | string-path manipulation `file` subcommands + WASI `pwd` / `cd` | `tclFileName.c` / `tclFCmd.c` |
+| `io/tcl_clock.zig` | `clock seconds` / `clock clicks` / `clock milliseconds` via WASI wall/monotonic clocks | `tclClock.c` |
 
 **Rebuilding the WASM binary:** use `Debug` mode (the default — no `-Doptimize` flag) during development so Zig's safety checks catch pointer bugs early:
 
@@ -416,13 +447,14 @@ A few invariants to preserve when adding features:
 
 - **One canonical implementation per algorithm.**  List-element
   quoting, backslash decoding, whitespace classification — each
-  lives in exactly one module.  The "third copy in `tcl_dispatch.zig`"
-  bug that stripped newlines from braced proc bodies was exactly the
-  kind of hazard this layering exists to prevent.
-- **Character classification goes through `tcl_chars.zig`.**  Don't
-  spell out `c == ' ' or c == '\t' …` inline — use `chars.is_space` /
-  `chars.is_scan_space`.  Likewise for `is_digit`, `is_hex_digit`,
-  `is_bareword`.
+  lives in exactly one module.  The "third copy in
+  `dispatch/tcl_dispatch.zig`" bug that stripped newlines from braced
+  proc bodies was exactly the kind of hazard this layering exists to
+  prevent.
+- **Character classification goes through `valtypes/tcl_chars.zig`.**
+  Don't spell out `c == ' ' or c == '\t' …` inline — use
+  `chars.is_space` / `chars.is_scan_space`.  Likewise for `is_digit`,
+  `is_hex_digit`, `is_bareword`.
 - **Braced-vs-unbraced is first-class.**  When a parser produces a
   word, callers must get the `braced` flag (either from
   `parse.Token.braced` or, in callers that still use the flat-array
