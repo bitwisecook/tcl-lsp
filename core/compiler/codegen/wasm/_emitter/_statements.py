@@ -224,7 +224,16 @@ class _WasmEmitterStmtMixin(_Base):
                     # the fallback below where quoting is safe.
                     self._emit_cmd_return(barrier_args)
                 elif barrier_cmd and runtime_import_for(barrier_cmd) is not None:
-                    self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
+                    # Prefer the specialised registry hook (append,
+                    # lappend, puts, format, …) so the barrier path
+                    # picks up the same specialisations as the main
+                    # dispatch.  Fall through to the generic runtime
+                    # call when no hook is registered.
+                    hook = _REGISTRY.get_wasm_hook(barrier_cmd)
+                    if hook is None or not hook(
+                        self, barrier_args, (), EmitContext.STATEMENT
+                    ):
+                        self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
