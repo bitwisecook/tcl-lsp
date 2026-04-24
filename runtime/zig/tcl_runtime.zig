@@ -37,7 +37,7 @@ const tcl_fs = @import("tcl_fs.zig");
 const tcl_format = @import("tcl_format.zig");
 const tcl_arith = @import("tcl_arith.zig");
 const tcl_dispatch = @import("tcl_dispatch.zig");
-const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
+const tcl_stub_fallback = @import("tcl_stub_fallback.zig");
 const tcl_rename = @import("tcl_rename.zig");
 const tcl_alias = @import("tcl_alias.zig");
 const tcl_hide = @import("tcl_hide.zig");
@@ -336,7 +336,7 @@ comptime {
     _ = &tcl_env_stubs.tcl_cmd_interp_cmd;
     _ = &tcl_env_stubs.tcl_cmd_apply;
     _ = &tcl_stubs.unsupported;
-    _ = &tcl_cmd_dispatch.try_stub;
+    _ = &tcl_stub_fallback.try_stub;
     _ = &tcl_dispatch.dispatch;
     // tcl_frames exports
     _ = &tcl_frames.frame_push;

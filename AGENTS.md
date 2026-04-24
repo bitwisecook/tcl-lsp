@@ -115,7 +115,7 @@ must have one of:
 
 - a real Zig handler in `runtime/zig/cmds/*.zig` (visible in
   `tcl_cmd_table.zig`'s `BUILTINS` slice),
-- a trapping stub in `runtime/zig/tcl_cmd_dispatch.zig` (raises
+- a trapping stub in `runtime/zig/tcl_stub_fallback.zig` (raises
   `unsupported command: X`), or
 - an explicit "not required" classification (currently only the
   `tcl::mathop::*` prefix-form operators).
@@ -394,7 +394,7 @@ callers don't break, but new code should go to the canonical module.
 | `tcl_cmd_registry.zig` | `CmdEntry { name, handler }` type and linear-scan `lookup(entries, name_ptr, name_len)` used by `tcl_cmd_table.zig` | local shim |
 | `tcl_cmd_table.zig` | assembles the `BUILTINS` slice from all `cmds/*.zig` modules via `++` concatenation; exposes `lookup()` called by `eval_command` | local shim |
 | `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval_.zig` (`eval`/`uplevel`), `proc_.zig` (`proc`), `list_.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst_.zig` (`subst`/`expr`), `regexp_.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace_.zig` (`namespace`), `interp_.zig` (`rename`/`interp`), `stubs_.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
-| `tcl_cmd_dispatch.zig` | stub dispatch table for Tcl core commands not implemented in WASM; emits `unsupported command: X` via `tcl_stubs.zig` for I/O, filesystem, coroutines, and OO commands | local shim |
+| `tcl_stub_fallback.zig` | stub dispatch table for Tcl core commands not implemented in WASM; emits `unsupported command: X` via `tcl_stubs.zig` for I/O, filesystem, coroutines, and OO commands | local shim |
 | `tcl_interp_registry.zig` | child interpreter registry — `interp create`/`eval`/`delete`/`exists`/`slaves` primitives and per-interp `hidden_cmd_table` slot | `tclInterp.c` `ChildCreate` / `ChildEval` |
 | `tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
 
