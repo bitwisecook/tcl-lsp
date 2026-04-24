@@ -432,6 +432,16 @@ class UnknownProcInfo:
 
 
 # Analysis result
+
+# Sentinel values for ``AnalysisResult.suppressed_lines``.
+# ``_NOQA_ALL`` is stored as the code-set value meaning "suppress every code
+# on this line".  ``_FILE_SUPPRESS_KEY`` is the dict key used for codes that
+# apply to the entire file (from a top-of-file ``# tcl-lsp: disable=`` directive).
+# Negative keys can never collide with a real source line number.
+_NOQA_ALL: frozenset[str] = frozenset({"*"})
+_FILE_SUPPRESS_KEY: int = -1
+
+
 @dataclass
 class AnalysisResult:
     """Complete analysis result for a single document."""
@@ -441,8 +451,11 @@ class AnalysisResult:
     all_classes: dict[str, ClassDef] = field(default_factory=dict)
     all_variables: dict[str, VarDef] = field(default_factory=dict)
     diagnostics: list[Diagnostic] = field(default_factory=list)
-    # Inline suppression: line -> set of suppressed diagnostic codes.
-    # Populated from ``# tcl-lsp: disable=CODE,...`` comment directives.
+    # Suppressed diagnostic codes, keyed by line number.  Real line numbers
+    # (>= 0) hold inline ``# <noqa>`` / ``# <noqa>: CODE`` codes; the sentinel
+    # key ``-1`` holds codes from a top-of-file ``# tcl-lsp: disable=CODE``
+    # directive and applies file-wide.  See
+    # ``docs/kcs/kcs-howto-suppress-diagnostics.md``.
     suppressed_lines: dict[int, frozenset[str]] = field(default_factory=dict)
     regex_patterns: list[RegexPattern] = field(default_factory=list)
     command_invocations: list[CommandInvocation] = field(default_factory=list)

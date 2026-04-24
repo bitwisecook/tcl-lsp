@@ -20,6 +20,7 @@ from core.common.optimisation_profiles import (
     profile_from_name,
     profile_to_disabled,
 )
+from core.common.user_config import merge_settings_layers
 from core.formatting import FormatterConfig
 
 if TYPE_CHECKING:
@@ -349,42 +350,73 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
 
 # Settings debounce
 
-_pending_settings: dict | None = None
-_pending_settings_handle: asyncio.TimerHandle | None = None
+_pending_apply_handle: asyncio.TimerHandle | None = None
 _SETTINGS_DEBOUNCE_S = 0.3
 
 
-def _apply_all_settings(tcl_settings: dict) -> None:
-    """Debounced settings application — leading-edge with trailing coalesce."""
-    global _pending_settings, _pending_settings_handle
+def _merged_settings() -> dict:
+    """Merge all configuration layers in precedence order.
 
-    first_in_burst = _pending_settings_handle is None
-    _pending_settings = tcl_settings
-    if _pending_settings_handle is not None:
-        _pending_settings_handle.cancel()
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        _apply_all_settings_now()
-        return
-    if first_in_burst:
-        _apply_all_settings_now()
-    _pending_settings_handle = loop.call_later(
-        _SETTINGS_DEBOUNCE_S,
-        _apply_all_settings_now,
+    Lowest to highest priority:
+      1. Global user config (``~/.config/tcl-lsp/config.ini``)
+      2. Editor settings (``workspace/didChangeConfiguration`` payload)
+      3. Project config (``<workspace>/.tcl-lsp.ini``)
+
+    Inline ``# noqa`` and top-of-file ``# tcl-lsp: disable=`` directives are
+    applied later, in the per-document diagnostics pipeline — they do not
+    feed into server-level ``feature_config``.
+    """
+    return merge_settings_layers(
+        _state.global_config_settings,
+        _state.editor_config_settings,
+        _state.project_config_settings,
     )
 
 
-def _apply_all_settings_now() -> None:
-    """Apply the most recent settings (called after debounce timer)."""
-    global _pending_settings, _pending_settings_handle
-    settings = _pending_settings
-    _pending_settings = None
-    _pending_settings_handle = None
-    if settings is None:
-        return
+def _apply_all_settings(tcl_settings: dict) -> None:
+    """Update the editor config layer and apply the merged settings (debounced)."""
+    _state.editor_config_settings = tcl_settings
+    _schedule_apply_merged()
 
-    tcl_settings = settings
+
+def apply_project_settings(tcl_settings: dict) -> None:
+    """Update the project-config layer and apply the merged settings."""
+    _state.project_config_settings = tcl_settings
+    _schedule_apply_merged()
+
+
+def apply_global_settings(tcl_settings: dict) -> None:
+    """Update the global user-config layer and apply the merged settings."""
+    _state.global_config_settings = tcl_settings
+    _schedule_apply_merged()
+
+
+def _schedule_apply_merged() -> None:
+    """Debounced merged-settings application — leading-edge with trailing coalesce."""
+    global _pending_apply_handle
+
+    first_in_burst = _pending_apply_handle is None
+    if _pending_apply_handle is not None:
+        _pending_apply_handle.cancel()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        _apply_merged_settings_now()
+        return
+    if first_in_burst:
+        _apply_merged_settings_now()
+    _pending_apply_handle = loop.call_later(
+        _SETTINGS_DEBOUNCE_S,
+        _apply_merged_settings_now,
+    )
+
+
+def _apply_merged_settings_now() -> None:
+    """Apply the merged configuration layers (called after debounce timer)."""
+    global _pending_apply_handle
+    _pending_apply_handle = None
+
+    tcl_settings = _merged_settings()
 
     formatting = tcl_settings.get("formatting")
     if isinstance(formatting, dict) and formatting:

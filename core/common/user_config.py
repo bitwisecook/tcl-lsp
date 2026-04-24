@@ -154,6 +154,12 @@ def _config_path() -> Path:
     return _config_dir() / "config.ini"
 
 
+# Filename for per-project config.  Uses the same ``.ini`` schema as the
+# user-level config so ``get_all_settings`` can parse either.  Conventionally
+# placed at the workspace root and checked in with the project source.
+PROJECT_CONFIG_FILENAME = ".tcl-lsp.ini"
+
+
 def load_user_config() -> configparser.ConfigParser:
     """Load the user configuration file.
 
@@ -170,6 +176,65 @@ def load_user_config() -> configparser.ConfigParser:
         except Exception:
             log.warning("Failed to parse %s, using defaults", path, exc_info=True)
     return config
+
+
+def find_project_config(workspace_root: str | Path) -> Path | None:
+    """Locate ``.tcl-lsp.ini`` for a workspace.
+
+    Returns the path if the file exists directly at *workspace_root* — we do
+    not walk upward because the LSP is always initialised with the workspace
+    root it should treat as authoritative.
+    """
+    root = Path(workspace_root)
+    candidate = root / PROJECT_CONFIG_FILENAME
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+def load_project_config(workspace_root: str | Path) -> configparser.ConfigParser:
+    """Load ``.tcl-lsp.ini`` from *workspace_root* if it exists.
+
+    Returns an empty :class:`configparser.ConfigParser` when no file is
+    present or when the file fails to parse — never raises.
+    """
+    config = configparser.ConfigParser()
+    config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
+    path = find_project_config(workspace_root)
+    if path is None:
+        return config
+    try:
+        config.read(str(path), encoding="utf-8")
+        log.info("Loaded project config from %s", path)
+    except Exception:
+        log.warning("Failed to parse %s, ignoring", path, exc_info=True)
+        config = configparser.ConfigParser()
+        config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
+    return config
+
+
+def merge_settings_layers(*layers: dict) -> dict:
+    """Merge settings dicts with later layers overriding earlier ones.
+
+    Sections (nested dicts) are merged key-by-key rather than replaced
+    wholesale, so a project config that sets ``[optimiser] O109 = false``
+    still inherits ``[optimiser] profile = readability`` from global config.
+
+    Call order is lowest-priority first, highest-priority last, e.g.
+    ``merge_settings_layers(global_, editor, project)``.
+    """
+    result: dict = {}
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        for key, value in layer.items():
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                merged_section: dict = dict(result[key])
+                merged_section.update(value)
+                result[key] = merged_section
+            else:
+                result[key] = value
+    return result
 
 
 def get_generic_variable_patterns(
