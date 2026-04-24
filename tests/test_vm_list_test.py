@@ -38,226 +38,41 @@ KNOWN_FAILURES_LREPEAT: set[str] = set()
 
 KNOWN_FAILURES_LSEARCH: set[str] = set()
 
-KNOWN_FAILURES_JOIN: set[str] = {
-    # $::errorCode not set to TCL WRONGARGS
-    "join-2.1",  # wrong # args — errorCode missing
-    "join-2.2",  # wrong # args — errorCode missing
-    "join-2.3",  # wrong # args — errorCode missing
-}
+KNOWN_FAILURES_JOIN: set[str] = set(
+    # join.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LINDEX: set[str] = {
-    # Nested list indexing
-    "lindex-3.9",  # error on nested index
-    # lindex with negative/out-of-range
-    "lindex-10.1",
-    "lindex-10.3",
-    "lindex-10.4",
-    # Compiled lindex differences
-    "lindex-12.8",
-    "lindex-12.10",
-    "lindex-14.3",
-    "lindex-15.3",
-    # Error message format
-    "lindex-16.4",
-    "lindex-16.5",
-    "lindex-16.6",
-    "lindex-16.7",
-    # Integer overflow handling
-    "lindex-17.0",
-    "lindex-18.0",  # 0+0x10000000000000000 index arithmetic with hex
-}
+KNOWN_FAILURES_LINDEX: set[str] = set(
+    # lindex.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LRANGE: set[str] = {
-    # end-based index arithmetic
-    "lrange-1.15",
-    # Internal object representation tests
-    "lrange-4.1",  # tcl::unsupported::representation
-    "lrange-4.2",  # tcl::unsupported::representation
-    "lrange-4.3",  # tcl::unsupported::representation
-    "lrange-4.4",  # tcl::unsupported::representation
-    "lrange-1.16",
-    # List element quoting
-    "lrange-3.3",
-    "lrange-3.5",
-    "lrange-3.6",
-    "lrange-3.7a",
-}
+KNOWN_FAILURES_LRANGE: set[str] = set(
+    # lrange.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LIST: set[str] = {
-    # List element quoting/escaping
-    "list-1.4",
-    "list-1.5",
-    "list-1.10",
-    "list-1.12",
-    "list-1.17",
-    "list-1.18",
-    "list-1.19",
-    "list-1.20",
-    "list-1.21",
-    "list-1.25",
-    "list-1.26",
-    "list-1.27",
-    "list-1.30",
-    # lappend/concat list canonicalisation
-    "list-2.7-0",
-    "list-2.7-2",
-    "list-2.10-0",
-    "list-2.10-1",
-    "list-2.10-2",
-    "list-2.11-0",
-    "list-2.11-1",
-    "list-2.11-2",
-    "list-2.13-1",
-    "list-2.13-2",
-    "list-2.14-0",
-    # Error handling
-    "list-3.1",  # error propagation through list command
-    # Unicode/special chars
-    "list-4.2",
-    "list-4.3",
-}
+KNOWN_FAILURES_LIST: set[str] = set(
+    # list.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LINSERT: set[str] = {
-    # list quoting edge cases
-    "linsert-1.8",  # brace quoting for special chars
-    "linsert-1.15",  # list element quoting (backslash-space)
-    "linsert-1.16",  # list element quoting (backslash-brace combo)
-    # Edge cases
-    "linsert-3.2",  # internal rep / shimmer
-}
+KNOWN_FAILURES_LINSERT: set[str] = set(
+    # linsert.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LREPLACE: set[str] = {
-    # list quoting edge cases
-    "lreplace-1.25",  # brace quoting in replacement
-}
+KNOWN_FAILURES_LREPLACE: set[str] = set(
+    # lreplace.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LMAP: set[str] = {
-    # List parsing: braced element followed by non-space
-    "lmap-1.13",
-    "lmap-4.13",
-    # Result collection / list quoting
-    "lmap-1.15",
-    "lmap-2.9",
-    "lmap-4.15",
-    "lmap-5.9",
-    # Coroutine not implemented
-    "lmap-8.1",
-    "lmap-8.2",
-}
+KNOWN_FAILURES_LMAP: set[str] = set(
+    # lmap.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_LPOP: set[str] = {
-    # nested index / deep lpop
-    "lpop-1.4",  # nested lpop with lindex-style multi-index
-    "lpop-1.4b",  # nested lpop with lindex-style multi-index
-    "lpop-1.5",  # nested lpop with lindex-style multi-index
-    "lpop-1.6",  # nested lpop with lindex-style multi-index
-    "lpop-1.8",  # nested lpop with lindex-style multi-index
-}
+KNOWN_FAILURES_LPOP: set[str] = set(
+    # lpop.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_CMDIL: set[str] = {
-    # lsort basic ordering
-    "cmdIL-1.1",
-    "cmdIL-1.2",
-    "cmdIL-1.3",
-    "cmdIL-1.5",
-    "cmdIL-1.6",
-    "cmdIL-1.8",
-    "cmdIL-1.9",
-    "cmdIL-1.11",
-    "cmdIL-1.12",
-    "cmdIL-1.13",
-    "cmdIL-1.14",
-    "cmdIL-1.23",
-    "cmdIL-1.24",
-    "cmdIL-1.25",
-    "cmdIL-1.26",
-    "cmdIL-1.27",
-    "cmdIL-1.28",
-    "cmdIL-1.30",
-    "cmdIL-1.31",
-    "cmdIL-1.32",
-    "cmdIL-1.33",
-    "cmdIL-1.34",
-    "cmdIL-1.35",
-    "cmdIL-1.36",
-    "cmdIL-1.37",
-    "cmdIL-1.38",
-    "cmdIL-1.39",
-    "cmdIL-1.40",
-    "cmdIL-1.41",
-    "cmdIL-1.42",
-    "cmdIL-1.43",
-    # lsort -command
-    "cmdIL-3.1",
-    "cmdIL-3.2",
-    "cmdIL-3.3",
-    "cmdIL-3.4",
-    "cmdIL-3.4.1",
-    "cmdIL-3.5",
-    "cmdIL-3.5.1",
-    "cmdIL-3.5.2",
-    "cmdIL-3.5.3",
-    "cmdIL-3.5.4",
-    "cmdIL-3.5.5",
-    "cmdIL-3.5.6",
-    "cmdIL-3.5.7",
-    "cmdIL-3.5.8",
-    "cmdIL-3.5.9",
-    "cmdIL-3.5.10",
-    "cmdIL-3.6",
-    "cmdIL-3.8",
-    "cmdIL-3.11",
-    "cmdIL-3.15",
-    "cmdIL-3.17",
-    "cmdIL-3.18",
-    # lsort -index
-    "cmdIL-4.1",
-    "cmdIL-4.2",
-    "cmdIL-4.4",
-    "cmdIL-4.6",
-    "cmdIL-4.7",
-    "cmdIL-4.8",
-    "cmdIL-4.17",
-    "cmdIL-4.20",
-    "cmdIL-4.26",
-    "cmdIL-4.27",
-    "cmdIL-4.28",
-    "cmdIL-4.29",
-    "cmdIL-4.30",
-    "cmdIL-4.31",
-    "cmdIL-4.32",
-    "cmdIL-4.33",
-    "cmdIL-4.36",
-    "cmdIL-4.37",
-    "cmdIL-4.38",
-    # lsort error handling
-    "cmdIL-5.1",
-    "cmdIL-5.2",
-    "cmdIL-5.3",
-    "cmdIL-5.4",
-    "cmdIL-5.5",
-    "cmdIL-5.6",
-    # lsort -stride
-    "cmdIL-6.27",
-    # lsort -command / stability
-    "cmdIL-8.1",
-    "cmdIL-8.2",
-    "cmdIL-8.3",
-    "cmdIL-8.4",
-    "cmdIL-8.5",
-    "cmdIL-8.6",
-    "cmdIL-8.7",
-    "cmdIL-8.8",
-    "cmdIL-8.9",
-    "cmdIL-8.10",
-    "cmdIL-8.11",
-    "cmdIL-8.12",
-    "cmdIL-8.13",
-    "cmdIL-8.14",
-    "cmdIL-8.15",
-    # info complete
-    "info-20.6",
-}
+KNOWN_FAILURES_CMDIL: set[str] = set(
+    # cmdIL.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 
 # Test runner

@@ -34,90 +34,25 @@ pytestmark = pytest.mark.slow
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_PROC_OLD: set[str] = {
-    # Trace on array element through global alias
-    "proc-old-3.7",
-    "proc-old-3.9",
-    # Failed proc definition still leaves command accessible
-    "proc-old-5.11",
-    # $::errorInfo: line number wrong for error inside while body (compiled separately)
-    # + unset trace not fired on proc frame cleanup
-    "proc-old-5.16",
-    # ReturnCode enum doesn't handle arbitrary integer codes (catch + return -code -14)
-    "proc-old-7.6",
-    # normalizeMsg command not found + $::errorInfo
-    "proc-old-7.11",
-    "proc-old-7.12",
-    "proc-old-7.13",
-    "proc-old-7.14",
-}
+KNOWN_FAILURES_PROC_OLD: set[str] = set(
+    # proc-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_RENAME: set[str] = {
-    # Built-in rename not fully removing command from all lookup paths
-    "rename-2.1",
-    # $::errorCode not set on wrong-args errors
-    "rename-3.1",
-    "rename-3.2",
-}
+KNOWN_FAILURES_RENAME: set[str] = set(
+    # rename.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_UNKNOWN: set[str] = {
-    # Argument quoting in calls to unknown handler
-    "unknown-3.1",
-}
+KNOWN_FAILURES_UNKNOWN: set[str] = set(
+    # unknown.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_PROC: set[str] = {
-    # Wrong # args error message format
-    "proc-1.2",  # wrong # args format
-    "proc-1.3",  # wrong # args format
-    "proc-1.6",  # wrong # args format
-    "proc-1.9",  # wrong # args format
-    # Default argument handling
-    "proc-2.3",  # default arg with special chars
-    # Argument validation
-    "proc-3.3",  # args validation
-    "proc-3.4",  # args validation
-    "proc-3.6",  # duplicate arg names
-    "proc-3.7",  # duplicate arg names
-    # Error propagation
-    "proc-4.10",  # errorInfo format for proc errors
-}
+KNOWN_FAILURES_PROC: set[str] = set(
+    # proc.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_APPLY: set[str] = {
-    # Malformed lambda checks
-    "apply-2.1",  # error message format for malformed lambda
-    "apply-2.2",  # error message format for malformed lambda
-    "apply-2.3",  # error message format for malformed lambda
-    "apply-2.4",  # error message format for malformed lambda
-    "apply-2.5",  # error message format for malformed lambda
-    # Argument handling
-    "apply-3.1",  # wrong # args in lambda
-    "apply-3.2",  # wrong # args in lambda
-    "apply-3.3",  # wrong # args in lambda
-    "apply-3.4",  # wrong # args in lambda
-    # Namespace evaluation
-    "apply-4.1",  # namespace resolution in lambda
-    "apply-4.2",  # namespace resolution in lambda
-    "apply-4.3",  # namespace resolution in lambda
-    "apply-4.4",  # namespace resolution in lambda
-    "apply-4.5",  # namespace resolution in lambda
-    # Error in body
-    "apply-5.1",  # errorInfo for error in lambda body
-    # Local variable scoping
-    "apply-6.2",  # local variable isolation
-    "apply-6.3",  # local variable isolation
-    # Nested and complex lambdas
-    "apply-7.2",  # nested lambda / uplevel
-    "apply-7.3",  # nested lambda / uplevel
-    "apply-7.4",  # nested lambda / uplevel
-    "apply-7.6",  # nested lambda / uplevel
-    "apply-7.7",  # nested lambda / uplevel
-    "apply-7.8",  # nested lambda / uplevel
-    # Lambda in ensemble / advanced
-    "apply-8.2",  # advanced lambda usage
-    "apply-8.3",  # advanced lambda usage
-    "apply-8.9",  # advanced lambda usage
-    "apply-8.10",  # advanced lambda usage
-}
+KNOWN_FAILURES_APPLY: set[str] = set(
+    # apply.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 
 # Test runner

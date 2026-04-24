@@ -24,99 +24,13 @@ from vm.interp import TclInterp
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_REGEXP: set[str] = {
-    # List element quoting (octal escapes for non-ASCII)
-    "regexp-2.9",  # fêtebbbbc → {f\352tebbbbc}
-    "regexp-2.10",  # non-ASCII in match var
-    # Python re error messages differ from Tcl ARE
-    "regexp-6.4",  # missing ) → "parentheses () not balanced"
-    "regexp-6.5",  # same
-    "regexp-6.9",  # quantifier operand invalid
-    "regexp-6.10",  # non-quantifiable operand
-    # regsub wrong # args error message format
-    "regexp-11.4",
-    "regexp-11.5",
-    "regexp-11.6",
-    "regexp-11.8",
-    # -all edge cases (zero-length anchor semantics)
-    "regexp-15.6",  # -start with ^$ on empty string
-    "regexp-15.9",  # -start double option
-    "regexp-15.10",  # -start double option
-    # -start with -all and \A anchor (Tcl ARE-specific)
-    "regexp-16.4",  # \A re-anchored per -start position
-    "regexp-16.7",  # -start with -all
-    "regexp-16.8",  # -start with -all
-    "regexp-16.20",  # -start double option
-    "regexp-16.21",  # -start with -all and nested match
-    "regexp-16.22",  # -start with -all and nested match
-    # regsub list quoting
-    "regexp-17.7",
-    # regsub -inline not a valid regsub flag
-    "regexp-18.7",  # should error on -inline with match vars
-    "regexp-18.8",
-    "regexp-18.9",
-    "regexp-18.10",
-    "regexp-18.12",
-    # Tcl ARE lookbehind/lookahead differences
-    "regexp-20.2",
-    # CompileRegexp cache / internal state
-    "regexp-22.4",
-    "regexp-22.5",
-    # -all -inline -indices with multi-line zero-length matches
-    "regexp-23.2",
-    "regexp-23.3",
-    # evalInProc codegen bug (proc body from variable)
-    "regexp-24.1",
-    "regexp-24.2",
-    "regexp-24.3",
-    "regexp-24.4",
-    "regexp-24.5",
-    "regexp-24.6",
-    "regexp-24.7",
-    "regexp-24.8",
-    "regexp-24.9",
-    "regexp-24.10",
-    # . vs \n with -line (list quoting of \n in match result)
-    "regexp-25.1",
-    # -all -inline subgroup handling edge cases
-    "regexp-26.8",
-    "regexp-26.9",
-    "regexp-26.10",
-    "regexp-26.11",
-    "regexp-26.12",
-    "regexp-26.13",
-    # regsub -command edge case
-    "regexp-27.8",
-}
+KNOWN_FAILURES_REGEXP: set[str] = set(
+    # regexp.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-# regexpComp.test: 118 out of 142 tests fail because almost all
-# use evalInProc { ... } which hits a pre-existing codegen bug
-# (proc defined with variable body: `proc testProc {} $script`
-# produces a fallback bytecode path that embeds the variable
-# reference literally instead of resolving it).
-KNOWN_FAILURES_REGEXPCOMP: set[str] = {
-    "regexpComp-6.4",
-    "regexpComp-6.5",
-    "regexpComp-6.9",
-    "regexpComp-11.4",
-    "regexpComp-11.5",
-    "regexpComp-11.6",
-    "regexpComp-11.8",
-    # Non-evalInProc failures (same categories as regexp.test)
-    "regexpComp-15.6",
-    "regexpComp-16.4",
-    "regexpComp-17.7",
-    "regexpComp-18.7",
-    "regexpComp-18.8",
-    "regexpComp-18.9",
-    "regexpComp-18.10",
-    "regexpComp-18.12",
-    "regexpComp-20.2",
-    "regexpComp-21.6",
-    "regexpComp-21.7",
-    "regexpComp-21.10",
-    "regexpComp-21.11",
-}
+KNOWN_FAILURES_REGEXPCOMP: set[str] = set(
+    # regexpComp.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 
 # Test runner

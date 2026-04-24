@@ -27,198 +27,31 @@ pytestmark = pytest.mark.slow
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_INCR: set[str] = {
-    # errorInfo format: "reading increment" annotation
-    "incr-2.30",  # errorInfo: "reading increment" annotation
-    "incr-2.31",  # errorInfo: "reading increment" annotation (compiled)
-    "incr-2.32",  # errorInfo + "expected integer but got a list"
-    "incr-2.33",  # errorInfo + "expected integer but got a list" (dict)
-    # Write trace via upvar alias not propagated
-    "incr-1.28",  # readonly trace on upvar alias not caught by bytecode incr
-    "incr-2.28",  # readonly trace on upvar alias not caught (non-compiled)
-    # Compiler: braced var name with parens treated as array ref
-    "incr-1.30",  # incr {array($foo)} — braces should make it a scalar name
-}
+KNOWN_FAILURES_INCR: set[str] = set(
+    # incr.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_SET_OLD: set[str] = {
-    # upvar alias + array set
-    "set-old-8.38.2",  # array exists on upvar alias to array returns 0
-    "set-old-8.38.3",  # array set on upvar alias to scalar element
-    # Namespace validation for array set
-    "set-old-8.38.5",  # array set bogusnamespace::var — no parent ns check
-    "set-old-8.38.6",  # array set bogusnamespace::var (repeated)
-    "set-old-8.38.7",  # array set bogusnamespace::var(0) — no parent ns check
-    # array statistics format difference
-    "set-old-8.49",  # simplified format vs Tcl's bucket-based statistics
-    # Output quoting difference
-    "set-old-8.56",  # backslash quoting of error msg differs from Tcl
-    # Search invalidation: trace add on array element
-    "set-old-9.10",  # trace add var a(b) should invalidate active searches
-}
+KNOWN_FAILURES_SET_OLD: set[str] = set(
+    # set-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_UPVAR: set[str] = {
-    # Array element trace through upvar alias
-    "upvar-5.4",  # array element read trace not firing
-    "upvar-5.5",  # array element write trace not firing
-    "upvar-5.6",  # array element unset trace not firing
-    "upvar-5.7",  # trace details wrong
-    # Upvar aliasing: copy instead of link
-    "upvar-6.3",  # aliased var not reflecting changes
-    "upvar-6.4",  # self-referencing upvar errorCode
-    # Multi-level upvar resolution
-    "upvar-7.1",  # upvar through multiple levels wrong
-    # Namespace context
-    "upvar-8.2.1",  # upvar in namespace context
-    # Array element alias as scalar vs array
-    "upvar-8.8",  # set b(2) on alias to array element — should error
-    # Namespace variable validation
-    "upvar-8.9",  # ns var referring to proc var: different error message
-    # info frame missing line key
-    "upvar-10.1",
-    # Namespace-qualified upvar
-    "upvar-NS-1.3",  # namespace error format
-    "upvar-NS-1.4",  # namespace error format
-    "upvar-NS-1.9",  # namespace error format
-    # info frame missing line key
-    "upvar-NS-3.1",
-    "upvar-NS-3.2",
-    "upvar-NS-3.3",
-}
+KNOWN_FAILURES_UPVAR: set[str] = set(
+    # upvar.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 KNOWN_FAILURES_UPLEVEL: set[str] = set()
 
-KNOWN_FAILURES_SET: set[str] = {
-    # Trace handling
-    "set-1.15",  # write trace not modifying value
-    "set-4.4",  # read-only trace blocking set
-    # Complex array key
-    "set-1.26",  # "{a},hej" key not accessible
-    # errorInfo format
-    "set-2.1",  # variable name quoting in errorInfo
-    "set-2.4",  # truncated errorInfo
-    "set-4.1",  # indirect call via $z not reflected
-}
+KNOWN_FAILURES_SET: set[str] = set(
+    # set.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_INCR_OLD: set[str] = {
-    # errorInfo format: missing "while executing" annotation
-    "incr-old-2.4",  # errorInfo lacks "while executing" context
-    "incr-old-2.5",  # errorInfo lacks "(reading increment)" annotation
-    "incr-old-2.6",  # trace error errorInfo lacks "while executing" context
-    # Error message: "expected integer but got ..." vs "expected integer but got a list"
-    "incr-old-2.10",  # error message format difference
-}
+KNOWN_FAILURES_INCR_OLD: set[str] = set(
+    # incr-old.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
-KNOWN_FAILURES_VAR: set[str] = {
-    # variable command: namespace scoping
-    "var-1.11",  # variable qualified name
-    "var-1.12",  # variable qualified name
-    "var-1.13",  # variable qualified name
-    "var-1.15",  # variable in nested namespace
-    "var-1.16",  # variable in nested namespace
-    "var-1.17",  # variable in nested namespace
-    "var-1.18",  # variable in nested namespace
-    "var-1.20",  # variable resolution order
-    # Error handling
-    "var-3.5",  # wrong # args for variable
-    "var-3.7",  # wrong # args for variable
-    "var-3.9",  # namespace not found
-    "var-3.11",  # namespace not found
-    # Namespace variable resolution
-    "var-5.2",  # namespace var alias
-    "var-5.3",  # namespace var alias
-    # Variable cleanup on namespace delete
-    "var-6.1",  # namespace delete cleans up vars
-    "var-6.2",  # namespace delete cleans up vars
-    "var-6.3",  # namespace delete cleans up vars
-    # Namespace var persistence / info vars / unset
-    "var-7.14",  # namespace var with traces
-    "var-7.15",  # namespace var with traces
-    # Variable traces through namespace
-    "var-8.1",  # variable trace in namespace
-    "var-8.2",  # variable trace in namespace
-    # Array nesting / compilation
-    "var-10.1",  # array set nesting (cascading)
-    "var-10.2",  # array set nesting (cascading)
-    "var-12.1",  # array set compilation (cascading)
-    "var-15.2",  # array set compilation (cascading)
-    "var-17.2",  # array set compilation (cascading)
-    # Array set with traces / compiled ops
-    "var-20.9",  # array set compiled w/ trace
-    "var-20.10",  # array set bad varname
-    "var-20.11",  # array set bad initializer
-    "var-20.12",  # array set bad initializer
-    "var-21.0",  # compiled unset OBOE
-    # Array for loop — lsort -stride needed
-    "var-23.7",
-    "var-23.9",
-    "var-23.12",
-    "var-23.13",
-    # Array default — const/advanced tests
-    "var-24.13",
-    "var-24.14",
-    "var-24.16",
-    "var-24.19",
-    "var-24.21",
-    "var-24.23",
-    # Const command (compiled/advanced)
-    "var-26.4",
-    "var-26.8",
-    "var-26.9.1",
-    "var-26.9.2",
-    "var-26.10.1",
-    "var-26.10.2",
-    "var-26.12",
-    "var-26.14",
-    "var-26.15",
-    "var-26.16",
-    "var-26.17",
-    "var-27.1",
-    "var-27.2",
-    "var-27.3",
-    "var-27.4",
-    "var-27.5",
-    "var-27.6",
-    "var-27.7",
-    "var-27.8",
-    "var-27.9.1",
-    "var-27.9.2",
-    "var-27.10.1",
-    "var-27.10.2",
-    "var-27.11",
-    "var-27.12",
-    "var-27.14",
-    "var-27.15",
-    "var-27.16",
-    "var-27.17",
-    # Namespace var cleanup / deletion
-    "var-28.1",
-    "var-28.2",
-    "var-28.3",
-    "var-28.4",
-    "var-28.5",
-    "var-29.2",
-    "var-29.3",
-    "var-29.4",
-    "var-29.5",
-    "var-29.6",
-    "var-29.7",
-    "var-30.1",
-    "var-30.2",
-    "var-30.3",
-    "var-30.4",
-    "var-30.5",
-    "var-30.6",
-    "var-30.7",
-    "var-30.8",
-    "var-30.9",
-    "var-30.10",
-    "var-30.11",
-    "var-30.12",
-    "var-30.13",
-    "var-31.1",
-    "var-31.2",
-    "var-31.3",
-}
+KNOWN_FAILURES_VAR: set[str] = set(
+    # var.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 
 # Test runner

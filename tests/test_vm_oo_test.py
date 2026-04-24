@@ -27,86 +27,9 @@ pytestmark = pytest.mark.slow
 # be updated (removing the entry) to keep CI green.
 # ---------------------------------------------------------------------------
 
-KNOWN_FAILURES_OO: set[str] = {
-    # oo-0.x: Package/version introspection that relies on C-level internals
-    "oo-0.2",
-    "oo-0.6",
-    "oo-0.7",
-    # oo-1.x: Object creation edge cases (interp, namespace, rename, error messages)
-    "oo-1.10",
-    "oo-1.18.3",
-    "oo-1.18.4",
-    "oo-1.18.5",
-    "oo-1.20",
-    "oo-1.21",
-    "oo-1.25",
-    # oo-2.x: Constructor edge cases (interp)
-    "oo-2.1",
-    "oo-2.6",
-    "oo-2.7",
-    "oo-2.8",
-    # oo-3.x: Destructor edge cases
-    "oo-3.4",
-    "oo-3.4a",
-    "oo-3.5",
-    "oo-3.5a",
-    "oo-3.7",
-    "oo-3.8",
-    # oo-4.x: Method dispatch edge cases
-    # oo-6.x: oo::define edge cases
-    "oo-6.16",
-    "oo-6.17",
-    # oo-7.x: Inheritance edge cases
-    "oo-7.10",
-    # oo-11.x: Class methods
-    "oo-11.8",
-    # oo-12.x: Forward method edge cases
-    # oo-13.x: Filter edge cases
-    # oo-14.x: Mixin edge cases
-    # oo-15.x: oo::objdefine edge cases
-    # oo-16.x: info object/class edge cases
-    # oo-17.x: definitionnamespace
-    # oo-18.x: error traces and slot operations
-    "oo-18.5",
-    "oo-18.9",
-    # oo-19.x: abstract class
-    # oo-20.x: my varname + qualified set doesn't sync to obj._vars
-    "oo-20.10",
-    # oo-21.x: readableproperties/writableproperties
-    # oo-22.x: property
-    "oo-22.3",
-    "oo-22.4",
-    "oo-22.5",
-    "oo-22.6",
-    "oo-22.7",
-    "oo-22.8",
-    # oo-23.x: configurable
-    "oo-23.1",
-    # oo-24.x: configurable (advanced)
-    # oo-26.x: property access
-    # oo-27.x: configure
-    "oo-27.23",
-    # oo-28.x: configurable (complex)
-    # oo-29.x
-    # oo-30.x
-    # oo-33.x (slot edge cases)
-    # oo-34.x (slot introspection)
-    "oo-34.2",
-    "oo-34.10",
-    # oo-35.x
-    "oo-35.7.1",
-    "oo-35.7.2",
-    # oo-36.x
-    # oo-37.x
-    # oo-38.x
-    "oo-38.3",
-    "oo-38.4",
-    "oo-38.5",
-    # oo-39.x
-    # oo-41.x
-    # oo-42.x
-    # oo-43.x (TIP 524: definitionnamespace)
-}
+KNOWN_FAILURES_OO: set[str] = set(
+    # oo.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
+)
 
 # ---------------------------------------------------------------------------
 # Known failures — ooNext2.test
