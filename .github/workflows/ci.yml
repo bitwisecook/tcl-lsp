@@ -34,6 +34,9 @@ jobs:
       - name: KCS docs checks
         run: python scripts/check_kcs_index_links.py
 
+      - name: WASM command parity check
+        run: python scripts/check_wasm_command_parity.py --check
+
       - name: Ruff check
         run: uv run --extra dev ruff check .
 
