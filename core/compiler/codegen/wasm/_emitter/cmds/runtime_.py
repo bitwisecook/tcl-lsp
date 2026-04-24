@@ -1,4 +1,11 @@
-"""WASM emit hooks for all ``_CMD_RUNTIME`` built-in commands."""
+"""WASM emit hooks for runtime-dispatched built-in commands.
+
+The preferred source is ``CommandSpec.wasm_runtime_import`` (set on
+individual spec files under ``core/commands/registry/tcl/``).  Until
+every ``_CMD_RUNTIME`` entry has been migrated onto a spec the dict in
+``_imports.py`` is still consulted as a fallback.  Entries present in
+both sources resolve via the spec — the dict is ignored.
+"""
 
 from __future__ import annotations
 
@@ -18,5 +25,16 @@ def _make_runtime_hook(cmd: str):
     return _hook
 
 
+# Spec-backed commands: the WASM import is declared on the
+# ``CommandSpec.wasm_runtime_import`` field of the registered command.
+_spec_backed: set[str] = set()
+for _name, _specs in REGISTRY.specs_by_name.items():
+    if any(spec.wasm_runtime_import is not None for spec in _specs):
+        REGISTRY.register_wasm_emitter(_name, _make_runtime_hook(_name))
+        _spec_backed.add(_name)
+
+# Dict-backed commands: fallback for entries that haven't been migrated
+# to ``CommandSpec.wasm_runtime_import`` yet.
 for _cmd in _CMD_RUNTIME:
-    REGISTRY.register_wasm_emitter(_cmd, _make_runtime_hook(_cmd))
+    if _cmd not in _spec_backed:
+        REGISTRY.register_wasm_emitter(_cmd, _make_runtime_hook(_cmd))

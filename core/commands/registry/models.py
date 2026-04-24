@@ -100,6 +100,29 @@ class EmitContext(enum.Enum):
     STATEMENT = "statement"
     VALUE = "value"
 
+
+@dataclass(frozen=True, slots=True)
+class WasmRuntimeImport:
+    """Describes how a command is dispatched to a Zig runtime import.
+
+    Attached to :class:`CommandSpec` (and :class:`SubCommand` in B.8) so
+    the WASM codegen can derive dispatch metadata from the registry
+    instead of a shadow table in ``core/compiler/codegen/wasm/_imports.py``.
+
+    Attributes:
+        import_key: Key into ``_RUNTIME_IMPORTS`` — the declaration of
+            the Zig export name, module, and WASM param/result types.
+        argc: Fixed argument count the compiler can assume, or ``None``
+            for variadic commands.
+        nontrapping: When ``True`` the Zig implementation is total for
+            every argument shape the compiler emits — the codegen may
+            then elide the per-call diag-site preamble.
+    """
+
+    import_key: str
+    argc: int | None = None
+    nontrapping: bool = False
+
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 
@@ -580,6 +603,12 @@ class CommandSpec:
     codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
     codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
+
+    # WASM runtime dispatch metadata — when set, the WASM codegen
+    # auto-registers a hook that emits a call to the named runtime
+    # import.  Replaces the ``_CMD_RUNTIME`` shadow table in
+    # ``core/compiler/codegen/wasm/_imports.py``.
+    wasm_runtime_import: WasmRuntimeImport | None = None
 
     # Static arg roles and type info for commands WITHOUT subcommands.
     # Replaces role_hints() -> CommandSig and type_hints() -> CommandTypeHint.

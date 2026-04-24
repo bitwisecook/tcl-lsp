@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from .....commands.registry import REGISTRY, WasmRuntimeImport
 from .....parsing.tokens import TokenType
 from ....ir import (
     CommandTokens,
@@ -53,6 +54,21 @@ class _WasmEmitterCmdMixin(_Base):
         def _emit_var_write_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_array_name_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _is_frame_only_var(self, *a: Any, **kw: Any) -> Any: ...
+
+    def _wasm_runtime_import(self, command: str) -> WasmRuntimeImport | None:
+        """Return the registry-declared runtime import for *command*, if any.
+
+        Scans every spec registered under *command* and returns the first
+        ``wasm_runtime_import`` found.  ``None`` means fall back to the
+        legacy ``_CMD_RUNTIME`` dict.
+        """
+        specs = REGISTRY.specs_by_name.get(command)
+        if specs is None:
+            return None
+        for spec in specs:
+            if spec.wasm_runtime_import is not None:
+                return spec.wasm_runtime_import
+        return None
 
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
         """``return ?value?`` or ``return -code code ?value?``.
@@ -698,7 +714,21 @@ class _WasmEmitterCmdMixin(_Base):
         defs: tuple[str, ...],
     ) -> None:
         """Emit a call to an imported runtime function for a known command."""
-        import_key, expected_argc = _CMD_RUNTIME[command]
+        # Prefer ``CommandSpec.wasm_runtime_import`` when set; fall back
+        # to the legacy ``_CMD_RUNTIME`` dict for entries not yet
+        # migrated.  Phase B.7b moves entries onto specs one group at a
+        # time; once every command has a spec backing this dict fallback
+        # can be removed.
+        rimp = self._wasm_runtime_import(command)
+        if rimp is not None:
+            import_key = rimp.import_key
+            expected_argc = rimp.argc
+            nontrapping = rimp.nontrapping
+        else:
+            import_key, expected_argc = _CMD_RUNTIME[command]
+            nontrapping = command in _CMD_RUNTIME_NONTRAPPING
+        _ = expected_argc  # referenced below via captured spec[] param_count
+
         func_idx = self._shared_imports.get(import_key)
         if func_idx is None:
             self._emit_unsupported_trap(command)
@@ -708,16 +738,14 @@ class _WasmEmitterCmdMixin(_Base):
         # stubs can trap (``unsupported command: X`` from I/O / FS /
         # event / coroutine stubs, ``regexp`` on bad patterns, dict /
         # clock error paths, etc.) so stderr's ``tcl trap: site=<id>``
-        # line resolves to the right source location.  Commands in
-        # ``_CMD_RUNTIME_NONTRAPPING`` (currently just ``puts`` and
-        # ``append`` — see the set definition in ``_imports.py``)
-        # are total for every arg shape the codegen emits and
-        # never raise into ``tcl_diag``, so the per-call
+        # line resolves to the right source location.  Commands flagged
+        # ``nontrapping`` are total for every arg shape the codegen
+        # emits and never raise into ``tcl_diag``, so the per-call
         # ``tcl_diag_set`` preamble (~4 WASM bytes + one DiagSite
-        # record) is pure overhead for them.  ``lappend`` /
-        # ``lindex`` etc. still emit diag sites because they can
-        # trap on malformed list values.
-        if command not in _CMD_RUNTIME_NONTRAPPING:
+        # record) is pure overhead for them.  ``lappend`` / ``lindex``
+        # etc. still emit diag sites because they can trap on malformed
+        # list values.
+        if not nontrapping:
             self._emit_diag_site(command, args=args, kind="runtime")
 
         spec = _RUNTIME_IMPORTS[import_key]
