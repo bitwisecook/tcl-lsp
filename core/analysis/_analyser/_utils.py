@@ -100,6 +100,50 @@ _UNUSED_VAR_RE = re.compile(r"Variable '([^']+)' is set but never used")
 # ``# <noqa>: W100,W101`` suppresses specific codes on the following command.
 _NOQA_ALL = frozenset({"*"})  # sentinel for "suppress everything"
 
+# ``AnalysisResult.suppressed_lines`` uses real line numbers (>= 0) for inline
+# ``# noqa`` suppression and the sentinel key below for file-wide suppression
+# from a top-of-file ``# tcl-lsp: disable=...`` directive.  Negative keys can
+# never collide with an actual source line.
+_FILE_SUPPRESS_KEY = -1
+
+# Matches ``# tcl-lsp: disable=CODE1,CODE2`` (or ``=*``) at the start of a line,
+# case-insensitive.  Commas and whitespace separate codes.
+_FILE_DIRECTIVE_RE = re.compile(
+    r"^\s*#\s*tcl-lsp\s*:\s*disable\s*=\s*([^\r\n]+?)\s*$",
+    re.IGNORECASE,
+)
+
+# Cap on how many leading lines we scan for file-wide directives.  The loop
+# also stops at the first non-comment, non-blank line, so this only matters
+# for pathological files that are entirely comments.
+_FILE_DIRECTIVE_SCAN_LINES = 100
+
+
+def parse_file_suppression(source: str) -> frozenset[str]:
+    """Extract file-wide diagnostic suppression from top-of-file directives.
+
+    Scans leading comment/blank lines for ``# tcl-lsp: disable=CODE1,CODE2``
+    (or ``=*`` for all codes).  Stops at the first line that is neither blank
+    nor a ``#`` comment.  Multiple directives accumulate.
+    """
+    codes: set[str] = set()
+    for idx, raw in enumerate(source.splitlines()):
+        if idx >= _FILE_DIRECTIVE_SCAN_LINES:
+            break
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith("#"):
+            break
+        match = _FILE_DIRECTIVE_RE.match(raw)
+        if not match:
+            continue
+        for token in match.group(1).replace(",", " ").split():
+            token = token.strip()
+            if token:
+                codes.add(token)
+    return frozenset(codes)
+
 
 def _possible_paste_fingerprint(stmt: IRStatement) -> tuple[str, str] | None:
     """Return (variable, static_value) for static assignments worth heuristic checks."""
