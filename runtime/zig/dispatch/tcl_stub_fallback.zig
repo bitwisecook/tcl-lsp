@@ -48,16 +48,49 @@ const STUB_TRAP: []const []const u8 = &.{
     // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``
     // are all handled by BUILTINS (``cmds/stubs.zig``) before we
     // reach this table, so they are intentionally absent.
-    "coroutine", "yield", "yieldto", "yieldmeta",
+    "coroutine", "yield", "yieldto",
     // Environment / metadata — ``package`` is in BUILTINS
     // (cmds/stubs.zig); ``trace`` / ``namespace`` / ``subst`` /
     // ``auto_*`` are in BUILTINS with real implementations.
     "interp", "rename",
     // Object system (TclOO, 8.6+).
     "oo::class", "oo::define", "oo::object", "oo::copy",
-    "self", "my", "next",
+    "oo::abstract", "oo::configurable", "oo::objdefine", "oo::singleton",
+    "self", "my", "next", "nextto", "classvariable",
     // Misc that tcltest specifically references.
     "zlib", "registry",
+    // Core commands without WASM impl yet.
+    // ``switch`` is compiled inline by the code generator (IRSwitch),
+    // so this entry only fires when the interpreter evaluates a
+    // dynamic ``switch`` string — acceptable to trap until a runtime
+    // evaluator lands.
+    "switch",
+    // ``exit`` terminates the interpreter; in the sandbox we trap
+    // rather than silently exit (callers can catch).
+    "exit",
+    // Debug-only / host-machine commands.
+    "memory", "bgerror",
+    // Tcl 9.0 additions missing in the WASM runtime.
+    "lremove",
+    // Standard-library procs Tcl ships in ``library/*.tcl``.
+    // Without the library source bundled we trap rather than silently
+    // return empty — callers relying on these can install shims.
+    "auto_mkindex_old", "parray", "pkg_mkindex", "pkg::create",
+    "tcl_findLibrary",
+    // Regexp-quoting helpers — several aliases cover historical
+    // spellings.
+    "re_quote", "regex_quote", "regex::quote", "regexp::quote",
+    // Package namespaces — ``http`` is an extension package.  Call
+    // sites like ``http::geturl`` would already dispatch by the full
+    // qualified name; the bare ``http`` trap catches misuse.
+    "http",
+    // ``filename`` is a documentation page, not a real command.  A
+    // trap matches the invalid-command-name error Tcl would raise.
+    "filename",
+    // ``unknown`` is the user-overridable miss hook.  Stock Tcl
+    // synthesises an ``unknown command`` error when no override is
+    // installed; our sandbox has no override mechanism, so trap.
+    "unknown",
 };
 
 // Commands deliberately absent from STUB_TRAP (documentation only, no
@@ -66,9 +99,6 @@ const STUB_TRAP: []const []const u8 = &.{
 //
 //   * ``format`` — real runtime impl in tcl_format.zig, dispatched
 //     through BUILTINS before we're reached.
-//   * ``unknown`` — user-overridable hook; returning false lets the
-//     stock ``unknown command`` error fire, which is the correct
-//     behaviour when no override is installed.
 
 fn eql(a: []const u8, b: []const u8) bool {
     if (a.len != b.len) return false;

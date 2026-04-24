@@ -350,5 +350,5 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "lrepeat", .arity_min = 1, .arity_max = null, .handler = &eval_lrepeat },
     .{ .name = "lassign", .arity_min = 1, .arity_max = null, .handler = &eval_lassign },
     .{ .name = "lmap", .arity_min = 3, .arity_max = null, .handler = &eval_lmap },
-    .{ .name = "lseq",     .handler = &eval_lseq },
+    .{ .name = "lseq", .arity_min = 1, .arity_max = 5, .handler = &eval_lseq },
 };
