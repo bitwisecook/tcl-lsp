@@ -201,14 +201,21 @@ class _WasmEmitterCmdMixin(_Base):
         self._emit_obj_literal("")
 
     def _emit_unset_array_elems(self, args: tuple[str, ...]) -> bool:
-        """Handle ``unset arr(key)`` forms.  Returns True if at least one
-        array-element unset was emitted (and scalar unsets, if mixed in,
-        were emitted as NOPs) — caller should ``return`` from the
-        dispatch.  Returns False if *args* contains no array-element
-        references at all.
+        """Handle ``unset`` for array-element and whole-variable forms.
+
+        For ``unset arr(key)``: emits ``tcl_array_unset_element``.
+        For ``unset arr`` when ``arr`` is an upvar global alias: emits
+        ``array_unset(target)`` + ``global_set(target, 0)`` so that the
+        entire array table is cleared in addition to nulling the global.
+        For ``unset arr`` where ``arr`` is not an alias: returns False so
+        the caller falls through to the eval fallback.
+
+        Returns True if at least one unset was emitted; False otherwise.
         """
-        had_array = False
-        fidx = self._shared_imports.get("tcl_array_unset_element")
+        had_any = False
+        elem_fidx = self._shared_imports.get("tcl_array_unset_element")
+        arr_fidx = self._shared_imports.get("tcl_array_unset")
+        gset_fidx = self._shared_imports.get("tcl_global_set")
         # Skip ``-nocomplain`` / ``--`` option prefix.
         i = 0
         while i < len(args) and args[i].startswith("-"):
@@ -218,17 +225,36 @@ class _WasmEmitterCmdMixin(_Base):
             i += 1
         for name in args[i:]:
             ref = _parse_array_ref(name)
-            if ref is None:
+            if ref is not None:
+                # Array element: unset arr(key)
+                had_any = True
+                arr, key = ref
+                if elem_fidx is None:
+                    continue
+                self._emit_array_name_obj(arr)
+                self._emit_value(key)
+                self._emit_call(elem_fidx)
+                self._emit(WasmOp.DROP)
                 continue
-            had_array = True
-            arr, key = ref
-            if fidx is None:
-                continue
-            self._emit_array_name_obj(arr)
-            self._emit_value(key)
-            self._emit_call(fidx)
-            self._emit(WasmOp.DROP)
-        return had_array
+            # Whole-variable unset: ``unset var``
+            # Only handle when var is a global alias (upvar #0) — we know
+            # the target name at compile time and can clear both the array
+            # table and the global slot.  Scalars and frame locals fall
+            # through to the eval fallback.
+            binding = self._aliases.get(name)
+            if binding is not None and binding[0] == "global":
+                had_any = True
+                target_idx = binding[1]
+                if arr_fidx is not None:
+                    self._emit_local_get(target_idx)
+                    self._emit_call(arr_fidx)
+                    self._emit(WasmOp.DROP)
+                if gset_fidx is not None:
+                    self._emit_local_get(target_idx)
+                    self._emit_i32_const(0)
+                    self._emit_call(gset_fidx)
+                    self._emit(WasmOp.DROP)
+        return had_any
 
     def _emit_list_value(self, args: tuple[str, ...]) -> None:
         """Build a Tcl list from *args* and leave it on the stack as a TclObj.
@@ -364,12 +390,19 @@ class _WasmEmitterCmdMixin(_Base):
         # frame_depth_stash clamps to zero regardless of the actual depth.
         shift = 0x3FFF_FFFF if level_spec == "#0" else up
         saved_local = self._add_extra_local(prefix="_uplevel_saved", val_type=ValType.I32)
+        body_local = self._add_extra_local(prefix="_uplevel_body", val_type=ValType.I32)
+
+        # Resolve the body string while still in the current frame so that
+        # any $var/$[cmd] substitutions read from the correct (callee) frame,
+        # not the stashed-to caller frame.
+        self._emit_uplevel_body(body_parts)
+        self._emit_local_set(body_local)
 
         self._emit_i32_const(shift)
         self._emit_call(stash_idx)
         self._emit_local_set(saved_local)
 
-        self._emit_uplevel_body(body_parts)
+        self._emit_local_get(body_local)
         self._emit_call(eval_idx)
         # Result TclObj is on stack; stash temporarily so we can restore.
         result_local = self._add_extra_local(prefix="_uplevel_result", val_type=ValType.I32)
@@ -589,12 +622,28 @@ class _WasmEmitterCmdMixin(_Base):
                 self._emit_box_int()
                 return
             gexist_idx = self._shared_imports.get("tcl_global_exists")
+            aexist_idx = self._shared_imports.get("tcl_array_exists")
             binding = self._aliases.get(resolved)
-            if binding is not None and binding[0] == "global" and gexist_idx is not None:
+            if binding is not None and binding[0] == "global":
                 _, target_idx = binding
-                self._emit_local_get(target_idx)
-                self._emit_call(gexist_idx)
-                return
+                if aexist_idx is not None and gexist_idx is not None:
+                    # ``info exists arr`` for an upvar global alias must return 1
+                    # when *either* the global scalar is set OR the array table
+                    # exists (pure-array variables have no scalar slot).
+                    ogi_idx = self._shared_imports["tcl_obj_get_int"]
+                    self._emit_local_get(target_idx)
+                    self._emit_call(aexist_idx)
+                    self._emit_call(ogi_idx)  # i64: 0 or 1
+                    self._emit_local_get(target_idx)
+                    self._emit_call(gexist_idx)
+                    self._emit_call(ogi_idx)  # i64: 0 or 1
+                    self._emit(WasmOp.I64_OR)  # i64: 1 if either exists
+                    self._emit_box_int()
+                    return
+                if gexist_idx is not None:
+                    self._emit_local_get(target_idx)
+                    self._emit_call(gexist_idx)
+                    return
             if resolved.startswith("::") and gexist_idx is not None:
                 self._emit_obj_literal(resolved)
                 self._emit_call(gexist_idx)
@@ -684,12 +733,26 @@ class _WasmEmitterCmdMixin(_Base):
         mutates_var = command in ("append", "lappend")
         if mutates_var and len(args) >= 2:
             var_name = args[0]
-            var_idx = self._intern_local(var_name)
-            for value_arg in args[1:]:
-                self._emit_local_get(var_idx)  # current value
-                self._emit_value(value_arg)  # value to append
-                self._emit_call(func_idx)
-                self._emit_local_set(var_idx)
+            is_aliased = var_name in self._aliases or (
+                "(" in var_name and var_name.split("(")[0] in self._aliases
+            )
+            if is_aliased:
+                # Variable (or its array base) is an upvar/variable alias —
+                # reads and writes must go through the alias-aware global table
+                # rather than a WASM local slot so that updates reach the
+                # aliased storage.
+                for value_arg in args[1:]:
+                    self._emit_var_read_obj(var_name)
+                    self._emit_value(value_arg)
+                    self._emit_call(func_idx)
+                    self._emit_var_write_obj(var_name)
+            else:
+                var_idx = self._intern_local(var_name)
+                for value_arg in args[1:]:
+                    self._emit_local_get(var_idx)  # current value
+                    self._emit_value(value_arg)  # value to append
+                    self._emit_call(func_idx)
+                    self._emit_local_set(var_idx)
             return
 
         # ``list`` handled outside _emit_cmd_runtime — see
@@ -1051,10 +1114,9 @@ class _WasmEmitterCmdMixin(_Base):
         self._emit_push_pending_argv0(argv0_local)
         self._emit_call(func_idx)
 
-        # Store result in def variable if present
-        if defs:
-            def_idx = self._intern_local(defs[0])
-            self._emit_local_set(def_idx)
-        else:
-            # Drop unused return value in statement context
-            self._emit(WasmOp.DROP)
+        # This method is only called from statement context (_emit_call_stmt).
+        # The CFG builder populates `defs` with upvar-tracked variables (variables
+        # that may be mutated via upvar inside the callee) for SSA purposes, NOT
+        # as assignment targets.  Always drop the return value here; the caller
+        # handles assignment separately via IRAssignValue / _emit_var_write_obj.
+        self._emit(WasmOp.DROP)

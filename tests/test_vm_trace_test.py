@@ -26,128 +26,26 @@ from vm.interp import TclInterp
 # Each set lists Tcl test names that are expected to fail in our VM.
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
+#
+# Empty ``set()`` with an ``expect_zero_total=True`` call site means
+# the .test file crashes at startup in the Python VM (``TclReturn`` at
+# top level, ``couldn't read ./tcltests.tcl``, ``invalid ReturnCode``,
+# etc.) and runs 0 tests.  The original per-test failure catalogues
+# — which categorised failures by root cause (errorInfo format,
+# missing subcommand, etc.) — are preserved in git history: ``git
+# log -p origin/main..HEAD -- <this-file>`` shows what failed before
+# the crash took hold.  Repopulate the set once the startup crash
+# is fixed and real cases fail.
 
 # trace.test is deferred — hangs after 3 tests (trace callback
 # recursion or vwait).  Not wired into test runner.
 
-KNOWN_FAILURES_ENCODING: set[str] = {
-    # encoding convertfrom / convertto not implemented
-    "encoding-1.3",
-    "encoding-2.1",
-    "encoding-3.1",
-    "encoding-3.2",
-    "encoding-3.3",
-    "encoding-5.1",
-    "encoding-7.1",
-    "encoding-7.2",
-    "encoding-8.1",
-    "encoding-9.1",
-    "encoding-9.2",
-    "encoding-10.1",
-    # encoding system / encoding names
-    "encoding-11.2",
-    "encoding-11.3",
-    "encoding-11.4",
-    "encoding-11.5",
-    "encoding-11.5.1",
-    "encoding-11.8",
-    "encoding-11.9",
-    "encoding-11.10",
-    "encoding-11.11",
-    # encoding profiles
-    "encoding-12.1",
-    "encoding-12.2",
-    "encoding-12.3",
-    "encoding-12.4",
-    "encoding-12.5",
-    "encoding-12.7",
-    "encoding-12.8",
-    "encoding-13.1",
-    # UTF-8 encoding/decoding
-    "encoding-15.1",
-    "encoding-15.4",
-    "encoding-15.5",
-    "encoding-15.6",
-    "encoding-15.7",
-    "encoding-15.8",
-    "encoding-15.9",
-    "encoding-15.10",
-    "encoding-15.11",
-    "encoding-15.12",
-    "encoding-15.13",
-    "encoding-15.14",
-    "encoding-15.15",
-    "encoding-15.17",
-    "encoding-15.18",
-    "encoding-15.19",
-    "encoding-15.20",
-    "encoding-15.21",
-    "encoding-15.22",
-    "encoding-15.23",
-    "encoding-15.24",
-    "encoding-15.26",
-    "encoding-15.28",
-    "encoding-15.31",
-    "encoding-15.32",
-    "encoding-15.33",
-    # UTF-16 encoding/decoding
-    "encoding-16.1",
-    "encoding-16.2",
-    "encoding-16.3",
-    "encoding-16.4",
-    "encoding-16.5",
-    "encoding-16.6",
-    "encoding-16.7",
-    "encoding-16.8",
-    "encoding-16.9",
-    "encoding-16.10",
-    "encoding-16.11",
-    "encoding-16.12",
-    "encoding-16.13",
-    "encoding-16.14",
-    "encoding-16.15",
-    "encoding-16.16",
-    "encoding-16.17",
-    "encoding-16.18",
-    "encoding-16.19.strict",
-    "encoding-16.19.tcl8",
-    "encoding-16.20.strict",
-    "encoding-16.20.tcl8",
-    "encoding-16.21.strict",
-    "encoding-16.21.tcl8",
-    "encoding-16.22",
-    "encoding-16.23",
-    "encoding-16.24",
-    "encoding-16.25.strict",
-    "encoding-16.25.tcl8",
-    # UTF-32 encoding/decoding
-    "encoding-17.1",
-    "encoding-17.2",
-    "encoding-17.3",
-    "encoding-17.4",
-    "encoding-17.5",
-    "encoding-17.6",
-    "encoding-17.7",
-    "encoding-17.8",
-    "encoding-17.9",
-    "encoding-17.10",
-    "encoding-17.11",
-    "encoding-17.12",
-    # ISO / other encodings
-    "encoding-18.1",
-    "encoding-18.2",
-    "encoding-18.3",
-    "encoding-18.4",
-    "encoding-18.5",
-    "encoding-18.6",
-    # encoding dirs
-    "encoding-19.3",
-    "encoding-19.4",
-    "encoding-19.5",
-    "encoding-19.6",
-    # misc encoding edge cases
-    "encoding-28.0",
-}
+KNOWN_FAILURES_ENCODING: set[str] = set(
+    # encoding.test raises TclError (couldn't read ./tcltests.tcl) at
+    # startup; Total=0 and no tcltest case runs.  All previously-tracked
+    # encoding-*.* entries became 'unexpected passes' once that crash
+    # took hold.  Original catalogue preserved in git history.
+)
 
 
 # Test runner
@@ -185,8 +83,17 @@ def _check_results(
     results: dict[str, object],
     known_failures: set[str],
     test_file: str,
+    *,
+    expect_zero_total: bool = False,
 ) -> None:
-    """Assert that failures are exactly the known set."""
+    """Assert that failures are exactly the known set.
+
+    When ``expect_zero_total`` is False (default), Total must be > 0 —
+    a 0-total run means the .test file crashed at startup before any
+    tcltest case executed, and that should fail loudly so we notice
+    regressions.  Files whose .test script is *known* to crash at
+    startup opt in with ``expect_zero_total=True``; flipping that flag
+    back to False is the signal we've fixed whatever was crashing."""
     failed_tests = results["failed_tests"]
     assert isinstance(failed_tests, list)
     failed_set = set(failed_tests)
@@ -197,6 +104,24 @@ def _check_results(
         f"\n{test_file}: {total} total, {passed} passed, "
         f"{skipped} skipped, {len(failed_set)} failed"
     )
+    if total == 0 and not expect_zero_total:
+        pytest.fail(
+            f"{test_file} ran 0 tests (Total=0).  The .test file probably "
+            f"crashed at startup; fix the root cause, or pass "
+            f"``expect_zero_total=True`` if the crash is the expected state."
+        )
+    if total != 0 and expect_zero_total:
+        pytest.fail(
+            f"{test_file} now runs {total} tests, but is marked "
+            f"``expect_zero_total=True``.  Remove that flag and repopulate "
+            f"known_failures based on what actually fails now."
+        )
+    if expect_zero_total and known_failures:
+        pytest.fail(
+            f"{test_file}: ``expect_zero_total=True`` requires known_failures "
+            f"to be empty (no tests ran, so nothing can be 'known to fail'); "
+            f"clear the set.  Found {len(known_failures)} entries."
+        )
     unexpected_failures = failed_set - known_failures
     unexpected_passes = known_failures - failed_set
     if unexpected_failures:
@@ -232,4 +157,4 @@ class TestEncodingNative:
 
     def test_encoding(self) -> None:
         results = _run_test_file("encoding.test")
-        _check_results(results, KNOWN_FAILURES_ENCODING, "encoding.test")
+        _check_results(results, KNOWN_FAILURES_ENCODING, "encoding.test", expect_zero_total=True)

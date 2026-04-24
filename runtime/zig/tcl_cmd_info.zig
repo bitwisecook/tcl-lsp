@@ -720,6 +720,121 @@ pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
     return obj_new_int(0);
 }
 
+// -- ``info vars`` ---------------------------------------------------------
+
+/// ``info vars ?pattern?`` — return a list of variable names visible
+/// in the current scope that match the optional glob ``pattern``.
+///
+/// Qualified patterns (containing ``::``) scan the root namespace's
+/// var_table (scalars) AND the array directory (Tcl arrays), since the
+/// two stores are disjoint.  Unqualified patterns scan the current
+/// call frame's locals; if no frame is active, scans the global scope.
+///
+/// This is used by tcllib's ``counter::names``:
+///   ``foreach v [info vars ::counter::T-*] { … }``
+/// which expects fully-qualified names like ``::counter::T-simple``.
+pub fn info_vars(pattern: i32) i32 {
+    const tcl_array = @import("tcl_array.zig");
+
+    var pat_ptr: u32 = 0;
+    var pat_len: u32 = 0;
+    var has_pattern = false;
+    var is_qualified = false;
+
+    if (pattern != 0) {
+        const ps = obj_ensure_string(pattern);
+        if (ps.len > 0) {
+            has_pattern = true;
+            pat_ptr = ps.ptr;
+            pat_len = ps.len;
+            const pp: [*]const u8 = @ptrFromInt(ps.ptr);
+            var k: u32 = 0;
+            while (k + 1 < ps.len) : (k += 1) {
+                if (pp[k] == ':' and pp[k + 1] == ':') {
+                    is_qualified = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (is_qualified) {
+        // Collect matching names from both the global scalar var_table
+        // and the array directory, then merge into one list.
+
+        // -- Array directory scan --
+        const arr_list = tcl_array.array_dir_names_matching(pat_ptr, pat_len);
+        const arr_s = obj_ensure_string(arr_list);
+
+        // -- Root namespace var_table scan (scalar globals) --
+        const root = tcl_ns.ns_root();
+        const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
+        var scalar_total: u32 = 0;
+        var scalar_count: u32 = 0;
+        if (ns.var_table.buf != 0) {
+            var i: u32 = 0;
+            while (i < ns.var_table.cap) : (i += 1) {
+                const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+                const name_ptr: u32 = @bitCast(read_i32(bucket));
+                if (name_ptr == 0) continue;
+                const name_len: u32 = @bitCast(read_i32(bucket + 4));
+                const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+                if (var_addr == 0) continue;
+                const v_val = tcl_ns.var_get_scalar(var_addr);
+                if (v_val == 0) continue;
+                if (!tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+                if (scalar_count > 0) scalar_total += 1;
+                scalar_total += name_len;
+                scalar_count += 1;
+            }
+        }
+
+        // Short-circuit when only arrays matched.
+        if (scalar_count == 0) return arr_list;
+
+        // Merge: arr_s (possibly empty) + space + scalar entries.
+        const arr_sep: u32 = if (arr_s.len > 0) @as(u32, 1) else @as(u32, 0);
+        const merge_total: u32 = arr_s.len + arr_sep + scalar_total;
+        const merge_buf = alloc(merge_total);
+        var off: u32 = 0;
+        if (arr_s.len > 0) {
+            memcpy(merge_buf, arr_s.ptr, arr_s.len);
+            off = arr_s.len;
+        }
+        var written: u32 = if (arr_s.len > 0) 1 else 0; // triggers leading space
+        if (ns.var_table.buf != 0) {
+            var i: u32 = 0;
+            while (i < ns.var_table.cap) : (i += 1) {
+                const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+                const name_ptr: u32 = @bitCast(read_i32(bucket));
+                if (name_ptr == 0) continue;
+                const name_len: u32 = @bitCast(read_i32(bucket + 4));
+                const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+                if (var_addr == 0) continue;
+                const v_val = tcl_ns.var_get_scalar(var_addr);
+                if (v_val == 0) continue;
+                if (!tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+                if (written > 0) {
+                    const d: [*]u8 = @ptrFromInt(merge_buf + off);
+                    d[0] = ' ';
+                    off += 1;
+                }
+                memcpy(merge_buf + off, name_ptr, name_len);
+                off += name_len;
+                written += 1;
+            }
+        }
+        return obj_new_string(@bitCast(merge_buf), @bitCast(off));
+    }
+
+    // Unqualified pattern or no pattern — scan current frame locals.
+    // For simplicity, scanning frame internals isn't yet implemented;
+    // return an empty list so callers get a well-typed result rather
+    // than an error.  The qualified path above covers the primary use
+    // case (``info vars ::ns::pattern``).
+    return obj_new_string(0, 0);
+}
+
 // -- Dispatch --------------------------------------------------------------
 
 /// Dispatch for 'info' command — one-word / two-word cases.  The
@@ -743,5 +858,6 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "procs")) return info_procs(arg);
     if (str_eq(sp, sub.len, "level")) return info_level(arg);
     if (str_eq(sp, sub.len, "script")) return info_script();
+    if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
     return obj_new_string(0, 0);
 }

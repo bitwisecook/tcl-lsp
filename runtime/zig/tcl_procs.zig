@@ -62,7 +62,7 @@ const parse_cache = @import("parse_cache.zig");
 // Sizes are given as comptime constants so the accessors can keep
 // using the historical ``OFF_*`` names without changing call sites.
 //
-// Layout (40 bytes after P4.3):
+// Layout (44 bytes after P4.4):
 //
 //     [ 0.. 3] name_ptr        : i32  (heap-copied FQN bytes; ``info procs``)
 //     [ 4.. 7] name_len        : i32
@@ -93,7 +93,12 @@ const parse_cache = @import("parse_cache.zig");
 //                                         aliases, and imports leave it
 //                                         zero and the dispatcher falls
 //                                         back to the live name slot)
-pub const COMMAND_SIZE: u32 = 40;
+//     [40..43] n_required       : i32  (minimum supplied args needed for a
+//                                         compiled proc; 0 for interpreted
+//                                         procs.  Set by proc_register_compiled
+//                                         so dispatch() can raise "wrong # args"
+//                                         before calling the compiled WASM fn.)
+pub const COMMAND_SIZE: u32 = 44;
 pub const OFF_FLAGS: u32 = 8;
 pub const OFF_PARAMS_OBJ: u32 = 12;
 const OFF_BODY_OBJ: u32 = 16;
@@ -102,6 +107,7 @@ pub const OFF_FUNC_IDX: u32 = 24;
 const OFF_ARGS_TAIL: u32 = 28;
 pub const OFF_IMPORT_REF_HEAD: u32 = 32;
 pub const OFF_EXPORT_NAME_BUCKET: u32 = 36;
+const OFF_N_REQUIRED: u32 = 40;
 
 /// Set on imported (redirect) commands.  ``params_obj`` holds an
 /// ``*ImportedCmdData`` pointing at the source ``*Command`` and
@@ -304,6 +310,7 @@ pub export fn proc_register_compiled(
     n_params: i32,
     func_idx: i32,
     args_tail: i32,
+    n_required: i32,
 ) i32 {
     const sn = obj_ensure_string(name);
     lru_invalidate();
@@ -326,6 +333,7 @@ pub export fn proc_register_compiled(
     write_i32(cmd + OFF_N_PARAMS, n_params);
     write_i32(cmd + OFF_FUNC_IDX, func_idx);
     write_i32(cmd + OFF_ARGS_TAIL, args_tail);
+    write_i32(cmd + OFF_N_REQUIRED, n_required);
 
     // Stash the registration-time WASM export name in the sidecar
     // record at ``OFF_EXPORT_NAME_BUCKET``.  ``tcl_dispatch`` reads
@@ -496,6 +504,16 @@ pub export fn proc_get_args_tail(bucket: i32) i32 {
     if (bucket == 0) return 0;
     const base: u32 = @bitCast(bucket);
     return read_i32(base + OFF_ARGS_TAIL);
+}
+
+/// Get the n_required field for a compiled proc — minimum number of
+/// call arguments that must be supplied before the compiled fn is called.
+/// Returns 0 for interpreted procs (they do their own arity check via
+/// the params_obj string).
+pub export fn proc_get_n_required(bucket: i32) i32 {
+    if (bucket == 0) return 0;
+    const base: u32 = @bitCast(bucket);
+    return read_i32(base + OFF_N_REQUIRED);
 }
 
 /// Get the params_obj field from a proc Command pointer.

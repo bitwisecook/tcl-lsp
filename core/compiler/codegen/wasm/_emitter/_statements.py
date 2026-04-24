@@ -73,6 +73,7 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterExprMixin
         def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_expr_obj(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCtrlMixin
         def _emit_if(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_for(self, *a: Any, **kw: Any) -> Any: ...
@@ -115,8 +116,7 @@ class _WasmEmitterStmtMixin(_Base):
                         self._const_map.pop(name, None)
 
             case IRAssignExpr(name=name, expr=expr):
-                self._emit_expr(expr)
-                self._emit_box_int()
+                self._emit_expr_obj(expr)
                 self._emit_var_write_obj(name)
                 if self._optimise:
                     self._const_map.pop(name, None)
@@ -184,8 +184,7 @@ class _WasmEmitterStmtMixin(_Base):
 
             case IRReturn(value=value, expr=expr):
                 if expr is not None:
-                    self._emit_expr(expr)
-                    self._emit_box_int()
+                    self._emit_expr_obj(expr)
                 elif value is not None:
                     self._emit_value(value)
                 else:
@@ -770,11 +769,7 @@ class _WasmEmitterStmtMixin(_Base):
 
                 parts = [command]
                 for i, a in enumerate(args):
-                    if a.startswith("$") or a.startswith("["):
-                        # Substitution words pass through unquoted so
-                        # the interpreter can resolve them at eval time.
-                        parts.append(a)
-                    elif _arg_was_braced(i):
+                    if _arg_was_braced(i):
                         # Braced token — IR holds the literal content
                         # with outer ``{}`` stripped.  Re-wrap in braces
                         # so the interpreter sees the exact same word
@@ -788,6 +783,10 @@ class _WasmEmitterStmtMixin(_Base):
                             parts.append(_tcl_list_quote(a, first=False))
                         else:
                             parts.append("{" + a + "}")
+                    elif a.startswith("$") or a.startswith("["):
+                        # Substitution words pass through unquoted so
+                        # the interpreter can resolve them at eval time.
+                        parts.append(a)
                     else:
                         # Literal IR value from an ESC token (plain or
                         # double-quoted word).  The IR stores the RAW
@@ -1000,7 +999,9 @@ class _WasmEmitterStmtMixin(_Base):
                 and self._block_namespace != "::"
                 and _parse_array_ref(var) is None
             )
-            if var in self._aliases or in_ns_block:
+            _incr_array_ref = _parse_array_ref(var)
+            _incr_base = _incr_array_ref[0] if _incr_array_ref else var
+            if var in self._aliases or _incr_base in self._aliases or in_ns_block:
                 # Aliased or namespace-scoped incr: load via the
                 # global table, add, store back.
                 self._emit_var_read_obj(var)
@@ -1142,20 +1143,36 @@ class _WasmEmitterStmtMixin(_Base):
                 mutates_var = command in ("append", "lappend")
                 if mutates_var and len(args) >= 2:
                     var_name = args[0]
-                    var_idx = self._intern_local(var_name)
-                    # Loop: each value_arg gets concatenated / appended
-                    # in order.  After the last one we tee — the final
-                    # updated value is left on the stack for implicit
-                    # return.
-                    last = len(args) - 1
-                    for i, value_arg in enumerate(args[1:], start=1):
-                        self._emit_local_get(var_idx)
-                        self._emit_value(value_arg)
-                        self._emit_call(fidx)
-                        if i == last:
-                            self._emit_local_tee(var_idx)
-                        else:
-                            self._emit_local_set(var_idx)
+                    is_aliased = var_name in self._aliases or (
+                        "(" in var_name and var_name.split("(")[0] in self._aliases
+                    )
+                    if is_aliased:
+                        # Route through alias-aware global table; leave the
+                        # final updated value on the stack for implicit return.
+                        last = len(args) - 1
+                        for i, value_arg in enumerate(args[1:], start=1):
+                            self._emit_var_read_obj(var_name)
+                            self._emit_value(value_arg)
+                            self._emit_call(fidx)
+                            if i == last:
+                                self._emit_var_write_obj_keep(var_name)
+                            else:
+                                self._emit_var_write_obj(var_name)
+                    else:
+                        var_idx = self._intern_local(var_name)
+                        # Loop: each value_arg gets concatenated / appended
+                        # in order.  After the last one we tee — the final
+                        # updated value is left on the stack for implicit
+                        # return.
+                        last = len(args) - 1
+                        for i, value_arg in enumerate(args[1:], start=1):
+                            self._emit_local_get(var_idx)
+                            self._emit_value(value_arg)
+                            self._emit_call(fidx)
+                            if i == last:
+                                self._emit_local_tee(var_idx)
+                            else:
+                                self._emit_local_set(var_idx)
                 elif command == "puts":
                     if args:
                         self._emit_value(args[-1])

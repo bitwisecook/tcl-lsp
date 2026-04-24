@@ -126,7 +126,7 @@ class RuntimeHandle:
     def register_compiled(self, fqn: str, func_idx: int = 1) -> None:
         ptr, length = self.stage(fqn)
         name_obj = self.obj_new_string(self.store, ptr, length)
-        self.proc_register_compiled(self.store, name_obj, 0, func_idx, 0)
+        self.proc_register_compiled(self.store, name_obj, 0, func_idx, 0, 0)
 
     def info_commands(self, pattern: str = "") -> list[str]:
         if pattern:

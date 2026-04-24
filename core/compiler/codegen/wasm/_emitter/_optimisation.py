@@ -44,6 +44,9 @@ class _WasmEmitterOptMixin(_Base):
         def _emit_stmt(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_call_stmt_tail(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterCmdMixin
+        def _emit_cmd_return(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_cmd_uplevel(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
@@ -256,6 +259,12 @@ class _WasmEmitterOptMixin(_Base):
                 if name in reachable:
                     continue
                 reachable.add(name)
+                # Don't follow successors of active loop headers (other than
+                # the start block itself) — this prevents back-edge traversal
+                # from causing blocks inside one branch to appear reachable
+                # from the other branch (via the outer loop iteration).
+                if name != start and name in self._active_loop_headers:
+                    continue
                 blk = self._cfg.blocks.get(name)
                 if blk is None:
                     continue
@@ -496,7 +505,9 @@ class _WasmEmitterOptMixin(_Base):
                     else:
                         # Plain branch (if/else inside loop body)
                         merge = self._find_merge_block(tt, ft)
-                        if merge is not None:
+                        merge_newly_added = merge is not None and merge not in self._visited
+                        if merge_newly_added:
+                            assert merge is not None  # implied by merge_newly_added
                             self._visited.add(merge)
 
                         self._emit_expr(cond)
@@ -508,7 +519,8 @@ class _WasmEmitterOptMixin(_Base):
                         self._emit_loop_body(ft, header)
                         self._emit(WasmOp.END)
 
-                        if merge is not None:
+                        if merge_newly_added:
+                            assert merge is not None  # implied by merge_newly_added
                             self._visited.discard(merge)
                             current = merge
                         else:
@@ -731,6 +743,22 @@ class _WasmEmitterOptMixin(_Base):
                     if not self._emit_namespace_eval_bridge(barrier_args[2:], drop_result=False):
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
                         # result stays on stack (no DROP)
+                elif barrier_cmd == "uplevel" and barrier_args:
+                    # Tail-position uplevel: shift frame depth, eval body,
+                    # restore — result stays on stack (no DROP).
+                    self._emit_cmd_uplevel(barrier_args)
+                elif (
+                    barrier_cmd == "return"
+                    and barrier_args
+                    and len(barrier_args) == 3
+                    and barrier_args[0] == "-code"
+                    and barrier_args[1] == "error"
+                ):
+                    # Tail-position ``return -code error <msg>``: evaluate
+                    # msg so embedded $var/[cmd] substitutions resolve, then
+                    # signal error.  _emit_cmd_return emits its own RETURN;
+                    # the implicit-return RETURN below is unreachable.
+                    self._emit_cmd_return(barrier_args)
                 else:
                     # Generic barrier in tail position — eval fallback,
                     # result stays on stack.
@@ -814,7 +842,9 @@ class _WasmEmitterOptMixin(_Base):
                 # so we can emit it *after* the if/else/end rather than
                 # inlining it into one branch and skipping it for the other.
                 merge = self._find_merge_block(tt, ft)
-                if merge is not None:
+                merge_newly_added = merge is not None and merge not in self._visited
+                if merge_newly_added:
+                    assert merge is not None  # implied by merge_newly_added
                     self._visited.add(merge)
 
                 self._emit_expr(condition)
@@ -826,7 +856,8 @@ class _WasmEmitterOptMixin(_Base):
                 self._emit_block(ft)
                 self._emit(WasmOp.END)
 
-                if merge is not None:
+                if merge_newly_added:
+                    assert merge is not None  # implied by merge_newly_added
                     self._visited.discard(merge)
                     self._emit_block(merge)
 

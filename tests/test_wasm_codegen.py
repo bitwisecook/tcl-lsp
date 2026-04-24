@@ -190,10 +190,17 @@ def test_switch_statement():
 
 
 def test_arithmetic_expr():
-    """Arithmetic expressions should produce correct WASM ops."""
+    """Arithmetic expressions should produce correct WASM ops.
+
+    The float-aware expr path routes integer ``+`` and ``*`` through
+    the ``tcl_arith_add`` / ``tcl_arith_mul`` runtime helpers (they
+    dispatch between integer and float based on operand shimmer).
+    Accept either those calls or the older ``i64.add``/``i64.mul``
+    instructions that remain in some fast paths.
+    """
     module = _compile("set x [expr {1 + 2 * 3}]\n")
     wat = module.to_wat()
-    assert "i64.add" in wat or "i64.mul" in wat
+    assert "i64.add" in wat or "i64.mul" in wat or "tcl_arith_add" in wat or "tcl_arith_mul" in wat
 
 
 def test_comparison_expr():
@@ -307,15 +314,23 @@ def test_runtime_imports_registered_for_puts():
 
 
 def test_no_cmd_imports_for_pure_math():
-    """Pure arithmetic code should only import lifecycle + error + diag functions."""
+    """Pure arithmetic code should only import lifecycle + error + diag +
+    arithmetic helpers.
+
+    The float-aware expr path also pulls in ``tcl_arith_add`` and
+    ``obj_new_float`` (the integer-vs-float dispatch helpers); they're
+    treated as arithmetic primitives rather than command imports.
+    """
     module = _compile("set x [expr {1 + 2}]\n")
     import_names = {imp.name for imp in module.imports}
     # diag_set is always imported so any trap site can prefix stderr with
     # the source-location site ID the sidecar map resolves.
     assert import_names == {
         "obj_new_int",
+        "obj_new_float",
         "obj_new_string",
         "obj_get_int",
+        "tcl_arith_add",
         "tcl_cmd_error",
         "tcl_eval",
         "ns_set",
