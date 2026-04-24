@@ -43,7 +43,11 @@ class FcopyCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(2),
+                # C Tcl 9.0 ``Tcl_FcopyObjCmd``: objc must be 3, 5, or 7
+                # (inputChan + outputChan + optional ``-size N`` and/or
+                # ``-command cb`` option pairs).  Args after command
+                # name: 2..6, with only even values actually legal.
+                arity=Arity(2, 6),
             ),
             arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.CHANNEL},
             return_type=TclType.INT,

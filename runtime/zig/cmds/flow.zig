@@ -295,6 +295,6 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "throw", .arity_min = 2, .arity_max = 2, .handler = &eval_throw },
     .{ .name = "try", .arity_min = 1, .arity_max = null, .handler = &eval_try },
     .{ .name = "apply", .arity_min = 1, .arity_max = null, .handler = &eval_apply_cmd },
-    .{ .name = "tailcall", .arity_min = 1, .arity_max = null, .handler = &eval_tailcall },
+    .{ .name = "tailcall", .arity_min = 0, .arity_max = null, .handler = &eval_tailcall },
     .{ .name = "time", .arity_min = 1, .arity_max = 2, .handler = &eval_time },
 };
