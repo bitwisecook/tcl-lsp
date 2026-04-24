@@ -35,13 +35,13 @@ from vm.interp import TclInterp
 # is fixed and real cases fail.
 
 KNOWN_FAILURES_COMPILE: set[str] = set()
-# All previously-known failures now pass thanks to real tcltest.tcl
-# integration which properly skips tests requiring C-level features
-# (disassembler, coroutines) via testConstraints.
+# compile.test crashes at startup in the Python VM (Total=0); the
+# tcltest runner never reaches individual cases.  The caller below
+# passes ``expect_zero_total=True`` so the guard surfaces any
+# regression that makes the file suddenly start running.
 
 KNOWN_FAILURES_EXECUTE: set[str] = set()
-# All previously-known failures now pass thanks to TRY_CVT_TO_BOOLEAN,
-# STR_CLASS, and real tcltest.tcl integration.
+# execute.test — same startup crash as compile.test; see above.
 
 
 # Test runner

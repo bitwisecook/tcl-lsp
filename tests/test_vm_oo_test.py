@@ -195,4 +195,6 @@ class TestOONext2Optimised:
 
     def test_oo_next2_test_optimised(self) -> None:
         results = _run_test_file("ooNext2.test", optimise=True)
-        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test [optimised]", expect_zero_total=True)
+        _check_results(
+            results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test [optimised]", expect_zero_total=True
+        )

@@ -311,6 +311,7 @@ class _WasmEmitterBase:
     def _emit_f64_const(self, value: float) -> None:
         """Emit an f64.const instruction (8-byte little-endian IEEE 754)."""
         import struct
+
         self._emit(WasmOp.F64_CONST, struct.pack("<d", value))
 
     def _emit_local_get(self, idx: int) -> None:

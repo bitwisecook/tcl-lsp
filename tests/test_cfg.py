@@ -47,10 +47,7 @@ class TestCFG:
         mod = lower_to_ir("switch $x {a {set y 1} b - default {set y 0}}")
         cfg = build_cfg(mod).top_level
         irswitch_count = sum(
-            1
-            for b in cfg.blocks.values()
-            for s in b.statements
-            if isinstance(s, IRSwitch)
+            1 for b in cfg.blocks.values() for s in b.statements if isinstance(s, IRSwitch)
         )
         assert irswitch_count == 1
 

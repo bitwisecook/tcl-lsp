@@ -415,10 +415,7 @@ proc classify {x} {
         proc_cfg = cfg.procedures["::classify"]
         # Fallthrough switch stays as IRSwitch in the block statement list.
         irswitch_count = sum(
-            1
-            for b in proc_cfg.blocks.values()
-            for s in b.statements
-            if isinstance(s, IRSwitch)
+            1 for b in proc_cfg.blocks.values() for s in b.statements if isinstance(s, IRSwitch)
         )
         assert irswitch_count == 1, "fallthrough switch should stay as IRSwitch"
         # Codegen should still work

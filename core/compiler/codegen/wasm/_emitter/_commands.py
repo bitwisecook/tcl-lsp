@@ -633,10 +633,10 @@ class _WasmEmitterCmdMixin(_Base):
                     ogi_idx = self._shared_imports["tcl_obj_get_int"]
                     self._emit_local_get(target_idx)
                     self._emit_call(aexist_idx)
-                    self._emit_call(ogi_idx)   # i64: 0 or 1
+                    self._emit_call(ogi_idx)  # i64: 0 or 1
                     self._emit_local_get(target_idx)
                     self._emit_call(gexist_idx)
-                    self._emit_call(ogi_idx)   # i64: 0 or 1
+                    self._emit_call(ogi_idx)  # i64: 0 or 1
                     self._emit(WasmOp.I64_OR)  # i64: 1 if either exists
                     self._emit_box_int()
                     return

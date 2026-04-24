@@ -160,4 +160,6 @@ class TestRegexpCompNative:
 
     def test_regexpcomp(self) -> None:
         results = _run_test_file("regexpComp.test")
-        _check_results(results, KNOWN_FAILURES_REGEXPCOMP, "regexpComp.test", expect_zero_total=True)
+        _check_results(
+            results, KNOWN_FAILURES_REGEXPCOMP, "regexpComp.test", expect_zero_total=True
+        )

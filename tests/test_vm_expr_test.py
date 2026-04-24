@@ -246,7 +246,9 @@ class TestCompExprOldNative:
 
     def test_compexpr_old(self) -> None:
         results = _run_test_file("compExpr-old.test")
-        _check_results(results, KNOWN_FAILURES_COMPEXPR_OLD, "compExpr-old.test", expect_zero_total=True)
+        _check_results(
+            results, KNOWN_FAILURES_COMPEXPR_OLD, "compExpr-old.test", expect_zero_total=True
+        )
 
 
 class TestCompExprNative:

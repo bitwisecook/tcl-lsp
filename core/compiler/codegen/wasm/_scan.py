@@ -79,6 +79,7 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
         "sin": "tcl_math_sin",
         "cos": "tcl_math_cos",
         "fabs": "tcl_math_fabs",
+        "abs": "tcl_math_fabs",
         "double": "tcl_math_double",
         "float": "tcl_math_double",
         "round": "tcl_math_round",
@@ -358,8 +359,10 @@ def _scan_needed_imports(
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD):
                     _ARITH_IMPORT2 = {
-                        BinOp.ADD: "tcl_arith_add", BinOp.SUB: "tcl_arith_sub",
-                        BinOp.MUL: "tcl_arith_mul", BinOp.DIV: "tcl_arith_div",
+                        BinOp.ADD: "tcl_arith_add",
+                        BinOp.SUB: "tcl_arith_sub",
+                        BinOp.MUL: "tcl_arith_mul",
+                        BinOp.DIV: "tcl_arith_div",
                         BinOp.MOD: "tcl_arith_mod",
                     }
                     imp2 = _ARITH_IMPORT2.get(op)
@@ -378,12 +381,19 @@ def _scan_needed_imports(
                 _scan_expr(f)
             case ExprCall(function=func, args=args):
                 _MATH_FUNC_IMPORT2 = {
-                    "log": "tcl_math_log", "sqrt": "tcl_math_sqrt",
-                    "exp": "tcl_math_exp", "log10": "tcl_math_log10",
-                    "sin": "tcl_math_sin", "cos": "tcl_math_cos",
-                    "fabs": "tcl_math_fabs", "double": "tcl_math_double",
-                    "float": "tcl_math_double", "round": "tcl_math_round",
-                    "int": "tcl_math_int", "entier": "tcl_math_int",
+                    "log": "tcl_math_log",
+                    "sqrt": "tcl_math_sqrt",
+                    "exp": "tcl_math_exp",
+                    "log10": "tcl_math_log10",
+                    "sin": "tcl_math_sin",
+                    "cos": "tcl_math_cos",
+                    "fabs": "tcl_math_fabs",
+                    "abs": "tcl_math_fabs",
+                    "double": "tcl_math_double",
+                    "float": "tcl_math_double",
+                    "round": "tcl_math_round",
+                    "int": "tcl_math_int",
+                    "entier": "tcl_math_int",
                     "wide": "tcl_math_int",
                 }
                 imp2 = _MATH_FUNC_IMPORT2.get(func)

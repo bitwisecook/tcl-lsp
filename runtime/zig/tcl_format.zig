@@ -296,6 +296,13 @@ fn emit_str(
 /// Format a float value into buf with the given decimal precision.
 /// Returns number of bytes written.
 fn fmt_float_decimal(buf: []u8, value: f64, precision: usize) usize {
+    // Cap precision at 17 — the maximum number of decimal digits a
+    // 64-bit IEEE 754 double can represent distinctly.  This is also
+    // below the fractional ``fbuf: [20]u8`` capacity, so the loop
+    // below can't overflow.  User-supplied ``format %.30f 1.2`` falls
+    // back to 17 fractional digits rather than panicking on the
+    // out-of-bounds write that ``[20]u8`` would otherwise permit.
+    const cap_precision: usize = if (precision > 17) 17 else precision;
     // Handle sign.
     var off: usize = 0;
     var v = value;
@@ -307,7 +314,7 @@ fn fmt_float_decimal(buf: []u8, value: f64, precision: usize) usize {
     // Scale to extract integer and fractional parts at the desired precision.
     // Use a power-of-10 multiplier.
     var scale: f64 = 1.0;
-    for (0..precision) |_| scale *= 10.0;
+    for (0..cap_precision) |_| scale *= 10.0;
     const rounded = @round(v * scale);
     const int_part: u64 = @intFromFloat(@trunc(rounded / scale));
     const frac_raw: u64 = @intFromFloat(@round(rounded - @as(f64, @floatFromInt(int_part)) * scale));
@@ -340,16 +347,18 @@ fn fmt_float_decimal(buf: []u8, value: f64, precision: usize) usize {
         buf[off] = ibuf[i];
         off += 1;
     }
-    if (precision == 0) return off;
+    if (cap_precision == 0) return off;
     // Decimal point.
     if (off >= buf.len) return off;
     buf[off] = '.';
     off += 1;
-    // Write fractional digits (zero-padded on the left to `precision` digits).
+    // Write fractional digits (zero-padded on the left to `cap_precision`
+    // digits).  ``cap_precision`` is guaranteed ≤ 17 (see above) so this
+    // fits in the 20-byte fbuf.
     var fbuf: [20]u8 = undefined;
     var flen: usize = 0;
     var ftmp = frac_raw;
-    for (0..precision) |_| {
+    for (0..cap_precision) |_| {
         fbuf[flen] = @as(u8, @intCast(ftmp % 10)) + '0';
         ftmp /= 10;
         flen += 1;

@@ -28,6 +28,7 @@ class _WasmEmitterCtrlMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterExprMixin
         def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_expr_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_literal(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
         def _emit_stmt(self, *a: Any, **kw: Any) -> Any: ...
@@ -255,7 +256,7 @@ class _WasmEmitterCtrlMixin(_Base):
             # Build groups: consecutive fallthrough arms share a body.
             # Each group is (list_of_patterns, body).  "default" arms are
             # excluded here and handled separately after the chain.
-            groups: list[tuple[list[str], object]] = []
+            groups: list[tuple[list[str], IRScript]] = []
             pending: list[str] = []
             for arm in arms:
                 if arm.pattern == "default":
