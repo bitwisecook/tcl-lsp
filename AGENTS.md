@@ -104,6 +104,36 @@ The project uses GNU Make. Key targets:
 | `make format-py`   | Auto-fix Python formatting with Ruff     |
 | `make compile`     | Compile the TypeScript extension         |
 | `make vsix`        | Build the .vsix VS Code extension        |
+| `make check-wasm-parity` | Verify WASM command parity (registry vs Zig runtime) against baseline |
+| `make snapshot-wasm-parity` | Refresh the WASM parity baseline after intentional registry/runtime changes |
+
+## WASM command parity
+
+The Python command registry (`core/commands/registry/tcl/`) is the
+**source of truth** for which Tcl 8.4-9.0 commands exist.  Every command
+must have one of:
+
+- a real Zig handler in `runtime/zig/cmds/*.zig` (visible in
+  `tcl_cmd_table.zig`'s `BUILTINS` slice),
+- a trapping stub in `runtime/zig/tcl_cmd_dispatch.zig` (raises
+  `unsupported command: X`), or
+- an explicit "not required" classification (currently only the
+  `tcl::mathop::*` prefix-form operators).
+
+`scripts/check_wasm_command_parity.py` walks all four locations
+(registry, BUILTINS, fallback dispatch, `_imports.py`) and compares the
+results to `tests/baselines/wasm_command_parity.json`.  CI fails on
+regression:
+
+- a command moves from a better status to a worse one,
+- a new command appears in the registry without runtime backing,
+- a new orphan handler appears in the Zig runtime, or
+- a Python `_RUNTIME_IMPORTS` entry references a Zig export that
+  doesn't exist.
+
+When you intentionally improve the parity (add a handler, convert a
+silent stub to a trap), run `make snapshot-wasm-parity` to update the
+baseline and commit it alongside the change.
 
 ## Workflow requirements
 

@@ -327,8 +327,16 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 	@echo ""
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
+check-wasm-parity: $(UV_STAMP) ## Check WASM command parity (registry vs Zig runtime) against tests/baselines/wasm_command_parity.json
+	@echo "==> Checking WASM command parity"
+	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --check
+
+snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity.json from current sources
+	@echo "==> Snapshotting WASM command parity baseline"
+	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --snapshot
+
 # Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
+_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
 _prep-pr-tests: test-py test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
