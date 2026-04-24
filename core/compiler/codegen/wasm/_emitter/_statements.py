@@ -962,24 +962,9 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_i32_const(0)
             return
 
-        # info sub-commands — keep result on stack
-        if command == "info" and args:
-            self._emit_info_value(args)
-            return
-
         # lassign — keep leftover-list result on stack
         if command == "lassign" and args:
             self._emit_cmd_lassign(args, defs, keep_on_stack=True)
-            return
-
-        # clock — keep timer result on stack
-        if command == "clock" and args:
-            self._emit_clock_value(args)
-            return
-
-        # array subcommand in tail position — keep result on stack
-        if command == "array" and args:
-            self._emit_array_subcmd_value(args)
             return
 
         # uplevel in tail position — keep eval result on stack.
