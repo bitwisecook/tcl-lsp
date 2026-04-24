@@ -18,6 +18,9 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         # tee'd back into that local).  Every other subcommand goes
         # through the generic import-dispatch; void-result imports get
         # a ``i32.const 0`` pushed in place of a missing return value.
+        # Unknown sub-commands / missing imports fall through to the
+        # eval-fallback path so the caller sees a real ``bad subcommand``
+        # error rather than a silent null.
         if args:
             subcmd = args[0]
             sri = subcommand_runtime_import_for("dict", subcmd)
@@ -41,7 +44,11 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
                     if not sri.results:
                         emitter._emit_i32_const(0)
                 return True
-        emitter._emit_i32_const(0)
+        # Unknown subcommand (or no subcommand at all) — delegate to
+        # the interpreter so it raises Tcl's native ``bad subcommand``
+        # error; ``tcl_eval``'s i32 result satisfies the tail
+        # dispatcher's value-stack expectation.
+        emitter._emit_eval_fallback("dict", args)
         return True
     if not args:
         emitter._emit_unsupported_trap("dict (no subcommand)")
