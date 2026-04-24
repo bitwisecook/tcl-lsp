@@ -16,11 +16,13 @@ def _emit_string(
 ) -> bool:
     """``string subcommand ...`` — dispatch to runtime import (i32 args)."""
     if context is EmitContext.VALUE:
-        # Tail / implicit-return: the result stays on the operand stack.
-        # Runtime imports that return ``i32`` already leave one there;
-        # void-result imports get a ``i32.const 0`` pushed to fill in
-        # an empty-string result.  Unknown subcommands / missing imports
-        # produce a null TclObj.
+        # Tail / implicit-return: the result must stay on the operand
+        # stack.  Runtime imports that return ``i32`` leave one there;
+        # void-result imports get an ``i32.const 0`` pushed to fill in
+        # an empty-string result.  Unknown sub-commands / missing
+        # imports fall through to the eval-fallback path so the caller
+        # sees a real ``bad subcommand`` / ``unknown command`` error
+        # rather than a silent empty result.
         if args:
             subcmd = args[0]
             if subcmd == "is" and len(args) >= 3:
@@ -43,7 +45,11 @@ def _emit_string(
                 if not sri.results:
                     emitter._emit_i32_const(0)
                 return True
-        emitter._emit_i32_const(0)
+        # Unknown subcommand (or no subcommand at all).  Delegate to
+        # the interpreter so it raises Tcl's native ``bad subcommand``
+        # error and the tail dispatcher's value-stack expectation is
+        # satisfied by ``tcl_eval``'s i32 result.
+        emitter._emit_eval_fallback("string", args)
         return True
     if not args:
         emitter._emit_unsupported_trap("string (no subcommand)")
