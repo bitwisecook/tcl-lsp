@@ -50,5 +50,10 @@ class LrepeatCommand(CommandDef):
             inferred_storage_type=StorageType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.INT, shimmers=True)},
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_repeat", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_list_repeat",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

@@ -50,5 +50,10 @@ class ConcatCommand(CommandDef):
             return_type=TclType.LIST,
             arg_type_resolver=resolve_concat,
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_concat", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_concat",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

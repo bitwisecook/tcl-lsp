@@ -50,5 +50,10 @@ class SplitCommand(CommandDef):
             return_type=TclType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.STRING, shimmers=True)},
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_split", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_split",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

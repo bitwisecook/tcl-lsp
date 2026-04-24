@@ -54,5 +54,10 @@ class CoroutineCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_coroutine", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_coroutine",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

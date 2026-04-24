@@ -50,5 +50,10 @@ class JoinCommand(CommandDef):
             return_type=TclType.STRING,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_join", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_join",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

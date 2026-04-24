@@ -209,7 +209,12 @@ class PwdCommand(CommandDef):
             hover=HoverSnippet(summary="Return current working directory"),
             validation=ValidationSpec(arity=Arity(0, 0)),
             returns_path=True,
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_pwd", argc=0),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_pwd",
+                argc=0,
+                params=(),
+                results=("i32",),
+            ),
         )
 
 

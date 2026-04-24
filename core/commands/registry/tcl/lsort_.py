@@ -48,5 +48,10 @@ class LsortCommand(CommandDef):
             arg_type_resolver=resolve_lsort,
             inferred_storage_type=StorageType.LIST,
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_sort", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_list_sort",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

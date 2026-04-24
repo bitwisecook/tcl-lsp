@@ -633,5 +633,10 @@ class FileCommand(CommandDef):
                 ),
             ),
             has_destructive_ops=True,
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_file", argc=3),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_file",
+                argc=3,
+                params=("i32", "i32", "i32"),
+                results=("i32",),
+            ),
         )

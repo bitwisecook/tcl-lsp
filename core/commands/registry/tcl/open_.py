@@ -91,5 +91,10 @@ class OpenCommand(CommandDef):
                 ),
             ),
             opens_channel=True,
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_open", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_open",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

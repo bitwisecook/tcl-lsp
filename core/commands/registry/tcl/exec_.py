@@ -52,7 +52,12 @@ class ExecCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_exec", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_exec",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )
 
     @classmethod

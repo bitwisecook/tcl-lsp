@@ -53,5 +53,10 @@ class ErrorCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_error", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_error",
+                argc=1,
+                params=("i32",),
+                results=(),
+            ),
         )

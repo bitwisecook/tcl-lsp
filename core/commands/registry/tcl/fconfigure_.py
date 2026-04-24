@@ -64,5 +64,10 @@ class FconfigureCommand(CommandDef):
                 ),
             ),
             configures_channel=True,
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_fconfigure", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_fconfigure",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

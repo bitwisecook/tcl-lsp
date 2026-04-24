@@ -470,7 +470,12 @@ class ChanCommand(CommandDef):
             ),
             configures_channel=True,
             has_destructive_ops=True,
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_chan", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_chan",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )
 
     @classmethod

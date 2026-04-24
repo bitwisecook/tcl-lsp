@@ -52,5 +52,10 @@ class LsearchCommand(CommandDef):
             return_type=TclType.INT,
             arg_type_resolver=resolve_lsearch,
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_search", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_list_search",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

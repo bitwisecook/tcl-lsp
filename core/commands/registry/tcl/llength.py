@@ -50,5 +50,10 @@ class LlengthCommand(CommandDef):
             return_type=TclType.INT,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_length", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_list_length",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

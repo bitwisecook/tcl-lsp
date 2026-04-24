@@ -53,6 +53,8 @@ class PutsCommand(CommandDef):
                 import_key="tcl_puts",
                 argc=1,
                 nontrapping=True,
+                params=("i32",),
+                results=("i32",),
             ),
             taint_output_sink="T101",
             return_type=TclType.STRING,
