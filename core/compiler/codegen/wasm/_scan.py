@@ -63,6 +63,31 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     except Exception:
         return
 
+    _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD})
+    _ARITH_IMPORT = {
+        BinOp.ADD: "tcl_arith_add",
+        BinOp.SUB: "tcl_arith_sub",
+        BinOp.MUL: "tcl_arith_mul",
+        BinOp.DIV: "tcl_arith_div",
+        BinOp.MOD: "tcl_arith_mod",
+    }
+    _MATH_FUNC_IMPORT = {
+        "log": "tcl_math_log",
+        "sqrt": "tcl_math_sqrt",
+        "exp": "tcl_math_exp",
+        "log10": "tcl_math_log10",
+        "sin": "tcl_math_sin",
+        "cos": "tcl_math_cos",
+        "fabs": "tcl_math_fabs",
+        "abs": "tcl_math_fabs",
+        "double": "tcl_math_double",
+        "float": "tcl_math_double",
+        "round": "tcl_math_round",
+        "int": "tcl_math_int",
+        "entier": "tcl_math_int",
+        "wide": "tcl_math_int",
+    }
+
     def _walk(n: object) -> None:
         match n:
             case ExprBinary(op=op, left=left, right=right):
@@ -74,6 +99,13 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.IN, BinOp.NI):
                     needed.add("tcl_list_contains")
+                if op in _ARITH_OPS:
+                    imp = _ARITH_IMPORT.get(op)
+                    if imp:
+                        needed.add(imp)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
                 _walk(left)
                 _walk(right)
             case ExprUnary(operand=operand):
@@ -82,7 +114,13 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                 _walk(cond)
                 _walk(t)
                 _walk(f)
-            case ExprCall(args=args):
+            case ExprCall(function=func, args=args):
+                imp = _MATH_FUNC_IMPORT.get(func)
+                if imp:
+                    needed.add(imp)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
                 for arg in args:
                     _walk(arg)
 
@@ -163,6 +201,8 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     subcmd = parts[1]
                     if subcmd == "exists":
                         needed.add("tcl_global_exists")
+                        needed.add("tcl_array_exists")
+                        needed.add("tcl_obj_get_int")
                         needed.add("tcl_obj_new_int")
                         # FRAME-tagged vars (per var-escape analysis)
                         # route through this runtime helper for
@@ -317,6 +357,20 @@ def _scan_needed_imports(
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD):
+                    _ARITH_IMPORT2 = {
+                        BinOp.ADD: "tcl_arith_add",
+                        BinOp.SUB: "tcl_arith_sub",
+                        BinOp.MUL: "tcl_arith_mul",
+                        BinOp.DIV: "tcl_arith_div",
+                        BinOp.MOD: "tcl_arith_mod",
+                    }
+                    imp2 = _ARITH_IMPORT2.get(op)
+                    if imp2:
+                        needed.add(imp2)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
                 _scan_expr(left)
                 _scan_expr(right)
             case ExprUnary(operand=operand):
@@ -325,7 +379,29 @@ def _scan_needed_imports(
                 _scan_expr(cond)
                 _scan_expr(t)
                 _scan_expr(f)
-            case ExprCall(args=args):
+            case ExprCall(function=func, args=args):
+                _MATH_FUNC_IMPORT2 = {
+                    "log": "tcl_math_log",
+                    "sqrt": "tcl_math_sqrt",
+                    "exp": "tcl_math_exp",
+                    "log10": "tcl_math_log10",
+                    "sin": "tcl_math_sin",
+                    "cos": "tcl_math_cos",
+                    "fabs": "tcl_math_fabs",
+                    "abs": "tcl_math_fabs",
+                    "double": "tcl_math_double",
+                    "float": "tcl_math_double",
+                    "round": "tcl_math_round",
+                    "int": "tcl_math_int",
+                    "entier": "tcl_math_int",
+                    "wide": "tcl_math_int",
+                }
+                imp2 = _MATH_FUNC_IMPORT2.get(func)
+                if imp2:
+                    needed.add(imp2)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
                 for arg in args:
                     _scan_expr(arg)
 
@@ -506,6 +582,8 @@ def _scan_needed_imports(
                     # through tcl_info_dispatch.
                     if args[0] == "exists":
                         needed.add("tcl_global_exists")
+                        needed.add("tcl_array_exists")
+                        needed.add("tcl_obj_get_int")
                         needed.add("tcl_obj_new_int")
                         # Literal-name existence in FRAME-tagged vars
                         # dispatches through the runtime helper.
@@ -575,7 +653,10 @@ def _scan_needed_imports(
                     for a in args:
                         if _parse_array_ref(a) is not None:
                             needed.add("tcl_array_unset_element")
-                            break
+                        else:
+                            # Whole-variable unset: may need array_unset to
+                            # clear an array table when the var is an alias.
+                            needed.add("tcl_array_unset")
                 elif command == "catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")

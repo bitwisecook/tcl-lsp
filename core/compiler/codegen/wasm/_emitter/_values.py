@@ -39,6 +39,7 @@ class _WasmEmitterValuesMixin(_Base):
         def _resolve_proc(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterExprMixin
         def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_expr_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _split_command_subst(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCtrlMixin
         def _emit_catch_from_args(self, *a: Any, **kw: Any) -> Any: ...
@@ -309,7 +310,7 @@ class _WasmEmitterValuesMixin(_Base):
         cmd_name = parts[0]
         cmd_args = parts[1:]
 
-        # [expr {...}] — compile expression and box to TclObj.
+        # [expr {...}] — compile expression and leave TclObj on stack.
         # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
@@ -319,8 +320,7 @@ class _WasmEmitterValuesMixin(_Base):
 
             try:
                 nested_expr = parse_expr(expr_arg)
-                self._emit_expr(nested_expr)
-                self._emit_box_int()
+                self._emit_expr_obj(nested_expr)
                 return
             except Exception:
                 pass
@@ -715,17 +715,12 @@ class _WasmEmitterValuesMixin(_Base):
             self._emit_i64_const(int_val)
             self._emit_call(new_int_idx)
         except ValueError:
-            try:
-                float_val = float(value)
-                self._emit_i64_const(int(float_val))
-                self._emit_call(new_int_idx)
-            except ValueError:
-                offset = self._intern_string(value)
-                encoded = value.encode("utf-8", errors="surrogatepass")
-                # data_ptr = segment offset + 4 (skip length prefix)
-                self._emit_i32_const(offset + 4)
-                self._emit_i32_const(len(encoded))
-                self._emit_call(new_str_idx)
+            offset = self._intern_string(value)
+            encoded = value.encode("utf-8", errors="surrogatepass")
+            # data_ptr = segment offset + 4 (skip length prefix)
+            self._emit_i32_const(offset + 4)
+            self._emit_i32_const(len(encoded))
+            self._emit_call(new_str_idx)
 
     def _emit_box_int(self) -> None:
         """Convert i64 on stack to i32 TclObj pointer via tcl_obj_new_int."""

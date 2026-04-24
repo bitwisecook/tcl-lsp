@@ -287,8 +287,14 @@ pub fn is_deleted(interp: u32) bool {
 /// Tcl_procs offsets / flag constants we reach into without
 /// importing ``tcl_procs.zig`` (which imports ``tcl_ns.zig`` which
 /// would create a cycle if we imported back).  Kept in sync with
-/// ``tcl_procs.zig`` via the ``comptime`` assert in that module.
-const COMMAND_SIZE: u32 = 40;
+/// ``tcl_procs.zig`` via the ``comptime`` assert below (using the
+/// ``tcl_ns.tcl_procs_constants`` shadow that ``tcl_procs.zig``
+/// already verifies against itself).
+const COMMAND_SIZE: u32 = 44;
+comptime {
+    if (COMMAND_SIZE != tcl_ns.tcl_procs_constants.COMMAND_SIZE)
+        @compileError("tcl_interp_registry.COMMAND_SIZE out of sync with tcl_ns.tcl_procs_constants.COMMAND_SIZE");
+}
 const OFF_CMD_NAME_PTR: u32 = 0;
 const OFF_CMD_NAME_LEN: u32 = 4;
 const OFF_CMD_FLAGS: u32 = 8;

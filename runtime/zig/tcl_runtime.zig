@@ -35,6 +35,7 @@ const tcl_chan = @import("tcl_chan.zig");
 const tcl_trace = @import("tcl_trace.zig");
 const tcl_fs = @import("tcl_fs.zig");
 const tcl_format = @import("tcl_format.zig");
+const tcl_arith = @import("tcl_arith.zig");
 const tcl_dispatch = @import("tcl_dispatch.zig");
 const tcl_cmd_dispatch = @import("tcl_cmd_dispatch.zig");
 const tcl_rename = @import("tcl_rename.zig");
@@ -50,6 +51,8 @@ pub const memcpy = tcl_obj.memcpy;
 pub const obj_new_string = tcl_obj.obj_new_string;
 pub const obj_new_int = tcl_obj.obj_new_int;
 pub const obj_get_int = tcl_obj.obj_get_int;
+pub const obj_new_float = tcl_obj.obj_new_float;
+pub const obj_get_float = tcl_obj.obj_get_float;
 pub const obj_new_string_copy = tcl_obj.obj_new_string_copy;
 pub const obj_ensure_string = tcl_obj.obj_ensure_string;
 pub const list_count_elements = tcl_obj.list_count_elements;
@@ -382,6 +385,25 @@ comptime {
     _ = &tcl_array.array_unset;
     _ = &tcl_array.array_unset_element;
     _ = &tcl_array.array_names;
+    // tcl_arith exports — float-aware arithmetic helpers
+    _ = &tcl_arith.tcl_arith_add;
+    _ = &tcl_arith.tcl_arith_sub;
+    _ = &tcl_arith.tcl_arith_mul;
+    _ = &tcl_arith.tcl_arith_div;
+    _ = &tcl_arith.tcl_arith_mod;
+    _ = &tcl_arith.tcl_math_double;
+    _ = &tcl_arith.tcl_math_int;
+    _ = &tcl_arith.tcl_math_round;
+    _ = &tcl_arith.tcl_math_log;
+    _ = &tcl_arith.tcl_math_sqrt;
+    _ = &tcl_arith.tcl_math_exp;
+    _ = &tcl_arith.tcl_math_log10;
+    _ = &tcl_arith.tcl_math_sin;
+    _ = &tcl_arith.tcl_math_cos;
+    _ = &tcl_arith.tcl_math_fabs;
+    // obj float exports
+    _ = &tcl_obj.obj_new_float;
+    _ = &tcl_obj.obj_get_float;
     // tcl_interp exports
     _ = &interp.tcl_eval;
     _ = &interp.ns_set;

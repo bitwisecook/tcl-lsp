@@ -39,6 +39,12 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   hover ranges point at the wrong span.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
+- [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)
+  — `expr {1 / 0}` returns 0 in compiled WASM instead of raising
+  `divide by zero`.
+- [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
+  — tcltest's `numTests(Failed)` reads as an empty string in the
+  compiled counter-bundle run.
 
 ## Q&A
 

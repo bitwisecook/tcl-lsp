@@ -308,6 +308,12 @@ class _WasmEmitterBase:
     def _emit_i32_const(self, value: int) -> None:
         self._emit(WasmOp.I32_CONST, _leb128_signed(value))
 
+    def _emit_f64_const(self, value: float) -> None:
+        """Emit an f64.const instruction (8-byte little-endian IEEE 754)."""
+        import struct
+
+        self._emit(WasmOp.F64_CONST, struct.pack("<d", value))
+
     def _emit_local_get(self, idx: int) -> None:
         self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
 
@@ -362,7 +368,23 @@ class _WasmEmitterBase:
             if proc.body_source is None:
                 continue
             has_args_tail = bool(proc.params and proc.params[-1] == "args")
-            self._compiled_proc_queue.append((qname, len(proc.params), has_args_tail))
+            n_required = self._compute_n_required(qname, proc.params)
+            self._compiled_proc_queue.append((qname, len(proc.params), has_args_tail, n_required))
+
+    def _compute_n_required(self, qname: str, params: tuple[str, ...]) -> int:
+        """Count required (no-default) positional params, excluding ``args`` tail."""
+        if not params:
+            return 0
+        has_tail = bool(params and params[-1] == "args")
+        fixed_count = len(params) - 1 if has_tail else len(params)
+        defaults = self._proc_defaults.get(qname, ())
+        count = 0
+        for i in range(fixed_count):
+            # None → required; any other value → has a default → optional.
+            default_val = defaults[i] if i < len(defaults) else None
+            if default_val is None:
+                count += 1
+        return count
 
     def _record_stmt_context(self, stmt: IRStatement) -> None:
         """Update the 'current statement' tracking the diag machinery reads.
@@ -397,11 +419,12 @@ class _WasmEmitterBase:
         if queue:
             reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
             if reg_idx is not None:
-                for qname, n_params, has_args_tail in queue:
+                for qname, n_params, has_args_tail, n_required in queue:
                     self._emit_obj_literal(qname)
                     self._emit_i32_const(n_params)
                     self._emit_i32_const(1)  # func_idx marker (any non-zero)
                     self._emit_i32_const(1 if has_args_tail else 0)
+                    self._emit_i32_const(n_required)
                     self._emit_call(reg_idx)
                     self._emit(WasmOp.DROP)
 

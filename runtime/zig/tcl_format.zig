@@ -293,6 +293,87 @@ fn emit_str(
     return off;
 }
 
+/// Format a float value into buf with the given decimal precision.
+/// Returns number of bytes written.
+fn fmt_float_decimal(buf: []u8, value: f64, precision: usize) usize {
+    // Cap precision at 17 — the maximum number of decimal digits a
+    // 64-bit IEEE 754 double can represent distinctly.  This is also
+    // below the fractional ``fbuf: [20]u8`` capacity, so the loop
+    // below can't overflow.  User-supplied ``format %.30f 1.2`` falls
+    // back to 17 fractional digits rather than panicking on the
+    // out-of-bounds write that ``[20]u8`` would otherwise permit.
+    const cap_precision: usize = if (precision > 17) 17 else precision;
+    // Handle sign.
+    var off: usize = 0;
+    var v = value;
+    if (v < 0.0) {
+        buf[off] = '-';
+        off += 1;
+        v = -v;
+    }
+    // Scale to extract integer and fractional parts at the desired precision.
+    // Use a power-of-10 multiplier.
+    var scale: f64 = 1.0;
+    for (0..cap_precision) |_| scale *= 10.0;
+    const rounded = @round(v * scale);
+    const int_part: u64 = @intFromFloat(@trunc(rounded / scale));
+    const frac_raw: u64 = @intFromFloat(@round(rounded - @as(f64, @floatFromInt(int_part)) * scale));
+    // Write integer part.
+    var ibuf: [20]u8 = undefined;
+    var ilen: usize = 0;
+    var tmp = int_part;
+    if (tmp == 0) {
+        ibuf[0] = '0';
+        ilen = 1;
+    } else {
+        while (tmp > 0) {
+            ibuf[ilen] = @as(u8, @intCast(tmp % 10)) + '0';
+            tmp /= 10;
+            ilen += 1;
+        }
+        // Reverse.
+        var l: usize = 0;
+        var r: usize = ilen - 1;
+        while (l < r) {
+            const c = ibuf[l];
+            ibuf[l] = ibuf[r];
+            ibuf[r] = c;
+            l += 1;
+            r -= 1;
+        }
+    }
+    for (0..ilen) |i| {
+        if (off >= buf.len) return off;
+        buf[off] = ibuf[i];
+        off += 1;
+    }
+    if (cap_precision == 0) return off;
+    // Decimal point.
+    if (off >= buf.len) return off;
+    buf[off] = '.';
+    off += 1;
+    // Write fractional digits (zero-padded on the left to `cap_precision`
+    // digits).  ``cap_precision`` is guaranteed ≤ 17 (see above) so this
+    // fits in the 20-byte fbuf.
+    var fbuf: [20]u8 = undefined;
+    var flen: usize = 0;
+    var ftmp = frac_raw;
+    for (0..cap_precision) |_| {
+        fbuf[flen] = @as(u8, @intCast(ftmp % 10)) + '0';
+        ftmp /= 10;
+        flen += 1;
+    }
+    // fbuf is digits in reverse (LSB first), so reverse and write.
+    var fi: usize = flen;
+    while (fi > 0) {
+        fi -= 1;
+        if (off >= buf.len) return off;
+        buf[off] = fbuf[fi];
+        off += 1;
+    }
+    return off;
+}
+
 fn emit_float(
     out: [*]u8,
     off_in: u32,
@@ -302,25 +383,28 @@ fn emit_float(
     precision: i32,
     conv: u8,
 ) u32 {
-    // Limitations — the runtime has no float TclObj type yet, so
-    // we can only pass floats through as their string
-    // representation.  The conversion spec (``%f`` / ``%e`` /
-    // ``%g``) and precision are IGNORED: we copy the arg's
-    // original string verbatim with width-padding.  This is
-    // sufficient for tcltest's uses (``format %3.1f 5.1`` —
-    // input is already ``5.1``) and for any ``string equal``
-    // check, but real rounding / scientific-notation / %g
-    // trailing-zero trimming are NOT supported.  Callers that
-    // need them should fall back to the interpreter's ``expr``
-    // with explicit rounding.
     var off = off_in;
     if (arg == 0) return off;
-    const s = obj_ensure_string(arg);
-    if (s.len == 0) return off;
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    _ = precision;
-    _ = conv;
-    const slen: u32 = s.len;
+    const fval = obj.obj_get_float(arg);
+    const prec: usize = if (precision >= 0) @intCast(precision) else 6;
+    var tmp_buf: [64]u8 = undefined;
+    const slen: u32 = switch (conv) {
+        'e', 'E' => blk: {
+            // Scientific notation: use std.fmt with fixed precision inline.
+            // For now fall back to decimal; tcltest tests don't use %e.
+            const n = fmt_float_decimal(&tmp_buf, fval, prec);
+            break :blk @as(u32, @intCast(n));
+        },
+        'g', 'G' => blk: {
+            // %g: shortest representation. Use std.fmt default.
+            const s = std.fmt.bufPrint(&tmp_buf, "{d}", .{fval}) catch tmp_buf[0..1];
+            break :blk @as(u32, @intCast(s.len));
+        },
+        else => blk: {
+            const n = fmt_float_decimal(&tmp_buf, fval, prec);
+            break :blk @as(u32, @intCast(n));
+        },
+    };
     const pad: u32 = if (width > slen) width - slen else 0;
     var k: u32 = 0;
     while (k < pad) : (k += 1) {
@@ -329,7 +413,7 @@ fn emit_float(
     }
     k = 0;
     while (k < slen) : (k += 1) {
-        out[off] = sp[k];
+        out[off] = tmp_buf[k];
         off += 1;
     }
     return off;

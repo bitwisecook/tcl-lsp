@@ -267,7 +267,7 @@ def test_rename_compiled_proc_preserves_export_name(runtime: RuntimeHandle):
 
     root = runtime.root()
     name_obj = runtime.new_string("::compiled_proc")
-    proc_register_compiled(runtime.store, name_obj, 0, 7, 0)
+    proc_register_compiled(runtime.store, name_obj, 0, 7, 0, 0)
 
     # Sidecar captures the registration-time FQN.
     bucket = proc_lookup(runtime.store, runtime.new_string("::compiled_proc"))
