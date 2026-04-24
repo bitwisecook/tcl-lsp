@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, OptionSpec, ValidationSpec
+from ..models import CommandSpec, FormKind, FormSpec, OptionSpec, ValidationSpec, WasmRuntimeImport
 from ..signatures import Arity
 from ._base import register
 from .shimmer_resolvers import resolve_lsearch
@@ -52,4 +52,5 @@ class LsearchCommand(CommandDef):
             return_type=TclType.INT,
             arg_type_resolver=resolve_lsearch,
             side_effect_hints=(),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_search", argc=2),
         )

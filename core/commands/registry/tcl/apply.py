@@ -6,7 +6,14 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ._base import register
 
@@ -43,4 +50,5 @@ class ApplyCommand(CommandDef):
                     target=SideEffectTarget.PROC_DEFINITION, connection_side=ConnectionSide.NONE
                 ),
             ),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_apply", argc=2),
         )

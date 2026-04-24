@@ -5,7 +5,15 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, SubCommand, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    SubCommand,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ._base import register
 
@@ -86,4 +94,5 @@ class TraceCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_trace", argc=2),
         )

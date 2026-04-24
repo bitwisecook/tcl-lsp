@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from .._base import CommandDef
 from ..dialects import DIALECTS_EXCEPT_IRULES
-from ..models import CommandSpec, HoverSnippet, ValidationSpec
+from ..models import CommandSpec, HoverSnippet, ValidationSpec, WasmRuntimeImport
 from ..signatures import Arity
 from ._base import register
 
@@ -209,6 +209,7 @@ class PwdCommand(CommandDef):
             hover=HoverSnippet(summary="Return current working directory"),
             validation=ValidationSpec(arity=Arity(0, 0)),
             returns_path=True,
+            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_pwd", argc=0),
         )
 
 
