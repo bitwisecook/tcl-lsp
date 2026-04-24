@@ -16,8 +16,36 @@ def _emit_string(
 ) -> bool:
     """``string subcommand ...`` — dispatch to runtime import (i32 args)."""
     if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
+        # Tail / implicit-return: the result stays on the operand stack.
+        # Runtime imports that return ``i32`` already leave one there;
+        # void-result imports get a ``i32.const 0`` pushed to fill in
+        # an empty-string result.  Unknown subcommands / missing imports
+        # produce a null TclObj.
+        if args:
+            subcmd = args[0]
+            if subcmd == "is" and len(args) >= 3:
+                is_key = _STRING_IS_IMPORT.get(args[1])
+                if is_key is not None and is_key in emitter._shared_imports:
+                    func_idx = emitter._shared_imports[is_key]
+                    emitter._emit_value(args[-1])
+                    emitter._emit_call(func_idx)
+                    return True
+            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
+            if import_key is not None and import_key in emitter._shared_imports:
+                func_idx = emitter._shared_imports[import_key]
+                spec = _RUNTIME_IMPORTS[import_key]
+                param_count = len(spec[2])
+                sub_args = args[1:]
+                for i in range(min(param_count, len(sub_args))):
+                    emitter._emit_value(sub_args[i])
+                for _ in range(param_count - len(sub_args)):
+                    emitter._emit_i32_const(0)
+                emitter._emit_call(func_idx)
+                if not spec[3]:
+                    emitter._emit_i32_const(0)
+                return True
+        emitter._emit_i32_const(0)
+        return True
     if not args:
         emitter._emit_unsupported_trap("string (no subcommand)")
         return True
