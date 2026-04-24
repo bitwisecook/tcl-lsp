@@ -14,7 +14,11 @@ from pygls.lsp.server import LanguageServer
 
 import lsp.state as _state
 from core.commands.registry.runtime import configure_signatures
-from core.common.user_config import get_all_settings, load_user_config
+from core.common.user_config import (
+    get_all_settings,
+    load_project_config,
+    load_user_config,
+)
 from core.formatting import FormatterConfig
 
 from .workspace.scanner import path_to_uri
@@ -244,20 +248,32 @@ def on_initialized(params: types.InitializedParams) -> None:
     """After client initialization, scan workspace for Tcl files."""
     from core.common.dialect import active_dialect
     from lsp.settings import (
-        _apply_feature_settings,
+        _apply_merged_settings_now,
         _normalise_formatter_settings,
         _pull_and_apply_configuration,
     )
 
-    user_config = load_user_config()
-    config_settings = get_all_settings(user_config)
-    if config_settings:
-        formatting = config_settings.get("formatting")
-        if isinstance(formatting, dict) and formatting:
-            _state.formatter_config = FormatterConfig.from_dict(
-                _normalise_formatter_settings(formatting)
-            )
-        _apply_feature_settings(config_settings)
+    _state.global_config_settings = get_all_settings(load_user_config())
+    # Formatter config is rebuilt fresh from global here rather than via the
+    # layered apply because the layered path only *updates* a dict — a baseline
+    # FormatterConfig instance needs to exist first.
+    formatting = _state.global_config_settings.get("formatting")
+    if isinstance(formatting, dict) and formatting:
+        _state.formatter_config = FormatterConfig.from_dict(
+            _normalise_formatter_settings(formatting)
+        )
+
+    # Discover the project-level config file under each workspace root.
+    ws = _server.workspace  # type: ignore[union-attr]
+    project_settings: dict = {}
+    if ws.root_path:
+        project_settings = get_all_settings(load_project_config(ws.root_path))
+    _state.project_config_settings = project_settings
+
+    # Editor settings arrive later via ``workspace/didChangeConfiguration``;
+    # apply the current (global + project) layers now so server state is
+    # populated before the first analysis pass.
+    _apply_merged_settings_now()
 
     process_start = getattr(_server, "_process_start_time", None)
     if process_start is not None:

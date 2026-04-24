@@ -80,13 +80,24 @@ _IRULES_FLOW_SEVERITY = {
 # Sentinel used by the analyser to mean "suppress all codes on this line".
 _NOQA_ALL = frozenset({"*"})
 
+# Negative key reserved for file-wide ``# tcl-lsp: disable=...`` directives.
+# Mirrors ``core.analysis._analyser._utils._FILE_SUPPRESS_KEY`` — kept in sync
+# here (not imported) so this module stays free of analyser-internal imports.
+_FILE_SUPPRESS_KEY = -1
+
 
 def _is_suppressed(
     code: str,
     line: int,
     suppressed_lines: dict[int, frozenset[str]],
 ) -> bool:
-    """Return True if *code* is suppressed on *line* by an inline ``# noqa`` directive."""
+    """Return True if *code* is suppressed by an inline ``# noqa`` or a
+    top-of-file ``# tcl-lsp: disable=...`` directive."""
+    file_codes = suppressed_lines.get(_FILE_SUPPRESS_KEY)
+    if file_codes is not None and (
+        file_codes is _NOQA_ALL or "*" in file_codes or code in file_codes
+    ):
+        return True
     codes = suppressed_lines.get(line)
     if codes is None:
         return False
