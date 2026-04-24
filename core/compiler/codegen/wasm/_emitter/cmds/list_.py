@@ -8,6 +8,9 @@ from ..._ir import WasmOp
 
 def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``list ?arg ...?`` — variadic list builder; delegates to _emit_list_value."""
+    if context is EmitContext.VALUE:
+        # Tail-context not yet migrated — handled inline in _statements.py.
+        return False
     emitter._emit_list_value(args)
     if defs:
         def_idx = emitter._intern_local(defs[0])
@@ -19,6 +22,9 @@ def _emit_list(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
 
 def _emit_lset(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``lset varName ?index ...? newValue`` — replace a list element."""
+    if context is EmitContext.VALUE:
+        # Tail-context not yet migrated — handled inline in _statements.py.
+        return False
     if len(args) < 2:
         emitter._emit_unsupported_trap("lset (too few args)")
         return True
@@ -65,8 +71,13 @@ def _emit_lset(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
     return True
 
 
-def _emit_lassign(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
+def _emit_lassign(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
     """``lassign list ?varName ...?`` — destructure a list; delegates to _emit_cmd_lassign."""
+    if context is EmitContext.VALUE:
+        # Tail-context not yet migrated — handled inline in _statements.py.
+        return False
     if not args:
         return False
     emitter._emit_cmd_lassign(args, defs, keep_on_stack=False)

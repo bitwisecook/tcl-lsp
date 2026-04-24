@@ -50,9 +50,6 @@ from .._ir import (
     ValType,
     WasmOp,
 )
-from .._parsing import (
-    _parse_array_ref,
-)
 
 
 class _WasmEmitterStmtMixin(_Base):
@@ -953,94 +950,11 @@ class _WasmEmitterStmtMixin(_Base):
             # i32 result stays on the stack
             return
 
-        # set: inline local operations (returns the i32 TclObj)
-        if command == "set" and 1 <= len(args) <= 2:
-            var = args[0]
-            # Inside ``namespace eval ::ns { ... }`` the
-            # fast-local-path is wrong — unqualified writes must
-            # land in ``::ns::<name>``.  Route through the full
-            # write path (which consults ``_block_namespace``
-            # and emits ``tcl_global_set``).
-            in_ns_block = (
-                not self._is_proc
-                and self._block_namespace is not None
-                and self._block_namespace != "::"
-                and _parse_array_ref(var) is None
-            )
-            if var in self._aliases and len(args) >= 2:
-                # Aliased write: route through global set, which returns the value.
-                self._emit_value(args[1])
-                self._emit_var_write_obj_keep(var)
-                return
-            if var in self._aliases:
-                # Aliased read: tcl_global_get leaves value on stack.
-                self._emit_var_read_obj(var)
-                return
-            if in_ns_block:
-                if len(args) >= 2:
-                    self._emit_value(args[1])
-                    self._emit_var_write_obj_keep(var)
-                else:
-                    self._emit_var_read_obj(var)
-                return
-            idx = self._intern_local(var)
-            if len(args) >= 2:
-                self._emit_value(args[1])
-                self._emit_local_tee(idx)
-            else:
-                self._emit_local_get(idx)
-            return
-
-        # incr: returns the new value as i32 TclObj (Tcl semantics)
-        if command == "incr" and 1 <= len(args) <= 2:
-            var = args[0]
-            in_ns_block = (
-                not self._is_proc
-                and self._block_namespace is not None
-                and self._block_namespace != "::"
-                and _parse_array_ref(var) is None
-            )
-            _incr_array_ref = _parse_array_ref(var)
-            _incr_base = _incr_array_ref[0] if _incr_array_ref else var
-            if var in self._aliases or _incr_base in self._aliases or in_ns_block:
-                # Aliased or namespace-scoped incr: load via the
-                # global table, add, store back.
-                self._emit_var_read_obj(var)
-                self._emit_unbox_int()
-                amt = 1
-                if len(args) >= 2:
-                    try:
-                        amt = int(args[1])
-                    except ValueError:
-                        self._emit_value(args[1])
-                        self._emit_unbox_int()
-                        self._emit(WasmOp.I64_ADD)
-                        self._emit_box_int()
-                        self._emit_var_write_obj_keep(var)
-                        return
-                self._emit_i64_const(amt)
-                self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()
-                self._emit_var_write_obj_keep(var)
-                return
-            idx = self._intern_local(var)
-            self._emit_local_get(idx)
-            self._emit_unbox_int()
-            amt = 1
-            if len(args) >= 2:
-                try:
-                    amt = int(args[1])
-                except ValueError:
-                    self._emit_value(args[1])
-                    self._emit_unbox_int()
-                    self._emit(WasmOp.I64_ADD)
-                    self._emit_box_int()
-                    self._emit_local_tee(idx)
-                    return
-            self._emit_i64_const(amt)
-            self._emit(WasmOp.I64_ADD)
-            self._emit_box_int()
-            self._emit_local_tee(idx)
+        # Registry hooks that have been migrated to handle VALUE context
+        # (currently: set, incr).  Hooks return False for commands whose
+        # tail-context is still handled inline below.
+        hook = _REGISTRY.get_wasm_hook(command)
+        if hook is not None and hook(self, args, defs, EmitContext.VALUE):
             return
 
         # return: emit WASM return (handled at call site, but can appear in tail)

@@ -11,8 +11,13 @@ from ..._imports import (
 from ..._ir import WasmOp
 
 
-def _emit_string(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
+def _emit_string(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
     """``string subcommand ...`` — dispatch to runtime import (i32 args)."""
+    if context is EmitContext.VALUE:
+        # Tail-context not yet migrated — handled inline in _statements.py.
+        return False
     if not args:
         emitter._emit_unsupported_trap("string (no subcommand)")
         return True
