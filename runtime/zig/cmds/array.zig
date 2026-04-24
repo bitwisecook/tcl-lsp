@@ -8,7 +8,7 @@ const rt = @import("../tcl_runtime.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
 
-const str_eq = @import("../value/tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
@@ -21,7 +21,7 @@ pub fn eval(words: []const i32) i32 {
     if (words.len < 3) return 0;
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
-    const array_mod = @import("../value/tcl_array.zig");
+    const array_mod = @import("../valtypes/tcl_array.zig");
     if (str_eq(sp, sub.len, "get")) {
         if (words.len >= 4) return array_mod.array_get(words[2], words[3]);
         return array_mod.array_get(words[2], obj_new_string(0, 0));

@@ -5,7 +5,7 @@ const info      = @import("../dispatch/tcl_cmd_info.zig");
 const trace_mod = @import("../interp/tcl_trace.zig");
 const reg       = @import("../dispatch/tcl_cmd_registry.zig");
 
-const str_eq            = @import("../value/tcl_chars.zig").str_eq;
+const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
 const obj_new_string    = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
 

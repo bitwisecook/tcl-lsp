@@ -18,14 +18,14 @@
 // guaranteed layout so a ``@ptrFromInt`` cast points at the right
 // fields without padding surprises.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 
-const ht = @import("../value/hash_table.zig");
-const tcl_array = @import("../value/tcl_array.zig");
+const ht = @import("../valtypes/hash_table.zig");
+const tcl_array = @import("../valtypes/tcl_array.zig");
 
 /// Sub-table bucket size.  All three (child / cmd / var) tables use
 /// the same 12-byte header + 4-byte u32 value layout, which keeps
@@ -871,7 +871,7 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
 // export lists are tiny (~1-10 patterns) so the waste is bounded
 // and the code stays trivial.
 
-const tcl_string = @import("../value/tcl_string.zig");
+const tcl_string = @import("../valtypes/tcl_string.zig");
 
 /// Append ``(pattern_ptr, pattern_len)`` to ``ns.export_patterns``.
 /// Bytes are heap-copied so the source slab can be released.  Empty

@@ -56,7 +56,7 @@ pub export fn @"namespace"(sub: i32, arg: i32) i32 {
 /// its ``[…]`` substitution and would trap here.
 pub export fn tcl_cmd_package_cmd(sub: i32, arg: i32) i32 {
     _ = arg;
-    const obj = @import("../value/tcl_obj.zig");
+    const obj = @import("../valtypes/tcl_obj.zig");
     const rt = @import("../tcl_runtime.zig");
     const s = rt.obj_ensure_string(sub);
     if (s.len == 10) {

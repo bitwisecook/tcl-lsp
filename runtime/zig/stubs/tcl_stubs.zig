@@ -18,7 +18,7 @@
 // declare the export signature and call ``unsupported``.  The format
 // of the diagnostic is identical for every stub.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const catch_mod = @import("../interp/tcl_catch.zig");
 
 /// Build ``unsupported command: <name>`` and route it through

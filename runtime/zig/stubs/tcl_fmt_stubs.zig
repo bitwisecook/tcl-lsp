@@ -10,7 +10,7 @@
 //     sidecar map's args slot)
 
 const stubs = @import("tcl_stubs.zig");
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
@@ -88,7 +88,7 @@ pub export fn tcl_cmd_scan(str: i32, fmt: i32) i32 {
 
 // Digit classification happens inside :func:`digit_value` which is
 // base-parameterised — no need to import the per-class predicates.
-const is_space = @import("../value/tcl_chars.zig").is_space;
+const is_space = @import("../valtypes/tcl_chars.zig").is_space;
 
 const INT64_MAX: i64 = 0x7FFF_FFFF_FFFF_FFFF;
 const INT64_MIN: i64 = -0x8000_0000_0000_0000;
@@ -183,7 +183,7 @@ pub export fn tcl_cmd_binary(sub: i32, arg: i32) i32 {
 
 pub export fn tcl_cmd_regsub(pattern: i32, str: i32) i32 {
     // 2-arg compiled form: subSpec defaults to empty string (deletion mode).
-    const regex_mod = @import("../value/tcl_regex.zig");
+    const regex_mod = @import("../valtypes/tcl_regex.zig");
     const rt        = @import("../tcl_runtime.zig");
     return regex_mod.do_regsub(pattern, str, rt.obj_new_string(0, 0), false, false, null);
 }

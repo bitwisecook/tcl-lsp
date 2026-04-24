@@ -27,7 +27,7 @@
 // module, so they remain stubs but are handled as no-ops by the
 // cmd_table (stubs_.zig) before reaching here.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("tcl_stubs.zig");
 
 pub export fn clock_format(seconds: i32, opts: i32) i32 {

@@ -22,7 +22,7 @@
 //   - exec, source, load, unload
 
 const stubs = @import("tcl_stubs.zig");
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 
 // ``file`` moved to tcl_fs.zig — has pass-through implementations
 // for string-only path manipulation (join / dirname / tail /

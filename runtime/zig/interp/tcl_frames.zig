@@ -25,7 +25,7 @@
 //                         heap_ptr starts at 65536 so (-heap_addr) <= -65536 < -1,
 //                         never colliding with ALIAS_GLOBAL (-1).
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;
@@ -41,7 +41,7 @@ const tcl_ns = @import("tcl_ns.zig");
 // "go to global storage", which is more obvious than
 // ``tcl_ns.global_set`` would be).
 const globals = tcl_ns;
-const ht = @import("../value/hash_table.zig");
+const ht = @import("../valtypes/hash_table.zig");
 const fnv1a = ht.fnv1a;
 
 // -- Frame layout --

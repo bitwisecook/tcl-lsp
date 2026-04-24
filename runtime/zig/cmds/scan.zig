@@ -26,7 +26,7 @@
 const rt     = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const stubs  = @import("../stubs/tcl_stubs.zig");
-const chars  = @import("../value/tcl_chars.zig");
+const chars  = @import("../valtypes/tcl_chars.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 const obj_new_int       = rt.obj_new_int;

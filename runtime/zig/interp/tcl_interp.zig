@@ -13,7 +13,7 @@ const procs = @import("tcl_procs.zig");
 const frames = @import("tcl_frames.zig");
 const info = @import("../dispatch/tcl_cmd_info.zig");
 
-const obj_mod = @import("../value/tcl_obj.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
 
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
@@ -296,7 +296,7 @@ fn eval_command(words: []const i32) i32 {
     return eval_proc_call(words);
 }
 
-const str_eq = @import("../value/tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
 const tcl_ns = @import("tcl_ns.zig");
 const alias_mod = @import("../dispatch/tcl_alias.zig");
@@ -1639,7 +1639,7 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     // P9.2: fast path — if this body was pre-parsed by
     // ``parse_cache.build_for_body`` (called from ``proc_register``
     // in P9.3), replay the cached command list without re-parsing.
-    const parse_cache = @import("../value/parse_cache.zig");
+    const parse_cache = @import("../valtypes/parse_cache.zig");
     const slab = parse_cache.lookup(script_ptr, script_len);
     if (slab != 0) {
         return eval_cached_slab(slab, script_ptr, script_len);
@@ -1677,7 +1677,7 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 /// Exits on the first command that raises a signal (break /
 /// continue / return / error) — same semantics as the cold path.
 fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
-    const parse_cache = @import("../value/parse_cache.zig");
+    const parse_cache = @import("../valtypes/parse_cache.zig");
     const diag = @import("../dispatch/tcl_diag.zig");
     const n_cmds = parse_cache.slab_n_commands(slab);
     var result: i32 = 0;

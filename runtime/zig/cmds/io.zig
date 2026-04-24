@@ -3,7 +3,7 @@
 
 const rt       = @import("../tcl_runtime.zig");
 const frames   = @import("../interp/tcl_frames.zig");
-const fmt_mod  = @import("../value/tcl_format.zig");
+const fmt_mod  = @import("../valtypes/tcl_format.zig");
 const reg      = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_puts(words: []const i32) i32 {

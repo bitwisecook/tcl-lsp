@@ -43,7 +43,7 @@
 //     interpreter can call them; also used for ``info commands``
 //     introspection
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;
@@ -51,11 +51,11 @@ const write_i32 = obj.write_i32;
 const obj_ensure_string = obj.obj_ensure_string;
 const obj_new_int = obj.obj_new_int;
 
-const ht = @import("../value/hash_table.zig");
+const ht = @import("../valtypes/hash_table.zig");
 const fnv1a = ht.fnv1a;
 
 const tcl_ns = @import("tcl_ns.zig");
-const parse_cache = @import("../value/parse_cache.zig");
+const parse_cache = @import("../valtypes/parse_cache.zig");
 
 // -- Command struct layout --
 //

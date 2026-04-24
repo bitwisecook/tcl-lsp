@@ -26,7 +26,7 @@
 // it" message and can either remove the option or extend the
 // allowlist.
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
 const obj_ensure_string = obj.obj_ensure_string;

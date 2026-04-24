@@ -7,7 +7,7 @@
 
 const rt = @import("../tcl_runtime.zig");
 const procs = @import("../interp/tcl_procs.zig");
-const obj_mod = @import("../value/tcl_obj.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
 
 const alloc = rt.alloc;
 const memcpy = rt.memcpy;
@@ -20,7 +20,7 @@ const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
 
-const str_eq = @import("../value/tcl_chars.zig").str_eq;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 const tcl_ns = @import("../interp/tcl_ns.zig");
 const alias_mod = @import("tcl_alias.zig");
 const rename_mod = @import("tcl_rename.zig");
@@ -380,7 +380,7 @@ pub fn alias_size_visit(ctx: *AliasListCtx, _: u32, _: u32, name_len: u32, cmd: 
 /// prior entries.
 pub fn alias_fill_visit(ctx: *AliasListCtx, _: u32, name_ptr: u32, name_len: u32, cmd: u32) void {
     if (!alias_mod.is_alias(cmd)) return;
-    const list_quote = @import("../value/tcl_list_quote.zig");
+    const list_quote = @import("../valtypes/tcl_list_quote.zig");
     if (ctx.count > 0) {
         const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
         d[0] = ' ';
@@ -889,7 +889,7 @@ pub fn eval_interp_slaves(words: []const i32) i32 {
 pub fn emit_bucket_names_as_list(buf_addr: u32, cap: u32) i32 {
     if (buf_addr == 0 or cap == 0) return obj_new_string(0, 0);
     const bucket_size: u32 = 16;
-    const list_quote = @import("../value/tcl_list_quote.zig");
+    const list_quote = @import("../valtypes/tcl_list_quote.zig");
 
     var total: u32 = 0;
     var count: u32 = 0;

@@ -6,7 +6,7 @@ const frames = @import("../interp/tcl_frames.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 const stubs             = @import("../stubs/tcl_stubs.zig");
-const str_eq            = @import("../value/tcl_chars.zig").str_eq;
+const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int       = rt.obj_new_int;
 const obj_new_string    = rt.obj_new_string;

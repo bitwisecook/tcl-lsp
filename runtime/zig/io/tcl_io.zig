@@ -1,7 +1,7 @@
 // WASI I/O helpers: itoa, fd_write_all, puts.
 
 const std = @import("std");
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const read_i32 = obj.read_i32;
 const read_i64 = obj.read_i64;
 const obj_ensure_string = obj.obj_ensure_string;

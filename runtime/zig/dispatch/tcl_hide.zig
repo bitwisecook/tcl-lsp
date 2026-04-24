@@ -40,7 +40,7 @@
 // expose doesn't reattach them (matches C Tcl, where re-exposing a
 // previously-imported source requires a fresh ``namespace import``).
 
-const obj = @import("../value/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;
