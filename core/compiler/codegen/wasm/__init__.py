@@ -101,7 +101,6 @@ from ._imports import (  # noqa: E402
     _OBJ_LIFECYCLE_IMPORTS,
     _RUNTIME_IMPORTS,
     _STRING_IS_IMPORT,
-    _UNSUPPORTED_COMMANDS,
     command_emits_nothing,
     runtime_import_for,
     subcommand_runtime_import_for,

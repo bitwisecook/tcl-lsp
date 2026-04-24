@@ -251,7 +251,6 @@ def collect_imports_tables() -> dict[str, object]:
             for name, specs in REGISTRY.specs_by_name.items()
             if any(spec.wasm_emits_nothing for spec in specs)
         ),
-        "unsupported_commands": sorted(imp._UNSUPPORTED_COMMANDS),  # noqa: SLF001
     }
 
 
