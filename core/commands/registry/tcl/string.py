@@ -13,6 +13,7 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ..type_hints import ArgTypeHint
@@ -179,6 +180,7 @@ class StringCommand(CommandDef):
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-length", takes_value=True, value_hint="int"),
                     ),
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_compare'),
                 ),
                 "equal": SubCommand(
                     name="equal",
@@ -192,6 +194,7 @@ class StringCommand(CommandDef):
                         OptionSpec(name="-nocase"),
                         OptionSpec(name="-length", takes_value=True, value_hint="int"),
                     ),
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_equal'),
                 ),
                 "first": SubCommand(
                     name="first",
@@ -202,6 +205,7 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_first,
                     return_type=TclType.INT,
                     arg_types={2: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_first'),
                 ),
                 "index": SubCommand(
                     name="index",
@@ -212,6 +216,7 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_index,
                     return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_index'),
                 ),
                 "insert": SubCommand(
                     name="insert",
@@ -245,6 +250,7 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_last,
                     return_type=TclType.INT,
                     arg_types={2: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_last'),
                 ),
                 "length": SubCommand(
                     name="length",
@@ -254,6 +260,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_length,
                     return_type=TclType.INT,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_length'),
                 ),
                 "map": SubCommand(
                     name="map",
@@ -265,6 +272,7 @@ class StringCommand(CommandDef):
                     return_type=TclType.STRING,
                     options=(OptionSpec(name="-nocase"),),
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_map'),
                 ),
                 "match": SubCommand(
                     name="match",
@@ -275,6 +283,7 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_match,
                     return_type=TclType.BOOLEAN,
                     options=(OptionSpec(name="-nocase"),),
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_match'),
                 ),
                 "range": SubCommand(
                     name="range",
@@ -288,6 +297,7 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_range'),
                 ),
                 "repeat": SubCommand(
                     name="repeat",
@@ -298,6 +308,7 @@ class StringCommand(CommandDef):
                     const_fold=fold_string_repeat,
                     return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_repeat'),
                 ),
                 "replace": SubCommand(
                     name="replace",
@@ -311,6 +322,7 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_replace'),
                 ),
                 "reverse": SubCommand(
                     name="reverse",
@@ -320,6 +332,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_reverse,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_reverse'),
                 ),
                 "tolower": SubCommand(
                     name="tolower",
@@ -333,6 +346,7 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_tolower'),
                 ),
                 "totitle": SubCommand(
                     name="totitle",
@@ -346,6 +360,7 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_totitle'),
                 ),
                 "toupper": SubCommand(
                     name="toupper",
@@ -359,6 +374,7 @@ class StringCommand(CommandDef):
                         1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                         2: ArgTypeHint(expected=TclType.INT, shimmers=True),
                     },
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_toupper'),
                 ),
                 "trim": SubCommand(
                     name="trim",
@@ -368,6 +384,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_trim,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_trim'),
                 ),
                 "trimleft": SubCommand(
                     name="trimleft",
@@ -377,6 +394,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_trimleft,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_trimleft'),
                 ),
                 "trimright": SubCommand(
                     name="trimright",
@@ -386,6 +404,7 @@ class StringCommand(CommandDef):
                     pure=True,
                     const_fold=fold_string_trimright,
                     return_type=TclType.STRING,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_string_trimright'),
                 ),
                 "wordend": SubCommand(
                     name="wordend",

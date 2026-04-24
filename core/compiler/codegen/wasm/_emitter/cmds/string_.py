@@ -6,7 +6,7 @@ from ......commands.registry import REGISTRY, EmitContext
 from ..._imports import (
     _RUNTIME_IMPORTS,
     _STRING_IS_IMPORT,
-    _STRING_SUBCMD_IMPORT,
+    subcommand_runtime_import_for,
 )
 from ..._ir import WasmOp
 
@@ -30,8 +30,9 @@ def _emit_string(
                     emitter._emit_value(args[-1])
                     emitter._emit_call(func_idx)
                     return True
-            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in emitter._shared_imports:
+            sri = subcommand_runtime_import_for("string", subcmd)
+            if sri is not None and sri.import_key in emitter._shared_imports:
+                import_key = sri.import_key
                 func_idx = emitter._shared_imports[import_key]
                 spec = _RUNTIME_IMPORTS[import_key]
                 param_count = len(spec[2])
@@ -101,8 +102,9 @@ def _emit_string(
                 emitter._emit(WasmOp.DROP)
             return True
 
-    import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
-    if import_key is not None and import_key in emitter._shared_imports:
+    sri = subcommand_runtime_import_for("string", subcmd)
+    if sri is not None and sri.import_key in emitter._shared_imports:
+        import_key = sri.import_key
         func_idx = emitter._shared_imports[import_key]
         spec = _RUNTIME_IMPORTS[import_key]
         param_count = len(spec[2])

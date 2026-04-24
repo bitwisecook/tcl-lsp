@@ -412,6 +412,11 @@ class SubCommand:
     lowering: LoweringHook | None = None
     codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
 
+    # WASM runtime dispatch metadata for a compiled ``<command>
+    # <subcommand>`` call.  Replaces the ``_STRING_SUBCMD_IMPORT`` /
+    # ``_DICT_SUBCMD_IMPORT`` / ``_CLOCK_SUBCMD_IMPORT`` shadow tables.
+    wasm_runtime_import: WasmRuntimeImport | None = None
+
     # Taint transform — colour bits added to tainted output by this subcommand.
     taint_transform: TaintColour | None = None
     taint_double_encode_colour: TaintColour | None = None

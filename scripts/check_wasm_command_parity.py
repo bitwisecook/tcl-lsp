@@ -195,27 +195,40 @@ def collect_registry_commands() -> dict[str, dict]:
 def collect_imports_tables() -> dict[str, object]:
     """Pull tables from ``_imports.py`` via direct import."""
     sys.path.insert(0, str(ROOT))
-    from core.compiler.codegen.wasm import _imports as imp  # noqa: PLC0415
-
     # ``cmd_runtime`` used to mirror the retired ``_CMD_RUNTIME`` dict.
     # Its spec-backed successor is reconstructed from every
     # ``CommandSpec.wasm_runtime_import`` declaration in the registry
     # (populated by phase B.7c).  ``cmd_runtime_nontrapping`` is derived
     # from the same source.
     from core.commands.registry import REGISTRY  # noqa: PLC0415
+    from core.compiler.codegen.wasm import _imports as imp  # noqa: PLC0415
 
     cmd_runtime: dict[str, dict[str, object]] = {}
     cmd_runtime_nontrapping: list[str] = []
+    # Per-parent maps of ``<parent> <subcommand> -> import_key``, also
+    # derived from the registry (populated by B.8).
+    string_subcmd_import: dict[str, str] = {}
+    dict_subcmd_import: dict[str, str] = {}
+    clock_subcmd_import: dict[str, str] = {}
+    subcmd_targets = {
+        "string": string_subcmd_import,
+        "dict": dict_subcmd_import,
+        "clock": clock_subcmd_import,
+    }
     for name, specs in REGISTRY.specs_by_name.items():
         for spec in specs:
             rimp = spec.wasm_runtime_import
-            if rimp is None:
-                continue
-            cmd_runtime.setdefault(
-                name, {"import": rimp.import_key, "argc": rimp.argc}
-            )
-            if rimp.nontrapping and name not in cmd_runtime_nontrapping:
-                cmd_runtime_nontrapping.append(name)
+            if rimp is not None:
+                cmd_runtime.setdefault(
+                    name, {"import": rimp.import_key, "argc": rimp.argc}
+                )
+                if rimp.nontrapping and name not in cmd_runtime_nontrapping:
+                    cmd_runtime_nontrapping.append(name)
+            target = subcmd_targets.get(name)
+            if target is not None:
+                for sub_name, sub in spec.subcommands.items():
+                    if sub.wasm_runtime_import is not None:
+                        target.setdefault(sub_name, sub.wasm_runtime_import.import_key)
 
     return {
         "runtime_imports": {
@@ -229,10 +242,10 @@ def collect_imports_tables() -> dict[str, object]:
         },
         "cmd_runtime": cmd_runtime,
         "cmd_runtime_nontrapping": sorted(cmd_runtime_nontrapping),
-        "string_subcmd_import": dict(imp._STRING_SUBCMD_IMPORT),  # noqa: SLF001
+        "string_subcmd_import": string_subcmd_import,
         "string_is_import": dict(imp._STRING_IS_IMPORT),  # noqa: SLF001
-        "dict_subcmd_import": dict(imp._DICT_SUBCMD_IMPORT),  # noqa: SLF001
-        "clock_subcmd_import": dict(imp._CLOCK_SUBCMD_IMPORT),  # noqa: SLF001
+        "dict_subcmd_import": dict_subcmd_import,
+        "clock_subcmd_import": clock_subcmd_import,
         "scope_nop_commands": sorted(imp._SCOPE_NOP_COMMANDS),  # noqa: SLF001
         "unsupported_commands": sorted(imp._UNSUPPORTED_COMMANDS),  # noqa: SLF001
     }
