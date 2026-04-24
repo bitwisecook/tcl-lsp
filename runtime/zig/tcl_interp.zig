@@ -946,7 +946,7 @@ fn eval_proc_call(words: []const i32) i32 {
         // "unknown command: <name>" message.  Keeping the
         // dispatch-before-error pattern means user-defined procs
         // still win when they shadow a core command.
-        const stub_dispatch = @import("tcl_cmd_dispatch.zig");
+        const stub_dispatch = @import("tcl_stub_fallback.zig");
         const cmd_s = obj_ensure_string(words[0]);
         if (cmd_s.len > 0 and stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
             return 0;

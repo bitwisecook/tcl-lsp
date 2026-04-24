@@ -10,7 +10,7 @@ Locations covered:
   the Tcl 8.4-9.0 dialect set)
 - Zig builtins assembled in ``runtime/zig/tcl_cmd_table.zig`` from
   ``runtime/zig/cmds/*.zig``
-- Zig stub fallback dispatch in ``runtime/zig/tcl_cmd_dispatch.zig``
+- Zig stub fallback dispatch in ``runtime/zig/tcl_stub_fallback.zig``
 - Zig stub exports in ``runtime/zig/tcl_*_stubs.zig``
 - Every ``pub export fn`` across ``runtime/zig/`` (FFI surface)
 - ``_imports.py`` runtime/import tables consumed by the WASM emitter
@@ -91,7 +91,7 @@ def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, str]]:
 
 
 def parse_zig_stub_dispatch(zig_dir: Path) -> dict[str, str]:
-    """Return ``{command_name: action}`` from ``tcl_cmd_dispatch.zig``.
+    """Return ``{command_name: action}`` from ``tcl_stub_fallback.zig``.
 
     *action* is ``"trap"`` when the command traps via
     ``stubs.unsupported("…")`` — either through the legacy if-chain form
@@ -100,7 +100,7 @@ def parse_zig_stub_dispatch(zig_dir: Path) -> dict[str, str]:
     *action* is ``"fallthrough"`` for names in the legacy
     ``return false`` form (used for commands served elsewhere).
     """
-    src = (zig_dir / "tcl_cmd_dispatch.zig").read_text()
+    src = (zig_dir / "tcl_stub_fallback.zig").read_text()
     out: dict[str, str] = {}
     # Legacy per-line forms.
     for match in _DISPATCH_TRAP_RE.finditer(src):
@@ -329,10 +329,10 @@ def classify(inventory: dict) -> dict[str, dict]:
             action = dispatch[name]
             if action == "trap":
                 status = "TRAPPING_STUB"
-                reason = "tcl_cmd_dispatch.zig fallback raises unsupported command trap"
+                reason = "tcl_stub_fallback.zig fallback raises unsupported command trap"
             else:
                 status = "MISSING"
-                reason = "tcl_cmd_dispatch.zig declines (return false) and no BUILTINS entry"
+                reason = "tcl_stub_fallback.zig declines (return false) and no BUILTINS entry"
         else:
             handler = None
             status = "MISSING"
@@ -359,7 +359,7 @@ def find_dangling(inventory: dict) -> dict[str, list]:
       Tcl-core registry (excluding entries we've classed NOT_REQUIRED
       such as mathop operators, which the registry does carry but for
       which a Zig handler would be unexpected).
-    - ``orphan_dispatch``: ``tcl_cmd_dispatch.zig`` stub entries with no
+    - ``orphan_dispatch``: ``tcl_stub_fallback.zig`` stub entries with no
       matching registry command.
     - ``orphan_cmd_runtime``: ``_imports.py:_CMD_RUNTIME`` keys not in
       the registry.
