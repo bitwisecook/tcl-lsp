@@ -1,7 +1,7 @@
 // ``info``, ``trace`` — introspection commands.
 
 const rt        = @import("../tcl_runtime.zig");
-const info      = @import("../dispatch/tcl_cmd_info.zig");
+const info      = @import("../commands/tcl_cmd_info.zig");
 const trace_mod = @import("../interp/tcl_trace.zig");
 const reg       = @import("../dispatch/tcl_cmd_registry.zig");
 

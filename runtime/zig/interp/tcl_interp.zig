@@ -11,7 +11,7 @@
 const rt = @import("../tcl_runtime.zig");
 const procs = @import("tcl_procs.zig");
 const frames = @import("tcl_frames.zig");
-const info = @import("../dispatch/tcl_cmd_info.zig");
+const info = @import("../commands/tcl_cmd_info.zig");
 
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 
@@ -50,7 +50,7 @@ fn has_signal() bool {
 
 const parse = @import("../parse/tcl_parse.zig");
 const MAX_WORDS: u32 = parse.MAX_WORDS;
-const interp_impl = @import("../dispatch/tcl_cmd_interp.zig");
+const interp_impl = @import("../commands/tcl_cmd_interp.zig");
 const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
 const interp_reg = @import("tcl_interp_registry.zig");
 
@@ -299,7 +299,7 @@ fn eval_command(words: []const i32) i32 {
 const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 
 const tcl_ns = @import("tcl_ns.zig");
-const alias_mod = @import("../dispatch/tcl_alias.zig");
+const alias_mod = @import("../commands/tcl_alias.zig");
 
 // Namespace context for eval-fallback calls.  Storage lives in
 // ``tcl_ns.current_ns`` (moved there in P2.1 so ``tcl_procs.zig``
