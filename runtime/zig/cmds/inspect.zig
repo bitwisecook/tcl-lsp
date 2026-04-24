@@ -45,3 +45,51 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "trace", .arity_min = 1, .arity_max = null, .handler = &eval_trace },
     .{ .name = "pid", .arity_min = 0, .arity_max = 1, .handler = &eval_pid },
 };
+
+// ``info <sub>`` sub-commands — mirrors
+// ``core/commands/registry/tcl/info.py``.  Cross-checked against
+// ``generic/tclCmdIL.c`` (most handlers enforce ``objc != N`` or
+// ``objc < A || objc > B`` directly; the ``TclCompileBasic*ArgCmd``
+// entries in ``infoImplMap`` imply the arity for the remainder).
+pub const info_subcommands: []const reg.SubEntry = &.{
+    .{ .name = "args", .arity_min = 1, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "body", .arity_min = 1, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "class", .arity_min = 2, .arity_max = null, .handler = &eval_info },
+    .{ .name = "cmdcount", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "cmdtype", .arity_min = 1, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "commands", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "complete", .arity_min = 1, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "constant", .arity_min = 1, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "consts", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "coroutine", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "default", .arity_min = 3, .arity_max = 3, .handler = &eval_info },
+    .{ .name = "errorstack", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "exists", .arity_min = 1, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "frame", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "functions", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "globals", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "hostname", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "level", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "library", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "loaded", .arity_min = 0, .arity_max = 2, .handler = &eval_info },
+    .{ .name = "locals", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "nameofexecutable", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "object", .arity_min = 2, .arity_max = null, .handler = &eval_info },
+    .{ .name = "patchlevel", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "procs", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "script", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+    .{ .name = "sharedlibextension", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "tclversion", .arity_min = 0, .arity_max = 0, .handler = &eval_info },
+    .{ .name = "vars", .arity_min = 0, .arity_max = 1, .handler = &eval_info },
+};
+
+// ``trace <sub>`` sub-commands — mirrors
+// ``core/commands/registry/tcl/trace.py``.
+pub const trace_subcommands: []const reg.SubEntry = &.{
+    .{ .name = "add", .arity_min = 4, .arity_max = 4, .handler = &eval_trace },
+    .{ .name = "info", .arity_min = 2, .arity_max = 2, .handler = &eval_trace },
+    .{ .name = "remove", .arity_min = 4, .arity_max = 4, .handler = &eval_trace },
+    .{ .name = "variable", .arity_min = 3, .arity_max = 3, .handler = &eval_trace },
+    .{ .name = "vdelete", .arity_min = 3, .arity_max = 3, .handler = &eval_trace },
+    .{ .name = "vinfo", .arity_min = 1, .arity_max = 1, .handler = &eval_trace },
+};

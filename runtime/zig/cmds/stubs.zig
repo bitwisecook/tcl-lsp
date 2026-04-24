@@ -131,3 +131,35 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "update", .arity_min = 0, .arity_max = 1, .handler = &eval_auto_noop },
     .{ .name = "clock", .arity_min = 1, .arity_max = null, .handler = &eval_clock },
 };
+
+// ``clock <sub>`` sub-commands — mirrors
+// ``core/commands/registry/tcl/clock.py``.  Cross-checked against
+// C Tcl 9.0 ``generic/tclClock.c`` + ``tclClockFmt.c`` (ensemble
+// implementations invoke ``Tcl_WrongNumArgs`` on bad arg counts).
+pub const clock_subcommands: []const reg.SubEntry = &.{
+    .{ .name = "add", .arity_min = 1, .arity_max = null, .handler = &eval_clock },
+    .{ .name = "clicks", .arity_min = 0, .arity_max = 1, .handler = &eval_clock },
+    .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_clock },
+    .{ .name = "microseconds", .arity_min = 0, .arity_max = 0, .handler = &eval_clock },
+    .{ .name = "milliseconds", .arity_min = 0, .arity_max = 0, .handler = &eval_clock },
+    .{ .name = "scan", .arity_min = 1, .arity_max = null, .handler = &eval_clock },
+    .{ .name = "seconds", .arity_min = 0, .arity_max = 0, .handler = &eval_clock },
+};
+
+// ``package <sub>`` sub-commands — mirrors
+// ``core/commands/registry/tcl/package.py``.  Cross-checked against
+// C Tcl 9.0 ``generic/tclPkg.c``.
+pub const package_subcommands: []const reg.SubEntry = &.{
+    .{ .name = "files", .arity_min = 1, .arity_max = 1, .handler = &eval_package },
+    .{ .name = "forget", .arity_min = 0, .arity_max = null, .handler = &eval_package },
+    .{ .name = "ifneeded", .arity_min = 2, .arity_max = 3, .handler = &eval_package },
+    .{ .name = "names", .arity_min = 0, .arity_max = 0, .handler = &eval_package },
+    .{ .name = "prefer", .arity_min = 0, .arity_max = 1, .handler = &eval_package },
+    .{ .name = "present", .arity_min = 1, .arity_max = null, .handler = &eval_package },
+    .{ .name = "provide", .arity_min = 1, .arity_max = 2, .handler = &eval_package },
+    .{ .name = "require", .arity_min = 1, .arity_max = null, .handler = &eval_package },
+    .{ .name = "unknown", .arity_min = 0, .arity_max = 1, .handler = &eval_package },
+    .{ .name = "vcompare", .arity_min = 2, .arity_max = 2, .handler = &eval_package },
+    .{ .name = "versions", .arity_min = 1, .arity_max = 1, .handler = &eval_package },
+    .{ .name = "vsatisfies", .arity_min = 2, .arity_max = null, .handler = &eval_package },
+};

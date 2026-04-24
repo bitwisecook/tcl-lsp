@@ -291,7 +291,10 @@ class NamespaceCommand(CommandDef):
                 ),
                 "which": SubCommand(
                     name="which",
-                    arity=Arity(1),
+                    # C Tcl 9.0 ``NamespaceWhichCmd``: accepts an
+                    # optional ``-command`` / ``-variable`` flag plus
+                    # the name to look up — args 1..2.
+                    arity=Arity(1, 2),
                     detail="Looks up name as either a command or variable and returns its fully-qualified name.",
                     synopsis="namespace which ?-command? ?-variable? name",
                     pure=True,

@@ -22,16 +22,13 @@ def import_signature(
 ) -> tuple[str, str, list[ValType], list[ValType]] | None:
     """Return ``(module, export_name, params, results)`` for an import key.
 
-    Prefers the spec-side ``WasmRuntimeImport`` (populated per command
-    in Phase E.6), falling back to the legacy ``_RUNTIME_IMPORTS`` dict
-    for infrastructure imports that don't have a command owner (obj
-    lifecycle, arith, frame ops, etc.).  Returns ``None`` when the key
-    isn't known on either side.
+    Prefers the spec-side ``WasmRuntimeImport`` (the registry is the
+    source of truth for command-owned imports), falling back to
+    :data:`_INFRASTRUCTURE_IMPORTS` for helpers that don't have a
+    command owner (obj lifecycle, arith, math funcs, frame ops,
+    diag, ``tcl_eval``, etc.).  Returns ``None`` when the key isn't
+    known on either side.
     """
-    # Spec-side lookup: walk every spec with a matching wasm_runtime_import
-    # (or SubCommand thereof).  We can't index by import_key directly
-    # because the registry is keyed by command name, so scan once and
-    # cache.
     spec_entry = _spec_import_table().get(key)
     if spec_entry is not None:
         rimp = spec_entry
@@ -42,9 +39,9 @@ def import_signature(
                 [_str_to_valtype(p) for p in rimp.params],
                 [_str_to_valtype(r) for r in rimp.results],
             )
-    legacy = _RUNTIME_IMPORTS.get(key)
-    if legacy is not None:
-        return legacy
+    infra = _INFRASTRUCTURE_IMPORTS.get(key)
+    if infra is not None:
+        return infra
     return None
 
 
@@ -127,27 +124,33 @@ def subcommand_runtime_import_for(
             return sub.wasm_runtime_import
     return None
 
-# Runtime function signatures imported from the Tcl runtime.
-# Each entry maps an import key to (module, export_name, param_types, result_types).
+# Infrastructure import signatures — runtime helpers the codegen
+# references directly, with no ``CommandSpec`` owner.  Every entry
+# maps an import key to ``(module, export_name, param_types,
+# result_types)``.  Command-owned imports (``tcl_puts``,
+# ``tcl_lappend``, every ``string <sub>``, every ``dict <sub>``, etc.)
+# live on :class:`WasmRuntimeImport` fields on their specs instead —
+# :func:`import_signature` consults the registry first and falls back
+# to this dict only for infrastructure keys.
 #
 # Values are represented as i32 TclObj pointers.  The TclObj lifecycle
-# imports (obj_new_int, obj_new_string, obj_get_int) bridge between raw
-# WASM integers (i64) used in expr arithmetic and the i32 object pointers
-# passed to/from runtime functions and stored in locals.
-_RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
-    # TclObj lifecycle — always imported
+# imports bridge between raw WASM integers (i64) used in expr arithmetic
+# and the i32 object pointers passed to/from runtime functions and
+# stored in locals.
+_INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
+    # TclObj lifecycle — bridges raw WASM ints (i64) to i32 TclObj pointers.
     "tcl_obj_new_int": ("tcl", "obj_new_int", [ValType.I64], [ValType.I32]),
     "tcl_obj_new_string": ("tcl", "obj_new_string", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
     "tcl_obj_new_float": ("tcl", "obj_new_float", [ValType.F64], [ValType.I32]),
     "tcl_obj_get_float": ("tcl", "obj_get_float", [ValType.I32], [ValType.F64]),
-    # Float-aware arithmetic — handle int/float dispatch at runtime
+    # Float-aware arithmetic — int/float dispatch happens runtime-side.
     "tcl_arith_add": ("tcl", "tcl_arith_add", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_sub": ("tcl", "tcl_arith_sub", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_mul": ("tcl", "tcl_arith_mul", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_div": ("tcl", "tcl_arith_div", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_mod": ("tcl", "tcl_arith_mod", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Math functions
+    # Math functions — called from expr codegen by name.
     "tcl_math_double": ("tcl", "tcl_math_double", [ValType.I32], [ValType.I32]),
     "tcl_math_int": ("tcl", "tcl_math_int", [ValType.I32], [ValType.I32]),
     "tcl_math_round": ("tcl", "tcl_math_round", [ValType.I32], [ValType.I32]),
@@ -158,107 +161,36 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
     "tcl_math_sin": ("tcl", "tcl_math_sin", [ValType.I32], [ValType.I32]),
     "tcl_math_cos": ("tcl", "tcl_math_cos", [ValType.I32], [ValType.I32]),
     "tcl_math_fabs": ("tcl", "tcl_math_fabs", [ValType.I32], [ValType.I32]),
-    # Command runtime — all parameters/results are i32 TclObj pointers
-    "tcl_puts": ("tcl", "tcl_cmd_puts", [ValType.I32], [ValType.I32]),
+    # Infra used by the puts specialisation for ``-nonewline``.
     "tcl_puts_nonewline": (
         "tcl",
         "tcl_cmd_puts_nonewline",
         [ValType.I32],
         [ValType.I32],
     ),
-    "tcl_append": ("tcl", "tcl_cmd_append", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_length": ("tcl", "tcl_cmd_list_length", [ValType.I32], [ValType.I32]),
-    "tcl_lappend": ("tcl", "tcl_cmd_lappend", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_length": ("tcl", "string_length", [ValType.I32], [ValType.I32]),
-    "tcl_string_index": ("tcl", "string_index", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_range": (
-        "tcl",
-        "string_range",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_compare": (
-        "tcl",
-        "string_compare",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
+    # ``tcl_expr_order_cmp`` is used by expr codegen to compare TclObjs.
     "tcl_expr_order_cmp": (
         "tcl",
         "tcl_expr_order_cmp",
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
-    "tcl_string_map": ("tcl", "string_map", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_match": ("tcl", "string_match", [ValType.I32, ValType.I32], [ValType.I32]),
-    # ``string trim{,left,right} value ?chars?`` — a null (i32 0) chars arg
-    # means "default whitespace"; otherwise the TclObj's string value is the
-    # set of bytes to trim.
-    "tcl_string_trim": ("tcl", "string_trim", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_trimleft": (
-        "tcl",
-        "string_trimleft",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_trimright": (
-        "tcl",
-        "string_trimright",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_string_equal": ("tcl", "string_equal", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_first": ("tcl", "string_first", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_last": ("tcl", "string_last", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_repeat": ("tcl", "string_repeat", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_string_reverse": ("tcl", "string_reverse", [ValType.I32], [ValType.I32]),
-    "tcl_string_toupper": ("tcl", "string_toupper", [ValType.I32], [ValType.I32]),
-    "tcl_string_tolower": ("tcl", "string_tolower", [ValType.I32], [ValType.I32]),
-    "tcl_string_totitle": ("tcl", "string_totitle", [ValType.I32], [ValType.I32]),
-    "tcl_string_replace": (
-        "tcl",
-        "string_replace",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
+    # ``string is <class>`` sub-sub-command — see :data:`_STRING_IS_IMPORT`
+    # for the dispatch table; these signatures live here because the
+    # registry doesn't model sub-sub-commands.
     "tcl_string_is_integer": ("tcl", "string_is_integer", [ValType.I32], [ValType.I32]),
     "tcl_string_is_alpha": ("tcl", "string_is_alpha", [ValType.I32], [ValType.I32]),
     "tcl_string_is_digit": ("tcl", "string_is_digit", [ValType.I32], [ValType.I32]),
     "tcl_string_is_space": ("tcl", "string_is_space", [ValType.I32], [ValType.I32]),
+    # List construction / helpers called by codegen paths that don't
+    # route through a ``CommandSpec`` — e.g. ``_emit_list_value``
+    # builds N-ary lists via ``tcl_list`` pair-chaining.
     "tcl_list_create": ("tcl", "tcl_list", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_concat": ("tcl", "tcl_cmd_concat", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_index": ("tcl", "tcl_cmd_list_index", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_range": (
-        "tcl",
-        "tcl_cmd_list_range",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
     "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_list_sort": ("tcl", "tcl_cmd_list_sort", [ValType.I32], [ValType.I32]),
-    "tcl_list_reverse": ("tcl", "tcl_cmd_list_reverse", [ValType.I32], [ValType.I32]),
     "tcl_list_contains": (
         "tcl",
         "tcl_cmd_list_contains",
         [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_list_repeat": (
-        "tcl",
-        "tcl_cmd_list_repeat",
-        [ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_list_insert": (
-        "tcl",
-        "tcl_cmd_list_insert",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_list_replace": (
-        "tcl",
-        "tcl_cmd_list_replace",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
     "tcl_list_set": (
@@ -267,56 +199,31 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
-    "tcl_list_search": ("tcl", "tcl_cmd_list_search", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Dict commands
+    # Dict helpers for the ``create`` / ``merge`` specialisations.
     "tcl_dict_create": ("tcl", "dict_create", [], [ValType.I32]),
-    "tcl_dict_get": ("tcl", "dict_get", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_dict_set": (
-        "tcl",
-        "dict_set",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_dict_exists": ("tcl", "dict_exists", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_dict_keys": ("tcl", "dict_keys", [ValType.I32], [ValType.I32]),
-    "tcl_dict_values": ("tcl", "dict_values", [ValType.I32], [ValType.I32]),
-    "tcl_dict_size": ("tcl", "dict_size", [ValType.I32], [ValType.I32]),
     "tcl_dict_merge_pair": (
         "tcl",
         "dict_merge_pair",
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
-    "tcl_error": ("tcl", "tcl_cmd_error", [ValType.I32], []),
-    "tcl_format": (
-        "tcl",
-        "tcl_cmd_format",
-        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_regexp": ("tcl", "tcl_cmd_regexp", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_open": ("tcl", "tcl_cmd_open", [ValType.I32], [ValType.I32]),
-    "tcl_close": ("tcl", "tcl_cmd_close", [ValType.I32], [ValType.I32]),
-    "tcl_read": ("tcl", "tcl_cmd_read", [ValType.I32], [ValType.I32]),
-    "tcl_gets": ("tcl", "tcl_cmd_gets", [ValType.I32], [ValType.I32]),
-    # Global variable table
+    # Global variable table.
     "tcl_global_set": ("tcl", "global_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_global_get": ("tcl", "global_get", [ValType.I32], [ValType.I32]),
     "tcl_global_exists": ("tcl", "global_exists", [ValType.I32], [ValType.I32]),
-    # Catch / error handling
+    # Catch / error handling.
     "tcl_catch_enter": ("tcl", "catch_enter", [], []),
     "tcl_catch_leave": ("tcl", "catch_leave", [], [ValType.I32]),
     "tcl_catch_result": ("tcl", "catch_result", [], [ValType.I32]),
     "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
     "tcl_catch_set_ok_result": ("tcl", "catch_set_ok_result", [ValType.I32], []),
-    # Interpreter fallback
+    # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
-    # Namespace context for eval-fallback calls — compiled procs
-    # set the current namespace before ``tcl_eval`` so dynamic
-    # ``proc $name`` / ``variable $name`` inside the fallback
-    # qualify into the enclosing namespace instead of the global
-    # scope.  ``ns_set`` returns an opaque i64 save token;
-    # ``ns_restore`` unwinds it.
+    # Namespace context for eval-fallback calls — compiled procs set the
+    # current namespace before ``tcl_eval`` so dynamic ``proc $name`` /
+    # ``variable $name`` inside the fallback qualify into the enclosing
+    # namespace instead of global.  ``ns_set`` returns an opaque i64 save
+    # token; ``ns_restore`` unwinds it.
     "tcl_ns_set": (
         "tcl",
         "ns_set",
@@ -324,20 +231,20 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I64],
     ),
     "tcl_ns_restore": ("tcl", "ns_restore", [ValType.I64], []),
-    # Frame stack (local variable scoping)
+    # Frame stack (local variable scoping).
     "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
     "tcl_frame_pop": ("tcl", "frame_pop", [], []),
-    # Per-frame invocation argv — set by the compiled-proc prologue
-    # so ``info level 0`` / ``info level -N`` inside the body reads
-    # the real invocation list rather than a placeholder.
+    # Per-frame invocation argv — set by the compiled-proc prologue so
+    # ``info level 0`` / ``info level -N`` inside the body reads the real
+    # invocation list rather than a placeholder.
     "tcl_frame_set_argv": ("tcl", "frame_set_argv", [ValType.I32], []),
     "tcl_frame_get_argv": ("tcl", "frame_get_argv", [ValType.I32], [ValType.I32]),
-    # Pending ``argv0`` slot — a compiled caller writes the exact
-    # word it invoked the callee with immediately before the
-    # compiled ``call``; the callee's prologue reads-and-clears it
-    # via ``take_pending_argv0`` so ``info level 0`` reports the
-    # caller's word (including imported / renamed / qualified
-    # forms) rather than the callee's registered qname tail.
+    # Pending ``argv0`` slot — a compiled caller writes the exact word
+    # it invoked the callee with immediately before the compiled
+    # ``call``; the callee's prologue reads-and-clears it via
+    # ``take_pending_argv0`` so ``info level 0`` reports the caller's
+    # word (imported / renamed / qualified forms) rather than the
+    # callee's registered qname tail.
     "tcl_frame_set_pending_argv0": (
         "tcl",
         "frame_set_pending_argv0",
@@ -350,12 +257,13 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [],
         [ValType.I32],
     ),
+    # Variable resolution (aliases, upvars, namespace vars).
     "tcl_var_resolve": ("tcl", "var_resolve", [ValType.I32], [ValType.I32]),
     "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),
     "tcl_local_set": ("tcl", "local_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_local_get": ("tcl", "local_get", [ValType.I32], [ValType.I32]),
-    # Proc registry
+    # Proc registry.
     "tcl_proc_register": (
         "tcl",
         "proc_register",
@@ -368,14 +276,13 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
-    # Info command
+    # Info dispatch helpers (info exists / info <sub>).  The ``info``
+    # command itself is a registry spec, but these two helpers are
+    # invoked by the emitter directly rather than via a subcommand
+    # table, so they live here.
     "tcl_info_exists": ("tcl", "info_exists", [ValType.I32], [ValType.I32]),
     "tcl_info_dispatch": ("tcl", "info_dispatch", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Clock command — WASI clock_time_get wrappers, integer results.
-    "tcl_clock_seconds": ("tcl", "clock_seconds", [], [ValType.I32]),
-    "tcl_clock_clicks": ("tcl", "clock_clicks", [], [ValType.I32]),
-    "tcl_clock_milliseconds": ("tcl", "clock_milliseconds", [], [ValType.I32]),
-    # Frame-depth helpers for uplevel — temporarily shift frame_depth
+    # Frame-depth helpers for ``uplevel`` — temporarily shift frame_depth
     # so a called ``tcl_eval`` runs at a caller's scope.
     "tcl_frame_depth_stash": (
         "tcl",
@@ -384,7 +291,10 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32],
     ),
     "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
-    # Arrays — dedicated per-array hash tables.
+    # Arrays — dedicated per-array hash tables.  ``array`` subcommands
+    # are spec-owned but the helpers the codegen calls are shared
+    # between ``array set`` literal emission and the sub-command
+    # dispatcher, so they stay here.
     "tcl_array_set": (
         "tcl",
         "array_set",
@@ -413,70 +323,9 @@ _RUNTIME_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]] = {
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
-    # String split/join
-    "tcl_split": ("tcl", "tcl_cmd_split", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_join": ("tcl", "tcl_cmd_join", [ValType.I32, ValType.I32], [ValType.I32]),
     # Diagnostic — record the current source site so trap paths can
     # prefix stderr with ``site=<id>`` for sidecar-map resolution.
     "tcl_diag_set": ("tcl", "diag_set", [ValType.I32], []),
-    # I/O + channel stubs (tcl_io_stubs.zig) — trap with "unsupported
-    # command: <name>".  Each stub takes i32 args and returns i32.
-    "tcl_eof": ("tcl", "tcl_cmd_eof", [ValType.I32], [ValType.I32]),
-    "tcl_flush": ("tcl", "tcl_cmd_flush", [ValType.I32], [ValType.I32]),
-    "tcl_fblocked": ("tcl", "tcl_cmd_fblocked", [ValType.I32], [ValType.I32]),
-    "tcl_fconfigure": ("tcl", "tcl_cmd_fconfigure", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_tell": ("tcl", "tcl_cmd_tell", [ValType.I32], [ValType.I32]),
-    "tcl_seek": ("tcl", "tcl_cmd_seek", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_chan": ("tcl", "tcl_cmd_chan", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_fcopy": ("tcl", "tcl_cmd_fcopy", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_fileevent": ("tcl", "tcl_cmd_fileevent", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_socket": ("tcl", "tcl_cmd_socket", [ValType.I32, ValType.I32], [ValType.I32]),
-    # Filesystem / process stubs (tcl_fs_stubs.zig).
-    "tcl_file": (
-        "tcl",
-        "tcl_cmd_file",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    "tcl_glob": ("tcl", "tcl_cmd_glob", [ValType.I32], [ValType.I32]),
-    "tcl_pwd": ("tcl", "tcl_cmd_pwd", [], [ValType.I32]),
-    "tcl_cd": ("tcl", "tcl_cmd_cd", [ValType.I32], [ValType.I32]),
-    "tcl_exec": ("tcl", "tcl_cmd_exec", [ValType.I32], [ValType.I32]),
-    "tcl_source": ("tcl", "tcl_cmd_source", [ValType.I32], [ValType.I32]),
-    "tcl_load": ("tcl", "tcl_cmd_load", [ValType.I32], [ValType.I32]),
-    "tcl_unload": ("tcl", "tcl_cmd_unload", [ValType.I32], [ValType.I32]),
-    # Format / regex / encoding stubs (tcl_fmt_stubs.zig).
-    "tcl_scan": ("tcl", "tcl_cmd_scan", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_binary": ("tcl", "tcl_cmd_binary", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_regsub": ("tcl", "tcl_cmd_regsub", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_encoding": (
-        "tcl",
-        "tcl_cmd_encoding",
-        [ValType.I32, ValType.I32, ValType.I32],
-        [ValType.I32],
-    ),
-    # Time / event stubs (tcl_time_stubs.zig).  clock_format /
-    # clock_scan / clock_add are the non-implemented clock
-    # subcommands; the arithmetic ones (seconds / clicks /
-    # milliseconds) are real runtime fns in tcl_clock.zig.
-    "tcl_clock_format": ("tcl", "clock_format", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_clock_scan": ("tcl", "clock_scan", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_clock_add": ("tcl", "clock_add", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_after": ("tcl", "tcl_cmd_after", [ValType.I32], [ValType.I32]),
-    "tcl_vwait": ("tcl", "tcl_cmd_vwait", [ValType.I32], [ValType.I32]),
-    "tcl_update": ("tcl", "tcl_cmd_update", [], [ValType.I32]),
-    "tcl_coroutine": ("tcl", "tcl_cmd_coroutine", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_yield": ("tcl", "tcl_cmd_yield", [ValType.I32], [ValType.I32]),
-    "tcl_yieldto": ("tcl", "tcl_cmd_yieldto", [ValType.I32], [ValType.I32]),
-    # Environment / metadata stubs (tcl_env_stubs.zig).  ``namespace``
-    # and ``namespace eval`` are handled separately by the compiler;
-    # this stub catches the other namespace subcommands falling
-    # through.
-    "tcl_namespace": ("tcl", "namespace", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_package": ("tcl", "tcl_cmd_package_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_trace": ("tcl", "tcl_cmd_trace_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_interp": ("tcl", "tcl_cmd_interp_cmd", [ValType.I32, ValType.I32], [ValType.I32]),
-    "tcl_apply": ("tcl", "tcl_cmd_apply", [ValType.I32, ValType.I32], [ValType.I32]),
 }
 
 # Import keys for the TclObj lifecycle functions — always registered

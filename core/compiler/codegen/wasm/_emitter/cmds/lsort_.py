@@ -20,8 +20,8 @@ def _emit_lsort(
     prep = emitter._runtime_prep("lsort", args)
     if prep is None:
         return False
-    func_idx, spec = prep
-    param_count = len(spec[2])
+    func_idx, rimp = prep
+    param_count = len(rimp.params)
 
     if len(args) > param_count:
         emitter._emit_value(args[-1])
@@ -34,7 +34,7 @@ def _emit_lsort(
             emitter._emit_i32_const(0)
 
     emitter._emit_call(func_idx)
-    emitter._runtime_call_end(spec, defs, context)
+    emitter._runtime_call_end(rimp, defs, context)
     return True
 
 

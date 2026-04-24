@@ -57,12 +57,15 @@ _FIELD_NAME_RE = re.compile(r'\.name\s*=\s*"([^"]+)"')
 _FIELD_ARITY_MIN_RE = re.compile(r"\.arity_min\s*=\s*(\d+)")
 _FIELD_ARITY_MAX_RE = re.compile(r"\.arity_max\s*=\s*(\d+|null)")
 _FIELD_HANDLER_RE = re.compile(r"\.handler\s*=\s*&(\w+)")
-# Match a ``pub const subcommands: []const reg.SubEntry = &.{ … };``
-# declaration.  The capturing group holds the slice-literal body
-# (between ``&.{`` and the closing ``}``).
-_SUB_TABLE_RE = re.compile(
-    r"pub\s+const\s+subcommands\s*:\s*\[\]const\s+reg\.SubEntry\s*=\s*&\.\{(?P<body>[^}]*)\}",
-    re.DOTALL,
+# Header patterns for sub-command tables — the body is extracted
+# with brace-balanced scanning (see :func:`_extract_sub_tables`)
+# because Python's ``re`` can't match nested ``{…}`` groups and each
+# ``SubEntry`` literal ``.{ …, }`` itself contains braces.
+_SUB_TABLE_HEADER_RE = re.compile(
+    r"pub\s+const\s+subcommands\s*:\s*\[\]const\s+reg\.SubEntry\s*=\s*&\.\{"
+)
+_NAMED_SUB_TABLE_HEADER_RE = re.compile(
+    r"pub\s+const\s+(\w+)_subcommands\s*:\s*\[\]const\s+reg\.SubEntry\s*=\s*&\.\{"
 )
 _DISPATCH_TRAP_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+trap\(')
 _DISPATCH_FALSE_RE = re.compile(r'eql\(c,\s*"([^"]+)"\)\s*\)\s*return\s+false')
@@ -115,6 +118,65 @@ def _parse_arity_fields(body: str) -> tuple[int | None, int | None]:
     return arity_min, arity_max
 
 
+def _find_balanced_slice(text: str, open_idx: int) -> int:
+    """Return the index of the ``}`` matching the ``{`` at *open_idx*.
+
+    ``open_idx`` points at a ``{`` character; we walk forward counting
+    brace depth so nested ``.{…}`` literals inside a slice body don't
+    terminate the outer match prematurely.
+    """
+    depth = 1
+    i = open_idx + 1
+    while i < len(text) and depth > 0:
+        c = text[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return i - 1
+
+
+def _extract_sub_tables(
+    text: str,
+) -> tuple[dict[str, dict[str, dict[str, object]]], dict[str, dict[str, object]], str]:
+    """Pull every ``subcommands`` / ``<cmd>_subcommands`` slice out of *text*.
+
+    Returns ``(named_tables, generic_table, masked_text)``:
+      * ``named_tables`` maps ``<cmd>`` to its parsed sub-entries.
+      * ``generic_table`` is the unnamed file-level ``subcommands``
+        table (empty dict when absent).
+      * ``masked_text`` is *text* with every sub-table slice blanked out
+        (replaced with spaces of equal length, so line/column numbers
+        are preserved for later regex scans).
+    """
+    ranges: list[tuple[int, int]] = []
+    named: dict[str, dict[str, dict[str, object]]] = {}
+    generic: dict[str, dict[str, object]] = {}
+    for m in _NAMED_SUB_TABLE_HEADER_RE.finditer(text):
+        body_open = text.rindex("{", 0, m.end())
+        body_close = _find_balanced_slice(text, body_open)
+        named[m.group(1)] = _parse_sub_entries(text[body_open + 1 : body_close])
+        ranges.append((m.start(), body_close + 1))
+    for m in _SUB_TABLE_HEADER_RE.finditer(text):
+        # Skip matches that are actually ``<cmd>_subcommands`` — the
+        # named regex already consumed them.
+        if any(m.start() >= s and m.end() <= e for s, e in ranges):
+            continue
+        body_open = text.rindex("{", 0, m.end())
+        body_close = _find_balanced_slice(text, body_open)
+        generic = _parse_sub_entries(text[body_open + 1 : body_close])
+        ranges.append((m.start(), body_close + 1))
+    if not ranges:
+        return named, generic, text
+    chars = list(text)
+    for start, end in ranges:
+        for i in range(start, end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return named, generic, "".join(chars)
+
+
 def _parse_sub_entries(body: str) -> dict[str, dict[str, object]]:
     """Parse ``SubEntry`` structs from a slice-literal body.
 
@@ -159,12 +221,8 @@ def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, object]]:
     cmds_dir = zig_dir / "cmds"
     for src in sorted(cmds_dir.glob("*.zig")):
         text = src.read_text()
-        # Parse an optional subcommands table for this file.
-        sub_table: dict[str, dict[str, object]] = {}
-        sub_match = _SUB_TABLE_RE.search(text)
-        if sub_match is not None:
-            sub_table = _parse_sub_entries(sub_match.group("body"))
-        for m in _ENTRY_FIELDS_RE.finditer(text):
+        named_tables, generic_sub_table, masked = _extract_sub_tables(text)
+        for m in _ENTRY_FIELDS_RE.finditer(masked):
             body = m.group("body")
             name_match = _FIELD_NAME_RE.search(body)
             handler_match = _FIELD_HANDLER_RE.search(body)
@@ -175,6 +233,7 @@ def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, object]]:
             a_min, a_max = _parse_arity_fields(body)
             if a_min is None:
                 a_min = 0
+            sub_table = named_tables.get(name, generic_sub_table)
             result.setdefault(
                 name,
                 {
@@ -182,17 +241,6 @@ def parse_zig_builtins(zig_dir: Path) -> dict[str, dict[str, object]]:
                     "handler": handler,
                     "arity_min": a_min,
                     "arity_max": a_max,
-                    # Attach the file's sub-entries to each command it
-                    # registers.  Most cmds/*.zig files register a
-                    # single command, so the attribution is
-                    # unambiguous.  For the handful that register
-                    # several (e.g. flow.zig registers return / break
-                    # / continue / error / catch) the subcommands
-                    # table — if present — applies to whichever of
-                    # them dispatches on a sub-command word.  The
-                    # parity tool cross-checks against the Python
-                    # CommandSpec.subcommands by command name, so an
-                    # irrelevant sibling seeing the table is harmless.
                     "subcommands": sub_table,
                 },
             )
@@ -384,16 +432,39 @@ def collect_imports_tables() -> dict[str, object]:
                     if sub.wasm_runtime_import is not None:
                         target.setdefault(sub_name, sub.wasm_runtime_import.import_key)
 
+    # Phase E.6 tail: retired the legacy ``_RUNTIME_IMPORTS`` dict.
+    # Infrastructure signatures now live in ``_INFRASTRUCTURE_IMPORTS``;
+    # command-owned signatures live on ``CommandSpec.wasm_runtime_import``
+    # (covered by the ``cmd_runtime`` field below).  The baseline still
+    # carries a merged ``runtime_imports`` view so historical comparisons
+    # stay meaningful — reconstruct it by folding both sources.
+    merged_runtime_imports: dict[str, dict[str, object]] = {
+        key: {
+            "module": v[0],
+            "export": v[1],
+            "params": [p.name for p in v[2]],
+            "results": [r.name for r in v[3]],
+        }
+        for key, v in imp._INFRASTRUCTURE_IMPORTS.items()  # noqa: SLF001
+    }
+    for specs in REGISTRY.specs_by_name.values():
+        for spec in specs:
+            for rimp in (spec.wasm_runtime_import, *(
+                sub.wasm_runtime_import for sub in spec.subcommands.values()
+            )):
+                if rimp is None:
+                    continue
+                sig = imp.import_signature(rimp.import_key)
+                if sig is None:
+                    continue
+                merged_runtime_imports.setdefault(rimp.import_key, {
+                    "module": sig[0],
+                    "export": sig[1],
+                    "params": [p.name for p in sig[2]],
+                    "results": [r.name for r in sig[3]],
+                })
     return {
-        "runtime_imports": {
-            key: {
-                "module": v[0],
-                "export": v[1],
-                "params": [p.name for p in v[2]],
-                "results": [r.name for r in v[3]],
-            }
-            for key, v in imp._RUNTIME_IMPORTS.items()  # noqa: SLF001
-        },
+        "runtime_imports": merged_runtime_imports,
         "cmd_runtime": cmd_runtime,
         "cmd_runtime_nontrapping": sorted(cmd_runtime_nontrapping),
         "string_subcmd_import": string_subcmd_import,
