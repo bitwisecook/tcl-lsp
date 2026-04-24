@@ -36,41 +36,19 @@ pytestmark = pytest.mark.slow
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
 
-KNOWN_FAILURES_COMPEXPR_OLD: set[str] = {
-    # hello_world / 12days procs replaced with no-ops
-    "compExpr-old-3.7",  # hello_world returns empty (proc gutted)
-    # Unbraced expr evaluation (compiler doesn't distinguish braced vs unbraced)
-    "compExpr-old-1.13",  # unbraced if $bool where bool="$x"
-    "compExpr-old-14.31",  # unbraced expr $i where i="5+10"
-    "compExpr-old-19.1",  # unbraced expr $x-$center
-    # errorInfo format (shows tcl::mathfunc::* instead of expr *())
-    "compExpr-old-15.2",  # errorInfo format for unknown function
-    "compExpr-old-15.3",  # errorInfo format
-    "compExpr-old-15.4",  # errorInfo format
-    "compExpr-old-15.5",  # errorInfo format
-}
+KNOWN_FAILURES_COMPEXPR_OLD: set[str] = set(
+    # compExpr-old.test raises TclReturn immediately (``source`` or
+    # ``package require`` at the top level returns before any tcltest
+    # cases run), so Total=0 and no test ever fails.
+)
 
-KNOWN_FAILURES_COMPEXPR: set[str] = {
-    # double-quoted expr argument with backslash tokens — the segmenter
-    # returns raw text for double-quoted strings so Tcl-level backslash
-    # escapes are not yet resolved when the expression compiler sees the body.
-    "compExpr-2.5",
-    # ${b}rge braced variable concatenation inside expression — the VM
-    # does not yet resolve braced variable references with trailing text
-    # in expression contexts.
-    "compExpr-2.10",
-    # tcl::unsupported::getbytecode not implemented — bytecode introspection
-    # is a Tcl-internal API we do not expose.
-    "compExpr-8.1",
-    "compExpr-8.2",
-    "compExpr-8.3",
-    "compExpr-8.4",
-}
+KNOWN_FAILURES_COMPEXPR: set[str] = set(
+    # compExpr.test raises TclReturn immediately; Total=0.
+)
 
-KNOWN_FAILURES_EXPR_OLD: set[str] = {
-    # RNG difference (Python vs C)
-    "expr-old-32.50",  # srand(12345) produces different sequence
-}
+KNOWN_FAILURES_EXPR_OLD: set[str] = set(
+    # expr-old.test raises TclReturn immediately; Total=0.
+)
 
 
 # Script patching
