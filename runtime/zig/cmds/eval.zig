@@ -46,6 +46,6 @@ fn eval_uplevel(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "eval",    .handler = &eval_eval },
-    .{ .name = "uplevel", .handler = &eval_uplevel },
+    .{ .name = "eval", .arity_min = 1, .arity_max = null, .handler = &eval_eval },
+    .{ .name = "uplevel", .arity_min = 1, .arity_max = null, .handler = &eval_uplevel },
 };

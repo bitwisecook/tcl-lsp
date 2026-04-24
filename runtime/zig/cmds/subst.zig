@@ -42,6 +42,6 @@ fn eval_expr(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "subst", .handler = &eval_subst },
-    .{ .name = "expr",  .handler = &eval_expr },
+    .{ .name = "subst", .arity_min = 1, .arity_max = null, .handler = &eval_subst },
+    .{ .name = "expr", .arity_min = 1, .arity_max = null, .handler = &eval_expr },
 };

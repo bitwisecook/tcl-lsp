@@ -20,7 +20,7 @@ fn eval_cd(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "file", .handler = &eval_file },
-    .{ .name = "pwd",  .handler = &eval_pwd },
-    .{ .name = "cd",   .handler = &eval_cd },
+    .{ .name = "file", .arity_min = 1, .arity_max = null, .handler = &eval_file },
+    .{ .name = "pwd", .arity_min = 0, .arity_max = 0, .handler = &eval_pwd },
+    .{ .name = "cd", .arity_min = 0, .arity_max = 1, .handler = &eval_cd },
 };

@@ -379,5 +379,5 @@ fn ns_delete(name_ptr: u32, name_len: u32) void {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "namespace", .handler = &eval_namespace },
+    .{ .name = "namespace", .arity_min = 1, .arity_max = null, .handler = &eval_namespace },
 };

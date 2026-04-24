@@ -570,5 +570,5 @@ fn eval_binary(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "binary", .handler = &eval_binary },
+    .{ .name = "binary", .arity_min = 1, .arity_max = null, .handler = &eval_binary },
 };

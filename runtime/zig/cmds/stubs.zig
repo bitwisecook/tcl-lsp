@@ -119,15 +119,15 @@ fn eval_clock(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "auto_load",    .handler = &eval_auto_load },
-    .{ .name = "auto_reset",   .handler = &eval_auto_noop },
-    .{ .name = "auto_mkindex", .handler = &eval_auto_noop },
-    .{ .name = "auto_import",  .handler = &eval_auto_noop },
-    .{ .name = "auto_execok",  .handler = &eval_auto_noop },
-    .{ .name = "auto_qualify", .handler = &eval_auto_noop },
-    .{ .name = "package",      .handler = &eval_package },
-    .{ .name = "after",        .handler = &eval_after },
-    .{ .name = "vwait",        .handler = &eval_auto_noop },
-    .{ .name = "update",       .handler = &eval_auto_noop },
-    .{ .name = "clock",        .handler = &eval_clock },
+    .{ .name = "auto_load", .arity_min = 1, .arity_max = 1, .handler = &eval_auto_load },
+    .{ .name = "auto_reset", .arity_min = 0, .arity_max = 0, .handler = &eval_auto_noop },
+    .{ .name = "auto_mkindex", .arity_min = 1, .arity_max = null, .handler = &eval_auto_noop },
+    .{ .name = "auto_import", .arity_min = 1, .arity_max = null, .handler = &eval_auto_noop },
+    .{ .name = "auto_execok", .arity_min = 1, .arity_max = 1, .handler = &eval_auto_noop },
+    .{ .name = "auto_qualify", .arity_min = 2, .arity_max = 2, .handler = &eval_auto_noop },
+    .{ .name = "package", .arity_min = 1, .arity_max = null, .handler = &eval_package },
+    .{ .name = "after", .arity_min = 1, .arity_max = null, .handler = &eval_after },
+    .{ .name = "vwait", .arity_min = 1, .arity_max = 1, .handler = &eval_auto_noop },
+    .{ .name = "update", .arity_min = 0, .arity_max = 1, .handler = &eval_auto_noop },
+    .{ .name = "clock", .arity_min = 1, .arity_max = null, .handler = &eval_clock },
 };

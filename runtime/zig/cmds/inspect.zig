@@ -41,7 +41,7 @@ fn eval_pid(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "info",  .handler = &eval_info },
-    .{ .name = "trace", .handler = &eval_trace },
-    .{ .name = "pid",   .handler = &eval_pid },
+    .{ .name = "info", .arity_min = 1, .arity_max = null, .handler = &eval_info },
+    .{ .name = "trace", .arity_min = 1, .arity_max = null, .handler = &eval_trace },
+    .{ .name = "pid", .arity_min = 0, .arity_max = 1, .handler = &eval_pid },
 };

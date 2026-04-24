@@ -54,7 +54,7 @@ fn eval_unset(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "set",   .handler = &eval_set },
-    .{ .name = "incr",  .handler = &eval_incr },
-    .{ .name = "unset", .handler = &eval_unset },
+    .{ .name = "set", .arity_min = 1, .arity_max = 2, .handler = &eval_set },
+    .{ .name = "incr", .arity_min = 1, .arity_max = 2, .handler = &eval_incr },
+    .{ .name = "unset", .arity_min = 1, .arity_max = null, .handler = &eval_unset },
 };
