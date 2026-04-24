@@ -1,6 +1,6 @@
 // ``rename``, ``interp`` — interpreter management commands.
 
-const interp_impl = @import("../dispatch/tcl_cmd_interp.zig");
+const interp_impl = @import("../commands/tcl_cmd_interp.zig");
 const reg         = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_rename(words: []const i32) i32 {
