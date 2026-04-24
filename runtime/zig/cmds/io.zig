@@ -2,9 +2,9 @@
 // ``scan`` moved to cmds/scan_.zig for full multi-varname support.
 
 const rt       = @import("../tcl_runtime.zig");
-const frames   = @import("../tcl_frames.zig");
-const fmt_mod  = @import("../tcl_format.zig");
-const reg      = @import("../tcl_cmd_registry.zig");
+const frames   = @import("../interp/tcl_frames.zig");
+const fmt_mod  = @import("../value/tcl_format.zig");
+const reg      = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_puts(words: []const i32) i32 {
     if (words.len >= 2) return rt.tcl_cmd_puts(words[words.len - 1]);

@@ -4,45 +4,45 @@
 // the linker keeps their exports even though nothing in this file
 // calls them directly.
 
-const tcl_obj = @import("tcl_obj.zig");
+const tcl_obj = @import("value/tcl_obj.zig");
 // ``tcl_globals.zig`` retired in P3.4 — its four exports moved
 // into ``tcl_ns.zig``.  The ``tcl_globals`` alias is kept as a
 // convenience for the re-export block below; new code should
 // import ``tcl_ns`` directly.
-const tcl_globals = @import("tcl_ns.zig");
-const tcl_io = @import("tcl_io.zig");
-const tcl_string = @import("tcl_string.zig");
-const tcl_list_mod = @import("tcl_list.zig");
-const tcl_dict = @import("tcl_dict.zig");
-const tcl_catch = @import("tcl_catch.zig");
-const tcl_frames = @import("tcl_frames.zig");
-const tcl_procs = @import("tcl_procs.zig");
-const tcl_ns = @import("tcl_ns.zig");
-const parse_cache = @import("parse_cache.zig");
-const tcl_cmd_info = @import("tcl_cmd_info.zig");
-const tcl_clock = @import("tcl_clock.zig");
-const tcl_array = @import("tcl_array.zig");
-const tcl_diag = @import("tcl_diag.zig");
-const tcl_stubs = @import("tcl_stubs.zig");
-const tcl_io_stubs = @import("tcl_io_stubs.zig");
-const tcl_fs_stubs = @import("tcl_fs_stubs.zig");
-const tcl_fmt_stubs = @import("tcl_fmt_stubs.zig");
-const tcl_regex = @import("tcl_regex.zig");
-const tcl_time_stubs = @import("tcl_time_stubs.zig");
-const tcl_env_stubs = @import("tcl_env_stubs.zig");
-const tcl_encoding = @import("tcl_encoding.zig");
-const tcl_chan = @import("tcl_chan.zig");
-const tcl_trace = @import("tcl_trace.zig");
-const tcl_fs = @import("tcl_fs.zig");
-const tcl_format = @import("tcl_format.zig");
-const tcl_arith = @import("tcl_arith.zig");
-const tcl_dispatch = @import("tcl_dispatch.zig");
-const tcl_stub_fallback = @import("tcl_stub_fallback.zig");
-const tcl_rename = @import("tcl_rename.zig");
-const tcl_alias = @import("tcl_alias.zig");
-const tcl_hide = @import("tcl_hide.zig");
-const tcl_interp_registry = @import("tcl_interp_registry.zig");
-const interp = @import("tcl_interp.zig");
+const tcl_globals = @import("interp/tcl_ns.zig");
+const tcl_io = @import("io/tcl_io.zig");
+const tcl_string = @import("value/tcl_string.zig");
+const tcl_list_mod = @import("value/tcl_list.zig");
+const tcl_dict = @import("value/tcl_dict.zig");
+const tcl_catch = @import("interp/tcl_catch.zig");
+const tcl_frames = @import("interp/tcl_frames.zig");
+const tcl_procs = @import("interp/tcl_procs.zig");
+const tcl_ns = @import("interp/tcl_ns.zig");
+const parse_cache = @import("value/parse_cache.zig");
+const tcl_cmd_info = @import("dispatch/tcl_cmd_info.zig");
+const tcl_clock = @import("io/tcl_clock.zig");
+const tcl_array = @import("value/tcl_array.zig");
+const tcl_diag = @import("dispatch/tcl_diag.zig");
+const tcl_stubs = @import("stubs/tcl_stubs.zig");
+const tcl_io_stubs = @import("stubs/tcl_io_stubs.zig");
+const tcl_fs_stubs = @import("stubs/tcl_fs_stubs.zig");
+const tcl_fmt_stubs = @import("stubs/tcl_fmt_stubs.zig");
+const tcl_regex = @import("value/tcl_regex.zig");
+const tcl_time_stubs = @import("stubs/tcl_time_stubs.zig");
+const tcl_env_stubs = @import("stubs/tcl_env_stubs.zig");
+const tcl_encoding = @import("value/tcl_encoding.zig");
+const tcl_chan = @import("io/tcl_chan.zig");
+const tcl_trace = @import("interp/tcl_trace.zig");
+const tcl_fs = @import("io/tcl_fs.zig");
+const tcl_format = @import("value/tcl_format.zig");
+const tcl_arith = @import("value/tcl_arith.zig");
+const tcl_dispatch = @import("dispatch/tcl_dispatch.zig");
+const tcl_stub_fallback = @import("dispatch/tcl_stub_fallback.zig");
+const tcl_rename = @import("dispatch/tcl_rename.zig");
+const tcl_alias = @import("dispatch/tcl_alias.zig");
+const tcl_hide = @import("dispatch/tcl_hide.zig");
+const tcl_interp_registry = @import("interp/tcl_interp_registry.zig");
+const interp = @import("interp/tcl_interp.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
 // (backwards-compatible: code that does @import("tcl_runtime.zig").X still works)

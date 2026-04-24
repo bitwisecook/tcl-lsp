@@ -3,11 +3,11 @@
 // lreverse, lrepeat, lassign, lmap, lseq.
 
 const rt       = @import("../tcl_runtime.zig");
-const frames   = @import("../tcl_frames.zig");
-const obj_mod  = @import("../tcl_obj.zig");
-const reg      = @import("../tcl_cmd_registry.zig");
-const list_mod = @import("../tcl_list.zig");
-const interp   = @import("../tcl_interp.zig");
+const frames   = @import("../interp/tcl_frames.zig");
+const obj_mod  = @import("../value/tcl_obj.zig");
+const reg      = @import("../dispatch/tcl_cmd_registry.zig");
+const list_mod = @import("../value/tcl_list.zig");
+const interp   = @import("../interp/tcl_interp.zig");
 
 const alloc             = rt.alloc;
 const obj_new_string    = rt.obj_new_string;
