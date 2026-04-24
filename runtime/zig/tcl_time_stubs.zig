@@ -11,6 +11,16 @@
 // any real timezone-aware use, but they prevent ``counter::init
 // -timehist`` (and similar callers) from aborting with code 1.
 //
+// DELIBERATE SEMANTIC DIVERGENCE FROM TCL 8.4-9.0: real Tcl raises
+// an error when the timezone database isn't available; we silently
+// return 0 / "0".  Callers that format dates and parse them back get
+// epoch-zero (1970-01-01 00:00:00) instead of the intended value.
+// This trades correctness for bootability — the counter.tcl tcllib
+// module and any other code that only uses ``clock format`` +
+// ``clock scan`` as an opaque round-trip will behave plausibly, but
+// any user actually reading the formatted output will see wrong dates.
+// Track real TZ-aware ``clock`` as a separate KCS work item.
+//
 // The event-loop commands (``after`` with ms, ``vwait``, ``update``,
 // ``coroutine``, ``yield``, ``yieldto``) need a scheduler/event loop
 // that has no meaningful implementation inside a single WASM
@@ -18,12 +28,14 @@
 // cmd_table (stubs_.zig) before reaching here.
 
 const obj = @import("tcl_obj.zig");
+const stubs = @import("tcl_stubs.zig");
 
 pub export fn clock_format(seconds: i32, opts: i32) i32 {
     _ = seconds;
     _ = opts;
     // Return the string "0" — a fixed placeholder that clock_scan can
-    // parse as integer 0 without erroring.
+    // parse as integer 0 without erroring.  See module header for the
+    // deliberate semantic divergence from real Tcl here.
     const buf = obj.alloc(1);
     const p: [*]u8 = @ptrFromInt(buf);
     p[0] = '0';
@@ -41,8 +53,6 @@ pub export fn clock_add(base: i32, opts: i32) i32 {
     _ = opts;
     return obj.obj_new_int(0);
 }
-
-const stubs = @import("tcl_stubs.zig");
 
 pub export fn tcl_cmd_after(ms: i32) i32 {
     _ = ms;

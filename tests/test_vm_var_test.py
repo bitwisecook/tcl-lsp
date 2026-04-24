@@ -26,6 +26,16 @@ pytestmark = pytest.mark.slow
 # Each set lists Tcl test names that are expected to fail in our VM.
 # When a VM bug is fixed the test will unexpectedly pass — the set
 # must be updated (removing the entry) to keep CI green.
+#
+# Empty ``set()`` with an ``expect_zero_total=True`` call site means
+# the .test file crashes at startup in the Python VM (``TclReturn`` at
+# top level, ``couldn't read ./tcltests.tcl``, ``invalid ReturnCode``,
+# etc.) and runs 0 tests.  The original per-test failure catalogues
+# — which categorised failures by root cause (errorInfo format,
+# missing subcommand, etc.) — are preserved in git history: ``git
+# log -p origin/main..HEAD -- <this-file>`` shows what failed before
+# the crash took hold.  Repopulate the set once the startup crash
+# is fixed and real cases fail.
 
 KNOWN_FAILURES_INCR: set[str] = set(
     # incr.test raises TclReturn/TclError immediately; Total=0 and no test ever runs.
@@ -99,6 +109,8 @@ def _check_results(
     results: dict[str, object],
     known_failures: set[str],
     test_file: str,
+    *,
+    expect_zero_total: bool = False,
 ) -> None:
     """Assert that failures are exactly the known set.
 
@@ -118,6 +130,24 @@ def _check_results(
         f"\n{test_file}: {total} total, {passed} passed, "
         f"{skipped} skipped, {len(failed_set)} failed"
     )
+    if total == 0 and not expect_zero_total:
+        pytest.fail(
+            f"{test_file} ran 0 tests (Total=0).  The .test file probably "
+            f"crashed at startup; fix the root cause, or pass "
+            f"``expect_zero_total=True`` if the crash is the expected state."
+        )
+    if total != 0 and expect_zero_total:
+        pytest.fail(
+            f"{test_file} now runs {total} tests, but is marked "
+            f"``expect_zero_total=True``.  Remove that flag and repopulate "
+            f"known_failures based on what actually fails now."
+        )
+    if expect_zero_total and known_failures:
+        pytest.fail(
+            f"{test_file}: ``expect_zero_total=True`` requires known_failures "
+            f"to be empty (no tests ran, so nothing can be 'known to fail'); "
+            f"clear the set.  Found {len(known_failures)} entries."
+        )
 
     unexpected_failures = failed_set - known_failures
     unexpected_passes = known_failures - failed_set
@@ -159,7 +189,7 @@ class TestIncrNative:
 
     def test_incr(self) -> None:
         results = _run_test_file("incr.test")
-        _check_results(results, KNOWN_FAILURES_INCR, "incr.test")
+        _check_results(results, KNOWN_FAILURES_INCR, "incr.test", expect_zero_total=True)
 
 
 class TestSetOldNative:
@@ -167,7 +197,7 @@ class TestSetOldNative:
 
     def test_set_old(self) -> None:
         results = _run_test_file("set-old.test")
-        _check_results(results, KNOWN_FAILURES_SET_OLD, "set-old.test")
+        _check_results(results, KNOWN_FAILURES_SET_OLD, "set-old.test", expect_zero_total=True)
 
 
 class TestUpvarNative:
@@ -175,7 +205,7 @@ class TestUpvarNative:
 
     def test_upvar(self) -> None:
         results = _run_test_file("upvar.test")
-        _check_results(results, KNOWN_FAILURES_UPVAR, "upvar.test")
+        _check_results(results, KNOWN_FAILURES_UPVAR, "upvar.test", expect_zero_total=True)
 
 
 class TestUplevelNative:
@@ -183,7 +213,7 @@ class TestUplevelNative:
 
     def test_uplevel(self) -> None:
         results = _run_test_file("uplevel.test")
-        _check_results(results, KNOWN_FAILURES_UPLEVEL, "uplevel.test")
+        _check_results(results, KNOWN_FAILURES_UPLEVEL, "uplevel.test", expect_zero_total=True)
 
 
 class TestSetNative:
@@ -191,7 +221,7 @@ class TestSetNative:
 
     def test_set(self) -> None:
         results = _run_test_file("set.test")
-        _check_results(results, KNOWN_FAILURES_SET, "set.test")
+        _check_results(results, KNOWN_FAILURES_SET, "set.test", expect_zero_total=True)
 
 
 class TestIncrOldNative:
@@ -199,7 +229,7 @@ class TestIncrOldNative:
 
     def test_incr_old(self) -> None:
         results = _run_test_file("incr-old.test")
-        _check_results(results, KNOWN_FAILURES_INCR_OLD, "incr-old.test")
+        _check_results(results, KNOWN_FAILURES_INCR_OLD, "incr-old.test", expect_zero_total=True)
 
 
 class TestVarNative:
@@ -207,4 +237,4 @@ class TestVarNative:
 
     def test_var(self) -> None:
         results = _run_test_file("var.test")
-        _check_results(results, KNOWN_FAILURES_VAR, "var.test")
+        _check_results(results, KNOWN_FAILURES_VAR, "var.test", expect_zero_total=True)
