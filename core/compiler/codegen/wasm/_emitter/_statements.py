@@ -42,8 +42,6 @@ from .._imports import (
     _DICT_SUBCMD_IMPORT,
     _RUNTIME_IMPORTS,
     _SCOPE_NOP_COMMANDS,
-    _STRING_IS_IMPORT,
-    _STRING_SUBCMD_IMPORT,
 )
 from .._ir import (
     DiagSite,
@@ -988,34 +986,6 @@ class _WasmEmitterStmtMixin(_Base):
         # uplevel in tail position — keep eval result on stack.
         if command == "uplevel" and args:
             self._emit_cmd_uplevel(args)
-            return
-
-        # string sub-commands — keep result on stack
-        if command == "string" and args:
-            subcmd = args[0]
-            # Handle "string is <class> <value>" in tail position
-            if subcmd == "is" and len(args) >= 3:
-                is_key = _STRING_IS_IMPORT.get(args[1])
-                if is_key is not None and is_key in self._shared_imports:
-                    func_idx = self._shared_imports[is_key]
-                    self._emit_value(args[-1])
-                    self._emit_call(func_idx)
-                    return
-            import_key = _STRING_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
-                sub_args = args[1:]
-                for i in range(min(param_count, len(sub_args))):
-                    self._emit_value(sub_args[i])
-                for _ in range(param_count - len(sub_args)):
-                    self._emit_i32_const(0)
-                self._emit_call(func_idx)
-                if not spec[3]:
-                    self._emit_i32_const(0)
-                return
-            self._emit_i32_const(0)
             return
 
         # dict sub-commands — keep result on stack
