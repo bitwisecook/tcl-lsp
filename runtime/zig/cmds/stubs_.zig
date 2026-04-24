@@ -12,6 +12,7 @@
 // ``after idle script`` (idle-callback), ``after cancel id``, and
 // ``after info`` all return an empty string rather than trapping.
 
+const std   = @import("std");
 const rt    = @import("../tcl_runtime.zig");
 const reg   = @import("../tcl_cmd_registry.zig");
 const clock = @import("../tcl_clock.zig");
@@ -36,12 +37,6 @@ fn eval_after(words: []const i32) i32 {
     return rt.obj_new_string(0, 0);
 }
 
-fn bytes_eq(a: []const u8, b: []const u8) bool {
-    if (a.len != b.len) return false;
-    for (a, b) |x, y| if (x != y) return false;
-    return true;
-}
-
 // Interpreter-side ``clock`` dispatcher.
 //
 // The Tcl compiler emits ``_emit_eval_fallback("clock", args)`` for
@@ -55,15 +50,19 @@ fn bytes_eq(a: []const u8, b: []const u8) bool {
 //   format / add                    → return the string "0" (stub).
 //   scan                            → return integer 0 (stub).
 //   All others                      → empty string.
+//
+// ``format`` / ``scan`` / ``add`` stubbing mirrors ``tcl_time_stubs.zig``
+// (the WASM-export path used by compiled procs).  See that file's
+// header for the deliberate divergence from real Tcl semantics.
 fn eval_clock(words: []const i32) i32 {
     if (words.len < 2) return clock.clock_seconds();
     const sub = rt.obj_ensure_string(words[1]);
     const sp: []const u8 = if (sub.ptr == 0) "" else @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
-    if (bytes_eq(sp, "seconds")) return clock.clock_seconds();
-    if (bytes_eq(sp, "clicks")) return clock.clock_clicks();
-    if (bytes_eq(sp, "milliseconds")) return clock.clock_milliseconds();
-    if (bytes_eq(sp, "scan")) return rt.obj_new_int(0);
-    if (bytes_eq(sp, "format") or bytes_eq(sp, "add")) {
+    if (std.mem.eql(u8, sp, "seconds")) return clock.clock_seconds();
+    if (std.mem.eql(u8, sp, "clicks")) return clock.clock_clicks();
+    if (std.mem.eql(u8, sp, "milliseconds")) return clock.clock_milliseconds();
+    if (std.mem.eql(u8, sp, "scan")) return rt.obj_new_int(0);
+    if (std.mem.eql(u8, sp, "format") or std.mem.eql(u8, sp, "add")) {
         // Return the string "0" so callers can parse it as an integer.
         const buf = rt.alloc(1);
         const p: [*]u8 = @ptrFromInt(buf);

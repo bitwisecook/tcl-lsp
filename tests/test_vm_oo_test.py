@@ -85,6 +85,8 @@ def _check_results(
     results: dict[str, object],
     known_failures: set[str],
     test_file: str,
+    *,
+    expect_zero_total: bool = False,
 ) -> None:
     """Assert that failures are exactly the known set.
 
@@ -104,6 +106,24 @@ def _check_results(
         f"\n{test_file}: {total} total, {passed} passed, "
         f"{skipped} skipped, {len(failed_set)} failed"
     )
+    if total == 0 and not expect_zero_total:
+        pytest.fail(
+            f"{test_file} ran 0 tests (Total=0).  The .test file probably "
+            f"crashed at startup; fix the root cause, or pass "
+            f"``expect_zero_total=True`` if the crash is the expected state."
+        )
+    if total != 0 and expect_zero_total:
+        pytest.fail(
+            f"{test_file} now runs {total} tests, but is marked "
+            f"``expect_zero_total=True``.  Remove that flag and repopulate "
+            f"known_failures based on what actually fails now."
+        )
+    if expect_zero_total and known_failures:
+        pytest.fail(
+            f"{test_file}: ``expect_zero_total=True`` requires known_failures "
+            f"to be empty (no tests ran, so nothing can be 'known to fail'); "
+            f"clear the set.  Found {len(known_failures)} entries."
+        )
 
     unexpected_failures = failed_set - known_failures
     unexpected_passes = known_failures - failed_set
@@ -146,7 +166,7 @@ class TestOONative:
 
     def test_oo_test(self) -> None:
         results = _run_test_file("oo.test", optimise=False)
-        _check_results(results, KNOWN_FAILURES_OO, "oo.test")
+        _check_results(results, KNOWN_FAILURES_OO, "oo.test", expect_zero_total=True)
 
 
 class TestOONext2Native:
@@ -154,7 +174,7 @@ class TestOONext2Native:
 
     def test_oo_next2_test(self) -> None:
         results = _run_test_file("ooNext2.test", optimise=False)
-        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test")
+        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test", expect_zero_total=True)
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +187,7 @@ class TestOOOptimised:
 
     def test_oo_test_optimised(self) -> None:
         results = _run_test_file("oo.test", optimise=True)
-        _check_results(results, KNOWN_FAILURES_OO, "oo.test [optimised]")
+        _check_results(results, KNOWN_FAILURES_OO, "oo.test [optimised]", expect_zero_total=True)
 
 
 class TestOONext2Optimised:
@@ -175,4 +195,4 @@ class TestOONext2Optimised:
 
     def test_oo_next2_test_optimised(self) -> None:
         results = _run_test_file("ooNext2.test", optimise=True)
-        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test [optimised]")
+        _check_results(results, KNOWN_FAILURES_OO_NEXT2, "ooNext2.test [optimised]", expect_zero_total=True)
