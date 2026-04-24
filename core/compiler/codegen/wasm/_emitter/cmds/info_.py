@@ -8,6 +8,9 @@ from ..._ir import WasmOp
 
 def _emit_info(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``info subcommand ?arg?`` in statement context — delegates to _emit_info_value."""
+    if context is EmitContext.VALUE:
+        # Tail-context not yet migrated — handled inline in _statements.py.
+        return False
     if not args:
         emitter._emit_unsupported_trap("info (no subcommand)")
         return True

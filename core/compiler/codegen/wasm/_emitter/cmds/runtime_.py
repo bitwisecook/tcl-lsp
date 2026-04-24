@@ -7,9 +7,10 @@ from ..._imports import _CMD_RUNTIME
 
 
 def _make_runtime_hook(cmd: str):
-    def _hook(
-        emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
-    ) -> bool:
+    def _hook(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
+        if context is EmitContext.VALUE:
+            # Tail-context not yet migrated — handled inline in _statements.py.
+            return False
         emitter._emit_cmd_runtime(cmd, args, defs)
         return True
 

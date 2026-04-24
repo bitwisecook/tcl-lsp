@@ -12,6 +12,9 @@ from ..._ir import WasmOp
 
 def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``dict subcommand ...`` — dispatch to runtime import (i32 args)."""
+    if context is EmitContext.VALUE:
+        # Tail-context not yet migrated — handled inline in _statements.py.
+        return False
     if not args:
         emitter._emit_unsupported_trap("dict (no subcommand)")
         return True
