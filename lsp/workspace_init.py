@@ -263,7 +263,7 @@ def on_initialized(params: types.InitializedParams) -> None:
             _normalise_formatter_settings(formatting)
         )
 
-    # Discover the project-level config file under each workspace root.
+    # Discover the project-level config file at the workspace root.
     ws = _server.workspace  # type: ignore[union-attr]
     project_settings: dict = {}
     if ws.root_path:

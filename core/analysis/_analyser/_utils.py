@@ -7,6 +7,7 @@ detectable errors.
 
 from __future__ import annotations
 
+import io
 import logging
 import re
 
@@ -117,9 +118,10 @@ def parse_file_suppression(source: str) -> frozenset[str]:
     nor a ``#`` comment.  Multiple directives accumulate.
     """
     codes: set[str] = set()
-    for idx, raw in enumerate(source.splitlines()):
+    for idx, line in enumerate(io.StringIO(source)):
         if idx >= _FILE_DIRECTIVE_SCAN_LINES:
             break
+        raw = line.rstrip("\r\n")
         stripped = raw.strip()
         if not stripped:
             continue

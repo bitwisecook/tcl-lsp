@@ -64,17 +64,20 @@ The full chain, from lowest priority to highest:
    most specific server-level source, so a project config enabling or
    disabling a code always wins over whatever the editor sends.
 
-Two further layers, applied after server-level filtering and only to
-the document they appear in, override all four above.  Both layers only
-*add* suppressions — neither can re-enable a code suppressed by the
-other.  Inline is more specific (one command); file-level is broader
+Two further document-local suppression scopes are applied after
+server-level filtering and only to the document they appear in.  Both
+scopes only *add* suppressions — neither can re-enable a code
+suppressed by the other.  They are not ordered relative to each other;
+inline is more specific (one command), while file-level is broader
 (the whole file):
 
-5. **Inline** — a ``# noqa`` or ``# noqa: CODE`` comment on the line
-   before a command suppresses codes for that command only (highest
-   priority, most specific).
-6. **File-level** — a top-of-file ``# tcl-lsp: disable=CODE,CODE``
-   comment suppresses the listed codes for the whole file.
+- **Inline** — a ``# noqa`` or ``# noqa: CODE`` comment on the line
+  before a command suppresses codes for that command only (most
+  specific scope).
+- **File-level** — a top-of-file ``# tcl-lsp: disable=CODE,CODE``
+  comment suppresses the listed codes for the whole file.
+
+Both scopes override all four server-level layers (1–4) above.
 
 See [`../../kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
 for the user-facing walkthrough of each scope.
