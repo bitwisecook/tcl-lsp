@@ -31,6 +31,26 @@ def runtime_import_for(command: str) -> WasmRuntimeImport | None:
             return spec.wasm_runtime_import
     return None
 
+
+def subcommand_runtime_import_for(
+    command: str, subcommand: str
+) -> WasmRuntimeImport | None:
+    """Return the runtime-import descriptor for ``<command> <subcommand>``.
+
+    Replaces the ``_STRING_SUBCMD_IMPORT`` / ``_DICT_SUBCMD_IMPORT`` /
+    ``_CLOCK_SUBCMD_IMPORT`` shadow tables.  Looks up the
+    ``SubCommand`` entry on any ``CommandSpec`` for *command* and
+    returns its ``wasm_runtime_import`` if set.
+    """
+    specs = REGISTRY.specs_by_name.get(command)
+    if specs is None:
+        return None
+    for spec in specs:
+        sub = spec.subcommands.get(subcommand)
+        if sub is not None and sub.wasm_runtime_import is not None:
+            return sub.wasm_runtime_import
+    return None
+
 # Runtime function signatures imported from the Tcl runtime.
 # Each entry maps an import key to (module, export_name, param_types, result_types).
 #
@@ -392,58 +412,16 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
     }
 )
 
-# String sub-command → import key
-_STRING_SUBCMD_IMPORT: dict[str, str] = {
-    "length": "tcl_string_length",
-    "index": "tcl_string_index",
-    "range": "tcl_string_range",
-    "compare": "tcl_string_compare",
-    "match": "tcl_string_match",
-    "map": "tcl_string_map",
-    "trim": "tcl_string_trim",
-    "trimleft": "tcl_string_trimleft",
-    "trimright": "tcl_string_trimright",
-    "equal": "tcl_string_equal",
-    "first": "tcl_string_first",
-    "last": "tcl_string_last",
-    "repeat": "tcl_string_repeat",
-    "reverse": "tcl_string_reverse",
-    "toupper": "tcl_string_toupper",
-    "tolower": "tcl_string_tolower",
-    "totitle": "tcl_string_totitle",
-    "replace": "tcl_string_replace",
-}
-
-# ``string is <class> <value>`` sub-sub-command → import key
+# ``string is <class> <value>`` sub-sub-command → import key.
+# Unlike the ordinary ``<command> <subcommand>`` dispatch (which lives
+# on ``SubCommand.wasm_runtime_import``), this table dispatches on the
+# *second* argument of ``string is`` — i.e. the character-class name.
+# The registry doesn't model sub-sub-commands, so it stays as a dict.
 _STRING_IS_IMPORT: dict[str, str] = {
     "integer": "tcl_string_is_integer",
     "alpha": "tcl_string_is_alpha",
     "digit": "tcl_string_is_digit",
     "space": "tcl_string_is_space",
-}
-
-# Dict sub-command → (import key, additional_arg_count after dict_var)
-# ``create`` and ``merge`` are intentionally NOT in this map — the
-# compiler specialises them in ``_emit_cmd_dict`` (and the
-# value-context equivalent) to fold/chain at compile time with
-# ``tcl_lappend`` / ``tcl_dict_merge_pair`` respectively, bypassing
-# the generic dispatch below.
-_DICT_SUBCMD_IMPORT: dict[str, str] = {
-    "get": "tcl_dict_get",
-    "set": "tcl_dict_set",
-    "exists": "tcl_dict_exists",
-    "keys": "tcl_dict_keys",
-    "values": "tcl_dict_values",
-    "size": "tcl_dict_size",
-}
-
-# ``clock <subcmd>`` → import key.  Only subcommands that map to a
-# WASI-backed runtime hook are listed; ``format``/``scan`` fall through
-# to the interpreter which itself traps in the sandbox.
-_CLOCK_SUBCMD_IMPORT: dict[str, str] = {
-    "seconds": "tcl_clock_seconds",
-    "clicks": "tcl_clock_clicks",
-    "milliseconds": "tcl_clock_milliseconds",
 }
 
 # Commands that are scope declarations, compile-time-only, or CFG

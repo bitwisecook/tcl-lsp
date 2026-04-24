@@ -18,9 +18,9 @@ from .._encoding import (
     _tcl_token_value,
 )
 from .._imports import (
-    _CLOCK_SUBCMD_IMPORT,
     _RUNTIME_IMPORTS,
     runtime_import_for,
+    subcommand_runtime_import_for,
 )
 from .._ir import (
     ValType,
@@ -460,8 +460,9 @@ class _WasmEmitterCmdMixin(_Base):
             self._emit_i32_const(0)
             return
         subcmd = args[0]
-        import_key = _CLOCK_SUBCMD_IMPORT.get(subcmd)
-        if import_key is not None:
+        sri = subcommand_runtime_import_for("clock", subcmd)
+        if sri is not None:
+            import_key = sri.import_key
             func_idx = self._shared_imports.get(import_key)
             if func_idx is not None:
                 self._emit_call(func_idx)

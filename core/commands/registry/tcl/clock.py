@@ -13,6 +13,7 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
+    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ._base import register
@@ -117,6 +118,7 @@ class ClockCommand(CommandDef):
                     detail="Return high-resolution click counter.",
                     synopsis="clock clicks ?-option?",
                     return_type=TclType.INT,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_clock_clicks'),
                 ),
                 "format": SubCommand(
                     name="format",
@@ -139,6 +141,7 @@ class ClockCommand(CommandDef):
                     detail="Return current time in milliseconds.",
                     synopsis="clock milliseconds",
                     return_type=TclType.INT,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_clock_milliseconds'),
                 ),
                 "scan": SubCommand(
                     name="scan",
@@ -153,6 +156,7 @@ class ClockCommand(CommandDef):
                     detail="Return current time in seconds.",
                     synopsis="clock seconds",
                     return_type=TclType.INT,
+                    wasm_runtime_import=WasmRuntimeImport(import_key='tcl_clock_seconds'),
                 ),
             },
             validation=ValidationSpec(
