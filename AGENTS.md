@@ -392,7 +392,6 @@ runtime/zig/
 ├── parse/                               (script tokeniser + subst)
 ├── interp/                              (eval loop + frames + ns)
 ├── dispatch/                            (command lookup + diag)
-├── commands/                            (big single-command impls)
 ├── stubs/                               (trapping / degraded exports)
 ├── io/                                  (real I/O + time)
 ├── cmds/                                (per-command BUILTINS registrations)
@@ -417,11 +416,11 @@ runtime/zig/
 | `dispatch/tcl_stub_fallback.zig` | fallback dispatch for Tcl core commands without a BUILTINS entry; the `STUB_TRAP` data table names commands that emit `unsupported command: X` via `stubs/tcl_stubs.zig` | local shim |
 | `dispatch/tcl_dispatch.zig` | host bridge for compiled-proc calls (consumer) | local shim |
 | `dispatch/tcl_diag.zig` | DiagSite / DiagMap — source-location sidecar for runtime traps so stderr `tcl trap: site=<id>` resolves to a file:line:col | local shim |
-| `commands/tcl_cmd_info.zig` | the `info` command — body/args/default/exists/level/frame/commands/procs/functions/… | `tclCmdIL.c` `Tcl_InfoObjCmd` |
-| `commands/tcl_cmd_interp.zig` | the `interp` command — create/eval/delete/alias/hide/expose/target/invokehidden/… | `tclInterp.c` `Tcl_InterpObjCmd` |
-| `commands/tcl_hide.zig` | hidden command table (used by `interp hide` / `interp expose` / `info hidden`) | `tclInterp.c` hidden command table |
-| `commands/tcl_alias.zig` | interp alias table (used by `interp alias`, `rename` across interps) | `tclInterp.c` alias table |
-| `commands/tcl_rename.zig` | `rename` command — remove-or-relocate a command in the BUILTINS registry / user-proc table | `tclBasic.c` `Tcl_RenameObjCmd` |
+| `cmds/tcl_cmd_info.zig` | the `info` command — body/args/default/exists/level/frame/commands/procs/functions/… | `tclCmdIL.c` `Tcl_InfoObjCmd` |
+| `cmds/tcl_cmd_interp.zig` | the `interp` command — create/eval/delete/alias/hide/expose/target/invokehidden/… | `tclInterp.c` `Tcl_InterpObjCmd` |
+| `cmds/tcl_hide.zig` | hidden command table (used by `interp hide` / `interp expose` / `info hidden`) | `tclInterp.c` hidden command table |
+| `cmds/tcl_alias.zig` | interp alias table (used by `interp alias`, `rename` across interps) | `tclInterp.c` alias table |
+| `cmds/tcl_rename.zig` | `rename` command — remove-or-relocate a command in the BUILTINS registry / user-proc table | `tclBasic.c` `Tcl_RenameObjCmd` |
 | `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval.zig` (`eval`/`uplevel`), `proc.zig` (`proc`), `list.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst.zig` (`subst`/`expr`), `regexp.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace.zig` (`namespace`), `interp.zig` (`rename`/`interp`), `stubs.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
 | `stubs/tcl_stubs.zig` | `unsupported(name)` / `unsupported_sub(cmd, sub)` / `raise(msg)` — routes through the error path so inside `catch` it sets `error_flag` + `error_msg`, outside a catch it writes to stderr and traps | local shim |
 | `io/tcl_io.zig` | real `puts` implementation on WASI `fd_write` | `tclIO.c` |
