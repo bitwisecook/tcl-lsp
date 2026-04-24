@@ -432,6 +432,16 @@ class UnknownProcInfo:
 
 
 # Analysis result
+
+# Sentinel values for ``AnalysisResult.suppressed_lines``.
+# ``_NOQA_ALL`` is stored as the code-set value meaning "suppress every code
+# on this line".  ``_FILE_SUPPRESS_KEY`` is the dict key used for codes that
+# apply to the entire file (from a top-of-file ``# tcl-lsp: disable=`` directive).
+# Negative keys can never collide with a real source line number.
+_NOQA_ALL: frozenset[str] = frozenset({"*"})
+_FILE_SUPPRESS_KEY: int = -1
+
+
 @dataclass
 class AnalysisResult:
     """Complete analysis result for a single document."""
