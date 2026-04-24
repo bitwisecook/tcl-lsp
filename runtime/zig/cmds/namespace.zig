@@ -381,3 +381,27 @@ fn ns_delete(name_ptr: u32, name_len: u32) void {
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "namespace", .arity_min = 1, .arity_max = null, .handler = &eval_namespace },
 };
+
+// Sub-command arities — mirrors ``core/commands/registry/tcl/namespace.py``.
+// Cross-checked against C Tcl 9.0 ``tclNamesp.c`` every ``Namespace*Cmd``.
+pub const subcommands: []const reg.SubEntry = &.{
+    .{ .name = "children", .arity_min = 0, .arity_max = 2, .handler = &eval_namespace },
+    .{ .name = "code", .arity_min = 1, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "current", .arity_min = 0, .arity_max = 0, .handler = &eval_namespace },
+    .{ .name = "delete", .arity_min = 0, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "ensemble", .arity_min = 1, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "eval", .arity_min = 2, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "exists", .arity_min = 1, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "export", .arity_min = 0, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "forget", .arity_min = 0, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "import", .arity_min = 0, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "inscope", .arity_min = 2, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "origin", .arity_min = 1, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "parent", .arity_min = 0, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "path", .arity_min = 0, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "qualifiers", .arity_min = 1, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "tail", .arity_min = 1, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "unknown", .arity_min = 0, .arity_max = 1, .handler = &eval_namespace },
+    .{ .name = "upvar", .arity_min = 1, .arity_max = null, .handler = &eval_namespace },
+    .{ .name = "which", .arity_min = 1, .arity_max = 2, .handler = &eval_namespace },
+};

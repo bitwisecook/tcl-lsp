@@ -9,13 +9,12 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
-from .....commands.registry import EmitContext
+from .....commands.registry import EmitContext, WasmRuntimeImport
 from .....parsing.tokens import TokenType
 from ....ir import (
     CommandTokens,
 )
 from .._imports import (
-    _RUNTIME_IMPORTS,
     runtime_import_for,
 )
 from .._ir import (
@@ -39,8 +38,8 @@ class _WasmEmitterCmdMixin(_Base):
         self,
         command: str,
         args: tuple[str, ...],
-    ) -> tuple[int, tuple] | None:
-        """Resolve ``command`` to a ``(func_idx, import_spec)`` pair.
+    ) -> tuple[int, WasmRuntimeImport] | None:
+        """Resolve ``command`` to a ``(func_idx, WasmRuntimeImport)`` pair.
 
         Returns ``None`` when the command has no runtime-import mapping
         (unknown command) or the import wasn't registered (the scan
@@ -57,18 +56,17 @@ class _WasmEmitterCmdMixin(_Base):
             return None
         if not rimp.nontrapping:
             self._emit_diag_site(command, args=args, kind="runtime")
-        return func_idx, _RUNTIME_IMPORTS[rimp.import_key]
+        return func_idx, rimp
 
     def _runtime_call_end(
         self,
-        spec: tuple,
+        rimp: WasmRuntimeImport,
         defs: tuple[str, ...],
         context: EmitContext,
     ) -> None:
         """Finish a runtime-dispatched call — store, drop, or keep on stack.
 
-        ``spec`` is the ``_RUNTIME_IMPORTS`` entry for the import just
-        called.  ``spec[3]`` is non-empty when the Zig export returns a
+        Reads ``rimp.results`` to know whether the import returned a
         value.  Behaviour per context:
 
         * ``STATEMENT`` + result + ``defs`` → store into ``defs[0]``
@@ -77,7 +75,7 @@ class _WasmEmitterCmdMixin(_Base):
         * ``VALUE`` + no result → push ``i32.const 0`` (null TclObj) to
           fill the slot the caller expects
         """
-        has_result = bool(spec[3])
+        has_result = bool(rimp.results)
         if context is EmitContext.VALUE:
             if not has_result:
                 self._emit_i32_const(0)
@@ -137,8 +135,7 @@ class _WasmEmitterCmdMixin(_Base):
         if not rimp.nontrapping:
             self._emit_diag_site(command, args=args, kind="runtime")
 
-        spec = _RUNTIME_IMPORTS[rimp.import_key]
-        param_count = len(spec[2])
+        param_count = len(rimp.params)
 
         for i in range(min(param_count, len(args))):
             self._emit_value(args[i])
@@ -146,7 +143,7 @@ class _WasmEmitterCmdMixin(_Base):
             self._emit_i32_const(0)
 
         self._emit_call(func_idx)
-        self._runtime_call_end(spec, defs, context)
+        self._runtime_call_end(rimp, defs, context)
 
     def _emit_cmd_proc_call(
         self,

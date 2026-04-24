@@ -19,7 +19,7 @@ def _emit_lappend(
     prep = emitter._runtime_prep("lappend", args)
     if prep is None:
         return False
-    func_idx, _spec = prep
+    func_idx, _rimp = prep
 
     var_name = args[0]
     is_aliased = var_name in emitter._aliases or (

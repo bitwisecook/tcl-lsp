@@ -170,7 +170,10 @@ class StringCommand(CommandDef):
                 ),
                 "compare": SubCommand(
                     name="compare",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringCmpOpts``: objc must be 3..6
+                    # (sub-name + ``-nocase?`` + ``-length N?`` + s1 +
+                    # s2).  Args after sub-name: 2..5.
+                    arity=Arity(2, 5),
                     detail="Compare two strings lexicographically.",
                     synopsis="string compare ?-nocase? ?-length length? string1 string2",
                     pure=True,
@@ -189,7 +192,10 @@ class StringCommand(CommandDef):
                 ),
                 "equal": SubCommand(
                     name="equal",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringEqualCmd`` shares ``StringCmpOpts``:
+                    # objc 3..6, i.e. args after sub-name 2..5 (with
+                    # optional ``-nocase`` and ``-length N``).
+                    arity=Arity(2, 5),
                     detail="Test string equality.",
                     synopsis="string equal ?-nocase? ?-length length? string1 string2",
                     pure=True,
@@ -250,7 +256,10 @@ class StringCommand(CommandDef):
                 ),
                 "is": SubCommand(
                     name="is",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringIsCmd``: objc 3..6 → args after
+                    # sub-name 2..5 (class + ``-strict?`` +
+                    # ``-failindex V?`` + string).
+                    arity=Arity(2, 5),
                     detail="Test if string is a member of a character class.",
                     synopsis="string is class ?-strict? ?-failindex varname? string",
                     const_fold=fold_string_is,
@@ -294,7 +303,9 @@ class StringCommand(CommandDef):
                 ),
                 "map": SubCommand(
                     name="map",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringMapCmd``: objc 3..4 → args after
+                    # sub-name 2..3 (``-nocase?`` + mapping + string).
+                    arity=Arity(2, 3),
                     detail="Map substrings via key-value pairs.",
                     synopsis="string map ?-nocase? mapping string",
                     pure=True,
@@ -311,7 +322,9 @@ class StringCommand(CommandDef):
                 ),
                 "match": SubCommand(
                     name="match",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``StringMatchCmd``: objc 3..4 → args after
+                    # sub-name 2..3 (``-nocase?`` + pattern + string).
+                    arity=Arity(2, 3),
                     detail="Test glob-style pattern match.",
                     synopsis="string match ?-nocase? pattern string",
                     pure=True,

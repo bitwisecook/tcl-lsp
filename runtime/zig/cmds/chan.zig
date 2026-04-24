@@ -36,3 +36,15 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "encoding", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
     .{ .name = "fconfigure", .arity_min = 1, .arity_max = null, .handler = &eval_fconfigure },
 };
+
+// Per-command sub-table — only ``encoding`` has sub-commands here;
+// ``fconfigure`` is variadic ``-option value`` pairs, not an ensemble.
+pub const encoding_subcommands: []const reg.SubEntry = &.{
+    .{ .name = "convertfrom", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
+    .{ .name = "convertto", .arity_min = 1, .arity_max = null, .handler = &eval_encoding },
+    .{ .name = "dirs", .arity_min = 0, .arity_max = 1, .handler = &eval_encoding },
+    .{ .name = "names", .arity_min = 0, .arity_max = 0, .handler = &eval_encoding },
+    .{ .name = "profiles", .arity_min = 0, .arity_max = 0, .handler = &eval_encoding },
+    .{ .name = "system", .arity_min = 0, .arity_max = 1, .handler = &eval_encoding },
+    .{ .name = "user", .arity_min = 0, .arity_max = 0, .handler = &eval_encoding },
+};

@@ -17,6 +17,25 @@ pub const registration = reg.CmdEntry{
     .arity_min = 1, .arity_max = null, .handler = &eval,
 };
 
+// Sub-command arities — mirrors ``core/commands/registry/tcl/array.py``.
+// Arity counts args *after* the sub-command name, cross-checked against
+// C Tcl 9.0 by ``scripts/check_wasm_command_parity.py``.
+pub const subcommands: []const reg.SubEntry = &.{
+    .{ .name = "anymore", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "default", .arity_min = 2, .arity_max = 3, .handler = &eval },
+    .{ .name = "donesearch", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "exists", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "for", .arity_min = 3, .arity_max = 3, .handler = &eval },
+    .{ .name = "get", .arity_min = 1, .arity_max = 2, .handler = &eval },
+    .{ .name = "names", .arity_min = 1, .arity_max = 3, .handler = &eval },
+    .{ .name = "nextelement", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "set", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "size", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "startsearch", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "statistics", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "unset", .arity_min = 1, .arity_max = 2, .handler = &eval },
+};
+
 pub fn eval(words: []const i32) i32 {
     if (words.len < 3) return 0;
     const sub = obj_ensure_string(words[1]);

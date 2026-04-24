@@ -99,9 +99,9 @@ from ._encoding import (  # noqa: E402
 # WASM Emitter
 from ._imports import (  # noqa: E402
     _OBJ_LIFECYCLE_IMPORTS,
-    _RUNTIME_IMPORTS,
     _STRING_IS_IMPORT,
     command_emits_nothing,
+    import_signature,
     runtime_import_for,
     subcommand_runtime_import_for,
 )
@@ -392,13 +392,19 @@ def wasm_codegen_module(
     # Phase 1: Pre-scan IR to find which runtime imports are needed
     needed_imports = _scan_needed_imports(cfg_module, ir_module)
 
-    # Phase 2: Register needed imports (these occupy the first function indices)
+    # Phase 2: Register needed imports (these occupy the first function indices).
+    # Uses :func:`import_signature` which reads from the spec-side
+    # ``WasmRuntimeImport`` first and falls back to the infrastructure
+    # dict for non-command-owned imports (obj lifecycle, arith, frame
+    # ops, math funcs).  Unknown keys are skipped — scan should only
+    # collect known imports, but this defensive check keeps a stray
+    # entry from crashing codegen.
     shared_imports: dict[str, int] = {}
     for import_key in sorted(needed_imports):
-        spec = _RUNTIME_IMPORTS.get(import_key)
-        if spec is None:
+        sig = import_signature(import_key)
+        if sig is None:
             continue
-        mod_name, func_name, params, results = spec
+        mod_name, func_name, params, results = sig
         type_idx = module._intern_type(params, results)
         func_idx = len(module.imports)
         module.imports.append(WasmImport(module=mod_name, name=func_name, type_idx=type_idx))

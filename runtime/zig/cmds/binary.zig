@@ -572,3 +572,12 @@ fn eval_binary(words: []const i32) i32 {
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "binary", .arity_min = 1, .arity_max = null, .handler = &eval_binary },
 };
+
+// Sub-command arities — mirrors ``core/commands/registry/tcl/binary.py``.
+// Cross-checked against C Tcl 9.0 ``tclBinary.c``.
+pub const subcommands: []const reg.SubEntry = &.{
+    .{ .name = "decode", .arity_min = 2, .arity_max = null, .handler = &eval_binary },
+    .{ .name = "encode", .arity_min = 2, .arity_max = null, .handler = &eval_binary },
+    .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_binary },
+    .{ .name = "scan", .arity_min = 2, .arity_max = null, .handler = &eval_binary },
+};

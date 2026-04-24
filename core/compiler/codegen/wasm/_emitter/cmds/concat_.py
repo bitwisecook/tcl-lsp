@@ -18,7 +18,7 @@ def _emit_concat(
     prep = emitter._runtime_prep("concat", args)
     if prep is None:
         return False
-    func_idx, spec = prep
+    func_idx, rimp = prep
 
     def _concat_is_lit(a: str) -> bool:
         return (
@@ -40,7 +40,7 @@ def _emit_concat(
         for a in args[1:]:
             emitter._emit_value(a)
             emitter._emit_call(func_idx)
-    emitter._runtime_call_end(spec, defs, context)
+    emitter._runtime_call_end(rimp, defs, context)
     return True
 
 

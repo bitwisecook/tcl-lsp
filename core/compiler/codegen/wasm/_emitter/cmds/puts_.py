@@ -18,7 +18,7 @@ def _emit_puts(
     prep = emitter._runtime_prep("puts", args)
     if prep is None:
         return False
-    func_idx, spec = prep
+    func_idx, rimp = prep
 
     nonewline = len(args) >= 2 and args[0] == "-nonewline"
     if nonewline:
@@ -26,14 +26,14 @@ def _emit_puts(
         if no_nl_idx is not None:
             emitter._emit_value(args[-1])
             emitter._emit_call(no_nl_idx)
-            emitter._runtime_call_end(spec, defs, context)
+            emitter._runtime_call_end(rimp, defs, context)
             return True
     if args:
         emitter._emit_value(args[-1])
     else:
         emitter._emit_i32_const(0)
     emitter._emit_call(func_idx)
-    emitter._runtime_call_end(spec, defs, context)
+    emitter._runtime_call_end(rimp, defs, context)
     return True
 
 

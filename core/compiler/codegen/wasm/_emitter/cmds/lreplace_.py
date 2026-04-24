@@ -28,7 +28,7 @@ def _emit_lreplace(
     prep = emitter._runtime_prep("lreplace", args)
     if prep is None:
         return False
-    func_idx, spec = prep
+    func_idx, rimp = prep
 
     list_arg = args[0]
     first_arg = args[1]
@@ -67,7 +67,7 @@ def _emit_lreplace(
             emitter._emit_value(first_arg)
             emitter._emit_value(v)
             emitter._emit_call(list_insert_idx)
-    emitter._runtime_call_end(spec, defs, context)
+    emitter._runtime_call_end(rimp, defs, context)
     return True
 
 

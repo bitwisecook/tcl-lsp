@@ -198,7 +198,11 @@ class ArrayCommand(CommandDef):
                 ),
                 "default": SubCommand(
                     name="default",
-                    arity=Arity(2),
+                    # C Tcl 9.0 ``ArrayDefaultCmd``: objc 4..5 → args
+                    # after the ``default`` sub-name 2..3 (nested
+                    # sub-sub-command like ``get`` / ``set`` / ``exists``
+                    # / ``unset`` + arrayName + ``?value?``).
+                    arity=Arity(2, 3),
                     dialects=frozenset({"tcl9.0"}),
                     detail="Manages the default value of the array.",
                     synopsis="array default subcommand arrayName args...",

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
 from ..._imports import (
-    _RUNTIME_IMPORTS,
     subcommand_runtime_import_for,
 )
 from ..._ir import WasmOp
@@ -23,10 +22,8 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             subcmd = args[0]
             sri = subcommand_runtime_import_for("dict", subcmd)
             if sri is not None and sri.import_key in emitter._shared_imports:
-                import_key = sri.import_key
-                func_idx = emitter._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
+                func_idx = emitter._shared_imports[sri.import_key]
+                param_count = len(sri.params)
                 sub_args = args[1:]
                 if subcmd == "set" and len(sub_args) >= 3:
                     var_idx = emitter._intern_local(sub_args[0])
@@ -41,7 +38,7 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
                     for _ in range(param_count - len(sub_args)):
                         emitter._emit_i32_const(0)
                     emitter._emit_call(func_idx)
-                    if not spec[3]:
+                    if not sri.results:
                         emitter._emit_i32_const(0)
                 return True
         emitter._emit_i32_const(0)
@@ -117,10 +114,8 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
 
     sri = subcommand_runtime_import_for("dict", subcmd)
     if sri is not None and sri.import_key in emitter._shared_imports:
-        import_key = sri.import_key
-        func_idx = emitter._shared_imports[import_key]
-        spec = _RUNTIME_IMPORTS[import_key]
-        param_count = len(spec[2])
+        func_idx = emitter._shared_imports[sri.import_key]
+        param_count = len(sri.params)
         sub_args = args[1:]
         if subcmd == "set" and len(sub_args) >= 3:
             emitter._emit_var_read_obj(sub_args[0])
@@ -142,7 +137,7 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         if defs:
             def_idx = emitter._intern_local(defs[0])
             emitter._emit_local_set(def_idx)
-        elif spec[3]:
+        elif sri.results:
             emitter._emit(WasmOp.DROP)
     else:
         emitter._emit_unsupported_trap(f"dict {subcmd}")

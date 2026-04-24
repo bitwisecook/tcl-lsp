@@ -18,7 +18,7 @@ def _emit_fconfigure(
     prep = emitter._runtime_prep("fconfigure", args)
     if prep is None:
         return False
-    func_idx, spec = prep
+    func_idx, rimp = prep
 
     if not args:
         emitter._emit_i32_const(0)
@@ -42,7 +42,7 @@ def _emit_fconfigure(
                     emitter._emit_value(word)
                     emitter._emit_call(concat_idx)
     emitter._emit_call(func_idx)
-    emitter._runtime_call_end(spec, defs, context)
+    emitter._runtime_call_end(rimp, defs, context)
     return True
 
 

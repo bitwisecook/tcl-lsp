@@ -34,7 +34,7 @@ def _emit_linsert(
     prep = emitter._runtime_prep("linsert", args)
     if prep is None:
         return False
-    func_idx, spec = prep
+    func_idx, rimp = prep
 
     list_arg = args[0]
     index_arg = args[1]
@@ -48,7 +48,7 @@ def _emit_linsert(
         emitter._emit_value(index_arg)
         emitter._emit_value(v)
         emitter._emit_call(func_idx)
-    emitter._runtime_call_end(spec, defs, context)
+    emitter._runtime_call_end(rimp, defs, context)
     return True
 
 
