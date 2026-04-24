@@ -99,7 +99,6 @@ from ._encoding import (  # noqa: E402
 # WASM Emitter
 from ._imports import (  # noqa: E402
     _CLOCK_SUBCMD_IMPORT,
-    _CMD_RUNTIME,
     _DICT_SUBCMD_IMPORT,
     _OBJ_LIFECYCLE_IMPORTS,
     _RUNTIME_IMPORTS,
@@ -107,6 +106,7 @@ from ._imports import (  # noqa: E402
     _STRING_IS_IMPORT,
     _STRING_SUBCMD_IMPORT,
     _UNSUPPORTED_COMMANDS,
+    runtime_import_for,
 )
 from ._ir import (  # noqa: E402
     _BLOCK_I64,
