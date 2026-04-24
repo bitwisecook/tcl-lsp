@@ -574,7 +574,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     );
     if (comp_rc != REG_OKAY) {
         TclReFree(re_ptr);
-        stubs.raise("regexp: couldn't compile regular expression pattern");
+        stubs.raise("regsub: couldn't compile regular expression pattern");
         return obj_new_int(0);
     }
 
@@ -602,8 +602,14 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
                 repl_match_expansions += 1;
             } else if (ch == '\\' and ri + 1 < repl_s.len) {
                 const next = repl_bytes[ri + 1];
-                if (next == '0' or (next >= '1' and next <= '9')) {
+                if (next == '0') {
+                    // \0 expands to the full match, same as &.
                     repl_match_expansions += 1;
+                    ri += 1;
+                } else if (next >= '1' and next <= '9') {
+                    // \1..\9: append_repl emits just the digit (1 byte) since
+                    // we only request nmatch=1 from TclReExec (no subgroups).
+                    repl_literal_bytes += 1;
                     ri += 1;
                 } else {
                     repl_literal_bytes += 1;
