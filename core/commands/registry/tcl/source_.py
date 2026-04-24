@@ -63,5 +63,10 @@ class SourceCommand(CommandDef):
                 ),
             ),
             sources_file=True,
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_source", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_source",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

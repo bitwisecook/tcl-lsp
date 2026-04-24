@@ -12,6 +12,69 @@ from ....commands.registry import REGISTRY, WasmRuntimeImport
 from ._ir import ValType
 
 
+def _str_to_valtype(s: str) -> ValType:
+    """Convert a lowercase type name from a spec (``"i32"``) to a ValType."""
+    return getattr(ValType, s.upper())
+
+
+def import_signature(
+    key: str,
+) -> tuple[str, str, list[ValType], list[ValType]] | None:
+    """Return ``(module, export_name, params, results)`` for an import key.
+
+    Prefers the spec-side ``WasmRuntimeImport`` (populated per command
+    in Phase E.6), falling back to the legacy ``_RUNTIME_IMPORTS`` dict
+    for infrastructure imports that don't have a command owner (obj
+    lifecycle, arith, frame ops, etc.).  Returns ``None`` when the key
+    isn't known on either side.
+    """
+    # Spec-side lookup: walk every spec with a matching wasm_runtime_import
+    # (or SubCommand thereof).  We can't index by import_key directly
+    # because the registry is keyed by command name, so scan once and
+    # cache.
+    spec_entry = _spec_import_table().get(key)
+    if spec_entry is not None:
+        rimp = spec_entry
+        if rimp.params or rimp.results:
+            return (
+                rimp.module,
+                rimp.resolved_export_name,
+                [_str_to_valtype(p) for p in rimp.params],
+                [_str_to_valtype(r) for r in rimp.results],
+            )
+    legacy = _RUNTIME_IMPORTS.get(key)
+    if legacy is not None:
+        return legacy
+    return None
+
+
+_SPEC_IMPORT_TABLE: dict[str, WasmRuntimeImport] | None = None
+
+
+def _spec_import_table() -> dict[str, WasmRuntimeImport]:
+    """Lazy-build ``{import_key: WasmRuntimeImport}`` by scanning the registry.
+
+    Computed once on first access.  If new specs are loaded later the
+    table should be invalidated, but in practice the WASM codegen
+    loads all specs before any import is queried.
+    """
+    global _SPEC_IMPORT_TABLE
+    if _SPEC_IMPORT_TABLE is not None:
+        return _SPEC_IMPORT_TABLE
+    table: dict[str, WasmRuntimeImport] = {}
+    for specs in REGISTRY.specs_by_name.values():
+        for spec in specs:
+            rimp = spec.wasm_runtime_import
+            if rimp is not None:
+                table.setdefault(rimp.import_key, rimp)
+            for sub in spec.subcommands.values():
+                srimp = sub.wasm_runtime_import
+                if srimp is not None:
+                    table.setdefault(srimp.import_key, srimp)
+    _SPEC_IMPORT_TABLE = table
+    return table
+
+
 def runtime_import_for(command: str) -> WasmRuntimeImport | None:
     """Return the runtime-import descriptor for *command*, or ``None``.
 

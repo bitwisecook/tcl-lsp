@@ -108,23 +108,49 @@ class EmitContext(enum.Enum):
 class WasmRuntimeImport:
     """Describes how a command is dispatched to a Zig runtime import.
 
-    Attached to :class:`CommandSpec` (and :class:`SubCommand` in B.8) so
-    the WASM codegen can derive dispatch metadata from the registry
-    instead of a shadow table in ``core/compiler/codegen/wasm/_imports.py``.
+    Attached to :class:`CommandSpec` (and :class:`SubCommand`) so the
+    WASM codegen can derive dispatch metadata from the registry
+    instead of from a shadow table.
 
     Attributes:
-        import_key: Key into ``_RUNTIME_IMPORTS`` — the declaration of
-            the Zig export name, module, and WASM param/result types.
+        import_key: Canonical key the compiler uses internally to
+            reference this import (e.g. ``"tcl_puts"``).
         argc: Fixed argument count the compiler can assume, or ``None``
             for variadic commands.
         nontrapping: When ``True`` the Zig implementation is total for
             every argument shape the compiler emits — the codegen may
             then elide the per-call diag-site preamble.
+        module: WASM import module name (typically ``"tcl"``).
+        export_name: Exported Zig symbol name.  Defaults to
+            ``"tcl_cmd_" + <import_key.removeprefix("tcl_")>`` when left
+            at ``None``.
+        params: Parameter WASM value types, as strings ("i32", "i64",
+            "f32", "f64").  String typing avoids a dependency from the
+            registry package on the WASM codegen's ``ValType`` enum.
+        results: Result WASM value types (usually ``("i32",)`` or ``()``
+            for void).  Empty tuple means the Zig export has no return
+            value.
     """
 
     import_key: str
     argc: int | None = None
     nontrapping: bool = False
+    module: str = "tcl"
+    export_name: str | None = None
+    params: tuple[str, ...] = ()
+    results: tuple[str, ...] = ()
+
+    @property
+    def resolved_export_name(self) -> str:
+        """Return the actual Zig export name — explicit or defaulted."""
+        if self.export_name is not None:
+            return self.export_name
+        # Default convention: tcl_puts → tcl_cmd_puts; already-prefixed
+        # keys like ``string_length`` pass through unchanged.
+        key = self.import_key
+        if key.startswith("tcl_"):
+            return "tcl_cmd_" + key[4:]
+        return key
 
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""

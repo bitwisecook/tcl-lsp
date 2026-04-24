@@ -52,5 +52,10 @@ class FblockedCommand(CommandDef):
                     target=SideEffectTarget.FILE_IO, reads=True, connection_side=ConnectionSide.NONE
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_fblocked", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_fblocked",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

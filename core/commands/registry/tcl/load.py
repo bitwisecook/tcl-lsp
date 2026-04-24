@@ -63,5 +63,10 @@ class LoadCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_load", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_load",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

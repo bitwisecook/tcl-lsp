@@ -54,5 +54,10 @@ class LrangeCommand(CommandDef):
                 2: ArgTypeHint(expected=TclType.INT, shimmers=True),
             },
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_range", argc=3),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_list_range",
+                argc=3,
+                params=("i32", "i32", "i32"),
+                results=("i32",),
+            ),
         )

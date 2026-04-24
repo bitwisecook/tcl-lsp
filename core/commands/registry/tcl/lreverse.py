@@ -49,5 +49,10 @@ class LreverseCommand(CommandDef):
             return_type=TclType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_list_reverse", argc=1),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_list_reverse",
+                argc=1,
+                params=("i32",),
+                results=("i32",),
+            ),
         )

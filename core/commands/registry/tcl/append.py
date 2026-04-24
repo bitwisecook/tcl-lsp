@@ -48,6 +48,8 @@ class AppendCommand(CommandDef):
                 import_key="tcl_append",
                 argc=2,
                 nontrapping=True,
+                params=("i32", "i32"),
+                results=("i32",),
             ),
             assigns_variable_at=0,
             reads_variable_before_write=True,

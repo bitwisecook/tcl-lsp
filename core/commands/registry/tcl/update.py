@@ -53,5 +53,10 @@ class UpdateCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_update", argc=0),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_update",
+                argc=0,
+                params=(),
+                results=("i32",),
+            ),
         )

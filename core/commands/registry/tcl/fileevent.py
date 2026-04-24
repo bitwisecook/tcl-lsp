@@ -57,5 +57,10 @@ class FileeventCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_fileevent", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_fileevent",
+                argc=2,
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
         )

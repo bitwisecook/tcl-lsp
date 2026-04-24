@@ -221,6 +221,12 @@ class PackageCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_package", argc=2),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_package",
+                argc=2,
+                export_name="tcl_cmd_package_cmd",
+                params=("i32", "i32"),
+                results=("i32",),
+            ),
             wasm_emits_nothing=True,
         )

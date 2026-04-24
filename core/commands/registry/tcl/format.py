@@ -47,5 +47,10 @@ class FormatCommand(CommandDef):
             cse_candidate=True,
             return_type=TclType.STRING,
             side_effect_hints=(),
-            wasm_runtime_import=WasmRuntimeImport(import_key="tcl_format", argc=4),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_format",
+                argc=4,
+                params=("i32", "i32", "i32", "i32"),
+                results=("i32",),
+            ),
         )
