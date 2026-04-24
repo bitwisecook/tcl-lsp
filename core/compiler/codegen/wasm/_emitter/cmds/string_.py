@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ......commands.registry import REGISTRY
+from ......commands.registry import REGISTRY, EmitContext
 from ..._imports import (
     _RUNTIME_IMPORTS,
     _STRING_IS_IMPORT,
@@ -11,7 +11,7 @@ from ..._imports import (
 from ..._ir import WasmOp
 
 
-def _emit_string(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_string(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``string subcommand ...`` — dispatch to runtime import (i32 args)."""
     if not args:
         emitter._emit_unsupported_trap("string (no subcommand)")

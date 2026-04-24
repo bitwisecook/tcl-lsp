@@ -10,6 +10,7 @@ else:
     _Base = object
 
 from .....commands.registry import REGISTRY as _REGISTRY
+from .....commands.registry import EmitContext
 from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
 from .....parsing.tokens import TokenType
 from ....ir import (
@@ -629,7 +630,7 @@ class _WasmEmitterStmtMixin(_Base):
         # hooks, but the hook is still on an earlier spec.
         hook = _REGISTRY.get_wasm_hook(command)
         if hook is not None:
-            if hook(self, args, defs):
+            if hook(self, args, defs, EmitContext.STATEMENT):
                 return
 
         # Unknown command — fall back to interpreter.

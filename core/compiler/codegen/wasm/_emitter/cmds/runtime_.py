@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from ......commands.registry import REGISTRY
+from ......commands.registry import REGISTRY, EmitContext
 from ..._imports import _CMD_RUNTIME
 
 
 def _make_runtime_hook(cmd: str):
-    def _hook(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+    def _hook(
+        emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+    ) -> bool:
         emitter._emit_cmd_runtime(cmd, args, defs)
         return True
 

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from ......commands.registry import REGISTRY
+from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 
 
-def _emit_info(emitter, args: tuple[str, ...], defs: tuple[str, ...]) -> bool:
+def _emit_info(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``info subcommand ?arg?`` in statement context — delegates to _emit_info_value."""
     if not args:
         emitter._emit_unsupported_trap("info (no subcommand)")
