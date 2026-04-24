@@ -39,7 +39,6 @@ from .._encoding import (
 )
 from .._imports import (
     _CMD_RUNTIME,
-    _DICT_SUBCMD_IMPORT,
     _RUNTIME_IMPORTS,
     _SCOPE_NOP_COMMANDS,
 )
@@ -986,35 +985,6 @@ class _WasmEmitterStmtMixin(_Base):
         # uplevel in tail position — keep eval result on stack.
         if command == "uplevel" and args:
             self._emit_cmd_uplevel(args)
-            return
-
-        # dict sub-commands — keep result on stack
-        if command == "dict" and args:
-            subcmd = args[0]
-            import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
-            if import_key is not None and import_key in self._shared_imports:
-                func_idx = self._shared_imports[import_key]
-                spec = _RUNTIME_IMPORTS[import_key]
-                param_count = len(spec[2])
-                sub_args = args[1:]
-                # For dict set, first arg is the variable name
-                if subcmd == "set" and len(sub_args) >= 3:
-                    var_idx = self._intern_local(sub_args[0])
-                    self._emit_local_get(var_idx)  # dict value
-                    self._emit_value(sub_args[1])  # key
-                    self._emit_value(sub_args[2])  # value
-                    self._emit_call(func_idx)
-                    self._emit_local_tee(var_idx)
-                else:
-                    for i in range(min(param_count, len(sub_args))):
-                        self._emit_value(sub_args[i])
-                    for _ in range(param_count - len(sub_args)):
-                        self._emit_i32_const(0)
-                    self._emit_call(func_idx)
-                    if not spec[3]:
-                        self._emit_i32_const(0)
-                return
-            self._emit_i32_const(0)
             return
 
         # Runtime command — use the same dispatch logic as non-tail,

@@ -10,11 +10,43 @@ from ..._imports import (
 from ..._ir import WasmOp
 
 
-def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
+def _emit_dict(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
     """``dict subcommand ...`` — dispatch to runtime import (i32 args)."""
     if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
+        # Tail / implicit-return: leave the result on the operand stack.
+        # ``dict set`` has bespoke arity handling (first sub-arg is a
+        # local var name, the call returns the updated dict which gets
+        # tee'd back into that local).  Every other subcommand goes
+        # through the generic import-dispatch; void-result imports get
+        # a ``i32.const 0`` pushed in place of a missing return value.
+        if args:
+            subcmd = args[0]
+            import_key = _DICT_SUBCMD_IMPORT.get(subcmd)
+            if import_key is not None and import_key in emitter._shared_imports:
+                func_idx = emitter._shared_imports[import_key]
+                spec = _RUNTIME_IMPORTS[import_key]
+                param_count = len(spec[2])
+                sub_args = args[1:]
+                if subcmd == "set" and len(sub_args) >= 3:
+                    var_idx = emitter._intern_local(sub_args[0])
+                    emitter._emit_local_get(var_idx)
+                    emitter._emit_value(sub_args[1])
+                    emitter._emit_value(sub_args[2])
+                    emitter._emit_call(func_idx)
+                    emitter._emit_local_tee(var_idx)
+                else:
+                    for i in range(min(param_count, len(sub_args))):
+                        emitter._emit_value(sub_args[i])
+                    for _ in range(param_count - len(sub_args)):
+                        emitter._emit_i32_const(0)
+                    emitter._emit_call(func_idx)
+                    if not spec[3]:
+                        emitter._emit_i32_const(0)
+                return True
+        emitter._emit_i32_const(0)
+        return True
     if not args:
         emitter._emit_unsupported_trap("dict (no subcommand)")
         return True
