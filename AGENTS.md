@@ -110,8 +110,13 @@ The project uses GNU Make. Key targets:
 ## WASM command parity
 
 The Python command registry (`core/commands/registry/tcl/`) is the
-**source of truth** for which Tcl 8.4-9.0 commands exist.  Every command
-must have one of:
+**source of truth** for which Tcl 8.4-9.0 commands exist.  The Zig
+WASM runtime must be bit-for-bit aligned with it — same commands,
+same sub-commands, same arity bounds — and this alignment is enforced
+by a CI gate that runs on every `make prep-pr` and GitHub Actions
+build.
+
+Every command must have one of:
 
 - a real Zig handler in `runtime/zig/cmds/*.zig` (visible in
   `runtime/zig/dispatch/tcl_cmd_table.zig`'s `BUILTINS` slice),
@@ -120,20 +125,78 @@ must have one of:
 - an explicit "not required" classification (currently only the
   `tcl::mathop::*` prefix-form operators).
 
-`scripts/check_wasm_command_parity.py` walks all four locations
-(registry, BUILTINS, fallback dispatch, `_imports.py`) and compares the
-results to `tests/baselines/wasm_command_parity.json`.  CI fails on
-regression:
+### Arity contract
+
+`CmdEntry` in `runtime/zig/dispatch/tcl_cmd_registry.zig` carries
+explicit `arity_min: u32` and `arity_max: ?u32` fields (null =
+variadic).  Every registration in `cmds/*.zig` must fill them in:
+
+```zig
+.{ .name = "set", .arity_min = 1, .arity_max = 2, .handler = &eval_set }
+```
+
+The parity check cross-verifies each pair against the matching
+`CommandSpec.validation.arity` in the Python registry.  A mismatch is
+impossible to merge — the gate rejects any `(command, python-bounds,
+zig-bounds)` triple that isn't in the baseline allowlist.
+
+### Sub-command contract
+
+Commands that dispatch on a sub-command word (`string length`,
+`dict get`, `clock seconds`, `info body`, …) must declare their
+sub-commands as a `SubEntry` slice:
+
+```zig
+pub const subcommands: []const reg.SubEntry = &.{
+    .{ .name = "length", .arity_min = 1, .arity_max = 1, .handler = &sub_length },
+    .{ .name = "index",  .arity_min = 2, .arity_max = 2, .handler = &sub_index  },
+    …
+};
+```
+
+The parity check cross-verifies each entry against the matching
+`SubCommand` entries on the parent `CommandSpec`.  Sub-command
+migration is incremental: commands without a Zig `subcommands` table
+are tracked in the baseline as `no_zig_table` (known-missing, not a
+regression).  Adding a sub-command to Python without the matching
+Zig entry — or vice versa — is a merge-blocking regression.
+
+### Gate mechanics
+
+`scripts/check_wasm_command_parity.py` walks five locations:
+
+1. Python registry under `core/commands/registry/tcl/`
+2. Zig `BUILTINS` (`dispatch/tcl_cmd_table.zig` ← all `cmds/*.zig`)
+3. Zig fallback stubs (`dispatch/tcl_stub_fallback.zig`)
+4. Per-command `SubEntry` slices (`cmds/*.zig`)
+5. The Python WASM codegen's `_imports.py` tables
+
+…and compares the results to `tests/baselines/wasm_command_parity.json`.
+CI fails on any of:
 
 - a command moves from a better status to a worse one,
 - a new command appears in the registry without runtime backing,
-- a new orphan handler appears in the Zig runtime, or
+- a new orphan handler appears in the Zig runtime,
 - a Python `_RUNTIME_IMPORTS` entry references a Zig export that
-  doesn't exist.
+  doesn't exist,
+- a new `(command, python-arity, zig-arity)` mismatch appears,
+- a new sub-command mismatch appears (missing in either side, or
+  arity disagreement).
 
-When you intentionally improve the parity (add a handler, convert a
-silent stub to a trap), run `make snapshot-wasm-parity` to update the
-baseline and commit it alongside the change.
+### When you intentionally change the parity
+
+Run `make snapshot-wasm-parity` to update the baseline and commit it
+alongside the change.  Common reasons:
+
+- Adding a new Tcl command (Python spec + Zig handler + arity).
+- Migrating a sub-command dispatcher from if-chain to `SubEntry`
+  slice (the `no_zig_table` baseline entry goes away).
+- Promoting a silent stub to a real implementation (status climbs
+  from `SILENT_STUB` to `IMPLEMENTED`).
+
+The diff against the baseline should tell a clean improvement story
+— if the snapshot introduces regressions (worse statuses, new
+orphans, new mismatches), the change is almost certainly incorrect.
 
 ## Workflow requirements
 
