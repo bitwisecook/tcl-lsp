@@ -16,22 +16,23 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
     if context is EmitContext.VALUE:
         # At tail / value position the call's result must stay on the
         # stack.  Fast-path proc-locals via ``local.tee``; for aliases,
-        # array refs, and unqualified names inside a ``namespace eval``
-        # body, route through the full keep-on-stack write.
+        # array elements (``arr(key)``), and unqualified names inside
+        # a ``namespace eval`` body, route through the full
+        # keep-on-stack write — ``_intern_local`` would otherwise
+        # create a scalar slot named ``arr(key)`` and miss the array
+        # hash table.
+        array_ref = _parse_array_ref(var)
+        array_base_aliased = array_ref is not None and array_ref[0] in emitter._aliases
         in_ns_block = (
             not emitter._is_proc
             and emitter._block_namespace is not None
             and emitter._block_namespace != "::"
-            and _parse_array_ref(var) is None
+            and array_ref is None
         )
-        if var in emitter._aliases:
-            if len(args) >= 2:
-                emitter._emit_value(args[1])
-                emitter._emit_var_write_obj_keep(var)
-            else:
-                emitter._emit_var_read_obj(var)
-            return True
-        if in_ns_block:
+        use_var_path = (
+            var in emitter._aliases or array_base_aliased or array_ref is not None or in_ns_block
+        )
+        if use_var_path:
             if len(args) >= 2:
                 emitter._emit_value(args[1])
                 emitter._emit_var_write_obj_keep(var)
@@ -71,16 +72,23 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
     if context is EmitContext.VALUE:
         # Tail / value position: leave the new value on the stack.
         # Fast-path proc-local incr with ``local.tee``; otherwise read
-        # via the var path, add, and write with keep.
+        # via the var path, add, and write with keep.  ``arr(key)``
+        # must go through the var path so the array hash table is
+        # touched rather than an imaginary scalar local.
+        array_ref = _parse_array_ref(var)
+        base = array_ref[0] if array_ref else var
         in_ns_block = (
             not emitter._is_proc
             and emitter._block_namespace is not None
             and emitter._block_namespace != "::"
-            and _parse_array_ref(var) is None
+            and array_ref is None
         )
-        array_ref = _parse_array_ref(var)
-        base = array_ref[0] if array_ref else var
-        if var in emitter._aliases or base in emitter._aliases or in_ns_block:
+        if (
+            var in emitter._aliases
+            or base in emitter._aliases
+            or array_ref is not None
+            or in_ns_block
+        ):
             emitter._emit_var_read_obj(var)
             emitter._emit_unbox_int()
             amt = 1

@@ -26,8 +26,8 @@ Why does `expr {1 / 0}` in compiled WASM return `0` instead of raising
 ## Answer
 
 The divergence is deliberate and documented in the header of
-[`runtime/zig/tcl_arith.zig`](../../runtime/zig/tcl_arith.zig) and
-[`runtime/zig/tcl_time_stubs.zig`](../../runtime/zig/tcl_time_stubs.zig).
+[`runtime/zig/valtypes/tcl_arith.zig`](../../runtime/zig/valtypes/tcl_arith.zig) and
+[`runtime/zig/stubs/tcl_time_stubs.zig`](../../runtime/zig/stubs/tcl_time_stubs.zig).
 
 Rationale:
 

@@ -59,14 +59,14 @@ honour real child paths.
 
 ### 2.1 Storage
 
-[`tcl_interp_registry.zig`](../../../runtime/zig/tcl_interp_registry.zig)
+[`tcl_interp_registry.zig`](../../../runtime/zig/interp/tcl_interp_registry.zig)
 owns the hidden-commands table — one per `Interp`.  Same shape
 as a namespace's ``cmd_table`` (12-byte header + 4-byte value =
 16-byte bucket).  Qualified hidden names are rejected (they'd
 violate the "hidden is a flat namespace" rule).
 
 Pre-child-interp this lived as a module-global in
-[`tcl_ns.zig`](../../../runtime/zig/tcl_ns.zig); the move to
+[`tcl_ns.zig`](../../../runtime/zig/interp/tcl_ns.zig); the move to
 per-interp storage is described in
 [`child-interp.md`](child-interp.md) §5.
 
@@ -84,7 +84,7 @@ hidden table, so there's nothing to invalidate downstream.
 
 ### 2.2 `interp hide` semantics
 
-[`tcl_hide.zig:hide_command`](../../../runtime/zig/tcl_hide.zig)
+[`tcl_hide.zig:hide_command`](../../../runtime/zig/cmds/tcl_hide.zig)
 drives the move.  ``HideResult`` captures the four outcomes:
 
 | Result | Tclsh message |
@@ -109,7 +109,7 @@ The move:
 
 ### 2.3 `interp expose` semantics
 
-[`tcl_hide.zig:expose_command`](../../../runtime/zig/tcl_hide.zig)
+[`tcl_hide.zig:expose_command`](../../../runtime/zig/cmds/tcl_hide.zig)
 is the inverse.  The destination is always the current namespace
 (C Tcl raises
 `cannot expose to a namespace (use expose to toplevel, then rename)`
@@ -129,7 +129,7 @@ for qualified destinations; we match the error string).
 ### 2.4 `interp hidden`
 
 ``eval_interp_hidden`` in
-[`tcl_interp.zig`](../../../runtime/zig/tcl_interp.zig) walks the
+[`tcl_interp.zig`](../../../runtime/zig/interp/tcl_interp.zig) walks the
 hidden table with a two-pass fill, producing a space-separated Tcl
 list of simple names.  Bucket-traversal order is the same shape
 ``interp aliases`` uses — not stable across grow events but
@@ -164,7 +164,7 @@ of the hidden vs. exposed path.
 
 ## 3. ``info commands`` / ``info procs`` walker
 
-[`tcl_cmd_info.zig`](../../../runtime/zig/tcl_cmd_info.zig) carries
+[`tcl_cmd_info.zig`](../../../runtime/zig/cmds/tcl_cmd_info.zig) carries
 the walker.  Two-pass sizing + filling keeps allocation O(1)
 beyond the output buffer — critical because ``tcltest`` calls
 ``info commands`` on every ``testConstraint`` lookup.
@@ -265,7 +265,7 @@ hot path is the only cost.
 ### 4.4 Rename path
 
 ``rename_command`` in
-[`tcl_rename.zig`](../../../runtime/zig/tcl_rename.zig) no
+[`tcl_rename.zig`](../../../runtime/zig/cmds/tcl_rename.zig) no
 longer special-cases ``func_idx != 0``.  Every Command's live
 name slot is rewritten to its new FQN, uniformly.  The sidecar
 keeps host-bridge lookups stable for compiled procs; for

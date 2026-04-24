@@ -4,11 +4,14 @@
 // ``unsupported command: <name>``.
 //
 // **Reachability** — same as ``tcl_io_stubs.zig``: each
-// ``pub export fn tcl_cmd_X`` is a WASM import declared on the Python
-// codegen side (``_RUNTIME_IMPORTS`` in ``_imports.py``, referenced by
+// ``pub export fn tcl_cmd_X`` is a WASM import declared by a
 // ``CommandSpec.wasm_runtime_import`` under
-// ``core/commands/registry/tcl/``).  Do not delete without also
-// dropping the corresponding ``wasm_runtime_import`` declaration.
+// ``core/commands/registry/tcl/`` (e.g. ``file.py``, ``glob_.py``,
+// ``exec_.py``).  ``_imports.py:import_signature`` resolves those
+// specs and only falls back to ``_INFRASTRUCTURE_IMPORTS`` for
+// helpers with no command owner.  Do not delete an export without
+// also dropping the corresponding ``wasm_runtime_import`` declaration
+// — the parity gate will block the merge otherwise.
 //
 // Coverage:
 //   - file (mkdir, delete, exists, isfile, isdirectory, dirname,

@@ -9,6 +9,7 @@ keeps the updated value on the stack for implicit return.
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
+from ..._parsing import _parse_array_ref
 
 
 def _emit_append(
@@ -22,13 +23,23 @@ def _emit_append(
     func_idx, _rimp = prep
 
     var_name = args[0]
-    is_aliased = var_name in emitter._aliases or (
-        "(" in var_name and var_name.split("(")[0] in emitter._aliases
+    array_ref = _parse_array_ref(var_name)
+    # Route array-element writes (``arr(key)``) and alias writes through
+    # the variable subsystem — ``_intern_local`` would otherwise make a
+    # scalar slot named ``arr(key)`` and miss the array hash table
+    # entirely.  ``var in _aliases`` covers direct aliases
+    # (``upvar 0 target var``); the array-ref branch covers the
+    # unaliased array-element case and the aliased-base case
+    # (``upvar 0 srcArr a; append a(key) …``).
+    use_var_path = (
+        var_name in emitter._aliases
+        or array_ref is not None
+        or (array_ref is None and "(" in var_name and var_name.split("(")[0] in emitter._aliases)
     )
     keep_last = context is EmitContext.VALUE
     last_index = len(args) - 1
 
-    if is_aliased:
+    if use_var_path:
         for i, value_arg in enumerate(args[1:], start=1):
             emitter._emit_var_read_obj(var_name)
             emitter._emit_value(value_arg)
