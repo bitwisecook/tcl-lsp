@@ -29,9 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.analysis import Analyser, analyse
 from core.analysis._analyser._utils import (
     _FILE_DIRECTIVE_SCAN_LINES,
-    _FILE_SUPPRESS_KEY,
     parse_file_suppression,
 )
+from core.analysis.semantic_model import _FILE_SUPPRESS_KEY
 from core.common.user_config import (
     PROJECT_CONFIG_FILENAME,
     find_project_config,

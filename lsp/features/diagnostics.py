@@ -9,6 +9,8 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import (
+    _FILE_SUPPRESS_KEY,
+    _NOQA_ALL,
     AnalysisResult,
     CodeFix,
     Diagnostic,
@@ -76,14 +78,6 @@ _IRULES_FLOW_SEVERITY = {
     "IRULE5002": types.DiagnosticSeverity.Warning,
     "IRULE5004": types.DiagnosticSeverity.Warning,
 }
-
-# Sentinel used by the analyser to mean "suppress all codes on this line".
-_NOQA_ALL = frozenset({"*"})
-
-# Negative key reserved for file-wide ``# tcl-lsp: disable=...`` directives.
-# Mirrors ``core.analysis._analyser._utils._FILE_SUPPRESS_KEY`` — kept in sync
-# here (not imported) so this module stays free of analyser-internal imports.
-_FILE_SUPPRESS_KEY = -1
 
 
 def _is_suppressed(

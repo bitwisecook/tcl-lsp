@@ -21,6 +21,8 @@ from ...parsing.expr_lexer import (
 from ...parsing.recovery import segment_with_recovery
 from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
+    _FILE_SUPPRESS_KEY,
+    _NOQA_ALL,
     AnalysisResult,
     Diagnostic,
     Range,
@@ -29,11 +31,7 @@ from ..semantic_model import (
 )
 from ..stub_comments import scan_source_for_stubs
 from ._snapshot import AnalyserSnapshot
-from ._utils import (
-    _FILE_SUPPRESS_KEY,
-    _NOQA_ALL,
-    parse_file_suppression,
-)
+from ._utils import parse_file_suppression
 
 log = logging.getLogger(__name__)
 

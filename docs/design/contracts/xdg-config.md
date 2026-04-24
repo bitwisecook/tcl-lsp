@@ -65,12 +65,16 @@ The full chain, from lowest priority to highest:
    disabling a code always wins over whatever the editor sends.
 
 Two further layers, applied after server-level filtering and only to
-the document they appear in, override all four above:
+the document they appear in, override all four above.  Both layers only
+*add* suppressions — neither can re-enable a code suppressed by the
+other.  Inline is more specific (one command); file-level is broader
+(the whole file):
 
-5. **File-level** — a top-of-file ``# tcl-lsp: disable=CODE,CODE``
+5. **Inline** — a ``# noqa`` or ``# noqa: CODE`` comment on the line
+   before a command suppresses codes for that command only (highest
+   priority, most specific).
+6. **File-level** — a top-of-file ``# tcl-lsp: disable=CODE,CODE``
    comment suppresses the listed codes for the whole file.
-6. **Inline** — a ``# noqa`` or ``# noqa: CODE`` comment on the line
-   before a command suppresses codes for that command only.
 
 See [`../../kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
 for the user-facing walkthrough of each scope.

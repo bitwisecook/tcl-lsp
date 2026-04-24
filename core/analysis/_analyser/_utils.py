@@ -96,16 +96,6 @@ diag(
 
 _UNUSED_VAR_RE = re.compile(r"Variable '([^']+)' is set but never used")
 
-# Inline suppression via Tcl comments: bare form suppresses all diagnostics,
-# ``# <noqa>: W100,W101`` suppresses specific codes on the following command.
-_NOQA_ALL = frozenset({"*"})  # sentinel for "suppress everything"
-
-# ``AnalysisResult.suppressed_lines`` uses real line numbers (>= 0) for inline
-# ``# noqa`` suppression and the sentinel key below for file-wide suppression
-# from a top-of-file ``# tcl-lsp: disable=...`` directive.  Negative keys can
-# never collide with an actual source line.
-_FILE_SUPPRESS_KEY = -1
-
 # Matches ``# tcl-lsp: disable=CODE1,CODE2`` (or ``=*``) at the start of a line,
 # case-insensitive.  Commas and whitespace separate codes.
 _FILE_DIRECTIVE_RE = re.compile(
