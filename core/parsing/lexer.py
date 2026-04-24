@@ -7,6 +7,13 @@ import threading
 
 from .tokens import SourcePosition, Token, TokenType
 
+try:
+    from tcl_lsp_rust import (
+        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,  # ty: ignore[unresolved-import]
+    )
+except ImportError:
+    _rust_lexer_tokenise_cfg = None
+
 _bisect_right = bisect.bisect_right
 
 # Pre-computed character class sets for O(1) membership testing in the
@@ -1055,7 +1062,38 @@ class TclLexer:
             )
 
     def tokenise_all(self) -> list[Token]:
-        """Tokenise the entire source, including SEP and EOL tokens."""
+        """Tokenise the entire source, including SEP and EOL tokens.
+
+        When the Rust ``tcl_lsp_rust`` wheel is installed and this
+        lexer has no virtual insertions, this method dispatches to
+        the Rust implementation for a ~17× speedup. The Rust path
+        receives the current ``expand_syntax``,
+        ``irules_brace_separator``, strict-quoting mode, and base
+        position offsets, and surfaces its non-fatal warnings so
+        the Python ``self.warnings`` list stays in sync. The
+        ``get_token()`` incremental API continues to use the
+        Python lexer. The Python fallback is used when virtual
+        insertions are present or the Rust wheel is not available.
+        """
+        if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals:
+            try:
+                tokens, warnings = _rust_lexer_tokenise_cfg(
+                    self.text,
+                    TclLexer.expand_syntax,
+                    TclLexer.irules_brace_separator,
+                    _strict_quoting(),
+                    self._base_offset,
+                    self._base_line,
+                    self._base_col,
+                )
+            except ValueError as exc:
+                # The Rust lexer raises ValueError for strict-mode
+                # syntax errors. Re-raise as TclParseError so
+                # callers that catch TclParseError still work.
+                raise TclParseError(str(exc)) from exc
+            if warnings:
+                self.warnings.extend(warnings)
+            return tokens
         tokens: list[Token] = []
         while True:
             tok = self.get_token()

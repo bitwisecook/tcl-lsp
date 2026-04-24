@@ -71,6 +71,7 @@ namespace eval ::tmm {
         regex::quote
         regex_quote
         regexp::quote
+        registry
         rename
         seek
         socket
@@ -97,6 +98,7 @@ namespace eval ::tmm {
         lassign
         lmap
         lremove
+        lseq
         my
         next
         nextto
@@ -114,6 +116,7 @@ namespace eval ::tmm {
         try
         yield
         yieldto
+        zlib
     }
 
 }

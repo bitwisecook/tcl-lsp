@@ -402,9 +402,55 @@ class ExprLexer:
         return ExprToken(ExprTokenType.STRING, self._src[start : self._pos], start, self._pos - 1)
 
 
-def tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
-    """Convenience: tokenise a Tcl expression string."""
+try:
+    from tcl_lsp_rust import expr_tokenise as _rust_expr_tokenise  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (
+        expr_tokenise_checked as _rust_expr_tokenise_checked,  # ty: ignore[unresolved-import]
+    )
+except ImportError:
+    _rust_expr_tokenise = None
+    _rust_expr_tokenise_checked = None
+
+# Mapping from Rust `PyExprTokenType.value` (int) to Python
+# `ExprTokenType` enum members. Cached for O(1) per-token lookup.
+_VALUE_TO_EXPR_TYPE: dict[int, ExprTokenType] = {m.value: m for m in ExprTokenType}
+
+
+def _wrap_rust_expr_token(rust_tok: object) -> ExprToken:
+    """Convert a Rust ``PyExprToken`` into a Python ``ExprToken``
+    so that ``tok.type is ExprTokenType.X`` works for downstream
+    consumers.
+    """
+    return ExprToken(
+        type=_VALUE_TO_EXPR_TYPE[rust_tok.type.value],  # type: ignore[union-attr]
+        text=rust_tok.text,  # type: ignore[union-attr]
+        start=rust_tok.start,  # type: ignore[union-attr]
+        end=rust_tok.end,  # type: ignore[union-attr]
+    )
+
+
+def _python_tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
     return ExprLexer(source, dialect=dialect).tokenise()
+
+
+def _python_tokenise_expr_checked(
+    source: str, *, dialect: str | None = None
+) -> tuple[list[ExprToken], bool]:
+    lexer = ExprLexer(source, dialect=dialect)
+    tokens = lexer.tokenise()
+    return tokens, lexer._has_unknown
+
+
+def tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
+    """Convenience: tokenise a Tcl expression string.
+
+    Dispatches to the Rust implementation when the ``tcl_lsp_rust``
+    wheel is installed. Falls back to the Python implementation if
+    the wheel is not available.
+    """
+    if _rust_expr_tokenise is not None:
+        return [_wrap_rust_expr_token(t) for t in _rust_expr_tokenise(source, dialect)]
+    return _python_tokenise_expr(source, dialect=dialect)
 
 
 def tokenise_expr_checked(
@@ -415,6 +461,7 @@ def tokenise_expr_checked(
     Returns ``(tokens, has_unknown)`` where *has_unknown* is ``True``
     when the source contained characters the lexer could not classify.
     """
-    lexer = ExprLexer(source, dialect=dialect)
-    tokens = lexer.tokenise()
-    return tokens, lexer._has_unknown
+    if _rust_expr_tokenise_checked is not None:
+        rust_tokens, has_unknown = _rust_expr_tokenise_checked(source, dialect)
+        return [_wrap_rust_expr_token(t) for t in rust_tokens], has_unknown
+    return _python_tokenise_expr_checked(source, dialect=dialect)

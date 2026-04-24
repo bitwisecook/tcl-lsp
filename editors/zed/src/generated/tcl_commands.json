@@ -1075,6 +1075,11 @@
       "pure": true
     },
     {
+      "name": "lseq",
+      "summary": "Generate a list of numeric values in a range.",
+      "pure": true
+    },
+    {
       "name": "lset",
       "summary": "Change an element in a list"
     },
@@ -1650,6 +1655,10 @@
     {
       "name": "regexp::quote",
       "summary": "Escape regex metacharacters in a string."
+    },
+    {
+      "name": "registry",
+      "summary": "Windows registry manipulation (Windows-only)."
     },
     {
       "name": "regsub",
@@ -2767,6 +2776,10 @@
     {
       "name": "yieldto",
       "summary": "Create and produce values from coroutines"
+    },
+    {
+      "name": "zlib",
+      "summary": "Compression / decompression using zlib."
     },
     {
       "name": "|",

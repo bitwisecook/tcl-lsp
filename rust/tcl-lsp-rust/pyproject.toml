@@ -1,0 +1,37 @@
+# Separate pyproject.toml for the PyO3 binding crate, built by maturin.
+#
+# This is intentionally decoupled from the main `tcl-lsp` pyproject.toml at
+# the repo root, which stays on hatchling. The two builds are independent:
+#
+#   make rust-build  →  maturin build -m rust/tcl-lsp-rust/Cargo.toml
+#   make zipapp-lsp  →  hatchling / uv zipapp packaging (can optionally
+#                       bundle the wheel produced by `make rust-build`)
+#
+# Until later chunks flip Rust from "soft dependency" to "required", a
+# missing `tcl_lsp_rust` import is a no-op and the Python lexer runs
+# unchanged.
+
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "tcl-lsp-rust"
+description = "Rust-accelerated primitives for tcl-lsp, exposed via PyO3"
+version = "0.1.0"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Development Status :: 3 :: Alpha",
+]
+
+[tool.maturin]
+# Build a pure native extension (no Python source directory alongside).
+# The produced wheel installs as the top-level Python module `tcl_lsp_rust`.
+module-name = "tcl_lsp_rust"
+bindings = "pyo3"
+# Emit abi3 wheels that work on any Python ≥3.10.
+features = ["pyo3/extension-module", "pyo3/abi3-py310"]
+strip = true
