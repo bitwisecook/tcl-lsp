@@ -1,16 +1,62 @@
 // ``auto_load``, ``auto_reset``, ``auto_mkindex``, ``auto_import``,
 // ``auto_execok``, ``auto_qualify``, ``package``, ``after``,
-// ``vwait``, ``update`` — stub commands.
+// ``vwait``, ``update``, ``clock`` — stub / degraded-implementation
+// commands.
 //
-// Without the Tcl stdlib there is nothing to auto-load.  ``auto_load``
-// returns 0 ("not found") so callers that check the return value see
-// the expected "proc not in index" signal.  The other auto_* and
-// package commands return an empty string.
+// **Why silent instead of trapping.**  The Phase-A parity baseline
+// (``tests/baselines/wasm_command_parity.json``) flags these as
+// ``SILENT_STUB``.  That classification is a deliberate book-keeping
+// signal — it lists the commands whose degraded behaviour differs
+// from full Tcl — not a bug to fix.  Every handler below returns a
+// value that is *correct under the sandbox's capability envelope*;
+// promoting any of them to ``stubs.unsupported(...)`` would break
+// existing scripts that rely on graceful degradation (notably
+// tcltest's ``cleanupTests``, which does ``update`` / ``after cancel``
+// / ``auto_execok`` as part of its per-file teardown).
 //
-// ``after`` has no event-loop backend in WASM.  All forms silently
-// succeed: ``after ms`` (sleep), ``after ms script`` (schedule),
-// ``after idle script`` (idle-callback), ``after cancel id``, and
-// ``after info`` all return an empty string rather than trapping.
+// Per-handler rationale:
+//
+//   * ``auto_load`` returns integer 0 meaning "not found".  Without the
+//     Tcl stdlib there is nothing to auto-load; the 0 signal lets
+//     ``unknown`` / ``package require`` paths see the expected "proc
+//     not in index" response and fall back cleanly.
+//
+//   * ``auto_reset`` / ``auto_mkindex`` / ``auto_import`` /
+//     ``auto_execok`` / ``auto_qualify`` — no index to reset, no
+//     filesystem to scan for executables, no namespace imports to
+//     compile.  Returning empty string matches "successful no-op",
+//     which is what scripts using these for setup/cleanup expect.
+//
+//   * ``package`` — returns a null TclObj (0).  Full ``package
+//     require`` / ``package provide`` support would need the stdlib
+//     fetch mechanism.  Currently accepted as "package system not
+//     implemented yet"; promotion to real implementation is tracked
+//     separately.  Note: returning 0 means callers that unconditionally
+//     use the result as an i32 are safe; callers that expect a version
+//     string will see empty, consistent with no-version-declared.
+//
+//   * ``after`` — no event-loop backend in WASM.  ``after ms`` (sleep),
+//     ``after ms script`` (schedule), ``after idle script``,
+//     ``after cancel id``, and ``after info`` all return empty string.
+//     ``after ms`` silently skipping the delay is acceptable for test
+//     harnesses; scripts that depend on wall-clock pauses for
+//     correctness are outside the sandbox's scope.
+//
+//   * ``vwait`` / ``update`` — event loop is absent, so waiting returns
+//     immediately with empty string.  tcltest uses ``update`` to drain
+//     stray events at teardown; the empty-string return matches Tcl's
+//     behaviour when there are no events queued.
+//
+//   * ``clock`` — ``seconds`` / ``clicks`` / ``milliseconds`` have real
+//     WASI-backed values.  ``format`` / ``add`` return the string
+//     ``"0"`` and ``scan`` returns integer 0; these are deliberate
+//     stubs because a proper timezone-aware formatter pulls in ~20 KB
+//     of tzdata.
+//
+// When a future Tcl release ships an event-loop or package-manager
+// backend for WASI, these handlers become real implementations and
+// the parity classifier will notice the promotion (SILENT_STUB →
+// IMPLEMENTED) without further configuration.
 
 const std   = @import("std");
 const rt    = @import("../tcl_runtime.zig");
