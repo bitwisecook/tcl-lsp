@@ -26,7 +26,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.analysis import analyse
+from core.analysis import Analyser, analyse
 from core.analysis._analyser._utils import (
     _FILE_DIRECTIVE_SCAN_LINES,
     _FILE_SUPPRESS_KEY,
@@ -39,6 +39,7 @@ from core.common.user_config import (
     load_project_config,
     merge_settings_layers,
 )
+from core.parsing.command_segmenter import segment_commands
 from lsp.features.diagnostics import _is_suppressed, get_basic_diagnostics, get_deep_diagnostics
 
 
@@ -187,6 +188,20 @@ class TestFileLevelSuppression:
         _basic, _result, suppressed = get_basic_diagnostics(source)
         deep = get_deep_diagnostics(source, suppressed)
         assert _codes(deep) == []
+
+    def test_analyse_chunked_populates_sentinel_key(self):
+        # The LSP uses analyse_chunked; file directives must be respected there.
+        source = "# tcl-lsp: disable=W100\nexpr $x + 1\n"
+        commands = segment_commands(source)
+        result, _ = Analyser().analyse_chunked(source, [list(commands)])
+        assert result.suppressed_lines.get(_FILE_SUPPRESS_KEY) == frozenset({"W100"})
+
+    def test_analyse_commands_populates_sentinel_key(self):
+        # The incremental path (analyse_commands) must also parse file directives.
+        source = "# tcl-lsp: disable=W100\nexpr $x + 1\n"
+        commands = segment_commands(source)
+        result = Analyser().analyse_commands(source, list(commands))
+        assert result.suppressed_lines.get(_FILE_SUPPRESS_KEY) == frozenset({"W100"})
 
 
 # Layer 3 (unit): project config file discovery + parsing.

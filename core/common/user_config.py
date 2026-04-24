@@ -208,6 +208,8 @@ def load_project_config(workspace_root: str | Path) -> configparser.ConfigParser
         log.info("Loaded project config from %s", path)
     except Exception:
         log.warning("Failed to parse %s, ignoring", path, exc_info=True)
+        config = configparser.ConfigParser()
+        config.optionxform = str  # type: ignore[assignment, invalid-assignment]  # preserve camelCase keys
     return config
 
 
