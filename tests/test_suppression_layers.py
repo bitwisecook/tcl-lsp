@@ -117,12 +117,7 @@ class TestParseFileSuppression:
         assert parse_file_suppression("# TCL-LSP: DISABLE=W100\n") == frozenset({"W100"})
 
     def test_allowed_before_shebang_and_copyright(self):
-        src = (
-            "#!/usr/bin/env tclsh\n"
-            "# Copyright notice.\n"
-            "# tcl-lsp: disable=W100\n"
-            "set x 1\n"
-        )
+        src = "#!/usr/bin/env tclsh\n# Copyright notice.\n# tcl-lsp: disable=W100\nset x 1\n"
         assert parse_file_suppression(src) == frozenset({"W100"})
 
     def test_allowed_after_blank_lines(self):
@@ -226,9 +221,7 @@ class TestProjectConfigFile:
         assert config.sections() == []
 
     def test_load_parses_diagnostics_section(self, tmp_path: Path):
-        (tmp_path / PROJECT_CONFIG_FILENAME).write_text(
-            "[diagnostics]\ndisabled = W100, O109\n"
-        )
+        (tmp_path / PROJECT_CONFIG_FILENAME).write_text("[diagnostics]\ndisabled = W100, O109\n")
         config = load_project_config(tmp_path)
         settings = get_all_settings(config)
         assert settings["diagnostics"]["W100"] is False
