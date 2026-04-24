@@ -10,9 +10,7 @@ from ..._imports import (
 from ..._ir import WasmOp
 
 
-def _emit_dict(
-    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
-) -> bool:
+def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``dict subcommand ...`` — dispatch to runtime import (i32 args)."""
     if context is EmitContext.VALUE:
         # Tail / implicit-return: leave the result on the operand stack.
