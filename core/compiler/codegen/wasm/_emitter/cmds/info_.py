@@ -6,9 +6,7 @@ from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 
 
-def _emit_info(
-    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
-) -> bool:
+def _emit_info(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
     """``info subcommand ?arg?`` — delegates to ``_emit_info_value``."""
     if not args:
         if context is EmitContext.VALUE:
