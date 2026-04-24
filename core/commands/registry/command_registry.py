@@ -348,11 +348,20 @@ class CommandRegistry:
     def register_codegen(
         self,
         name: str,
-        hook: CodegenHook,
+        hook: "CodegenHook",
         *,
         subcommand: str | None = None,
+        target: str = "vm",
     ) -> None:
-        """Back-register a codegen hook for *name*."""
+        """Back-register a codegen hook for *name* under *target*.
+
+        *target* defaults to ``"vm"`` (Python bytecode) for backwards
+        compatibility with call sites that predate the multi-backend
+        ``codegens`` dict.  Phase E.7 unified the old singular
+        ``spec.codegen`` field and the ``spec.codegens["wasm"]`` dict
+        into one target-keyed dict; each registration names the backend
+        it targets.
+        """
         specs = self.specs_by_name.get(name)
         if specs is None:
             return
@@ -360,9 +369,9 @@ class CommandRegistry:
             if subcommand is not None:
                 sub = spec.subcommands.get(subcommand)
                 if sub is not None:
-                    sub.codegen = hook
+                    sub.codegens[target] = hook
             else:
-                spec.codegen = hook
+                spec.codegens[target] = hook
 
     def register_lowering(
         self,
@@ -386,28 +395,33 @@ class CommandRegistry:
     def register_wasm_emitter(
         self,
         name: str,
-        hook: "WasmEmitHook",
+        hook: "CodegenHook",
         *,
         target: str = "wasm",
         subcommand: str | None = None,
     ) -> None:
         """Back-register a WASM emit hook for *name* under *target*.
 
-        *target* defaults to ``"wasm"`` and is the key used in
-        ``CommandSpec.codegens`` / ``SubCommand.codegens``.  Multiple
-        WASM-like targets (e.g. future ``"wasm64"``) can coexist under
-        different keys.
+        Thin wrapper around :meth:`register_codegen` that defaults the
+        target to ``"wasm"``.  Multiple WASM-like targets (e.g. future
+        ``"wasm64"``) can coexist under different keys.
         """
-        specs = self.specs_by_name.get(name)
-        if specs is None:
-            return
-        for spec in specs:
-            if subcommand is not None:
-                sub = spec.subcommands.get(subcommand)
-                if sub is not None:
-                    sub.codegens[target] = hook
-            else:
-                spec.codegens[target] = hook
+        self.register_codegen(name, hook, target=target, subcommand=subcommand)
+
+    def register_vm_emitter(
+        self,
+        name: str,
+        hook: "CodegenHook",
+        *,
+        subcommand: str | None = None,
+    ) -> None:
+        """Back-register a VM bytecode hook for *name*.
+
+        Thin wrapper around :meth:`register_codegen` with
+        ``target="vm"``.  Provided for symmetry with
+        :meth:`register_wasm_emitter`.
+        """
+        self.register_codegen(name, hook, target="vm", subcommand=subcommand)
 
     def get_wasm_hook(
         self,

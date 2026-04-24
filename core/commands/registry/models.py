@@ -65,23 +65,26 @@ CommandHandler = Callable[..., object]
 """VM execution handler for a command without subcommands."""
 
 CodegenHook = Callable[..., bool]
-"""Bytecode specialisation hook: (emitter, args, ...) -> emitted?"""
+"""Per-backend codegen hook: ``(emitter, args, …) -> emitted?``.
+
+Each command stores its hooks in ``CommandSpec.codegens`` (and
+``SubCommand.codegens``), a ``dict[str, CodegenHook]`` keyed by the
+backend's target name — currently ``"vm"`` (Python bytecode) and
+``"wasm"`` (Zig runtime via WASM).  The hook signature is loose
+because each backend defines its own emitter and context types; the
+registry is target-agnostic.
+
+Unimplemented commands should emit a trap instruction so execution
+fails loudly rather than silently.
+"""
+
+# Backwards-compat alias — older code may still import ``WasmEmitHook``.
+# Prefer ``CodegenHook`` in new code; the alias will be removed once
+# all call sites migrate.
+WasmEmitHook = CodegenHook
 
 LoweringHook = Callable[..., object]
 """IR lowering specialisation hook: (lowerer, ir_call) -> IRStatement | None."""
-
-WasmEmitHook = Callable[..., bool]
-"""WASM emit hook: ``(emitter, args, defs, context) -> emitted?``
-
-*context* is an :class:`EmitContext` indicating whether the result is
-being dropped / stored (``STATEMENT``) or left on the WASM operand
-stack (``VALUE``).  Hooks that don't care about result placement can
-ignore the argument.
-
-Keyed by target name (e.g. ``"wasm"``) in the ``codegens`` dict on
-``CommandSpec`` and ``SubCommand``.  Unimplemented commands should emit
-a trap instruction so execution fails loudly rather than silently.
-"""
 
 
 class EmitContext(enum.Enum):
@@ -408,9 +411,10 @@ class SubCommand:
 
     # Execution and compilation hooks — all optional.
     handler: SubcommandHandler | None = None
-    codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
-    codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
+    # Backend codegen hooks keyed by target name — ``"vm"`` for bytecode,
+    # ``"wasm"`` for the Zig WASM runtime, plus any future targets.
+    codegens: dict[str, CodegenHook] = field(default_factory=dict)
 
     # WASM runtime dispatch metadata for a compiled ``<command>
     # <subcommand>`` call.  Replaces the ``_STRING_SUBCMD_IMPORT`` /
@@ -605,9 +609,10 @@ class CommandSpec:
 
     # Execution and compilation hooks (for commands WITHOUT subcommands).
     handler: CommandHandler | None = None
-    codegen: CodegenHook | None = None
     lowering: LoweringHook | None = None
-    codegens: dict[str, WasmEmitHook] = field(default_factory=dict)
+    # Backend codegen hooks keyed by target name — ``"vm"`` for bytecode,
+    # ``"wasm"`` for the Zig WASM runtime, plus any future targets.
+    codegens: dict[str, CodegenHook] = field(default_factory=dict)
 
     # WASM runtime dispatch metadata — when set, the WASM codegen
     # auto-registers a hook that emits a call to the named runtime
