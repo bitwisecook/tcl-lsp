@@ -14,12 +14,7 @@ from ......commands.registry import REGISTRY, EmitContext
 
 def _make_runtime_hook(cmd: str):
     def _hook(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
-        if context is EmitContext.VALUE:
-            # Tail-context runtime commands are served by the generic
-            # dispatch in ``_emit_call_stmt_tail`` (which keeps the
-            # result on the operand stack), not here.
-            return False
-        emitter._emit_cmd_runtime(cmd, args, defs)
+        emitter._emit_cmd_runtime(cmd, args, defs, context)
         return True
 
     _hook.__name__ = f"_hook_{cmd}"

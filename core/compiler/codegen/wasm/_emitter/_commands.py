@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from .....commands.registry import EmitContext
 from .....parsing.tokens import TokenType
 from ....ir import (
     CommandTokens,
@@ -52,6 +53,36 @@ class _WasmEmitterCmdMixin(_Base):
         def _emit_var_write_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_array_name_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _is_frame_only_var(self, *a: Any, **kw: Any) -> Any: ...
+
+    def _runtime_call_end(
+        self,
+        spec: tuple,
+        defs: tuple[str, ...],
+        context: EmitContext,
+    ) -> None:
+        """Finish a runtime-dispatched call — store, drop, or keep on stack.
+
+        ``spec`` is the ``_RUNTIME_IMPORTS`` entry for the import just
+        called.  ``spec[3]`` is non-empty when the Zig export returns a
+        value.  Behaviour per context:
+
+        * ``STATEMENT`` + result + ``defs`` → store into ``defs[0]``
+        * ``STATEMENT`` + result + no ``defs`` → drop
+        * ``VALUE`` + result → leave on stack
+        * ``VALUE`` + no result → push ``i32.const 0`` (null TclObj) to
+          fill the slot the caller expects
+        """
+        has_result = bool(spec[3])
+        if context is EmitContext.VALUE:
+            if not has_result:
+                self._emit_i32_const(0)
+            return
+        if has_result:
+            if defs:
+                def_idx = self._intern_local(defs[0])
+                self._emit_local_set(def_idx)
+            else:
+                self._emit(WasmOp.DROP)
 
     def _emit_cmd_return(self, args: tuple[str, ...]) -> None:
         """``return ?value?`` or ``return -code code ?value?``.
@@ -696,18 +727,40 @@ class _WasmEmitterCmdMixin(_Base):
         command: str,
         args: tuple[str, ...],
         defs: tuple[str, ...],
+        context: EmitContext = EmitContext.STATEMENT,
     ) -> None:
-        """Emit a call to an imported runtime function for a known command."""
+        """Emit a call to an imported runtime function for a known command.
+
+        In ``STATEMENT`` context the result is stored into ``defs[0]`` (if
+        present) or dropped.  In ``VALUE`` context the i32 TclObj result
+        stays on the operand stack for an implicit-return / expression
+        callers; void-result imports get ``i32.const 0`` pushed to fill
+        the slot.  Mutator commands (``append``/``lappend``) write back
+        with ``_emit_local_tee`` / ``_emit_var_write_obj_keep`` so the
+        final updated value is the one left on the stack.
+        """
         rimp = runtime_import_for(command)
         if rimp is None:
-            self._emit_unsupported_trap(command)
+            if context is EmitContext.VALUE:
+                # Fall through to the interpreter so the implicit-return
+                # slot gets a real i32 TclObj — matches the pre-B.11
+                # tail-context behaviour.
+                self._emit_eval_fallback(command, args)
+            else:
+                self._emit_unsupported_trap(command)
             return
         import_key = rimp.import_key
         nontrapping = rimp.nontrapping
 
         func_idx = self._shared_imports.get(import_key)
         if func_idx is None:
-            self._emit_unsupported_trap(command)
+            if context is EmitContext.VALUE:
+                # Same reasoning as above — an unregistered import
+                # in tail position falls back to eval so the stack
+                # stays balanced for the caller.
+                self._emit_eval_fallback(command, args)
+            else:
+                self._emit_unsupported_trap(command)
             return
 
         # Record a diag site for runtime-dispatched commands whose
@@ -738,23 +791,32 @@ class _WasmEmitterCmdMixin(_Base):
             is_aliased = var_name in self._aliases or (
                 "(" in var_name and var_name.split("(")[0] in self._aliases
             )
+            keep_last = context is EmitContext.VALUE
+            last_index = len(args) - 1
             if is_aliased:
                 # Variable (or its array base) is an upvar/variable alias —
                 # reads and writes must go through the alias-aware global table
                 # rather than a WASM local slot so that updates reach the
-                # aliased storage.
-                for value_arg in args[1:]:
+                # aliased storage.  In VALUE context, the last write keeps the
+                # updated value on the stack for implicit return.
+                for i, value_arg in enumerate(args[1:], start=1):
                     self._emit_var_read_obj(var_name)
                     self._emit_value(value_arg)
                     self._emit_call(func_idx)
-                    self._emit_var_write_obj(var_name)
+                    if keep_last and i == last_index:
+                        self._emit_var_write_obj_keep(var_name)
+                    else:
+                        self._emit_var_write_obj(var_name)
             else:
                 var_idx = self._intern_local(var_name)
-                for value_arg in args[1:]:
+                for i, value_arg in enumerate(args[1:], start=1):
                     self._emit_local_get(var_idx)  # current value
                     self._emit_value(value_arg)  # value to append
                     self._emit_call(func_idx)
-                    self._emit_local_set(var_idx)
+                    if keep_last and i == last_index:
+                        self._emit_local_tee(var_idx)
+                    else:
+                        self._emit_local_set(var_idx)
             return
 
         # ``list`` handled outside _emit_cmd_runtime — see
@@ -776,14 +838,7 @@ class _WasmEmitterCmdMixin(_Base):
                     else:
                         self._emit_i32_const(0)
             self._emit_call(func_idx)
-            if spec[3]:
-                if defs:
-                    def_idx = self._intern_local(defs[0])
-                    self._emit_local_set(def_idx)
-                else:
-                    # Keep on stack if result matters (value context)
-                    # — here we're in statement context so drop.
-                    self._emit(WasmOp.DROP)
+            self._runtime_call_end(spec, defs, context)
             return
 
         # fconfigure takes a fd + a variable number of ``-option value``
@@ -821,12 +876,7 @@ class _WasmEmitterCmdMixin(_Base):
                             self._emit_value(word)
                             self._emit_call(concat_idx)
             self._emit_call(func_idx)
-            if spec[3]:
-                if defs:
-                    def_idx = self._intern_local(defs[0])
-                    self._emit_local_set(def_idx)
-                else:
-                    self._emit(WasmOp.DROP)
+            self._runtime_call_end(spec, defs, context)
             return
 
         # For puts, handle optional channel argument: puts ?-nonewline? ?channelId? string
@@ -834,15 +884,16 @@ class _WasmEmitterCmdMixin(_Base):
             # ``puts -nonewline <string>`` dispatches to a newline-
             # suppressing runtime helper.  Channel-id forms (e.g.
             # ``puts stdout foo``) still fall through to the default
-            # tcl_cmd_puts call.
+            # tcl_cmd_puts call.  Both paths return the empty string
+            # so VALUE context sees ``i32.const 0`` pushed by
+            # ``_runtime_call_end`` (the Zig exports are marked void).
             nonewline = len(args) >= 2 and args[0] == "-nonewline"
             if nonewline:
                 no_nl_idx = self._shared_imports.get("tcl_puts_nonewline")
                 if no_nl_idx is not None:
                     self._emit_value(args[-1])
                     self._emit_call(no_nl_idx)
-                    if spec[3]:
-                        self._emit(WasmOp.DROP)
+                    self._runtime_call_end(spec, defs, context)
                     return
             # Use the last argument as the string value
             if args:
@@ -850,9 +901,7 @@ class _WasmEmitterCmdMixin(_Base):
             else:
                 self._emit_i32_const(0)
             self._emit_call(func_idx)
-            if spec[3]:
-                # puts returns empty string — drop
-                self._emit(WasmOp.DROP)
+            self._runtime_call_end(spec, defs, context)
             return
 
         # concat: variadic — Tcl concat trims whitespace from each arg and
@@ -883,11 +932,7 @@ class _WasmEmitterCmdMixin(_Base):
                 for a in args[1:]:
                     self._emit_value(a)
                     self._emit_call(func_idx)
-            if defs and spec[3]:
-                def_idx = self._intern_local(defs[0])
-                self._emit_local_set(def_idx)
-            elif spec[3]:
-                self._emit(WasmOp.DROP)
+            self._runtime_call_end(spec, defs, context)
             return
 
         # ``linsert list index v1 ?v2 ...?`` with multiple values —
@@ -922,11 +967,7 @@ class _WasmEmitterCmdMixin(_Base):
                 self._emit_value(index_arg)
                 self._emit_value(v)
                 self._emit_call(func_idx)
-            if defs and spec[3]:
-                def_idx = self._intern_local(defs[0])
-                self._emit_local_set(def_idx)
-            elif spec[3]:
-                self._emit(WasmOp.DROP)
+            self._runtime_call_end(spec, defs, context)
             return
 
         # ``lreplace list first last v1 ?v2 ...?`` with multiple values —
@@ -976,11 +1017,7 @@ class _WasmEmitterCmdMixin(_Base):
                     self._emit_value(first_arg)
                     self._emit_value(v)
                     self._emit_call(list_insert_idx)
-            if defs and spec[3]:
-                def_idx = self._intern_local(defs[0])
-                self._emit_local_set(def_idx)
-            elif spec[3]:
-                self._emit(WasmOp.DROP)
+            self._runtime_call_end(spec, defs, context)
             return
 
         # ``lsort``/``lsearch``/``lindex``-style commands accept a
@@ -1003,13 +1040,7 @@ class _WasmEmitterCmdMixin(_Base):
                 self._emit_i32_const(0)
 
         self._emit_call(func_idx)
-
-        # Store result in def variable if present
-        if defs and spec[3]:
-            def_idx = self._intern_local(defs[0])
-            self._emit_local_set(def_idx)
-        elif spec[3]:
-            self._emit(WasmOp.DROP)
+        self._runtime_call_end(spec, defs, context)
 
     def _emit_cmd_proc_call(
         self,
