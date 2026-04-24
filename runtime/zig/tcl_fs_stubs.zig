@@ -3,6 +3,13 @@
 // real filesystem (WASI preopens a narrow slice) so these all raise
 // ``unsupported command: <name>``.
 //
+// **Reachability** — same as ``tcl_io_stubs.zig``: each
+// ``pub export fn tcl_cmd_X`` is a WASM import declared on the Python
+// codegen side (``_RUNTIME_IMPORTS`` in ``_imports.py``, referenced by
+// ``CommandSpec.wasm_runtime_import`` under
+// ``core/commands/registry/tcl/``).  Do not delete without also
+// dropping the corresponding ``wasm_runtime_import`` declaration.
+//
 // Coverage:
 //   - file (mkdir, delete, exists, isfile, isdirectory, dirname,
 //     tail, normalize, rootname, extension, join, split, pathtype,

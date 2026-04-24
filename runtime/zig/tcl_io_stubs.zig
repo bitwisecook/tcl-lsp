@@ -2,6 +2,18 @@
 // implemented.  Each stub raises ``unsupported command: <name>``
 // through :func:`tcl_stubs.unsupported`.
 //
+// **Reachability** — these ``pub export fn tcl_cmd_X`` symbols are
+// direct WASM imports on the Python codegen side.  Each export name
+// is referenced from ``core/compiler/codegen/wasm/_imports.py``'s
+// ``_RUNTIME_IMPORTS`` dict — e.g. ``tcl_open``/``tcl_close``/… are
+// declared there and the corresponding CommandSpec entries under
+// ``core/commands/registry/tcl/`` set
+// ``wasm_runtime_import=WasmRuntimeImport(import_key="tcl_open", …)``.
+// The compiled WASM emits direct calls to these exports, so deleting
+// any one of them breaks module instantiation for scripts that use
+// that command.  Keep them in lock-step with ``_imports.py`` and the
+// specs.
+//
 // These supersede the silent-0 stubs that used to live in
 // ``tcl_catch.zig`` (format / regexp / open / close / read / gets).
 // Splitting them out per area keeps ``tcl_catch.zig`` focused on
