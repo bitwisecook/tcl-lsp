@@ -75,12 +75,10 @@ def _emit_lassign(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
     """``lassign list ?varName ...?`` — destructure a list; delegates to _emit_cmd_lassign."""
-    if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
     if not args:
         return False
-    emitter._emit_cmd_lassign(args, defs, keep_on_stack=False)
+    keep_on_stack = context is EmitContext.VALUE
+    emitter._emit_cmd_lassign(args, defs, keep_on_stack=keep_on_stack)
     return True
 
 
