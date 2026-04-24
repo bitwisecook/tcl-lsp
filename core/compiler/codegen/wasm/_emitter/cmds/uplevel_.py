@@ -10,11 +10,11 @@ def _emit_uplevel(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
     """``uplevel ?level? body`` — delegates to _emit_cmd_uplevel."""
-    if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
     if not args:
         return False
+    if context is EmitContext.VALUE:
+        emitter._emit_cmd_uplevel(args)
+        return True
     emitter._emit_cmd_uplevel(args)
     if defs:
         def_idx = emitter._intern_local(defs[0])

@@ -954,23 +954,6 @@ class _WasmEmitterStmtMixin(_Base):
         if hook is not None and hook(self, args, defs, EmitContext.VALUE):
             return
 
-        # return: emit WASM return (handled at call site, but can appear in tail)
-        if command == "return":
-            if args:
-                self._emit_value(args[0])
-            else:
-                self._emit_i32_const(0)
-            return
-
-        # lassign — keep leftover-list result on stack
-        if command == "lassign" and args:
-            self._emit_cmd_lassign(args, defs, keep_on_stack=True)
-            return
-
-        # uplevel in tail position — keep eval result on stack.
-        if command == "uplevel" and args:
-            self._emit_cmd_uplevel(args)
-            return
 
         # Runtime command — use the same dispatch logic as non-tail,
         # but keep the return value on the stack instead of dropping it.
