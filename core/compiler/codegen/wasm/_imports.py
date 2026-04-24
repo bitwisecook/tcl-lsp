@@ -32,6 +32,19 @@ def runtime_import_for(command: str) -> WasmRuntimeImport | None:
     return None
 
 
+def command_emits_nothing(command: str) -> bool:
+    """Return ``True`` if *command* produces no value on the operand stack.
+
+    Consults ``CommandSpec.wasm_emits_nothing`` on every registered
+    spec for *command*.  Replaces the ``_SCOPE_NOP_COMMANDS`` shadow
+    frozenset — the registry is the sole source of truth.
+    """
+    specs = REGISTRY.specs_by_name.get(command)
+    if specs is None:
+        return False
+    return any(spec.wasm_emits_nothing for spec in specs)
+
+
 def subcommand_runtime_import_for(
     command: str, subcommand: str
 ) -> WasmRuntimeImport | None:
@@ -433,17 +446,6 @@ _STRING_IS_IMPORT: dict[str, str] = {
 # the interpreter's ``rename`` built-in), so the codegen must route
 # every ``rename`` call through the eval fallback rather than dropping
 # it.  See docs/design/runtime/rename-alias.md.
-_SCOPE_NOP_COMMANDS = frozenset(
-    {
-        "namespace",
-        "proc",
-        "package",
-        # CFG placeholders — the actual logic is emitted by the loop/foreach
-        # emitters; these IRCall nodes are just iteration-setup markers.
-        "foreach",
-    }
-)
-
 # Commands that require capabilities unavailable in the WASM sandbox.
 # The codegen emits a call to the runtime ``error`` function with a
 # descriptive message so the module traps with a clear diagnostic

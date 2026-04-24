@@ -43,8 +43,8 @@ from ...ir import (
 )
 from ._imports import (
     _OBJ_LIFECYCLE_IMPORTS,
-    _SCOPE_NOP_COMMANDS,
     _STRING_IS_IMPORT,
+    command_emits_nothing,
     runtime_import_for,
     subcommand_runtime_import_for,
 )
@@ -674,7 +674,7 @@ def _scan_needed_imports(
                 # ``catch``, etc.) the args are source text re-parsed
                 # by the lowerer, not values emitted at runtime — mark
                 # them so the scan doesn't over-import tcl_append.
-                is_body = command in _SCOPE_NOP_COMMANDS or command == "catch"
+                is_body = command_emits_nothing(command) or command == "catch"
                 for arg in args:
                     _scan_value(arg, is_body_text=is_body)
             case IRAssignValue(name=name, value=value):

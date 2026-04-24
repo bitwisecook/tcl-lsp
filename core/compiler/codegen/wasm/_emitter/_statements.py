@@ -39,7 +39,7 @@ from .._encoding import (
 )
 from .._imports import (
     _RUNTIME_IMPORTS,
-    _SCOPE_NOP_COMMANDS,
+    command_emits_nothing,
     runtime_import_for,
 )
 from .._ir import (
@@ -540,7 +540,7 @@ class _WasmEmitterStmtMixin(_Base):
         # time registry never learns about them).  Route those through
         # the eval fallback so the interpreter's ``proc`` handler
         # registers under the current namespace.
-        if command in _SCOPE_NOP_COMMANDS:
+        if command_emits_nothing(command):
             if command == "proc" and args and (args[0].startswith("$") or args[0].startswith("[")):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
@@ -892,7 +892,7 @@ class _WasmEmitterStmtMixin(_Base):
         (proc calls first, then built-ins) to ensure consistent behaviour.
         """
         # Scope declarations produce no value — return null TclObj
-        if command in _SCOPE_NOP_COMMANDS:
+        if command_emits_nothing(command):
             # ``namespace eval ns arg1 arg2 ...`` in tail position with dynamic
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.

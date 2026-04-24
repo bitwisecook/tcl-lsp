@@ -37,6 +37,7 @@ class ProcCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(3, 3),
             ),
+            wasm_emits_nothing=True,
             arg_roles={0: ArgRole.NAME, 1: ArgRole.PARAM_LIST, 2: ArgRole.BODY},
             return_type=TclType.STRING,
             defines_procedure=True,

@@ -48,6 +48,7 @@ class ForeachCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(3),
             ),
+            wasm_emits_nothing=True,
             arg_role_resolver=_foreach_arg_roles,
             return_type=TclType.STRING,
             arg_type_resolver=resolve_foreach,

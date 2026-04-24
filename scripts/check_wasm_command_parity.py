@@ -246,7 +246,11 @@ def collect_imports_tables() -> dict[str, object]:
         "string_is_import": dict(imp._STRING_IS_IMPORT),  # noqa: SLF001
         "dict_subcmd_import": dict_subcmd_import,
         "clock_subcmd_import": clock_subcmd_import,
-        "scope_nop_commands": sorted(imp._SCOPE_NOP_COMMANDS),  # noqa: SLF001
+        "scope_nop_commands": sorted(
+            name
+            for name, specs in REGISTRY.specs_by_name.items()
+            if any(spec.wasm_emits_nothing for spec in specs)
+        ),
         "unsupported_commands": sorted(imp._UNSUPPORTED_COMMANDS),  # noqa: SLF001
     }
 
