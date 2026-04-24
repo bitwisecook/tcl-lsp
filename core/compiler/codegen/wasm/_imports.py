@@ -380,7 +380,14 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
 # — instead of generating a ``tcl_eval`` fallback that invokes the
 # interpreter which then fails to find the command.
 _CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
-    # Implemented runtime functions
+    # Implemented runtime functions.  The same mapping is now also
+    # declared on each command's ``CommandSpec.wasm_runtime_import``
+    # field for registry-first consumers (parity check, documentation,
+    # future dispatch paths).  Keeping both sources for now so the
+    # ``_CMD_RUNTIME[...]`` lookups sprinkled through
+    # ``_emit_call_stmt_tail`` / ``_emit_expr_command`` /
+    # ``_emit_value`` keep working; deleting the dict is deferred to a
+    # later phase that rewrites every access site.
     "puts": ("tcl_puts", 1),
     "append": ("tcl_append", 2),
     "llength": ("tcl_list_length", 1),

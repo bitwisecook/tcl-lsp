@@ -5,7 +5,15 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    OptionSpec,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import Arity
 from ._base import register
 
@@ -40,6 +48,11 @@ class PutsCommand(CommandDef):
             ),
             validation=ValidationSpec(
                 arity=Arity(1, 2),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_puts",
+                argc=1,
+                nontrapping=True,
             ),
             taint_output_sink="T101",
             return_type=TclType.STRING,

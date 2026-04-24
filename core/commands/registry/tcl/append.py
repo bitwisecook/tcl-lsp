@@ -6,7 +6,14 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from ....compiler.types import TclType
 from .._base import CommandDef
-from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
+from ..models import (
+    CommandSpec,
+    FormKind,
+    FormSpec,
+    HoverSnippet,
+    ValidationSpec,
+    WasmRuntimeImport,
+)
 from ..signatures import ArgRole, Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
@@ -36,6 +43,11 @@ class AppendCommand(CommandDef):
             ),
             validation=ValidationSpec(
                 arity=Arity(1),
+            ),
+            wasm_runtime_import=WasmRuntimeImport(
+                import_key="tcl_append",
+                argc=2,
+                nontrapping=True,
             ),
             assigns_variable_at=0,
             reads_variable_before_write=True,
