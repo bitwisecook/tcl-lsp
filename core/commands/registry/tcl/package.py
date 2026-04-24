@@ -222,4 +222,5 @@ class PackageCommand(CommandDef):
                 ),
             ),
             wasm_runtime_import=WasmRuntimeImport(import_key="tcl_package", argc=2),
+            wasm_emits_nothing=True,
         )

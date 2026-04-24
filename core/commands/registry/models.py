@@ -615,6 +615,14 @@ class CommandSpec:
     # ``core/compiler/codegen/wasm/_imports.py``.
     wasm_runtime_import: WasmRuntimeImport | None = None
 
+    # WASM codegen flag — when ``True`` the command produces no value
+    # on the operand stack (scope declarations, compile-time-only
+    # constructs, CFG placeholders).  The tail-context dispatcher emits
+    # ``i32.const 0`` (null TclObj) for these commands; the
+    # statement-context dispatcher short-circuits without emitting
+    # anything.  Replaces the ``_SCOPE_NOP_COMMANDS`` shadow frozenset.
+    wasm_emits_nothing: bool = False
+
     # Static arg roles and type info for commands WITHOUT subcommands.
     # Replaces role_hints() -> CommandSig and type_hints() -> CommandTypeHint.
     arg_roles: dict[int, ArgRole] = field(default_factory=dict)

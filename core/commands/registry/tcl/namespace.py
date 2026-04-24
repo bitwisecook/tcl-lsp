@@ -308,6 +308,7 @@ class NamespaceCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
+            wasm_emits_nothing=True,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.NAMESPACE_STATE,
