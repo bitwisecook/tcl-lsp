@@ -75,7 +75,7 @@ Out (deferred to later waves):
 
 ## 2. The `Interp` struct
 
-[`tcl_interp_registry.zig`](../../../runtime/zig/tcl_interp_registry.zig)
+[`tcl_interp_registry.zig`](../../../runtime/zig/interp/tcl_interp_registry.zig)
 owns the one-Interp-per-interpreter state.  `extern struct`
 layout mirrors the rest of the runtime's ABI — every field is a
 `u32` at a known offset so `@ptrFromInt` casts read the right

@@ -36,7 +36,7 @@ Out (deferred):
 ## 2. Command struct reuse
 
 The existing 40-byte ``Command`` struct in
-[`tcl_procs.zig`](../../../runtime/zig/tcl_procs.zig) already
+[`tcl_procs.zig`](../../../runtime/zig/interp/tcl_procs.zig) already
 reserved the ``OFF_PARAMS_OBJ`` slot at offset 12 for type-dependent
 payloads:
 
@@ -67,14 +67,14 @@ The dispatcher discriminates by ``flags``:
 
 ### 3.2 Hash-table tombstones
 
-The open-addressed table primitive in [`hash_table.zig`](../../../runtime/zig/hash_table.zig)
+The open-addressed table primitive in [`hash_table.zig`](../../../runtime/zig/valtypes/hash_table.zig)
 doesn't support bucket removal (adding tombstones would require
 probe-chain rewriting).  Both ``rename`` and ``namespace forget``
 use the same trick: keep the bucket populated but zero its
 ``OFF_HANDLE`` value, so subsequent ``ns_cmd_find`` calls return 0
 without breaking the probe chain for adjacent entries.
 
-[`tcl_ns.ns_cmd_clear`](../../../runtime/zig/tcl_ns.zig) is the
+[`tcl_ns.ns_cmd_clear`](../../../runtime/zig/interp/tcl_ns.zig) is the
 canonical entry point; ``rename_command`` uses it to retire the
 source name after inserting at the target.
 
@@ -136,7 +136,7 @@ future slots stay free for other redirect types (hide, ensemble,
 
 ### 4.2 Dispatch
 
-[`tcl_interp.dispatch_alias`](../../../runtime/zig/tcl_interp.zig)
+[`tcl_interp.dispatch_alias`](../../../runtime/zig/interp/tcl_interp.zig)
 is called from ``eval_proc_call_bucket`` when a resolved Command
 has ``CMD_ALIAS`` set.  The trampoline:
 

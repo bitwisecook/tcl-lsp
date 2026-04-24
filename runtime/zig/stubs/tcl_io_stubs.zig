@@ -4,15 +4,18 @@
 //
 // **Reachability** — these ``pub export fn tcl_cmd_X`` symbols are
 // direct WASM imports on the Python codegen side.  Each export name
-// is referenced from ``core/compiler/codegen/wasm/_imports.py``'s
-// ``_RUNTIME_IMPORTS`` dict — e.g. ``tcl_open``/``tcl_close``/… are
-// declared there and the corresponding CommandSpec entries under
-// ``core/commands/registry/tcl/`` set
-// ``wasm_runtime_import=WasmRuntimeImport(import_key="tcl_open", …)``.
-// The compiled WASM emits direct calls to these exports, so deleting
-// any one of them breaks module instantiation for scripts that use
-// that command.  Keep them in lock-step with ``_imports.py`` and the
-// specs.
+// is referenced from the ``WasmRuntimeImport`` field on a
+// ``CommandSpec`` under ``core/commands/registry/tcl/`` —
+// ``open_.py``, ``close_.py``, ``read.py``, etc. each declare
+// ``wasm_runtime_import=WasmRuntimeImport(import_key="tcl_open",
+// params=…, results=…)``.  ``core/compiler/codegen/wasm/_imports.py``'s
+// :func:`import_signature` resolves those to the import tuple at
+// scan/emit time, falling back to ``_INFRASTRUCTURE_IMPORTS`` only
+// for helpers with no command owner.  The compiled WASM emits direct
+// calls to these exports, so deleting any one of them breaks module
+// instantiation for scripts that use that command.  Keep them in
+// lock-step with the specs; the parity gate
+// (``scripts/check_wasm_command_parity.py``) enforces this.
 //
 // These supersede the silent-0 stubs that used to live in
 // ``tcl_catch.zig`` (format / regexp / open / close / read / gets).
