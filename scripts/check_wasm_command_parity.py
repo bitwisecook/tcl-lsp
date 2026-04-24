@@ -197,6 +197,26 @@ def collect_imports_tables() -> dict[str, object]:
     sys.path.insert(0, str(ROOT))
     from core.compiler.codegen.wasm import _imports as imp  # noqa: PLC0415
 
+    # ``cmd_runtime`` used to mirror the retired ``_CMD_RUNTIME`` dict.
+    # Its spec-backed successor is reconstructed from every
+    # ``CommandSpec.wasm_runtime_import`` declaration in the registry
+    # (populated by phase B.7c).  ``cmd_runtime_nontrapping`` is derived
+    # from the same source.
+    from core.commands.registry import REGISTRY  # noqa: PLC0415
+
+    cmd_runtime: dict[str, dict[str, object]] = {}
+    cmd_runtime_nontrapping: list[str] = []
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            rimp = spec.wasm_runtime_import
+            if rimp is None:
+                continue
+            cmd_runtime.setdefault(
+                name, {"import": rimp.import_key, "argc": rimp.argc}
+            )
+            if rimp.nontrapping and name not in cmd_runtime_nontrapping:
+                cmd_runtime_nontrapping.append(name)
+
     return {
         "runtime_imports": {
             key: {
@@ -207,11 +227,8 @@ def collect_imports_tables() -> dict[str, object]:
             }
             for key, v in imp._RUNTIME_IMPORTS.items()  # noqa: SLF001
         },
-        "cmd_runtime": {
-            k: {"import": v[0], "argc": v[1]}
-            for k, v in imp._CMD_RUNTIME.items()  # noqa: SLF001
-        },
-        "cmd_runtime_nontrapping": sorted(imp._CMD_RUNTIME_NONTRAPPING),  # noqa: SLF001
+        "cmd_runtime": cmd_runtime,
+        "cmd_runtime_nontrapping": sorted(cmd_runtime_nontrapping),
         "string_subcmd_import": dict(imp._STRING_SUBCMD_IMPORT),  # noqa: SLF001
         "string_is_import": dict(imp._STRING_IS_IMPORT),  # noqa: SLF001
         "dict_subcmd_import": dict(imp._DICT_SUBCMD_IMPORT),  # noqa: SLF001

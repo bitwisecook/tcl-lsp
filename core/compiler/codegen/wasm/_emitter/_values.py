@@ -16,10 +16,10 @@ from .._encoding import (
     _tcl_list_quote,
 )
 from .._imports import (
-    _CMD_RUNTIME,
     _DICT_SUBCMD_IMPORT,
     _RUNTIME_IMPORTS,
     _STRING_SUBCMD_IMPORT,
+    runtime_import_for,
 )
 from .._ir import (
     ValType,
@@ -590,8 +590,9 @@ class _WasmEmitterValuesMixin(_Base):
                 return
 
         # Runtime command in value context (llength, lindex, etc.)
-        if cmd_name in _CMD_RUNTIME:
-            import_key, _ = _CMD_RUNTIME[cmd_name]
+        rimp = runtime_import_for(cmd_name)
+        if rimp is not None:
+            import_key = rimp.import_key
             func_idx = self._shared_imports.get(import_key)
             if func_idx is not None:
                 spec = _RUNTIME_IMPORTS[import_key]

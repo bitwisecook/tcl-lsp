@@ -10,7 +10,6 @@ is available.
 
 from __future__ import annotations
 
-from ....commands.registry import REGISTRY
 from ...cfg import CFGModule
 from ...expr_ast import (
     BinOp,
@@ -44,32 +43,14 @@ from ...ir import (
 )
 from ._imports import (
     _CLOCK_SUBCMD_IMPORT,
-    _CMD_RUNTIME,
     _DICT_SUBCMD_IMPORT,
     _OBJ_LIFECYCLE_IMPORTS,
     _SCOPE_NOP_COMMANDS,
     _STRING_IS_IMPORT,
     _STRING_SUBCMD_IMPORT,
+    runtime_import_for,
 )
 from ._parsing import _has_embedded_subst_scan, _parse_array_ref
-
-
-def _spec_import_key(command: str) -> str | None:
-    """Return the spec-declared runtime import key for *command*, or ``None``.
-
-    Mirrors the helper on ``_WasmEmitterCmdMixin`` but is called from
-    the scan phase before the emitter is constructed.  Used to register
-    runtime imports for commands whose ``CommandSpec.wasm_runtime_import``
-    has been set (Phase B.7b+) in addition to the legacy ``_CMD_RUNTIME``
-    dict entries.
-    """
-    specs = REGISTRY.specs_by_name.get(command)
-    if specs is None:
-        return None
-    for spec in specs:
-        if spec.wasm_runtime_import is not None:
-            return spec.wasm_runtime_import.import_key
-    return None
 
 
 def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
@@ -166,13 +147,9 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
             full_parts = cmd_text.split()
             if parts:
                 cmd = parts[0]
-                spec_key = _spec_import_key(cmd)
-                is_runtime = spec_key is not None or cmd in _CMD_RUNTIME
-                if spec_key is not None:
-                    needed.add(spec_key)
-                if cmd in _CMD_RUNTIME:
-                    needed.add(_CMD_RUNTIME[cmd][0])
-                if is_runtime:
+                rimp = runtime_import_for(cmd)
+                if rimp is not None:
+                    needed.add(rimp.import_key)
                     if cmd == "puts":
                         # ``puts -nonewline …`` dispatches to a
                         # second helper; include the import whenever
@@ -538,13 +515,9 @@ def _scan_needed_imports(
                         # in ``_emit_cmd_lset``.  Without this import,
                         # the emitter raises an internal error.
                         needed.add("tcl_list_create")
-                spec_key = _spec_import_key(command)
-                is_runtime = spec_key is not None or command in _CMD_RUNTIME
-                if spec_key is not None:
-                    needed.add(spec_key)
-                if command in _CMD_RUNTIME:
-                    needed.add(_CMD_RUNTIME[command][0])
-                if is_runtime:
+                rimp = runtime_import_for(command)
+                if rimp is not None:
+                    needed.add(rimp.import_key)
                     if command == "puts":
                         # Include the -nonewline helper alongside tcl_puts
                         # so the dispatch path can choose between them.

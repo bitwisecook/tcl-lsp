@@ -8,7 +8,28 @@ extended, and stubbed independently of codegen changes.
 
 from __future__ import annotations
 
+from ....commands.registry import REGISTRY, WasmRuntimeImport
 from ._ir import ValType
+
+
+def runtime_import_for(command: str) -> WasmRuntimeImport | None:
+    """Return the runtime-import descriptor for *command*, or ``None``.
+
+    Consults every ``CommandSpec`` registered under *command* and
+    returns the first ``wasm_runtime_import`` declaration found.  The
+    single source of truth for "does this Tcl command dispatch to a
+    Zig runtime import, and what import key?"  Used by the scan phase
+    (to register the import in the WASM imports section) and by the
+    emitter (to pick the function index and decide whether a diag site
+    is needed).
+    """
+    specs = REGISTRY.specs_by_name.get(command)
+    if specs is None:
+        return None
+    for spec in specs:
+        if spec.wasm_runtime_import is not None:
+            return spec.wasm_runtime_import
+    return None
 
 # Runtime function signatures imported from the Tcl runtime.
 # Each entry maps an import key to (module, export_name, param_types, result_types).
@@ -368,143 +389,6 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
         "tcl_obj_new_int",
         "tcl_obj_new_string",
         "tcl_obj_get_int",
-    }
-)
-
-# Commands that map to runtime imports.  The value is
-# (import_key, arg_count_or_None) where ``None`` means variadic.
-#
-# Stub-mapped commands (file, glob, encoding, trace, etc.) route
-# through this dispatch table so the compiler calls the stub
-# directly — producing a clean ``unsupported command: <name>`` trap
-# — instead of generating a ``tcl_eval`` fallback that invokes the
-# interpreter which then fails to find the command.
-_CMD_RUNTIME: dict[str, tuple[str, int | None]] = {
-    # Implemented runtime functions.  The same mapping is now also
-    # declared on each command's ``CommandSpec.wasm_runtime_import``
-    # field for registry-first consumers (parity check, documentation,
-    # future dispatch paths).  Keeping both sources for now so the
-    # ``_CMD_RUNTIME[...]`` lookups sprinkled through
-    # ``_emit_call_stmt_tail`` / ``_emit_expr_command`` /
-    # ``_emit_value`` keep working; deleting the dict is deferred to a
-    # later phase that rewrites every access site.
-    "puts": ("tcl_puts", 1),
-    "append": ("tcl_append", 2),
-    "llength": ("tcl_list_length", 1),
-    "lappend": ("tcl_lappend", 2),
-    "lindex": ("tcl_list_index", 2),
-    "lrange": ("tcl_list_range", 3),
-    "lsort": ("tcl_list_sort", 1),
-    "lreverse": ("tcl_list_reverse", 1),
-    "lrepeat": ("tcl_list_repeat", 2),
-    "linsert": ("tcl_list_insert", 3),
-    "lreplace": ("tcl_list_replace", 4),
-    # ``lset`` is intentionally NOT here.  Placing it in
-    # ``_CMD_RUNTIME`` would also register a generic value-context
-    # dispatch path (``_emit_command_expr``) that passes the varname
-    # as a literal list operand — which produces the wrong result for
-    # ``set ret [lset lst 1 X]`` (lst is a var, not a literal list).
-    # ``lset`` has a dedicated statement-context emitter
-    # (``_emit_cmd_lset``); the import ``tcl_list_set`` is registered
-    # explicitly by the scan phase (see ``_scan.py``) whenever an
-    # ``IRCall(command="lset")`` appears.  Value-context
-    # ``[lset …]`` falls through to the generic eval fallback.
-    "lsearch": ("tcl_list_search", 2),
-    "concat": ("tcl_concat", 2),
-    "error": ("tcl_error", 1),
-    "split": ("tcl_split", 2),
-    "join": ("tcl_join", 2),
-    # I/O stubs — open/close/read/gets/eof/flush/fblocked/fconfigure/
-    # tell/seek/chan/fcopy/fileevent/socket all trap with
-    # "unsupported command: <name>".
-    "open": ("tcl_open", 1),
-    "close": ("tcl_close", 1),
-    "read": ("tcl_read", 1),
-    "gets": ("tcl_gets", 1),
-    "eof": ("tcl_eof", 1),
-    "flush": ("tcl_flush", 1),
-    "fblocked": ("tcl_fblocked", 1),
-    "fconfigure": ("tcl_fconfigure", 2),
-    "tell": ("tcl_tell", 1),
-    "seek": ("tcl_seek", 2),
-    "chan": ("tcl_chan", 2),
-    "fcopy": ("tcl_fcopy", 2),
-    "fileevent": ("tcl_fileevent", 2),
-    "socket": ("tcl_socket", 2),
-    # Filesystem / process stubs.
-    "file": ("tcl_file", 3),
-    "glob": ("tcl_glob", 1),
-    "pwd": ("tcl_pwd", 0),
-    "cd": ("tcl_cd", 1),
-    "exec": ("tcl_exec", 1),
-    "source": ("tcl_source", 1),
-    "load": ("tcl_load", 1),
-    "unload": ("tcl_unload", 1),
-    # Format / regex / encoding stubs.
-    "format": ("tcl_format", 4),
-    # ``scan`` and ``binary`` are no longer in _CMD_RUNTIME — they route through
-    # the eval fallback so the interpreter can see all args (varnames for scan,
-    # format-values for binary format, subSpec/varName for regsub).  The
-    # tcl_cmd_scan / tcl_cmd_binary / tcl_cmd_regsub exports remain in the
-    # runtime for ABI continuity with old compiled modules.
-    "regexp": ("tcl_regexp", 2),
-    "encoding": ("tcl_encoding", 3),
-    # Event / coroutine stubs.  The arithmetic clock commands
-    # (``clock seconds`` / ``clock clicks`` / ``clock milliseconds``)
-    # are real runtime fns and route through a separate dispatcher
-    # in ``_emit_cmd_clock``; only the formatting variants surface
-    # here.
-    "after": ("tcl_after", 1),
-    "vwait": ("tcl_vwait", 1),
-    "update": ("tcl_update", 0),
-    "coroutine": ("tcl_coroutine", 2),
-    "yield": ("tcl_yield", 1),
-    "yieldto": ("tcl_yieldto", 1),
-    # Environment / metadata stubs.  ``namespace eval`` is compiled
-    # (it is a control-flow construct); the ``namespace`` entry here
-    # only catches the other subcommands (current, qualifiers, which,
-    # tail, code, delete, import, export, exists, parent, children,
-    # inscope, origin, forget, path, ensemble) that route through
-    # this dispatch.  ``interp`` used to live here too, pointing at
-    # the trapping ``tcl_cmd_interp_cmd`` stub — since the runtime
-    # added real ``interp alias`` + ``interp hide`` / ``interp
-    # expose`` / ``interp hidden`` support (see
-    # docs/design/runtime/rename-alias.md and
-    # docs/design/runtime/command-introspection.md) the codegen
-    # now routes ``interp`` through the eval fallback so the
-    # interpreter's ``interp`` built-in handles them.  Child-interp
-    # subcommands (``interp create`` / ``slaves`` / ``eval``) still
-    # trap cleanly via ``tcl_env_stubs``.
-    "package": ("tcl_package", 2),
-    "trace": ("tcl_trace", 2),
-    "apply": ("tcl_apply", 2),
-}
-
-# Runtime commands whose Zig implementation is total for well-typed
-# inputs — they return a result for every argument shape the compiler
-# can emit and never trap into ``tcl_diag``.  The codegen elides the
-# per-call ``tcl_diag_set`` preamble (~4 WASM bytes + one DiagSite
-# record) for these commands because the trap-resolver
-# (:func:`tests.test_wasm_real_tcl._resolve_trap`) only reads diag
-# sites when a ``tcl trap: site=<id>`` line appears on stderr, and
-# none of the commands below emit that.
-#
-# Commands omitted from this set (i.e. that DO need a diag site):
-# every I/O / FS / event / coroutine / introspection stub that can
-# raise "unsupported command: X"; ``format``/``scan``/``regexp`` (may
-# error on bad patterns); ``error`` itself; ``lsort``/``lsearch`` /
-# ``split``/``join`` (may error on malformed lists); ``string is *``;
-# all ``tcl_dict_*`` (dict-shape errors); all ``tcl_clock_*`` (stub
-# error paths).
-_CMD_RUNTIME_NONTRAPPING: frozenset[str] = frozenset(
-    {
-        # ``puts`` writes to a WASI stdout pipe the host always
-        # provides; there is no "channel closed" error path the
-        # codegen can reach.
-        "puts",
-        # ``append`` concatenates strings verbatim — no list parsing,
-        # no number conversion, no shimmer.
-        "append",
     }
 )
 

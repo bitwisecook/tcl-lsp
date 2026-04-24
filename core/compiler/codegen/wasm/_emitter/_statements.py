@@ -38,9 +38,9 @@ from .._encoding import (
     _tcl_list_quote,
 )
 from .._imports import (
-    _CMD_RUNTIME,
     _RUNTIME_IMPORTS,
     _SCOPE_NOP_COMMANDS,
+    runtime_import_for,
 )
 from .._ir import (
     DiagSite,
@@ -224,7 +224,7 @@ class _WasmEmitterStmtMixin(_Base):
                     # (dynamic code, break/continue, numeric) reach
                     # the fallback below where quoting is safe.
                     self._emit_cmd_return(barrier_args)
-                elif barrier_cmd and barrier_cmd in _CMD_RUNTIME:
+                elif barrier_cmd and runtime_import_for(barrier_cmd) is not None:
                     self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
@@ -957,8 +957,9 @@ class _WasmEmitterStmtMixin(_Base):
 
         # Runtime command — use the same dispatch logic as non-tail,
         # but keep the return value on the stack instead of dropping it.
-        if command in _CMD_RUNTIME:
-            import_key, _ = _CMD_RUNTIME[command]
+        rimp = runtime_import_for(command)
+        if rimp is not None:
+            import_key = rimp.import_key
             fidx = self._shared_imports.get(import_key)
             if fidx is not None:
                 spec = _RUNTIME_IMPORTS[import_key]
