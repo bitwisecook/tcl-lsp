@@ -421,9 +421,7 @@ def collect_imports_tables() -> dict[str, object]:
         for spec in specs:
             rimp = spec.wasm_runtime_import
             if rimp is not None:
-                cmd_runtime.setdefault(
-                    name, {"import": rimp.import_key, "argc": rimp.argc}
-                )
+                cmd_runtime.setdefault(name, {"import": rimp.import_key, "argc": rimp.argc})
                 if rimp.nontrapping and name not in cmd_runtime_nontrapping:
                     cmd_runtime_nontrapping.append(name)
             target = subcmd_targets.get(name)
@@ -449,20 +447,24 @@ def collect_imports_tables() -> dict[str, object]:
     }
     for specs in REGISTRY.specs_by_name.values():
         for spec in specs:
-            for rimp in (spec.wasm_runtime_import, *(
-                sub.wasm_runtime_import for sub in spec.subcommands.values()
-            )):
+            for rimp in (
+                spec.wasm_runtime_import,
+                *(sub.wasm_runtime_import for sub in spec.subcommands.values()),
+            ):
                 if rimp is None:
                     continue
                 sig = imp.import_signature(rimp.import_key)
                 if sig is None:
                     continue
-                merged_runtime_imports.setdefault(rimp.import_key, {
-                    "module": sig[0],
-                    "export": sig[1],
-                    "params": [p.name for p in sig[2]],
-                    "results": [r.name for r in sig[3]],
-                })
+                merged_runtime_imports.setdefault(
+                    rimp.import_key,
+                    {
+                        "module": sig[0],
+                        "export": sig[1],
+                        "params": [p.name for p in sig[2]],
+                        "results": [r.name for r in sig[3]],
+                    },
+                )
     return {
         "runtime_imports": merged_runtime_imports,
         "cmd_runtime": cmd_runtime,

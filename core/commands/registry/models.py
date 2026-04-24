@@ -152,6 +152,7 @@ class WasmRuntimeImport:
             return "tcl_cmd_" + key[4:]
         return key
 
+
 ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
 """Maps actual argument values to {index: ArgRole} for variable-layout commands."""
 

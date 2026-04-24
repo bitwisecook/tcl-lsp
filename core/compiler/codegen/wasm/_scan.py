@@ -529,9 +529,11 @@ def _scan_needed_imports(
                         # one the base call replaced.  See
                         # ``_emit_cmd_runtime`` for the emit shape.
                         needed.add("tcl_list_insert")
-                elif command == "string" and args and (
-                    sri := subcommand_runtime_import_for("string", args[0])
-                ) is not None:
+                elif (
+                    command == "string"
+                    and args
+                    and (sri := subcommand_runtime_import_for("string", args[0])) is not None
+                ):
                     needed.add(sri.import_key)
                 elif command == "string" and args and args[0] == "is" and len(args) >= 3:
                     is_key = _STRING_IS_IMPORT.get(args[1])
@@ -546,9 +548,11 @@ def _scan_needed_imports(
                     # ``list $a $b ...`` with variable args uses tcl_lappend
                     # internally in _emit_list_value to quote each element.
                     needed.add("tcl_lappend")
-                elif command == "dict" and args and (
-                    sri := subcommand_runtime_import_for("dict", args[0])
-                ) is not None:
+                elif (
+                    command == "dict"
+                    and args
+                    and (sri := subcommand_runtime_import_for("dict", args[0])) is not None
+                ):
                     needed.add(sri.import_key)
                 elif command == "dict" and args and args[0] == "create":
                     # ``dict create`` with non-literal k/v args
