@@ -118,6 +118,78 @@ fn parse_uplevel_level(text: &str) -> Option<i32> {
     text.parse::<i32>().ok()
 }
 
+/// Return `(name, literal)` when *seg* is `set name {literal}`.
+///
+/// The LHS must be a plain bareword `Esc` token (no substitutions,
+/// array index, or namespace qualifier) so we only ever track
+/// proc-local scalars. The RHS must be a single brace-string `Str`
+/// token. Mirrors Python's `_set_literal_body`.
+fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
+    if seg.name() != "set" || seg.args().len() != 2 {
+        return None;
+    }
+    let arg_tokens = seg.arg_tokens();
+    if arg_tokens.len() < 2 {
+        return None;
+    }
+    if !seg.single_token_word.iter().take(3).all(|&b| b) {
+        return None;
+    }
+    let name_tok = arg_tokens[0];
+    let value_tok = arg_tokens[1];
+    if value_tok.kind != TokenType::Str {
+        return None;
+    }
+    if name_tok.kind != TokenType::Esc {
+        return None;
+    }
+    let name = &seg.args()[0];
+    if name.is_empty()
+        || name.contains('$')
+        || name.contains('[')
+        || name.contains('(')
+        || name.contains("::")
+    {
+        return None;
+    }
+    let value = seg.args()[1].clone();
+    Some((normalise_var_name(name).to_string(), value))
+}
+
+/// Drop const-map entries that *stmt* may have overwritten.
+/// Straight-line assignments pop just the named variable;
+/// structured IR and barriers conservatively clear the whole map
+/// because their child scopes (or runtime side effects) could
+/// touch any tracked name. Mirrors Python's `_invalidate_const_map_for`.
+fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String>) {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => {
+            scope.remove(normalise_var_name(name));
+        }
+        Statement::Call { defs, .. } => {
+            for v in defs {
+                scope.remove(normalise_var_name(v));
+            }
+        }
+        Statement::Barrier { .. }
+        | Statement::Block { .. }
+        | Statement::UpFrame { .. }
+        | Statement::If { .. }
+        | Statement::For { .. }
+        | Statement::While { .. }
+        | Statement::Foreach { .. }
+        | Statement::Catch { .. }
+        | Statement::Try { .. }
+        | Statement::Switch { .. } => {
+            scope.clear();
+        }
+        Statement::Return { .. } | Statement::ExprEval { .. } => {}
+    }
+}
+
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
     /// Output module being built.
@@ -130,6 +202,19 @@ pub struct Lowerer<'r> {
     in_namespace_eval: bool,
     /// Command registry for arg-role queries.
     registry: &'r CommandRegistry,
+    /// Per-script const-map stack (C35). Each scope tracks
+    /// proc-local variables assigned a brace-string literal so
+    /// later `eval $var` / `uplevel 1 $var` calls can fold the
+    /// body in at lowering time. Active only when
+    /// `proc_depth > 0` — top-level / `namespace eval` scopes
+    /// write globals or namespace vars whose values can be
+    /// observed and mutated by other code, so const-propagating
+    /// them is unsound. Mirrors Python's `_const_map_stack`.
+    const_map_stack: Vec<HashMap<String, String>>,
+    /// Depth of `proc` / `when` body lowerings currently in
+    /// flight. A positive value enables the const-map. Mirrors
+    /// Python's `_proc_depth`.
+    proc_depth: u32,
 }
 
 impl<'r> Lowerer<'r> {
@@ -142,6 +227,8 @@ impl<'r> Lowerer<'r> {
             when_counts: HashMap::new(),
             in_namespace_eval: false,
             registry,
+            const_map_stack: Vec::new(),
+            proc_depth: 0,
         }
     }
 
@@ -163,13 +250,26 @@ impl<'r> Lowerer<'r> {
     /// Lower a source string to an IR script.
     fn lower_script(&mut self, source: &str, namespace: &str) -> Script {
         let commands = segment_commands(source);
-        Script::from_statements(self.lower_segmented(&commands, namespace))
+        self.const_map_stack.push(HashMap::new());
+        let stmts = self.lower_segmented(&commands, namespace);
+        self.const_map_stack.pop();
+        Script::from_statements(stmts)
     }
 
     /// Lower a body argument (inside braces/brackets) to an IR script.
+    ///
+    /// Inherits the parent scope's const-map (C35a, mirroring main
+    /// commit `c30203da`) so a child body can still relax its
+    /// `eval` / `uplevel` against literals bound in the enclosing
+    /// scope (`set body {literal}; catch {uplevel 1 $body}` is the
+    /// canonical example).
     fn lower_body(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
         let commands = segment_commands_with_offset(text, base_offset);
-        Script::from_statements(self.lower_segmented(&commands, namespace))
+        let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
+        self.const_map_stack.push(inherited);
+        let stmts = self.lower_segmented(&commands, namespace);
+        self.const_map_stack.pop();
+        Script::from_statements(stmts)
     }
 
     /// Lower a list of segmented commands to IR statements.
@@ -191,10 +291,73 @@ impl<'r> Lowerer<'r> {
                 continue;
             }
             if let Some(stmt) = self.lower_command(seg, namespace) {
+                self.update_const_map(seg, &stmt);
                 stmts.push(stmt);
             }
         }
         stmts
+    }
+
+    /// Maintain the per-scope const-map (C35) after a command lowers.
+    ///
+    /// Populates a `name → braced-literal` entry when *seg* is a
+    /// `set var {literal}` shape with a plain bareword LHS;
+    /// otherwise invalidates entries that *stmt* may have written.
+    /// Gated on `proc_depth > 0` — globals / namespace vars at
+    /// top-level or inside `namespace eval` cannot be safely
+    /// const-propagated.
+    fn update_const_map(&mut self, seg: &SegmentedCommand, stmt: &Statement) {
+        if self.proc_depth == 0 {
+            return;
+        }
+        let Some(scope) = self.const_map_stack.last_mut() else {
+            return;
+        };
+
+        if let Some((name, value)) = set_literal_body(seg) {
+            scope.insert(name, value);
+            return;
+        }
+
+        invalidate_const_map_for(stmt, scope);
+    }
+
+    /// Resolve a `$var` / `${var}` body word against the current
+    /// const-map and return the bound literal, or `None` if the
+    /// word is not a pure single-token variable reference, the
+    /// variable has no known literal binding, or we are not inside
+    /// a `proc` body (top-level / `namespace eval` scopes are out
+    /// of scope for this optimisation).
+    fn const_map_lookup(&self, word: &str) -> Option<String> {
+        if self.proc_depth == 0 {
+            return None;
+        }
+        let scope = self.const_map_stack.last()?;
+        let inner = if let Some(rest) = word.strip_prefix("${") {
+            let inner = rest.strip_suffix('}')?;
+            if inner.contains('$')
+                || inner.contains('[')
+                || inner.contains('{')
+                || inner.contains('(')
+            {
+                return None;
+            }
+            inner
+        } else if let Some(rest) = word.strip_prefix('$') {
+            if rest.is_empty()
+                || rest.contains('(')
+                || rest.contains('$')
+                || rest.contains('[')
+                || rest.contains('{')
+                || rest.starts_with(':')
+            {
+                return None;
+            }
+            rest
+        } else {
+            return None;
+        };
+        scope.get(inner).cloned()
     }
 
     /// Build a `CommandTokens` snapshot from a segmented command.
@@ -300,6 +463,16 @@ impl<'r> Lowerer<'r> {
                     .unwrap_or_else(|| self.lower_default(seg, namespace)),
             ),
 
+            // C35b: ``eval $body`` / ``eval {body}`` with a literal /
+            // const-folded body relaxes to a ``Statement::Block`` so
+            // downstream analyses see the inlined script. Dynamic
+            // bodies (``eval $dyn`` with no const-map binding, ``eval
+            // [cmd]``) fall through to the default barrier dispatch.
+            "eval" => Some(
+                self.try_lower_eval_static(seg, namespace)
+                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
+            ),
+
             "if" => Some(self.lower_if(seg, namespace)),
             "switch" => Some(self.lower_switch(seg, namespace)),
             "for" => Some(self.lower_for(seg, namespace)),
@@ -335,7 +508,9 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[2];
         let body_text = &args[2];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        self.proc_depth += 1;
         let body = self.lower_body(body_text, body_offset, namespace);
+        self.proc_depth -= 1;
 
         if let std::collections::hash_map::Entry::Vacant(e) =
             self.module.procedures.entry(qualified.clone())
@@ -375,7 +550,9 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[body_idx];
         let body_text = &args[body_idx];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        self.proc_depth += 1;
         let body = self.lower_body(body_text, body_offset, namespace);
+        self.proc_depth -= 1;
 
         let mut base_priority: u32 = 500;
         if args.len() >= 4 && args[1] == "priority" {
@@ -449,16 +626,66 @@ impl<'r> Lowerer<'r> {
             _ => return None,
         };
         let body_tok = arg_tokens.get(body_tok_idx)?;
-        if body_tok.kind != TokenType::Str {
+        let body = if body_tok.kind == TokenType::Str {
+            let body_text = &args[body_tok_idx];
+            let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+            self.lower_body(body_text, body_offset, namespace)
+        } else if body_tok.kind == TokenType::Var {
+            // C35b: `uplevel ?N? $var` with $var resolved by the
+            // const-map to a brace-string literal — fold the literal
+            // in and lower as a static UpFrame.
+            let literal = self.const_map_lookup(&args[body_tok_idx])?;
+            self.lower_script(&literal, namespace)
+        } else {
             return None;
-        }
-        let body_text = &args[body_tok_idx];
-        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-        let body = self.lower_body(body_text, body_offset, namespace);
+        };
         Some(Statement::UpFrame {
             span: seg.span,
             frame_shift,
             body,
+            tokens: Some(Self::cmd_tokens(seg)),
+        })
+    }
+
+    /// Try to lower `eval ?body?` to a static-body
+    /// [`Statement::Block`] when the body is a brace-string literal
+    /// or a const-mapped `$var`. Returns `None` for dynamic bodies
+    /// so the caller falls through to runtime barrier dispatch.
+    ///
+    /// C35b mirrors main commit `b5e18ce2`'s `_can_relax_eval`
+    /// gate. C35c (eval `[list ...]` shape) is intentionally
+    /// deferred — adding it here would require parsing the inner
+    /// command-substitution body, which is best done in a
+    /// follow-up strip with proper test coverage.
+    fn try_lower_eval_static(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> Option<Statement> {
+        use tcl_lexer::TokenType;
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        // Single-body shape only: ``eval $body`` / ``eval {body}``.
+        // The list form (``eval cmd arg1 arg2``) keeps runtime
+        // semantics — joining the words with spaces is observable.
+        if args.len() != 1 || arg_tokens.is_empty() {
+            return None;
+        }
+        let body_tok = arg_tokens[0];
+        let body = if body_tok.kind == TokenType::Str {
+            let body_text = &args[0];
+            let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+            self.lower_body(body_text, body_offset, namespace)
+        } else if body_tok.kind == TokenType::Var {
+            let literal = self.const_map_lookup(&args[0])?;
+            self.lower_script(&literal, namespace)
+        } else {
+            return None;
+        };
+        Some(Statement::Block {
+            span: seg.span,
+            body,
+            namespace: namespace.to_string(),
             tokens: Some(Self::cmd_tokens(seg)),
         })
     }
@@ -808,5 +1035,101 @@ mod tests {
             m.top_level.statements[0],
             Statement::Call { .. } | Statement::Barrier { .. }
         ));
+    }
+
+    #[test]
+    fn const_prop_uplevel_resolves_set_var_body() {
+        // C35b: ``set body {set x 1}; uplevel 1 $body`` inside a
+        // proc — the const-map records ``body`` and the uplevel
+        // folds in the literal as an UpFrame.
+        let m = lower_to_ir("proc f {} { set body {set x 1}\n uplevel 1 $body }", &reg());
+        let proc = m.procedures.get("::f").expect("proc registered");
+        // proc body: [AssignConst(body), UpFrame { body: [...] }]
+        let last = proc.body.statements.last().expect("body has statements");
+        match last {
+            Statement::UpFrame { body, .. } => {
+                assert!(!body.statements.is_empty(), "expected lowered body");
+            }
+            other => panic!("expected UpFrame, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn const_prop_eval_resolves_set_var_body() {
+        // C35b: ``eval $body`` with const-mapped body folds to a
+        // Statement::Block.
+        let m = lower_to_ir("proc f {} { set body {set x 1}\n eval $body }", &reg());
+        let proc = m.procedures.get("::f").expect("proc registered");
+        let last = proc.body.statements.last().expect("body has statements");
+        match last {
+            Statement::Block { body, .. } => {
+                assert!(!body.statements.is_empty(), "expected lowered block");
+            }
+            other => panic!("expected Block, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn const_prop_eval_brace_body_emits_block() {
+        // C35b: ``eval {body}`` in a proc context lowers to Block.
+        let m = lower_to_ir("proc f {} { eval {set x 1} }", &reg());
+        let proc = m.procedures.get("::f").expect("proc registered");
+        assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
+    }
+
+    #[test]
+    fn const_prop_disabled_at_top_level() {
+        // The const-map is gated on ``proc_depth > 0``. At
+        // top-level, ``set body {set x 1}; uplevel 1 $body``
+        // does NOT relax — the uplevel falls back to default
+        // dispatch (Call / Barrier).
+        let m = lower_to_ir("set body {set x 1}\nuplevel 1 $body", &reg());
+        // statements[0] = AssignConst(body), [1] = uplevel call
+        assert!(matches!(
+            m.top_level.statements[1],
+            Statement::Call { .. } | Statement::Barrier { .. }
+        ));
+    }
+
+    #[test]
+    fn const_prop_invalidated_on_reassignment() {
+        // ``set body {a}; set body $other; uplevel 1 $body`` — the
+        // second ``set`` invalidates the binding (RHS is a $var,
+        // not a brace literal), so the uplevel can't fold.
+        let m = lower_to_ir(
+            "proc f {} { set body {a}\n set body $other\n uplevel 1 $body }",
+            &reg(),
+        );
+        let proc = m.procedures.get("::f").expect("proc registered");
+        let last = proc.body.statements.last().expect("body");
+        assert!(
+            !matches!(last, Statement::UpFrame { .. }),
+            "expected fallback after re-assignment, got {last:?}",
+        );
+    }
+
+    #[test]
+    fn const_prop_inherited_into_catch_body() {
+        // C35a: child scope (catch body) inherits parent's const-map.
+        let m = lower_to_ir(
+            "proc f {} { set body {set x 1}\n catch { uplevel 1 $body } }",
+            &reg(),
+        );
+        let proc = m.procedures.get("::f").expect("proc registered");
+        // Look for a Catch wrapping an UpFrame.
+        let catch_stmt = proc
+            .body
+            .statements
+            .iter()
+            .find(|s| matches!(s, Statement::Catch { .. }))
+            .expect("expected Catch");
+        if let Statement::Catch { body, .. } = catch_stmt {
+            assert!(
+                body.statements
+                    .iter()
+                    .any(|s| matches!(s, Statement::UpFrame { .. })),
+                "expected UpFrame inside catch body, got {body:?}",
+            );
+        }
     }
 }

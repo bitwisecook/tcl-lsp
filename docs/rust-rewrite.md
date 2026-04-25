@@ -705,7 +705,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
-| C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | planned |
+| C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed (C35a + C35b; C35c [list] shape deferred) |
 | C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
@@ -835,20 +835,46 @@ Affects `rust/tcl-compiler/src/lowering/structured.rs` (the
 
 Strips (one commit each):
 
-- **C35a** — Inherit `const_map` from outer lowering scope into
-  nested `lower_script` calls. Today every nested script starts
-  with an empty const-map; main's fix threads the parent map in so
-  `set x 1; uplevel 1 {puts $x}` knows `$x` is constant inside the
-  uplevel body.
-- **C35b** — Const-propagate braced-literal bodies through
-  `uplevel` / `eval`. When the body word is a brace-string with a
-  known const-map binding referenced via `$var`, expand the binding
-  into the body before emitting `IRUpFrame` / `IRBarrier`. Tests:
-  the same-named pytest cases from `tests/test_lowering_eval.py`.
-- **C35c** — `eval [list ...]` relaxation. The existing
-  `lower_eval` path already specialises `eval $body` for braced
-  bodies; extend it to recognise `[list a b c]` as a multi-word
-  literal and emit the lowered call directly.
+- **C35a** — [LANDED] `Lowerer::const_map_stack: Vec<HashMap<String,
+  String>>` and `Lowerer::proc_depth: u32` fields. `lower_script`
+  pushes a fresh scope; `lower_body` pushes a *clone* of the
+  parent scope (matching main `c30203da`). `lower_proc` and
+  `lower_when` bump `proc_depth` around their body lowering so
+  the const-map is gated to proc / event-handler scopes only —
+  top-level / `namespace eval` writes are globals or namespace
+  vars whose values can be observed and mutated by other code,
+  which would make const-propagating them unsound. `lower_segmented`
+  invokes `update_const_map(seg, &stmt)` after each command —
+  populates a literal binding for `set name {literal}` shapes
+  (rejecting array refs, namespace-qualified names, substituted
+  values), invalidates the named entry on assignment-style
+  writes, clears the whole map on `Statement::Barrier` /
+  `Statement::Block` / `Statement::UpFrame` / structured IR.
+  Module-level helpers `set_literal_body` and
+  `invalidate_const_map_for` mirror Python's `_set_literal_body`
+  and `_invalidate_const_map_for`. 6 unit tests covering disable
+  at top level, single-set+resolve, eval-brace lowering, eval-var
+  lowering, invalidation on re-assignment, and inheritance into
+  catch body.
+- **C35b** — [LANDED] `try_lower_uplevel_static` (C34a) gains a
+  `TokenType::Var` branch: when the body argument is a `$var`
+  that resolves via the const-map to a brace-string literal,
+  re-lower the literal as the inlined body. Mirrors main
+  `b5e18ce2`'s `_can_relax_uplevel` + `_relax_uplevel` change.
+  New `try_lower_eval_static` mirrors the same shape for `eval`,
+  producing `Statement::Block` rather than `Statement::UpFrame`
+  (eval doesn't shift frames). Wired into `lower_command` as a
+  new `"eval"` arm. Two existing interprocedural tests that
+  relied on `eval {}` being a barrier were updated to use
+  `eval $dyn` since `eval {literal}` is no longer a barrier
+  (it's a `Block`). Same change applied to
+  `tests/test_rust_interprocedural_delegation.py`.
+- **C35c** — Deferred. `eval [list ...]` recognition needs the
+  inner command-substitution body to be parsed and split into
+  argument words; the existing C19 code-gen helper handles the
+  `[list]` shape but reusing it from the lowering-time path
+  needs care to keep token boundaries straight. Lands as a
+  follow-up strip with its own fixture.
 
 Done: a new differential fixture per strip in
 `rust/tcl-compiler/tests/fixtures/codegen/matching/`.

@@ -1217,7 +1217,11 @@ mod tests {
 
     #[test]
     fn barrier_detected_via_eval_call() {
-        let ia = build("proc ::bad {} { eval {puts hi} }");
+        // C35b: ``eval {literal}`` inside a proc relaxes to a
+        // Statement::Block (the literal body is statically known),
+        // so it does NOT mark the proc as a barrier. Use a dynamic
+        // body that genuinely cannot be resolved at lowering time.
+        let ia = build("proc ::bad {} { eval $dyn }");
         let s = ia.procedures.get("::bad").unwrap();
         assert!(s.has_barrier);
         assert!(!s.pure);
@@ -1263,8 +1267,10 @@ mod tests {
         // Pure + literal → can fold.
         let ia = build("proc ::f {} { return 42 }");
         assert!(ia.procedures.get("::f").unwrap().can_fold_static_calls);
-        // Impure (eval barrier) + literal → cannot fold.
-        let ia = build("proc ::f {} { eval {} ; return 42 }");
+        // Impure (dynamic eval is a real barrier) + literal → cannot
+        // fold. C35b made ``eval {literal}`` a Block (non-barrier),
+        // so use a dynamic body.
+        let ia = build("proc ::f {} { eval $dyn ; return 42 }");
         assert!(!ia.procedures.get("::f").unwrap().can_fold_static_calls);
     }
 
