@@ -11,9 +11,9 @@
 
 #![allow(dead_code)]
 
-use tcl_lexer::Token;
+use tcl_lexer::{Token, TokenType};
 
-use super::ctx::{ProcBodyInfo, ScanCtx};
+use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx, FACTORY_SKIP_HEADS};
 use super::params::parse_param_list;
 use super::types::{
     SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceImport,
@@ -308,6 +308,47 @@ pub(super) fn handle_oo_class(
     emit_class(&texts[2], argv[2], body_tok, ns_prefix, result);
 }
 
+/// Record a potential factory-wrapper call for post-scan resolution.
+///
+/// Mirrors `_maybe_record_factory_candidate` in
+/// `core/analysis/signature_scan.py`. A tcllib-style factory call
+/// has the shape `HEAD NAME ARGS BODY` (four tokens total, last
+/// braced). HEADs in [`FACTORY_SKIP_HEADS`] are built-ins that
+/// happen to match the same shape; they are skipped. Names with
+/// `$` / `[` substitution markers cannot be statically resolved
+/// and are skipped. The body must be a `Str` token (braced
+/// literal); unbraced bodies cannot be re-scanned for the
+/// `proc $a $b $c` shape that confirms a real factory.
+pub(super) fn maybe_record_factory_candidate(
+    head: &str,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    if texts.len() != 4 {
+        return;
+    }
+    if FACTORY_SKIP_HEADS.contains(&head) {
+        return;
+    }
+    let name = &texts[1];
+    if name.is_empty() || name.contains('$') || name.contains('[') {
+        return;
+    }
+    let body_tok = argv[3];
+    if body_tok.kind != TokenType::Str {
+        return;
+    }
+    ctx.candidates.push(FactoryCandidate {
+        head: head.to_string(),
+        name: name.clone(),
+        name_tok: argv[1],
+        body_tok,
+        ns_prefix: ns_prefix.to_string(),
+    });
+}
+
 /// Recognise the tcllib `<NS>::import <ALIAS>` wrapper idiom and
 /// emit a conjectural `namespace import` record.
 ///
@@ -407,6 +448,10 @@ mod tests {
 
     fn token(start: u32, end: u32) -> Token {
         Token::new(TokenType::Esc, Span::new(start, end))
+    }
+
+    fn str_token(start: u32, end: u32) -> Token {
+        Token::with_content_offset(TokenType::Str, Span::new(start, end), 1)
     }
 
     #[test]
@@ -820,5 +865,62 @@ mod tests {
         let mut result = SignatureScanResult::default();
         maybe_handle_import_wrapper("foo::import", &texts, &argv, "", &mut result);
         assert!(result.namespace_imports.is_empty());
+    }
+
+    #[test]
+    fn factory_candidate_happy_path() {
+        let texts = vec![
+            "DEFC".to_string(),
+            "foo".to_string(),
+            "args".to_string(),
+            "body".to_string(),
+        ];
+        let argv = vec![token(0, 4), token(5, 8), token(9, 13), str_token(14, 20)];
+        let mut ctx = ScanCtx::default();
+        maybe_record_factory_candidate("DEFC", &texts, &argv, "ns", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 1);
+    }
+
+    #[test]
+    fn factory_candidate_skip_head_filtered() {
+        let texts = vec![
+            "proc".to_string(),
+            "foo".to_string(),
+            "args".to_string(),
+            "body".to_string(),
+        ];
+        let argv = vec![token(0, 4), token(5, 8), token(9, 13), str_token(14, 20)];
+        let mut ctx = ScanCtx::default();
+        maybe_record_factory_candidate("proc", &texts, &argv, "", &mut ctx);
+        assert!(ctx.candidates.is_empty());
+    }
+
+    #[test]
+    fn factory_candidate_dynamic_name_skipped() {
+        let texts = vec![
+            "DEFC".to_string(),
+            "${name}".to_string(),
+            "args".to_string(),
+            "body".to_string(),
+        ];
+        let argv = vec![token(0, 4), token(5, 12), token(13, 17), str_token(18, 24)];
+        let mut ctx = ScanCtx::default();
+        maybe_record_factory_candidate("DEFC", &texts, &argv, "", &mut ctx);
+        assert!(ctx.candidates.is_empty());
+    }
+
+    #[test]
+    fn factory_candidate_unbraced_body_skipped() {
+        let texts = vec![
+            "DEFC".to_string(),
+            "foo".to_string(),
+            "args".to_string(),
+            "body".to_string(),
+        ];
+        // body argv[3] is plain ESC, not Str (not braced) — should skip.
+        let argv = vec![token(0, 4), token(5, 8), token(9, 13), token(14, 20)];
+        let mut ctx = ScanCtx::default();
+        maybe_record_factory_candidate("DEFC", &texts, &argv, "", &mut ctx);
+        assert!(ctx.candidates.is_empty());
     }
 }
