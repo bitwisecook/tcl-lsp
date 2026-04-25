@@ -31,6 +31,7 @@
 //! as ``C40-default-on``).
 
 pub mod dispatch;
+pub mod handlers;
 pub mod scope;
 pub mod snapshot;
 pub mod state;
