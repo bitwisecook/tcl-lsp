@@ -563,22 +563,53 @@ impl Analyser {
     /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
     ///
     /// Mirrors `_handle_try_command` in
-    /// `core/analysis/_analyser/_handlers.py:200-213`. Defers the
-    /// arm-body walk to ``handle_try`` (proc-scope variant in
-    /// ``_proc.py:333-359``) which lands in **C41c3**. The entry
-    /// shim only validates the canonical shape; arity checking
-    /// lives in `compiler_checks::arity_checks` already.
+    /// `core/analysis/_analyser/_handlers.py:200-213` plus the
+    /// `_handle_try` arm walker in `_proc.py:333-359`. Walks the
+    /// main try body and every handler / finally clause; arity
+    /// checking lives in `compiler_checks::arity_checks` already.
+    ///
+    /// Clause shapes:
+    ///
+    /// - ``finally BODY`` (2 words) — recurse into ``BODY``.
+    /// - ``on CODE VARLIST BODY`` / ``trap PATTERN VARLIST BODY``
+    ///   (4 words) — recurse into ``BODY``.  The handler's
+    ///   ``VARLIST`` (e.g. ``{result options}``) is **not**
+    ///   defined as a binding here; mirrors Python's
+    ///   ``_handle_try`` which doesn't define them either
+    ///   (``_proc.py:333-359``).  A future strip can add the
+    ///   varList define if Python is updated to match.
     pub fn handle_try_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "try" || args.is_empty() {
             return false;
         }
-        // C41c3: delegate to handle_try for arm body walk.
+        // Main try body at args[0].
+        if let Some(body_tok) = arg_tokens.first().copied() {
+            self.analyse_body(&args[0], body_tok, scope_path);
+        }
+        // Walk handler / finally clauses.
+        let mut i = 1;
+        while i < args.len() {
+            let kw = args[i].as_str();
+            if kw == "finally" && i + 1 < args.len() {
+                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
+                    self.analyse_body(&args[i + 1], body_tok, scope_path);
+                }
+                i += 2;
+            } else if matches!(kw, "on" | "trap") && i + 3 < args.len() {
+                if let Some(body_tok) = arg_tokens.get(i + 3).copied() {
+                    self.analyse_body(&args[i + 3], body_tok, scope_path);
+                }
+                i += 4;
+            } else {
+                i += 1;
+            }
+        }
         true
     }
 
@@ -734,6 +765,131 @@ impl Analyser {
         }
         if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
             self.define_var(name, *tok, scope_path, true, None);
+        }
+    }
+
+    /// Resolve a command name to the `ProcDef` that implements
+    /// it, walking the scope chain from `scope_path` outwards.
+    ///
+    /// Mirrors `_resolve_proc_call` in
+    /// `core/analysis/_analyser/_proc.py:361-392`.  Build-up:
+    ///
+    /// - Absolute name (`::foo`) → look up directly.
+    /// - Qualified relative (`a::b`) → prepend `::` and look up.
+    /// - Bare name → walk up the scope chain; for every
+    ///   ``namespace`` scope on the chain, prepend its name and
+    ///   try; finally fall back to global ``::name``.
+    ///
+    /// All candidate names are run through
+    /// [`crate::naming::normalise_qualified_name`] so the lookup
+    /// keys match the canonical form ``result.all_procs`` uses.
+    /// Returns the first matching ``ProcDef`` (by reference into
+    /// ``result.all_procs``), or `None` if no candidate is known.
+    #[must_use]
+    pub fn resolve_proc_call(
+        &self,
+        cmd_name: &str,
+        scope_path: &[usize],
+    ) -> Option<&super::types::ProcDef> {
+        use std::collections::HashSet;
+        if cmd_name.is_empty() {
+            return None;
+        }
+
+        let mut candidates: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut add_candidate = |raw: &str| {
+            let qname = crate::naming::normalise_qualified_name(raw);
+            if qname.is_empty() || seen.contains(&qname) {
+                return;
+            }
+            seen.insert(qname.clone());
+            candidates.push(qname);
+        };
+
+        if cmd_name.starts_with("::") {
+            add_candidate(cmd_name);
+        } else if cmd_name.contains("::") {
+            add_candidate(&format!("::{cmd_name}"));
+        } else {
+            // Walk the scope chain — every namespace scope on the
+            // chain contributes a candidate ``<ns_name>::<cmd>``.
+            // ``ancestor_paths`` walks longest-first (current scope
+            // before its ancestors), matching Python's ``while``
+            // upward loop.
+            let mut cursor: &super::types::Scope = &self.result.global_scope;
+            let mut walked: Vec<&super::types::Scope> = vec![cursor];
+            for &idx in scope_path {
+                let Some(child) = cursor.children.get(idx) else {
+                    break;
+                };
+                walked.push(child);
+                cursor = child;
+            }
+            for scope in walked.iter().rev() {
+                if scope.kind == super::types::ScopeKind::Namespace {
+                    add_candidate(&format!("{}::{cmd_name}", scope.name));
+                }
+            }
+            add_candidate(&format!("::{cmd_name}"));
+        }
+
+        for qname in &candidates {
+            if let Some(proc) = self.result.all_procs.get(qname) {
+                return Some(proc);
+            }
+        }
+        None
+    }
+
+    /// Static element count for a `{*}`-expanded word.
+    ///
+    /// Mirrors `_resolve_expansion_count` in
+    /// `core/analysis/_analyser/_proc.py:394-444`.  Used by the
+    /// proc-call arity checker (which lives in
+    /// `compiler_checks::arity_checks` on the Rust side) to
+    /// decide whether a ``{*}``-expanded argument contributes a
+    /// statically-known number of runtime arguments.
+    ///
+    /// - **Braced literal** (`Str` token, ``{a b c}``) — split
+    ///   the token's inner text as a list and return its length.
+    /// - **Pure variable reference** (`Var` token, ``$x``) — if
+    ///   the variable has a known constant value in the current
+    ///   scope chain, split that value and return its length.
+    /// - **Anything else** — `None`: count not statically known.
+    ///
+    /// Refinement is only attempted when ``single_token`` is
+    /// `true`; for concatenated words like ``{*}$x$y`` or
+    /// ``{*}{a b}$suffix`` the segmenter exposes only the *first*
+    /// token, which would otherwise be misinterpreted as a pure
+    /// literal or pure var ref.  Token text is resolved via
+    /// [`tcl_lexer::SourceMap::token_text`] — the same helper the
+    /// rest of the analyser uses — so the inner-content stripping
+    /// rules (kind-specific delimiter handling) stay in one
+    /// place.
+    #[must_use]
+    pub fn resolve_expansion_count(
+        &self,
+        tok: Token,
+        single_token: bool,
+        scope_path: &[usize],
+    ) -> Option<usize> {
+        use tcl_lexer::SourceMap;
+        if !single_token {
+            return None;
+        }
+        let sm = SourceMap::new(&self.source);
+        match tok.kind {
+            TokenType::Str => {
+                let inner = sm.token_text(tok);
+                Some(crate::codegen::helpers::split_list_simple(inner).len())
+            }
+            TokenType::Var => {
+                let var_name = sm.token_text(tok);
+                let const_val = self.lookup_const_string(var_name, scope_path)?;
+                Some(crate::codegen::helpers::split_list_simple(const_val).len())
+            }
+            _ => None,
         }
     }
 }
@@ -1691,7 +1847,8 @@ mod tests {
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command("try", &["body".to_string()], &[], &[]);
+        let handled =
+            a.handle_try_command("try", &["body".to_string()], &[str_tok(span(0, 4))], &[]);
         assert!(handled);
     }
 
@@ -1700,6 +1857,291 @@ mod tests {
         let mut a = Analyser::new();
         let handled = a.handle_try_command("try", &[], &[], &[]);
         assert!(!handled);
+    }
+
+    #[test]
+    fn handle_try_walks_main_body() {
+        // ``try {set y 1}`` — main body walks and lands ``y``.
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &["set y 1".to_string()],
+            &[str_tok(span(5, 14))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_try_walks_finally_body() {
+        // ``try {} finally {set z 1}`` — finally clause body walks.
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &[String::new(), "finally".to_string(), "set z 1".to_string()],
+            &[
+                str_tok(span(5, 7)),
+                esc_tok(span(8, 15)),
+                str_tok(span(16, 25)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_try_walks_on_handler_body() {
+        // ``try {} on error {result options} {set q 1}`` — the
+        // handler body at offset i+3 walks; the varList at i+2
+        // is *not* defined as a local (matches Python).
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &[
+                String::new(),
+                "on".to_string(),
+                "error".to_string(),
+                "result options".to_string(),
+                "set q 1".to_string(),
+            ],
+            &[
+                str_tok(span(5, 7)),
+                esc_tok(span(8, 10)),
+                esc_tok(span(11, 16)),
+                str_tok(span(17, 33)),
+                str_tok(span(34, 43)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("q"));
+        // varList NOT defined — matches Python's ``_handle_try``
+        // which doesn't define those bindings.
+        assert!(!a.result.global_scope.variables.contains_key("result"));
+        assert!(!a.result.global_scope.variables.contains_key("options"));
+    }
+
+    #[test]
+    fn handle_try_walks_trap_handler_body() {
+        // ``try {} trap NONE {result} {set q 1}`` — same shape
+        // as ``on``, but the keyword is ``trap``.
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &[
+                String::new(),
+                "trap".to_string(),
+                "NONE".to_string(),
+                "result".to_string(),
+                "set q 1".to_string(),
+            ],
+            &[
+                str_tok(span(5, 7)),
+                esc_tok(span(8, 12)),
+                esc_tok(span(13, 17)),
+                str_tok(span(18, 26)),
+                str_tok(span(27, 36)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("q"));
+    }
+
+    // -- resolve_proc_call (C41c3) ----------------------------------
+
+    #[test]
+    fn resolve_proc_call_absolute_qualified_name() {
+        // ``::foo`` resolves directly when registered.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        let resolved = a.resolve_proc_call("::foo", &[]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_bare_name_walks_namespace_chain() {
+        // ``foo`` declared inside ``ns1`` is found when resolved
+        // from ``ns1``'s scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[0],
+        );
+        // Resolve from inside ns1 — should find ::ns1::foo.
+        let resolved = a.resolve_proc_call("foo", &[0]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::ns1::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_falls_back_to_global() {
+        // Bare ``foo`` declared at global is found from any scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        // Resolve from inside ns1 — chain misses ::ns1::foo,
+        // falls back to ::foo.
+        let resolved = a.resolve_proc_call("foo", &[0]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_qualified_relative_name() {
+        // ``a::b`` (qualified but not absolute) prepends ``::``.
+        let mut a = Analyser::new();
+        a.result.all_procs.insert(
+            "::a::b".to_string(),
+            super::ProcDef {
+                name: "b".to_string(),
+                qualified_name: "::a::b".to_string(),
+                params: Vec::new(),
+                name_span: span(0, 0),
+                body_span: span(0, 0),
+                doc: String::new(),
+            },
+        );
+        let resolved = a.resolve_proc_call("a::b", &[]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::a::b");
+    }
+
+    #[test]
+    fn resolve_proc_call_unknown_name_returns_none() {
+        let a = Analyser::new();
+        assert!(a.resolve_proc_call("nope", &[]).is_none());
+    }
+
+    #[test]
+    fn resolve_proc_call_empty_name_returns_none() {
+        let a = Analyser::new();
+        assert!(a.resolve_proc_call("", &[]).is_none());
+    }
+
+    // -- resolve_expansion_count (C41c3) ----------------------------
+
+    #[test]
+    fn resolve_expansion_count_braced_literal() {
+        // ``{a b c}`` — Str token; inner content "a b c" splits
+        // to three elements.
+        let mut a = Analyser::new();
+        a.source = "{a b c}".to_string();
+        // Span covers ``{a b c`` (5 inner chars + opening brace),
+        // content_offset = 1 to skip ``{``.  Closing ``}`` is
+        // OUTSIDE the span by lexer convention for non-degenerate
+        // STR tokens.
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 6),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
+    }
+
+    #[test]
+    fn resolve_expansion_count_braced_empty_list() {
+        // ``{}`` — degenerate Str case; span extended to include
+        // ``}``, token_text returns empty string.
+        let mut a = Analyser::new();
+        a.source = "{}".to_string();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 2),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(0));
+    }
+
+    #[test]
+    fn resolve_expansion_count_var_with_const_value() {
+        // ``$xs`` where xs has known constant ``a b c`` — splits
+        // to three elements.
+        let mut a = Analyser::new();
+        a.source = "$xs".to_string();
+        a.set_const_string("xs", "a b c".to_string(), span(0, 5), &[]);
+        // Var token: span covers ``xs`` (after `$`) by lexer
+        // convention; content_offset = 0 because the lexer's
+        // ``_start`` for VAR is set after the ``$``.
+        // For testing, place the var name at offset 1..3 in source.
+        let tok = Token {
+            kind: TokenType::Var,
+            span: span(1, 3),
+            content_offset: 0,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
+    }
+
+    #[test]
+    fn resolve_expansion_count_var_without_const_value() {
+        // Var with no known constant value → None.
+        let mut a = Analyser::new();
+        a.source = "$xs".to_string();
+        let tok = Token {
+            kind: TokenType::Var,
+            span: span(1, 3),
+            content_offset: 0,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
+    }
+
+    #[test]
+    fn resolve_expansion_count_concatenated_word_returns_none() {
+        // ``single_token = false`` short-circuits to None.
+        let mut a = Analyser::new();
+        a.source = "{a b c}".to_string();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 6),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, false, &[]), None);
+    }
+
+    #[test]
+    fn resolve_expansion_count_other_token_kind_returns_none() {
+        // Non-Str, non-Var token kinds aren't statically
+        // resolvable.
+        let a = Analyser::new();
+        let tok = esc_tok(span(0, 4));
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
     }
 
     // -- handle_interp_alias ----------------------------------------
