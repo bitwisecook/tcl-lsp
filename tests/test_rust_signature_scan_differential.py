@@ -105,15 +105,7 @@ CORPUS: list[tuple[str, str]] = [
     ),
     # -- sources --
     ("source_literal_path", "source /abs/path.tcl"),
-    # NOTE: a `source $script_dir/init.tcl` fixture (multi-token word
-    # combining a `$var` substitution and a literal trailing path)
-    # currently diverges between the Python and Rust segmenters —
-    # Python widens `argv[i].end` to the end of the whole word, the
-    # Rust segmenter keeps it at the first sub-token's end. The
-    # divergence is in `rust/tcl-compiler/src/segmenter.rs` (the
-    # `else if let Some(last_text) = …` branch), not in
-    # `signature_scan` itself. Add a regression fixture once the
-    # segmenter fix lands.
+    ("source_substituted_path", "source $script_dir/init.tcl"),
     ("source_with_encoding_option", "source -encoding utf-8 /a/b.tcl"),
     # -- interp aliases --
     (

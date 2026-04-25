@@ -714,7 +714,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), the rest of `core/analysis/` (`_analyser/` package + `auto_path_eval` / `class_hierarchy` / `irules_checks` / `mro` / `namespace_imports` / `proc_arg_traits` / `proc_lookup` / `semantic_graph` / `semantic_model` / `source_resolver` / `stub_comments` / `var_scoping` — `signature_scan.py` already landed under C40), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
 | C40-followups | **Follow-ups for the C40 `signature_scan` port.** Six items from the post-merge code review: (1) drop stale `#![allow(dead_code)]` from the four `signature_scan/` submodules now every type is wired; (2) sweep "filled in by Cnnnn" doc comments across `mod.rs` / `types.rs` / `ctx.rs` / `handlers.rs` / `walker.rs` / `factory.rs`; (3) cache `CommandRegistry::build_default()` in a `OnceLock` (also fixes the same waste in `interprocedural.rs`, `optimiser.rs`, `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`); (4) three dispatcher tests (`extract_signatures` with binding absent / env-var on / Rust path raising); (5) add a row to `docs/rust-rewrite-test-audit.md`; (6) KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`. | planned |
 | C40-default-on | **Flip the C40 default.** Once the differential corpus has baked, change the `extract_signatures` default to dispatch to Rust by default; gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. After a release cycle, delete `_extract_signatures_python` and the env var entirely. | planned |
-| Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` keeps it at the first sub-token's end. Surfaces as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. The C40e7 differential corpus omits one fixture pending this fix. One-line change in the segmenter's `else if let Some(last_text) = …` branch (lines 227–238) plus a regression fixture in the differential harness. | planned |
+| Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` kept it at the first sub-token's end. Surfaced as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. Fix: in `segment_commands_local`, the `else if let Some(last_text) = …` branch now also widens `argv.last_mut().unwrap().span` to `Span::new(prev.span.start(), tok.span.end())`. New `segmenter::tests::multi_token_word_argv_spans_full_word` unit test pins the new behaviour. The previously-omitted `source_substituted_path` fixture (`source $script_dir/init.tcl`) is now part of the differential corpus in `tests/test_rust_signature_scan_differential.py`. | landed |
 | C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,000 LOC across ~12 sub-modules (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 sub-files, `_class.py`, `_mixin.py`, `_var_scoping.py`, `_utils.py`, …). The natural next chunk after C40; signature_scan was the lead-in. Same default-off PyO3 env-var gate pattern (`TCL_LSP_RUST_ANALYSER=1`). | planned |
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
@@ -875,29 +875,29 @@ are correctness-blocking; all are landable as one small commit each
   `kcs-qa-rust-shim-env-vars.md` covering all five would be cheaper
   than per-shim notes.
 
-### Seg1 — Segmenter argv-widening parity
+### Seg1 — Segmenter argv-widening parity (landed)
 
 The Python `core/parsing/command_segmenter.py` widens
 `argv[-1].end = tok.end` whenever a sub-token is appended to the
 current word, so a multi-token word like `$var/literal.tcl` carries
 a single `argv` Token whose span covers the entire reconstructed
-word. The Rust `rust/tcl-compiler/src/segmenter.rs:227–238` only
-extends `texts[-1]` and `single[-1]`, leaving `argv[-1]` at the
-first sub-token's span.
+word. The Rust `rust/tcl-compiler/src/segmenter.rs:227–238`
+previously only extended `texts[-1]` and `single[-1]`, leaving
+`argv[-1]` at the first sub-token's span.
 
-Visible symptom: `source $script_dir/init.tcl` produces different
+Visible symptom: `source $script_dir/init.tcl` produced different
 `SourceTarget.range.end` between Python (end-of-word) and Rust
 (end-of-`$script_dir`), surfaced by the C40e7 differential corpus.
-The corpus currently omits the fixture (documented inline at
-`tests/test_rust_signature_scan_differential.py:88–96`).
 
-Fix: in `segment_commands_local`, the `else if let Some(last_text)
-= texts.last_mut()` branch should also bump
-`argv.last_mut().unwrap().span` to a `Span::new(prev_start,
-tok.span.end())`. Add a regression fixture
-(`source_substituted_path`) to the differential corpus once landed.
-Also worth a Rust-side unit test in `segmenter.rs` pinning the
-multi-token-word argv span.
+Landed fix: in `segment_commands_local`, the `else if let
+Some(last_text) = texts.last_mut()` branch now also bumps
+`argv.last_mut().unwrap().span` to `Span::new(prev.span.start(),
+tok.span.end())`. The Rust-side
+`segmenter::tests::multi_token_word_argv_spans_full_word` unit
+test pins the new behaviour against the canonical
+`source $script_dir/init.tcl` shape, and the
+`source_substituted_path` fixture is part of the
+`tests/test_rust_signature_scan_differential.py` corpus.
 
 ### C41 — Analyser core port
 

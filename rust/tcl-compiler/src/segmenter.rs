@@ -229,6 +229,13 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             if let Some(s) = single.last_mut() {
                 *s = false;
             }
+            // Widen argv[-1] to cover the full Tcl word, matching
+            // Python's command_segmenter so multi-token words like
+            // ``$var/literal.tcl`` carry one argv token whose span
+            // ends at the last sub-token.
+            if let Some(prev) = argv.last_mut() {
+                prev.span = Span::new(prev.span.start(), tok.span.end());
+            }
         } else {
             argv.push(tok);
             texts.push(piece);
@@ -327,6 +334,24 @@ mod tests {
         assert_eq!(cmds.len(), 1);
         assert_eq!(cmds[0].texts.len(), 2); // "puts", "${a}${b}"
         assert!(!cmds[0].single_token_word[1]); // multi-token word
+    }
+
+    #[test]
+    fn multi_token_word_argv_spans_full_word() {
+        // Mirrors the Python segmenter's argv-widening behaviour:
+        // for a multi-token word the representative argv token's
+        // span must cover the whole reconstructed word, not just
+        // the first sub-token.
+        let src = "source $script_dir/init.tcl";
+        let cmds = segment_commands(src);
+        assert_eq!(cmds.len(), 1);
+        let arg_span = cmds[0].argv[1].span;
+        assert_eq!(
+            &src[arg_span.as_range()],
+            "$script_dir/init.tcl",
+            "argv[1].span must cover the whole multi-token word",
+        );
+        assert!(!cmds[0].single_token_word[1]);
     }
 
     #[test]
