@@ -202,6 +202,37 @@ class TestPackageResolver:
             assert "firstpkg" in resolver.all_package_names()
             assert "secondpkg" in resolver.all_package_names()
 
+    def test_add_search_paths_prepend_wins_over_existing_provider(self):
+        # Regression for the Codex-flagged
+        # ``add_search_paths(prepend=True)`` ordering bug:
+        # ``resolve()`` returns the first ``ifneeded`` entry, but
+        # the prior implementation only updated ``_search_paths``
+        # without rotating ``_packages[name]``, so an old provider
+        # already at the head of the list silently shadowed the
+        # newly-prepended workspace path.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            old_dir = os.path.join(tmpdir, "old")
+            new_dir = os.path.join(tmpdir, "new")
+            for base in (old_dir, new_dir):
+                pkg_dir = os.path.join(base, "shared1.0")
+                os.makedirs(pkg_dir)
+                Path(os.path.join(pkg_dir, "shared.tcl")).write_text(f"# from {base}")
+                Path(os.path.join(pkg_dir, "pkgIndex.tcl")).write_text(
+                    "package ifneeded shared 1.0 [list source [file join $dir shared.tcl]]"
+                )
+            resolver = PackageResolver()
+            resolver.configure(search_paths=[old_dir])
+            resolver.scan_packages()
+            old_files = resolver.resolve("shared")
+            assert old_files and old_files[0].startswith(old_dir)
+            # Prepend the new path — workspace-wins semantics: the
+            # ``shared`` package must now resolve to the *new* dir.
+            resolver.add_search_paths([new_dir], prepend=True)
+            new_files = resolver.resolve("shared")
+            assert new_files and new_files[0].startswith(new_dir), (
+                f"prepend=True should make {new_dir} win, but resolve() returned {new_files}"
+            )
+
     def test_add_search_paths_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             pkg_dir = os.path.join(tmpdir, "pkg1.0")

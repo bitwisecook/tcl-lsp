@@ -82,7 +82,7 @@ class PackageResolver:
             existing = {os.path.abspath(os.path.expanduser(p)) for p in self._search_paths}
             self._search_paths.extend(p for p in new_paths if p not in existing)
         for path in new_paths:
-            self._scan_single_path(path)
+            self._scan_single_path(path, prepend=prepend)
 
     def scan_packages(self) -> None:
         """Walk search paths looking for pkgIndex.tcl and tclIndex files.
@@ -109,8 +109,16 @@ class PackageResolver:
             len(self._search_paths),
         )
 
-    def _scan_single_path(self, abs_path: str) -> None:
-        """Walk *abs_path* recording pkgIndex.tcl and tclIndex entries."""
+    def _scan_single_path(self, abs_path: str, *, prepend: bool = False) -> None:
+        """Walk *abs_path* recording pkgIndex.tcl and tclIndex entries.
+
+        When *prepend* is true, every package entry produced from
+        this scan is inserted at the head of the package's
+        provider list so :meth:`resolve` returns the new path's
+        provider before any previously-indexed one. Used by
+        :meth:`add_search_paths` ``prepend=True`` to honour
+        workspace-wins semantics.
+        """
         if abs_path in self._scanned_paths:
             return
         # Don't mark a non-existent directory as scanned — a transient
@@ -122,7 +130,7 @@ class PackageResolver:
         for root, _dirs, files in os.walk(abs_path):
             if "pkgIndex.tcl" in files:
                 pkg_index_path = os.path.join(root, "pkgIndex.tcl")
-                self._parse_pkg_index(pkg_index_path, root)
+                self._parse_pkg_index(pkg_index_path, root, prepend=prepend)
             files_lower = {f.lower(): f for f in files}
             if "tclindex" in files_lower:
                 tcl_index_path = os.path.join(root, files_lower["tclindex"])
@@ -165,8 +173,20 @@ class PackageResolver:
     _SOURCE_JOIN_RE = re.compile(r"source\s+\[file\s+join\s+\$dir\s+([^\]]+)\]")
     _SOURCE_DIR_RE = re.compile(r"source\s+\$dir/(\S+)")
 
-    def _parse_pkg_index(self, pkg_index_path: str, pkg_dir: str) -> None:
-        """Parse a pkgIndex.tcl file."""
+    def _parse_pkg_index(
+        self,
+        pkg_index_path: str,
+        pkg_dir: str,
+        *,
+        prepend: bool = False,
+    ) -> None:
+        """Parse a pkgIndex.tcl file.
+
+        When *prepend* is true, parsed entries are inserted at the
+        head of the package's provider list (so workspace-wins
+        ordering is honoured by :meth:`resolve`'s "first match
+        wins" logic). Otherwise entries are appended in scan order.
+        """
         try:
             content = Path(pkg_index_path).read_text(
                 encoding="utf-8",
@@ -194,7 +214,11 @@ class PackageResolver:
                     source_files=source_files,
                     pkg_index_path=pkg_index_path,
                 )
-                self._packages.setdefault(name, []).append(info)
+                providers = self._packages.setdefault(name, [])
+                if prepend:
+                    providers.insert(0, info)
+                else:
+                    providers.append(info)
 
     def _extract_source_files(self, script: str, pkg_dir: str) -> list[str]:
         """Extract source file paths from a pkgIndex.tcl script."""
