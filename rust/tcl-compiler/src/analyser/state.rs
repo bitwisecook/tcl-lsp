@@ -174,18 +174,53 @@ impl Analyser {
     /// Analyse a Tcl source for the given dialect, returning a
     /// fully-populated [`AnalysisResult`].
     ///
-    /// **C41a1 stub.** Returns the default empty result.
-    /// Real analysis lands in **C41f1** (the orchestration layer)
-    /// once C41a-C41e have wired up the per-handler logic.
+    /// **C41f1 baseline.** Drives end-to-end:
+    ///
+    /// 1. Pre-scans the leading comment block for
+    ///    `# tcl-lsp: disable=CODE` directives via
+    ///    [`super::utils::parse_file_suppression`].
+    /// 2. Segments `source` with the registry's known-commands
+    ///    set (uses Seg2 recovery) so unclosed delimiters mid-file
+    ///    don't drop later declarations.
+    /// 3. Walks each segmented command through
+    ///    [`Self::process_command`].
+    ///
+    /// Body recursion (proc bodies, namespace bodies, control-flow
+    /// arm bodies) is **not** wired in this baseline — handlers in
+    /// C41b1-b8 record the body span but don't recurse. Body walks
+    /// land per-handler in **C41c** / **C41e**. Diagnostic emission
+    /// (W210, W211, W120 etc.) lands in **C41d**.
     ///
     /// `source` is consumed by reference so the analyser can hold
     /// per-walk references back into it; `dialect` is one of
-    /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc.
+    /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc. (kept in
+    /// the analyser's per-walk state via [`Self::current_event`]
+    /// elsewhere; this entry just records it for future use).
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
-        // C41a1: stub. The walker entry, dispatch table, and
-        // diagnostic emitters land in subsequent strips.
-        let _ = source;
+        use std::collections::HashSet;
+        use tcl_registry::CommandRegistry;
+
         let _ = dialect;
+        // File-suppression pre-scan.
+        let _suppressed = super::utils::parse_file_suppression(source);
+
+        // Segment with Seg2 recovery so an unclosed delimiter
+        // mid-file doesn't drop later top-level declarations.
+        let registry = CommandRegistry::build_default();
+        let known_commands: HashSet<&str> = registry.command_names().collect();
+        let commands = crate::segmenter::segment_commands_with_recovery(source, &known_commands);
+
+        // Walk each command through the dispatcher. Body recursion
+        // (proc bodies, namespace bodies, control-flow arms) is
+        // C41c / C41e work; this baseline only walks the top level.
+        for cmd in commands {
+            if cmd.is_partial || cmd.argv.is_empty() {
+                continue;
+            }
+            let single = cmd.single_token_word.clone();
+            self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
+        }
+
         std::mem::take(&mut self.result)
     }
 }
@@ -233,13 +268,36 @@ mod tests {
     }
 
     #[test]
-    fn analyse_stub_returns_empty_result() {
+    fn analyse_records_top_level_proc() {
         let mut a = Analyser::new();
-        let r = a.analyse("proc foo {} {}", "tcl");
-        // Stub returns the default empty result for every input.
+        let r = a.analyse("proc foo {} { set x 1 }", "tcl");
+        assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_records_multiple_top_level_commands() {
+        let mut a = Analyser::new();
+        let r = a.analyse("set x 1\nproc foo {} {}\nglobal a b", "tcl");
+        assert!(r.all_procs.contains_key("::foo"));
+        assert!(r.global_scope.variables.contains_key("x"));
+        assert!(r.global_scope.variables.contains_key("a"));
+        assert!(r.global_scope.variables.contains_key("b"));
+    }
+
+    #[test]
+    fn analyse_namespace_eval_opens_scope() {
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace eval ns1 { }", "tcl");
+        assert_eq!(r.global_scope.children.len(), 1);
+        assert_eq!(r.global_scope.children[0].name, "ns1");
+    }
+
+    #[test]
+    fn analyse_empty_source_is_empty_result() {
+        let mut a = Analyser::new();
+        let r = a.analyse("", "tcl");
         assert!(r.all_procs.is_empty());
         assert!(r.diagnostics.is_empty());
-        assert!(r.command_invocations.is_empty());
     }
 
     #[test]
