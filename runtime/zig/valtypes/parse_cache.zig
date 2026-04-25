@@ -113,6 +113,19 @@ var cache: CacheTable = .{};
 /// redefined proc body) always produce distinct entries even if
 /// the content happens to match byte-for-byte.
 pub fn lookup(body_ptr: u32, body_len: u32) u32 {
+    // MM-B.6 caveat: parse_cache caches tokens whose offsets
+    // index into a body buffer.  When MM-B.4 (parser-word release
+    // after dispatch) is enabled, body buffers can be freed and
+    // their slabs reissued by libc malloc; a subsequent ``lookup``
+    // keyed on a recycled ``(body_ptr, body_len)`` pair would
+    // return a stale slab whose tokens point into freed memory.
+    // Observed as ``unknown command: <binary garbage>`` traps at
+    // site=146 in cmdIL.test under that configuration.  MM-B.4 is
+    // currently OFF so the cache is safe; before re-enabling
+    // MM-B.4, add an invalidation hook called from
+    // ``tcl_obj.release_now`` (requires hash-table tombstone
+    // support since the current ``find`` stops at the first
+    // empty slot).
     if (cache.buf == 0) return 0;
     const key = stage_key(body_ptr, body_len);
     const hash = ht.fnv1a(key, KEY_SIZE);
