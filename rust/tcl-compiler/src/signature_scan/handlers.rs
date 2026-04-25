@@ -308,6 +308,57 @@ pub(super) fn handle_oo_class(
     emit_class(&texts[2], argv[2], body_tok, ns_prefix, result);
 }
 
+/// Recognise the tcllib `<NS>::import <ALIAS>` wrapper idiom and
+/// emit a conjectural `namespace import` record.
+///
+/// Mirrors `_maybe_handle_import_wrapper` in
+/// `core/analysis/signature_scan.py`. Statically detecting all
+/// such wrappers from their bodies is out of scope, but the *call*
+/// is unambiguous: head ends with `::import`, single argument, no
+/// substitution markers in the alias. The conjectured import is
+/// recorded with `conjectured = true` so consumers can weight it
+/// less heavily.
+pub(super) fn maybe_handle_import_wrapper(
+    head: &str,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if !head.ends_with("::import") {
+        return;
+    }
+    if texts.len() < 2 {
+        return;
+    }
+    let alias = &texts[1];
+    if alias.is_empty() || alias.contains('$') || alias.contains('[') {
+        return;
+    }
+    if texts.len() > 2 {
+        return;
+    }
+    let source_ns_raw = &head[..head.len() - "::import".len()];
+    let source_ns = if source_ns_raw.starts_with("::") {
+        source_ns_raw.to_string()
+    } else {
+        format!("::{source_ns_raw}")
+    };
+    let alias_ns = if alias.starts_with("::") {
+        alias.clone()
+    } else if !ns_prefix.is_empty() {
+        format!("::{ns_prefix}::{alias}")
+    } else {
+        format!("::{alias}")
+    };
+    result.namespace_imports.push(SignatureNamespaceImport {
+        ns: alias_ns,
+        pattern: format!("{source_ns}::*"),
+        range: argv[0].span,
+        conjectured: true,
+    });
+}
+
 /// Handler for `lappend auto_path …` / `set auto_path …`.
 ///
 /// Mirrors `_handle_auto_path` in
@@ -733,5 +784,41 @@ mod tests {
         handle_auto_path(&texts, &argv, &mut result);
         assert_eq!(result.auto_path_entries.len(), 1);
         assert_eq!(result.auto_path_entries[0].raw, "/var/lib/tcl");
+    }
+
+    #[test]
+    fn maybe_import_wrapper_happy_path() {
+        let texts = vec!["term::ansi::send::import".to_string(), "vt".to_string()];
+        let argv = vec![token(0, 24), token(25, 27)];
+        let mut result = SignatureScanResult::default();
+        maybe_handle_import_wrapper("term::ansi::send::import", &texts, &argv, "", &mut result);
+        assert_eq!(result.namespace_imports.len(), 1);
+        let imp = &result.namespace_imports[0];
+        assert_eq!(imp.ns, "::vt");
+        assert_eq!(imp.pattern, "::term::ansi::send::*");
+        assert!(imp.conjectured);
+        assert_eq!(imp.range, Span::new(0, 24));
+    }
+
+    #[test]
+    fn maybe_import_wrapper_multi_arg_rejected() {
+        let texts = vec![
+            "foo::import".to_string(),
+            "vt".to_string(),
+            "extra".to_string(),
+        ];
+        let argv = vec![token(0, 11), token(12, 14), token(15, 20)];
+        let mut result = SignatureScanResult::default();
+        maybe_handle_import_wrapper("foo::import", &texts, &argv, "", &mut result);
+        assert!(result.namespace_imports.is_empty());
+    }
+
+    #[test]
+    fn maybe_import_wrapper_dynamic_alias_rejected() {
+        let texts = vec!["foo::import".to_string(), "${dyn}".to_string()];
+        let argv = vec![token(0, 11), token(12, 18)];
+        let mut result = SignatureScanResult::default();
+        maybe_handle_import_wrapper("foo::import", &texts, &argv, "", &mut result);
+        assert!(result.namespace_imports.is_empty());
     }
 }
