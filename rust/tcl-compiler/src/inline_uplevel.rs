@@ -20,7 +20,9 @@
 
 use std::collections::HashMap;
 
-use crate::ir::{IfClause, Module, Procedure, Script, Statement};
+use crate::ir::{Module, Procedure, Script, Statement};
+use crate::lowering::Lowerer;
+use tcl_registry::CommandRegistry;
 
 /// Recognised passthrough proc shape used by the rewriter.
 #[derive(Debug, Clone)]
@@ -192,9 +194,7 @@ fn statement_has_frame_reach(stmt: &Statement) -> bool {
         Statement::If {
             clauses, else_body, ..
         } => {
-            clauses
-                .iter()
-                .any(|c: &IfClause| body_has_frame_reach(&c.body))
+            clauses.iter().any(|c| body_has_frame_reach(&c.body))
                 || else_body.as_ref().is_some_and(body_has_frame_reach)
         }
         Statement::For {
@@ -203,7 +203,7 @@ fn statement_has_frame_reach(stmt: &Statement) -> bool {
         Statement::While { body, .. } | Statement::Foreach { body, .. } => {
             body_has_frame_reach(body)
         }
-        Statement::Catch { body, .. } => body_has_frame_reach(body),
+        Statement::Catch { body, .. } | Statement::Block { body, .. } => body_has_frame_reach(body),
         Statement::Try {
             body,
             handlers,
@@ -223,6 +223,243 @@ fn statement_has_frame_reach(stmt: &Statement) -> bool {
         }
         _ => false,
     }
+}
+
+/// Rewrite every passthrough callsite in *module* to splice the
+/// callee's body inline. Mutates the module in place.
+///
+/// Detects passthrough candidates via
+/// [`detect_passthrough_candidates`] and walks every script
+/// (top-level + each procedure body) replacing matching
+/// [`Statement::Call`] / [`Statement::Barrier`] nodes with
+/// [`Statement::Block`] (static shape) or with the inlined
+/// callsite-body literal (param-body shape).
+///
+/// Safe to call multiple times — already-inlined callsites no
+/// longer match the pattern.
+///
+/// Mirrors `core/compiler/inline_uplevel.py::inline_uplevel_passthrough`.
+pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistry) {
+    let candidates = detect_passthrough_candidates(module);
+    if candidates.is_empty() {
+        return;
+    }
+    let mut top = std::mem::take(&mut module.top_level);
+    rewrite_script_in_place(&mut top, &candidates, "::", registry);
+    module.top_level = top;
+    let proc_qnames: Vec<String> = module.procedures.keys().cloned().collect();
+    for qname in proc_qnames {
+        let caller_ns = namespace_of(&qname);
+        if let Some(proc) = module.procedures.get_mut(&qname) {
+            let mut body = std::mem::take(&mut proc.body);
+            rewrite_script_in_place(&mut body, &candidates, &caller_ns, registry);
+            proc.body = body;
+        }
+    }
+}
+
+fn namespace_of(qname: &str) -> String {
+    if let Some(idx) = qname.rfind("::") {
+        if idx == 0 {
+            return "::".to_string();
+        }
+        let prefix = &qname[..idx];
+        return if prefix.starts_with("::") {
+            prefix.to_string()
+        } else {
+            format!("::{prefix}")
+        };
+    }
+    "::".to_string()
+}
+
+fn resolve_call_target(command: &str, caller_ns: &str) -> String {
+    if command.starts_with("::") {
+        return command.to_string();
+    }
+    if caller_ns == "::" {
+        return format!("::{command}");
+    }
+    format!("{caller_ns}::{command}")
+}
+
+fn rewrite_script_in_place(
+    script: &mut Script,
+    candidates: &HashMap<String, PassthroughShape>,
+    namespace: &str,
+    registry: &CommandRegistry,
+) {
+    for stmt in &mut script.statements {
+        rewrite_statement_in_place(stmt, candidates, namespace, registry);
+    }
+}
+
+fn rewrite_statement_in_place(
+    stmt: &mut Statement,
+    candidates: &HashMap<String, PassthroughShape>,
+    namespace: &str,
+    registry: &CommandRegistry,
+) {
+    // First recurse into nested scripts so the inner-most rewrites
+    // happen before the outer one — mirrors Python.
+    walk_nested_scripts(
+        stmt,
+        |body, ns| {
+            rewrite_script_in_place(body, candidates, ns, registry);
+        },
+        namespace,
+    );
+
+    // Then attempt to rewrite this statement itself if it's a
+    // matching callsite.
+    let replacement = try_inline_callsite(stmt, candidates, namespace, registry);
+    if let Some(new_stmt) = replacement {
+        *stmt = new_stmt;
+    }
+}
+
+fn try_inline_callsite(
+    stmt: &Statement,
+    candidates: &HashMap<String, PassthroughShape>,
+    namespace: &str,
+    registry: &CommandRegistry,
+) -> Option<Statement> {
+    let (command, args, span, tokens) = match stmt {
+        Statement::Call {
+            command,
+            args,
+            span,
+            tokens,
+            ..
+        }
+        | Statement::Barrier {
+            command,
+            args,
+            span,
+            tokens,
+            ..
+        } if !command.is_empty() => (command.as_str(), args.as_slice(), *span, tokens),
+        _ => return None,
+    };
+
+    let target = resolve_call_target(command, namespace);
+    let shape = candidates
+        .get(&target)
+        .or_else(|| candidates.get(&format!("::{command}")))?;
+
+    match shape {
+        PassthroughShape::Static { body } => {
+            if !args.is_empty() {
+                return None;
+            }
+            Some(Statement::Block {
+                span,
+                body: body.clone(),
+                namespace: namespace.to_string(),
+                tokens: tokens.clone(),
+            })
+        }
+        PassthroughShape::ParamBody { .. } => {
+            // ParamBody rewriting at the callsite needs to know
+            // whether the sole argument was passed as a brace-string
+            // literal. CommandTokens.argv carries only spans, not
+            // token types — callers that want to determine "is this
+            // a braced literal?" need access to the original
+            // SegmentedCommand or the source text. The detector
+            // half (C34c) already lands; the rewrite half waits on
+            // a later strip that threads source-text access into
+            // the pass. Conservative behaviour for now: leave the
+            // call alone.
+            let _ = (args, tokens, span, registry);
+            None
+        }
+    }
+}
+
+/// Visit every nested [`Script`] field of *stmt* with *visitor*
+/// (mutable). Used by the rewriter to recurse into structured
+/// statements without enumerating every variant's fields at the
+/// call site.
+fn walk_nested_scripts<F>(stmt: &mut Statement, mut visitor: F, namespace: &str)
+where
+    F: FnMut(&mut Script, &str),
+{
+    match stmt {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            for c in clauses.iter_mut() {
+                visitor(&mut c.body, namespace);
+            }
+            if let Some(b) = else_body.as_mut() {
+                visitor(b, namespace);
+            }
+        }
+        Statement::For {
+            init, next, body, ..
+        } => {
+            visitor(init, namespace);
+            visitor(next, namespace);
+            visitor(body, namespace);
+        }
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::UpFrame { body, .. } => {
+            visitor(body, namespace);
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            visitor(body, namespace);
+            for h in handlers.iter_mut() {
+                visitor(&mut h.body, namespace);
+            }
+            if let Some(f) = finally_body.as_mut() {
+                visitor(f, namespace);
+            }
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            for a in arms.iter_mut() {
+                if let Some(b) = a.body.as_mut() {
+                    visitor(b, namespace);
+                }
+            }
+            if let Some(d) = default_body.as_mut() {
+                visitor(d, namespace);
+            }
+        }
+        Statement::Block {
+            body,
+            namespace: ns,
+            ..
+        } => {
+            // Block carries its own namespace; recurse with that.
+            let inner_ns = ns.clone();
+            visitor(body, &inner_ns);
+        }
+        _ => {}
+    }
+}
+
+/// Lower a brace-literal script into a [`Script`] for the inline
+/// rewriter. Returns `None` when the literal can't be parsed (the
+/// caller keeps the original call, matching Python's
+/// `_lower_literal_script` `TclParseError` fallback).
+///
+/// Currently only used by the `ParamBody` rewrite path, which is
+/// gated off in C34d pending source-text plumbing through the
+/// pass. Kept here so the helper is in place when C34d-paramBody
+/// lands as a follow-up strip.
+#[allow(dead_code)]
+fn lower_literal_script(literal: &str, namespace: &str, registry: &CommandRegistry) -> Script {
+    let mut lowerer = Lowerer::new(registry);
+    lowerer.lower_into_script(literal, namespace)
 }
 
 #[cfg(test)]
@@ -321,5 +558,96 @@ mod tests {
     fn body_with_only_assignment_has_no_frame_reach() {
         let m = lower_to_ir("set x 1", &reg());
         assert!(!body_has_frame_reach(&m.top_level));
+    }
+
+    fn count_blocks(script: &Script) -> usize {
+        let mut n = 0;
+        for stmt in &script.statements {
+            if let Statement::Block { .. } = stmt {
+                n += 1;
+            }
+        }
+        n
+    }
+
+    #[test]
+    fn rewriter_inlines_zero_param_passthrough_callsite() {
+        let mut m = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }\nreset", &reg());
+        inline_uplevel_passthrough(&mut m, &reg());
+        // The callsite ``reset`` should now be a Statement::Block
+        // splicing in the body.
+        assert_eq!(count_blocks(&m.top_level), 1);
+    }
+
+    #[test]
+    fn rewriter_skips_callsites_with_args() {
+        // Static-shape candidates are zero-param; a call passing
+        // an argument should not be rewritten (would change
+        // semantics).
+        let mut m = lower_to_ir(
+            "proc reset {} { uplevel 1 {set counter 0} }\nreset extra",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn rewriter_skips_unknown_callees() {
+        // Calling a non-passthrough proc shouldn't be touched.
+        let mut m = lower_to_ir("proc helper {} { puts hi }\nhelper", &reg());
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn rewriter_recurses_into_if_body() {
+        let mut m = lower_to_ir(
+            "proc reset {} { uplevel 1 {set counter 0} }\nif {1} { reset }",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        // ``proc`` itself emits a ``Call`` at top level (registers
+        // the proc but also keeps a ``proc`` invocation statement);
+        // the ``if`` follows. Find the ``If`` statement and confirm
+        // the inner block contains the inlined ``Block``.
+        let if_stmt = m
+            .top_level
+            .statements
+            .iter()
+            .find(|s| matches!(s, Statement::If { .. }))
+            .expect("expected an If statement");
+        match if_stmt {
+            Statement::If { clauses, .. } => {
+                assert_eq!(count_blocks(&clauses[0].body), 1);
+            }
+            other => panic!("expected If, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rewriter_is_idempotent() {
+        // Running the pass twice yields the same module — once
+        // inlined, the callsite no longer matches the pattern.
+        let mut m1 = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }\nreset", &reg());
+        inline_uplevel_passthrough(&mut m1, &reg());
+        let after_first = m1.clone();
+        inline_uplevel_passthrough(&mut m1, &reg());
+        assert_eq!(
+            after_first.top_level.statements.len(),
+            m1.top_level.statements.len()
+        );
+    }
+
+    #[test]
+    fn rewriter_with_no_candidates_is_noop() {
+        let mut m = lower_to_ir("set x 1\nputs $x", &reg());
+        let before = m.clone();
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(
+            before.top_level.statements.len(),
+            m.top_level.statements.len()
+        );
+        assert_eq!(count_blocks(&m.top_level), 0);
     }
 }

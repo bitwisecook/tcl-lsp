@@ -706,7 +706,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | planned |
-| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | partial — C34a, C34b, C34c landed |
+| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | planned |
@@ -891,15 +891,32 @@ Strips:
   the implicit-level (`uplevel $body`) and explicit-level
   (`uplevel 1 $body`) forms; rejects mismatched param names and
   multi-param dispatchers. 4 unit tests.
-- **C34d — Per-callsite rewriter.** Walks every `IRCall` in
-  `IRModule` and replaces matched callsites with an `IRBlock`
-  containing the inlined body. Substitutes positional args for
-  the single-body-param shape.
-- **C34e — Differential corpus + integration.** Add fixtures
-  covering both shapes; wire the pass into
-  `optimiser::manager::run_passes` as a pre-codegen
-  transformation (priority before `O121` tail-call so tail-call
-  detection sees the post-inline shape).
+- **C34d — Per-callsite rewriter.** [LANDED]
+  `inline_uplevel_passthrough(&mut Module, &CommandRegistry)` walks
+  every script in the module and replaces matched zero-param
+  passthrough callsites with `Statement::Block { body, namespace,
+  tokens, .. }`. Recurses into structured statements via
+  `walk_nested_scripts` so callsites inside if/for/while/foreach/
+  catch/try/switch bodies are rewritten too. Idempotent:
+  already-inlined callsites no longer match. Adds a new IR
+  variant: `Statement::Block { span, body, namespace, tokens }` —
+  flat splice of an inline body without a new scope (mirrors
+  Python's `IRBlock`). 6 unit tests covering rewriter behaviour
+  + idempotency. **Param-body rewrite is gated off** pending a
+  future strip that threads source-text access into the pass so
+  it can verify the callsite's argument was passed as a
+  brace-string literal (the Rust `CommandTokens.argv` carries
+  byte spans only, not token kinds).
+- **C34e — Pipeline integration.** [LANDED]
+  `CompilationUnit::build_for` runs
+  `inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry)`
+  immediately after `lower_to_ir` and before `build_cfg`. The
+  CFG builder gains an explicit `Statement::Block` arm that
+  recursively flattens the body's statements into the current
+  control-flow stream so SSA / def-use / codegen see them
+  inline. The codegen `emit_stmt` arm walks the block body
+  emitting each statement in turn. Differential corpus stays
+  green (matching: 34/34, divergent: 2 — unchanged).
 
 Done: 6 fixtures (3 static, 3 param-body), ~25 unit tests.
 Differential harness reports same exact-match count as Python

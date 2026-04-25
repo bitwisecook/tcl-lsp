@@ -226,6 +226,18 @@ impl CodegenCtx {
                 self.emit_comment(Op::NOP, vec![], "unhandled: IRUpFrame");
             }
 
+            // Inline block (C34d): the inline_uplevel pass replaces
+            // matching call-sites with ``Statement::Block { body, .. }``
+            // — emit the body's statements as if they were inline at
+            // this point. The block has no scope of its own at the
+            // bytecode level (the body already ran in the caller's
+            // frame in the original ``uplevel`` semantics).
+            Statement::Block { body, .. } => {
+                for inner in &body.statements {
+                    self.emit_stmt(inner, used_generic_invoke);
+                }
+            }
+
             // Structured control flow is handled by the main emitter loop;
             // if we reach these here, emit a NOP placeholder.
             _ => {

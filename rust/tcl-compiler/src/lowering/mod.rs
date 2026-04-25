@@ -151,6 +151,15 @@ impl<'r> Lowerer<'r> {
         &self.module
     }
 
+    /// Lower a source-text literal into a [`Script`] without
+    /// installing it as the module top-level. Used by passes that
+    /// need to lower a sub-script (e.g. the
+    /// [`crate::inline_uplevel`] rewriter materialising a
+    /// brace-literal callsite body).
+    pub fn lower_into_script(&mut self, source: &str, namespace: &str) -> Script {
+        self.lower_script(source, namespace)
+    }
+
     /// Lower a source string to an IR script.
     fn lower_script(&mut self, source: &str, namespace: &str) -> Script {
         let commands = segment_commands(source);

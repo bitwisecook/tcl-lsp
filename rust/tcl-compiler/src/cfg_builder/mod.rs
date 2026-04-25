@@ -208,6 +208,17 @@ impl CfgBuilder {
                     return None;
                 }
 
+                // Inline block (C34d): flatten the body's statements
+                // into the current control-flow stream so SSA / codegen
+                // see them as plain inline statements.
+                Statement::Block { body, .. } => {
+                    if let Some(next_current) = self.lower_script(body, &current) {
+                        current = next_current;
+                    } else {
+                        return None;
+                    }
+                }
+
                 // All other statements (assignments, calls, barriers,
                 // expr-evals) go straight into the current block.
                 other => {

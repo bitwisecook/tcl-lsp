@@ -151,7 +151,11 @@ impl CompilationUnit {
     /// opaque calls.
     #[must_use]
     pub fn build_for(source: &str, registry: &CommandRegistry, defer_top_level: bool) -> Self {
-        let ir_module = lower_to_ir(source, registry);
+        let mut ir_module = lower_to_ir(source, registry);
+        // C34e: run the inline_uplevel pass before CFG construction so
+        // every passthrough callsite is replaced with a Statement::Block
+        // that splices the body inline.
+        crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
         let cfg_module = build_cfg(&ir_module, defer_top_level);
         let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), registry);
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();

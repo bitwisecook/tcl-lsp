@@ -582,6 +582,13 @@ fn scan_statement(
                 scan_statement(inner, caller, known, registry, dialect, facts, params);
             }
         }
+        Statement::Block { body, .. } => {
+            // ``Block`` is a transparent splice: walk through to the
+            // inner statements without flagging a barrier.
+            for inner in &body.statements {
+                scan_statement(inner, caller, known, registry, dialect, facts, params);
+            }
+        }
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }

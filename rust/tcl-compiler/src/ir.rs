@@ -244,6 +244,27 @@ pub enum Statement {
         tokens: Option<CommandTokens>,
     },
 
+    /// Inline group of statements to splice into the enclosing
+    /// script *without* introducing a separate scope. Produced by
+    /// [`crate::inline_uplevel`] when a passthrough callsite is
+    /// rewritten — the callee's body runs in the caller's frame, so
+    /// it can be flattened directly into the parent block stream.
+    /// Also produced by C35's const-propagation when an `eval` /
+    /// `uplevel` body resolves to a brace-literal.
+    ///
+    /// Mirrors Python's `IRBlock` (`core/compiler/ir.py`).
+    Block {
+        /// Source span of the original call that produced this block.
+        span: Span,
+        /// The pre-lowered body, evaluated in the enclosing scope.
+        body: Script,
+        /// Fully-qualified namespace the body was lowered in.
+        namespace: String,
+        /// Original command-tokens snapshot for downstream analysis
+        /// (lets diagnostics still report the source surface form).
+        tokens: Option<CommandTokens>,
+    },
+
     /// Static-body uplevel — `uplevel ?level? {body}` where the body
     /// is a brace-string literal so the body's IR can be lowered
     /// inline. Models the "shift the active frame, evaluate body,
@@ -407,6 +428,7 @@ impl Statement {
             | Self::Call { span, .. }
             | Self::Return { span, .. }
             | Self::Barrier { span, .. }
+            | Self::Block { span, .. }
             | Self::UpFrame { span, .. }
             | Self::If { span, .. }
             | Self::For { span, .. }
