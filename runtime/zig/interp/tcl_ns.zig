@@ -853,7 +853,17 @@ pub fn var_set_scalar(v_addr: u32, obj_handle: u32) void {
     // now".  Real callers won't flip a real array into a scalar;
     // this is just for the simple-globals replacement in P3.2.
     v.flags &= ~VAR_ARRAY;
+    // MM-B.2 refcount discipline: the var slot holds a reference to
+    // the value, so retain the incoming obj and release whatever was
+    // there before.  Without this the slot's hold is "free" (no
+    // refcount bump) and the parser-side release at end-of-statement
+    // (MM-B.4) frees the value out from under us.  With both in
+    // place, every TclObj eventually drops to refcount 0 when no
+    // var, frame, or list/dict element holds it any more.
+    const old: u32 = @bitCast(v.value);
     v.value = obj_handle;
+    if (obj_handle != 0) obj.tcl_obj_retain(@bitCast(obj_handle));
+    if (old != 0 and old != obj_handle) obj.tcl_obj_release(@bitCast(old));
 }
 
 // -- Namespace export patterns (P4.1) --------------------------------------
