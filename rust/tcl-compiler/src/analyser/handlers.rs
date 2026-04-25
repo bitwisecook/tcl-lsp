@@ -24,6 +24,26 @@
 use tcl_lexer::{Token, TokenType};
 
 use super::state::Analyser;
+use super::types::ProcDef;
+use super::utils::parse_param_list;
+
+/// Build a fully-qualified Tcl proc / class name from a namespace
+/// prefix and a possibly-relative name.
+///
+/// Mirrors `qualify` in `signature_scan/handlers.rs:33-41` (which
+/// itself ports `_qualify` from
+/// `core/analysis/signature_scan.py`). `ns_prefix` is the
+/// namespace **without** a leading `::` — the convention used
+/// throughout the analyser walker.
+pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
+    if name.starts_with("::") {
+        name.to_string()
+    } else if ns_prefix.is_empty() {
+        format!("::{name}")
+    } else {
+        format!("::{ns_prefix}::{name}")
+    }
+}
 
 impl Analyser {
     /// Handle the `set` command: `set var ?value?`.
@@ -122,6 +142,72 @@ impl Analyser {
             }
             i += if i + 1 < args.len() { 2 } else { 1 };
         }
+    }
+
+    /// Handle the `proc` command: `proc NAME PARAMS BODY`.
+    ///
+    /// Mirrors `_handle_proc_command` in
+    /// `core/analysis/_analyser/_handlers.py:39-49`. Returns
+    /// `true` when the command was actually handled (callers use
+    /// the bool to decide whether further processing is needed),
+    /// `false` when the input doesn't match the expected shape.
+    ///
+    /// **C41b2 baseline + C41c1 hook.** Python delegates to
+    /// `_AnalyserProcMixin._handle_proc` (which lives in
+    /// `_proc.py:46-176` and does the proc-body walk + parameter-
+    /// trait inference). The proc-body walk lands in **C41c1**;
+    /// for now this strip records the basic [`ProcDef`] shape
+    /// (qualified name, params, name + body spans, doc-comment)
+    /// in both `current_scope.procs` and `result.all_procs` so
+    /// downstream consumers (signature_scan parity, the LSP
+    /// rename feature, the workspace index) see a correct proc
+    /// list immediately. The deeper body walk + scope creation
+    /// is deferred.
+    pub fn handle_proc_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "proc" || args.len() < 3 || arg_tokens.len() < 3 {
+            return false;
+        }
+
+        let raw_name = &args[0];
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        // Strip the leading `::` for the qualify helper, which
+        // expects an unprefixed namespace.
+        let ns_for_qualify = ns_prefix.trim_start_matches(':');
+        let qualified = qualify(ns_for_qualify, raw_name);
+        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        let name_span = arg_tokens[0].span;
+        let body_span = arg_tokens[2].span;
+
+        let params = parse_param_list(&args[1]);
+        let doc = std::mem::take(&mut self.last_comment);
+
+        let proc = ProcDef {
+            name: simple,
+            qualified_name: qualified.clone(),
+            params,
+            name_span,
+            body_span,
+            doc,
+        };
+
+        // Register globally and in the current scope.
+        self.result
+            .all_procs
+            .insert(qualified.clone(), proc.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.procs.insert(qualified, proc);
+        }
+
+        // C41c1 hook: the proc-body walk happens here. For now
+        // the body span is recorded so consumers can post-process.
+        true
     }
 
     /// Handle the `incr` command: `incr var ?amount?`.
@@ -324,6 +410,122 @@ mod tests {
         let mut a = Analyser::new();
         a.handle_var_declaration_command("set", &["x".to_string()], &[esc_tok(span(0, 1))], &[]);
         assert!(a.result.global_scope.variables.is_empty());
+    }
+
+    // -- handle_proc_command ----------------------------------------
+
+    #[test]
+    fn handle_proc_records_proc_at_global() {
+        let mut a = Analyser::new();
+        let handled = a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "a b".to_string(), "set x $a".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 14)),
+                str_tok(span(15, 25)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert!(a.result.all_procs.contains_key("::foo"));
+        let proc = &a.result.all_procs["::foo"];
+        assert_eq!(proc.name, "foo");
+        assert_eq!(proc.qualified_name, "::foo");
+        assert_eq!(proc.params.len(), 2);
+        assert_eq!(proc.params[0].name, "a");
+        assert_eq!(proc.params[1].name, "b");
+    }
+
+    #[test]
+    fn handle_proc_qualifies_under_namespace() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        let handled = a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "".to_string(), "".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[0],
+        );
+        assert!(handled);
+        assert!(a.result.all_procs.contains_key("::ns1::foo"));
+    }
+
+    #[test]
+    fn handle_proc_absolute_name_rebases() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "outer"));
+        let handled = a.handle_proc_command(
+            "proc",
+            &["::other::foo".to_string(), "".to_string(), "".to_string()],
+            &[
+                esc_tok(span(5, 17)),
+                str_tok(span(18, 20)),
+                str_tok(span(21, 23)),
+            ],
+            &[0],
+        );
+        assert!(handled);
+        // Absolute name rebases — does NOT nest under outer.
+        assert!(a.result.all_procs.contains_key("::other::foo"));
+        assert!(!a.result.all_procs.contains_key("::outer::other::foo"));
+    }
+
+    #[test]
+    fn handle_proc_consumes_last_comment_as_doc() {
+        let mut a = Analyser::new();
+        a.last_comment = "doc string".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "".to_string(), "".to_string()],
+            &[
+                esc_tok(span(0, 3)),
+                str_tok(span(4, 6)),
+                str_tok(span(7, 9)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
+        // last_comment is consumed.
+        assert!(a.last_comment.is_empty());
+    }
+
+    #[test]
+    fn handle_proc_too_few_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled =
+            a.handle_proc_command("proc", &["foo".to_string()], &[esc_tok(span(0, 3))], &[]);
+        assert!(!handled);
+        assert!(a.result.all_procs.is_empty());
+    }
+
+    #[test]
+    fn handle_proc_wrong_command_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_proc_command(
+            "puts",
+            &["foo".to_string(), "".to_string(), "".to_string()],
+            &[
+                esc_tok(span(0, 3)),
+                str_tok(span(4, 6)),
+                str_tok(span(7, 9)),
+            ],
+            &[],
+        );
+        assert!(!handled);
+        assert!(a.result.all_procs.is_empty());
     }
 
     // -- handle_incr_command ----------------------------------------

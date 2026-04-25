@@ -47,7 +47,7 @@ fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope> {
 }
 
 /// Mutable counterpart to [`scope_at`].
-fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'a mut Scope> {
+pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'a mut Scope> {
     let mut cursor = root;
     for &idx in path {
         cursor = cursor.children.get_mut(idx)?;
