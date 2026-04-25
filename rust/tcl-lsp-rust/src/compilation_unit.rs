@@ -17,7 +17,6 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_registry::CommandRegistry;
 
 /// Opaque handle wrapping an `Arc<CompilationUnit>`.
 ///
@@ -73,9 +72,9 @@ impl CompilationUnitHandle {
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn build_compilation_unit(source: &str, dialect: Option<&str>) -> CompilationUnitHandle {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false)
-        .with_interprocedural(&registry, dialect);
+    let registry = crate::registry::default_registry();
+    let cu =
+        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
     CompilationUnitHandle {
         inner: Arc::new(cu),
     }

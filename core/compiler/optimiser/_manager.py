@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 
 from ...common.naming import normalise_var_name as _NORMALISE
@@ -12,6 +11,7 @@ from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
 from ..interprocedural import InterproceduralAnalysis
 from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
+from ..rust_spans import rust_shim_enabled
 
 # Optional Rust delegation (C32). When the `tcl_lsp_rust` wheel is
 # importable AND `TCL_LSP_RUST_OPTIMISER=1` is set in the
@@ -19,8 +19,8 @@ from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
 # manager. Default is off: the Python pipeline still runs so
 # existing tests observe the exact diagnostic shapes they expect.
 try:
-    from tcl_lsp_rust import (
-        optimiser_find_optimisations as _rust_find_optimisations,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        optimiser_find_optimisations as _rust_find_optimisations,
     )
 except ImportError:
     _rust_find_optimisations = None
@@ -428,7 +428,7 @@ def find_optimisations(
     overlap arbitration may differ from the Python pipeline).
     The Python pipeline is the default.
     """
-    if _rust_find_optimisations is not None and os.environ.get("TCL_LSP_RUST_OPTIMISER"):
+    if _rust_find_optimisations is not None and rust_shim_enabled("TCL_LSP_RUST_OPTIMISER"):
         try:
             from ...common.dialect import active_dialect
 

@@ -11,13 +11,14 @@ Conservative summaries are built per lowered proc to describe:
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 
+from .rust_spans import rust_shim_enabled
+
 try:
-    from tcl_lsp_rust import (
-        interprocedural_summaries as _rust_interprocedural_summaries,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        interprocedural_summaries as _rust_interprocedural_summaries,
     )
 except ImportError:
     _rust_interprocedural_summaries = None
@@ -918,7 +919,7 @@ def analyse_interprocedural_source(source: str) -> InterproceduralAnalysis:
     the ``tcl_lsp_rust`` wheel is importable, delegates to the Rust
     implementation; otherwise uses the Python pipeline.
     """
-    if _rust_interprocedural_summaries is not None and os.environ.get("TCL_LSP_RUST_INTERPROC"):
+    if _rust_interprocedural_summaries is not None and rust_shim_enabled("TCL_LSP_RUST_INTERPROC"):
         try:
             from ..common.dialect import active_dialect
 

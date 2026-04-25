@@ -265,7 +265,6 @@ fn token_intent_text<'src>(source: &'src str, tok: &tcl_lexer::Token) -> &'src s
     // Token spans already cover the full token text (including any
     // leading `$` / `[` and trailing `]` for wrapper tokens).
     // Returning the raw slice preserves the Python-side behaviour.
-    let _ = tok.kind;
     &source[start..end]
 }
 

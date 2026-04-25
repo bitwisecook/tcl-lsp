@@ -15,8 +15,8 @@ from __future__ import annotations
 from typing import Callable
 
 try:
-    from tcl_lsp_rust import (
-        backslash_subst as _backslash_subst_rust,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        backslash_subst as _backslash_subst_rust,
     )
 except ImportError:
     _backslash_subst_rust = None

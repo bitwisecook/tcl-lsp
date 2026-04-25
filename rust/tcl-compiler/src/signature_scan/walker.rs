@@ -1,0 +1,526 @@
+//! Top-level walker for the `signature_scan` module.
+//!
+//! Walks segmented commands and dispatches them to per-command
+//! handlers in [`super::handlers`]. Body recursion into braced
+//! scripts (proc bodies, namespace-eval bodies, structured-command
+//! branches) lives here too — it must not depend on the IR
+//! lowering pass, which is the whole reason the `signature_scan`
+//! module exists.
+//!
+//! Public-to-the-module entry points:
+//!
+//! - [`scan`] — the main walker; called by
+//!   [`super::extract_signatures`] for the top-level source and
+//!   recursively by [`maybe_recurse_body`] for braced bodies.
+//! - [`maybe_recurse_body`] — gates body recursion on `Str`
+//!   (braced) tokens; called from `handle_namespace` (eval arm),
+//!   `handle_if` / `handle_catch` / `handle_try` here.
+//! - [`scan_factory_candidates`] — secondary walker called from
+//!   `handle_proc`; only collects four-token factory candidates and
+//!   recurses into structural-control bodies via
+//!   `scan_factory_structural`.
+
+use tcl_lexer::{Token, TokenType};
+
+use super::ctx::ScanCtx;
+use super::handlers;
+use super::types::SignatureCommandInvocation;
+use crate::segmenter::{segment_commands, segment_commands_with_offset};
+
+/// Walk *source* as a Tcl script, emitting records for every command
+/// the dispatcher recognises.
+///
+/// When `body_token` is `Some`, the spans on every record are
+/// relocated into the outer source buffer's offset space (the body
+/// token's content position is used as the base offset).
+pub(super) fn scan(
+    source: &str,
+    body_token: Option<Token>,
+    ns_prefix: &str,
+    conditional: bool,
+    ctx: &mut ScanCtx,
+) {
+    let commands = match body_token {
+        None => segment_commands(source),
+        Some(tok) => {
+            let base = tok.span.start() + u32::from(tok.content_offset);
+            segment_commands_with_offset(source, base)
+        }
+    };
+    for cmd in commands {
+        if cmd.is_partial || cmd.argv.is_empty() {
+            continue;
+        }
+        let head = cmd.name();
+        if head.is_empty() {
+            continue;
+        }
+        ctx.result
+            .command_invocations
+            .push(SignatureCommandInvocation {
+                name: head.to_string(),
+                range: cmd.argv[0].span,
+            });
+        let texts = &cmd.texts;
+        let argv = &cmd.argv;
+        match head {
+            "proc" => handlers::handle_proc(texts, argv, ns_prefix, ctx),
+            "namespace" => handlers::handle_namespace(texts, argv, ns_prefix, conditional, ctx),
+            "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
+            "source" => handlers::handle_source(texts, argv, &mut ctx.result),
+            "interp" => handlers::handle_interp(texts, &mut ctx.result),
+            "oo::class" => handlers::handle_oo_class(texts, argv, ns_prefix, &mut ctx.result),
+            "itcl::class" | "::itcl::class" => {
+                handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
+            }
+            "if" => handle_if(texts, argv, ns_prefix, ctx),
+            "catch" => handle_catch(texts, argv, ns_prefix, ctx),
+            "try" => handle_try(texts, argv, ns_prefix, ctx),
+            "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
+            _ => {
+                handlers::maybe_handle_import_wrapper(
+                    head,
+                    texts,
+                    argv,
+                    ns_prefix,
+                    &mut ctx.result,
+                );
+                handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+            }
+        }
+    }
+}
+
+/// Recurse into a braced body script.
+///
+/// Mirrors `_maybe_recurse_body` in
+/// `core/analysis/signature_scan.py`. Only `Str` (braced) bodies
+/// can be statically analysed; substituted bodies (`$body`,
+/// `[gen_body]`) cannot be re-segmented and are skipped.
+pub(super) fn maybe_recurse_body(
+    body_text: &str,
+    body_tok: Token,
+    ns_prefix: &str,
+    conditional: bool,
+    ctx: &mut ScanCtx,
+) {
+    if body_tok.kind != TokenType::Str {
+        return;
+    }
+    scan(body_text, Some(body_tok), ns_prefix, conditional, ctx);
+}
+
+// -- Body-recursion handlers --------------------------------------
+// Each port of a `_handle_*` function from
+// `core/analysis/signature_scan.py` whose Python equivalent recurses
+// into braced bodies.
+
+fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    // Tcl's `if` takes the shape:
+    //   if EXPR ?then? BODY ?elseif EXPR ?then? BODY?... ?else? ?BODY?
+    // Alternate between expecting an expression and expecting a body,
+    // resetting the expectation whenever `then` / `elseif` / `else`
+    // appears. Every recursed body is marked `conditional=true`.
+    let mut i = 1;
+    let mut expect_body = false;
+    while i < texts.len() {
+        let word = texts[i].as_str();
+        if word == "then" {
+            expect_body = true;
+            i += 1;
+            continue;
+        }
+        if word == "elseif" {
+            expect_body = false;
+            i += 1;
+            continue;
+        }
+        if word == "else" {
+            expect_body = true;
+            i += 1;
+            continue;
+        }
+        if expect_body {
+            maybe_recurse_body(&texts[i], argv[i], ns_prefix, true, ctx);
+            expect_body = false;
+        } else {
+            expect_body = true;
+        }
+        i += 1;
+    }
+}
+
+fn handle_catch(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    // `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?` — only the first argument
+    // is a body. Marked `conditional=true` since the body is guarded
+    // (it could throw before reaching subsequent statements).
+    if texts.len() < 2 {
+        return;
+    }
+    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
+}
+
+fn handle_try(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    // `try BODY ?on CODE VARLIST BODY?... ?trap PATTERN VARLIST BODY?...
+    //  ?finally BODY?` — the main body sits at index 1; handler clauses
+    // (`on`/`trap`) take 4 words each with the body at +3; `finally`
+    // takes 2 words with the body at +1.
+    if texts.len() < 2 {
+        return;
+    }
+    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
+    let mut i = 2;
+    while i < texts.len() {
+        let clause = texts[i].as_str();
+        if clause == "finally" && i + 1 < texts.len() {
+            maybe_recurse_body(&texts[i + 1], argv[i + 1], ns_prefix, true, ctx);
+            return;
+        }
+        if (clause == "on" || clause == "trap") && i + 3 < texts.len() {
+            maybe_recurse_body(&texts[i + 3], argv[i + 3], ns_prefix, true, ctx);
+            i += 4;
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// Scan a proc body specifically for factory-wrapper candidate
+/// calls.
+///
+/// Mirrors `_scan_factory_candidates` in
+/// `core/analysis/signature_scan.py`. Unlike [`scan`], this walker
+/// only collects four-token `HEAD NAME ARGS BODY` shaped calls and
+/// recurses into structural-control bodies (`if` / `catch` / `try`
+/// / `namespace eval`) that commonly wrap factory calls. It
+/// deliberately does **not** emit nested proc / namespace-import
+/// records — those would be incorrect because nested `proc`
+/// statements inside a proc body only take effect when that proc
+/// is invoked.
+pub(super) fn scan_factory_candidates(
+    body_text: &str,
+    body_tok: Token,
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    let base = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let commands = segment_commands_with_offset(body_text, base);
+    for cmd in commands {
+        if cmd.is_partial || cmd.argv.is_empty() {
+            continue;
+        }
+        let head = cmd.name();
+        if head.is_empty() {
+            continue;
+        }
+        let texts = &cmd.texts;
+        let argv = &cmd.argv;
+        match head {
+            "if" | "catch" | "try" | "namespace" => {
+                scan_factory_structural(head, texts, argv, ns_prefix, ctx);
+            }
+            _ => {
+                handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+            }
+        }
+    }
+}
+
+/// Recurse into a structural command's braced bodies for factory
+/// candidates only.
+///
+/// Mirrors `_scan_factory_structural`. Same set of structural
+/// commands and same body offsets as the main `handle_if` /
+/// `handle_catch` / `handle_try` / `handle_namespace` (eval arm)
+/// walkers, but the recursive call is `scan_factory_candidates`
+/// (not `scan`) so only factory-shaped calls are collected.
+fn scan_factory_structural(
+    head: &str,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    if head == "namespace" && texts.len() >= 4 && texts[1] == "eval" {
+        let raw_ns = &texts[2];
+        let inner = if let Some(rest) = raw_ns.strip_prefix("::") {
+            rest.trim_start_matches(':').to_string()
+        } else if !ns_prefix.is_empty() {
+            format!("{ns_prefix}::{raw_ns}")
+        } else {
+            raw_ns.clone()
+        };
+        if argv[3].kind == TokenType::Str {
+            scan_factory_candidates(&texts[3], argv[3], &inner, ctx);
+        }
+        return;
+    }
+    if head == "if" {
+        let mut i = 1;
+        let mut expect_body = false;
+        while i < texts.len() {
+            let w = texts[i].as_str();
+            if w == "then" {
+                expect_body = true;
+                i += 1;
+                continue;
+            }
+            if w == "elseif" {
+                expect_body = false;
+                i += 1;
+                continue;
+            }
+            if w == "else" {
+                expect_body = true;
+                i += 1;
+                continue;
+            }
+            if expect_body && argv[i].kind == TokenType::Str {
+                scan_factory_candidates(&texts[i], argv[i], ns_prefix, ctx);
+                expect_body = false;
+            } else {
+                expect_body = true;
+            }
+            i += 1;
+        }
+        return;
+    }
+    if head == "catch" && texts.len() >= 2 && argv[1].kind == TokenType::Str {
+        scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
+        return;
+    }
+    if head == "try" && texts.len() >= 2 {
+        if argv[1].kind == TokenType::Str {
+            scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
+        }
+        let mut i = 2;
+        while i < texts.len() {
+            let clause = texts[i].as_str();
+            if clause == "finally" && i + 1 < texts.len() && argv[i + 1].kind == TokenType::Str {
+                scan_factory_candidates(&texts[i + 1], argv[i + 1], ns_prefix, ctx);
+                return;
+            }
+            if (clause == "on" || clause == "trap")
+                && i + 3 < texts.len()
+                && argv[i + 3].kind == TokenType::Str
+            {
+                scan_factory_candidates(&texts[i + 3], argv[i + 3], ns_prefix, ctx);
+                i += 4;
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn top_level_proc_emits_invocation_and_record() {
+        let mut ctx = ScanCtx::default();
+        scan("proc foo {} { set x 1 }", None, "", false, &mut ctx);
+        assert!(ctx.result.procs.contains_key("::foo"));
+        // command_invocations should contain at least the top-level "proc"
+        // invocation; the body's "set" stays uninvoked since handle_proc
+        // does not yet recurse (C40c7).
+        let names: Vec<&str> = ctx
+            .result
+            .command_invocations
+            .iter()
+            .map(|inv| inv.name.as_str())
+            .collect();
+        assert_eq!(names, ["proc"]);
+    }
+
+    #[test]
+    fn multiple_handlers_dispatch_correctly() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "package require Tcl 8.6\nsource /abs/path.tcl\nproc bar {} {}",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert_eq!(ctx.result.package_requires.len(), 1);
+        assert_eq!(ctx.result.package_requires[0].name, "Tcl");
+        assert_eq!(ctx.result.source_targets.len(), 1);
+        assert_eq!(ctx.result.source_targets[0].raw_path, "/abs/path.tcl");
+        assert!(ctx.result.procs.contains_key("::bar"));
+        assert_eq!(ctx.result.command_invocations.len(), 3);
+    }
+
+    #[test]
+    fn namespace_eval_recurses_into_body() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "namespace eval ns { proc inner {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::ns::inner"));
+    }
+
+    #[test]
+    fn namespace_eval_absolute_rebases_prefix() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "namespace eval outer { namespace eval ::abs { proc foo {} {} } }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        // The inner ::abs eval should rebase, not nest under outer.
+        assert!(ctx.result.procs.contains_key("::abs::foo"));
+    }
+
+    #[test]
+    fn handle_if_then_else_recurses_both_branches() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "if {$x} { proc thenproc {} {} } else { proc elseproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::thenproc"));
+        assert!(ctx.result.procs.contains_key("::elseproc"));
+    }
+
+    #[test]
+    fn handle_if_elseif_chain_recurses_each_body() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "if {$x} { proc a {} {} } elseif {$y} { proc b {} {} } elseif {$z} { proc c {} {} } else { proc d {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        for name in ["::a", "::b", "::c", "::d"] {
+            assert!(ctx.result.procs.contains_key(name), "missing {name}");
+        }
+    }
+
+    #[test]
+    fn handle_if_explicit_then_keyword() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "if {$x} then { proc thenproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::thenproc"));
+    }
+
+    #[test]
+    fn handle_catch_braced_body() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "catch { proc inner {} {} } result",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::inner"));
+    }
+
+    #[test]
+    fn handle_catch_unbraced_body_skipped() {
+        let mut ctx = ScanCtx::default();
+        scan("catch $script", None, "", false, &mut ctx);
+        // No procs since the body cannot be statically analysed.
+        assert!(ctx.result.procs.is_empty());
+    }
+
+    #[test]
+    fn handle_try_with_finally() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "try { proc tryproc {} {} } finally { proc finallyproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::tryproc"));
+        assert!(ctx.result.procs.contains_key("::finallyproc"));
+    }
+
+    #[test]
+    fn handle_try_with_on_handler() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "try { proc tryproc {} {} } on error {res opts} { proc onproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::tryproc"));
+        assert!(ctx.result.procs.contains_key("::onproc"));
+    }
+
+    #[test]
+    fn handle_try_with_trap_handler() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "try { proc tryproc {} {} } trap {ARITH DIVZERO} {res opts} { proc trapproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::tryproc"));
+        assert!(ctx.result.procs.contains_key("::trapproc"));
+    }
+
+    fn extract_proc_body(src: &str) -> (String, Token) {
+        // Pluck the proc body from the segmenter so we get a real
+        // `Str` token with correct content_offset/span.
+        let cmds = crate::segmenter::segment_commands(src);
+        let proc_cmd = cmds.first().expect("one command");
+        let body_tok = proc_cmd.argv[3];
+        let span = body_tok.span;
+        let inner = &src[span.start() as usize + 1..span.end() as usize - 1];
+        (inner.to_string(), body_tok)
+    }
+
+    #[test]
+    fn factory_walker_records_bare_candidate() {
+        // DEFC's body argument must be a `Str` (braced) for the
+        // candidate to register.
+        let src = "proc factwrapper {a b c} { DEFC bar args {body} }";
+        let (body, body_tok) = extract_proc_body(src);
+        let mut ctx = ScanCtx::default();
+        scan_factory_candidates(&body, body_tok, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 1);
+    }
+
+    #[test]
+    fn factory_walker_recurses_into_if() {
+        let src = "proc init {} { if {1} { DEFC bar args {body} } }";
+        let (body, body_tok) = extract_proc_body(src);
+        let mut ctx = ScanCtx::default();
+        scan_factory_candidates(&body, body_tok, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 1);
+    }
+
+    #[test]
+    fn factory_walker_recurses_into_try_finally() {
+        let src = "proc init {} { try { DEFC a {x} {b} } finally { DEFC c {y} {d} } }";
+        let (body, body_tok) = extract_proc_body(src);
+        let mut ctx = ScanCtx::default();
+        scan_factory_candidates(&body, body_tok, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 2);
+    }
+}

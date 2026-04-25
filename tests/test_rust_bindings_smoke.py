@@ -138,3 +138,51 @@ def test_build_compilation_unit_returns_handle() -> None:
     assert cu.has_interprocedural is True
     # Repr smoke test.
     assert "CompilationUnit" in repr(cu)
+
+
+def test_signature_scan_extract_returns_dict() -> None:
+    """C40e1 smoke test: ``signature_scan_extract`` returns a dict;
+    the empty source case yields an empty dict (collections wired in
+    later C40e sub-strips)."""
+    result = tcl_lsp_rust.signature_scan_extract("")
+    assert isinstance(result, dict)
+
+
+def test_signature_scan_extract_proc_record() -> None:
+    """C40e2 smoke test: ``signature_scan_extract`` populates the
+    ``procs`` collection with name + qualified_name + params +
+    range tuples."""
+    result = tcl_lsp_rust.signature_scan_extract("proc foo {a b} { return $a }")
+    assert "::foo" in result["procs"]
+    proc = result["procs"]["::foo"]
+    assert proc["name"] == "foo"
+    assert proc["qualified_name"] == "::foo"
+    assert len(proc["params"]) == 2
+    assert proc["params"][0]["name"] == "a"
+    assert proc["params"][0]["has_default"] is False
+    assert isinstance(proc["name_range"], tuple)
+    assert len(proc["name_range"]) == 2
+    # And there should be one command_invocations entry for `proc`.
+    assert any(inv["name"] == "proc" for inv in result["command_invocations"])
+
+
+def test_signature_scan_extract_full_collections() -> None:
+    """C40e3 smoke test: a multi-handler source populates every
+    collection key in the returned dict."""
+    src = """
+proc foo {} {}
+oo::class create MyCls {}
+package require Tcl 8.6
+source /a/b.tcl
+interp alias {} myalias {} puts hello
+namespace import ::tcl::mathfunc::*
+lappend auto_path /opt/tclpkgs
+"""
+    result = tcl_lsp_rust.signature_scan_extract(src)
+    assert "::foo" in result["procs"]
+    assert "::MyCls" in result["classes"]
+    assert any(p["name"] == "Tcl" for p in result["package_requires"])
+    assert any(s["raw_path"] == "/a/b.tcl" for s in result["source_targets"])
+    assert "::myalias" in result["command_aliases"]
+    assert any(i["pattern"] == "::tcl::mathfunc::*" for i in result["namespace_imports"])
+    assert any(e["raw"] == "/opt/tclpkgs" for e in result["auto_path_entries"])

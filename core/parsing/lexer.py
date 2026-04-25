@@ -8,8 +8,8 @@ import threading
 from .tokens import SourcePosition, Token, TokenType
 
 try:
-    from tcl_lsp_rust import (
-        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,
     )
 except ImportError:
     _rust_lexer_tokenise_cfg = None

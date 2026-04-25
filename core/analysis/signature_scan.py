@@ -24,6 +24,7 @@ and retains orders of magnitude less memory per file than ``analyse()``.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from core.analysis import parse_param_list
@@ -34,12 +35,112 @@ from core.analysis.semantic_model import (
     CommandInvocation,
     NamespaceImport,
     PackageRequire,
+    ParamDef,
     ProcDef,
     SourceTarget,
 )
 from core.common.ranges import range_from_token
+from core.compiler.rust_spans import build_position_resolver, rust_shim_enabled
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token, TokenType
+
+log = logging.getLogger(__name__)
+
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        signature_scan_extract as _rust_extract,
+    )
+except ImportError:  # pragma: no cover - rust binding is optional
+    _rust_extract = None
+
+
+def _materialise_rust_signatures(source: str, raw: dict) -> AnalysisResult:
+    """Convert the dict returned by ``tcl_lsp_rust.signature_scan_extract``
+    into an :class:`AnalysisResult`.
+
+    Spans on the Rust side are ``(start, end)`` ``u32`` tuples; we
+    resolve them to LSP :class:`Range` values via
+    :func:`core.compiler.rust_spans.build_position_resolver`.
+    """
+    _, range_at = build_position_resolver(source)
+    result = AnalysisResult()
+
+    def _params(params_raw: list[dict]) -> list[ParamDef]:
+        return [
+            ParamDef(
+                name=p["name"],
+                has_default=p["has_default"],
+                default_value=p["default_value"] or "",
+            )
+            for p in params_raw
+        ]
+
+    for qname, p in raw.get("procs", {}).items():
+        name_range = range_at(*p["name_range"])
+        body_range = range_at(*p["body_range"])
+        result.all_procs[qname] = ProcDef(
+            name=p["name"],
+            qualified_name=p["qualified_name"],
+            params=_params(p["params"]),
+            name_range=name_range,
+            body_range=body_range,
+        )
+
+    for qname, c in raw.get("classes", {}).items():
+        result.all_classes[qname] = ClassDef(
+            name=c["name"],
+            qualified_name=c["qualified_name"],
+            name_range=range_at(*c["name_range"]),
+            body_range=range_at(*c["body_range"]),
+        )
+
+    for inv in raw.get("command_invocations", []):
+        result.command_invocations.append(
+            CommandInvocation(name=inv["name"], range=range_at(*inv["range"]))
+        )
+
+    for pr in raw.get("package_requires", []):
+        result.package_requires.append(
+            PackageRequire(
+                name=pr["name"],
+                version=pr["version"],
+                range=range_at(*pr["range"]),
+                conditional=pr["conditional"],
+            )
+        )
+
+    for s in raw.get("source_targets", []):
+        result.source_targets.append(
+            SourceTarget(
+                raw_path=s["raw_path"],
+                range=range_at(*s["range"]),
+                is_literal=s["is_literal"],
+            )
+        )
+
+    for qname, a in raw.get("command_aliases", {}).items():
+        result.command_aliases[qname] = (a["target"], tuple(a["extras"]))
+
+    for imp in raw.get("namespace_imports", []):
+        result.namespace_imports.append(
+            NamespaceImport(
+                ns=imp["ns"],
+                pattern=imp["pattern"],
+                range=range_at(*imp["range"]),
+                conjectured=imp["conjectured"],
+            )
+        )
+
+    for entry in raw.get("auto_path_entries", []):
+        result.auto_path_entries.append(
+            AutoPathEntry(
+                resolved_path=None,
+                raw=entry["raw"],
+                range=range_at(*entry["range"]),
+            )
+        )
+
+    return result
 
 
 @dataclass
@@ -77,7 +178,27 @@ class _ScanCtx:
 
 
 def extract_signatures(source: str) -> AnalysisResult:
-    """Return a minimal AnalysisResult for a background-indexed file."""
+    """Return a minimal AnalysisResult for a background-indexed file.
+
+    Dispatches to the Rust port when ``TCL_LSP_RUST_SIGNATURE_SCAN``
+    is set in the environment **and** the ``tcl_lsp_rust`` binding
+    is importable; otherwise falls back to the Python implementation
+    below. Any exception raised by the Rust path is logged at DEBUG
+    and the Python path runs as a safety net — same fallback shape
+    as `core.compiler.optimiser._manager`.
+    """
+    if _rust_extract is not None and rust_shim_enabled("TCL_LSP_RUST_SIGNATURE_SCAN"):
+        try:
+            return _materialise_rust_signatures(source, _rust_extract(source))
+        except Exception:  # pragma: no cover - safety net
+            log.debug("rust signature_scan failed, falling back to python", exc_info=True)
+    return _extract_signatures_python(source)
+
+
+def _extract_signatures_python(source: str) -> AnalysisResult:
+    """The original Python implementation. Kept as the default
+    behaviour and as a fallback when the Rust path is disabled or
+    fails."""
     ctx = _ScanCtx(result=AnalysisResult())
     _scan(source, body_token=None, ns_prefix="", conditional=False, ctx=ctx)
     _resolve_factory_defs(ctx)

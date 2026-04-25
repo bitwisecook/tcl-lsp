@@ -254,8 +254,15 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 	@echo "==> Checking Python formatting with Ruff"
 	cd $(ROOT) && $(UV) run --extra dev ruff format --check .
 
-typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
-	@echo "==> Type-checking Python code with ty"
+typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty (mirrors CI by hiding tcl_lsp_rust)
+	@echo "==> Type-checking Python code with ty (uninstalling tcl_lsp_rust first to mirror CI)"
+	@# CI's lint job runs ty without `make rust-build`, so the rust
+	@# wheel is absent and any `# ty: ignore[unresolved-import]`
+	@# directives on the wrong line surface as errors. Mirror that
+	@# environment locally by removing the wheel + stamp before ty
+	@# runs; the stamp gets rebuilt by the next `rust-build`.
+	@cd $(ROOT) && $(UV) pip uninstall --quiet tcl_lsp_rust >/dev/null 2>&1 || true
+	@rm -f $(RUST_STAMP)
 	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
@@ -369,13 +376,20 @@ snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity
 	@echo "==> Snapshotting WASM command parity baseline"
 	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --snapshot
 
-# Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
-_prep-pr-tests: test-py test-opt
+# Phase targets for parallel prep-pr execution.
+#
+# typecheck-py uninstalls the rust wheel + clears the rust-build
+# stamp to mirror CI's lint job (which runs ty without ever
+# building the wheel). It must therefore be sequenced *before* the
+# parallel phase that runs tests — otherwise test-py-rust would
+# race with the wheel uninstall. rust-build is invoked between the
+# two phases to reinstall the wheel for the differential tests.
+_prep-pr-checks-noty: lint-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
+_prep-pr-tests: test-py-rust test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
-prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
-	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
+prep-pr: format codegen typecheck-py rust-build ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
+	@$(MAKE) -j $(NPROC) _prep-pr-checks-noty _prep-pr-tests
 
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
 	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke

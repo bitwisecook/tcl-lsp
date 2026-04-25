@@ -50,6 +50,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
   when (and when not) to restart the Tcl Language Server.
+- [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — what
+  the `TCL_LSP_RUST_*` env vars do and when contributors should
+  set them.
 
 ## How-Tos
 

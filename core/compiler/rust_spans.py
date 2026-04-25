@@ -13,9 +13,33 @@ math and the exclusive/inclusive boundary).
 from __future__ import annotations
 
 import bisect
+import os
 
 from ..analysis.semantic_model import Range
 from ..parsing.tokens import SourcePosition
+
+# Truthy values that opt a `TCL_LSP_RUST_*` shim into the Rust path.
+# `os.environ.get(name)` alone treats any non-empty string as truthy
+# (including `"0"` / `"false"`), which contradicts the docstring
+# convention of `=1` and silently opts users into the experimental
+# path when they thought they were turning it off.
+_TRUTHY_VALUES = frozenset({"1", "true", "yes", "on", "y", "t"})
+
+
+def rust_shim_enabled(env_var: str) -> bool:
+    """Return ``True`` when the named ``TCL_LSP_RUST_*`` env var is
+    set to a truthy value.
+
+    Treats `"1"`, `"true"`, `"yes"`, `"on"`, `"y"`, `"t"`
+    (case-insensitive, after stripping whitespace) as truthy. Any
+    other value — including an unset variable, the empty string,
+    `"0"`, `"false"`, `"no"`, `"off"` — counts as off.
+
+    Centralising the check here prevents silent divergence between
+    the four `TCL_LSP_RUST_*` dispatch shims (`OPTIMISER`,
+    `INTERPROC`, `GVN`, `SIGNATURE_SCAN`).
+    """
+    return os.environ.get(env_var, "").strip().lower() in _TRUTHY_VALUES
 
 
 def build_position_resolver(source: str):

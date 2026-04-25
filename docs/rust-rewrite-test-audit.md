@@ -525,3 +525,81 @@ a per-kind trailing-strip for the empty-degenerate clamp cases.
 - **bridge-only**: 17 pytest tests (new `test_quotes_are_no_longer_deferred` regression guard)
 - **remove-at-end**: 2 pytest tests
 - **deferred**: ~30 pytest tests — backslash-heavy (L9) and iRules dialect (L8) remain
+
+
+## Audit gap notice
+
+This audit has been dormant since L7 (the lexer's last sub-strip).
+Chunks C0–C39 + R2 + L8–L13 + Sync landed without per-chunk audit
+rows. A back-fill pass is outstanding; this doc should not be
+treated as a complete record of the test-port status until the
+back-fill lands.
+
+The C40 row below is added in the C40-fu5 follow-up to break the
+silence; subsequent chunks are expected to land their audit rows in
+the same commit that ships them.
+
+## C40 — `core/analysis/signature_scan.py`
+
+Commit range: C40a1 (`20d4357`) → C40e8 (`eaf9c09`); roadmap visibility
+fix `e0ead7a`. The work landed across 38 commits on the
+`claude/rust-signature-scan-c40-sdNaw` branch.
+
+### Pytest tests — `tests/test_signature_scan.py` (Python-side)
+
+The pre-existing Python test file is unchanged by C40 — every test
+runs against `_extract_signatures_python` in default-off mode and
+acts as the parity oracle the differential harness compares against.
+
+| Tests | Category | Rationale |
+|---|---|---|
+| Every `tests/test_signature_scan.py` test | Ported (oracle) | The Python implementation stays as the default behaviour and as the differential harness's "Python side" until the C40-default-on follow-up flips the gate; once the env var is gone the Python file + its tests can both retire. |
+
+### Pytest tests — `tests/test_rust_signature_scan_differential.py` (new)
+
+26 inline-corpus fixtures + 1 sanity test, all of category **Ported**
+(differential parity asserts the Rust binding produces the same
+`AnalysisResult` as the Python implementation on every fixture).
+
+The corpus is gated on `pytest.importorskip("tcl_lsp_rust", …)` so
+it stays green where the binding isn't built. One fixture is
+intentionally omitted — `source $script_dir/init.tcl` exposes a
+known segmenter-side parity gap (Seg1 in the chunk log) that lives
+in `rust/tcl-compiler/src/segmenter.rs`, not in `signature_scan`.
+
+### Pytest tests — `tests/test_rust_bindings_smoke.py` additions
+
+3 new smoke tests (C40e1 + C40e2 + C40e3), all **Ported** —
+they pin the PyO3 binding's dict shape so a Rust-side struct change
+that breaks the binding contract is caught immediately.
+
+### Rust unit tests
+
+| Module | Count | Notes |
+|---|---:|---|
+| `signature_scan/params.rs` | 7 | Plus 1 doc-test for `parse_param_list`. |
+| `signature_scan/types.rs` | 0 | Pure data types; covered transitively by handler / walker tests. |
+| `signature_scan/ctx.rs` | 3 | Skip-heads count + canonical-builtin presence + default empty. |
+| `signature_scan/handlers.rs` | 33 | Per-handler unit tests (3–5 per handler) + `qualify` / `emit_class` helpers. |
+| `signature_scan/walker.rs` | 15 | Top-level dispatch + body recursion (if / catch / try / namespace eval) + factory walker. |
+| `signature_scan/factory.rs` | 13 | `is_factory_body` + `lookup_factory` + `resolve_factory_defs`. |
+| `signature_scan/mod.rs` | 6 | End-to-end tests of `extract_signatures(source, registry)`. |
+
+All Rust unit tests exercise pure behaviour of the Rust functions —
+none are bridge-specific, none are marked for removal.
+
+### Test-audit gaps tracked for C40
+
+- **Dispatcher coverage** (landed C40-fu4): four
+  `extract_signatures(source)` tests in
+  `tests/test_rust_signature_scan_differential.py` cover env var
+  unset / set to truthy `1` / set to `"0"` (must NOT enable, per
+  the `rust_shim_enabled` truthy-value contract) / Rust path
+  raising → Python fallback. No longer an open C40 gap.
+- **`command_aliases` corpus is thin**: only one fixture
+  (single-`hello` extra). Multi-extras case (`interp alias {} a {}
+  b c d e`) should land in a follow-up.
+- **Factory-wrapper cross-namespace negative is unit-only**: the
+  Rust `factory.rs::lookup_cross_namespace_never_falls_through`
+  test pins the rule, but the differential corpus has no
+  end-to-end fixture exercising it.

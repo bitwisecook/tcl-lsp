@@ -96,6 +96,7 @@ pub mod sccp;
 pub mod segmenter;
 pub mod shimmer;
 pub mod side_effects;
+pub mod signature_scan;
 pub mod specialise_factories;
 pub mod ssa;
 pub mod static_loops;

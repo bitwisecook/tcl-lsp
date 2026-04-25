@@ -41,6 +41,12 @@ We get there by porting the codebase bottom-up, in dependency order:
 4. **Remainder.** `vm/`, `core/commands/`, `core/analysis/`,
    `core/formatting/`, `core/minifier/`, `core/irule_test/`, the
    debugger, fuzzing harnesses, the compiler explorer, and CLI tooling.
+   First analysis chunk landed: **C40** ports
+   `core/analysis/signature_scan.py` (~862 LOC, used by every
+   non-OPEN document for cross-file workspace symbols, `package
+   require` resolution, and command-usage counts) to
+   `rust/tcl-compiler/src/signature_scan/` behind a default-off
+   `TCL_LSP_RUST_SIGNATURE_SCAN=1` env-var gate.
 5. **Python-facing surface** is reduced to the bits that genuinely want
    to stay in Python (AI skills, MCP, scripts).
 
@@ -705,7 +711,11 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C32   | **Python shim retirement — optimiser entry points.** Landed: PyO3 bindings in `rust/tcl-lsp-rust/src/optimiser.rs` exposing `optimiser_find_optimisations(source, dialect)` / `optimiser_find_optimisations_raw(source, dialect)` / `optimiser_opt_priority(code)` — thin wrappers over `tcl_compiler::optimiser::{optimise_with_dialect, optimise_raw, opt_priority}`. The Python `core.compiler.optimiser._manager::find_optimisations` accepts delegation via `TCL_LSP_RUST_OPTIMISER=1` (opt-in — default keeps the Python pipeline so exact-message and overlap-arbitration tests do not regress during the parity-testing phase). `_materialise_rust_optimisations` helper converts the Rust `(code, message, start, end, replacement, group, hint_only)` tuples back to Python `Optimisation` dataclasses with `Range` / `SourcePosition` values built from a local line-start index. 2 new PyO3 smoke tests. Remaining Python-shim work (the `compiler_checks` / `find_*` analyser entry points, flipping the default once parity is verified) is tracked as a follow-up. **C32-shim (Phase 1)** — PyO3 binding `compiler_checks_run_all(source, dialect)` in `rust/tcl-lsp-rust/src/compiler_checks.rs` exposes `tcl_compiler::compiler_checks::run_all_checks`, returning diagnostic tuples `(code, category, severity, message, start_offset, end_offset)`. Infrastructure only: not wired into a Python consumer yet because (a) shimmer / taint Rust implementations are still stubs (C27d / C29 deferred), (b) the Python compiler-diagnostics pipeline is distributed across several modules (`semantic_graph.py`, `core_analyses.py`, per-check entry points) with no single aggregator to swap 1:1, and (c) the optimiser parity gap (~131 test_optimiser.py failures under `TCL_LSP_RUST_OPTIMISER=1`) indicates broader Rust-side analysis parity work is still pending. 2 new PyO3 smoke tests. Follow-ups: land shimmer / taint Rust bodies, add analyser-level entry points, then flip consumers behind per-class opt-in env vars. | landed |
 | C*    | **Compiler migration — deferred analysis bodies.** Remaining work on landed chunks: full shimmer use-site / phi-shimmer / thunking detection (C27d), interprocedural summary-building pipeline (C28), taint propagation + path-concat + URI-split + sink-specific checks (C29), ten optimiser passes (C30a-j), and `connection_scope` + iRules event-flow (C28 follow-up). Each is a focused strip that plugs into the already-landed type surface. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
-| R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
+| R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), the rest of `core/analysis/` (`_analyser/` package + `auto_path_eval` / `class_hierarchy` / `irules_checks` / `mro` / `namespace_imports` / `proc_arg_traits` / `proc_lookup` / `semantic_graph` / `semantic_model` / `source_resolver` / `stub_comments` / `var_scoping` — `signature_scan.py` already landed under C40), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
+| C40-followups | **Follow-ups for the C40 `signature_scan` port.** Six items from the post-merge code review: (1) drop stale `#![allow(dead_code)]` from the four `signature_scan/` submodules now every type is wired; (2) sweep "filled in by Cnnnn" doc comments across `mod.rs` / `types.rs` / `ctx.rs` / `handlers.rs` / `walker.rs` / `factory.rs`; (3) cache `CommandRegistry::build_default()` in a `OnceLock` (also fixes the same waste in `interprocedural.rs`, `optimiser.rs`, `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`); (4) three dispatcher tests (`extract_signatures` with binding absent / env-var on / Rust path raising); (5) add a row to `docs/rust-rewrite-test-audit.md`; (6) KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`. | planned |
+| C40-default-on | **Flip the C40 default.** Once the differential corpus has baked, change the `extract_signatures` default to dispatch to Rust by default; gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. After a release cycle, delete `_extract_signatures_python` and the env var entirely. | planned |
+| Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` keeps it at the first sub-token's end. Surfaces as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. The C40e7 differential corpus omits one fixture pending this fix. One-line change in the segmenter's `else if let Some(last_text) = …` branch (lines 227–238) plus a regression fixture in the differential harness. | planned |
+| C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,000 LOC across ~12 sub-modules (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 sub-files, `_class.py`, `_mixin.py`, `_var_scoping.py`, `_utils.py`, …). The natural next chunk after C40; signature_scan was the lead-in. Same default-off PyO3 env-var gate pattern (`TCL_LSP_RUST_ANALYSER=1`). | planned |
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
@@ -715,6 +725,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
+| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-off env-var gate) |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
@@ -725,6 +736,193 @@ The chunks below are scoped follow-ups to the `Sync` rebase. Each
 table row above maps to one of the sections here. The order
 matches the planned execution order: smaller / lower-risk chunks
 first to bank confidence, larger restructuring chunks last.
+
+### C40 — `signature_scan.py` Rust port
+
+Port `core/analysis/signature_scan.py` (~862 LOC, single
+self-contained module) to `rust/tcl-compiler/src/signature_scan/`.
+Mirrors the Python implementation 1:1 at the segmenter level —
+**not** the IR level — so the Rust port stays as fast as Python's
+"avoid the lowering pass for background-indexed files" design
+intent.
+
+The port is organised across five sub-strip families with one
+commit per strip; each commit is `≤100` LOC of source + tests and
+green under `cargo fmt --all && cargo clippy --workspace
+--all-targets -- -D warnings && cargo test -p tcl-compiler --lib
+&& make rust-build && make prep-pr`.
+
+Sub-strip families:
+
+- **C40a (7 strips)** — types: scaffold module, `ParamDef` +
+  `parse_param_list`, eight record types, `SignatureScanResult`
+  aggregator, internal `ScanCtx` + `FactoryCandidate` +
+  `ProcBodyInfo` + `FACTORY_SKIP_HEADS`.
+- **C40b (11 strips)** — per-command handlers: `qualify`,
+  `emit_class`, `handle_proc`, `handle_namespace` +
+  `handle_namespace_import`, `handle_package`, `handle_source`,
+  `handle_interp`, `handle_oo_class` + `handle_itcl_class`,
+  `handle_auto_path`, `maybe_handle_import_wrapper`,
+  `maybe_record_factory_candidate`.
+- **C40c (7 strips)** — walker: top-level `scan` +
+  `maybe_recurse_body` scaffold, namespace-eval body recursion,
+  `handle_if` body recursion, `handle_catch` body recursion,
+  `handle_try` body recursion (on/trap/finally),
+  `scan_factory_candidates` + `scan_factory_structural`, wire
+  factory walker into `handle_proc`.
+- **C40d (4 strips)** — factory resolution + entry: `is_factory_body`,
+  `lookup_factory`, `resolve_factory_defs`, public
+  `extract_signatures(source, registry)` entry point.
+- **C40e (8 strips)** — PyO3 binding + Python shim + differential
+  harness: PyO3 scaffold + `register_with` + smoke tests; PyDict
+  emission of every collection in two strips; Python
+  `_materialise_rust_signatures` helper; Python env-var dispatch
+  shim (`TCL_LSP_RUST_SIGNATURE_SCAN=1`); differential harness
+  scaffold; differential corpus (~25 fixtures); chunk-log row →
+  landed.
+
+The Rust signature `extract_signatures(source: &str, _registry:
+&CommandRegistry) -> SignatureScanResult` plumbs a registry param
+through (currently unused) for consistency with every other
+tcl-compiler analysis entry point.
+
+**Landed outcome.** All 37 strips landed across the C40a–C40e
+families. Final commit count: 37 (+ 1 amend on C40a2 + 1 fold of
+the lookup_factory return-type fix into C40d3).
+
+The Rust scanner ports every per-command handler the Python
+implementation has — `proc`, `oo::class create`, `itcl::class`,
+`namespace eval` / `namespace import`, `package require`,
+`source`, `interp alias`, `lappend auto_path` / `set auto_path`,
+the tcllib `<NS>::import <ALIAS>` wrapper idiom, and the tcllib
+`DEFC name args body` / `proc $name $args $body` factory-wrapper
+synthesis pattern (with two-pass `is_factory_body` / `lookup_factory`
+/ `resolve_factory_defs` resolution). Body recursion covers
+`namespace eval`, `if` (then/elseif/else), `catch`, and `try`
+(on/trap/finally) — all branches marked `conditional=true`.
+
+The PyO3 binding emits a `dict` keyed on the eight collection
+names (`procs`, `classes`, `command_invocations`,
+`package_requires`, `source_targets`, `command_aliases`,
+`namespace_imports`, `auto_path_entries`) with spans encoded as
+`(start, end)` `u32` tuples. The Python materialiser
+(`_materialise_rust_signatures` in `core/analysis/signature_scan.py`)
+converts those tuples back into LSP `Range` values via
+`core/compiler/rust_spans.py::build_position_resolver`. The Python
+dispatch shim gates the Rust path on
+`TCL_LSP_RUST_SIGNATURE_SCAN=1`, falling back to the Python
+implementation on any exception.
+
+The differential harness
+(`tests/test_rust_signature_scan_differential.py`) parametrises
+26 fixtures across every handler family; the Python and Rust
+paths produce field-equal `AnalysisResult` records on every
+fixture. One source-target fixture (a `source $script_dir/init.tcl`
+shape with a multi-token argv word) is intentionally omitted —
+the Python segmenter widens `argv[i].end` to the end of the whole
+word but the Rust segmenter doesn't, which surfaces as a `Range`
+mismatch. The fix lives in the segmenter
+(`rust/tcl-compiler/src/segmenter.rs`), not in `signature_scan`,
+and is tracked as a follow-up.
+
+Test counts: 70+ Rust unit tests across the `signature_scan/`
+sub-modules; 3 PyO3 smoke tests in
+`tests/test_rust_bindings_smoke.py`; 27 differential parity tests
+in `tests/test_rust_signature_scan_differential.py`. Full
+`make prep-pr` green at every commit.
+
+Default-on flip is **deferred** to a follow-up commit: once the
+default-off path has baked, the env var becomes
+`TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out.
+
+### C40-followups — post-merge clean-up for the `signature_scan` port
+
+The post-merge code review for C40 surfaced six follow-up items. None
+are correctness-blocking; all are landable as one small commit each
+(continuing the strip-by-strip discipline).
+
+- **C40-fu1 — drop stale `#![allow(dead_code)]`.** `handlers.rs:12`,
+  `walker.rs:14`, `factory.rs:17`, `ctx.rs:13`. Every type these
+  attributes guarded is wired in by C40c7/d3/d4. The blanket allow
+  now silently masks any future genuinely-dead code.
+- **C40-fu2 — sweep "filled in by Cnnnn" doc rot.** `mod.rs:19–22`,
+  `types.rs:5`, `ctx.rs:7–9`, `handlers.rs:6–8`, `walker.rs:10–12`
+  (module doc) + `walker.rs:106–107` (section header), `factory.rs:15`.
+  Replace the strip-plan references with descriptions of the
+  current architecture.
+- **C40-fu3 — cache `CommandRegistry::build_default()` in a
+  `OnceLock`.** Currently rebuilds the full ~118-spec command
+  registry on every call across all five PyO3 bindings
+  (`signature_scan.rs`, `interprocedural.rs`, `optimiser.rs`,
+  `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`). For the
+  signature scanner (called per non-OPEN document, 1000+ files in a
+  real workspace) this is the worst offender. Land as a shared
+  helper in `rust/tcl-lsp-rust/src/registry.rs` that all five
+  bindings consume.
+- **C40-fu4 — dispatcher tests.** `tests/test_rust_signature_scan_differential.py`
+  currently bypasses the env-var gate by calling
+  `_materialise_rust_signatures(source, signature_scan_extract(source))`
+  directly. Add three tests against `extract_signatures(source)`:
+  no-binding-fallback, env-var-on, exception-fallback (Rust path
+  raises → Python takes over).
+- **C40-fu5 — `docs/rust-rewrite-test-audit.md` C40 row.** The audit
+  has been dormant since L7; C40 should at minimum be listed even
+  if a full backfill of C0–C39 is deferred.
+- **C40-fu6 — KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`.**
+  Currently undocumented for users / contributors who grep for the
+  env var. Same gap exists for the other Rust shims
+  (`TCL_LSP_RUST_OPTIMISER`, `_INTERPROC`, `_GVN`); a single
+  `kcs-qa-rust-shim-env-vars.md` covering all five would be cheaper
+  than per-shim notes.
+
+### Seg1 — Segmenter argv-widening parity
+
+The Python `core/parsing/command_segmenter.py` widens
+`argv[-1].end = tok.end` whenever a sub-token is appended to the
+current word, so a multi-token word like `$var/literal.tcl` carries
+a single `argv` Token whose span covers the entire reconstructed
+word. The Rust `rust/tcl-compiler/src/segmenter.rs:227–238` only
+extends `texts[-1]` and `single[-1]`, leaving `argv[-1]` at the
+first sub-token's span.
+
+Visible symptom: `source $script_dir/init.tcl` produces different
+`SourceTarget.range.end` between Python (end-of-word) and Rust
+(end-of-`$script_dir`), surfaced by the C40e7 differential corpus.
+The corpus currently omits the fixture (documented inline at
+`tests/test_rust_signature_scan_differential.py:88–96`).
+
+Fix: in `segment_commands_local`, the `else if let Some(last_text)
+= texts.last_mut()` branch should also bump
+`argv.last_mut().unwrap().span` to a `Span::new(prev_start,
+tok.span.end())`. Add a regression fixture
+(`source_substituted_path`) to the differential corpus once landed.
+Also worth a Rust-side unit test in `segmenter.rs` pinning the
+multi-token-word argv span.
+
+### C41 — Analyser core port
+
+The natural next chunk after C40; `signature_scan` was the lead-in.
+Ports `core/analysis/_analyser/` (~5,000 LOC across ~12
+sub-modules). Likely sub-strip families:
+
+- **C41a** — `_core.py` skeleton + `Analyser` struct + dispatch
+  table.
+- **C41b** — per-command handlers in `_commands.py`. Mirrors the
+  C40b family shape but covers the full Tcl command set, not just
+  the signature subset.
+- **C41c** — `_proc.py` proc-body analysis: var-scoping integration,
+  per-statement walk, parameter / local / upvar tracking.
+- **C41d** — `_diagnostics.py` + the 7 sub-files. This is the
+  biggest sub-family; ports the W001…W242 diagnostic emitters.
+- **C41e** — `_class.py` / `_mixin.py` for OO class hierarchy +
+  method resolution.
+- **C41f** — `_utils.py` shared helpers + the `Analyser::analyse`
+  public entry + PyO3 binding + Python dispatch shim
+  (`TCL_LSP_RUST_ANALYSER=1`) + differential harness.
+
+Same env-var gate / default-off pattern as C40. Differential corpus
+will need to be much larger (the analyser has many more emit
+points). A test-audit row should land alongside.
 
 ### C39 — Small codegen fixes from main
 

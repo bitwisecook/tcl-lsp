@@ -31,6 +31,7 @@ mod interprocedural;
 mod lexer;
 mod optimiser;
 mod registry;
+mod signature_scan;
 mod tokens;
 
 /// Return the Rust-side greeting used by the smoke test.
@@ -89,5 +90,6 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     interprocedural::register_with(m)?;
     gvn::register_with(m)?;
     compilation_unit::register_with(m)?;
+    signature_scan::register_with(m)?;
     Ok(())
 }
