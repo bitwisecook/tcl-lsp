@@ -67,7 +67,7 @@ pub(super) fn scan(
                 handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
             }
             "if" => handle_if(texts, argv, ns_prefix, ctx),
-            "catch" => handle_catch_stub(texts, argv, ns_prefix, ctx),
+            "catch" => handle_catch(texts, argv, ns_prefix, ctx),
             "try" => handle_try_stub(texts, argv, ns_prefix, ctx),
             "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
             _ => {
@@ -141,8 +141,14 @@ fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCt
     }
 }
 
-fn handle_catch_stub(_texts: &[String], _argv: &[Token], _ns_prefix: &str, _ctx: &mut ScanCtx) {
-    // TODO(C40c4): recurse into argv[1] body via maybe_recurse_body.
+fn handle_catch(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    // `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?` — only the first argument
+    // is a body. Marked `conditional=true` since the body is guarded
+    // (it could throw before reaching subsequent statements).
+    if texts.len() < 2 {
+        return;
+    }
+    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
 }
 
 fn handle_try_stub(_texts: &[String], _argv: &[Token], _ns_prefix: &str, _ctx: &mut ScanCtx) {
@@ -255,5 +261,26 @@ mod tests {
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::thenproc"));
+    }
+
+    #[test]
+    fn handle_catch_braced_body() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "catch { proc inner {} {} } result",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::inner"));
+    }
+
+    #[test]
+    fn handle_catch_unbraced_body_skipped() {
+        let mut ctx = ScanCtx::default();
+        scan("catch $script", None, "", false, &mut ctx);
+        // No procs since the body cannot be statically analysed.
+        assert!(ctx.result.procs.is_empty());
     }
 }
