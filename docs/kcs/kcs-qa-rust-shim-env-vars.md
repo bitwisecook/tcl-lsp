@@ -22,23 +22,33 @@ Rust binding when an opt-in env var is set, falling back to the
 Python implementation if (a) the binding isn't installed or
 (b) the Rust path raises an exception.
 
-Setting one of the env vars to a truthy value (`1`, `true`, `yes`,
-`on`, `y`, `t` — case-insensitive) flips the corresponding
-subsystem to the Rust pipeline. Empty / unset / `0` / `false` /
-`no` / `off` keep the Python pipeline active:
+Each env var is recognised in the same vocabulary: truthy values
+(`1`, `true`, `yes`, `on`, `y`, `t` — case-insensitive) opt the
+subsystem into the Rust pipeline; falsy values (`0`, `false`, `no`,
+`off`, `n`, `f`) opt out; an unset / empty / unrecognised value
+falls through to the chunk's current default. Each subsystem's
+default flips to **on** after its parity has baked in default-off
+mode for a release cycle; the env var stays in place as the opt-out
+knob until the Python implementation retires entirely.
 
-| Env var                          | Subsystem                | Module wired                                   |
-|----------------------------------|--------------------------|------------------------------------------------|
-| `TCL_LSP_RUST_SIGNATURE_SCAN`    | Background signature scan | `core/analysis/signature_scan.py`              |
+### Default-on (Rust by default; opt out via `=0`)
+
+| Env var                          | Subsystem                 | Module wired                                   | Flipped in |
+|----------------------------------|---------------------------|------------------------------------------------|------------|
+| `TCL_LSP_RUST_SIGNATURE_SCAN`    | Background signature scan | `core/analysis/signature_scan.py`              | C40-default-on |
+
+### Default-off (opt in via `=1`)
+
+| Env var                          | Subsystem                 | Module wired                                   |
+|----------------------------------|---------------------------|------------------------------------------------|
 | `TCL_LSP_RUST_OPTIMISER`         | Optimiser pass manager    | `core/compiler/optimiser/_manager.py`          |
 | `TCL_LSP_RUST_INTERPROC`         | Interprocedural analysis  | `core/compiler/interprocedural.py`             |
 | `TCL_LSP_RUST_GVN`               | GVN redundancy detection  | `core/compiler/gvn.py`                         |
 
-Default is **off** for every var — the Python implementation is the
-shipping behaviour and remains the differential-test oracle. The
-Rust path is gated on (a) the binding being importable and (b) the
-env var being set; any exception from the Rust path is logged at
-DEBUG and the Python path runs as a safety net.
+The Rust path is gated on (a) the binding being importable and
+(b) the env var resolving to "use Rust"; any exception from the
+Rust path is logged at DEBUG and the Python path runs as a safety
+net.
 
 You should set one of these vars when:
 

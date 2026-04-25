@@ -52,17 +52,14 @@ pub use types::SignatureScanResult;
 ///
 /// The public entry point for the signature scanner. Mirrors
 /// `extract_signatures` in `core/analysis/signature_scan.py` —
-/// runs the main walker, then resolves factory-wrapper synthetic
-/// procs.
-///
-/// The `_registry` parameter is plumbed through but not currently
-/// consulted; it matches every other tcl-compiler analysis entry
-/// point's signature so future heuristics that need command-spec
-/// metadata can read it without an API change.
+/// runs the main walker (with segmenter-level error recovery seeded
+/// from the registry's command names), then resolves factory-wrapper
+/// synthetic procs.
 #[must_use]
-pub fn extract_signatures(source: &str, _registry: &CommandRegistry) -> SignatureScanResult {
+pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> SignatureScanResult {
+    let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
     let mut ctx = ScanCtx::default();
-    walker::scan(source, None, "", false, &mut ctx);
+    walker::scan(source, None, "", false, &known_commands, &mut ctx);
     factory::resolve_factory_defs(&mut ctx);
     ctx.result
 }

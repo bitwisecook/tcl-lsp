@@ -68,6 +68,7 @@
 #![deny(missing_docs)]
 
 pub mod alias;
+pub mod analyser;
 pub mod analyses;
 pub mod cfg;
 pub mod cfg_builder;

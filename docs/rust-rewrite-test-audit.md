@@ -557,15 +557,16 @@ acts as the parity oracle the differential harness compares against.
 
 ### Pytest tests — `tests/test_rust_signature_scan_differential.py` (new)
 
-26 inline-corpus fixtures + 1 sanity test, all of category **Ported**
+Inline-corpus fixtures + 1 sanity test, all of category **Ported**
 (differential parity asserts the Rust binding produces the same
 `AnalysisResult` as the Python implementation on every fixture).
+The corpus grew by one fixture (`source_substituted_path`) once
+Seg1 landed the segmenter argv-widening fix.
 
 The corpus is gated on `pytest.importorskip("tcl_lsp_rust", …)` so
-it stays green where the binding isn't built. One fixture is
-intentionally omitted — `source $script_dir/init.tcl` exposes a
-known segmenter-side parity gap (Seg1 in the chunk log) that lives
-in `rust/tcl-compiler/src/segmenter.rs`, not in `signature_scan`.
+it stays green where the binding isn't built. Recovery-shape
+fixtures are intentionally not added until the Python recovery
+position-rebasing bug is fixed (see Seg2).
 
 ### Pytest tests — `tests/test_rust_bindings_smoke.py` additions
 
@@ -590,12 +591,12 @@ none are bridge-specific, none are marked for removal.
 
 ### Test-audit gaps tracked for C40
 
-- **Dispatcher coverage** (landed C40-fu4): four
-  `extract_signatures(source)` tests in
-  `tests/test_rust_signature_scan_differential.py` cover env var
-  unset / set to truthy `1` / set to `"0"` (must NOT enable, per
-  the `rust_shim_enabled` truthy-value contract) / Rust path
-  raising → Python fallback. No longer an open C40 gap.
+- **Dispatcher coverage** (landed C40-fu4, updated for the
+  C40-default-on polarity flip): four `extract_signatures(source)`
+  tests in `tests/test_rust_signature_scan_differential.py` cover
+  env var unset (now → Rust) / explicit `=1` (Rust) / `=0`
+  (forces Python — the post-flip opt-out knob) / Rust path raising
+  → Python fallback. No longer an open C40 gap.
 - **`command_aliases` corpus is thin**: only one fixture
   (single-`hello` extra). Multi-extras case (`interp alias {} a {}
   b c d e`) should land in a follow-up.
@@ -603,3 +604,95 @@ none are bridge-specific, none are marked for removal.
   Rust `factory.rs::lookup_cross_namespace_never_falls_through`
   test pins the rule, but the differential corpus has no
   end-to-end fixture exercising it.
+
+## Seg1 — Segmenter argv-widening parity
+
+Single-strip fix in `rust/tcl-compiler/src/segmenter.rs`. Adds one
+Rust unit test
+(`segmenter::tests::multi_token_word_argv_spans_full_word`)
+pinning the new behaviour, and one Python differential fixture
+(`source_substituted_path` in
+`tests/test_rust_signature_scan_differential.py`) closing the
+last C40 differential gap. No other test families touched.
+
+## Seg2 — Segmenter error recovery
+
+Rust port of `_has_suspicious_token` + `_find_recovery_offset`
+from `core/parsing/command_segmenter.py`. Lands as a hard
+prerequisite for C40-default-on — without recovery on the Rust
+side, flipping the dispatcher to Rust would silently regress
+workspace indexing for any file mid-edit with an unclosed brace.
+
+### Rust unit tests — `rust/tcl-compiler/src/segmenter.rs::recovery_tests`
+
+8 tests, all **Ported** (none bridge-specific):
+
+- `unclosed_brace_recovers_at_known_command` — canonical
+  `proc early {} { ... proc late {} {}` shape.
+- `unclosed_brace_without_known_command_keeps_swallowed_input`
+  — recovery only fires when a known command is found.
+- `unclosed_brace_below_line_threshold_skipped` — multi-line
+  literals shorter than the 3-line threshold are not treated as
+  suspicious.
+- `unclosed_bracket_recovers_without_line_threshold` — `[`
+  recovery fires regardless of line count (a valid `[…]` always
+  closes).
+- `empty_known_commands_set_never_recovers` — empty set is a
+  no-op.
+- `closed_input_is_unaffected_by_recovery` — recovery preserves
+  well-formed segmentation byte-for-byte.
+- `recovery_picks_first_matching_line_not_later_ones` —
+  first-match semantics.
+- `recovery_skips_indented_lines_and_finds_unindented_match` —
+  leading-whitespace stripping in the line scan.
+- `recovery_from_offset_into_source_uses_absolute_offsets` —
+  the recovered slice's argv tokens carry outer-source byte
+  offsets.
+
+### Pytest tests — `tests/test_signature_scan.py::TestSegmenterRecovery`
+
+Pre-existing test
+(`test_unclosed_brace_does_not_swallow_later_procs`) is unchanged
+by Seg2 but now passes through the Rust path under
+`TCL_LSP_RUST_SIGNATURE_SCAN=1` (and is the default after
+C40-default-on).
+
+### Differential corpus — recovery fixtures intentionally omitted
+
+The Python `_segment_raw` recovery synthesises a body_token with
+`start.line=0, start.character=0`, which causes the Python lexer
+to report recovered tokens with `line=0` even when the proc is on
+line 3+. The Rust port produces absolute positions throughout
+(line=3 for `proc late` on line 3). Offsets agree, line/character
+disagree.
+
+That's a Python-side position-rebasing bug surfaced only when
+both implementations participate in the differential harness. It
+silently goes away once the C40-default-on flip ships
+(consumers see Rust's absolute positions, not Python's rebased
+ones); fixing the Python rebase is tracked as a separate
+follow-up since main hasn't seen this issue.
+
+## C40-default-on — flip the C40 dispatcher to Rust by default
+
+Two-commit chunk:
+
+- **Phase 1** (`rust_shim_enabled` keyword extension): one new test
+  file `tests/test_rust_shim_enabled.py` with 24 parametrised
+  helper-level cases enumerating truthy / falsy / unrecognised /
+  unset × `default=False` / `default=True` permutations. Pins the
+  shared helper contract so a polarity bug is caught at its source
+  rather than via a per-shim regression.
+- **Phase 2** (dispatcher flip): updates the four dispatcher tests
+  in `tests/test_rust_signature_scan_differential.py` to assert the
+  new polarity (unset → Rust; `=1` → Rust; `=0` → Python; Rust
+  raising → Python fallback). The pre-existing Python
+  `tests/test_signature_scan.py` file is unchanged but now exercises
+  the Rust dispatcher by default in any environment with the wheel
+  installed; it stays useful as a public-API behavioural check for
+  whichever path is the default. The differential corpus
+  (`_assert_same`) still calls the Python and Rust paths directly,
+  bypassing the dispatcher, so it remains the parity oracle until
+  the Python implementation retires. Seg2 had to land before Phase 2
+  shipped — without it, the Rust path silently dropped recovered
+  declarations from the workspace index.

@@ -18,28 +18,45 @@ import os
 from ..analysis.semantic_model import Range
 from ..parsing.tokens import SourcePosition
 
-# Truthy values that opt a `TCL_LSP_RUST_*` shim into the Rust path.
+# Recognised truthy / falsy values for `TCL_LSP_RUST_*` shim env vars.
 # `os.environ.get(name)` alone treats any non-empty string as truthy
 # (including `"0"` / `"false"`), which contradicts the docstring
 # convention of `=1` and silently opts users into the experimental
-# path when they thought they were turning it off.
+# path when they thought they were turning it off. The two sets are
+# the explicit opt-in / opt-out vocabulary; anything else (unset,
+# empty, or unrecognised) falls through to the caller-supplied
+# ``default``.
 _TRUTHY_VALUES = frozenset({"1", "true", "yes", "on", "y", "t"})
+_FALSY_VALUES = frozenset({"0", "false", "no", "off", "n", "f"})
 
 
-def rust_shim_enabled(env_var: str) -> bool:
+def rust_shim_enabled(env_var: str, *, default: bool = False) -> bool:
     """Return ``True`` when the named ``TCL_LSP_RUST_*`` env var is
-    set to a truthy value.
+    set to a recognised truthy value, ``False`` when set to a
+    recognised falsy value, and ``default`` otherwise.
 
     Treats `"1"`, `"true"`, `"yes"`, `"on"`, `"y"`, `"t"`
-    (case-insensitive, after stripping whitespace) as truthy. Any
+    (case-insensitive, after stripping whitespace) as truthy and
+    `"0"`, `"false"`, `"no"`, `"off"`, `"n"`, `"f"` as falsy. Any
     other value — including an unset variable, the empty string,
-    `"0"`, `"false"`, `"no"`, `"off"` — counts as off.
+    or an unrecognised string — falls back to ``default``.
+
+    ``default=False`` (the legacy behaviour) is the right choice for
+    chunks still in default-off opt-in mode. ``default=True`` is the
+    polarity used after a chunk's default-on flip lands — the env
+    var becomes opt-out (`=0` / `=false`) under the same name until
+    the Python implementation retires entirely.
 
     Centralising the check here prevents silent divergence between
-    the four `TCL_LSP_RUST_*` dispatch shims (`OPTIMISER`,
-    `INTERPROC`, `GVN`, `SIGNATURE_SCAN`).
+    the `TCL_LSP_RUST_*` dispatch shims (`OPTIMISER`, `INTERPROC`,
+    `GVN`, `SIGNATURE_SCAN`).
     """
-    return os.environ.get(env_var, "").strip().lower() in _TRUTHY_VALUES
+    raw = os.environ.get(env_var, "").strip().lower()
+    if raw in _TRUTHY_VALUES:
+        return True
+    if raw in _FALSY_VALUES:
+        return False
+    return default
 
 
 def build_position_resolver(source: str):

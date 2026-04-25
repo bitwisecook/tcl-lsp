@@ -20,28 +20,35 @@
 //!   recurses into structural-control bodies via
 //!   `scan_factory_structural`.
 
+use std::collections::HashSet;
+
 use tcl_lexer::{Token, TokenType};
 
 use super::ctx::ScanCtx;
 use super::handlers;
 use super::types::SignatureCommandInvocation;
-use crate::segmenter::{segment_commands, segment_commands_with_offset};
+use crate::segmenter::{segment_commands_with_offset, segment_commands_with_recovery};
 
 /// Walk *source* as a Tcl script, emitting records for every command
 /// the dispatcher recognises.
 ///
 /// When `body_token` is `Some`, the spans on every record are
 /// relocated into the outer source buffer's offset space (the body
-/// token's content position is used as the base offset).
+/// token's content position is used as the base offset). Body
+/// recursion never runs segmenter-level error recovery — recovery
+/// only fires at the top-level entry point, where the segmented
+/// stream feeds workspace-index consumers that must not be silently
+/// truncated by a single unclosed delimiter.
 pub(super) fn scan(
     source: &str,
     body_token: Option<Token>,
     ns_prefix: &str,
     conditional: bool,
+    known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
     let commands = match body_token {
-        None => segment_commands(source),
+        None => segment_commands_with_recovery(source, known_commands),
         Some(tok) => {
             let base = tok.span.start() + u32::from(tok.content_offset);
             segment_commands_with_offset(source, base)
@@ -65,7 +72,16 @@ pub(super) fn scan(
         let argv = &cmd.argv;
         match head {
             "proc" => handlers::handle_proc(texts, argv, ns_prefix, ctx),
-            "namespace" => handlers::handle_namespace(texts, argv, ns_prefix, conditional, ctx),
+            "namespace" => {
+                handlers::handle_namespace(
+                    texts,
+                    argv,
+                    ns_prefix,
+                    conditional,
+                    known_commands,
+                    ctx,
+                );
+            }
             "package" => handlers::handle_package(texts, argv, conditional, &mut ctx.result),
             "source" => handlers::handle_source(texts, argv, &mut ctx.result),
             "interp" => handlers::handle_interp(texts, &mut ctx.result),
@@ -73,9 +89,9 @@ pub(super) fn scan(
             "itcl::class" | "::itcl::class" => {
                 handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
             }
-            "if" => handle_if(texts, argv, ns_prefix, ctx),
-            "catch" => handle_catch(texts, argv, ns_prefix, ctx),
-            "try" => handle_try(texts, argv, ns_prefix, ctx),
+            "if" => handle_if(texts, argv, ns_prefix, known_commands, ctx),
+            "catch" => handle_catch(texts, argv, ns_prefix, known_commands, ctx),
+            "try" => handle_try(texts, argv, ns_prefix, known_commands, ctx),
             "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
             _ => {
                 handlers::maybe_handle_import_wrapper(
@@ -102,12 +118,20 @@ pub(super) fn maybe_recurse_body(
     body_tok: Token,
     ns_prefix: &str,
     conditional: bool,
+    known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
     if body_tok.kind != TokenType::Str {
         return;
     }
-    scan(body_text, Some(body_tok), ns_prefix, conditional, ctx);
+    scan(
+        body_text,
+        Some(body_tok),
+        ns_prefix,
+        conditional,
+        known_commands,
+        ctx,
+    );
 }
 
 // -- Body-recursion handlers --------------------------------------
@@ -115,7 +139,13 @@ pub(super) fn maybe_recurse_body(
 // `core/analysis/signature_scan.py` whose Python equivalent recurses
 // into braced bodies.
 
-fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+fn handle_if(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    known_commands: &HashSet<&str>,
+    ctx: &mut ScanCtx,
+) {
     // Tcl's `if` takes the shape:
     //   if EXPR ?then? BODY ?elseif EXPR ?then? BODY?... ?else? ?BODY?
     // Alternate between expecting an expression and expecting a body,
@@ -141,7 +171,7 @@ fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCt
             continue;
         }
         if expect_body {
-            maybe_recurse_body(&texts[i], argv[i], ns_prefix, true, ctx);
+            maybe_recurse_body(&texts[i], argv[i], ns_prefix, true, known_commands, ctx);
             expect_body = false;
         } else {
             expect_body = true;
@@ -150,17 +180,29 @@ fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCt
     }
 }
 
-fn handle_catch(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+fn handle_catch(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    known_commands: &HashSet<&str>,
+    ctx: &mut ScanCtx,
+) {
     // `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?` — only the first argument
     // is a body. Marked `conditional=true` since the body is guarded
     // (it could throw before reaching subsequent statements).
     if texts.len() < 2 {
         return;
     }
-    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
+    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, known_commands, ctx);
 }
 
-fn handle_try(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+fn handle_try(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    known_commands: &HashSet<&str>,
+    ctx: &mut ScanCtx,
+) {
     // `try BODY ?on CODE VARLIST BODY?... ?trap PATTERN VARLIST BODY?...
     //  ?finally BODY?` — the main body sits at index 1; handler clauses
     // (`on`/`trap`) take 4 words each with the body at +3; `finally`
@@ -168,16 +210,30 @@ fn handle_try(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanC
     if texts.len() < 2 {
         return;
     }
-    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
+    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, known_commands, ctx);
     let mut i = 2;
     while i < texts.len() {
         let clause = texts[i].as_str();
         if clause == "finally" && i + 1 < texts.len() {
-            maybe_recurse_body(&texts[i + 1], argv[i + 1], ns_prefix, true, ctx);
+            maybe_recurse_body(
+                &texts[i + 1],
+                argv[i + 1],
+                ns_prefix,
+                true,
+                known_commands,
+                ctx,
+            );
             return;
         }
         if (clause == "on" || clause == "trap") && i + 3 < texts.len() {
-            maybe_recurse_body(&texts[i + 3], argv[i + 3], ns_prefix, true, ctx);
+            maybe_recurse_body(
+                &texts[i + 3],
+                argv[i + 3],
+                ns_prefix,
+                true,
+                known_commands,
+                ctx,
+            );
             i += 4;
         } else {
             i += 1;
@@ -320,7 +376,14 @@ mod tests {
     #[test]
     fn top_level_proc_emits_invocation_and_record() {
         let mut ctx = ScanCtx::default();
-        scan("proc foo {} { set x 1 }", None, "", false, &mut ctx);
+        scan(
+            "proc foo {} { set x 1 }",
+            None,
+            "",
+            false,
+            &HashSet::new(),
+            &mut ctx,
+        );
         assert!(ctx.result.procs.contains_key("::foo"));
         // command_invocations should contain at least the top-level "proc"
         // invocation; the body's "set" stays uninvoked since handle_proc
@@ -342,6 +405,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert_eq!(ctx.result.package_requires.len(), 1);
@@ -360,6 +424,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::ns::inner"));
@@ -373,6 +438,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         // The inner ::abs eval should rebase, not nest under outer.
@@ -387,6 +453,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::thenproc"));
@@ -401,6 +468,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         for name in ["::a", "::b", "::c", "::d"] {
@@ -416,6 +484,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::thenproc"));
@@ -429,6 +498,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::inner"));
@@ -437,7 +507,7 @@ mod tests {
     #[test]
     fn handle_catch_unbraced_body_skipped() {
         let mut ctx = ScanCtx::default();
-        scan("catch $script", None, "", false, &mut ctx);
+        scan("catch $script", None, "", false, &HashSet::new(), &mut ctx);
         // No procs since the body cannot be statically analysed.
         assert!(ctx.result.procs.is_empty());
     }
@@ -450,6 +520,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::tryproc"));
@@ -464,6 +535,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::tryproc"));
@@ -478,6 +550,7 @@ mod tests {
             None,
             "",
             false,
+            &HashSet::new(),
             &mut ctx,
         );
         assert!(ctx.result.procs.contains_key("::tryproc"));
