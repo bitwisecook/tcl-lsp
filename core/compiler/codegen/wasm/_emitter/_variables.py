@@ -80,6 +80,20 @@ class _WasmEmitterVarMixin(_Base):
                 self._emit_obj_literal(name)
                 self._emit_call(lget_idx)
                 return
+        # Top-level reads must consult the global table directly —
+        # not the WASM-local mirror — because eval-fallback paths
+        # (interp-side ``set``, ``regexp pat str whole a b`` capture
+        # var assignments, etc.) write straight to globals without
+        # invalidating the compiled-side mirror.  Without this branch,
+        # ``set v 1; eval {set v 2}; puts $v`` printed ``1`` because
+        # the compiled read used the stale WASM-local seeded by the
+        # original ``set v 1``.  Phase 4.5 finalisation.
+        if not self._is_proc:
+            gget_idx = self._shared_imports.get("tcl_global_get")
+            if gget_idx is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_idx)
+                return
         idx = self._intern_local(name)
         self._emit_local_get(idx)
 

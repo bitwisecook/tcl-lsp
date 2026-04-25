@@ -412,6 +412,16 @@ class _WasmEmitterCtrlMixin(_Base):
             rv_idx = self._intern_local(result_var)
             self._emit_call(result_idx)
             self._emit_local_set(rv_idx)
+            # At top level, also mirror to the global table so reads
+            # of ``$result_var`` — which under the Phase 4.5 fix go
+            # through ``tcl_global_get`` — return the catch result.
+            # Inside procs, the local mirror is the canonical location.
+            if not self._is_proc and "tcl_global_set" in self._shared_imports:
+                gset_idx = self._shared_imports["tcl_global_set"]
+                self._emit_obj_literal(result_var)
+                self._emit_local_get(rv_idx)
+                self._emit_call(gset_idx)
+                self._emit(WasmOp.DROP)
 
     def _emit_stmt_keep_result(self, stmt: "IRStatement") -> None:
         """Emit a statement leaving its i32 TclObj result on the WASM stack.
