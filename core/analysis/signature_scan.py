@@ -24,6 +24,8 @@ and retains orders of magnitude less memory per file than ``analyse()``.
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass, field
 
 from core.analysis import parse_param_list
@@ -42,6 +44,15 @@ from core.common.ranges import range_from_token
 from core.compiler.rust_spans import build_position_resolver
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token, TokenType
+
+log = logging.getLogger(__name__)
+
+try:
+    from tcl_lsp_rust import (
+        signature_scan_extract as _rust_extract,  # ty: ignore[unresolved-import]
+    )
+except ImportError:  # pragma: no cover - rust binding is optional
+    _rust_extract = None
 
 
 def _materialise_rust_signatures(source: str, raw: dict) -> AnalysisResult:
@@ -168,7 +179,27 @@ class _ScanCtx:
 
 
 def extract_signatures(source: str) -> AnalysisResult:
-    """Return a minimal AnalysisResult for a background-indexed file."""
+    """Return a minimal AnalysisResult for a background-indexed file.
+
+    Dispatches to the Rust port when ``TCL_LSP_RUST_SIGNATURE_SCAN``
+    is set in the environment **and** the ``tcl_lsp_rust`` binding
+    is importable; otherwise falls back to the Python implementation
+    below. Any exception raised by the Rust path is logged at DEBUG
+    and the Python path runs as a safety net — same fallback shape
+    as `core.compiler.optimiser._manager`.
+    """
+    if _rust_extract is not None and os.environ.get("TCL_LSP_RUST_SIGNATURE_SCAN"):
+        try:
+            return _materialise_rust_signatures(source, _rust_extract(source))
+        except Exception:  # pragma: no cover - safety net
+            log.debug("rust signature_scan failed, falling back to python", exc_info=True)
+    return _extract_signatures_python(source)
+
+
+def _extract_signatures_python(source: str) -> AnalysisResult:
+    """The original Python implementation. Kept as the default
+    behaviour and as a fallback when the Rust path is disabled or
+    fails."""
     ctx = _ScanCtx(result=AnalysisResult())
     _scan(source, body_token=None, ns_prefix="", conditional=False, ctx=ctx)
     _resolve_factory_defs(ctx)
