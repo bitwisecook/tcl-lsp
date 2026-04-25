@@ -705,7 +705,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
-| C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed (C35a + C35b; C35c [list] shape deferred) |
+| C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed |
 | C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
@@ -869,12 +869,16 @@ Strips (one commit each):
   `eval $dyn` since `eval {literal}` is no longer a barrier
   (it's a `Block`). Same change applied to
   `tests/test_rust_interprocedural_delegation.py`.
-- **C35c** — Deferred. `eval [list ...]` recognition needs the
-  inner command-substitution body to be parsed and split into
-  argument words; the existing C19 code-gen helper handles the
-  `[list]` shape but reusing it from the lowering-time path
-  needs care to keep token boundaries straight. Lands as a
-  follow-up strip with its own fixture.
+- **C35c** — [LANDED] `eval_list_literal_body(cmd_text)` parses
+  the inner-command of an `eval [list ...]` callsite via
+  `segment_commands`, verifies the head is `list` and every arg
+  is a single-token literal (`Esc` without `$` / `[`, or `Str`
+  which gets re-braced in the synthesised body), and returns
+  the joined body text. `try_lower_eval_static` gains a
+  `TokenType::Cmd` branch that calls the helper and re-lowers
+  the result as a `Statement::Block`. Mirrors main commit
+  `a080c8d7`. 3 unit tests: `[list set x 42]` accepted,
+  `[list set x $v]` rejected, `[foo arg]` rejected.
 
 Done: a new differential fixture per strip in
 `rust/tcl-compiler/tests/fixtures/codegen/matching/`.

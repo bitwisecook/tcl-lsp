@@ -156,6 +156,59 @@ fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
     Some((normalise_var_name(name).to_string(), value))
 }
 
+/// If *`cmd_text`* is `list lit1 lit2 ...` with all-literal
+/// arguments, return the body text the list would evaluate to —
+/// otherwise `None`.
+///
+/// Literal means `Esc` / `Str` token only: no `$var` substitution,
+/// no nested command substitution. `Str` (`{...}`) tokens are
+/// re-braced in the synthesised body so list-canonicalisation
+/// stays correct (we trust the segmenter's `single_token_word`
+/// flag plus the absence of `$` / `[` in `Esc` text). Mirrors
+/// Python's `_eval_list_literal_body`.
+fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
+    let inner = segment_commands(cmd_text);
+    if inner.len() != 1 {
+        return None;
+    }
+    let inner_cmd = &inner[0];
+    if inner_cmd.texts.is_empty() || inner_cmd.texts[0] != "list" {
+        return None;
+    }
+    let argv = inner_cmd.arg_tokens();
+    let texts = inner_cmd.args();
+    let single = &inner_cmd.single_token_word;
+    // Each element after ``list`` must be a single-token literal.
+    for (i, tok) in argv.iter().enumerate() {
+        // ``single`` is per-word over the full argv (including
+        // the command word at index 0) — argv here starts at
+        // index 1 of the original argv, so the matching single-
+        // token-word index is ``i + 1``.
+        if !single.get(i + 1).copied().unwrap_or(false) {
+            return None;
+        }
+        if !matches!(tok.kind, TokenType::Esc | TokenType::Str) {
+            return None;
+        }
+        if tok.kind == TokenType::Esc {
+            let text = &texts[i];
+            if text.contains('$') || text.contains('[') {
+                return None;
+            }
+        }
+    }
+    let mut parts: Vec<String> = Vec::with_capacity(argv.len());
+    for (i, tok) in argv.iter().enumerate() {
+        let text = &texts[i];
+        if tok.kind == TokenType::Str {
+            parts.push(format!("{{{text}}}"));
+        } else {
+            parts.push(text.clone());
+        }
+    }
+    Some(parts.join(" "))
+}
+
 /// Drop const-map entries that *stmt* may have overwritten.
 /// Straight-line assignments pop just the named variable;
 /// structured IR and barriers conservatively clear the whole map
@@ -648,15 +701,14 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Try to lower `eval ?body?` to a static-body
-    /// [`Statement::Block`] when the body is a brace-string literal
-    /// or a const-mapped `$var`. Returns `None` for dynamic bodies
-    /// so the caller falls through to runtime barrier dispatch.
+    /// [`Statement::Block`] when the body is a brace-string literal,
+    /// a const-mapped `$var`, or an `eval [list lit1 lit2 ...]`
+    /// command-substitution shape. Returns `None` for dynamic
+    /// bodies so the caller falls through to runtime barrier
+    /// dispatch.
     ///
-    /// C35b mirrors main commit `b5e18ce2`'s `_can_relax_eval`
-    /// gate. C35c (eval `[list ...]` shape) is intentionally
-    /// deferred — adding it here would require parsing the inner
-    /// command-substitution body, which is best done in a
-    /// follow-up strip with proper test coverage.
+    /// Mirrors main commits `b5e18ce2` (string + var shapes) and
+    /// `a080c8d7` (`[list ...]` shape).
     fn try_lower_eval_static(
         &mut self,
         seg: &SegmentedCommand,
@@ -679,6 +731,21 @@ impl<'r> Lowerer<'r> {
         } else if body_tok.kind == TokenType::Var {
             let literal = self.const_map_lookup(&args[0])?;
             self.lower_script(&literal, namespace)
+        } else if body_tok.kind == TokenType::Cmd {
+            // C35c: ``eval [list lit1 lit2 ...]`` — synthesise the
+            // body by joining the list's literal arguments and
+            // re-lowering. The bracket-substitution text retains
+            // the surrounding ``[...]``; strip them via
+            // ``content_offset`` if present, otherwise the helper
+            // strips them itself.
+            let inner_text = if body_tok.content_offset > 0 {
+                let start = u32::from(body_tok.content_offset) as usize;
+                &args[0][start..args[0].len() - start]
+            } else {
+                args[0].trim_start_matches('[').trim_end_matches(']')
+            };
+            let synthesised = eval_list_literal_body(inner_text)?;
+            self.lower_script(&synthesised, namespace)
         } else {
             return None;
         };
@@ -1106,6 +1173,32 @@ mod tests {
             !matches!(last, Statement::UpFrame { .. }),
             "expected fallback after re-assignment, got {last:?}",
         );
+    }
+
+    #[test]
+    fn const_prop_eval_list_literal() {
+        // C35c: ``eval [list set x 42]`` recognised as static body.
+        let m = lower_to_ir("proc f {} { eval [list set x 42] }", &reg());
+        let proc = m.procedures.get("::f").expect("proc registered");
+        assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
+    }
+
+    #[test]
+    fn const_prop_eval_list_with_dynamic_arg_rejected() {
+        // ``eval [list set x $v]`` — dynamic ``\$v`` rejects the
+        // list-literal shape. Falls back to runtime barrier.
+        let m = lower_to_ir("proc f {} { eval [list set x $v] }", &reg());
+        let proc = m.procedures.get("::f").expect("proc registered");
+        assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
+    }
+
+    #[test]
+    fn const_prop_eval_non_list_command_rejected() {
+        // ``eval [foo arg]`` — inner command isn't ``list``;
+        // can't synthesise a body. Falls back to runtime barrier.
+        let m = lower_to_ir("proc f {} { eval [foo arg] }", &reg());
+        let proc = m.procedures.get("::f").expect("proc registered");
+        assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
     }
 
     #[test]
