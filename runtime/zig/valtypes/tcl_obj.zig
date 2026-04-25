@@ -35,7 +35,18 @@ pub const OBJ_TYPE_TAG: u32 = 4;
 pub const OBJ_INT_CACHE: u32 = 8;
 pub const OBJ_STR_PTR: u32 = 16;
 pub const OBJ_STR_LEN: u32 = 20;
-pub const OBJ_SIZE: u32 = 24;
+// OBJ_STR_CAP: capacity of the buffer pointed to by OBJ_STR_PTR.
+// Set to 0 when the buffer is not owned by this TclObj (e.g. points
+// into a wasm data segment for an interned literal, or into a shared
+// constant pool).  Set to >0 when this TclObj allocated its own
+// buffer via ``alloc(cap)`` — in that case ``tcl_cmd_append`` and
+// the recycler may free the buffer via ``free_sized(ptr, cap)``.
+//
+// The capacity field enables amortised O(1) ``append`` by letting
+// the runtime grow the buffer geometrically (doubling) instead of
+// reallocating on every append.
+pub const OBJ_STR_CAP: u32 = 24;
+pub const OBJ_SIZE: u32 = 32;
 
 // WASM linear-memory allocator.
 //
@@ -71,14 +82,14 @@ var oom_flag: u32 = 0;
 // in its first 4 bytes (i.e. at ``addr``).
 //
 // Sizes are chosen to cover the common allocation shapes:
-//   - 24 bytes   = OBJ_SIZE (every TclObj header)
-//   - 32, 48, 64 = small string buffers
-//   - 96, 128, 192, 256 = mid-sized list backings, dict pairs
-//   - 512, 1024 = large list/string buffers, frame tables
-// Anything larger than 1024 falls through to the bump path and is
-// not recycled (rare in practice; sub-plan 3 will add capacity-aware
-// growth so large strings don't churn the allocator).
-const SIZE_CLASSES = [_]u32{ 24, 32, 48, 64, 96, 128, 192, 256, 512, 1024 };
+//   - 32 bytes   = OBJ_SIZE (every TclObj header — index 0)
+//   - 48, 64, 96 = small string buffers, capacity-aware append starts
+//   - 128, 192, 256, 384 = mid-sized list backings, dict pairs
+//   - 512, 1024, 2048 = large list/string buffers, frame tables
+// Anything larger than 2048 falls through to the bump path and is
+// not recycled (rare in practice; capacity-aware append doubles
+// past 2048 only on long-running text-builder workloads).
+const SIZE_CLASSES = [_]u32{ 32, 48, 64, 96, 128, 192, 256, 384, 512, 1024, 2048 };
 var free_lists = [_]u32{0} ** SIZE_CLASSES.len;
 
 // Back-compat alias — pre-1.2 code referred to a single ``free_list``
@@ -91,7 +102,7 @@ fn class_head_for(aligned: u32) ?*u32 {
     return null;
 }
 
-fn round_up_to_class(aligned: u32) u32 {
+pub fn round_up_to_class(aligned: u32) u32 {
     for (SIZE_CLASSES) |sz| {
         if (sz >= aligned) return sz;
     }
@@ -249,6 +260,10 @@ pub fn obj_alloc() u32 {
     write_i64(ptr + OBJ_INT_CACHE, 0);
     write_i32(ptr + OBJ_STR_PTR, 0);
     write_i32(ptr + OBJ_STR_LEN, 0);
+    // Default cap = 0 means "we don't own the buffer".  Buffer-
+    // owning paths (obj_new_string_copy, the in-place append grower)
+    // overwrite this with the actual allocation size.
+    write_i32(ptr + OBJ_STR_CAP, 0);
     return ptr;
 }
 
@@ -443,6 +458,16 @@ pub export fn tcl_obj_release(obj: i32) void {
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc <= 1) {
+        // Free a buffer-owned byte payload before recycling the
+        // header.  ``OBJ_STR_CAP`` is non-zero only for buffers we
+        // allocated ourselves (string copies, capacity-grown append
+        // results); zero means the str_ptr points into a wasm data
+        // segment / interned literal we must not free.
+        const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
+        if (cap > 0) {
+            const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+            if (sp != 0) free_sized(sp, cap);
+        }
         free_obj(addr);
     } else {
         write_i32(addr + OBJ_REFCOUNT, rc - 1);
@@ -484,10 +509,21 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 }
 
 /// Create a new string TclObj by copying *len* bytes from *src*.
+/// The new TclObj owns its byte buffer (capacity = aligned alloc
+/// size) so subsequent appends can grow in place when refcount==1.
 pub fn obj_new_string_copy(src: u32, len: u32) i32 {
-    const buf = alloc(len);
+    if (len == 0) return obj_new_string(0, 0);
+    // Round capacity up to the smallest size class so the recycler
+    // can return the slab to the right free-list at end-of-life.
+    const cap = round_up_to_class((len + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return 0;
     memcpy(buf, src, len);
-    return obj_new_string(@intCast(buf), @intCast(len));
+    const obj = obj_new_string(@intCast(buf), @intCast(len));
+    if (obj != 0) {
+        write_i32(@as(u32, @intCast(obj)) + OBJ_STR_CAP, @intCast(cap));
+    }
+    return obj;
 }
 
 // Scratch buffer for integer-to-string conversion (no newline)

@@ -19,15 +19,76 @@ const list_count_elements = obj.list_count_elements;
 const list_element_at = obj.list_element_at;
 
 // Exported: append — concatenate two TclObj string representations.
+//
+// Capacity-aware in-place growth path:
+//   - When the current TclObj has refcount == 1 and owns its byte
+//     buffer (OBJ_STR_CAP > 0), append in place.  If the existing
+//     capacity holds the new total length, the cost is just a
+//     memcpy of the addition; otherwise reallocate to the next
+//     size class (geometric, doubling) and copy.
+//   - When refcount > 1 (shared object) or the buffer is interned
+//     (cap == 0, points into a literal data segment), fall through
+//     to the today's allocate-new-buffer path so the existing
+//     references stay valid.
 pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
+    if (current == 0) {
+        // First append into a null sentinel — make a brand-new owned
+        // buffer so subsequent appends benefit from in-place growth.
+        const b = obj_ensure_string(addition);
+        if (b.len == 0) return obj_new_string(0, 0);
+        return obj.obj_new_string_copy(@bitCast(b.ptr), @bitCast(b.len));
+    }
     const a = obj_ensure_string(current);
     const b = obj_ensure_string(addition);
-    const total = a.len + b.len;
+    const total: u32 = a.len + b.len;
     if (total == 0) return obj_new_string(0, 0);
-    const buf = alloc(total);
+
+    const addr: u32 = @intCast(current);
+    const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
+    const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+    const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+
+    // In-place fast path: we own the buffer and have spare capacity.
+    if (rc == 1 and tag == obj.TYPE_STRING and cap >= total and cap > 0) {
+        if (b.len > 0) memcpy(a.ptr + a.len, b.ptr, b.len);
+        obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(total));
+        return current;
+    }
+
+    // In-place grow path: we own the buffer but need more capacity.
+    // Pick the smallest size class >= total, doubling past the
+    // current cap to amortise grow cost across a long append loop.
+    if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
+        var new_cap: u32 = if (cap == 0) 16 else cap * 2;
+        while (new_cap < total) new_cap *= 2;
+        const new_buf = alloc(new_cap);
+        if (new_buf == 0) return current; // OOM — alloc raised the flag
+        if (a.len > 0) memcpy(new_buf, a.ptr, a.len);
+        if (b.len > 0) memcpy(new_buf + a.len, b.ptr, b.len);
+        // Recycle the old buffer.
+        obj.free_sized(a.ptr, cap);
+        obj.write_i32(addr + obj.OBJ_STR_PTR, @bitCast(new_buf));
+        obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(total));
+        obj.write_i32(addr + obj.OBJ_STR_CAP, @bitCast(new_cap));
+        return current;
+    }
+
+    // Fallback: shared (rc > 1) or non-owning (cap == 0, literal /
+    // interned).  Allocate a new owned buffer, copy both halves,
+    // wrap in a new TclObj with cap set so future appends through
+    // the new TclObj benefit from in-place growth.
+    var new_cap: u32 = total;
+    new_cap = (new_cap + 7) & ~@as(u32, 7);
+    new_cap = obj.round_up_to_class(new_cap);
+    const buf = alloc(new_cap);
+    if (buf == 0) return obj_new_string(0, 0);
     if (a.len > 0) memcpy(buf, a.ptr, a.len);
     if (b.len > 0) memcpy(buf + a.len, b.ptr, b.len);
-    return obj_new_string(@intCast(buf), @intCast(total));
+    const new_obj = obj_new_string(@intCast(buf), @intCast(total));
+    if (new_obj != 0) {
+        obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
+    }
+    return new_obj;
 }
 
 // Exported: string compare — lexicographic comparison of string representations.

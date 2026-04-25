@@ -43,15 +43,61 @@ pub export fn tcl_cmd_list_length(list: i32) i32 {
 pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     const sc = obj_ensure_string(current);
     const sv = obj_ensure_string(value);
+    // Fast path: when ``current`` is non-empty AND we own its byte
+    // buffer with refcount == 1, append in place — preserves the
+    // existing bytes verbatim (they are already canonical) and just
+    // appends ``" " + quote(value)`` at the end.  Mirrors the
+    // capacity-aware append in ``tcl_string.tcl_cmd_append``.
+    //
+    // Re-tokenising the whole list (the canonical-rebuild path) is
+    // O(N) per call, which makes any ``for { ... { lappend L $i } }``
+    // loop O(N²).  The in-place path is O(1) per call when the
+    // buffer has room, O(N) only on grow.
+    if (sc.len > 0 and current != 0) {
+        const addr: u32 = @intCast(current);
+        const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
+        const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+        const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
+            // Worst case for the new tail: a single space + sv.len*2 + 2
+            // (for surrounding braces if the value needs them).
+            const tail_max: u32 = 1 + sv.len * 2 + 4;
+            const want: u32 = sc.len + tail_max;
+            var buf: u32 = sc.ptr;
+            var new_cap: u32 = cap;
+            if (cap < want) {
+                new_cap = if (cap == 0) 16 else cap * 2;
+                while (new_cap < want) new_cap *= 2;
+                const nbuf = obj.alloc(new_cap);
+                if (nbuf == 0) return current;
+                memcpy(nbuf, sc.ptr, sc.len);
+                obj.free_sized(sc.ptr, cap);
+                buf = nbuf;
+                obj.write_i32(addr + obj.OBJ_STR_PTR, @bitCast(nbuf));
+                obj.write_i32(addr + obj.OBJ_STR_CAP, @bitCast(new_cap));
+            }
+            const d: [*]u8 = @ptrFromInt(buf + sc.len);
+            d[0] = ' ';
+            const off = list_elem_quote_nth(buf, sc.len + 1, sv.ptr, sv.len);
+            obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(off));
+            return current;
+        }
+    }
     return lappend_canonical(sc.ptr, sc.len, sv.ptr, sv.len);
 }
 
 /// Parse the existing list, re-quote each element canonically, then
 /// append the new value.  Shared by :func:`tcl_cmd_lappend` and the
 /// interpreter's multi-arg lappend loop.
+///
+/// The returned TclObj records the actual size-class capacity in
+/// ``OBJ_STR_CAP`` so the next ``lappend`` against this obj can
+/// take the in-place fast path.
 fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
     const max_buf: u32 = sc_len * 2 + sv_len * 2 + 16;
-    const buf = alloc(max_buf);
+    const cap = obj.round_up_to_class((max_buf + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     const n = list_count_elements(sc_ptr, sc_len);
     var idx: i64 = 0;
@@ -82,7 +128,11 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
     } else {
         off = list_elem_quote(buf, off, sv_ptr, sv_len);
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    const new_obj = obj_new_string(@intCast(buf), @intCast(off));
+    if (new_obj != 0) {
+        obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    }
+    return new_obj;
 }
 
 // Exported: list — append one value to a list accumulator.  The
