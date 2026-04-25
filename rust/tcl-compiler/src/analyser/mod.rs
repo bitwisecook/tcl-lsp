@@ -30,6 +30,7 @@
 //! flip to default-on once the differential corpus has baked, same
 //! as ``C40-default-on``).
 
+pub mod dispatch;
 pub mod scope;
 pub mod snapshot;
 pub mod state;
