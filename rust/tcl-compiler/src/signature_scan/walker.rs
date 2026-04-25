@@ -176,6 +176,134 @@ fn handle_try(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanC
     }
 }
 
+/// Scan a proc body specifically for factory-wrapper candidate
+/// calls.
+///
+/// Mirrors `_scan_factory_candidates` in
+/// `core/analysis/signature_scan.py`. Unlike [`scan`], this walker
+/// only collects four-token `HEAD NAME ARGS BODY` shaped calls and
+/// recurses into structural-control bodies (`if` / `catch` / `try`
+/// / `namespace eval`) that commonly wrap factory calls. It
+/// deliberately does **not** emit nested proc / namespace-import
+/// records — those would be incorrect because nested `proc`
+/// statements inside a proc body only take effect when that proc
+/// is invoked.
+pub(super) fn scan_factory_candidates(
+    body_text: &str,
+    body_tok: Token,
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    let base = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let commands = segment_commands_with_offset(body_text, base);
+    for cmd in commands {
+        if cmd.is_partial || cmd.argv.is_empty() {
+            continue;
+        }
+        let head = cmd.name();
+        if head.is_empty() {
+            continue;
+        }
+        let texts = &cmd.texts;
+        let argv = &cmd.argv;
+        match head {
+            "if" | "catch" | "try" | "namespace" => {
+                scan_factory_structural(head, texts, argv, ns_prefix, ctx);
+            }
+            _ => {
+                handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
+            }
+        }
+    }
+}
+
+/// Recurse into a structural command's braced bodies for factory
+/// candidates only.
+///
+/// Mirrors `_scan_factory_structural`. Same set of structural
+/// commands and same body offsets as the main `handle_if` /
+/// `handle_catch` / `handle_try` / `handle_namespace` (eval arm)
+/// walkers, but the recursive call is `scan_factory_candidates`
+/// (not `scan`) so only factory-shaped calls are collected.
+fn scan_factory_structural(
+    head: &str,
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    if head == "namespace" && texts.len() >= 4 && texts[1] == "eval" {
+        let raw_ns = &texts[2];
+        let inner = if let Some(rest) = raw_ns.strip_prefix("::") {
+            rest.trim_start_matches(':').to_string()
+        } else if !ns_prefix.is_empty() {
+            format!("{ns_prefix}::{raw_ns}")
+        } else {
+            raw_ns.clone()
+        };
+        if argv[3].kind == TokenType::Str {
+            scan_factory_candidates(&texts[3], argv[3], &inner, ctx);
+        }
+        return;
+    }
+    if head == "if" {
+        let mut i = 1;
+        let mut expect_body = false;
+        while i < texts.len() {
+            let w = texts[i].as_str();
+            if w == "then" {
+                expect_body = true;
+                i += 1;
+                continue;
+            }
+            if w == "elseif" {
+                expect_body = false;
+                i += 1;
+                continue;
+            }
+            if w == "else" {
+                expect_body = true;
+                i += 1;
+                continue;
+            }
+            if expect_body && argv[i].kind == TokenType::Str {
+                scan_factory_candidates(&texts[i], argv[i], ns_prefix, ctx);
+                expect_body = false;
+            } else {
+                expect_body = true;
+            }
+            i += 1;
+        }
+        return;
+    }
+    if head == "catch" && texts.len() >= 2 && argv[1].kind == TokenType::Str {
+        scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
+        return;
+    }
+    if head == "try" && texts.len() >= 2 {
+        if argv[1].kind == TokenType::Str {
+            scan_factory_candidates(&texts[1], argv[1], ns_prefix, ctx);
+        }
+        let mut i = 2;
+        while i < texts.len() {
+            let clause = texts[i].as_str();
+            if clause == "finally" && i + 1 < texts.len() && argv[i + 1].kind == TokenType::Str {
+                scan_factory_candidates(&texts[i + 1], argv[i + 1], ns_prefix, ctx);
+                return;
+            }
+            if (clause == "on" || clause == "trap")
+                && i + 3 < texts.len()
+                && argv[i + 3].kind == TokenType::Str
+            {
+                scan_factory_candidates(&texts[i + 3], argv[i + 3], ns_prefix, ctx);
+                i += 4;
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,5 +473,45 @@ mod tests {
         );
         assert!(ctx.result.procs.contains_key("::tryproc"));
         assert!(ctx.result.procs.contains_key("::trapproc"));
+    }
+
+    fn extract_proc_body(src: &str) -> (String, Token) {
+        // Pluck the proc body from the segmenter so we get a real
+        // `Str` token with correct content_offset/span.
+        let cmds = crate::segmenter::segment_commands(src);
+        let proc_cmd = cmds.first().expect("one command");
+        let body_tok = proc_cmd.argv[3];
+        let span = body_tok.span;
+        let inner = &src[span.start() as usize + 1..span.end() as usize - 1];
+        (inner.to_string(), body_tok)
+    }
+
+    #[test]
+    fn factory_walker_records_bare_candidate() {
+        // DEFC's body argument must be a `Str` (braced) for the
+        // candidate to register.
+        let src = "proc factwrapper {a b c} { DEFC bar args {body} }";
+        let (body, body_tok) = extract_proc_body(src);
+        let mut ctx = ScanCtx::default();
+        scan_factory_candidates(&body, body_tok, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 1);
+    }
+
+    #[test]
+    fn factory_walker_recurses_into_if() {
+        let src = "proc init {} { if {1} { DEFC bar args {body} } }";
+        let (body, body_tok) = extract_proc_body(src);
+        let mut ctx = ScanCtx::default();
+        scan_factory_candidates(&body, body_tok, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 1);
+    }
+
+    #[test]
+    fn factory_walker_recurses_into_try_finally() {
+        let src = "proc init {} { try { DEFC a {x} {b} } finally { DEFC c {y} {d} } }";
+        let (body, body_tok) = extract_proc_body(src);
+        let mut ctx = ScanCtx::default();
+        scan_factory_candidates(&body, body_tok, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 2);
     }
 }
