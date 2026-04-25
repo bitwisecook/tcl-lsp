@@ -21,6 +21,7 @@
 
 pub mod helpers;
 pub mod info_subcommands;
+pub mod state;
 pub mod types;
 
 pub use info_subcommands::{
