@@ -15,7 +15,10 @@ use tcl_lexer::Token;
 
 use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
-use super::types::{SignatureClass, SignatureNamespaceImport, SignatureProc, SignatureScanResult};
+use super::types::{
+    SignatureClass, SignatureNamespaceImport, SignaturePackageRequire, SignatureProc,
+    SignatureScanResult,
+};
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
 ///
@@ -197,6 +200,41 @@ pub(super) fn handle_namespace_import(
     }
 }
 
+/// Handler for `package require ?-exact? NAME ?VERSION?`.
+///
+/// Mirrors `_handle_package` in
+/// `core/analysis/signature_scan.py`. Records a
+/// `SignaturePackageRequire`; the optional `-exact` flag is parsed
+/// and skipped (we do not currently distinguish exact from
+/// minimum-version requires); the optional `VERSION` is captured
+/// when present.
+pub(super) fn handle_package(
+    texts: &[String],
+    argv: &[Token],
+    conditional: bool,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 || texts[1] != "require" {
+        return;
+    }
+    let mut idx = 2;
+    if texts[idx] == "-exact" && texts.len() > idx + 1 {
+        idx += 1;
+    }
+    let pkg_name = texts[idx].clone();
+    let version = if texts.len() > idx + 1 {
+        Some(texts[idx + 1].clone())
+    } else {
+        None
+    };
+    result.package_requires.push(SignaturePackageRequire {
+        name: pkg_name,
+        version,
+        range: argv[idx].span,
+        conditional,
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,5 +405,66 @@ mod tests {
         let mut result = SignatureScanResult::default();
         handle_namespace_import(&texts, &argv, "", &mut result);
         assert!(result.namespace_imports.is_empty());
+    }
+
+    #[test]
+    fn handle_package_with_version() {
+        let texts = vec![
+            "package".to_string(),
+            "require".to_string(),
+            "Tcl".to_string(),
+            "8.6".to_string(),
+        ];
+        let argv = vec![token(0, 7), token(8, 15), token(16, 19), token(20, 23)];
+        let mut result = SignatureScanResult::default();
+        handle_package(&texts, &argv, false, &mut result);
+        assert_eq!(result.package_requires.len(), 1);
+        let req = &result.package_requires[0];
+        assert_eq!(req.name, "Tcl");
+        assert_eq!(req.version.as_deref(), Some("8.6"));
+        assert_eq!(req.range, Span::new(16, 19));
+        assert!(!req.conditional);
+    }
+
+    #[test]
+    fn handle_package_without_version() {
+        let texts = vec![
+            "package".to_string(),
+            "require".to_string(),
+            "Tcl".to_string(),
+        ];
+        let argv = vec![token(0, 7), token(8, 15), token(16, 19)];
+        let mut result = SignatureScanResult::default();
+        handle_package(&texts, &argv, true, &mut result);
+        assert_eq!(result.package_requires.len(), 1);
+        let req = &result.package_requires[0];
+        assert_eq!(req.name, "Tcl");
+        assert!(req.version.is_none());
+        assert!(req.conditional);
+    }
+
+    #[test]
+    fn handle_package_with_exact_flag() {
+        let texts = vec![
+            "package".to_string(),
+            "require".to_string(),
+            "-exact".to_string(),
+            "Tcl".to_string(),
+            "8.6".to_string(),
+        ];
+        let argv = vec![
+            token(0, 7),
+            token(8, 15),
+            token(16, 22),
+            token(23, 26),
+            token(27, 30),
+        ];
+        let mut result = SignatureScanResult::default();
+        handle_package(&texts, &argv, false, &mut result);
+        assert_eq!(result.package_requires.len(), 1);
+        let req = &result.package_requires[0];
+        assert_eq!(req.name, "Tcl");
+        assert_eq!(req.version.as_deref(), Some("8.6"));
+        assert_eq!(req.range, Span::new(23, 26));
     }
 }
