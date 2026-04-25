@@ -226,9 +226,17 @@ fn find_suspicious_token(source: &str, tokens: &[Token]) -> Option<Token> {
         if !is_brace_or_quote && !is_bracket {
             continue;
         }
-        // Token must reach EOF — properly closed delimiters end before EOF.
+        // Token must reach EOF — properly closed delimiters end
+        // before EOF. `Span::end()` is exclusive, so a token
+        // reaches EOF only when ``end == source_len``. The
+        // previous ``end + 1 < source_len`` check incorrectly
+        // accepted tokens ending at ``source_len - 1`` (e.g. a
+        // closed multi-line ``{...}`` followed by a trailing
+        // newline), which spuriously triggered recovery on
+        // valid input — most visibly for ``Cmd`` tokens, which
+        // have no line-span check to filter the false positive.
         let end = tok.span.end() as usize;
-        if end + 1 < source_len {
+        if end < source_len {
             continue;
         }
         if is_bracket {
@@ -621,6 +629,43 @@ mod recovery_tests {
             assert_eq!(r.args(), p.args());
             assert_eq!(r.is_partial, p.is_partial);
         }
+    }
+
+    #[test]
+    fn closed_command_sub_followed_by_trailing_newline_not_suspicious() {
+        // Regression for the EOF off-by-one: ``Span::end()`` is
+        // exclusive, so a closed ``[cmd]`` whose ``]`` sits at
+        // ``source_len - 2`` (followed by a single ``\n``) ends
+        // at ``source_len - 1``. The previous ``end + 1 < source_len``
+        // check incorrectly accepted such tokens as "reaches EOF",
+        // which spuriously triggered recovery on ``Cmd`` tokens
+        // (no line-span check) when their inner text contained a
+        // known command name like ``proc``.
+        //
+        // After the fix: only ``end == source_len`` qualifies as
+        // EOF, so this input segments cleanly without recovery.
+        let src = "set x [proc foo {} {}]\n";
+        let kc = known(["proc"]);
+        let cmds = segment_commands_with_recovery(src, &kc);
+        // Should be exactly one command (`set x [...]`); no
+        // partial split, no spurious extra recovered commands.
+        assert_eq!(cmds.len(), 1, "expected one command, got {cmds:?}");
+        assert_eq!(cmds[0].name(), "set");
+        assert!(!cmds[0].is_partial);
+    }
+
+    #[test]
+    fn closed_multiline_brace_followed_by_trailing_newline_not_suspicious() {
+        // Same regression but for the ``Str`` (brace) path. A
+        // closed multi-line braced string spanning more than the
+        // ``RECOVERY_LINE_THRESHOLD`` lines, with a trailing
+        // newline, must not be treated as suspicious.
+        let src = "set x {\n  line1\n  line2\n  line3\n}\n";
+        let kc = known(["set"]);
+        let cmds = segment_commands_with_recovery(src, &kc);
+        assert_eq!(cmds.len(), 1, "expected one command, got {cmds:?}");
+        assert_eq!(cmds[0].name(), "set");
+        assert!(!cmds[0].is_partial);
     }
 
     #[test]

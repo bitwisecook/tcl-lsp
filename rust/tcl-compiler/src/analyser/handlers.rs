@@ -199,13 +199,20 @@ impl Analyser {
             doc,
         };
 
-        // Register globally and in the current scope.
+        // Register globally and in the current scope. Mirrors
+        // ``_proc.py:111-112`` — ``scope.procs`` is keyed by the
+        // *simple* (unqualified) proc name (so per-scope lookup
+        // and shadowing rules work locally), while
+        // ``result.all_procs`` is keyed by the fully-qualified
+        // name. The full qualified name is still on
+        // ``ProcDef.qualified_name`` for callers that need it.
         self.result
             .all_procs
             .insert(qualified.clone(), proc.clone());
+        let simple_key = proc.name.clone();
         let path = scope_path.to_vec();
         if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
-            scope.procs.insert(qualified, proc);
+            scope.procs.insert(simple_key, proc);
         }
 
         // C41c1 hook: the proc-body walk happens here. For now
@@ -785,6 +792,47 @@ mod tests {
             &[0],
         );
         assert!(handled);
+        assert!(a.result.all_procs.contains_key("::ns1::foo"));
+    }
+
+    #[test]
+    fn handle_proc_keys_scope_procs_by_simple_name() {
+        // Mirrors the Python contract in
+        // ``core/analysis/_analyser/_proc.py:111`` —
+        // ``scope.procs[simple_name] = proc_def`` so per-scope
+        // lookups and shadowing rules work locally. The
+        // qualified name lives on ``ProcDef.qualified_name`` and
+        // is the key for ``result.all_procs``.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[0],
+        );
+        let scope = &a.result.global_scope.children[0];
+        // Scope's procs map keyed by simple name, NOT qualified.
+        assert!(
+            scope.procs.contains_key("foo"),
+            "scope.procs should be keyed by simple `foo`, got keys: {:?}",
+            scope.procs.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            !scope.procs.contains_key("::ns1::foo"),
+            "scope.procs must not be keyed by qualified name",
+        );
+        // The qualified name is still on the ProcDef.
+        assert_eq!(scope.procs["foo"].qualified_name, "::ns1::foo");
+        // ...and result.all_procs is keyed by qualified name.
         assert!(a.result.all_procs.contains_key("::ns1::foo"));
     }
 

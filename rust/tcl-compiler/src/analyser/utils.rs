@@ -7,7 +7,6 @@
 //! analyser can keep its imports flat.
 
 use std::collections::HashSet;
-use std::sync::OnceLock;
 
 use tcl_lexer::Token;
 use tcl_registry::{CommandRegistry, Traits};
@@ -152,33 +151,31 @@ pub fn argv_with_word_spans(argv: Vec<Token>, _all_tokens: &[Token]) -> Vec<Toke
     argv
 }
 
-/// The static set of iRules commands that may only appear at the
-/// top level of an event handler.
+/// The set of iRules commands that may only appear at the top
+/// level of an event handler, computed fresh from the supplied
+/// `registry`.
 ///
 /// Mirrors `_irules_top_level_only` in
-/// `core/analysis/_analyser/_utils.py:34-38`. Lazily filled from
-/// the registry's `IRULES_TOP_LEVEL_ONLY` trait at first call;
-/// the result is cached in a [`OnceLock`] to avoid repeated
-/// trait scans across analyser invocations. Returns command
-/// names sorted alphabetically for deterministic iteration.
+/// `core/analysis/_analyser/_utils.py:34-38`. Reads the
+/// `IRULES_TOP_LEVEL_ONLY` trait from `registry` and returns the
+/// matching command names.
+///
+/// **Not cached.** A previous version cached the first-call
+/// result in a static `OnceLock`, which silently returned stale
+/// data when a non-default `CommandRegistry` was passed on a
+/// later call. The trait scan is `O(n)` over the registry's
+/// command specs (~150 entries) and the registry itself is
+/// already cached at the call sites that need this — so per-call
+/// recomputation is cheap in practice and removes a correctness
+/// trap. Callers that want caching should cache at their own
+/// layer, keyed by whatever identity makes sense for them.
 #[must_use]
 pub fn irules_top_level_only(registry: &CommandRegistry) -> HashSet<String> {
-    // Per-call cache keyed on registry identity is not feasible
-    // because `CommandRegistry` doesn't carry a stable id, so we
-    // instead cache the FIRST registry's result. Subsequent
-    // analyser invocations all use the same `build_default()`
-    // registry, so this is safe in practice. Mirrors the
-    // module-level `_IRULES_TOP_LEVEL_ONLY` cache in Python.
-    static CACHE: OnceLock<HashSet<String>> = OnceLock::new();
-    CACHE
-        .get_or_init(|| {
-            registry
-                .commands_with_trait(Traits::IRULES_TOP_LEVEL_ONLY)
-                .into_iter()
-                .map(String::from)
-                .collect()
-        })
-        .clone()
+    registry
+        .commands_with_trait(Traits::IRULES_TOP_LEVEL_ONLY)
+        .into_iter()
+        .map(String::from)
+        .collect()
 }
 
 #[cfg(test)]

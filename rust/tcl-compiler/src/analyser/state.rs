@@ -201,8 +201,25 @@ impl Analyser {
         use tcl_registry::CommandRegistry;
 
         let _ = dialect;
-        // File-suppression pre-scan.
-        let _suppressed = super::utils::parse_file_suppression(source);
+        // File-suppression pre-scan: merge codes from any
+        // top-of-file ``# tcl-lsp: disable=CODE`` directives into
+        // ``self.disabled_diagnostics`` so later emitter passes
+        // honour them. The constructor-provided
+        // ``disabled_diagnostics`` set (LSP user-config) and the
+        // file-directive set are unioned — both sources should
+        // take effect.
+        //
+        // Python keeps file-level suppression in
+        // ``result.suppressed_lines[-1]`` (a per-line map keyed
+        // by a sentinel ``-1`` for file-wide). Until the per-line
+        // suppression machinery lands (alongside the diagnostic
+        // emitters in C41d), the simpler "merge into
+        // ``disabled_diagnostics``" route gives directives the
+        // intended effect at the analyser-internal level. C41d
+        // can revisit if a per-line distinction becomes load-bearing.
+        for code in super::utils::parse_file_suppression(source) {
+            self.disabled_diagnostics.insert(code);
+        }
 
         // Segment with Seg2 recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
@@ -298,6 +315,29 @@ mod tests {
         let r = a.analyse("", "tcl");
         assert!(r.all_procs.is_empty());
         assert!(r.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn analyse_threads_file_suppression_into_disabled_diagnostics() {
+        // ``# tcl-lsp: disable=W210,W211`` at the top of the file
+        // must merge into ``self.disabled_diagnostics`` so
+        // emitters honour the suppression.
+        let mut a = Analyser::new();
+        let _ = a.analyse("# tcl-lsp: disable=W210,W211\nproc foo {} {}\n", "tcl");
+        assert!(a.disabled_diagnostics.contains("W210"));
+        assert!(a.disabled_diagnostics.contains("W211"));
+    }
+
+    #[test]
+    fn analyse_file_suppression_unions_with_constructor_codes() {
+        // Constructor-provided codes must survive file-suppression
+        // merging — the two sources are unioned, not replaced.
+        use std::collections::HashSet;
+        let preconfigured: HashSet<String> = ["W120"].iter().map(|s| (*s).to_string()).collect();
+        let mut a = Analyser::with_disabled_diagnostics(preconfigured);
+        let _ = a.analyse("# tcl-lsp: disable=W210\n", "tcl");
+        assert!(a.disabled_diagnostics.contains("W120"));
+        assert!(a.disabled_diagnostics.contains("W210"));
     }
 
     #[test]
