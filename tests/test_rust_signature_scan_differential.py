@@ -52,3 +52,109 @@ def _assert_same(source: str) -> None:
 def test_simple_proc_parity() -> None:
     """Sanity check: a single bare proc round-trips identically."""
     _assert_same("proc foo {} {}")
+
+
+# Inline corpus — one tuple per fixture. Each tuple is
+# ``(label, source)``; the label drives the pytest test ID so
+# failures point at the offending shape directly.
+CORPUS: list[tuple[str, str]] = [
+    # -- procs / namespaces --
+    ("bare_proc", "proc foo {} {}"),
+    ("namespace_qualified_proc", "proc ::foo::bar {} {}"),
+    ("namespace_eval_with_inner", "namespace eval ns { proc inner {} {} }"),
+    (
+        "nested_namespace_eval",
+        "namespace eval outer { namespace eval inner { proc deep {} {} } }",
+    ),
+    (
+        "absolute_proc_under_namespace",
+        "namespace eval baz { proc ::foo::bar {} {} }",
+    ),
+    # -- classes --
+    ("oo_class_no_body", "oo::class create MyCls"),
+    ("oo_class_with_body", "oo::class create MyCls { method foo {} {} }"),
+    ("oo_class_absolute", "oo::class create ::Top"),
+    ("itcl_class", "itcl::class Foo { constructor {} {} }"),
+    # -- packages --
+    ("package_with_version", "package require Tcl 8.6"),
+    ("package_without_version", "package require Tcl"),
+    ("package_exact_flag", "package require -exact Tcl 8.6"),
+    (
+        "package_under_if_marked_conditional",
+        "if {[catch {package require Tcl 8.6}]} { proc fallback {} {} }",
+    ),
+    # -- sources --
+    ("source_literal_path", "source /abs/path.tcl"),
+    # NOTE: a `source $script_dir/init.tcl` fixture (multi-token word
+    # combining a `$var` substitution and a literal trailing path)
+    # currently diverges between the Python and Rust segmenters —
+    # Python widens `argv[i].end` to the end of the whole word, the
+    # Rust segmenter keeps it at the first sub-token's end. The
+    # divergence is in `rust/tcl-compiler/src/segmenter.rs` (the
+    # `else if let Some(last_text) = …` branch), not in
+    # `signature_scan` itself. Add a regression fixture once the
+    # segmenter fix lands.
+    ("source_with_encoding_option", "source -encoding utf-8 /a/b.tcl"),
+    # -- interp aliases --
+    (
+        "interp_alias_local",
+        "interp alias {} myalias {} puts hello",
+    ),
+    (
+        "interp_alias_cross_skipped",
+        "interp alias child foo {} puts",
+    ),
+    # -- namespace imports --
+    ("namespace_import_direct", "namespace import ::tcl::mathfunc::*"),
+    (
+        "namespace_import_tcllib_wrapper",
+        "term::ansi::send::import vt",
+    ),
+    # -- auto_path --
+    ("lappend_auto_path", "lappend auto_path /opt/tclpkgs"),
+    ("set_auto_path", "set auto_path /opt/tclpkgs"),
+    # -- structured-control body recursion --
+    (
+        "if_branch_with_inner_proc",
+        "if {$x} { proc thenproc {} {} } else { proc elseproc {} {} }",
+    ),
+    (
+        "try_finally_with_inner_proc",
+        "try { proc tryproc {} {} } finally { proc finallyproc {} {} }",
+    ),
+    (
+        "catch_with_inner_proc",
+        "catch { proc inner {} {} } result",
+    ),
+    # -- factory wrappers --
+    (
+        "tcllib_factory_wrapper",
+        """
+        proc DEFC {name args body} { proc $name $args $body }
+        proc INIT {} {
+            DEFC ChildA {x} {return 1}
+            DEFC ChildB {y} {return 2}
+        }
+        """,
+    ),
+    (
+        "factory_in_namespace",
+        """
+        namespace eval pkg {
+            proc DEFC {name args body} { proc $name $args $body }
+            proc INIT {} { DEFC Local {x} {return 1} }
+        }
+        """,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("label", "source"),
+    CORPUS,
+    ids=[label for label, _ in CORPUS],
+)
+def test_signature_scan_matches_python(label: str, source: str) -> None:
+    """Field-by-field parity for every corpus fixture."""
+    del label  # only used as the pytest id
+    _assert_same(source)
