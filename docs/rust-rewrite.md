@@ -709,7 +709,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
-| C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | planned |
+| C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | planned |
 
 Keep this table current. Mark a row as `landed` in the same commit that
@@ -1068,22 +1068,53 @@ Strips:
   `lower_script` instead of `lower_body`. Mirrors main
   `d4d2cdd5`. 3 unit tests covering the happy path,
   missing-var refusal, and `-nobackslashes` refusal.
-- **C36d — Factory shape detector.** New
-  `rust/tcl-compiler/src/passes/specialise_factories.rs::detect_factory_shape`.
+- **C36d — Factory shape detector.** [LANDED] New crate module
+  `rust/tcl-compiler/src/specialise_factories.rs`. `FactoryShape
+  { qualified_name, params, name_param, child_params,
+  child_body_template }` plus
+  `detect_factory_shape(&Procedure) -> Option<FactoryShape>`.
   Recognises the canonical `proc Configure {name default
-  description} { … proc $name {…} [subst -nocommands {…}] }`
-  pattern and extracts the `FactoryShape { qualified_name, params,
-  name_param, child_params, child_body_template }`. ~180 LOC + 8
-  unit tests.
-- **C36e — Per-call factory specialiser.** Walks every `IRCall`
-  for a known factory, substitutes positional args into the
-  template, synthesises an `IRProcedure` with the resolved name +
-  body, and inserts it next to the call. ~250 LOC + 6 fixtures.
-- **C36f — Per-factory specialisation cap.** Add the
-  per-factory-call-count cap from main `0a8dcc3b`
-  (factory specialisation tests + per-factory cap). Default cap of
-  64 specialisations per factory; over-cap calls fall through to
-  runtime dispatch. ~20 LOC.
+  description} { proc $name {…} [subst -nocommands {…}] }`
+  pattern by matching the proc body's single
+  `Statement::Barrier { reason: "dynamic proc name", command:
+  "proc", … }` and verifying the `${name}` / `$name` shape, the
+  literal child params, and the brace-template body via a
+  reused `extract_subst_nocommands_template` helper. 3 unit
+  tests: canonical shape detected, multi-statement rejected,
+  non-param name rejected.
+- **C36e — Per-call factory specialiser.** [LANDED]
+  `specialise_factories(&mut Module, &CommandRegistry)` walks
+  the module's top-level + each procedure body, recognising
+  call sites of any detected factory. For each match it:
+  1. resolves the target via namespace-qualified or root
+     lookup;
+  2. extracts literal arg bindings (`STR` braced text or `ESC`
+     bareword without `$`/`[`);
+  3. feeds the bindings through `subst_nocommands` against the
+     factory's body template;
+  4. lowers the materialised body to an `IRScript` via a fresh
+     `Lowerer`;
+  5. registers a synthesised `Procedure` under the bound
+     `name_param` value;
+  6. replaces the call site with a no-op `Statement::Block`.
+  Recurses into `Statement::Block` containers; structured IR
+  (if / for / while / foreach / catch / try / switch) is left
+  alone, matching Python's gate. 3 unit tests covering
+  successful synthesis, dynamic-arg skip, and multi-call
+  recursion.
+- **C36f — Per-factory specialisation cap.** [LANDED]
+  `DEFAULT_FACTORY_CAP = 64` constant +
+  `specialise_factories_with_cap(module, registry, cap)` entry
+  point. A `counts: HashMap<String, usize>` tracks per-factory
+  rewrites; once a factory's count reaches *cap* further call
+  sites stay on the runtime dispatch path. Wired through the
+  default `specialise_factories` so existing callers get the
+  cap automatically. Pipeline integration: the pass runs
+  immediately after `lower_to_ir` in
+  `CompilationUnit::build_for`, before the `inline_uplevel`
+  pass and before `build_cfg`, so the synthesised procs appear
+  in `module.procedures` for every downstream consumer. 1 unit
+  test asserts the third call past `cap=2` does not synthesise.
 
 Done: 6 fixtures + 14+ unit tests; the `tcltest` Option pattern
 specialises end-to-end through the pipeline.

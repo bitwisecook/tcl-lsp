@@ -152,6 +152,11 @@ impl CompilationUnit {
     #[must_use]
     pub fn build_for(source: &str, registry: &CommandRegistry, defer_top_level: bool) -> Self {
         let mut ir_module = lower_to_ir(source, registry);
+        // C36d/e/f: specialise Option-shape factories before any
+        // other module-level passes so the synthesised child procs
+        // appear in module.procedures for the inline_uplevel pass
+        // and CFG construction.
+        crate::specialise_factories::specialise_factories(&mut ir_module, registry);
         // C34e: run the inline_uplevel pass before CFG construction so
         // every passthrough callsite is replaced with a Statement::Block
         // that splices the body inline.
