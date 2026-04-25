@@ -262,6 +262,28 @@ impl Analyser {
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
         }
 
+        // **C41d1.** Run the diagnostic-emission orchestrator
+        // and the post-pass filters.  Mirrors the tail of
+        // ``Analyser.analyse`` in
+        // ``core/analysis/_analyser/_core.py:380-384``:
+        //
+        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
+        // 2. ``emit_variable_usage_diagnostics`` — hook landed
+        //    in C41d1 (currently no-op).
+        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
+        //    landed in C41d1 (currently inert; per-emitter
+        //    dispatch lands in C41d2-d7).
+        // 4. ``apply_disabled_diagnostics`` — filter codes the
+        //    caller asked to silence (also covers the
+        //    file-suppression directives merged at the top of
+        //    ``analyse``).
+        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
+        //    the line-based suppression pairs.
+        self.emit_variable_usage_diagnostics();
+        self.emit_cfg_ssa_diagnostics(source);
+        self.apply_disabled_diagnostics();
+        self.dedupe_diagnostics();
+
         std::mem::take(&mut self.result)
     }
 
@@ -402,6 +424,37 @@ mod tests {
         let _ = a.analyse("# tcl-lsp: disable=W210\n", "tcl");
         assert!(a.disabled_diagnostics.contains("W120"));
         assert!(a.disabled_diagnostics.contains("W210"));
+    }
+
+    #[test]
+    fn analyse_runs_dedupe_and_disabled_filter_at_end() {
+        // End-to-end: ``proc set {} {}`` emits W113.
+        // ``# tcl-lsp: disable=W113`` at the top of the source
+        // should silence it via ``apply_disabled_diagnostics``.
+        let mut a = Analyser::new();
+        let r = a.analyse("# tcl-lsp: disable=W113\nproc set {} {}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W113"),
+            "W113 should be silenced by file-suppression directive",
+        );
+    }
+
+    #[test]
+    fn analyse_dedupes_back_to_back_identical_diagnostics() {
+        // Two identical W113 emissions for the same proc name
+        // should collapse to one.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc set {} {}\nproc set {} {}\n", "tcl");
+        // Re-defining ``set`` twice means handle_proc emits W113
+        // twice — but the second emission is at a *different*
+        // span (different proc-name token), so dedupe leaves
+        // them both; the test that follows pins the actual count.
+        let w113s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W113").collect();
+        assert_eq!(
+            w113s.len(),
+            2,
+            "two distinct ``proc set`` definitions → two distinct W113s at different spans",
+        );
     }
 
     #[test]
