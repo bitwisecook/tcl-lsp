@@ -103,13 +103,19 @@ pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx
         Some((parent, _)) => parent.trim_start_matches(':').to_string(),
         None => String::new(),
     };
+    let body_text = texts[3].clone();
     ctx.proc_bodies.push(ProcBodyInfo {
         qname: qualified,
         params: param_names,
-        body_text: texts[3].clone(),
-        ns_prefix: body_ns,
+        body_text: body_text.clone(),
+        ns_prefix: body_ns.clone(),
     });
-    // TODO(C40c7): scan factory candidates in body when argv[3] is `Str`.
+    // Walk the proc body for factory-wrapper candidate calls.
+    // Only braced bodies can be statically scanned; substituted
+    // bodies (`$body`, `[gen_body]`) cannot be re-segmented.
+    if argv[3].kind == TokenType::Str {
+        super::walker::scan_factory_candidates(&body_text, argv[3], &body_ns, ctx);
+    }
 }
 
 /// Handler for the `namespace` command — dispatches on the
@@ -449,6 +455,40 @@ mod tests {
 
     fn str_token(start: u32, end: u32) -> Token {
         Token::with_content_offset(TokenType::Str, Span::new(start, end), 1)
+    }
+
+    #[test]
+    fn handle_proc_with_braced_body_scans_factory_candidates() {
+        // Direct call into handle_proc with a synthetic INIT-proc
+        // shape: body is `DEFC bar args {body}` which should
+        // register one factory candidate.
+        let body_text = "DEFC bar args {body}";
+        let texts = vec![
+            "proc".to_string(),
+            "INIT".to_string(),
+            String::new(),
+            body_text.to_string(),
+        ];
+        let argv = vec![token(0, 4), token(5, 9), token(10, 12), str_token(13, 35)];
+        let mut ctx = ScanCtx::default();
+        handle_proc(&texts, &argv, "", &mut ctx);
+        assert_eq!(ctx.candidates.len(), 1);
+    }
+
+    #[test]
+    fn handle_proc_with_unbraced_body_does_not_scan() {
+        let texts = vec![
+            "proc".to_string(),
+            "INIT".to_string(),
+            String::new(),
+            "${dynamic}".to_string(),
+        ];
+        // Body is plain Esc (not Str), so factory walker should be
+        // skipped.
+        let argv = vec![token(0, 4), token(5, 9), token(10, 12), token(13, 23)];
+        let mut ctx = ScanCtx::default();
+        handle_proc(&texts, &argv, "", &mut ctx);
+        assert!(ctx.candidates.is_empty());
     }
 
     #[test]
