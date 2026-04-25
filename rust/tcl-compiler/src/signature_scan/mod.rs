@@ -22,5 +22,6 @@
 //! differential harness).
 
 mod ctx;
+mod handlers;
 pub mod params;
 pub mod types;
