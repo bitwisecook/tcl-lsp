@@ -13,7 +13,9 @@
 
 use tcl_lexer::Token;
 
-use super::types::{SignatureClass, SignatureScanResult};
+use super::ctx::{ProcBodyInfo, ScanCtx};
+use super::params::parse_param_list;
+use super::types::{SignatureClass, SignatureProc, SignatureScanResult};
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
 ///
@@ -60,6 +62,51 @@ pub(super) fn emit_class(
             body_range: body_tok.span,
         },
     );
+}
+
+/// Handler for `proc NAME PARAMS BODY`.
+///
+/// Mirrors `_handle_proc` in `core/analysis/signature_scan.py`.
+/// Records a `SignatureProc` in `ctx.result.procs` and a
+/// `ProcBodyInfo` in `ctx.proc_bodies` so the second-pass factory
+/// resolver can identify factory-wrapper procs by their
+/// `proc $a $b $c` body shape.
+///
+/// Body recursion (`scan_factory_candidates`) is **not** wired in
+/// this strip — it lands in `C40c7`, after the walker module
+/// exists. The proc is recorded; the body walk is deferred.
+pub(super) fn handle_proc(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    if texts.len() < 4 {
+        return;
+    }
+    let raw_name = &texts[1];
+    let qualified = qualify(ns_prefix, raw_name);
+    let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+    let name_range = argv[1].span;
+    let body_range = argv[3].span;
+    let params = parse_param_list(&texts[2]);
+    let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
+    ctx.result.procs.insert(
+        qualified.clone(),
+        SignatureProc {
+            name: simple,
+            qualified_name: qualified.clone(),
+            params,
+            name_range,
+            body_range,
+        },
+    );
+    let body_ns = match qualified.rsplit_once("::") {
+        Some((parent, _)) => parent.trim_start_matches(':').to_string(),
+        None => String::new(),
+    };
+    ctx.proc_bodies.push(ProcBodyInfo {
+        qname: qualified,
+        params: param_names,
+        body_text: texts[3].clone(),
+        ns_prefix: body_ns,
+    });
+    // TODO(C40c7): scan factory candidates in body when argv[3] is `Str`.
 }
 
 #[cfg(test)]
@@ -110,5 +157,66 @@ mod tests {
             .expect("absolute name preserved");
         assert_eq!(cls.name, "Top");
         assert_eq!(cls.qualified_name, "::Top");
+    }
+
+    fn proc_inputs(name: &str) -> (Vec<String>, Vec<Token>) {
+        let texts = vec![
+            "proc".to_string(),
+            name.to_string(),
+            "a b".to_string(),
+            "set x 1".to_string(),
+        ];
+        let argv = vec![token(0, 4), token(5, 8), token(10, 13), token(15, 22)];
+        (texts, argv)
+    }
+
+    #[test]
+    fn handle_proc_records_bare_proc() {
+        let (texts, argv) = proc_inputs("foo");
+        let mut ctx = ScanCtx::default();
+        handle_proc(&texts, &argv, "", &mut ctx);
+        let proc = ctx.result.procs.get("::foo").expect("inserted");
+        assert_eq!(proc.name, "foo");
+        assert_eq!(proc.qualified_name, "::foo");
+        assert_eq!(proc.params.len(), 2);
+        assert_eq!(proc.params[0].name, "a");
+        assert_eq!(proc.name_range, Span::new(5, 8));
+        assert_eq!(proc.body_range, Span::new(15, 22));
+        assert_eq!(ctx.proc_bodies.len(), 1);
+        assert_eq!(ctx.proc_bodies[0].qname, "::foo");
+        assert_eq!(ctx.proc_bodies[0].body_text, "set x 1");
+        assert_eq!(ctx.proc_bodies[0].ns_prefix, "");
+    }
+
+    #[test]
+    fn handle_proc_under_namespace_indexes_qualified() {
+        let (texts, argv) = proc_inputs("bar");
+        let mut ctx = ScanCtx::default();
+        handle_proc(&texts, &argv, "ns::deep", &mut ctx);
+        let proc = ctx.result.procs.get("::ns::deep::bar").expect("inserted");
+        assert_eq!(proc.name, "bar");
+        assert_eq!(ctx.proc_bodies[0].ns_prefix, "ns::deep");
+    }
+
+    #[test]
+    fn handle_proc_with_absolute_name_records_at_global() {
+        let (texts, argv) = proc_inputs("::top::baz");
+        let mut ctx = ScanCtx::default();
+        handle_proc(&texts, &argv, "outer", &mut ctx);
+        let proc = ctx.result.procs.get("::top::baz").expect("inserted");
+        assert_eq!(proc.name, "baz");
+        assert_eq!(proc.qualified_name, "::top::baz");
+        // body_ns drops the leading colon and trailing simple name.
+        assert_eq!(ctx.proc_bodies[0].ns_prefix, "top");
+    }
+
+    #[test]
+    fn handle_proc_too_few_args_no_op() {
+        let texts = vec!["proc".to_string(), "name".to_string()];
+        let argv = vec![token(0, 4), token(5, 9)];
+        let mut ctx = ScanCtx::default();
+        handle_proc(&texts, &argv, "", &mut ctx);
+        assert!(ctx.result.procs.is_empty());
+        assert!(ctx.proc_bodies.is_empty());
     }
 }
