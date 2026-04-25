@@ -704,7 +704,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
-| C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | planned |
+| C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | planned |
 | C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | planned |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
@@ -797,6 +797,20 @@ Strips (one commit per audit + port):
 Done definition: each strip lands a fixture or a unit test, the
 differential codegen harness still reports zero new divergent
 fixtures, and `cargo test -p tcl-compiler --lib` stays green.
+
+**Landed outcome.** Five new matching fixtures added
+(`foreach-multi-var.tcl`, `for-continue-runs-next.tcl`,
+`dict-create-fold.tcl`, `expr-double-cast.tcl`, plus the existing
+single-var `foreach-simple.tcl` already covering C39a's bytecode
+path). One new divergent fixture filed:
+`divergent/expr-radix-fold.tcl` — `expr {0xFF + 1}` parses but the
+Rust pipeline does not constant-fold the binary op (Rust emits 18
+instructions, Python 12). Filed as a follow-up, not blocking C39.
+Differential matching corpus: 33/33 passing (17 exact + 16
+semantic), divergent corpus: 2 (was 1). All other C39 strips fall
+into "WASM-only port skipped" (C39d) or "audit confirms parity
+already in place" (C39a/b/c/e/f/h/i/j) — a fixture in
+`matching/` is the proof for each.
 
 ### C35 — Const-propagate-uplevel
 
