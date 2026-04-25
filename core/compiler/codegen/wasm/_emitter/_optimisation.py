@@ -752,7 +752,9 @@ class _WasmEmitterOptMixin(_Base):
                     and barrier_args[0] == "eval"
                     and len(barrier_args) > 2
                 ):
-                    if not self._emit_namespace_eval_bridge(barrier_args[2:], drop_result=False):
+                    if not self._emit_namespace_eval_bridge(
+                        barrier_args[2:], drop_result=False, ns_name=barrier_args[1]
+                    ):
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
                         # result stays on stack (no DROP)
                 elif barrier_cmd == "uplevel" and barrier_args:

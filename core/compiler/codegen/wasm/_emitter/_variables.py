@@ -304,6 +304,7 @@ class _WasmEmitterVarMixin(_Base):
         script_parts: tuple[str, ...] | list[str],
         *,
         drop_result: bool,
+        ns_name: str | None = None,
     ) -> bool:
         """Emit a ``namespace eval <ns> <script-parts...>`` bridge.
 
@@ -311,6 +312,15 @@ class _WasmEmitterVarMixin(_Base):
         like ``$arr($key)`` resolve correctly) then calls ``tcl_eval``
         with a ``frame_sync`` / ``frame_readback`` pair around it so
         the interpreter sees the caller's locals.
+
+        When *ns_name* is provided the bridge wraps the eval in
+        ``tcl_ns_set`` / ``tcl_ns_restore`` so script-level dispatches
+        (e.g. ``proc $varName ...`` going through the eval-fallback
+        path) see the right ``current_ns`` and qualify their proc
+        names against the target namespace.  Without this every
+        dynamic-name proc inside ``namespace eval ::ns { ... }``
+        registered at root, breaking later ``[name]`` lookups from
+        within the namespace.
 
         *drop_result* controls what happens to the eval result:
           - ``True`` (statement context): drop — stack returns to empty.
@@ -342,10 +352,37 @@ class _WasmEmitterVarMixin(_Base):
                 self._emit_call(append_idx)
                 self._emit_value(sa)
                 self._emit_call(append_idx)
+        # Push namespace context (if requested + the imports exist) so
+        # the body's eval-fallback dispatches resolve names against
+        # the target namespace.  ``tcl_ns_set`` returns the previously
+        # active handle as i64; we stash it in a fresh local and pass
+        # it back to ``tcl_ns_restore`` after the eval returns.
+        ns_saved_local: int | None = None
+        if (
+            ns_name
+            and not ns_name.startswith("$")
+            and not ns_name.startswith("[")
+            and "tcl_ns_set" in self._shared_imports
+            and "tcl_ns_restore" in self._shared_imports
+        ):
+            ns_set_idx = self._shared_imports["tcl_ns_set"]
+            ns_saved_local = self._add_extra_local(
+                prefix="_ns_eval_saved", val_type=ValType.I64
+            )
+            offset = self._intern_string(ns_name)
+            encoded = ns_name.encode("utf-8", errors="surrogatepass")
+            self._emit_i32_const(offset + 4)
+            self._emit_i32_const(len(encoded))
+            self._emit_call(ns_set_idx)
+            self._emit_local_set(ns_saved_local)
         self._emit_frame_sync()
         self._emit_call(eval_idx)
         if drop_result:
             self._emit(WasmOp.DROP)
+        if ns_saved_local is not None:
+            ns_restore_idx = self._shared_imports["tcl_ns_restore"]
+            self._emit_local_get(ns_saved_local)
+            self._emit_call(ns_restore_idx)
         self._emit_frame_readback()
         return True
 

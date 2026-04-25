@@ -623,7 +623,36 @@ pub export fn var_resolve(name: i32) i32 {
             return v;
         }
     }
-    // Fall through to global
+    // No frame match.  Tcl 9: an unqualified name at script level
+    // resolves against the current namespace's variable table
+    // first, then falls through to the root global.  Inside
+    // ``namespace eval ::ns { … }`` the compiled-side writer mirrors
+    // ``set v X`` to the global table under ``::ns::v`` (see
+    // ``_emit_var_write_obj_impl`` in the codegen), so the
+    // interpreter must look for that qualified form before giving
+    // up.  Without this branch ``$varName`` inside an eval-fallback
+    // returned empty even after a successful compiled write.
+    if (tcl_ns.current_ns != 0) {
+        const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
+        if (ns_full.len > 2) {
+            // Build ``<ns_full>::<name>`` in the bump allocator and
+            // look it up.  Skip when ns is the root (length 2 = "::").
+            const total: u32 = ns_full.len + 2 + sn.len;
+            const buf = obj.alloc(total);
+            const dst: [*]u8 = @ptrFromInt(buf);
+            const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+            for (0..ns_full.len) |i| dst[i] = ns_p[i];
+            dst[ns_full.len] = ':';
+            dst[ns_full.len + 1] = ':';
+            const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+            for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+            const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+            if (globals.global_exists(qname) != 0) {
+                return globals.global_get(qname);
+            }
+        }
+    }
+    // Fall through to root global
     return globals.global_get(name);
 }
 

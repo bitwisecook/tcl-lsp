@@ -532,7 +532,9 @@ class _WasmEmitterStmtMixin(_Base):
                 # Bridge drops the result since we're in statement context.
                 # If imports are missing the bridge returns False and we
                 # silently skip (statement context has no stack commitments).
-                self._emit_namespace_eval_bridge(args[2:], drop_result=True)
+                self._emit_namespace_eval_bridge(
+                    args[2:], drop_result=True, ns_name=args[1]
+                )
                 return
             # ``namespace import`` / ``namespace export`` / ``namespace
             # forget`` — record the side effect at runtime so the
@@ -869,7 +871,9 @@ class _WasmEmitterStmtMixin(_Base):
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
             if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
-                if self._emit_namespace_eval_bridge(args[2:], drop_result=False):
+                if self._emit_namespace_eval_bridge(
+                    args[2:], drop_result=False, ns_name=args[1]
+                ):
                     return
                 # Runtime imports missing — push null TclObj as fallback.
                 self._emit_i32_const(0)

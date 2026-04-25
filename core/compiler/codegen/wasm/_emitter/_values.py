@@ -673,7 +673,9 @@ class _WasmEmitterValuesMixin(_Base):
         # them with spaces at runtime, then pass the assembled script to
         # ``tcl_eval``.
         if cmd_name == "namespace" and cmd_args and cmd_args[0] == "eval" and len(cmd_args) > 2:
-            if self._emit_namespace_eval_bridge(cmd_args[2:], drop_result=False):
+            if self._emit_namespace_eval_bridge(
+                cmd_args[2:], drop_result=False, ns_name=cmd_args[1]
+            ):
                 return
             # Required runtime imports missing — fall through to the
             # generic eval fallback below so we still produce something.
