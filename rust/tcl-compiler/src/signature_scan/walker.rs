@@ -156,4 +156,31 @@ mod tests {
         assert!(ctx.result.procs.contains_key("::bar"));
         assert_eq!(ctx.result.command_invocations.len(), 3);
     }
+
+    #[test]
+    fn namespace_eval_recurses_into_body() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "namespace eval ns { proc inner {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::ns::inner"));
+    }
+
+    #[test]
+    fn namespace_eval_absolute_rebases_prefix() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "namespace eval outer { namespace eval ::abs { proc foo {} {} } }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        // The inner ::abs eval should rebase, not nest under outer.
+        assert!(ctx.result.procs.contains_key("::abs::foo"));
+    }
 }

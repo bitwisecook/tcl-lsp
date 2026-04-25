@@ -125,7 +125,7 @@ pub(super) fn handle_namespace(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
-    _conditional: bool,
+    conditional: bool,
     ctx: &mut ScanCtx,
 ) {
     if texts.len() < 2 {
@@ -141,10 +141,7 @@ pub(super) fn handle_namespace(
         } else {
             raw_ns.clone()
         };
-        // TODO(C40c2): recurse into argv[3] body via maybe_recurse_body
-        // with the computed inner_prefix. For now, suppress the
-        // unused-variable lint.
-        let _ = inner_prefix;
+        super::walker::maybe_recurse_body(&texts[3], argv[3], &inner_prefix, conditional, ctx);
         return;
     }
     if sub == "import" && texts.len() >= 3 {
