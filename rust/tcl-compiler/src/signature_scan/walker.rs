@@ -66,7 +66,7 @@ pub(super) fn scan(
             "itcl::class" | "::itcl::class" => {
                 handlers::handle_itcl_class(texts, argv, ns_prefix, &mut ctx.result);
             }
-            "if" => handle_if_stub(texts, argv, ns_prefix, ctx),
+            "if" => handle_if(texts, argv, ns_prefix, ctx),
             "catch" => handle_catch_stub(texts, argv, ns_prefix, ctx),
             "try" => handle_try_stub(texts, argv, ns_prefix, ctx),
             "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
@@ -106,8 +106,39 @@ pub(super) fn maybe_recurse_body(
 // -- Body-recursion handler stubs ---------------------------------
 // Filled in by C40c3 (`if`), C40c4 (`catch`), C40c5 (`try`).
 
-fn handle_if_stub(_texts: &[String], _argv: &[Token], _ns_prefix: &str, _ctx: &mut ScanCtx) {
-    // TODO(C40c3): walk every then/elseif/else branch via maybe_recurse_body.
+fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    // Tcl's `if` takes the shape:
+    //   if EXPR ?then? BODY ?elseif EXPR ?then? BODY?... ?else? ?BODY?
+    // Alternate between expecting an expression and expecting a body,
+    // resetting the expectation whenever `then` / `elseif` / `else`
+    // appears. Every recursed body is marked `conditional=true`.
+    let mut i = 1;
+    let mut expect_body = false;
+    while i < texts.len() {
+        let word = texts[i].as_str();
+        if word == "then" {
+            expect_body = true;
+            i += 1;
+            continue;
+        }
+        if word == "elseif" {
+            expect_body = false;
+            i += 1;
+            continue;
+        }
+        if word == "else" {
+            expect_body = true;
+            i += 1;
+            continue;
+        }
+        if expect_body {
+            maybe_recurse_body(&texts[i], argv[i], ns_prefix, true, ctx);
+            expect_body = false;
+        } else {
+            expect_body = true;
+        }
+        i += 1;
+    }
 }
 
 fn handle_catch_stub(_texts: &[String], _argv: &[Token], _ns_prefix: &str, _ctx: &mut ScanCtx) {
@@ -182,5 +213,47 @@ mod tests {
         );
         // The inner ::abs eval should rebase, not nest under outer.
         assert!(ctx.result.procs.contains_key("::abs::foo"));
+    }
+
+    #[test]
+    fn handle_if_then_else_recurses_both_branches() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "if {$x} { proc thenproc {} {} } else { proc elseproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::thenproc"));
+        assert!(ctx.result.procs.contains_key("::elseproc"));
+    }
+
+    #[test]
+    fn handle_if_elseif_chain_recurses_each_body() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "if {$x} { proc a {} {} } elseif {$y} { proc b {} {} } elseif {$z} { proc c {} {} } else { proc d {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        for name in ["::a", "::b", "::c", "::d"] {
+            assert!(ctx.result.procs.contains_key(name), "missing {name}");
+        }
+    }
+
+    #[test]
+    fn handle_if_explicit_then_keyword() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "if {$x} then { proc thenproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::thenproc"));
     }
 }
