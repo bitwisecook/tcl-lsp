@@ -6,7 +6,7 @@
 
 use crate::ir::Statement;
 
-use super::values::{is_array_ref, is_qualified, parse_simple_var_ref, split_array_ref};
+use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
 
 /// Tag used to identify `startCommand` instructions wrapping generic
@@ -82,7 +82,7 @@ impl CodegenCtx {
     pub fn emit_stmt(&mut self, stmt: &Statement, used_generic_invoke: &mut bool) {
         match stmt {
             Statement::AssignConst { name, value, .. } => {
-                if needs_stk_push(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
                 }
                 self.push_lit(value);
@@ -102,7 +102,7 @@ impl CodegenCtx {
                     value.clone()
                 };
 
-                if needs_stk_push(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
                 }
                 self.emit_value_interpolated(&value);
@@ -111,7 +111,7 @@ impl CodegenCtx {
             }
 
             Statement::AssignExpr { name, expr, .. } => {
-                if needs_stk_push(name, self.is_proc) {
+                if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
                 }
                 let inner_end = self.fresh_label("cmd_end");
@@ -366,17 +366,6 @@ impl CodegenCtx {
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
     }
-}
-
-/// Whether a store needs the name/key pushed first (stk-based ops).
-fn needs_stk_push(name: &str, is_proc: bool) -> bool {
-    if !is_proc {
-        return true;
-    }
-    if is_qualified(name) {
-        return true;
-    }
-    is_array_ref(name)
 }
 
 #[cfg(test)]

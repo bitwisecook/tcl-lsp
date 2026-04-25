@@ -36,7 +36,6 @@ tracked value numbers; read-only/output commands do not.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import TypeAlias
 
@@ -76,6 +75,7 @@ from .ir import (
     IRCall,
 )
 from .irules_flow import _find_when_bodies, _walk_body_commands
+from .rust_spans import rust_shim_enabled
 from .side_effects import EffectRegion, classify_side_effects
 from .ssa import BlockName, SSAFunction, SSAVersion
 from .var_refs import VarReferenceScanner, VarScanOptions
@@ -1356,7 +1356,7 @@ def find_redundant_computations(
         _rust_gvn_redundancies is not None
         and _rust_gvn_partial_redundancies is not None
         and _rust_gvn_loop_invariants is not None
-        and os.environ.get("TCL_LSP_RUST_GVN")
+        and rust_shim_enabled("TCL_LSP_RUST_GVN")
     ):
         try:
             dialect = active_dialect()

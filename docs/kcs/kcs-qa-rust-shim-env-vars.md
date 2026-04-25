@@ -22,8 +22,10 @@ Rust binding when an opt-in env var is set, falling back to the
 Python implementation if (a) the binding isn't installed or
 (b) the Rust path raises an exception.
 
-Setting one of the env vars to any non-empty value (the convention
-is `=1`) flips the corresponding subsystem to the Rust pipeline:
+Setting one of the env vars to a truthy value (`1`, `true`, `yes`,
+`on`, `y`, `t` — case-insensitive) flips the corresponding
+subsystem to the Rust pipeline. Empty / unset / `0` / `false` /
+`no` / `off` keep the Python pipeline active:
 
 | Env var                          | Subsystem                | Module wired                                   |
 |----------------------------------|--------------------------|------------------------------------------------|

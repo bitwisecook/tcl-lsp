@@ -212,6 +212,23 @@ def test_dispatcher_env_var_on_uses_rust(monkeypatch) -> None:
     assert "::foo" not in result.all_procs
 
 
+def test_dispatcher_env_var_zero_does_not_enable_rust(monkeypatch) -> None:
+    """``TCL_LSP_RUST_SIGNATURE_SCAN=0`` must NOT activate the rust
+    path. Pre-fix this regressed: ``os.environ.get(name)`` was truthy
+    for any non-empty string including ``"0"``, opting users into
+    the experimental path when they thought they were disabling it.
+    The shared ``rust_shim_enabled`` helper now recognises ``0`` /
+    ``false`` / ``no`` / ``off`` (and the empty string) as off."""
+    monkeypatch.setenv("TCL_LSP_RUST_SIGNATURE_SCAN", "0")
+
+    def _boom(_source):
+        raise AssertionError("rust path must not be called for env var = '0'")
+
+    monkeypatch.setattr(signature_scan_module, "_rust_extract", _boom)
+    result = extract_signatures("proc foo {} {}")
+    assert "::foo" in result.all_procs
+
+
 def test_dispatcher_rust_exception_falls_back_to_python(monkeypatch, caplog) -> None:
     """If the Rust path raises, the dispatcher logs at DEBUG and the
     Python implementation runs as a safety net."""
