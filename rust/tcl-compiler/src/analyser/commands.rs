@@ -25,11 +25,53 @@
 //! ``if let true = self.handle_xxx(...) { return }`` calls so
 //! extending it remains a one-liner.
 
-use tcl_lexer::Token;
+use tcl_lexer::{Token, TokenType};
 
 use super::state::Analyser;
 
 impl Analyser {
+    /// Re-segment a body script and dispatch each command at
+    /// `scope_path`.
+    ///
+    /// Mirrors the post-segmentation portion of
+    /// `_analyse_body_inner` in
+    /// `core/analysis/_analyser/_core.py:438-524` — the analyser-
+    /// side of body recursion. Used by every body-walking handler
+    /// (`handle_proc_command`, `handle_switch_command`,
+    /// `handle_try_command`, `handle_catch_command`, etc.).
+    ///
+    /// Body recursion does **not** use Seg2 recovery — recovery
+    /// only fires at the top level (matches Python's
+    /// `_analyse_body` vs. `_analyse_body_inner` split).
+    /// Dynamic bodies (`$body`, `[gen]`) are skipped because they
+    /// can't be statically re-segmented.
+    ///
+    /// `body_depth` is bumped for the duration of the walk so
+    /// top-level-only command checks (deferred to **C41d**) can
+    /// distinguish nested invocations.
+    ///
+    /// **Deferred concerns** (each gets its own future strip):
+    /// var-read recording for `VAR` tokens, `CMD`-substitution
+    /// recursion, preceding-comment harvesting, and the
+    /// recovery hooks (`recover_stray_close_bracket`,
+    /// `recover_missing_open_brace`).  This helper covers the
+    /// minimal subset C41c needs.
+    pub(super) fn analyse_body(&mut self, body_text: &str, body_tok: Token, scope_path: &[usize]) {
+        if body_tok.kind != TokenType::Str {
+            return;
+        }
+        self.body_depth += 1;
+        let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let body_commands = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
+        for cmd in body_commands {
+            if cmd.is_partial || cmd.argv.is_empty() {
+                continue;
+            }
+            self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
+        }
+        self.body_depth -= 1;
+    }
+
     /// Process a single segmented command.
     ///
     /// Mirrors the **handler-dispatch** subset of

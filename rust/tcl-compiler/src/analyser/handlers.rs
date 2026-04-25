@@ -48,14 +48,55 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     }
 }
 
+/// Split a form-2 ``switch`` braced body into its flat list of
+/// pattern/body elements.
+///
+/// Mirrors `_parse_switch_body` in
+/// `core/analysis/_analyser/_proc.py:259-331`. Python re-lexes
+/// the inner body with `TclLexer` and groups consecutive
+/// non-separator tokens into "elements"; the Rust port leans on
+/// the existing segmenter — every word across every command in
+/// the body is one element, which produces the same flat
+/// alternating pattern/body sequence.
+///
+/// Returns `(text, token)` pairs in source order.  The token's
+/// span is rebased into the outer source's offset space via the
+/// body token's `content_offset`.  Dynamic bodies (non-`Str`
+/// tokens) yield an empty list — the caller must fall back to
+/// form-1-style alternation when the form-2 body cannot be
+/// statically split.
+fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
+    if body_tok.kind != TokenType::Str {
+        return Vec::new();
+    }
+    let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let cmds = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
+    let mut elements = Vec::new();
+    for cmd in cmds {
+        if cmd.is_partial {
+            continue;
+        }
+        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()) {
+            elements.push((text.clone(), *tok));
+        }
+    }
+    elements
+}
+
 impl Analyser {
     /// Handle the `set` command: `set var ?value?`.
     ///
     /// Mirrors `_handle_set_command` in
-    /// `core/analysis/_analyser/_handlers.py:51-70`. Defines the
-    /// target variable in the scope at `scope_path` and tracks
-    /// the value as a constant string when the value is a
-    /// single-token literal (no interpolation, no command sub).
+    /// `core/analysis/_analyser/_handlers.py:51-70` and the inner
+    /// `_handle_set` in `_proc.py:177-191`.
+    ///
+    /// - **Two-arg form** (`set var value`) — defines the variable
+    ///   in the scope at `scope_path` and tracks the value as a
+    ///   constant string when the value is a single-token literal
+    ///   (no interpolation, no command sub).
+    /// - **One-arg form** (`set var`) — records a var read on the
+    ///   variable.  Tcl `set` with no value returns the current
+    ///   value, so this is a reference, not a definition.
     ///
     /// `single_token_word` parallels `args` and `arg_tokens` —
     /// `true` when the corresponding word is a single atomic
@@ -63,13 +104,6 @@ impl Analyser {
     /// `value_token.text == args[1]` check, which boils down to
     /// "is this word's text the same as a single token's raw
     /// text?".
-    ///
-    /// **C41c hook.** The Python source also calls
-    /// `_AnalyserProcMixin._handle_set` (which lives in
-    /// `_proc.py:177-191`) for the proc-scope variant. That
-    /// inner walk is ported in **C41c2**; for now this handler
-    /// only does the const-string tracking + the
-    /// outer-scope define.
     pub fn handle_set_command(
         &mut self,
         cmd_name: &str,
@@ -82,16 +116,18 @@ impl Analyser {
             return;
         }
 
-        // Define the variable being assigned. The Python source
-        // does this through `_handle_set` (deferred to C41c2);
-        // we inline the basic case here so handlers built on top
-        // see the var in scope without requiring C41c2 to land
-        // first.
-        if let Some(name_tok) = arg_tokens.first() {
+        // _handle_set: arg-count branch from ``_proc.py:177-191``.
+        let Some(name_tok) = arg_tokens.first() else {
+            return;
+        };
+        if args.len() >= 2 {
             self.define_var(&args[0], *name_tok, scope_path, true, None);
+        } else {
+            self.record_var_read(&args[0], name_tok.span, scope_path);
         }
 
         // Track constant-string assignments for regex propagation.
+        // Skipped for the 1-arg read form (no value to track).
         if args.len() < 2 || arg_tokens.len() < 2 {
             return;
         }
@@ -267,24 +303,11 @@ impl Analyser {
             // ``_proc.py:128-131``.
             let saved_comment = std::mem::take(&mut self.last_comment);
 
-            // Body recursion: re-segment using
-            // ``segment_commands_with_offset`` (no recovery — recovery
-            // is top-level only, matching Python's
-            // ``_analyse_body_inner`` semantics). The body's tokens
-            // get rebased from local-offset space into the outer
-            // source's offset space via ``base_offset``.
-            self.body_depth += 1;
+            // Body recursion via the shared helper.  Re-segments
+            // the body (no recovery — top-level only) and
+            // dispatches each command at the new proc scope path.
             let body_text = args[2].clone();
-            let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-            let body_commands =
-                crate::segmenter::segment_commands_with_offset(&body_text, base_offset);
-            for cmd in body_commands {
-                if cmd.is_partial || cmd.argv.is_empty() {
-                    continue;
-                }
-                self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &child_path);
-            }
-            self.body_depth -= 1;
+            self.analyse_body(&body_text, body_tok, &child_path);
 
             self.last_comment = saved_comment;
         }
@@ -419,22 +442,94 @@ impl Analyser {
     /// Handle `switch ?options? string ?pattern body? ...`.
     ///
     /// Mirrors `_handle_switch_command` in
-    /// `core/analysis/_analyser/_handlers.py:164-177`. Arity
-    /// checking now lives in `compiler_checks::arity_checks` via
-    /// the IR; this handler delegates the body walk to the
-    /// `_handle_switch` proc-scope variant in
-    /// ``_proc.py:192-258``, deferred to **C41c2**.
+    /// `core/analysis/_analyser/_handlers.py:164-177` plus the
+    /// `_handle_switch` arm walker in `_proc.py:192-258`. Arity
+    /// checking lives in `compiler_checks::arity_checks` via the
+    /// IR; this handler walks each arm body so locals defined
+    /// inside an arm land in the enclosing scope.
+    ///
+    /// Switch has two forms:
+    ///
+    /// 1. ``switch ?options? string pattern body ?pattern body? ...``
+    ///    — pattern and body args alternate inline.
+    /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
+    ///    — pattern/body pairs live inside a single braced
+    ///    block.  See [`Self::parse_switch_body_elements`] for
+    ///    how that braced form is split.
+    ///
+    /// Bodies that are literally ``-`` are fall-through markers
+    /// (the next arm's body fires) and are skipped — recursing
+    /// into the literal ``-`` would produce a useless command.
+    ///
+    /// **Deferred.** ``-regexp`` pattern recording (Python
+    /// ``_proc.py:233-252``) emits ``RegexPattern`` records into
+    /// ``result.regex_patterns``; the Rust analyser doesn't yet
+    /// carry that field (lands alongside the diagnostic emitters
+    /// in **C41d**).  The flag is detected here as a marker for
+    /// the future hook but no records are emitted yet.
     pub fn handle_switch_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "switch" || args.len() < 2 {
             return false;
         }
-        // C41c2: delegate to handle_switch for arm body recursion.
+
+        // Scan and skip option flags. ``--`` ends the option
+        // section explicitly (and is consumed). ``-regexp``
+        // would gate regex-pattern recording in C41d; tracked
+        // here so the future hook only needs to consult the flag.
+        let mut i = 0;
+        let mut _is_regexp = false;
+        while i < args.len() && args[i].starts_with('-') {
+            if args[i] == "-regexp" {
+                _is_regexp = true;
+            }
+            if args[i] == "--" {
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
+        // Skip the ``string`` argument that follows the options.
+        i += 1;
+
+        if i >= args.len() {
+            return true;
+        }
+
+        if i == args.len() - 1 {
+            // Form 2 — single braced body containing all pairs.
+            let body_text = args[i].clone();
+            let Some(body_tok) = arg_tokens.get(i).copied() else {
+                return true;
+            };
+            let elements = parse_switch_body_elements(&body_text, body_tok);
+            let mut j = 0;
+            while j + 1 < elements.len() {
+                // Pattern at j, body at j+1. Regex-pattern recording
+                // for ``-regexp`` lands in C41d.
+                let (body_text, body_tok) = &elements[j + 1];
+                if body_text != "-" {
+                    self.analyse_body(body_text, *body_tok, scope_path);
+                }
+                j += 2;
+            }
+        } else {
+            // Form 1 — pattern/body pairs inline in args/arg_tokens.
+            while i + 1 < args.len() {
+                let body_text = &args[i + 1];
+                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
+                    if body_text != "-" {
+                        self.analyse_body(body_text, body_tok, scope_path);
+                    }
+                }
+                i += 2;
+            }
+        }
         true
     }
 
@@ -724,7 +819,37 @@ mod tests {
     }
 
     #[test]
-    fn handle_set_no_value_only_defines_var() {
+    fn handle_set_no_value_records_read_not_definition() {
+        // ``set x`` (one-arg form) is a *read*, not a definition —
+        // Tcl returns the current value of ``x``. Mirrors
+        // ``_handle_set`` in ``_proc.py:177-191``: the 1-arg
+        // branch calls ``_record_var_read``, not ``_define_var``.
+        let mut a = Analyser::new();
+        // Pre-define x so the read records a reference.
+        a.define_var("x", esc_tok(span(0, 1)), &[], false, None);
+        a.handle_set_command(
+            "set",
+            &["x".to_string()],
+            &[esc_tok(span(10, 11))],
+            &[true],
+            &[],
+        );
+        // The read appended a reference; no second definition.
+        assert!(a.result.global_scope.variables.contains_key("x"));
+        assert_eq!(
+            a.result.global_scope.variables["x"].references,
+            vec![span(10, 11)],
+        );
+        // No const-string tracking for the 1-arg form.
+        assert_eq!(a.lookup_const_string("x", &[]), None);
+    }
+
+    #[test]
+    fn handle_set_no_value_undefined_var_is_silent() {
+        // ``set x`` on an undefined variable is still a read
+        // (matching Python's ``_record_var_read`` path); the
+        // record_var_read helper silently no-ops when the name
+        // isn't in scope, so no spurious binding lands.
         let mut a = Analyser::new();
         a.handle_set_command(
             "set",
@@ -733,8 +858,7 @@ mod tests {
             &[true],
             &[],
         );
-        assert!(a.result.global_scope.variables.contains_key("x"));
-        assert_eq!(a.lookup_const_string("x", &[]), None);
+        assert!(!a.result.global_scope.variables.contains_key("x"));
     }
 
     #[test]
@@ -1385,7 +1509,7 @@ mod tests {
         let handled = a.handle_switch_command(
             "switch",
             &["$x".to_string(), "{a {puts a} b {puts b}}".to_string()],
-            &[],
+            &[esc_tok(span(7, 9)), str_tok(span(10, 36))],
             &[],
         );
         assert!(handled);
@@ -1396,6 +1520,124 @@ mod tests {
         let mut a = Analyser::new();
         let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
         assert!(!handled);
+    }
+
+    #[test]
+    fn handle_switch_form1_walks_each_arm_body() {
+        // Form 1: ``switch $x a {set y 1} b {set z 2}``.
+        // Each arm body should land its ``set`` in the
+        // surrounding scope.  Source layout has the bodies at
+        // offsets 13..23 (``{set y 1}``) and 27..37 (``{set z 2}``).
+        let mut a = Analyser::new();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "$x".to_string(),
+                "a".to_string(),
+                "set y 1".to_string(),
+                "b".to_string(),
+                "set z 2".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 11)),
+                str_tok(span(13, 22)),
+                esc_tok(span(24, 25)),
+                str_tok(span(27, 36)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_switch_form2_braced_body_walks_each_arm() {
+        // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
+        // The single braced body holds all pattern/body pairs;
+        // ``parse_switch_body_elements`` re-segments to surface
+        // each pair, then each body recurses.
+        let mut a = Analyser::new();
+        let body_text = " a {set y 1} b {set z 2} ".to_string();
+        // body span: outer source positions 10..(10 + len(body)+2).
+        // body_text has 25 chars, plus surrounding braces → token
+        // span 10..37, content_offset = 1 to skip the opening ``{``.
+        a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), body_text],
+            &[esc_tok(span(7, 9)), str_tok(span(10, 37))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_switch_form1_skips_fallthrough_marker() {
+        // ``switch $x a - b {set y 1}`` — the ``-`` body for
+        // pattern ``a`` is fall-through (next arm fires); only
+        // ``b``'s body should be walked.
+        let mut a = Analyser::new();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "$x".to_string(),
+                "a".to_string(),
+                "-".to_string(),
+                "b".to_string(),
+                "set y 1".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 11)),
+                esc_tok(span(12, 13)),
+                esc_tok(span(14, 15)),
+                str_tok(span(17, 26)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_switch_recognises_dashdash_options_terminator() {
+        // ``switch -- $x a {set y 1}`` — ``--`` ends the option
+        // section; the string arg follows.  Walker still finds
+        // the arm body and lands ``y``.
+        let mut a = Analyser::new();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "--".to_string(),
+                "$x".to_string(),
+                "a".to_string(),
+                "set y 1".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 12)),
+                esc_tok(span(13, 14)),
+                str_tok(span(16, 25)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_switch_dynamic_form2_body_skips_walk() {
+        // Form 2 with a dynamic body (``$body`` instead of a
+        // braced literal) yields no elements; the walk no-ops.
+        let mut a = Analyser::new();
+        let var_tok = Token::new(TokenType::Var, span(10, 15));
+        a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), "$body".to_string()],
+            &[esc_tok(span(7, 9)), var_tok],
+            &[],
+        );
+        // No body walked → no vars defined.
+        assert!(a.result.global_scope.variables.is_empty());
     }
 
     // -- handle_catch_command ---------------------------------------
