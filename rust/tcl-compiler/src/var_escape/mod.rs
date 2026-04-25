@@ -21,6 +21,7 @@
 
 pub mod helpers;
 pub mod info_subcommands;
+pub mod known_names;
 pub mod state;
 pub mod types;
 
