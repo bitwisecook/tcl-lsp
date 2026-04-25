@@ -16,8 +16,8 @@ use tcl_lexer::Token;
 use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
-    SignatureClass, SignatureCommandAlias, SignatureNamespaceImport, SignaturePackageRequire,
-    SignatureProc, SignatureScanResult, SignatureSource,
+    SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceImport,
+    SignaturePackageRequire, SignatureProc, SignatureScanResult, SignatureSource,
 };
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
@@ -306,6 +306,29 @@ pub(super) fn handle_oo_class(
     }
     let body_tok = if argv.len() > 3 { argv[3] } else { argv[2] };
     emit_class(&texts[2], argv[2], body_tok, ns_prefix, result);
+}
+
+/// Handler for `lappend auto_path …` / `set auto_path …`.
+///
+/// Mirrors `_handle_auto_path` in
+/// `core/analysis/signature_scan.py`. Both forms are accepted; every
+/// word after `auto_path` is recorded as a `SignatureAutoPathEntry`.
+/// Path-resolution to absolute filesystem paths happens later in
+/// the analyser pipeline.
+pub(super) fn handle_auto_path(texts: &[String], argv: &[Token], result: &mut SignatureScanResult) {
+    if texts.len() < 3 || texts[1] != "auto_path" {
+        return;
+    }
+    for i in 2..texts.len() {
+        let raw = &texts[i];
+        if raw.is_empty() {
+            continue;
+        }
+        result.auto_path_entries.push(SignatureAutoPathEntry {
+            raw: raw.clone(),
+            range: argv[i].span,
+        });
+    }
 }
 
 /// Handler for `itcl::class NAME BODY` (or `::itcl::class NAME BODY`).
@@ -679,5 +702,36 @@ mod tests {
         let cls = result.classes.get("::Foo").expect("inserted");
         assert_eq!(cls.name, "Foo");
         assert_eq!(cls.body_range, Span::new(16, 33));
+    }
+
+    #[test]
+    fn handle_auto_path_lappend_form() {
+        let texts = vec![
+            "lappend".to_string(),
+            "auto_path".to_string(),
+            "/usr/local/lib".to_string(),
+            "/opt/foo".to_string(),
+        ];
+        let argv = vec![token(0, 7), token(8, 17), token(18, 32), token(33, 41)];
+        let mut result = SignatureScanResult::default();
+        handle_auto_path(&texts, &argv, &mut result);
+        assert_eq!(result.auto_path_entries.len(), 2);
+        assert_eq!(result.auto_path_entries[0].raw, "/usr/local/lib");
+        assert_eq!(result.auto_path_entries[0].range, Span::new(18, 32));
+        assert_eq!(result.auto_path_entries[1].raw, "/opt/foo");
+    }
+
+    #[test]
+    fn handle_auto_path_set_form() {
+        let texts = vec![
+            "set".to_string(),
+            "auto_path".to_string(),
+            "/var/lib/tcl".to_string(),
+        ];
+        let argv = vec![token(0, 3), token(4, 13), token(14, 26)];
+        let mut result = SignatureScanResult::default();
+        handle_auto_path(&texts, &argv, &mut result);
+        assert_eq!(result.auto_path_entries.len(), 1);
+        assert_eq!(result.auto_path_entries[0].raw, "/var/lib/tcl");
     }
 }
