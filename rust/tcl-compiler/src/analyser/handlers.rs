@@ -159,7 +159,7 @@ impl Analyser {
     /// for now this strip records the basic [`ProcDef`] shape
     /// (qualified name, params, name + body spans, doc-comment)
     /// in both `current_scope.procs` and `result.all_procs` so
-    /// downstream consumers (signature_scan parity, the LSP
+    /// downstream consumers (`signature_scan` parity, the LSP
     /// rename feature, the workspace index) see a correct proc
     /// list immediately. The deeper body walk + scope creation
     /// is deferred.
@@ -208,6 +208,67 @@ impl Analyser {
         // C41c1 hook: the proc-body walk happens here. For now
         // the body span is recorded so consumers can post-process.
         true
+    }
+
+    /// Handle `namespace eval`: opens a new namespace scope and
+    /// schedules its body for analysis.
+    ///
+    /// Mirrors `_handle_namespace_eval_command` in
+    /// `core/analysis/_analyser/_handlers.py:97-118`. Returns
+    /// `true` when the command was handled.
+    ///
+    /// **C41f1 hook.** Python recurses into the body via
+    /// `_analyse_body`, which lives in `_core.py` (the orchestrator
+    /// layer). The Rust port creates the child scope and stores
+    /// the body span; the deeper body recursion is wired in
+    /// **C41f1** when the analyser orchestration lands. For now
+    /// the namespace scope is added so downstream handlers can
+    /// see qualified names resolve through it.
+    pub fn handle_namespace_eval_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "namespace" || args.len() < 2 || args[0] != "eval" {
+            return false;
+        }
+        let ns_name = args[1].clone();
+        let body_span = arg_tokens.get(2).map(|t| t.span);
+
+        let mut child = super::types::Scope::new(super::types::ScopeKind::Namespace, ns_name);
+        child.body_span = body_span;
+
+        let path = scope_path.to_vec();
+        let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) else {
+            return false;
+        };
+        parent.children.push(child);
+        true
+    }
+
+    /// Handle `namespace ensemble create` — record the namespace as
+    /// an ensemble so its tail names become valid commands.
+    ///
+    /// Mirrors `_handle_namespace_ensemble` in
+    /// `core/analysis/_analyser/_handlers.py:254-268`.
+    pub fn handle_namespace_ensemble(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "namespace" || args.len() < 2 {
+            return;
+        }
+        if args[0] != "ensemble" || args[1] != "create" {
+            return;
+        }
+        let ns = self.namespace_from_scope_path(scope_path);
+        if !ns.is_empty() && ns != "::" {
+            self.ensemble_namespaces.insert(ns);
+        }
     }
 
     /// Handle the `incr` command: `incr var ?amount?`.
@@ -447,7 +508,7 @@ mod tests {
             .push(Scope::new(ScopeKind::Namespace, "ns1"));
         let handled = a.handle_proc_command(
             "proc",
-            &["foo".to_string(), "".to_string(), "".to_string()],
+            &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 8)),
                 str_tok(span(9, 11)),
@@ -469,7 +530,7 @@ mod tests {
             .push(Scope::new(ScopeKind::Namespace, "outer"));
         let handled = a.handle_proc_command(
             "proc",
-            &["::other::foo".to_string(), "".to_string(), "".to_string()],
+            &["::other::foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(5, 17)),
                 str_tok(span(18, 20)),
@@ -489,7 +550,7 @@ mod tests {
         a.last_comment = "doc string".to_string();
         a.handle_proc_command(
             "proc",
-            &["foo".to_string(), "".to_string(), "".to_string()],
+            &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(0, 3)),
                 str_tok(span(4, 6)),
@@ -516,7 +577,7 @@ mod tests {
         let mut a = Analyser::new();
         let handled = a.handle_proc_command(
             "puts",
-            &["foo".to_string(), "".to_string(), "".to_string()],
+            &["foo".to_string(), String::new(), String::new()],
             &[
                 esc_tok(span(0, 3)),
                 str_tok(span(4, 6)),
@@ -526,6 +587,107 @@ mod tests {
         );
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
+    }
+
+    // -- handle_namespace_eval_command ------------------------------
+
+    #[test]
+    fn handle_namespace_eval_creates_child_scope() {
+        let mut a = Analyser::new();
+        let handled = a.handle_namespace_eval_command(
+            "namespace",
+            &[
+                "eval".to_string(),
+                "ns1".to_string(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 18)),
+                str_tok(span(19, 35)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert_eq!(a.result.global_scope.children.len(), 1);
+        assert_eq!(a.result.global_scope.children[0].name, "ns1");
+        assert_eq!(
+            a.result.global_scope.children[0].kind,
+            crate::analyser::types::ScopeKind::Namespace,
+        );
+    }
+
+    #[test]
+    fn handle_namespace_eval_records_body_span() {
+        let mut a = Analyser::new();
+        a.handle_namespace_eval_command(
+            "namespace",
+            &["eval".to_string(), "ns1".to_string(), String::new()],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 18)),
+                str_tok(span(19, 35)),
+            ],
+            &[],
+        );
+        assert_eq!(
+            a.result.global_scope.children[0].body_span,
+            Some(span(19, 35))
+        );
+    }
+
+    #[test]
+    fn handle_namespace_eval_wrong_subcommand_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_namespace_eval_command(
+            "namespace",
+            &["import".to_string(), "::tcl::*".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 16))],
+            &[],
+        );
+        assert!(!handled);
+        assert!(a.result.global_scope.children.is_empty());
+    }
+
+    // -- handle_namespace_ensemble ----------------------------------
+
+    #[test]
+    fn handle_namespace_ensemble_records_in_set() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            "namespace",
+            &["ensemble".to_string(), "create".to_string()],
+            &[0],
+        );
+        assert!(a.ensemble_namespaces.contains("::myns"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_global_scope_no_op() {
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(
+            "namespace",
+            &["ensemble".to_string(), "create".to_string()],
+            &[],
+        );
+        assert!(a.ensemble_namespaces.is_empty());
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_wrong_subcommand_no_op() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble("namespace", &["eval".to_string(), "myns".to_string()], &[0]);
+        assert!(a.ensemble_namespaces.is_empty());
     }
 
     // -- handle_incr_command ----------------------------------------
