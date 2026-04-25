@@ -41,6 +41,12 @@ We get there by porting the codebase bottom-up, in dependency order:
 4. **Remainder.** `vm/`, `core/commands/`, `core/analysis/`,
    `core/formatting/`, `core/minifier/`, `core/irule_test/`, the
    debugger, fuzzing harnesses, the compiler explorer, and CLI tooling.
+   First analysis chunk landed: **C40** ports
+   `core/analysis/signature_scan.py` (~862 LOC, used by every
+   non-OPEN document for cross-file workspace symbols, `package
+   require` resolution, and command-usage counts) to
+   `rust/tcl-compiler/src/signature_scan/` behind a default-off
+   `TCL_LSP_RUST_SIGNATURE_SCAN=1` env-var gate.
 5. **Python-facing surface** is reduced to the bits that genuinely want
    to stay in Python (AI skills, MCP, scripts).
 
