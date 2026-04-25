@@ -271,6 +271,91 @@ impl Analyser {
         }
     }
 
+    /// Define a list of variables from a varList token (e.g. the
+    /// loop-variable list of `foreach`). Mirrors
+    /// `_define_vars_from_list` in
+    /// `core/analysis/_analyser/_scope.py:81-124`.
+    ///
+    /// **Simplified port.** Python uses
+    /// `position_from_relative` to compute a per-name range
+    /// inside the varList token's text. Rust uses the parent
+    /// token's span for every defined var — a coarser
+    /// approximation that's acceptable at this strip; per-name
+    /// span resolution lands when ``position_from_relative``
+    /// gets a Rust port (deferred to a follow-up).
+    fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
+        for name in var_list_text.split_whitespace() {
+            self.define_var(name, tok, scope_path, true, None);
+        }
+    }
+
+    /// Handle `foreach var list body` (and the `foreach_in_collection`
+    /// dialect variant).
+    ///
+    /// Mirrors `_handle_foreach_command` in
+    /// `core/analysis/_analyser/_handlers.py:120-142`. Defines the
+    /// loop-variable list in the active scope; the body recursion
+    /// is deferred to **C41f1**.
+    pub fn handle_foreach_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if !matches!(cmd_name, "foreach" | "foreach_in_collection") {
+            return false;
+        }
+        if args.len() < 3 {
+            return false;
+        }
+        if let Some(tok) = arg_tokens.first() {
+            self.define_vars_from_list(&args[0], *tok, scope_path);
+        }
+        true
+    }
+
+    /// Handle `for init test next body`.
+    ///
+    /// Mirrors `_handle_for_command` in
+    /// `core/analysis/_analyser/_handlers.py:144-162`. Body
+    /// recursion deferred to **C41f1**.
+    pub fn handle_for_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        _arg_tokens: &[Token],
+        _scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "for" || args.len() < 4 {
+            return false;
+        }
+        // Body / test / next recursion lands in C41f1.
+        true
+    }
+
+    /// Handle `switch ?options? string ?pattern body? ...`.
+    ///
+    /// Mirrors `_handle_switch_command` in
+    /// `core/analysis/_analyser/_handlers.py:164-177`. Arity
+    /// checking now lives in `compiler_checks::arity_checks` via
+    /// the IR; this handler delegates the body walk to the
+    /// `_handle_switch` proc-scope variant in
+    /// ``_proc.py:192-258``, deferred to **C41c2**.
+    pub fn handle_switch_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        _arg_tokens: &[Token],
+        _scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "switch" || args.len() < 2 {
+            return false;
+        }
+        // C41c2: delegate to handle_switch for arm body recursion.
+        true
+    }
+
     /// Handle the `incr` command: `incr var ?amount?`.
     ///
     /// Mirrors `_handle_incr_command` in
@@ -688,6 +773,126 @@ mod tests {
             .push(Scope::new(ScopeKind::Namespace, "myns"));
         a.handle_namespace_ensemble("namespace", &["eval".to_string(), "myns".to_string()], &[0]);
         assert!(a.ensemble_namespaces.is_empty());
+    }
+
+    // -- handle_foreach_command -------------------------------------
+
+    #[test]
+    fn handle_foreach_defines_single_loop_var() {
+        let mut a = Analyser::new();
+        let handled = a.handle_foreach_command(
+            "foreach",
+            &[
+                "i".to_string(),
+                "{1 2 3}".to_string(),
+                "puts $i".to_string(),
+            ],
+            &[
+                esc_tok(span(8, 9)),
+                str_tok(span(10, 17)),
+                str_tok(span(18, 28)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert!(a.result.global_scope.variables.contains_key("i"));
+    }
+
+    #[test]
+    fn handle_foreach_defines_multiple_loop_vars() {
+        let mut a = Analyser::new();
+        a.handle_foreach_command(
+            "foreach",
+            &["k v".to_string(), "{a 1 b 2}".to_string(), String::new()],
+            &[
+                esc_tok(span(8, 11)),
+                str_tok(span(12, 21)),
+                str_tok(span(22, 24)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("k"));
+        assert!(a.result.global_scope.variables.contains_key("v"));
+    }
+
+    #[test]
+    fn handle_foreach_too_few_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_foreach_command(
+            "foreach",
+            &["i".to_string(), "{1 2}".to_string()],
+            &[esc_tok(span(0, 1)), str_tok(span(2, 7))],
+            &[],
+        );
+        assert!(!handled);
+    }
+
+    #[test]
+    fn handle_foreach_wrong_command_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_foreach_command(
+            "while",
+            &["i".to_string(), "list".to_string(), "body".to_string()],
+            &[
+                esc_tok(span(0, 1)),
+                esc_tok(span(2, 6)),
+                esc_tok(span(7, 11)),
+            ],
+            &[],
+        );
+        assert!(!handled);
+    }
+
+    // -- handle_for_command -----------------------------------------
+
+    #[test]
+    fn handle_for_returns_true_for_canonical_shape() {
+        let mut a = Analyser::new();
+        let handled = a.handle_for_command(
+            "for",
+            &[
+                "set i 0".to_string(),
+                "$i < 10".to_string(),
+                "incr i".to_string(),
+                "puts $i".to_string(),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_for_too_few_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_for_command(
+            "for",
+            &["set i 0".to_string(), "$i < 10".to_string()],
+            &[],
+            &[],
+        );
+        assert!(!handled);
+    }
+
+    // -- handle_switch_command --------------------------------------
+
+    #[test]
+    fn handle_switch_returns_true_for_canonical_shape() {
+        let mut a = Analyser::new();
+        let handled = a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), "{a {puts a} b {puts b}}".to_string()],
+            &[],
+            &[],
+        );
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_switch_too_few_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
+        assert!(!handled);
     }
 
     // -- handle_incr_command ----------------------------------------
