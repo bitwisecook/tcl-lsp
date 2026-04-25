@@ -1,0 +1,59 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x738c4180, refCt 1, epoch 0, interp 0x72c0d000 (epoch 0)
+  Source "set i 0\nset sum 0\nwhile {$i < 10} {\n    incr i\n    if {"
+  Cmds 9, src 111, inst 56, litObjs 5, aux 0, stkDepth 2, code/src 2.92
+  Code 324 = header 160+inst 56+litObj 40+exc 28+aux 0+cmdMap 36
+  Proc 0x7389dc40, refCt 1, args 0, compiled locals 2
+      slot 0, scalar, "i"
+      slot 1, scalar, "sum"
+  Exception ranges 1, depth 1:
+      0: level 1, loop, pc 12-44, continue 46, break 53
+  Commands 9:
+      1: pc 0-4, src 0-6   	   2: pc 5-9, src 8-16
+      3: pc 10-54, src 18-109   	   4: pc 12-15, src 40-45
+      5: pc 16-28, src 51-71   	   6: pc 23-23, src 64-71
+      7: pc 29-41, src 77-94   	   8: pc 36-36, src 90-94
+      9: pc 42-44, src 100-107
+  Command 1: "set i 0"
+    (0) push1 0  	# "0"
+    (2) storeScalar1 0	# var "i"
+    (4) pop 
+  Command 2: "set sum 0"
+    (5) push1 0  	# "0"
+    (7) storeScalar1 1	# var "sum"
+    (9) pop 
+  Command 3: "while {$i < 10} {\n    incr i\n    if {$i == 3} continue\n"
+    (10) jump1 36  	# pc 46
+  Command 4: "incr i"
+    (12) incrScalar1Imm 0 1
+    (15) pop 
+  Command 5: "if {$i == 3} continue"
+    (16) loadScalar1 0	# var "i"
+    (18) push1 1  	# "3"
+    (20) eq 
+    (21) jumpFalse1 5  	# pc 26
+  Command 6: "continue"
+    (23) continue 
+    (24) jump1 4  	# pc 28
+    (26) push1 2  	# ""
+    (28) pop 
+  Command 7: "if {$i == 7} break"
+    (29) loadScalar1 0	# var "i"
+    (31) push1 3  	# "7"
+    (33) eq 
+    (34) jumpFalse1 5  	# pc 39
+  Command 8: "break"
+    (36) break 
+    (37) jump1 4  	# pc 41
+    (39) push1 2  	# ""
+    (41) pop 
+  Command 9: "incr sum"
+    (42) incrScalar1Imm 1 1
+    (45) pop 
+    (46) loadScalar1 0	# var "i"
+    (48) push1 4  	# "10"
+    (50) lt 
+    (51) jumpTrue1 -39  	# pc 12
+    (53) push1 2  	# ""
+    (55) done 

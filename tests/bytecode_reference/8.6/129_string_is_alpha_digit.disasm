@@ -1,0 +1,56 @@
+ByteCode 0x0xc32449310, refCt 1, epoch 17, interp 0x0xc32c28010 (epoch 17)
+  Source "proc test_types {s} {\n    set a [string is alpha $s]\n..."
+  Cmds 1, src 135, inst 11, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-9, src 0-133
+  Command 1: "proc test_types {s} {\n    set a [string is alpha $s]\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "test_types"
+    (4) push1 2 	# "s"
+    (6) push1 3 	# "\n    set a [string is alpha $s]\n    se..."
+    (8) invokeStk1 4 
+    (10) done 
+
+
+ByteCode 0x0xc324b8010, refCt 1, epoch 72, interp 0x0xc3249e810 (epoch 72)
+  Source "\n    set a [string is alpha $s]\n    set b [string is ..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 7, src 112, inst 60, litObjs 0, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0xc324d3d10, refCt 1, args 1, compiled locals 4
+      slot 0, scalar, arg, "s"
+      slot 1, scalar, "a"
+      slot 2, scalar, "b"
+      slot 3, scalar, "c"
+  Commands 7:
+      1: pc 0-6, src 5-30        2: pc 0-3, src 12-29
+      3: pc 7-22, src 36-61        4: pc 16-19, src 43-60
+      5: pc 23-38, src 67-92        6: pc 32-35, src 74-91
+      7: pc 39-58, src 98-110
+  Command 1: "set a [string is alpha $s]..."
+  Command 2: "string is alpha $s..."
+    (0) loadScalar1 %v0 	# var "s"
+    (2) strclass alpha 
+    (4) storeScalar1 %v1 	# var "a"
+    (6) pop 
+  Command 3: "set b [string is digit $s]..."
+    (7) startCommand +15 2 	# next cmd at pc 22, 2 cmds start here
+  Command 4: "string is digit $s..."
+    (16) loadScalar1 %v0 	# var "s"
+    (18) strclass digit 
+    (20) storeScalar1 %v2 	# var "b"
+    (22) pop 
+  Command 5: "set c [string is alnum $s]..."
+    (23) startCommand +15 2 	# next cmd at pc 38, 2 cmds start here
+  Command 6: "string is alnum $s..."
+    (32) loadScalar1 %v0 	# var "s"
+    (34) strclass alnum 
+    (36) storeScalar1 %v3 	# var "c"
+    (38) pop 
+  Command 7: "list $a $b $c..."
+    (39) startCommand +20 1 	# next cmd at pc 59, 1 cmds start here
+    (48) loadScalar1 %v1 	# var "a"
+    (50) loadScalar1 %v2 	# var "b"
+    (52) loadScalar1 %v3 	# var "c"
+    (54) list 3 
+    (59) done 
+

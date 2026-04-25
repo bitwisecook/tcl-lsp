@@ -1,0 +1,18 @@
+ByteCode ::top, 8 instructions, 14 bytes, 5 literals, 0 variables
+  Literals:
+    0: "result"
+    1: "lmap"
+    2: "x"
+    3: "1 2 3 4 5"
+    4: "{\n    expr {$x * $x}\n}"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "result"
+    (2) push1 1	# "lmap"
+    (4) push1 2	# "x"
+    (6) push1 3	# "1 2 3 4 5"
+    (8) push1 4	# "{\n    expr {$x * $x}\n}"
+    (10) invokeStk1 4
+    (12) storeStk
+  # exit_2:
+    (13) done

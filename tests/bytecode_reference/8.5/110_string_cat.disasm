@@ -1,0 +1,35 @@
+ByteCode 0x0x82ecd2410, refCt 1, epoch 3, interp 0x0x82ec20010 (epoch 3)
+  Source "set a \"hello\"\nset b \"world\"\nstring cat $a \" \" $b\nstring"
+  Cmds 4, src 63, inst 46, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-12   	   2: pc 6-20, src 14-26
+      3: pc 21-35, src 28-47   	   4: pc 36-44, src 49-61
+  Command 1: "set a \"hello\""
+    (0) push1 0 	# "a"
+    (2) push1 1 	# "hello"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set b \"world\""
+    (6) startCommand +14 1 	# next cmd at pc 20
+    (15) push1 2 	# "b"
+    (17) push1 3 	# "world"
+    (19) storeScalarStk 
+    (20) pop 
+  Command 3: "string cat $a \" \" $b"
+    (21) push1 4 	# "string"
+    (23) push1 5 	# "cat"
+    (25) push1 0 	# "a"
+    (27) loadScalarStk 
+    (28) push1 6 	# " "
+    (30) push1 2 	# "b"
+    (32) loadScalarStk 
+    (33) invokeStk1 5 
+    (35) pop 
+  Command 4: "string cat $a"
+    (36) push1 4 	# "string"
+    (38) push1 5 	# "cat"
+    (40) push1 0 	# "a"
+    (42) loadScalarStk 
+    (43) invokeStk1 3 
+    (45) done 
+

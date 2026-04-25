@@ -1,0 +1,59 @@
+ByteCode 0x0xa848c6210, refCt 1, epoch 3, interp 0x0xa84c20010 (epoch 3)
+  Source "set s \"abcdef\"\nset a [string index $s 0]\nset b [string "
+  Cmds 9, src 125, inst 118, litObjs 10, aux 0, stkDepth 3, code/src 0.00
+  Commands 9:
+      1: pc 0-5, src 0-13   	   2: pc 6-33, src 15-39
+      3: pc 17-31, src 22-38   	   4: pc 34-61, src 41-67
+      5: pc 45-59, src 48-66   	   6: pc 62-89, src 69-97
+      7: pc 73-87, src 76-96   	   8: pc 90-116, src 99-123
+      9: pc 101-115, src 106-122
+  Command 1: "set s \"abcdef\""
+    (0) push1 0 	# "s"
+    (2) push1 1 	# "abcdef"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "set a [string index $s 0]"
+    (6) startCommand +27 1 	# next cmd at pc 33
+    (15) push1 2 	# "a"
+  Command 3: "string index $s 0"
+    (17) startCommand +15 1 	# next cmd at pc 32
+    (26) push1 0 	# "s"
+    (28) loadScalarStk 
+    (29) push1 3 	# "0"
+    (31) strindex 
+    (32) storeScalarStk 
+    (33) pop 
+  Command 4: "set b [string index $s end]"
+    (34) startCommand +27 1 	# next cmd at pc 61
+    (43) push1 4 	# "b"
+  Command 5: "string index $s end"
+    (45) startCommand +15 1 	# next cmd at pc 60
+    (54) push1 0 	# "s"
+    (56) loadScalarStk 
+    (57) push1 5 	# "end"
+    (59) strindex 
+    (60) storeScalarStk 
+    (61) pop 
+  Command 6: "set c [string index $s end-1]"
+    (62) startCommand +27 1 	# next cmd at pc 89
+    (71) push1 6 	# "c"
+  Command 7: "string index $s end-1"
+    (73) startCommand +15 1 	# next cmd at pc 88
+    (82) push1 0 	# "s"
+    (84) loadScalarStk 
+    (85) push1 7 	# "end-1"
+    (87) strindex 
+    (88) storeScalarStk 
+    (89) pop 
+  Command 8: "set d [string index $s 3]"
+    (90) startCommand +27 1 	# next cmd at pc 117
+    (99) push1 8 	# "d"
+  Command 9: "string index $s 3"
+    (101) startCommand +15 1 	# next cmd at pc 116
+    (110) push1 0 	# "s"
+    (112) loadScalarStk 
+    (113) push1 9 	# "3"
+    (115) strindex 
+    (116) storeScalarStk 
+    (117) done 
+

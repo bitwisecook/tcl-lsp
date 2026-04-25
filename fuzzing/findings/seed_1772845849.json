@@ -1,0 +1,24 @@
+{
+  "seed": 1772845849,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"y\": no such variable\n    while executing\n\"if {(14 ? (-96 - $y) : (-7.78 ^ -95))} {\n            set msg \"fy\"\n            set acc h\n        } elseif {(80 > ($a && $data))} {\n            if {((!-...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach n {26.43 yes yhdnhuj 728 -221} {\n        set flag 43.01\n        set x \"50\"\n        if {(14 ? (-96 - $y) : (-7.78 ^ -95))} {\n            set ms...\"\n    invoked from within\n\"if {(!($msg >= -2))} {\n    for {set result 0} {$result < 1"
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

@@ -1,0 +1,16 @@
+{
+  "seed": 1772831120,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "fixed": true,
+  "fix": "all backends timeout equally \u2014 not a VM bug",
+  "category": "timeout-all"
+}

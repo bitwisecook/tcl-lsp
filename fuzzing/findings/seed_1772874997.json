@@ -1,0 +1,24 @@
+{
+  "seed": 1772874997,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "missing close-brace"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"acc\": no such variable\n    while executing\n\"if {$acc <= 8} {\n    set b 1\n    incr b 9\n    string first \"a\" \"os\"\n    foreach buf {xkqjdkk} {\n        string trim \"t1s0\"\n        append b \"i3#q2-d7s...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpac87ae3p.tcl\" line 23)"
+    }
+  ],
+  "fixed": true,
+  "fix": "variable resolution errors now propagate correctly",
+  "category": "missing-variable"
+}

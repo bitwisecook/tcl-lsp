@@ -1,0 +1,24 @@
+{
+  "seed": 1772875247,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-40.45\" as right operand of \">>\"\n    invoked from within\n\"expr {max(((~94) / max(1, abs((-12 + 5)))), (-(-93 >> -40.45)))}\"\n    (\"for\" body line 7)\n    invoked from within\n\"for {set n 0} {$n < 3} {incr n} {\n    foreach n {-461 false} {\n        foreach n {299} {\n            set n {-82.07 -585 rfvxqx 524}\n        }\n    }\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkz2afzpt.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-40.45\" as right operand of \">>\"\n    invoked from within\n\"expr {max(((~94) / max(1, abs((-12 + 5)))), (-(-93 >> -40.45)))}\"\n    (\"for\" body line 7)\n    invoked from within\n\"for {set n 0} {$n < 3} {incr n} {\n    foreach n {-461 false} {\n        foreach n {299} {\n            set n {-82.07 -585 rfvxqx 524}\n        }\n    }\n  ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpkz2afzpt.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

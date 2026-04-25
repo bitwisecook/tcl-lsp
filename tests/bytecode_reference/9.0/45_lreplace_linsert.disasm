@@ -1,0 +1,29 @@
+ByteCode 0xb7ed29a10, refCt 1, epoch 21, interp 0xb7ec28010 (epoch 21)
+  Source "set lst [list a b c d e]\nlreplace $lst 1 2 x y\nlinser..."
+  Cmds 4, src 64, inst 38, litObjs 7, aux 0, stkDepth 5, code/src 0.00
+  Commands 4:
+      1: pc 0-5, src 0-23        2: pc 2-3, src 9-22
+      3: pc 6-23, src 25-45        4: pc 24-36, src 47-62
+  Command 1: "set lst [list a b c d e]..."
+    (0) push1 0 	# "lst"
+  Command 2: "list a b c d e..."
+    (2) push1 1 	# "a b c d e"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "lreplace $lst 1 2 x y..."
+    (6) push1 0 	# "lst"
+    (8) loadStk 
+    (9) push1 2 	# "1"
+    (11) push1 3 	# "2"
+    (13) push1 4 	# "x"
+    (15) push1 5 	# "y"
+    (17) lreplace4 5 1 
+    (23) pop 
+  Command 4: "linsert $lst 2 z..."
+    (24) push1 0 	# "lst"
+    (26) loadStk 
+    (27) push1 3 	# "2"
+    (29) push1 6 	# "z"
+    (31) lreplace4 3 2 
+    (37) done 
+

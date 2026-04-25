@@ -1,0 +1,24 @@
+{
+  "seed": 1772875246,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"\"\n    while executing\n\"incr acc\"\n    invoked from within\n\"if {-97.63} {\n    set acc 0\n    while {$acc < 4} {\n        set z [expr {-84}]\n        set item 0\n        while {$item < 5} {\n            expr {((29 ||...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp0xhw8uxt.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"\"\n    while executing\n\"incr acc\"\n    invoked from within\n\"if {-97.63} {\n    set acc 0\n    while {$acc < 4} {\n        set z [expr {-84}]\n        set item 0\n        while {$item < 5} {\n            expr {((29 ||...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp0xhw8uxt.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

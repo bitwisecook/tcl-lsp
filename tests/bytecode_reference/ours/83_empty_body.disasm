@@ -1,0 +1,37 @@
+ByteCode ::top, 14 instructions, 32 bytes, 5 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "noop"
+    2: ""
+    3: "catch"
+    4: "result"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "noop"
+    (4) push1 2	# ""
+    (6) push1 2	# ""
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) startCommand +11 1	# next cmd at pc 22, 1 cmds start here
+  # if_then_3:
+    (20) push1 2	# ""
+  # if_end_2:
+  # cmd_end_1:
+    (22) pop
+    (23) push1 3	# "catch"
+    (25) push1 2	# ""
+    (27) push1 4	# "result"
+    (29) invokeStk1 3	# catch
+  # cmd_end_2:
+  # exit_5:
+    (31) done
+
+ByteCode ::noop, 2 instructions, 3 bytes, 1 literals, 0 variables
+  Literals:
+    0: ""
+  Instructions:
+  # entry_1:
+  # exit_2:
+    (0) push1 0	# ""
+    (2) done

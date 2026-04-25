@@ -1,0 +1,52 @@
+ByteCode ::top, 20 instructions, 48 bytes, 8 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "p"
+    2: ""
+    3: "\n    set ::y 789\n    return $::y\n"
+    4: "::a"
+    5: "1"
+    6: "2"
+    7: "3"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "p"
+    (4) push1 2	# ""
+    (6) push1 3	# "\n    set ::y 789\n    return $::y\n"
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) startCommand +16 1	# next cmd at pc 27, 1 cmds start here
+    (20) push1 4	# "::a"
+    (22) push1 5	# "1"
+    (24) push1 6	# "2"
+    (26) storeArrayStk
+  # cmd_end_1:
+    (27) pop
+    (28) startCommand +19 1	# next cmd at pc 47, 1 cmds start here
+    (37) push1 4	# "::a"
+    (39) push1 4	# "::a"
+    (41) push1 5	# "1"
+    (43) loadArrayStk
+    (44) push1 7	# "3"
+    (46) storeArrayStk
+  # cmd_end_2:
+  # exit_2:
+    (47) done
+
+ByteCode ::p, 9 instructions, 20 bytes, 2 literals, 0 variables
+  Literals:
+    0: "::y"
+    1: "789"
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "::y"
+    (2) push1 1	# "789"
+    (4) storeStk
+    (5) pop
+    (6) startCommand +13 1	# next cmd at pc 19, 1 cmds start here
+    (15) push1 0	# "::y"
+    (17) loadStk
+    (18) done
+  # ret_end_1:
+    (19) done

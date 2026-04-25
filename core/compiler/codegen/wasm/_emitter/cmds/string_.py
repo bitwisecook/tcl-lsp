@@ -1,0 +1,129 @@
+"""WASM emit hook for ``string``."""
+
+from __future__ import annotations
+
+from ......commands.registry import REGISTRY, EmitContext
+from ..._imports import (
+    _STRING_IS_IMPORT,
+    import_signature,
+    subcommand_runtime_import_for,
+)
+from ..._ir import WasmOp
+
+
+def _emit_string(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
+    """``string subcommand ...`` — dispatch to runtime import (i32 args)."""
+    if context is EmitContext.VALUE:
+        # Tail / implicit-return: the result must stay on the operand
+        # stack.  Runtime imports that return ``i32`` leave one there;
+        # void-result imports get an ``i32.const 0`` pushed to fill in
+        # an empty-string result.  Unknown sub-commands / missing
+        # imports fall through to the eval-fallback path so the caller
+        # sees a real ``bad subcommand`` / ``unknown command`` error
+        # rather than a silent empty result.
+        if args:
+            subcmd = args[0]
+            if subcmd == "is" and len(args) >= 3:
+                is_key = _STRING_IS_IMPORT.get(args[1])
+                if is_key is not None and is_key in emitter._shared_imports:
+                    func_idx = emitter._shared_imports[is_key]
+                    emitter._emit_value(args[-1])
+                    emitter._emit_call(func_idx)
+                    return True
+            sri = subcommand_runtime_import_for("string", subcmd)
+            if sri is not None and sri.import_key in emitter._shared_imports:
+                func_idx = emitter._shared_imports[sri.import_key]
+                param_count = len(sri.params)
+                sub_args = args[1:]
+                for i in range(min(param_count, len(sub_args))):
+                    emitter._emit_value(sub_args[i])
+                for _ in range(param_count - len(sub_args)):
+                    emitter._emit_i32_const(0)
+                emitter._emit_call(func_idx)
+                if not sri.results:
+                    emitter._emit_i32_const(0)
+                return True
+        # Unknown subcommand (or no subcommand at all).  Delegate to
+        # the interpreter so it raises Tcl's native ``bad subcommand``
+        # error and the tail dispatcher's value-stack expectation is
+        # satisfied by ``tcl_eval``'s i32 result.
+        emitter._emit_eval_fallback("string", args)
+        return True
+    if not args:
+        emitter._emit_unsupported_trap("string (no subcommand)")
+        return True
+    subcmd = args[0]
+
+    if subcmd == "cat":
+        sub_args = args[1:]
+        if not sub_args:
+            emitter._emit_obj_literal("")
+        elif all(
+            not a.startswith("$")
+            and not a.startswith("[")
+            and not emitter._has_embedded_subst(a)
+            and a not in emitter._aliases
+            and a not in emitter._local_index
+            for a in sub_args
+        ):
+            emitter._emit_obj_literal("".join(sub_args))
+        else:
+            append_idx = emitter._shared_imports.get("tcl_append")
+            if append_idx is None:
+                emitter._emit_eval_fallback("string", args)
+                if defs:
+                    def_idx = emitter._intern_local(defs[0])
+                    emitter._emit_local_set(def_idx)
+                else:
+                    emitter._emit(WasmOp.DROP)
+                return True
+            emitter._emit_value(sub_args[0])
+            for rest in sub_args[1:]:
+                emitter._emit_value(rest)
+                emitter._emit_call(append_idx)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
+        return True
+
+    if subcmd == "is" and len(args) >= 3:
+        class_name = args[1]
+        is_key = _STRING_IS_IMPORT.get(class_name)
+        if is_key is not None and is_key in emitter._shared_imports:
+            func_idx = emitter._shared_imports[is_key]
+            sig = import_signature(is_key)
+            val_arg = args[-1]
+            emitter._emit_value(val_arg)
+            emitter._emit_call(func_idx)
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            elif sig is not None and sig[3]:
+                emitter._emit(WasmOp.DROP)
+            return True
+
+    sri = subcommand_runtime_import_for("string", subcmd)
+    if sri is not None and sri.import_key in emitter._shared_imports:
+        func_idx = emitter._shared_imports[sri.import_key]
+        param_count = len(sri.params)
+        sub_args = args[1:]
+        for i in range(min(param_count, len(sub_args))):
+            emitter._emit_value(sub_args[i])
+        for _ in range(param_count - len(sub_args)):
+            emitter._emit_i32_const(0)
+        emitter._emit_call(func_idx)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        elif sri.results:
+            emitter._emit(WasmOp.DROP)
+    else:
+        emitter._emit_unsupported_trap(f"string {subcmd}")
+    return True
+
+
+REGISTRY.register_wasm_emitter("string", _emit_string)

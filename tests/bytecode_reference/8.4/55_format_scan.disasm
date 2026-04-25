@@ -1,0 +1,28 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x890c4640, refCt 1, epoch 0, interp 0x4972e20 (epoch 0)
+  Source "set s [format \"%s is %d years old\" Alice 30]\nscan \"42 h"
+  Cmds 3, src 78, inst 26, litObjs 9, aux 0, stkDepth 5, code/src 3.54
+  Code 276 = header 160+inst 26+litObj 72+exc 0+aux 0+cmdMap 12
+  Proc 0x890bd0c0, refCt 1, args 0, compiled locals 1
+      slot 0, scalar, "s"
+  Commands 3:
+      1: pc 0-12, src 0-43   	   2: pc 0-9, src 7-42
+      3: pc 13-24, src 45-76
+  Command 1: "set s [format \"%s is %d years old\" Alice 30]"
+  Command 2: "format \"%s is %d years old\" Alice 30"
+    (0) push1 0  	# "format"
+    (2) push1 1  	# "%s is %d years old"
+    (4) push1 2  	# "Alice"
+    (6) push1 3  	# "30"
+    (8) invokeStk1 4 
+    (10) storeScalar1 0	# var "s"
+    (12) pop 
+  Command 3: "scan \"42 hello\" \"%d %s\" num word"
+    (13) push1 4  	# "scan"
+    (15) push1 5  	# "42 hello"
+    (17) push1 6  	# "%d %s"
+    (19) push1 7  	# "num"
+    (21) push1 8  	# "word"
+    (23) invokeStk1 5 
+    (25) done 

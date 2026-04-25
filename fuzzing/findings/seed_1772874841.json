@@ -1,0 +1,24 @@
+{
+  "seed": 1772874841,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "negative shift argument",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    invoked from within\n\"expr {(((~70) ? (-97 << -43) : -22.79) << wide(30))}\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach msg {false yykibg} {\n            for {set tmp 0} {$tmp < 5} {incr tmp} {\n                set tmp {}\n                set flag [expr {(((~70) ? ...\"\n    (\"foreach\" body line 5)\n    invoked from within\n\"foreach msg {488 743 arljbwf 48.00 -654} {\n    string last \"a\" \"o71.cbp:7\"\n    append msg -325\n    if {$msg != 12} {\n        foreach msg"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

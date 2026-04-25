@@ -1,0 +1,22 @@
+TCLSH    /opt/homebrew/bin/tclsh8.6
+VERSION  8.6.17
+FILE     lrepeat.test
+DATE     2026-03-03T12:53:45Z
+---
+PASS lrepeat-1.1
+PASS lrepeat-1.2
+PASS lrepeat-1.3
+PASS lrepeat-1.4
+PASS lrepeat-1.5
+PASS lrepeat-1.6
+PASS lrepeat-1.7
+PASS lrepeat-1.8
+PASS lrepeat-2.1
+PASS lrepeat-2.2
+PASS lrepeat-2.3
+PASS lrepeat-2.4
+---
+TOTAL   12
+PASSED  12
+SKIPPED 0
+FAILED  0

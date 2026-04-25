@@ -1,0 +1,23 @@
+ByteCode 0x744d28010, refCt 1, epoch 21, interp 0x744c28010 (epoch 21)
+  Source "set d [dict create x 1 y 2 z 3]\ndict with d {\n    inc..."
+  Cmds 3, src 73, inst 35, litObjs 4, aux 0, stkDepth 3, code/src 0.00
+  Commands 3:
+      1: pc 0-16, src 0-30        2: pc 2-14, src 7-29
+      3: pc 17-33, src 32-71
+  Command 1: "set d [dict create x 1 y 2 z 3]..."
+    (0) push1 0 	# "d"
+  Command 2: "dict create x 1 y 2 z 3..."
+    (2) startCommand +13 1 	# next cmd at pc 15, 1 cmds start here
+    (11) push1 1 	# "x 1 y 2 z 3"
+    (13) dup 
+    (14) verifyDict 
+    (15) storeStk 
+    (16) pop 
+  Command 3: "dict with d {\n    incr x\n    incr y 10..."
+    (17) startCommand +17 1 	# next cmd at pc 34, 1 cmds start here
+    (26) push1 2 	# "::tcl::dict::with"
+    (28) push1 0 	# "d"
+    (30) push1 3 	# "\n    incr x\n    incr y 1..."
+    (32) invokeStk1 3 
+    (34) done 
+

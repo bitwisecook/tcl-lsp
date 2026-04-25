@@ -1,0 +1,24 @@
+{
+  "seed": 1772822499,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use non-numeric string \"\" as operand of \"~\"\n    while executing\n\"expr {(((~$a) > (-98)) ? min($a, (-13 & $a)) : abs(($flag <= 28)))}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$z < 4} {\n    set idx [expr {(((~$a) > (-98)) ? min($a, (-13 & $a)) : abs(($flag <= 28)))}]\n    set x -149\n    incr z\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpokcclnqf.tcl\" line 15)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt ok vs tclsh(tclsh9.0) error",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "(ok)",
+      "detail_b": "cannot use non-numeric string \"\" as operand of \"~\"\n    while executing\n\"expr {(((~$a) > (-98)) ? min($a, (-13 & $a)) : abs(($flag <= 28)))}\"\n    (\"while\" body line 2)\n    invoked from within\n\"while {$z < 4} {\n    set idx [expr {(((~$a) > (-98)) ? min($a, (-13 & $a)) : abs(($flag <= 28)))}]\n    set x -149\n    incr z\n}\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpokcclnqf.tcl\" line 15)"
+    }
+  ],
+  "fixed": true,
+  "fix": "foreach/while/for now return empty string per Tcl spec",
+  "category": "loop-return-value"
+}

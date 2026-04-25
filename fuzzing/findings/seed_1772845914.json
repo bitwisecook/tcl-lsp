@@ -1,0 +1,24 @@
+{
+  "seed": 1772845914,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"-59.25\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-59.25\" as left operand of \"^\"\n    invoked from within\n\"expr {(min(13, (-59.25 ^ -51)) + ((--75) != (--29)))}\"\n    (\"while\" body line 16)\n    invoked from within\n\"while {$acc < 2} {\n    set acc 76\n    incr acc -3\n    set a false\n    string range \"zoyrjl?fri3k4.5!,6m\" 2 4\n    if {$acc != 19} {\n        if {22} {\n ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmp98h7l_bb.tcl\" line 2)"
+    }
+  ],
+  "fixed": true,
+  "fix": "_parse_int_strict rejects boolean literals",
+  "category": "incr-boolean"
+}

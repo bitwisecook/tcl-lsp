@@ -1,0 +1,32 @@
+{
+  "seed": 1772846035,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(min((16 < -19.23), (96.33 > -24)) >> ((-40 >> 55) ** (66 || -97.84)))}\"\n    (in namespace eval \"::foo\" script line 5)\n    invoked from within\n\"namespace eval foo {\n    for {set y 0} {$y < 3} {incr y} {\n        set item -887\n    }\n    expr {(min((16 < -19.23), (96.33 > -24)) >> ((-40 >> 55) **...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpldkwmm4m.tcl\" line 125)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(min((16 < -19.23), (96.33 > -24)) >> ((-40 >> 55) ** (66 || -97.84)))}\"\n    (in namespace eval \"::foo\" script line 5)\n    invoked from within\n\"namespace eval foo {\n    for {set y 0} {$y < 3} {incr y} {\n        set item -887\n    }\n    expr {(min((16 < -19.23), (96.33 > -24)) >> ((-40 >> 55) **...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpldkwmm4m.tcl\" line 125)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}

@@ -1,0 +1,24 @@
+{
+  "seed": 1772875055,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "expected integer but got \"0g7fg7f\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"0g7fg7f\"\n    while executing\n\"incr i\"\n    (\"for\" body line 5)\n    invoked from within\n\"for {set i 0} {$i < 1} {incr i} {\n    set a 63\n    incr a 3\n    expr {20}\n    for {set i 0} {$i < 5} {incr i} {\n        foreach a {-138 -204} {\n      ...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpmomdt16y.tcl\" line 14)"
+    }
+  ],
+  "fixed": true,
+  "fix": "strict integer parsing rejects boolean literals",
+  "category": "expected-integer"
+}

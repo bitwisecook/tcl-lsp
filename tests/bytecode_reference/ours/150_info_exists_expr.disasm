@@ -1,0 +1,43 @@
+ByteCode ::top, 6 instructions, 11 bytes, 4 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "test"
+    2: "args"
+    3: "\n    if {[info exists args]} {\n    ..."
+  Instructions:
+  # entry_1:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "test"
+    (4) push1 2	# "args"
+    (6) push1 3	# "\n    if {[info exists args]} {\n    ..."
+    (8) invokeStk1 4	# proc
+  # exit_2:
+    (10) done
+
+ByteCode ::test, 13 instructions, 38 bytes, 3 literals, 1 variables
+  Literals:
+    0: "yes"
+    1: ""
+    2: "no"
+  Local variables:
+    %v0: "args"
+  Instructions:
+  # entry_1:
+    (0) existScalar %v0	# var "args"
+    (5) nop
+    (6) jumpFalse1 +16	# pc 22
+  # if_then_3:
+    (8) startCommand +12 1	# next cmd at pc 20, 1 cmds start here
+    (17) push1 0	# "yes"
+    (19) done
+  # ret_end_1:
+    (20) jump1 +4	# pc 24
+  # if_next_4:
+    (22) push1 1	# ""
+  # if_end_2:
+    (24) pop
+    (25) startCommand +12 1	# next cmd at pc 37, 1 cmds start here
+    (34) push1 2	# "no"
+    (36) done
+  # ret_end_2:
+    (37) done

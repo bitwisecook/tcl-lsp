@@ -1,0 +1,3 @@
+when CLIENT_DATA {
+    set payload [TCP::payload]
+}

@@ -1,0 +1,57 @@
+ByteCode 0x0xa91104010, refCt 1, epoch 17, interp 0x0xa9101c010 (epoch 17)
+  Source "proc greet {{name \"World\"} {greeting \"Hello\"}} {\n ..."
+  Cmds 2, src 143, inst 22, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 2:
+      1: pc 0-10, src 0-80        2: pc 11-20, src 82-141
+  Command 1: "proc greet {{name \"World\"} {greeting \"Hello\"}} {\n ..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "greet"
+    (4) push1 2 	# "{name \"World\"} {greeting \"Hell..."
+    (6) push1 3 	# "\n    return \"$greeting, $name!..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc compute {{a 1} {b 2} {c 3}} {\n    expr {$a + $b +..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "compute"
+    (15) push1 5 	# "{a 1} {b 2} {c 3}"
+    (17) push1 6 	# "\n    expr {$a + $b + $c}..."
+    (19) invokeStk1 4 
+    (21) done 
+
+
+ByteCode 0x0xa910a6010, refCt 1, epoch 72, interp 0x0xa910bd810 (epoch 72)
+  Source "\n    return \"$greeting, $name!..."
+  File "scripts/reference_disasm.tcl" Line 30
+  Cmds 1, src 32, inst 11, litObjs 2, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x0xa91118290, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "name"
+      slot 1, scalar, arg, "greeting"
+  Commands 1:
+      1: pc 0-10, src 5-30
+  Command 1: "return \"$greeting, $name!..."
+    (0) loadScalar1 %v1 	# var "greeting"
+    (2) push1 0 	# ", "
+    (4) loadScalar1 %v0 	# var "name"
+    (6) push1 1 	# "!"
+    (8) strcat 4 
+    (10) done 
+
+
+ByteCode 0x0xa910e9910, refCt 1, epoch 72, interp 0x0xa910bd810 (epoch 72)
+  Source "\n    expr {$a + $b + $c}..."
+  File "scripts/reference_disasm.tcl" Line 33
+  Cmds 1, src 25, inst 9, litObjs 0, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0xa910d1210, refCt 1, args 3, compiled locals 3
+      slot 0, scalar, arg, "a"
+      slot 1, scalar, arg, "b"
+      slot 2, scalar, arg, "c"
+  Commands 1:
+      1: pc 0-7, src 5-23
+  Command 1: "expr {$a + $b + $c}..."
+    (0) loadScalar1 %v0 	# var "a"
+    (2) loadScalar1 %v1 	# var "b"
+    (4) add 
+    (5) loadScalar1 %v2 	# var "c"
+    (7) add 
+    (8) done 
+

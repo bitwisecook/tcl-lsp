@@ -1,0 +1,44 @@
+Compiling body of proc "_snippet_"
+
+ByteCode 0x790e4500, refCt 1, epoch 0, interp 0x547ee10 (epoch 0)
+  Source "expr {sin(2.0)}\nexpr {cos(0.0)}\nexpr {sqrt(4.0)}\nexpr {"
+  Cmds 6, src 115, inst 42, litObjs 6, aux 0, stkDepth 2, code/src 2.43
+  Code 280 = header 160+inst 42+litObj 48+exc 0+aux 0+cmdMap 24
+  Proc 0x790e1c80, refCt 1, args 0, compiled locals 0
+  Commands 6:
+      1: pc 0-5, src 0-14   	   2: pc 6-11, src 16-30
+      3: pc 12-17, src 32-47   	   4: pc 18-25, src 49-70
+      5: pc 26-33, src 72-91   	   6: pc 34-40, src 93-113
+  Command 1: "expr {sin(2.0)}"
+    (0) push1 0  	# "2.0"
+    (2) callBuiltinFunc1 14 
+    (4) tryCvtToNumeric 
+    (5) pop 
+  Command 2: "expr {cos(0.0)}"
+    (6) push1 1  	# "0.0"
+    (8) callBuiltinFunc1 5 
+    (10) tryCvtToNumeric 
+    (11) pop 
+  Command 3: "expr {sqrt(4.0)}"
+    (12) push1 2  	# "4.0"
+    (14) callBuiltinFunc1 16 
+    (16) tryCvtToNumeric 
+    (17) pop 
+  Command 4: "expr {atan2(1.0, 2.0)}"
+    (18) push1 3  	# "1.0"
+    (20) push1 0  	# "2.0"
+    (22) callBuiltinFunc1 3 
+    (24) tryCvtToNumeric 
+    (25) pop 
+  Command 5: "expr {pow(2.0, 3.0)}"
+    (26) push1 0  	# "2.0"
+    (28) push1 4  	# "3.0"
+    (30) callBuiltinFunc1 13 
+    (32) tryCvtToNumeric 
+    (33) pop 
+  Command 6: "expr {fmod(7.0, 3.0)}"
+    (34) push1 5  	# "7.0"
+    (36) push1 4  	# "3.0"
+    (38) callBuiltinFunc1 9 
+    (40) tryCvtToNumeric 
+    (41) done 

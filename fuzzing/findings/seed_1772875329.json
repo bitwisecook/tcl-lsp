@@ -1,0 +1,24 @@
+{
+  "seed": 1772875329,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but vm_opt did not",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "expected integer but got \"-92.86\""
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "cannot use floating-point value \"-92.86\" as operand of \"~\"\n    while executing\n\"expr {(-((~-92.86) - $buf))}\"\n    invoked from within\n\"set buf [expr {(-((~-92.86) - $buf))}]\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmpadv01eoq.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "float rejection in bitwise/integer operators",
+  "category": "float-in-integer-op"
+}

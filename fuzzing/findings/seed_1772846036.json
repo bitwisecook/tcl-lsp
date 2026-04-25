@@ -1,0 +1,32 @@
+{
+  "seed": 1772846036,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "TIMEOUT",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"expr {((!(-$idx)) ? -78.02 : -85)}\"\n    (\"foreach\" body line 61)\n    invoked from within\n\"foreach b {50.69 218 66.32 2.30} {\n        switch -- \"8;,7dh0@q6:=me9?uv=\" {\n            46 {\n                string map {a b c d} \" k\"\n              ...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach x {-967} {\n    set x 59\n    incr x -1\n    foreach b {50.69 218 66.32 2.30} {\n        switch -- \"8;,7dh0@q6:=me9?uv=\" {\n            46 {\n  "
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"idx\": no such variable\n    while executing\n\"expr {((!(-$idx)) ? -78.02 : -85)}\"\n    (\"foreach\" body line 61)\n    invoked from within\n\"foreach b {50.69 218 66.32 2.30} {\n        switch -- \"8;,7dh0@q6:=me9?uv=\" {\n            46 {\n                string map {a b c d} \" k\"\n              ...\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach x {-967} {\n    set x 59\n    incr x -1\n    foreach b {50.69 218 66.32 2.30} {\n        switch -- \"8;,7dh0@q6:=me9?uv=\" {\n            46 {\n  "
+    }
+  ],
+  "fixed": true,
+  "fix": "VM now correctly errors on missing variable",
+  "category": "vm-timeout-resolved"
+}

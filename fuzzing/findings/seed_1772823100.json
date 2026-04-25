@@ -1,0 +1,32 @@
+{
+  "seed": 1772823100,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "both vm and vm_opt crashed",
+      "backend_a": "vm",
+      "backend_b": "vm_opt",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "CRASH: ValueError: negative shift count"
+    },
+    {
+      "kind": "crash",
+      "description": "vm crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(-11.43 << (($idx << -28) ? (-45 && 26) : (-51 * 74)))}\"\n    (in namespace eval \"::baz\" script line 4)\n    invoked from within\n\"namespace eval baz {\n    for {set idx 0} {$idx < 1} {incr idx} {\n        expr {abs((26.00 / max(1, abs(($idx < -50)))))}\n        expr {(-11.43 << (($i...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplytjunrn.tcl\" line 1)"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but tclsh(tclsh9.0) did not",
+      "backend_a": "vm_opt",
+      "backend_b": "tclsh(tclsh9.0)",
+      "detail_a": "CRASH: ValueError: negative shift count",
+      "detail_b": "negative shift argument\n    while executing\n\"expr {(-11.43 << (($idx << -28) ? (-45 && 26) : (-51 * 74)))}\"\n    (in namespace eval \"::baz\" script line 4)\n    invoked from within\n\"namespace eval baz {\n    for {set idx 0} {$idx < 1} {incr idx} {\n        expr {abs((26.00 / max(1, abs(($idx < -50)))))}\n        expr {(-11.43 << (($i...\"\n    (file \"/var/folders/2s/clyp06qs0_d8rrr2zqtb4qj00000gn/T/tmplytjunrn.tcl\" line 1)"
+    }
+  ],
+  "fixed": true,
+  "fix": "negative shift argument check in _bitwise_binary",
+  "category": "negative-shift"
+}
