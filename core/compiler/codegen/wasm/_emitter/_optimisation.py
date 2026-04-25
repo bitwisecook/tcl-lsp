@@ -87,6 +87,18 @@ class _WasmEmitterOptMixin(_Base):
                 for a in stmt.args:
                     if "[info level" in a:
                         return True
+            # ``return [info level ...]`` is an IRReturn whose
+            # ``value`` carries the bracketed substitution as a
+            # string.  Same substring rule applies — without this
+            # branch the elision path missed every proc that
+            # returns its own invocation argv (e.g. trace wrappers,
+            # tcltest helpers).
+            value = getattr(stmt, "value", None)
+            if isinstance(value, str) and "[info level" in value:
+                return True
+            expr = getattr(stmt, "expr", None)
+            if isinstance(expr, str) and "[info level" in expr:
+                return True
             # Recurse into bodies of compound statements.
             for attr in ("body", "init", "next", "else_body", "finally_body"):
                 sub = getattr(stmt, attr, None)
