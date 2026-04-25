@@ -23,6 +23,9 @@
 
 use tcl_lexer::{Token, TokenType};
 
+use crate::alias::{detect_interp_alias, resolve_alias};
+use crate::signature_scan::types::SignatureCommandAlias;
+
 use super::state::Analyser;
 use super::types::ProcDef;
 use super::utils::parse_param_list;
@@ -403,6 +406,77 @@ impl Analyser {
         }
         // C41c3: delegate to handle_try for arm body walk.
         true
+    }
+
+    /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
+    /// records the alias for later argument-role resolution.
+    ///
+    /// Mirrors `_handle_interp_alias` in
+    /// `core/analysis/_analyser/_handlers.py:225-236`. Delegates
+    /// the actual detection logic to `crate::alias::detect_interp_alias`
+    /// (which already handles the canonical `interp alias {}`
+    /// shape and the `args[5..]` prepended-args slice).
+    pub fn handle_interp_alias(&mut self, cmd_name: &str, args: &[String]) {
+        let Some((qualified, target_cmd, prepended)) = detect_interp_alias(cmd_name, args) else {
+            return;
+        };
+        self.command_aliases
+            .insert(qualified.clone(), (target_cmd.clone(), prepended.clone()));
+        self.result.command_aliases.insert(
+            qualified.clone(),
+            SignatureCommandAlias {
+                qualified_name: qualified,
+                target: target_cmd,
+                extras: prepended,
+            },
+        );
+    }
+
+    /// Handle `oo::objdefine $obj …` — record the object variable
+    /// so later W308 (unknown method on object) checks can suppress
+    /// false positives from per-instance method extensions.
+    ///
+    /// Mirrors `_handle_oo_objdefine` in
+    /// `core/analysis/_analyser/_handlers.py:238-252`.
+    pub fn handle_oo_objdefine(&mut self, cmd_name: &str, args: &[String]) {
+        if cmd_name != "oo::objdefine" || args.is_empty() {
+            return;
+        }
+        let mut obj_name = args[0].trim().to_string();
+        if let Some(stripped) = obj_name.strip_prefix('$') {
+            obj_name = stripped.trim_matches(|c| c == '{' || c == '}').to_string();
+        }
+        if !obj_name.is_empty() {
+            self.objdefined_vars.insert(obj_name);
+        }
+    }
+
+    /// Resolve a command alias to `(target_cmd, effective_args)`.
+    ///
+    /// Mirrors `_resolve_alias` in
+    /// `core/analysis/_analyser/_handlers.py:270-287`. Returns
+    /// `(cmd_name, args)` unchanged if no alias matches; otherwise
+    /// returns the target command and the prepended-args + original
+    /// args list. Delegates to `crate::alias::resolve_alias` for the
+    /// namespace-aware lookup.
+    #[must_use]
+    pub fn resolve_alias(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        scope_path: &[usize],
+    ) -> (String, Vec<String>) {
+        let ns = self.namespace_from_scope_path(scope_path);
+        // The Rust `alias::resolve_alias` accepts `CommandAliasMap`
+        // (alias map keyed by qualified alias name) — same shape as
+        // `self.command_aliases` already uses.
+        if let Some((target_cmd, prepended)) = resolve_alias(cmd_name, &self.command_aliases, &ns) {
+            let mut effective: Vec<String> = prepended;
+            effective.extend(args.iter().cloned());
+            (target_cmd, effective)
+        } else {
+            (cmd_name.to_string(), args.to_vec())
+        }
     }
 
     /// Handle the `incr` command: `incr var ?amount?`.
@@ -1004,6 +1078,106 @@ mod tests {
         let mut a = Analyser::new();
         let handled = a.handle_try_command("try", &[], &[], &[]);
         assert!(!handled);
+    }
+
+    // -- handle_interp_alias ----------------------------------------
+
+    #[test]
+    fn handle_interp_alias_records_canonical_form() {
+        let mut a = Analyser::new();
+        a.handle_interp_alias(
+            "interp",
+            &[
+                "alias".to_string(),
+                String::new(),
+                "myset".to_string(),
+                String::new(),
+                "set".to_string(),
+            ],
+        );
+        assert!(a.command_aliases.contains_key("::myset"));
+        assert!(a.result.command_aliases.contains_key("::myset"));
+        let (target, prepended) = &a.command_aliases["::myset"];
+        assert_eq!(target, "set");
+        assert!(prepended.is_empty());
+    }
+
+    #[test]
+    fn handle_interp_alias_with_prepended_args() {
+        let mut a = Analyser::new();
+        a.handle_interp_alias(
+            "interp",
+            &[
+                "alias".to_string(),
+                String::new(),
+                "logerr".to_string(),
+                String::new(),
+                "puts".to_string(),
+                "stderr".to_string(),
+            ],
+        );
+        let (target, prepended) = &a.command_aliases["::logerr"];
+        assert_eq!(target, "puts");
+        assert_eq!(prepended, &vec!["stderr".to_string()]);
+    }
+
+    #[test]
+    fn handle_interp_alias_wrong_shape_no_op() {
+        let mut a = Analyser::new();
+        a.handle_interp_alias("interp", &["alias".to_string()]);
+        assert!(a.command_aliases.is_empty());
+    }
+
+    // -- handle_oo_objdefine ----------------------------------------
+
+    #[test]
+    fn handle_oo_objdefine_records_dollar_var() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine("oo::objdefine", &["$obj".to_string()]);
+        assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn handle_oo_objdefine_records_braced_dollar_var() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine("oo::objdefine", &["${obj}".to_string()]);
+        assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn handle_oo_objdefine_records_bare_name() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine("oo::objdefine", &["obj".to_string()]);
+        assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn handle_oo_objdefine_wrong_command_no_op() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine("oo::class", &["$obj".to_string()]);
+        assert!(a.objdefined_vars.is_empty());
+    }
+
+    // -- resolve_alias ----------------------------------------------
+
+    #[test]
+    fn resolve_alias_passthrough_for_non_alias() {
+        let mut a = Analyser::new();
+        let (target, args) = a.resolve_alias("puts", &["hello".to_string()], &[]);
+        assert_eq!(target, "puts");
+        assert_eq!(args, vec!["hello".to_string()]);
+    }
+
+    #[test]
+    fn resolve_alias_substitutes_target_and_prepended_args() {
+        let mut a = Analyser::new();
+        a.command_aliases.insert(
+            "::logerr".to_string(),
+            ("puts".to_string(), vec!["stderr".to_string()]),
+        );
+        let (target, args) = a.resolve_alias("logerr", &["hello".to_string()], &[]);
+        assert_eq!(target, "puts");
+        assert_eq!(args, vec!["stderr".to_string(), "hello".to_string()]);
     }
 
     // -- handle_incr_command ----------------------------------------
