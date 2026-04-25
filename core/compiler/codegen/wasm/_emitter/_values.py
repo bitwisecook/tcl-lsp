@@ -603,7 +603,13 @@ class _WasmEmitterValuesMixin(_Base):
                 n_pos += 1
             min_positional = 2 if cmd_name == "regexp" else 3
             if uses_options or n_pos > min_positional:
-                self._emit_eval_fallback(cmd_name, cmd_args)
+                # Use ``script_override`` with the original source text
+                # so braced patterns like ``{a+}`` survive verbatim
+                # rather than being re-list-quoted to ``{{a+}}`` (which
+                # the runtime parser would unwrap once back to the
+                # literal ``{a+}`` and pass to the regex engine —
+                # matching nothing).
+                self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                 return
 
         # Runtime command in value context (llength, lindex, etc.)

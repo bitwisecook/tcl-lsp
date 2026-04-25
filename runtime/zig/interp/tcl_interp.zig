@@ -1734,19 +1734,8 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             if (tok.braced) {
                 // Phase 1.3 fix: copy braced-word bytes into an owned
                 // buffer instead of borrowing from the source script.
-                // The parser used to ``obj_new_string(wptr_abs, len)``
-                // — a zero-capacity borrow — so the resulting TclObj's
-                // OBJ_STR_PTR pointed back into the script being
-                // parsed.  When the word later landed in a proc's
-                // body slot (via ``proc_register``) or a frame local
-                // (via parameter binding), and the source script's
-                // TclObj was eventually released and its bump-heap
-                // buffer re-issued by ``alloc()``, the borrow went
-                // stale — observed as ``info complete $script``
-                // returning 0 on a script whose length was correct
-                // but whose bytes had been overwritten.  Copying
-                // here makes every word's bytes live independently of
-                // the source script.
+                // See ``proc_register::ensure_owned`` for the matching
+                // proc-table-side promotion.
                 word_objs[wi] = obj_mod.obj_new_string_copy(wptr_abs, tok.len);
             } else {
                 word_objs[wi] = subst_word(wptr_abs, tok.len);
