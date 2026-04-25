@@ -37,6 +37,8 @@ _EXTERNAL_DIR = Path(__file__).resolve().parent / "external"
 
 _engine: wasmtime.Engine | None = None
 _rt_module: wasmtime.Module | None = None
+_engine_with_timeout: wasmtime.Engine | None = None
+_rt_module_with_timeout: wasmtime.Module | None = None
 
 
 def _get_engine() -> wasmtime.Engine:
@@ -46,6 +48,27 @@ def _get_engine() -> wasmtime.Engine:
     return _engine
 
 
+def _get_engine_with_timeout() -> wasmtime.Engine:
+    """Engine variant with epoch-interruption enabled.
+
+    Used by long-running sweeps (``scripts/run_tcl9_tcltest_sweep.py``)
+    that need to bound per-test execution against runaway loops.  A
+    watchdog ``threading.Timer`` bumps the engine's epoch after the
+    deadline; the next wasm op then traps with an epoch-deadline
+    error that propagates to Python as ``wasmtime.Trap``.
+
+    Kept separate from the default engine so the pytest suite (which
+    doesn't need timeouts and shouldn't pay the epoch-check overhead)
+    keeps using the lean engine.
+    """
+    global _engine_with_timeout
+    if _engine_with_timeout is None:
+        cfg = wasmtime.Config()
+        cfg.epoch_interruption = True
+        _engine_with_timeout = wasmtime.Engine(cfg)
+    return _engine_with_timeout
+
+
 def _get_rt_module() -> wasmtime.Module:
     global _rt_module
     if _rt_module is None:
@@ -53,6 +76,23 @@ def _get_rt_module() -> wasmtime.Module:
             pytest.skip(f"Zig WASM runtime not built: {_ZIG_RUNTIME_PATH}")
         _rt_module = wasmtime.Module.from_file(_get_engine(), str(_ZIG_RUNTIME_PATH))
     return _rt_module
+
+
+def _get_rt_module_with_timeout() -> wasmtime.Module:
+    """Re-compile the runtime module against the timeout-enabled engine.
+
+    wasmtime modules are bound to the engine they were compiled
+    against, so the timeout variant needs its own pre-compiled copy.
+    Cached after the first call.
+    """
+    global _rt_module_with_timeout
+    if _rt_module_with_timeout is None:
+        if not _ZIG_RUNTIME_PATH.exists():
+            raise RuntimeError(f"Zig WASM runtime not built: {_ZIG_RUNTIME_PATH}")
+        _rt_module_with_timeout = wasmtime.Module.from_file(
+            _get_engine_with_timeout(), str(_ZIG_RUNTIME_PATH),
+        )
+    return _rt_module_with_timeout
 
 
 def _compile_tcl(source: str) -> bytes:
@@ -93,6 +133,7 @@ def _run_wasm(
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
     preopen_tmpdir: str | None = None,
+    timeout_s: float | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -112,8 +153,15 @@ def _run_wasm(
     ``TestFile`` suite passes a fresh ``pytest tmp_path`` to
     exercise the real filesystem paths.
     """
-    engine = _get_engine()
+    engine = _get_engine_with_timeout() if timeout_s is not None else _get_engine()
     store = wasmtime.Store(engine)
+    if timeout_s is not None:
+        # ``set_epoch_deadline(1)`` arms the store: the wasm code runs
+        # until the engine's epoch passes 1, which the watchdog Timer
+        # below triggers via ``engine.increment_epoch()`` after the
+        # deadline elapses.  Without epoch_interruption on the
+        # engine config this would be a no-op.
+        store.set_epoch_deadline(1)
     wasi_config = wasmtime.WasiConfig()
 
     stdout_path = None
@@ -139,8 +187,11 @@ def _run_wasm(
 
     store.set_wasi(wasi_config)
 
-    # Instantiate Zig runtime
-    rt_module = _get_rt_module()
+    # Instantiate Zig runtime — modules are engine-bound, so the
+    # timeout variant needs its own pre-compiled copy.
+    rt_module = (
+        _get_rt_module_with_timeout() if timeout_s is not None else _get_rt_module()
+    )
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
 
@@ -184,6 +235,16 @@ def _run_wasm(
         raise RuntimeError(f"function {func_name} not found in WASM exports")
 
     boxed_args = tuple(obj_new_int(store, a) for a in args)
+    watchdog = None
+    if timeout_s is not None:
+        import threading
+
+        def _bump_epoch():
+            engine.increment_epoch()
+
+        watchdog = threading.Timer(timeout_s, _bump_epoch)
+        watchdog.daemon = True
+        watchdog.start()
     try:
         result_obj = func(store, *boxed_args)
         result_val = obj_get_int(store, result_obj) if result_obj else 0
@@ -207,6 +268,9 @@ def _run_wasm(
             except (AttributeError, TypeError):
                 pass
         raise
+    finally:
+        if watchdog is not None:
+            watchdog.cancel()
 
     stdout_text = _maybe_read(stdout_path)
     stderr_text = _maybe_read(stderr_path)

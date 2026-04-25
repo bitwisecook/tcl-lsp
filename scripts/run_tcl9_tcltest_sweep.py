@@ -78,6 +78,7 @@ def run_wasm(bundle_src: str, label: str):
                 capture_stdout=True,
                 capture_stderr=True,
                 preopen_tmpdir=preopen,
+                timeout_s=TIMEOUT_S,
             )
             out["run_ns"] = time.perf_counter_ns() - t0
             stdout = ret[1] if len(ret) >= 2 else ""
