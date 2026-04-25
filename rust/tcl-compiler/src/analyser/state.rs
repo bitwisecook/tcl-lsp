@@ -77,6 +77,15 @@ pub struct Analyser {
     /// for the same job; Rust prefers an index path so the scope
     /// tree stays a strict ownership graph.
     pub current_scope_path: Vec<usize>,
+    /// Full source text being analysed.
+    ///
+    /// Set at the top of [`Self::analyse`] (and the chunked
+    /// entries in **C41f2**) and read by handlers that need to
+    /// re-slice the outer source — recovery (**C41e4** / **C41e5**)
+    /// and CFG/SSA diagnostic emission (**C41d**). Mirrors
+    /// ``self._source`` in
+    /// ``core/analysis/_analyser/_core.py:43``.
+    pub source: String,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
     /// Last seen comment text, for proc / class doc-comment
@@ -151,6 +160,7 @@ impl Analyser {
         Self {
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
+            source: String::new(),
             disabled_diagnostics: disabled,
             last_comment: String::new(),
             file_path: None,
@@ -201,6 +211,11 @@ impl Analyser {
         use tcl_registry::CommandRegistry;
 
         let _ = dialect;
+        // Stash the source so handlers (recovery in C41e4/e5,
+        // diagnostic emitters in C41d) can re-slice it.  Mirrors
+        // ``self._source = source`` in
+        // ``core/analysis/_analyser/_core.py``.
+        self.source = source.to_string();
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -258,6 +273,7 @@ mod tests {
         let a = Analyser::new();
         assert_eq!(a.result.global_scope.kind, ScopeKind::Global);
         assert!(a.current_scope_path.is_empty());
+        assert!(a.source.is_empty());
         assert!(a.disabled_diagnostics.is_empty());
         assert_eq!(a.conditional_depth, 0);
         assert_eq!(a.body_depth, 0);
@@ -338,6 +354,16 @@ mod tests {
         let _ = a.analyse("# tcl-lsp: disable=W210\n", "tcl");
         assert!(a.disabled_diagnostics.contains("W120"));
         assert!(a.disabled_diagnostics.contains("W210"));
+    }
+
+    #[test]
+    fn analyse_records_source_text_for_handler_re_slicing() {
+        // Handlers in C41c / C41d / C41e re-slice ``self.source``
+        // via spans returned by the segmenter; the field must be
+        // populated at the top of ``analyse``.
+        let mut a = Analyser::new();
+        let _ = a.analyse("set x 1", "tcl");
+        assert_eq!(a.source, "set x 1");
     }
 
     #[test]

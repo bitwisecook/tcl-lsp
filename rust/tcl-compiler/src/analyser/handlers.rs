@@ -150,22 +150,34 @@ impl Analyser {
     /// Handle the `proc` command: `proc NAME PARAMS BODY`.
     ///
     /// Mirrors `_handle_proc_command` in
-    /// `core/analysis/_analyser/_handlers.py:39-49`. Returns
-    /// `true` when the command was actually handled (callers use
-    /// the bool to decide whether further processing is needed),
-    /// `false` when the input doesn't match the expected shape.
+    /// `core/analysis/_analyser/_handlers.py:39-49` plus the body
+    /// walk in `_AnalyserProcMixin._handle_proc`
+    /// (`_proc.py:46-176`). Returns `true` when the command was
+    /// handled (callers use the bool to decide whether further
+    /// processing is needed), `false` when the input doesn't
+    /// match the expected shape.
     ///
-    /// **C41b2 baseline + C41c1 hook.** Python delegates to
-    /// `_AnalyserProcMixin._handle_proc` (which lives in
-    /// `_proc.py:46-176` and does the proc-body walk + parameter-
-    /// trait inference). The proc-body walk lands in **C41c1**;
-    /// for now this strip records the basic [`ProcDef`] shape
-    /// (qualified name, params, name + body spans, doc-comment)
-    /// in both `current_scope.procs` and `result.all_procs` so
-    /// downstream consumers (`signature_scan` parity, the LSP
-    /// rename feature, the workspace index) see a correct proc
-    /// list immediately. The deeper body walk + scope creation
-    /// is deferred.
+    /// **C41b2 baseline + C41c1.** Records the [`ProcDef`] in
+    /// both `scope.procs` (keyed by simple name) and
+    /// `result.all_procs` (keyed by qualified name).  When the
+    /// body is a braced literal, opens a fresh
+    /// [`ScopeKind::Proc`] child scope, defines each parameter
+    /// in it, and re-segments the body via
+    /// [`crate::segmenter::segment_commands_with_offset`] —
+    /// every body command is dispatched through
+    /// [`Analyser::process_command`] with the new scope path.
+    /// Body recursion does **not** invoke segmenter recovery —
+    /// that fires only at the top level (mirrors Python's
+    /// `_analyse_body` vs. `_analyse_body_inner` split).
+    /// Dynamic bodies (`$body`, `[gen]`) skip the walk because
+    /// they cannot be statically re-segmented; the proc record
+    /// is still emitted so downstream consumers see the
+    /// signature.
+    ///
+    /// W113 (proc shadows built-in), parameter-trait inference,
+    /// and the user-defined ``unknown`` proc detection from
+    /// `_proc.py` are deferred to **C41d** / future strips —
+    /// this strip is structural only.
     pub fn handle_proc_command(
         &mut self,
         cmd_name: &str,
@@ -184,8 +196,10 @@ impl Analyser {
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
         let qualified = qualify(ns_for_qualify, raw_name);
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
-        let name_span = arg_tokens[0].span;
-        let body_span = arg_tokens[2].span;
+        let name_tok = arg_tokens[0];
+        let name_span = name_tok.span;
+        let body_tok = arg_tokens[2];
+        let body_span = body_tok.span;
 
         let params = parse_param_list(&args[1]);
         let doc = std::mem::take(&mut self.last_comment);
@@ -193,7 +207,7 @@ impl Analyser {
         let proc = ProcDef {
             name: simple,
             qualified_name: qualified.clone(),
-            params,
+            params: params.clone(),
             name_span,
             body_span,
             doc,
@@ -215,8 +229,66 @@ impl Analyser {
             scope.procs.insert(simple_key, proc);
         }
 
-        // C41c1 hook: the proc-body walk happens here. For now
-        // the body span is recorded so consumers can post-process.
+        // **C41c1.** Walk the body in a fresh proc scope when the
+        // body is a braced literal. ``raw_name`` is used as the
+        // proc-scope name to mirror Python's
+        // ``Scope(kind="proc", name=proc_name, ...)``
+        // (``_proc.py:115``); ``define_var`` keys
+        // ``result.all_variables`` on ``"<scope_name>::<var>"``,
+        // so matching the Python scope name is what keeps that
+        // map in parity.
+        if body_tok.kind == TokenType::Str {
+            let proc_scope_idx = {
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+                    .expect("scope_path resolved when registering proc must still resolve");
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.clone());
+                child.body_span = Some(body_span);
+                parent.children.push(child);
+                parent.children.len() - 1
+            };
+            let mut child_path = path.clone();
+            child_path.push(proc_scope_idx);
+
+            // Parameters become locals in the proc scope. Python
+            // anchors each param's definition range to the proc
+            // *name* token (`_proc.py:120-124`) — there's no
+            // per-parameter span available without re-tokenising
+            // the param-list literal. Mirror the same coarse
+            // anchor here; per-param spans can land in a follow-up.
+            for p in &params {
+                self.define_var(&p.name, name_tok, &child_path, false, None);
+            }
+
+            // Save / restore last_comment around the body walk so
+            // a doc-comment inside the proc body doesn't bleed to
+            // whatever follows the proc at the outer scope. Mirrors
+            // ``saved_comment = self._last_comment`` in
+            // ``_proc.py:128-131``.
+            let saved_comment = std::mem::take(&mut self.last_comment);
+
+            // Body recursion: re-segment using
+            // ``segment_commands_with_offset`` (no recovery — recovery
+            // is top-level only, matching Python's
+            // ``_analyse_body_inner`` semantics). The body's tokens
+            // get rebased from local-offset space into the outer
+            // source's offset space via ``base_offset``.
+            self.body_depth += 1;
+            let body_text = args[2].clone();
+            let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+            let body_commands =
+                crate::segmenter::segment_commands_with_offset(&body_text, base_offset);
+            for cmd in body_commands {
+                if cmd.is_partial || cmd.argv.is_empty() {
+                    continue;
+                }
+                self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &child_path);
+            }
+            self.body_depth -= 1;
+
+            self.last_comment = saved_comment;
+        }
+
         true
     }
 
@@ -903,6 +975,206 @@ mod tests {
         );
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
+    }
+
+    // -- handle_proc_command body recursion (C41c1) -----------------
+
+    #[test]
+    fn handle_proc_creates_proc_scope_for_braced_body() {
+        // ``proc foo {} {}`` — empty braced body still opens a
+        // proc scope so subsequent body-walking handlers have a
+        // place to record locals.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children.len(), 1);
+        let proc_scope = &a.result.global_scope.children[0];
+        assert_eq!(proc_scope.kind, crate::analyser::types::ScopeKind::Proc);
+        assert_eq!(proc_scope.name, "foo");
+        assert_eq!(proc_scope.body_span, Some(span(12, 14)));
+    }
+
+    #[test]
+    fn handle_proc_defines_params_in_proc_scope() {
+        // ``proc foo {a b} {}`` — a, b become locals in the
+        // proc scope, not in the outer scope.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "a b".to_string(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 14)),
+                str_tok(span(15, 17)),
+            ],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(proc_scope.variables.contains_key("a"));
+        assert!(proc_scope.variables.contains_key("b"));
+        // Outer scope must be untouched.
+        assert!(!a.result.global_scope.variables.contains_key("a"));
+    }
+
+    #[test]
+    fn handle_proc_walks_body_set_defines_local() {
+        // ``proc foo {} {set x 1}`` — body walk segments the
+        // body and dispatches `set x 1` against the proc scope,
+        // landing the local in proc_scope.variables, not global.
+        // The body token's span must mirror the outer source so
+        // the segmenter rebases correctly: source layout is
+        // ``proc foo {} {set x 1}`` with the body occupying [13, 22].
+        // ``content_offset = 1`` skips the leading ``{`` so the
+        // re-segmented inner runs at base 14.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "set x 1".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(13, 22)),
+            ],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(
+            proc_scope.variables.contains_key("x"),
+            "body walk should land 'x' in proc scope; vars: {:?}",
+            proc_scope.variables.keys().collect::<Vec<_>>(),
+        );
+        assert!(!a.result.global_scope.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn handle_proc_walks_body_global_falls_into_proc_scope() {
+        // ``proc foo {} {global a b}`` — the ``global`` handler
+        // defines bindings in the proc scope so the body's later
+        // reads/writes resolve correctly. Real ``global`` semantics
+        // (link to outer var) live with diagnostic emission later.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "global a b".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(13, 25)),
+            ],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(proc_scope.variables.contains_key("a"));
+        assert!(proc_scope.variables.contains_key("b"));
+    }
+
+    #[test]
+    fn handle_proc_nested_proc_creates_nested_scopes() {
+        // Body-walk recursion must dispatch `proc` inside the body,
+        // creating a nested proc scope under the outer proc.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &[
+                "outer".to_string(),
+                String::new(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(5, 10)),
+                str_tok(span(11, 13)),
+                str_tok(span(15, 33)),
+            ],
+            &[],
+        );
+        // Outer proc registered.
+        assert!(a.result.all_procs.contains_key("::outer"));
+        // Inner proc registered under outer's qualified prefix? In
+        // Python, ``namespace_from_scope_path`` skips proc scopes —
+        // so an `inner` proc declared inside ``outer`` qualifies as
+        // ``::inner`` (the outer proc is not a namespace). Match
+        // that contract here.
+        assert!(a.result.all_procs.contains_key("::inner"));
+        // Outer's proc scope holds the nested proc scope as a child.
+        let outer_scope = &a.result.global_scope.children[0];
+        assert!(!outer_scope.children.is_empty());
+        assert_eq!(
+            outer_scope.children[0].kind,
+            crate::analyser::types::ScopeKind::Proc,
+        );
+        assert_eq!(outer_scope.children[0].name, "inner");
+    }
+
+    #[test]
+    fn handle_proc_dynamic_body_skips_walk() {
+        // ``proc foo {} $body`` — the body is a Var token, not a
+        // Str token; we cannot statically re-segment a dynamic
+        // body, so the body walk is skipped. The proc record
+        // itself still lands so downstream signature consumers see
+        // the proc; only the inner walk is gated.
+        let mut a = Analyser::new();
+        let var_tok = Token::new(TokenType::Var, span(13, 18));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "$body".to_string()],
+            &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
+            &[],
+        );
+        assert!(a.result.all_procs.contains_key("::foo"));
+        // No proc scope opened — Str gate failed.
+        assert!(a.result.global_scope.children.is_empty());
+    }
+
+    #[test]
+    fn handle_proc_body_walk_increments_body_depth_temporarily() {
+        // ``body_depth`` is bumped for the duration of the body
+        // walk and restored on exit — top-level-only command
+        // checks (C41d) rely on the depth being zero outside any
+        // body.
+        let mut a = Analyser::new();
+        assert_eq!(a.body_depth, 0);
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert_eq!(a.body_depth, 0);
+    }
+
+    #[test]
+    fn handle_proc_body_walk_does_not_leak_inner_doc_comment() {
+        // A trailing comment inside the body should not bleed into
+        // ``last_comment`` for whatever follows the proc at the
+        // outer scope. The outer comment ("doc string") is consumed
+        // as the proc's own doc; after the walk, ``last_comment``
+        // is restored to empty.
+        let mut a = Analyser::new();
+        a.last_comment = "doc string".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
+        assert!(a.last_comment.is_empty());
     }
 
     // -- handle_namespace_eval_command ------------------------------
