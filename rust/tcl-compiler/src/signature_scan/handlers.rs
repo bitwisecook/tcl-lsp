@@ -17,7 +17,7 @@ use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
     SignatureClass, SignatureNamespaceImport, SignaturePackageRequire, SignatureProc,
-    SignatureScanResult,
+    SignatureScanResult, SignatureSource,
 };
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
@@ -235,6 +235,34 @@ pub(super) fn handle_package(
     });
 }
 
+/// Handler for `source ?-encoding ENC? PATH`.
+///
+/// Mirrors `_handle_source` in `core/analysis/signature_scan.py`.
+/// Walks past every leading `-FLAG` (consuming a follow-up word for
+/// `-encoding`); the remaining word is recorded as the path. The
+/// `is_literal` flag is set when the segmenter-reconstructed word
+/// contains no `$` or `[` substitution markers.
+pub(super) fn handle_source(texts: &[String], argv: &[Token], result: &mut SignatureScanResult) {
+    let mut idx = 1;
+    while idx < texts.len() && texts[idx].starts_with('-') {
+        if texts[idx] == "-encoding" && idx + 1 < texts.len() {
+            idx += 2;
+        } else {
+            idx += 1;
+        }
+    }
+    if idx >= texts.len() {
+        return;
+    }
+    let raw = texts[idx].clone();
+    let is_literal = !raw.contains('$') && !raw.contains('[');
+    result.source_targets.push(SignatureSource {
+        raw_path: raw,
+        range: argv[idx].span,
+        is_literal,
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,6 +469,47 @@ mod tests {
         assert_eq!(req.name, "Tcl");
         assert!(req.version.is_none());
         assert!(req.conditional);
+    }
+
+    #[test]
+    fn handle_source_literal_path() {
+        let texts = vec!["source".to_string(), "/abs/path.tcl".to_string()];
+        let argv = vec![token(0, 6), token(7, 20)];
+        let mut result = SignatureScanResult::default();
+        handle_source(&texts, &argv, &mut result);
+        assert_eq!(result.source_targets.len(), 1);
+        let st = &result.source_targets[0];
+        assert_eq!(st.raw_path, "/abs/path.tcl");
+        assert!(st.is_literal);
+        assert_eq!(st.range, Span::new(7, 20));
+    }
+
+    #[test]
+    fn handle_source_substituted_path() {
+        let texts = vec!["source".to_string(), "${dir}/x.tcl".to_string()];
+        let argv = vec![token(0, 6), token(7, 19)];
+        let mut result = SignatureScanResult::default();
+        handle_source(&texts, &argv, &mut result);
+        assert_eq!(result.source_targets.len(), 1);
+        assert!(!result.source_targets[0].is_literal);
+    }
+
+    #[test]
+    fn handle_source_skips_encoding_option() {
+        let texts = vec![
+            "source".to_string(),
+            "-encoding".to_string(),
+            "utf-8".to_string(),
+            "/abs/path.tcl".to_string(),
+        ];
+        let argv = vec![token(0, 6), token(7, 16), token(17, 22), token(23, 36)];
+        let mut result = SignatureScanResult::default();
+        handle_source(&texts, &argv, &mut result);
+        assert_eq!(result.source_targets.len(), 1);
+        let st = &result.source_targets[0];
+        assert_eq!(st.raw_path, "/abs/path.tcl");
+        assert!(st.is_literal);
+        assert_eq!(st.range, Span::new(23, 36));
     }
 
     #[test]
