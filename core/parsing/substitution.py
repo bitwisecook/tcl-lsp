@@ -27,6 +27,21 @@ _BACKSLASH_MAP: dict[str, str] = {
     ";": ";",
 }
 
+# Maximum Unicode codepoint (U+10FFFF).  Tcl 9 silently clamps overlong
+# ``\xNN`` / ``\uNNNN`` / ``\UNNNNNNNN`` escapes that exceed this; we
+# do the same so the lexer doesn't bail out on test files that
+# intentionally exercise the boundary.
+_MAX_UNICODE = 0x10FFFF
+
+
+def _clamp_unicode(value: int) -> int:
+    """Return *value* clamped to the Unicode range so :func:`chr` succeeds."""
+    if value < 0:
+        return 0
+    if value > _MAX_UNICODE:
+        return _MAX_UNICODE
+    return value
+
 
 def backslash_subst(text: str) -> str:
     """Process Tcl backslash escapes in *text*.
@@ -58,7 +73,7 @@ def backslash_subst(text: str) -> str:
                 while j < n and j < i + 4 and text[j] in "0123456789abcdefABCDEF":
                     j += 1
                 if j > i + 2:
-                    result.append(chr(int(text[i + 2 : j], 16)))
+                    result.append(chr(_clamp_unicode(int(text[i + 2 : j], 16))))
                     i = j
                 else:
                     result.append("x")
@@ -69,18 +84,21 @@ def backslash_subst(text: str) -> str:
                 while j < n and j < i + 6 and text[j] in "0123456789abcdefABCDEF":
                     j += 1
                 if j > i + 2:
-                    result.append(chr(int(text[i + 2 : j], 16)))
+                    result.append(chr(_clamp_unicode(int(text[i + 2 : j], 16))))
                     i = j
                 else:
                     result.append("u")
                     i += 2
             elif c == "U":
-                # wide unicode escape: \UNNNNNNNN (1-8 hex digits)
+                # wide unicode escape: \UNNNNNNNN (1-8 hex digits).  Tcl
+                # tests sometimes write values above U+10FFFF (the
+                # Unicode maximum) — Tcl 9 silently clamps; mirror that
+                # so the lexer doesn't bail out with chr() ValueError.
                 j = i + 2
                 while j < n and j < i + 10 and text[j] in "0123456789abcdefABCDEF":
                     j += 1
                 if j > i + 2:
-                    result.append(chr(int(text[i + 2 : j], 16)))
+                    result.append(chr(_clamp_unicode(int(text[i + 2 : j], 16))))
                     i = j
                 else:
                     result.append("U")
