@@ -2108,15 +2108,15 @@ class TestRegexp:
         _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
         assert "CAUGHT" in stdout, stdout
 
-    def test_regexp_unknown_switch_raises(self):
-        """Unsupported switches (e.g. ``-indices``) must raise an
-        error rather than being treated as the pattern.  The
-        previous silent-fallthrough behaviour caused
-        ``regexp -indices {a+} aa`` to try matching literal
-        ``-indices`` against ``{a+}`` and return a wrong boolean.
+    def test_regexp_options_accepted(self):
+        """Phase 4.5 accepts the Tcl 9 regexp option set without
+        raising "unknown option" — even when the result-shaping
+        for -indices/-inline/-all is still partial.  Truly-bogus
+        switches still raise so callers see typos clearly.
         """
+        # Truly-unknown still raises.
         source = (
-            "if {[catch {regexp -indices {a+} aa} msg]} {\n"
+            "if {[catch {regexp -bogus {a+} aa} msg]} {\n"
             "    puts CAUGHT\n"
             "} else {\n"
             "    puts MISSED\n"

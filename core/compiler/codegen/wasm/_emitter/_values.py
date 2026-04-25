@@ -585,6 +585,25 @@ class _WasmEmitterValuesMixin(_Base):
                         self._emit_call(concat_idx)
                 return
 
+        # ``regexp`` / ``regsub`` with options or capture vars — the
+        # 2-arg runtime fast path can't represent them, so fall through
+        # to the eval path which dispatches to ``eval_regexp_cmd`` /
+        # ``eval_regsub_cmd`` (Tcl-9-complete option handling, capture
+        # var assignment, ``-inline`` / ``-indices`` / ``-all``).  Bare
+        # ``regexp PAT STR`` keeps the inline runtime fast path.
+        if cmd_name in ("regexp", "regsub") and cmd_args:
+            n_pos = 0
+            uses_options = False
+            for a in cmd_args:
+                if a.startswith("-") and len(a) > 1:
+                    uses_options = True
+                    break
+                n_pos += 1
+            min_positional = 2 if cmd_name == "regexp" else 3
+            if uses_options or n_pos > min_positional:
+                self._emit_eval_fallback(cmd_name, cmd_args)
+                return
+
         # Runtime command in value context (llength, lindex, etc.)
         rimp = runtime_import_for(cmd_name)
         if rimp is not None:
