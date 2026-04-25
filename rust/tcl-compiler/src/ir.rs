@@ -30,6 +30,13 @@ pub struct CommandTokens {
     pub argv: Vec<Span>,
     /// Per-word text values.
     pub argv_texts: Vec<String>,
+    /// Per-word representative token kind. Preserves the [`tcl_lexer::TokenType`]
+    /// of each argv entry so analysis passes can distinguish a
+    /// brace-string literal (`Str`) from a bareword (`Esc`), a
+    /// variable reference (`Var`), or a command substitution
+    /// (`Cmd`). Mirrors Python's `Token.type` exposed via
+    /// `cmd.argv[i].type`.
+    pub argv_kinds: Vec<tcl_lexer::TokenType>,
     /// Whether each word consists of a single token.
     pub single_token_word: Vec<bool>,
     /// All tokens in the command (including separators).
@@ -244,6 +251,50 @@ pub enum Statement {
         tokens: Option<CommandTokens>,
     },
 
+    /// Inline group of statements to splice into the enclosing
+    /// script *without* introducing a separate scope. Produced by
+    /// [`crate::inline_uplevel`] when a passthrough callsite is
+    /// rewritten — the callee's body runs in the caller's frame, so
+    /// it can be flattened directly into the parent block stream.
+    /// Also produced by C35's const-propagation when an `eval` /
+    /// `uplevel` body resolves to a brace-literal.
+    ///
+    /// Mirrors Python's `IRBlock` (`core/compiler/ir.py`).
+    Block {
+        /// Source span of the original call that produced this block.
+        span: Span,
+        /// The pre-lowered body, evaluated in the enclosing scope.
+        body: Script,
+        /// Fully-qualified namespace the body was lowered in.
+        namespace: String,
+        /// Original command-tokens snapshot for downstream analysis
+        /// (lets diagnostics still report the source surface form).
+        tokens: Option<CommandTokens>,
+    },
+
+    /// Static-body uplevel — `uplevel ?level? {body}` where the body
+    /// is a brace-string literal so the body's IR can be lowered
+    /// inline. Models the "shift the active frame, evaluate body,
+    /// restore frame" semantics that `uplevel` provides without the
+    /// runtime [`Self::Barrier`] dispatch.
+    ///
+    /// Introduced in main commit `2992e6cc` ("introduce `IRUpFrame`
+    /// for static-body uplevel"). Codegen emits `frame_depth_stash`
+    /// / `frame_depth_restore` around the body (matching `698f2f79`).
+    UpFrame {
+        /// Source span of the original `uplevel` call.
+        span: Span,
+        /// Frame shift in caller-relative levels — `1` for `uplevel
+        /// 1 {body}` (the canonical form), `0` for the rare `uplevel
+        /// #0 {body}` global form. Sign matches the C Tcl level
+        /// argument: positive = move up the stack, `0` = absolute.
+        frame_shift: i32,
+        /// The pre-lowered body, evaluated at the shifted frame.
+        body: Script,
+        /// Original command tokens for downstream analysis.
+        tokens: Option<CommandTokens>,
+    },
+
     /// Conditional: `if cond body ?elseif cond body ...? ?else body?`.
     If {
         /// Source span.
@@ -384,6 +435,8 @@ impl Statement {
             | Self::Call { span, .. }
             | Self::Return { span, .. }
             | Self::Barrier { span, .. }
+            | Self::Block { span, .. }
+            | Self::UpFrame { span, .. }
             | Self::If { span, .. }
             | Self::For { span, .. }
             | Self::While { span, .. }
@@ -526,6 +579,24 @@ pub struct Module {
     pub methods: std::collections::HashMap<String, MethodDef>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
+    /// `namespace import` directives captured at lowering time —
+    /// `(context_namespace, absolute_pattern)` pairs. Future codegen
+    /// passes pattern-match each against the final
+    /// `Self::procedures` table to resolve unqualified calls
+    /// directly instead of falling back to the runtime
+    /// interpreter. Only absolute patterns (`::foo::*` /
+    /// `::foo::bar`) are recorded; relative patterns require
+    /// runtime namespace-path walking which compile-time
+    /// resolution does not model. Mirrors Python's
+    /// `IRModule.namespace_imports` (main commit `ea155a5c`).
+    pub namespace_imports: Vec<(String, String)>,
+    /// `namespace export` directives captured at lowering time —
+    /// `(context_namespace, pattern)` pairs. Codegen consults this
+    /// list to gate the import shortcut on actual exportedness so
+    /// `namespace import ::foo::*` only resolves names that
+    /// `::foo` actually exports. Mirrors Python's
+    /// `IRModule.namespace_exports` (main commit `2f5cb008`).
+    pub namespace_exports: Vec<(String, String)>,
 }
 
 /// Extract the event name from a `::when::` qualified name.
@@ -599,6 +670,7 @@ mod tests {
         let tokens = CommandTokens {
             argv: vec![Span::new(0, 4), Span::new(5, 10)],
             argv_texts: vec!["eval".into(), "body".into()],
+            argv_kinds: vec![tcl_lexer::TokenType::Esc, tcl_lexer::TokenType::Str],
             single_token_word: vec![true, true],
             all_tokens: vec![Span::new(0, 4), Span::new(4, 5), Span::new(5, 10)],
             expand_word: None,

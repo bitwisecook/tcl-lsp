@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping
+from types import MappingProxyType
 
 from ...commands.registry import REGISTRY
 from ...parsing.tokens import Token
@@ -199,7 +200,11 @@ def _get_targeted_checks() -> dict[str, list[_CheckFn]]:
     return _targeted_checks
 
 
-_EMPTY_USER_PROCS: Mapping[str, int] = {}
+# Immutable empty mapping used as a default for ``user_procs`` so
+# the call-site default cannot be accidentally mutated by a callee
+# and silently affect every subsequent call. Mutation attempts on a
+# ``MappingProxyType`` raise ``TypeError``.
+_EMPTY_USER_PROCS: Mapping[str, int] = MappingProxyType({})
 
 
 def run_all_checks(

@@ -309,17 +309,21 @@ kick in for specific configurations.
 
 **Non-blocking deferred items (can be fixed independently):**
 
-- **`\<CR>` line tracking.** The Rust `LineIndex` only counts
-  `\n` for line boundaries. The Python lexer's incremental
-  counter also advances on `\r` inside backslash continuations.
-  Bare-CR inputs show a minor position drift. Real-world Tcl
-  files use `\n` or `\r\n`; bare `\r` is essentially
-  non-existent.
-- **UTF-16 column parity.** Both lexers treat `character` as
-  byte-offset-within-line. The LSP specification says `character`
-  must be UTF-16 code units. The fix is a coordinated change in
-  `LineIndex::position_at`. Do before any Rust LSP handler that
-  cares (hover, go-to-definition, etc.).
+- **`\<CR>` line tracking.** [LANDED] `LineIndex::new` now
+  recognises `\n`, `\r\n`, and bare `\r` as single line breaks,
+  matching the Python lexer's incremental counter. 3 new unit
+  tests (`crlf_counts_as_single_line_break`,
+  `bare_cr_counts_as_line_break`, `mixed_line_endings`).
+- **UTF-16 column parity.** [LANDED] New
+  `LineIndex::position_at_utf16(offset, source: &str) ->
+  SourcePosition` method returning the LSP-compliant column
+  counted in UTF-16 code units (BMP characters cost one,
+  supplementary-plane characters cost two via surrogate-pair
+  encoding). Existing `position_at` keeps Python-parity byte-
+  column behaviour for current callers; LSP handlers should
+  switch to the UTF-16 variant before they ship. 4 new unit
+  tests covering ASCII parity, BMP non-ASCII characters,
+  supplementary-plane emoji, and offset-at-line-boundary.
 - **`LineIndex::from_rope_slice`.** Adapter that pulls line
   offsets from the rope's B-tree instead of scanning a flattened
   `&str`. Deferred until the first rope-backed consumer lands.
@@ -702,6 +706,524 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C*    | **Compiler migration — deferred analysis bodies.** Remaining work on landed chunks: full shimmer use-site / phi-shimmer / thunking detection (C27d), interprocedural summary-building pipeline (C28), taint propagation + path-concat + URI-split + sink-specific checks (C29), ten optimiser passes (C30a-j), and `connection_scope` + iRules event-flow (C28 follow-up). Each is a focused strip that plugs into the already-landed type surface. | planned |
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), `core/analysis/` (analyser passes), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
+| Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
+| R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
+| C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
+| C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed |
+| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed |
+| C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
+| C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
+| C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
+| C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
+
+## Pending chunks — detailed sub-plans
+
+The chunks below are scoped follow-ups to the `Sync` rebase. Each
+table row above maps to one of the sections here. The order
+matches the planned execution order: smaller / lower-risk chunks
+first to bank confidence, larger restructuring chunks last.
+
+### C39 — Small codegen fixes from main
+
+Audit each main-side codegen / lowering / parser fix landed since
+the rewrite branch was created and decide one of three outcomes:
+
+- **Port** — applies to the Tcl-bytecode codegen path that
+  `rust/tcl-compiler/` targets. Add a fixture under
+  `rust/tcl-compiler/tests/fixtures/codegen/matching/` and a unit
+  test next to the change.
+- **WASM-only** — the fix lives in `core/compiler/codegen/wasm/`
+  and only affects the runtime-interpreter dispatch. Note the
+  reason in the per-strip commit message and skip.
+- **Already covered** — the Rust port already does the right
+  thing; add a regression fixture and skip the port.
+
+Strips (one commit per audit + port):
+
+- **C39a** — `fix(codegen): foreach binds every loop variable per
+  iteration` (main `d5437ea0`). Audit
+  `rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs::detect_foreach`
+  + the foreach emitter — confirm whether the multi-var step uses
+  `len(loop_vars)` or `1`. WASM patch was the obvious case; bytecode
+  emit *should* already be correct via `FOREACH_START4` / `STEP4`
+  semantics, but add a fixture (`foreach-multi-var-step.tcl`) to
+  prove it.
+- **C39b** — `fix(codegen): continue in a for loop runs the
+  next-script before looping` (main `ef4806c5`). Audit
+  `codegen/emitter/generate.rs` for-loop dispatch — verify the
+  continue target jumps to the post-body / pre-test edge that
+  emits the `next` script. Add fixture `for-continue-runs-next.tcl`.
+- **C39c** — `fix(codegen): dict create folds key/value pairs into
+  the result` (main `74669d92`). The Rust port already has a
+  `dict_create` constant-folder in `codegen/helpers.rs::fold_dict_create_cmd`.
+  Add fixture proving `[dict create k1 v1 k2 v2]` folds, and a
+  matching unit test.
+- **C39d** — `fix(codegen): switch -glob dispatches inline via
+  tcl_string_match` (main `147a4a74`). WASM-only — the Tcl bytecode
+  path already emits `JUMP_TABLE` / `STR_MATCH` opcodes natively.
+  Add a fixture proving exact-mode `switch` falls through
+  correctly, mark the entry "WASM-only port skipped".
+- **C39e** — `fix(codegen): expr min/max variadic, int/entier/wide,
+  bool, pow` (main `3cf8f713`). Cross-check
+  `codegen/expressions.rs::emit_expr` math-function dispatch —
+  ensure variadic `min` / `max` and the int-coercion family emit
+  matching `invokeStk` patterns. C22i in the existing chunk log
+  already ports the constant-folding side; this strip is the
+  emitter side.
+- **C39f** — `fix(codegen): expr in/ni list-membership operators`
+  (main `89f8e43c`). The C22i chunk in
+  `tcl_expr_eval.rs` evaluates `in` / `ni`. Verify
+  `codegen/expressions.rs` emits the expected `STR_FIND` / `STR_EQ`
+  + `LIST_INDEX` sequence for unfolded operands. Fixture:
+  `expr-in-list-runtime.tcl`.
+- **C39g** — `fix(codegen): accept 0x/0o/0b expr literals via
+  int(value, 0)` (main `fdc1ee70`). Confirm
+  `tcl_expr_eval.rs::parse_literal` already handles all three
+  prefixes (it does — see C22 chunk log). Fixture:
+  `expr-radix-prefixes.tcl`.
+- **C39h** — `fix(codegen): lsort with options targets the trailing
+  list arg` (main `e43a7985`). Audit `codegen/emitter/bytecoded.rs`
+  for an `lsort` hook (none today). Either add a registry
+  codegen-hook that picks the trailing arg as the list, or note as
+  generic-invoke fallback.
+- **C39i** — `fix(codegen): pack args-tail when calling a proc from
+  a value context` (main `d341e74f`). Trace
+  `codegen/cmd_subst.rs::emit_generic_cmd_subst` — verify the
+  `INVOKE_STK4` form is reached when value-context receives ≥4
+  args.
+- **C39j** — `fix(codegen): double() cast in expr` (main
+  `f5506f10`). Verify the `double` math function in
+  `tcl_expr_eval.rs::eval_math_function`.
+
+Done definition: each strip lands a fixture or a unit test, the
+differential codegen harness still reports zero new divergent
+fixtures, and `cargo test -p tcl-compiler --lib` stays green.
+
+**Landed outcome.** Five new matching fixtures added
+(`foreach-multi-var.tcl`, `for-continue-runs-next.tcl`,
+`dict-create-fold.tcl`, `expr-double-cast.tcl`, plus the existing
+single-var `foreach-simple.tcl` already covering C39a's bytecode
+path). One new divergent fixture filed:
+`divergent/expr-radix-fold.tcl` — `expr {0xFF + 1}` parses but the
+Rust pipeline does not constant-fold the binary op (Rust emits 18
+instructions, Python 12). Filed as a follow-up, not blocking C39.
+Differential matching corpus: 33/33 passing (17 exact + 16
+semantic), divergent corpus: 2 (was 1). All other C39 strips fall
+into "WASM-only port skipped" (C39d) or "audit confirms parity
+already in place" (C39a/b/c/e/f/h/i/j) — a fixture in
+`matching/` is the proof for each.
+
+### C35 — Const-propagate-uplevel
+
+**Order swap.** C35 originally listed before C34, but it has a
+hard dependency on C34's `IRUpFrame` IR node (the static-body
+uplevel case lowers to `IRUpFrame { body: Script, frame_shift: 1 }`
+which doesn't exist until C34 lands). Execute C34 first, then
+return to C35. The strips below stand unchanged.
+
+Port the const-propagation half of main PR #185 — specifically:
+
+- `lower(barrier): const-propagate braced-literal bodies through
+  uplevel/eval` (main `b5e18ce2`)
+- `lower(barrier): inherit const-map across nested script scopes`
+  (main `c30203da`)
+- `lower(barrier): extend eval relaxation to [list ...] shape`
+  (main `a080c8d7`)
+
+Affects `rust/tcl-compiler/src/lowering/structured.rs` (the
+`lower_eval` / `lower_uplevel` paths) and the const-map carried on
+`Lowerer` state.
+
+Strips (one commit each):
+
+- **C35a** — [LANDED] `Lowerer::const_map_stack: Vec<HashMap<String,
+  String>>` and `Lowerer::proc_depth: u32` fields. `lower_script`
+  pushes a fresh scope; `lower_body` pushes a *clone* of the
+  parent scope (matching main `c30203da`). `lower_proc` and
+  `lower_when` bump `proc_depth` around their body lowering so
+  the const-map is gated to proc / event-handler scopes only —
+  top-level / `namespace eval` writes are globals or namespace
+  vars whose values can be observed and mutated by other code,
+  which would make const-propagating them unsound. `lower_segmented`
+  invokes `update_const_map(seg, &stmt)` after each command —
+  populates a literal binding for `set name {literal}` shapes
+  (rejecting array refs, namespace-qualified names, substituted
+  values), invalidates the named entry on assignment-style
+  writes, clears the whole map on `Statement::Barrier` /
+  `Statement::Block` / `Statement::UpFrame` / structured IR.
+  Module-level helpers `set_literal_body` and
+  `invalidate_const_map_for` mirror Python's `_set_literal_body`
+  and `_invalidate_const_map_for`. 6 unit tests covering disable
+  at top level, single-set+resolve, eval-brace lowering, eval-var
+  lowering, invalidation on re-assignment, and inheritance into
+  catch body.
+- **C35b** — [LANDED] `try_lower_uplevel_static` (C34a) gains a
+  `TokenType::Var` branch: when the body argument is a `$var`
+  that resolves via the const-map to a brace-string literal,
+  re-lower the literal as the inlined body. Mirrors main
+  `b5e18ce2`'s `_can_relax_uplevel` + `_relax_uplevel` change.
+  New `try_lower_eval_static` mirrors the same shape for `eval`,
+  producing `Statement::Block` rather than `Statement::UpFrame`
+  (eval doesn't shift frames). Wired into `lower_command` as a
+  new `"eval"` arm. Two existing interprocedural tests that
+  relied on `eval {}` being a barrier were updated to use
+  `eval $dyn` since `eval {literal}` is no longer a barrier
+  (it's a `Block`). Same change applied to
+  `tests/test_rust_interprocedural_delegation.py`.
+- **C35c** — [LANDED] `eval_list_literal_body(cmd_text)` parses
+  the inner-command of an `eval [list ...]` callsite via
+  `segment_commands`, verifies the head is `list` and every arg
+  is a single-token literal (`Esc` without `$` / `[`, or `Str`
+  which gets re-braced in the synthesised body), and returns
+  the joined body text. `try_lower_eval_static` gains a
+  `TokenType::Cmd` branch that calls the helper and re-lowers
+  the result as a `Statement::Block`. Mirrors main commit
+  `a080c8d7`. 3 unit tests: `[list set x 42]` accepted,
+  `[list set x $v]` rejected, `[foo arg]` rejected.
+
+Done: a new differential fixture per strip in
+`rust/tcl-compiler/tests/fixtures/codegen/matching/`.
+
+### C34 — `inline_uplevel` pass
+
+Port `core/compiler/inline_uplevel.py` (main `25a4340e`, 621 LOC)
+to `rust/tcl-compiler/src/inline_uplevel.rs` plus an IR addition
+for `IRUpFrame` (currently absent from the Rust port).
+
+Strips:
+
+- **C34a — IRUpFrame IR node.** [LANDED] Adds the
+  `Statement::UpFrame { span, frame_shift, body, tokens }` variant
+  to `rust/tcl-compiler/src/ir.rs`. The lowering dispatch
+  (`lowering::mod::lower_command`) routes `uplevel ?level? {body}`
+  through `try_lower_uplevel_static` for the static-body case
+  (level is a decimal int or `#N`, body is a brace-string token);
+  dynamic forms fall through to default lowering. Codegen emits a
+  NOP placeholder with comment `# unhandled: IRUpFrame` matching
+  the Python pipeline's expectation that the inline_uplevel pass
+  consumes IRUpFrame before codegen runs. Interprocedural analysis
+  treats it as a barrier and walks the body. Code-sinking matches
+  it alongside `Statement::Catch` for body-walking. 6 unit tests +
+  1 matching fixture (`uplevel-static-body.tcl`). Clippy +
+  differential corpus + `make prep-pr` clean.
+- **C34b — Static (zero-param) passthrough detection.** [LANDED]
+  New crate module `rust/tcl-compiler/src/inline_uplevel.rs`.
+  `detect_static_passthrough(&Module) -> HashMap<String, Script>`
+  for the static-only convenience and the richer
+  `detect_passthrough_candidates(&Module) -> HashMap<String,
+  PassthroughShape>` for both shapes. Gate matches main's four
+  conditions: zero params, body is one `Statement::UpFrame`,
+  `frame_shift == 1`, no nested uplevel/upvar/info-frame
+  (recursive `body_has_frame_reach` walks if/for/while/foreach/
+  catch/try/switch). 6 unit tests.
+- **C34c — Single-body-param passthrough detection.** [LANDED]
+  Extends the detector with the `ParamBody { param_name }` shape
+  (`proc dispatcher {body} { uplevel ?1? $body }`). Recognises both
+  the implicit-level (`uplevel $body`) and explicit-level
+  (`uplevel 1 $body`) forms; rejects mismatched param names and
+  multi-param dispatchers. 4 unit tests.
+- **C34d — Per-callsite rewriter.** [LANDED]
+  `inline_uplevel_passthrough(&mut Module, &CommandRegistry)` walks
+  every script in the module and replaces matched zero-param
+  passthrough callsites with `Statement::Block { body, namespace,
+  tokens, .. }`. Recurses into structured statements via
+  `walk_nested_scripts` so callsites inside if/for/while/foreach/
+  catch/try/switch bodies are rewritten too. Idempotent:
+  already-inlined callsites no longer match. Adds a new IR
+  variant: `Statement::Block { span, body, namespace, tokens }` —
+  flat splice of an inline body without a new scope (mirrors
+  Python's `IRBlock`). 6 unit tests covering rewriter behaviour
+  + idempotency. The ParamBody rewrite path landed in a
+  follow-up that added `CommandTokens::argv_kinds` (the per-word
+  `tcl_lexer::TokenType`); the rewriter consults it to confirm
+  the sole arg was a brace-string token before splicing. 5
+  additional unit tests covering the brace-literal rewrite,
+  dynamic-arg skip, command-subst-arg skip, frame-reach skip,
+  and `{*}`-expansion skip.
+- **C34e — Pipeline integration.** [LANDED]
+  `CompilationUnit::build_for` runs
+  `inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry)`
+  immediately after `lower_to_ir` and before `build_cfg`. The
+  CFG builder gains an explicit `Statement::Block` arm that
+  recursively flattens the body's statements into the current
+  control-flow stream so SSA / def-use / codegen see them
+  inline. The codegen `emit_stmt` arm walks the block body
+  emitting each statement in turn. Differential corpus stays
+  green (matching: 34/34, divergent: 2 — unchanged).
+
+Done: 6 fixtures (3 static, 3 param-body), ~25 unit tests.
+Differential harness reports same exact-match count as Python
+(matching/divergent split unchanged or improved).
+
+### C37 — Parse-cache address-keying + const-map isolation
+
+Port main's two parse-cache fixes (`b64d7a5f`, `49f90130`) into the
+Rust lowering layer.
+
+The Rust lowering already has a per-function const-map (see
+`Lowerer::const_map`). Main's fix:
+
+- **C37a — Address-keyed body cache.** N/A for the Rust compiler.
+  Main commit `b64d7a5f` retitles a Zig runtime cache
+  (`runtime/zig/parse_cache.zig`) — there's no analogous Python
+  body-cache port, and the Rust lowering registers each procedure
+  exactly once into `module.procedures` so re-lowering is not
+  observable. The audit confirmed no Rust-side gap.
+- **C37b — Fresh const-map for nested procs.** [LANDED]
+  `lower_proc` and `lower_when` now push an empty `HashMap` on
+  `const_map_stack` around the body lowering (in addition to the
+  existing `proc_depth` bump). `lower_body` clones the parent
+  scope on entry, so pushing an empty parent first gives the
+  nested proc / event-handler body a clean slate independent of
+  the outer scope's tracked literals. Mirrors main commit
+  `49f90130`. New unit test
+  `const_prop_does_not_leak_into_nested_proc` asserts the inner
+  `uplevel 1 $body` stays a `Call` / `Barrier` even when the
+  outer proc bound `body` to a brace literal.
+
+Done: per-strip fixture; `cargo test -p tcl-compiler --lib`
+clean.
+
+### C38 — Namespace-import compile-time resolution
+
+Port `perf(codegen): resolve namespace-import calls at compile time`
+(main `ea155a5c`) and `lower/codegen: gate namespace_imports
+shortcut on namespace export` (main `2f5cb008`) and `lower:
+suppress namespace import/export in dead if branches` (main
+`06f42efa`).
+
+Strips:
+
+- **C38a** — [LANDED] `Lowerer::namespace_imports: Vec<(String,
+  String)>` plus a detection block in `lower_command` that
+  matches `namespace import ?-force? pattern...`, skips
+  `{*}`-expanded calls, filters relative patterns, and records
+  `(context_namespace, absolute_pattern)` pairs. Surfaced on
+  `Module::namespace_imports` at the end of `Lowerer::lower`.
+  Mirrors main commit `ea155a5c`'s lowering-side change.
+- **C38b** — [LANDED] `Lowerer::namespace_exports` + a
+  `namespace export` arm in the same dispatch block. Skips
+  `-clear` / option flags, records `(context_namespace, pattern)`
+  pairs, surfaces on `Module::namespace_exports`. The codegen-
+  side gate (using exports to decide whether an import shortcut
+  fires) belongs to a future strip when the Rust compiler grows
+  a namespace-import-resolution path; the data layer is in place
+  for that consumer. Mirrors main commit `2f5cb008`'s
+  lowering-side change.
+- **C38c** — [LANDED] `Lowerer::dead_code_depth: u32` counter +
+  `static_bool(expr_text)` helper. `lower_if` (in
+  `lowering/structured.rs`) detects clauses whose condition is a
+  literal `0`/`false`/`no`/`off` or `1`/`true`/`yes`/`on` and
+  brackets the dead body with `dead_code_depth += 1` /
+  `dead_code_depth -= 1`. A static-true clause latches the flag
+  so every later clause + the `else` branch is dead. The
+  `namespace import` / `namespace export` collection is gated on
+  `dead_code_depth == 0`. Mirrors main commit `06f42efa`. 6 unit
+  tests covering recording, relative-pattern skip, `-force` flag,
+  export recording, dead `if{0}` branch suppression, dead `else`
+  after `if{1}` suppression.
+
+Done: 3 fixtures, ~10 unit tests, differential harness no
+regressions.
+
+### C36 — Factory specialisation + `subst -nocommands`
+
+Port the largest single PR-185 component: the factory pass
+(`core/compiler/passes/specialise_factories.py`, 559 LOC) plus its
+parser dependency (`core/parsing/subst_nocommands.py`, 233 LOC) and
+the lowering-layer plumbing (`d4d2cdd5` "materialise [subst
+-nocommands {…}] bodies", `2ad4efc9` "resolve `proc \$var body` via
+lowering const-map").
+
+Strips:
+
+- **C36a — `subst_nocommands` parser.** [LANDED] New crate
+  module `rust/tcl-compiler/src/subst_nocommands.rs`. Implements
+  `subst_nocommands(template, &const_map) -> Option<String>` — a
+  compile-time evaluator for `[subst -nocommands {template}]` that
+  resolves `$var` / `${var}` against the supplied const-map,
+  decodes `\…` escapes via `tcl_lexer::backslash_subst`, keeps
+  `[…]` literal (the `-nocommands` flag), and refuses (returns
+  `None`) for missing vars, array refs, namespace-qualified
+  names, unbalanced brackets. Mirrors Python's
+  `core/parsing/subst_nocommands.py`. 13 unit tests covering
+  every refusal condition + happy paths.
+- **C36b — Lowering: `proc $var body` resolution.** [LANDED]
+  `lower_proc` first checks for the `$var` shape (proc name
+  contains `$`, doesn't contain `[`, single-token VAR, name
+  resolves via `const_map_lookup`) and substitutes the literal
+  before continuing as a normal static-name proc. Multi-token
+  names (`foo_$x`, `$a$b`) and command-substitution names
+  (`$name[suffix]`) stay on the runtime / barrier path. The
+  inner proc registers under the resolved FQN. Mirrors main
+  commit `2ad4efc9`. 4 unit tests covering the resolved /
+  no-binding / command-sub / latest-set-wins shapes.
+- **C36c — Lowering: materialise `[subst -nocommands {…}]`
+  bodies.** [LANDED] New `Lowerer::eval_subst_nocommands_body`
+  helper: parses the inner CMD-token text via `segment_commands`,
+  verifies `subst` head + a `-nocommands` flag (rejecting
+  `-nobackslashes` / `-novariables` whose semantics differ),
+  finds the single STR-token positional template, then delegates
+  to `crate::subst_nocommands::subst_nocommands` against the
+  current const-map. Wired into `lower_proc` alongside the
+  existing body-lowering path: when the body is a CMD token and
+  the helper succeeds, lower the substituted text via
+  `lower_script` instead of `lower_body`. Mirrors main
+  `d4d2cdd5`. 3 unit tests covering the happy path,
+  missing-var refusal, and `-nobackslashes` refusal.
+- **C36d — Factory shape detector.** [LANDED] New crate module
+  `rust/tcl-compiler/src/specialise_factories.rs`. `FactoryShape
+  { qualified_name, params, name_param, child_params,
+  child_body_template }` plus
+  `detect_factory_shape(&Procedure) -> Option<FactoryShape>`.
+  Recognises the canonical `proc Configure {name default
+  description} { proc $name {…} [subst -nocommands {…}] }`
+  pattern by matching the proc body's single
+  `Statement::Barrier { reason: "dynamic proc name", command:
+  "proc", … }` and verifying the `${name}` / `$name` shape, the
+  literal child params, and the brace-template body via a
+  reused `extract_subst_nocommands_template` helper. 3 unit
+  tests: canonical shape detected, multi-statement rejected,
+  non-param name rejected.
+- **C36e — Per-call factory specialiser.** [LANDED]
+  `specialise_factories(&mut Module, &CommandRegistry)` walks
+  the module's top-level + each procedure body, recognising
+  call sites of any detected factory. For each match it:
+  1. resolves the target via namespace-qualified or root
+     lookup;
+  2. extracts literal arg bindings (`STR` braced text or `ESC`
+     bareword without `$`/`[`);
+  3. feeds the bindings through `subst_nocommands` against the
+     factory's body template;
+  4. lowers the materialised body to an `IRScript` via a fresh
+     `Lowerer`;
+  5. registers a synthesised `Procedure` under the bound
+     `name_param` value;
+  6. replaces the call site with a no-op `Statement::Block`.
+  Recurses into `Statement::Block` containers; structured IR
+  (if / for / while / foreach / catch / try / switch) is left
+  alone, matching Python's gate. 3 unit tests covering
+  successful synthesis, dynamic-arg skip, and multi-call
+  recursion.
+- **C36f — Per-factory specialisation cap.** [LANDED]
+  `DEFAULT_FACTORY_CAP = 64` constant +
+  `specialise_factories_with_cap(module, registry, cap)` entry
+  point. A `counts: HashMap<String, usize>` tracks per-factory
+  rewrites; once a factory's count reaches *cap* further call
+  sites stay on the runtime dispatch path. Wired through the
+  default `specialise_factories` so existing callers get the
+  cap automatically. Pipeline integration: the pass runs
+  immediately after `lower_to_ir` in
+  `CompilationUnit::build_for`, before the `inline_uplevel`
+  pass and before `build_cfg`, so the synthesised procs appear
+  in `module.procedures` for every downstream consumer. 1 unit
+  test asserts the third call past `cap=2` does not synthesise.
+
+Done: 6 fixtures + 14+ unit tests; the `tcltest` Option pattern
+specialises end-to-end through the pipeline.
+
+### C33 — `var_escape` flow-sensitive analysis
+
+Port `core/compiler/var_escape/` (2,243 LOC across 7 files in main)
+to `rust/tcl-compiler/src/var_escape/`. This is the single biggest
+remaining chunk. Five strips, one per Python sub-module:
+
+- **C33a — Types + lattice (`_types.py`).** [LANDED] New crate
+  module `rust/tcl-compiler/src/var_escape/{mod,types}.rs`.
+  `EscapeTag` enum (`Local` / `Frame`), `join` lattice operator
+  (`Frame` dominates), and `ProcEscapeSummary` carrying
+  per-name tags, `dynamic_barrier`, `frame_needed`,
+  `upvar_source_names`, `unbounded_upvar_source`,
+  `direct_callees`, `has_fallback`, `has_call_fallback`, and
+  per-SSA-version `ssa_tags`. Methods: `tag` (defaults to
+  `Local`, returns `Frame` when the barrier is set),
+  `is_frame`, `with_escapes(extra, pessimistic)` for
+  callee-induced escape propagation. Mirrors Python's
+  `core/compiler/var_escape/_types.py`. 6 unit tests covering
+  the lattice + summary API.
+- **C33b — Static rule audit (`_propagation.py`).** [LANDED]
+  Ported as 5 sub-strips (b1 helpers, b2 EscapeState, b3
+  collect_known_names, b4 per-call handlers, b5/b6/b7 walker
+  combined). The walker runs the intra-procedural rule engine
+  over an IR script: per-Statement transfer functions for
+  AssignConst/AssignValue/AssignExpr/Incr (with literal-binding
+  alias tracking), Call (dispatched to upvar / global / variable
+  / namespace upvar / info / dynamic-name-first handlers and a
+  generic callee-recording fallback), Barrier / UpFrame (with
+  eval / uplevel-#0 special cases that recursively escape every
+  name touched in the literal body), structured statements
+  (if / for / while / foreach / catch / try / switch),
+  Statement::Block (transparent splice or eval-relaxed), and
+  value/expr scans for embedded `[info ...]` hazards or
+  non-frameless command substitutions. Public entry point:
+  `var_escape::analyse_script(body, params) -> ProcEscapeSummary`.
+  Mirrors `core/compiler/var_escape/_propagation.py` (979 LOC of
+  Python). 50 unit tests across the 5 strips covering helpers,
+  state, known-name collection, per-call handlers, and the
+  walker's end-to-end shapes.
+- **C33c — `info` subcommand audit (`_info_subcommands.py`).**
+  [LANDED] New crate module
+  `rust/tcl-compiler/src/var_escape/info_subcommands.rs` with
+  the two const-slice allow-lists (`FRAME_INSPECTING_SUBCOMMANDS`,
+  `INTERPRETER_GLOBAL_SUBCOMMANDS`) plus the
+  `is_safe_info_subcommand` / `is_frame_inspecting_info_subcommand`
+  predicates. Mirrors the Tcl 9.0 audit Python's
+  `_info_subcommands.py` documents. 4 unit tests covering
+  pessimistic detection, safe detection, unknown-subcommand
+  fall-through, and the disjoint-sets invariant.
+- **C33d — Interprocedural propagation
+  (`_interprocedural.py`).** [LANDED] New crate module
+  `rust/tcl-compiler/src/var_escape/interprocedural.rs`.
+  `solve_interprocedural_escape(&HashMap<String,
+  ProcEscapeSummary>) -> HashMap<String, ProcEscapeSummary>`
+  runs a worklist fixpoint over the static call graph built
+  from each proc's `direct_callees`. Resolves bare callees via
+  Tcl's namespace-walking lookup
+  (`name_candidates` walks the caller's namespace then enclosing
+  namespaces then global then bare); after convergence each
+  proc's `upvar_source_names` is the union of its own + every
+  transitive callee's. `unbounded_upvar_source` propagates the
+  same way and triggers `dynamic_barrier` on callers (the
+  interprocedural pessimism rule). `has_fallback` is downgraded
+  per proc when every recorded callee resolves to a tracked
+  proc (compiled-callee dispatch doesn't hit the eval
+  fallback). Mirrors
+  `core/compiler/var_escape/_interprocedural.py`. 12 unit
+  tests covering caller-namespace walking, name-candidates
+  ordering, transitive chains, unbounded propagation,
+  has-call-fallback downgrade vs preserve, self-recursion.
+- **C33e — Flow-sensitive SSA-version propagation
+  (`_cfg_propagation.py`).** [LANDED] Ported as 6 sub-strips:
+  e1 (CfgEscapeResult + CfgState — SSA-version-aware
+  accumulator), e2 (collect_known_names_from_cfg — SSA-block
+  walker), e3 (per-call handlers — cfg variants taking the
+  defs map), e4/e5/e6 combined walker
+  (escape_every_name_touched_tree + handle_call dispatcher +
+  value/expr scans + handle_statement + walk_block + block_order
+  + analyse_cfg_function entry point). New crate module:
+  `rust/tcl-compiler/src/var_escape/cfg_propagation/`. The
+  walker iterates blocks in CFG reverse-postorder, processes
+  each SsaStatement via per-Statement transfer functions
+  (assign with literal-binding alias tracking, call routed to
+  per-command handlers, barrier / UpFrame / eval-Block routed
+  to handle_barrier with literal-body recursion through
+  escape_every_name_touched_tree, structured statements
+  recursing into nested scripts), and additionally scans each
+  block's terminator branch condition for embedded
+  ``[info ...]`` hazards. The `into_result()` collapse
+  produces both `ssa_tags: HashMap<(String, Version),
+  EscapeTag>` (authoritative) and `name_tags: HashMap<String,
+  EscapeTag>` (per-name view: Frame iff any version was
+  tagged). Wired into `var_escape::analyse_cfg_function`.
+  Mirrors `core/compiler/var_escape/_cfg_propagation.py` (686
+  LOC of Python). 38 unit tests across the 4 sub-modules.
+
+Each strip is independently committable and individually green
+under `make prep-pr`. Wire the analysis into
+`compiler_checks::run_all_checks` only after C33e lands so
+intermediate strips don't leak into Python diagnostics. The
+public-API `_api.py` module ports as part of C33e.
+

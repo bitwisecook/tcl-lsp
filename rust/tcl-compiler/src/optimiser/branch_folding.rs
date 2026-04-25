@@ -377,6 +377,8 @@ mod tests {
                 procedures: HashMap::new(),
                 methods: HashMap::new(),
                 redefined_procedures: std::collections::HashSet::new(),
+                namespace_imports: Vec::new(),
+                namespace_exports: Vec::new(),
             },
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),

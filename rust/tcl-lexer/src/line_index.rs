@@ -32,7 +32,11 @@ pub struct LineIndex {
 }
 
 impl LineIndex {
-    /// Build a `LineIndex` by scanning `source` once for `\n`.
+    /// Build a `LineIndex` by scanning `source` once for line
+    /// terminators. Recognises `\n`, `\r\n`, and bare `\r` —
+    /// the three Tcl-relevant line endings (the bare-`\r` case
+    /// matches the Python lexer's incremental counter, which
+    /// also advances on `\r` inside backslash continuations).
     ///
     /// # Panics
     ///
@@ -46,13 +50,30 @@ impl LineIndex {
             u32::try_from(source.len()).is_ok(),
             "source longer than 4 GiB cannot be indexed",
         );
-        let mut starts = Vec::with_capacity(source.len() / 32 + 1);
+        let bytes = source.as_bytes();
+        let len = bytes.len();
+        let mut starts = Vec::with_capacity(len / 32 + 1);
         starts.push(0_u32);
-        for (i, b) in source.bytes().enumerate() {
-            if b == b'\n' {
-                // `i + 1` cannot overflow u32: source.len() fits u32
-                // and i < source.len().
-                starts.push(u32::try_from(i + 1).expect("offset fits u32"));
+        let mut i = 0;
+        while i < len {
+            match bytes[i] {
+                b'\r' => {
+                    // ``\r\n`` counts as one line break; bare ``\r``
+                    // also counts as one. The next-line offset is
+                    // immediately after the terminator.
+                    let consumed = if i + 1 < len && bytes[i + 1] == b'\n' {
+                        2
+                    } else {
+                        1
+                    };
+                    starts.push(u32::try_from(i + consumed).expect("offset fits u32"));
+                    i += consumed;
+                }
+                b'\n' => {
+                    starts.push(u32::try_from(i + 1).expect("offset fits u32"));
+                    i += 1;
+                }
+                _ => i += 1,
             }
         }
         Self {
@@ -83,10 +104,8 @@ impl LineIndex {
     /// not a UTF-16 code unit count. This matches the Python lexer's
     /// actual behaviour (`col = offset - line_start`), which is exact
     /// for ASCII input and drifts for supplementary-plane characters.
-    /// Non-ASCII column parity is tracked as deferred work in
-    /// `docs/rust-rewrite.md`; changing it here is a coordinated
-    /// Python-and-Rust fix across the whole position infrastructure,
-    /// not a lexer-local concern.
+    /// Use [`Self::position_at_utf16`] for an LSP-compliant UTF-16
+    /// column.
     #[must_use]
     pub fn position_at(&self, offset: u32) -> SourcePosition {
         let line_idx = self
@@ -97,6 +116,45 @@ impl LineIndex {
         SourcePosition::new(
             u32::try_from(line_idx).expect("line count fits u32"),
             offset - line_start,
+            offset,
+        )
+    }
+
+    /// LSP-compliant variant of [`Self::position_at`] that returns
+    /// a `character` column counted in UTF-16 code units (per the
+    /// LSP specification's "Position" type, which defines
+    /// `character` as zero-based offsets into a UTF-16-encoded
+    /// line).
+    ///
+    /// Requires `source` so we can count UTF-16 code units within
+    /// the line up to *offset*. ASCII / BMP characters cost one
+    /// code unit; supplementary-plane characters (`U+10000`+) cost
+    /// two (a surrogate pair). For ASCII input the answer is
+    /// identical to [`Self::position_at`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if *offset* falls inside a UTF-8 multi-byte sequence
+    /// (the resulting position would be unrepresentable). Callers
+    /// should align *offset* to a `char` boundary before calling.
+    #[must_use]
+    pub fn position_at_utf16(&self, offset: u32, source: &str) -> SourcePosition {
+        let line_idx = self
+            .line_starts
+            .partition_point(|&start| start <= offset)
+            .saturating_sub(1);
+        let line_start = self.line_starts[line_idx];
+        let prefix_start = line_start as usize;
+        let prefix_end = offset as usize;
+        // Count UTF-16 code units in the line slice up to *offset*.
+        // ``str::encode_utf16`` is the canonical conversion; the
+        // alternative (summing ``ch.len_utf16()``) is equivalent
+        // but allocates per char.
+        let line_prefix = &source[prefix_start..prefix_end];
+        let col_utf16 = line_prefix.encode_utf16().count();
+        SourcePosition::new(
+            u32::try_from(line_idx).expect("line count fits u32"),
+            u32::try_from(col_utf16).expect("UTF-16 column fits u32"),
             offset,
         )
     }
@@ -170,5 +228,87 @@ mod tests {
         let other = idx.clone();
         assert_eq!(other.line_count(), idx.line_count());
         assert_eq!(other.position_at(2), idx.position_at(2));
+    }
+
+    #[test]
+    fn crlf_counts_as_single_line_break() {
+        let idx = LineIndex::new("abc\r\ndef");
+        assert_eq!(idx.line_count(), 2);
+        // First line spans bytes 0..5 (``abc\r\n``); second line
+        // starts at offset 5.
+        assert_eq!(idx.line_start(1), 5);
+        assert_eq!(idx.position_at(5), SourcePosition::new(1, 0, 5));
+        // Within line 1, offset 7 is column 2 (``f``).
+        assert_eq!(idx.position_at(7), SourcePosition::new(1, 2, 7));
+    }
+
+    #[test]
+    fn bare_cr_counts_as_line_break() {
+        let idx = LineIndex::new("abc\rdef");
+        assert_eq!(idx.line_count(), 2);
+        assert_eq!(idx.line_start(1), 4);
+        assert_eq!(idx.position_at(4), SourcePosition::new(1, 0, 4));
+    }
+
+    #[test]
+    fn mixed_line_endings() {
+        // ``\n``, ``\r\n``, bare ``\r`` all count once.
+        let src = "a\nb\r\nc\rd";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.line_count(), 4);
+        // Lines: "a" (0..2), "b" (2..5), "c" (5..7), "d" (7..8).
+        assert_eq!(idx.line_start(0), 0);
+        assert_eq!(idx.line_start(1), 2);
+        assert_eq!(idx.line_start(2), 5);
+        assert_eq!(idx.line_start(3), 7);
+    }
+
+    #[test]
+    fn utf16_position_matches_byte_position_for_ascii() {
+        let src = "hello\nworld";
+        let idx = LineIndex::new(src);
+        // ASCII — UTF-16 column equals byte column.
+        for offset in [0u32, 1, 2, 5, 6, 7, 11] {
+            let byte_pos = idx.position_at(offset);
+            let utf16_pos = idx.position_at_utf16(offset, src);
+            assert_eq!(byte_pos.line, utf16_pos.line);
+            assert_eq!(byte_pos.character, utf16_pos.character);
+        }
+    }
+
+    #[test]
+    fn utf16_position_counts_one_unit_per_bmp_character() {
+        // ``é`` is U+00E9 — 2 bytes in UTF-8, 1 code unit in UTF-16.
+        let src = "aé\nb";
+        let idx = LineIndex::new(src);
+        // ``é`` ends at byte offset 3 (``a`` = 1 + ``é`` = 2).
+        // Byte column at offset 3 = 3; UTF-16 column = 2.
+        assert_eq!(idx.position_at(3).character, 3);
+        assert_eq!(idx.position_at_utf16(3, src).character, 2);
+    }
+
+    #[test]
+    fn utf16_position_counts_two_units_for_supplementary_plane() {
+        // ``😀`` is U+1F600 — 4 bytes in UTF-8, 2 code units in
+        // UTF-16 (a surrogate pair).
+        let src = "a😀b";
+        let idx = LineIndex::new(src);
+        // ``😀`` ends at byte offset 5 (1 + 4).
+        // Byte column at offset 5 = 5; UTF-16 column = 3 (1 ASCII
+        // + 2 surrogates).
+        assert_eq!(idx.position_at(5).character, 5);
+        assert_eq!(idx.position_at_utf16(5, src).character, 3);
+    }
+
+    #[test]
+    fn utf16_position_handles_offset_at_line_boundary() {
+        let src = "héllo\nwörld";
+        let idx = LineIndex::new(src);
+        // ``é`` is 2 bytes, so ``hello\n`` line spans 0..7. UTF-16
+        // chars on line 0: h, é, l, l, o = 5 code units.
+        // The terminating ``\n`` is at byte offset 6.
+        assert_eq!(idx.position_at_utf16(6, src).character, 5);
+        // First char of line 1 (``w``) at byte offset 7.
+        assert_eq!(idx.position_at_utf16(7, src), SourcePosition::new(1, 0, 7));
     }
 }

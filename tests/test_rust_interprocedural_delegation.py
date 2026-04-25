@@ -68,8 +68,14 @@ def test_constant_return_proc_summary_matches_python() -> None:
 
 @pytest.mark.skipif(not _rust_available(), reason="Rust wheel not installed")
 def test_impure_proc_not_foldable() -> None:
-    """A proc with an ``eval`` barrier must not be foldable."""
-    source = "proc ::f {} { eval {} ; return 42 }"
+    """A proc with a dynamic ``eval`` barrier must not be foldable.
+
+    C35b relaxes ``eval {literal}`` to a Statement::Block, so a
+    literal-bodied eval no longer counts as a barrier. Use a
+    dynamic body (``eval $dyn``) which still routes through the
+    runtime barrier dispatch.
+    """
+    source = "proc ::f {} { eval $dyn ; return 42 }"
     rust = _with_rust(source)
     r = rust.procedures["::f"]
     assert r.can_fold_static_calls is False
