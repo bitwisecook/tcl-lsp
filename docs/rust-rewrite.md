@@ -715,6 +715,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
+| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | in progress |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
@@ -725,6 +726,55 @@ The chunks below are scoped follow-ups to the `Sync` rebase. Each
 table row above maps to one of the sections here. The order
 matches the planned execution order: smaller / lower-risk chunks
 first to bank confidence, larger restructuring chunks last.
+
+### C40 — `signature_scan.py` Rust port
+
+Port `core/analysis/signature_scan.py` (~862 LOC, single
+self-contained module) to `rust/tcl-compiler/src/signature_scan/`.
+Mirrors the Python implementation 1:1 at the segmenter level —
+**not** the IR level — so the Rust port stays as fast as Python's
+"avoid the lowering pass for background-indexed files" design
+intent.
+
+The port is organised across five sub-strip families with one
+commit per strip; each commit is `≤100` LOC of source + tests and
+green under `cargo fmt --all && cargo clippy --workspace
+--all-targets -- -D warnings && cargo test -p tcl-compiler --lib
+&& make rust-build && make prep-pr`.
+
+Sub-strip families:
+
+- **C40a (7 strips)** — types: scaffold module, `ParamDef` +
+  `parse_param_list`, eight record types, `SignatureScanResult`
+  aggregator, internal `ScanCtx` + `FactoryCandidate` +
+  `ProcBodyInfo` + `FACTORY_SKIP_HEADS`.
+- **C40b (11 strips)** — per-command handlers: `qualify`,
+  `emit_class`, `handle_proc`, `handle_namespace` +
+  `handle_namespace_import`, `handle_package`, `handle_source`,
+  `handle_interp`, `handle_oo_class` + `handle_itcl_class`,
+  `handle_auto_path`, `maybe_handle_import_wrapper`,
+  `maybe_record_factory_candidate`.
+- **C40c (7 strips)** — walker: top-level `scan` +
+  `maybe_recurse_body` scaffold, namespace-eval body recursion,
+  `handle_if` body recursion, `handle_catch` body recursion,
+  `handle_try` body recursion (on/trap/finally),
+  `scan_factory_candidates` + `scan_factory_structural`, wire
+  factory walker into `handle_proc`.
+- **C40d (4 strips)** — factory resolution + entry: `is_factory_body`,
+  `lookup_factory`, `resolve_factory_defs`, public
+  `extract_signatures(source, registry)` entry point.
+- **C40e (8 strips)** — PyO3 binding + Python shim + differential
+  harness: PyO3 scaffold + `register_with` + smoke tests; PyDict
+  emission of every collection in two strips; Python
+  `_materialise_rust_signatures` helper; Python env-var dispatch
+  shim (`TCL_LSP_RUST_SIGNATURE_SCAN=1`); differential harness
+  scaffold; differential corpus (~25 fixtures); chunk-log row →
+  landed.
+
+The Rust signature `extract_signatures(source: &str, _registry:
+&CommandRegistry) -> SignatureScanResult` plumbs a registry param
+through (currently unused) for consistency with every other
+tcl-compiler analysis entry point.
 
 ### C39 — Small codegen fixes from main
 
