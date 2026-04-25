@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.packages import PackageResolver
@@ -218,3 +220,66 @@ class TestPackageResolver:
             resolver.add_search_paths([tmpdir])
             second_count = len(resolver.resolve("pkg"))
             assert first_count == second_count == 1
+
+
+def _abs(p: str) -> str:
+    return os.path.abspath(os.path.expanduser(p))
+
+
+class TestAddSearchPathsPrepend:
+    """Order-preservation contract for ``add_search_paths(prepend=True)``.
+
+    Each batch of paths must keep its own input order; later batches must
+    sit in front of earlier batches. Naive ``insert(0, …)`` per element
+    reverses the input order within a batch.
+    """
+
+    def test_single_batch_preserves_input_order(self):
+        resolver = PackageResolver()
+        resolver.add_search_paths(["/tmp/a", "/tmp/b", "/tmp/c"], prepend=True)
+        assert resolver._search_paths == [_abs("/tmp/a"), _abs("/tmp/b"), _abs("/tmp/c")]
+
+    def test_two_batches_preserve_per_batch_and_batch_order(self):
+        resolver = PackageResolver()
+        resolver.add_search_paths(["/tmp/a", "/tmp/b", "/tmp/c"], prepend=True)
+        resolver.add_search_paths(["/tmp/d", "/tmp/e"], prepend=True)
+        # Second batch in front, each batch keeps its own input order.
+        assert resolver._search_paths == [
+            _abs("/tmp/d"),
+            _abs("/tmp/e"),
+            _abs("/tmp/a"),
+            _abs("/tmp/b"),
+            _abs("/tmp/c"),
+        ]
+
+    @pytest.mark.parametrize(
+        ("first", "second", "expected_relative"),
+        [
+            (["/tmp/a"], ["/tmp/b"], ["/tmp/b", "/tmp/a"]),
+            (["/tmp/a", "/tmp/b"], ["/tmp/c"], ["/tmp/c", "/tmp/a", "/tmp/b"]),
+            (["/tmp/a"], ["/tmp/b", "/tmp/c"], ["/tmp/b", "/tmp/c", "/tmp/a"]),
+            (
+                ["/tmp/a", "/tmp/b", "/tmp/c"],
+                ["/tmp/d", "/tmp/e", "/tmp/f"],
+                ["/tmp/d", "/tmp/e", "/tmp/f", "/tmp/a", "/tmp/b", "/tmp/c"],
+            ),
+        ],
+    )
+    def test_parametrised_two_batch_orderings(
+        self, first: list[str], second: list[str], expected_relative: list[str]
+    ) -> None:
+        resolver = PackageResolver()
+        resolver.add_search_paths(first, prepend=True)
+        resolver.add_search_paths(second, prepend=True)
+        assert resolver._search_paths == [_abs(p) for p in expected_relative]
+
+    def test_prepend_with_existing_non_prepend_path(self):
+        resolver = PackageResolver()
+        resolver.add_search_paths(["/tmp/existing"], prepend=False)
+        resolver.add_search_paths(["/tmp/new1", "/tmp/new2"], prepend=True)
+        # Prepended batch keeps input order; original non-prepend path slides back.
+        assert resolver._search_paths == [
+            _abs("/tmp/new1"),
+            _abs("/tmp/new2"),
+            _abs("/tmp/existing"),
+        ]
