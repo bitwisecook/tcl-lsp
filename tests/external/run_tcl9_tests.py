@@ -77,6 +77,41 @@ def _tcl9_test_file(name: str) -> Path:
 # Bundle construction
 # ---------------------------------------------------------------------------
 
+_PRE_TCLTEST = r"""
+# ----- run_tcl9_tests.py pre-tcltest stubs -----
+# tcltest.tcl line 919 calls ``auto_load ::parray`` followed by
+# ``proc tcltest::parray {a {pattern *}} [info body ::parray]``.
+# Tcl's auto-loading machinery is not implemented here, so we
+# pre-define a minimal ``::parray`` stub up-front.  When tcltest's
+# auto_load no-ops, the subsequent ``info body ::parray`` returns
+# this body and the ``tcltest::parray`` definition succeeds.
+#
+# Wrapped in ``eval {…}`` so the compiler doesn't AOT-lift the
+# proc — ``info body`` only works on interpreted procs, so the
+# stub must register through the interpreter's ``proc`` handler.
+eval {
+    proc ::parray {a {pattern *}} {
+        upvar 1 $a array
+        if {![array exists array]} {
+            return -code error "\"$a\" isn't an array"
+        }
+        set names [lsort [array names array $pattern]]
+        set max 0
+        foreach n $names {
+            if {[string length $n] > $max} { set max [string length $n] }
+        }
+        foreach n $names {
+            puts [format "%s(%-*s) = %s" $a $max $n $array($n)]
+        }
+    }
+}
+
+# auto_load: stub that always succeeds (no actual loading; ::parray
+# is provided by the pre-tcltest stub above).  Returning 1 mirrors
+# Tcl's "command auto-loaded successfully" return.
+proc auto_load {cmd args} { return 1 }
+"""
+
 _PREAMBLE = r"""
 # ----- run_tcl9_tests.py preamble -----
 # Import tcltest commands into the global namespace.  Test files that detect
@@ -96,6 +131,8 @@ def _bundle(test_file_path: Path) -> str:
 
     return "\n".join(
         [
+            "# ===== run_tcl9_tests pre-tcltest stubs =====",
+            _PRE_TCLTEST,
             "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
             tcltest_src,
             "# ===== run_tcl9_tests preamble =====",

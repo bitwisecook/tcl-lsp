@@ -281,12 +281,28 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     lru_invalidate();
     const hash = fnv1a(sn.ptr, sn.len);
 
-    // Promote borrowing TclObjs to owning copies.  ``OBJ_STR_CAP == 0``
-    // means "we don't own this buffer"; copy the bytes into a fresh
-    // owned slab so the proc body / params survive the source-script
-    // teardown.
+    // Promote borrowing TclObjs to owning copies, then RETAIN the
+    // owning TclObj so its lifetime is anchored by the proc-table
+    // entry rather than by the caller's transient hold.
+    //
+    // Why both:
+    //  - ``ensure_owned`` makes sure the BUFFER bytes (cap > 0) are
+    //    owned by *some* TclObj that's distinct from the caller's
+    //    parser-borrowed one.  Without this, the buffer is shared
+    //    with the source script and dies when the source releases.
+    //  - The retain anchors the OWNING TclObj's refcount > 1 so
+    //    even after the caller drops its reference (release at
+    //    drain time), the proc-table slot still holds a valid
+    //    pointer to live bytes.  Without this, under the libc-
+    //    coherent allocator the owning TclObj's slab gets freed
+    //    and recycled — observed as ``unknown command: <body>``
+    //    when invoking the proc later, because the slab now
+    //    holds some other obj's data.
     const owned_params = ensure_owned(params_obj);
     const owned_body = ensure_owned(body_obj);
+    obj.tcl_obj_retain(owned_params);
+    obj.tcl_obj_retain(owned_body);
+    // (debug removed — see commit history)
 
     const sp = obj_ensure_string(owned_params);
     const n_params = obj.list_count_elements(sp.ptr, sp.len);
