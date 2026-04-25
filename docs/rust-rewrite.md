@@ -706,7 +706,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | planned |
-| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | partial — C34a landed |
+| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | partial — C34a, C34b, C34c landed |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | planned |
@@ -875,15 +875,22 @@ Strips:
   it alongside `Statement::Catch` for body-walking. 6 unit tests +
   1 matching fixture (`uplevel-static-body.tcl`). Clippy +
   differential corpus + `make prep-pr` clean.
-- **C34b — Static (zero-param) passthrough detection.** New
-  `inline_uplevel::detect_static_passthrough(IRModule) ->
-  HashMap<String, PassthroughShape>`. Gate matches main's four
-  conditions: zero params, body is one `IRUpFrame`, `frame_shift ==
-  1`, no nested uplevel/upvar/info-frame.
-- **C34c — Single-body-param passthrough detection.** Extends the
-  detector for the `proc dispatcher {body} { uplevel 1 $body }`
-  shape (per-callsite inlining when the call passes a brace-literal
-  body).
+- **C34b — Static (zero-param) passthrough detection.** [LANDED]
+  New crate module `rust/tcl-compiler/src/inline_uplevel.rs`.
+  `detect_static_passthrough(&Module) -> HashMap<String, Script>`
+  for the static-only convenience and the richer
+  `detect_passthrough_candidates(&Module) -> HashMap<String,
+  PassthroughShape>` for both shapes. Gate matches main's four
+  conditions: zero params, body is one `Statement::UpFrame`,
+  `frame_shift == 1`, no nested uplevel/upvar/info-frame
+  (recursive `body_has_frame_reach` walks if/for/while/foreach/
+  catch/try/switch). 6 unit tests.
+- **C34c — Single-body-param passthrough detection.** [LANDED]
+  Extends the detector with the `ParamBody { param_name }` shape
+  (`proc dispatcher {body} { uplevel ?1? $body }`). Recognises both
+  the implicit-level (`uplevel $body`) and explicit-level
+  (`uplevel 1 $body`) forms; rejects mismatched param names and
+  multi-param dispatchers. 4 unit tests.
 - **C34d — Per-callsite rewriter.** Walks every `IRCall` in
   `IRModule` and replaces matched callsites with an `IRBlock`
   containing the inlined body. Substitutes positional args for
