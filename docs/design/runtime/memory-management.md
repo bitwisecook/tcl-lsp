@@ -213,43 +213,53 @@ For each, the fix is the same: either retain the source TclObj
 for the duration the (ptr, len) is held, or copy the bytes
 into a fresh owned buffer at storage time.
 
-**B.6 status (this commit):** B.4 (fast path) stays disabled.
-The audit found that cmdIL's `site=146` was actually parse_cache
-returning stale slabs under MM-B.4, but disabling parse_cache
-exposed a *second* lifetime issue in `parseOld.test`: the
-bracket-subst pattern in tcltest.tcl
+**B.6 status (this commit): MM-B.4 ON, both lifetime bugs fixed.**
 
-```
-  set cmd [namespace which -command [namespace current]::CleanupTest]
-```
+Two distinct bugs were diagnosed and resolved:
 
-still trips a `site=146 garbage` trap with B.4 on (with or
-without the parse_cache disable).  The inner
-``eval_script("namespace current")`` substitutes a string into
-the outer command's words[], and B.4's release of the outer's
-own already-parsed words[0] frees a buffer the inner-result-
-substituted word borrows from.  Fixing this requires either
-retaining the substituted-in TclObj across the outer dispatch
-(needs a borrow-chain link — see B.7) or copying the inner
-result's bytes at substitution time (wasteful for the common
-no-bracket case).  Out of scope for this commit.
+1. **parse_cache stale slabs** (cmdIL.test site=146 garbage):
+   the cache was keyed on `(body_ptr, body_len)` but had no
+   invalidation hook.  Under B.4 a body buffer can be freed and
+   its slab reissued by libc malloc; a subsequent `lookup` then
+   returned a stale slab with tokens pointing into freed memory.
+   Fix: `hash_table` gained tombstone support (`TOMBSTONE = 1`,
+   `find` skips them, `try_insert_header` reuses them,
+   `delete_at` marks live entries) and `parse_cache` got a new
+   `invalidate_for_buffer(buf_ptr)` that walks every bucket and
+   tombstones any entry whose `body_ptr` matches.  `tcl_obj.
+   release_now` calls this hook immediately before `free_sized`.
 
-`reg*/regexpComp/reg.test` no longer OOM at HEAD (achieved by
-Phase MM-A's wasi-libc malloc + the MM-B.5/B.6 retain/release
-work that's already committed).  They now trap at real Tcl
-errors (`source: file not found` on the helper file, or
-`couldn't compile regular expression` on a regex pattern).
-The user's primary "no OOM" goal is met.
+2. **Dispatch result aliasing a word** (parseOld.test site=146,
+   trap message bytes were the obj's own refcount field showing
+   through):  `execute_parsed_command`'s post-dispatch release
+   loop unconditionally ran `release(result)` after retaining
+   it once and releasing each word.  When `result` aliased one
+   of the words (a builtin returning a word verbatim — `return
+   $x`, `set foo` reading-back, etc.), the word-release loop
+   already decremented `result.rc`; the trailing release pushed
+   it to 0, queueing the obj for free while the caller still
+   held the handle.  The handle was then drained between
+   statements and the slab reissued — leaving the caller with
+   `str_ptr` pointing at the obj's own (now-recycled) slot,
+   which displayed as the obj's refcount field bytes
+   (`\x85\x00\x00\x00`) when the trap message was rendered.
+   Fix: scan `word_objs` for `result` and only retain if it
+   aliases.  The retain exactly cancels the word-release
+   decrement; non-aliased results keep their original rc.
+   Both fast and slow ({*}-expansion) paths apply the same
+   pattern.
 
-Follow-ups before re-enabling B.4 fast path:
-1. Add a tombstone-aware `parse_cache.invalidate_for_buffer`
-   hook called from `tcl_obj.release_now` before `free_sized`.
-   The hash table needs tombstone support since the current
-   `find` stops at the first empty slot.
-2. Implement B.7's borrow-chain link so substituted words
-   automatically retain their source.
-3. With both in place, re-enable B.4 fast path and confirm
-   parseOld + cmdIL both reach the same baseline as today.
+Verification:
+- `tests/test_wasm_real_tcl.py`: 395/395 (no regression).
+- `parseOld.test`: reaches summary line (Total 158, Passed 18).
+- `cmdIL.test`: traps cleanly at `source: file not found`
+  (helper-file issue, not memory).
+- `lrange.test`: was `run-trap`, now reaches summary (18 P /
+  1748 F of 1766).
+- `lreplace.test`: was `run-trap`, now reaches summary (43 P /
+  3536 F of 3579).
+- `reg*/regexpComp/reg.test` continue to not OOM.
+- ReleaseFast build: 2.57 MB.
 
 ### B.7 — Track "shared buffer" relationships explicitly (future)
 

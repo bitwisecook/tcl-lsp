@@ -113,19 +113,6 @@ var cache: CacheTable = .{};
 /// redefined proc body) always produce distinct entries even if
 /// the content happens to match byte-for-byte.
 pub fn lookup(body_ptr: u32, body_len: u32) u32 {
-    // MM-B.6 caveat: parse_cache caches tokens whose offsets
-    // index into a body buffer.  When MM-B.4 (parser-word release
-    // after dispatch) is enabled, body buffers can be freed and
-    // their slabs reissued by libc malloc; a subsequent ``lookup``
-    // keyed on a recycled ``(body_ptr, body_len)`` pair would
-    // return a stale slab whose tokens point into freed memory.
-    // Observed as ``unknown command: <binary garbage>`` traps at
-    // site=146 in cmdIL.test under that configuration.  MM-B.4 is
-    // currently OFF so the cache is safe; before re-enabling
-    // MM-B.4, add an invalidation hook called from
-    // ``tcl_obj.release_now`` (requires hash-table tombstone
-    // support since the current ``find`` stops at the first
-    // empty slot).
     if (cache.buf == 0) return 0;
     const key = stage_key(body_ptr, body_len);
     const hash = ht.fnv1a(key, KEY_SIZE);
@@ -153,6 +140,35 @@ pub fn insert(body_ptr: u32, body_len: u32, slab_addr: u32) void {
     if (cache.needs_grow()) cache.grow();
     const bucket = cache.insert_header(key, KEY_SIZE, hash);
     write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));
+}
+
+/// Invalidate any cache entry whose body_ptr equals ``buf_ptr``.
+/// Called from :func:`tcl_obj.release_now` immediately before
+/// ``free_sized`` releases a string buffer back to libc malloc —
+/// otherwise a subsequent ``alloc`` could re-issue the slab to a
+/// new TclObj whose ``(body_ptr, body_len)`` happens to match a
+/// stale entry, returning tokens that point into freed memory.
+///
+/// Walk is O(cache.cap), but the cap is small (≤ MAX_ENTRIES *
+/// load factor) and free is itself a relatively rare event.
+/// Marks matched buckets as tombstones so probe chains for other
+/// keys stay intact (see ``hash_table.TOMBSTONE``).
+pub fn invalidate_for_buffer(buf_ptr: u32) void {
+    if (cache.buf == 0) return;
+    if (buf_ptr == 0 or buf_ptr == ht.TOMBSTONE) return;
+    var i: u32 = 0;
+    while (i < cache.cap) : (i += 1) {
+        const bucket = cache.buf + i * BUCKET_SIZE;
+        const np: u32 = @bitCast(read_i32(bucket));
+        if (np == 0 or np == ht.TOMBSTONE) continue;
+        const cached_body_ptr: u32 = @bitCast(read_i32(np));
+        if (cached_body_ptr == buf_ptr) {
+            // Zero the slab pointer too so a stale read of the
+            // value payload can't be mistaken for a valid slab.
+            write_i32(bucket + OFF_SLAB_ADDR, 0);
+            cache.delete_at(bucket);
+        }
+    }
 }
 
 /// Wipe every cached entry.  Called from

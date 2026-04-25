@@ -1752,16 +1752,39 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
-        // MM-B.4 (fast path) deferred: enabling here exposes a
-        // bracket-subst lifetime issue in tcltest.tcl-style code
-        // (``[set cmd [namespace which -command [namespace
-        // current]::CleanupTest]]``).  The outer dispatch's
-        // words[0] gets recycled while the inner bracket-substed
-        // result is still being dispatched — site=146 garbage
-        // trap signature in parseOld.test.  See
-        // ``docs/design/runtime/memory-management.md`` MM-B.6 for
-        // the audit chain.
-        return eval_command(word_objs[0..wi]);
+        // MM-B.4: release the per-word TclObjs after dispatch.
+        // The dispatch result's refcount semantics are "+1 for the
+        // caller" (caller releases when done).  But if dispatch
+        // returned one of the words verbatim (e.g. ``return $x``,
+        // or a builtin that promotes a word to its result), the
+        // word-release loop below would decrement that refcount
+        // alongside the others — leaving the returned handle with
+        // rc=0 and queued for free.  Detect that case and retain
+        // the result first so the word-release loop's decrement
+        // exactly cancels the retain, leaving the caller with the
+        // expected +1 ownership.  Without this scan, parseOld.test
+        // tripped a use-after-free at site=146 with the obj's own
+        // refcount field showing through as the trap message
+        // bytes.  Buffer recycling under MM-B.4 is safe for
+        // parse_cache thanks to the ``invalidate_for_buffer`` hook
+        // in ``tcl_obj.release_now``.
+        const result = eval_command(word_objs[0..wi]);
+        var result_is_word = false;
+        if (result != 0) {
+            var sc: u32 = 0;
+            while (sc < wi) : (sc += 1) {
+                if (word_objs[sc] == result) {
+                    result_is_word = true;
+                    break;
+                }
+            }
+        }
+        if (result_is_word) obj_mod.tcl_obj_retain(result);
+        var ri: u32 = 0;
+        while (ri < wi) : (ri += 1) {
+            if (word_objs[ri] != 0) obj_mod.tcl_obj_release(word_objs[ri]);
+        }
+        return result;
     }
 
     // Slow path: at least one {*} expansion.
@@ -1807,14 +1830,32 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
         }
     }
-    // MM-B.4 (slow path) disabled until the audit covers expand
-    // semantics — when a word arrives via ``{*}$args`` expansion,
-    // each split element is a fresh TclObj whose backing buffer
-    // is tied to the source list's storage.  Releasing the
-    // element here can free its backing buffer out from under a
-    // peer element.  Re-enable after MM-B.5 (list/dict element
-    // retain) lands.
-    return eval_command(expanded[0..ecount]);
+    // MM-B.4 (slow path): release expanded[] elements after
+    // dispatch, with the same alias-aware retain pattern as the
+    // fast path.  Each ``{*}$args`` expansion element is a fresh
+    // TclObj — for braced elements, ``obj_new_string_copy``
+    // (cap > 0, owns its own bytes); for unbraced,
+    // ``obj_new_string`` borrowing into a freshly-alloced ``buf``
+    // (cap == 0, leaks the buf safely).  In both cases an element's
+    // release is independent of any peer; releasing one doesn't
+    // free a buffer another element borrows.
+    const result = eval_command(expanded[0..ecount]);
+    var result_is_word = false;
+    if (result != 0) {
+        var sc: u32 = 0;
+        while (sc < ecount) : (sc += 1) {
+            if (expanded[sc] == result) {
+                result_is_word = true;
+                break;
+            }
+        }
+    }
+    if (result_is_word) obj_mod.tcl_obj_retain(result);
+    var ri: u32 = 0;
+    while (ri < ecount) : (ri += 1) {
+        if (expanded[ri] != 0) obj_mod.tcl_obj_release(expanded[ri]);
+    }
+    return result;
 }
 
 // Exported: evaluate a Tcl script string.
