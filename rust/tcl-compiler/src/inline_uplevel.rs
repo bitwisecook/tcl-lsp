@@ -360,18 +360,42 @@ fn try_inline_callsite(
             })
         }
         PassthroughShape::ParamBody { .. } => {
-            // ParamBody rewriting at the callsite needs to know
-            // whether the sole argument was passed as a brace-string
-            // literal. CommandTokens.argv carries only spans, not
-            // token types — callers that want to determine "is this
-            // a braced literal?" need access to the original
-            // SegmentedCommand or the source text. The detector
-            // half (C34c) already lands; the rewrite half waits on
-            // a later strip that threads source-text access into
-            // the pass. Conservative behaviour for now: leave the
-            // call alone.
-            let _ = (args, tokens, span, registry);
-            None
+            // ParamBody: the dispatcher proc is `proc D {body}
+            // { uplevel ?1? $body }`. Rewrite a callsite when:
+            //   * exactly one argument,
+            //   * that argument is a single brace-string token
+            //     (`TokenType::Str`) — i.e. the source wrote
+            //     ``D {literal-body}``,
+            //   * no `{*}`-expansion on any word,
+            //   * the materialised body lowers cleanly and
+            //     contains no nested frame-reaching commands.
+            // Mirrors Python's `_rewrite_stmt`'s ParamBody arm.
+            if args.len() != 1 {
+                return None;
+            }
+            let tk = tokens.as_ref()?;
+            // argv = [command, body_arg]. Index 1 is the body.
+            if tk.argv.len() < 2 || tk.argv_kinds.len() < 2 {
+                return None;
+            }
+            if tk.argv_kinds[1] != tcl_lexer::TokenType::Str {
+                return None;
+            }
+            // ``{*}`` expansion on any word disables the rewrite.
+            if tk.expand_word.iter().flatten().any(|&e| e) {
+                return None;
+            }
+            let literal = &args[0];
+            let inlined = lower_literal_script(literal, namespace, registry);
+            if body_has_frame_reach(&inlined) {
+                return None;
+            }
+            Some(Statement::Block {
+                span,
+                body: inlined,
+                namespace: namespace.to_string(),
+                tokens: tokens.clone(),
+            })
         }
     }
 }
@@ -448,15 +472,8 @@ where
 }
 
 /// Lower a brace-literal script into a [`Script`] for the inline
-/// rewriter. Returns `None` when the literal can't be parsed (the
-/// caller keeps the original call, matching Python's
-/// `_lower_literal_script` `TclParseError` fallback).
-///
-/// Currently only used by the `ParamBody` rewrite path, which is
-/// gated off in C34d pending source-text plumbing through the
-/// pass. Kept here so the helper is in place when C34d-paramBody
-/// lands as a follow-up strip.
-#[allow(dead_code)]
+/// rewriter. Used by the `ParamBody` rewrite path to materialise
+/// the callsite's brace-literal body before splicing.
 fn lower_literal_script(literal: &str, namespace: &str, registry: &CommandRegistry) -> Script {
     let mut lowerer = Lowerer::new(registry);
     lowerer.lower_into_script(literal, namespace)
@@ -648,6 +665,77 @@ mod tests {
             before.top_level.statements.len(),
             m.top_level.statements.len()
         );
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn rewriter_inlines_param_body_brace_literal() {
+        // C34d-paramBody: ``proc dispatcher {body} { uplevel 1 $body }``
+        // followed by ``dispatcher {set counter 0}`` rewrites the
+        // callsite to a Block containing the parsed literal body.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher {set counter 0}",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        // Find the rewritten block — top-level has [proc-call,
+        // dispatcher-call→Block, …].
+        let block = m
+            .top_level
+            .statements
+            .iter()
+            .find(|s| matches!(s, Statement::Block { .. }))
+            .expect("expected a Block from the ParamBody rewrite");
+        if let Statement::Block { body, .. } = block {
+            assert!(!body.statements.is_empty(), "block body should be lowered");
+        }
+    }
+
+    #[test]
+    fn rewriter_skips_param_body_with_dynamic_arg() {
+        // ``dispatcher $dyn`` — the arg is a $var, not a brace
+        // literal. Stay on the dispatch path.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher $dyn",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn rewriter_skips_param_body_with_command_subst_arg() {
+        // ``dispatcher [build_body]`` — Cmd token, not a brace
+        // literal. Stay on the dispatch path.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher [build_body]",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn rewriter_skips_param_body_when_inner_has_frame_reach() {
+        // The inlined body contains an ``uplevel 1`` — semantics
+        // would change after inlining, refuse.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher {uplevel 1 {set x 1}}",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
+        assert_eq!(count_blocks(&m.top_level), 0);
+    }
+
+    #[test]
+    fn rewriter_skips_param_body_with_expand_word() {
+        // ``dispatcher {*}$args`` — expansion defeats the
+        // single-arg analysis.
+        let mut m = lower_to_ir(
+            "proc dispatcher {body} { uplevel 1 $body }\ndispatcher {*}$args",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut m, &reg());
         assert_eq!(count_blocks(&m.top_level), 0);
     }
 }

@@ -459,6 +459,7 @@ impl<'r> Lowerer<'r> {
         CommandTokens {
             argv: seg.argv.iter().map(|t| t.span).collect(),
             argv_texts: seg.texts.clone(),
+            argv_kinds: seg.argv.iter().map(|t| t.kind).collect(),
             single_token_word: seg.single_token_word.clone(),
             all_tokens: seg.all_tokens.iter().map(|t| t.span).collect(),
             expand_word: seg.expand_word.clone(),

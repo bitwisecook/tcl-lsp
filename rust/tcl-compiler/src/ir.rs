@@ -30,6 +30,13 @@ pub struct CommandTokens {
     pub argv: Vec<Span>,
     /// Per-word text values.
     pub argv_texts: Vec<String>,
+    /// Per-word representative token kind. Preserves the [`tcl_lexer::TokenType`]
+    /// of each argv entry so analysis passes can distinguish a
+    /// brace-string literal (`Str`) from a bareword (`Esc`), a
+    /// variable reference (`Var`), or a command substitution
+    /// (`Cmd`). Mirrors Python's `Token.type` exposed via
+    /// `cmd.argv[i].type`.
+    pub argv_kinds: Vec<tcl_lexer::TokenType>,
     /// Whether each word consists of a single token.
     pub single_token_word: Vec<bool>,
     /// All tokens in the command (including separators).
@@ -663,6 +670,7 @@ mod tests {
         let tokens = CommandTokens {
             argv: vec![Span::new(0, 4), Span::new(5, 10)],
             argv_texts: vec!["eval".into(), "body".into()],
+            argv_kinds: vec![tcl_lexer::TokenType::Esc, tcl_lexer::TokenType::Str],
             single_token_word: vec![true, true],
             all_tokens: vec![Span::new(0, 4), Span::new(4, 5), Span::new(5, 10)],
             expand_word: None,

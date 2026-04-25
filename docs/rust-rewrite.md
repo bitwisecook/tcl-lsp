@@ -706,7 +706,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed |
-| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
+| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
@@ -932,11 +932,13 @@ Strips:
   variant: `Statement::Block { span, body, namespace, tokens }` —
   flat splice of an inline body without a new scope (mirrors
   Python's `IRBlock`). 6 unit tests covering rewriter behaviour
-  + idempotency. **Param-body rewrite is gated off** pending a
-  future strip that threads source-text access into the pass so
-  it can verify the callsite's argument was passed as a
-  brace-string literal (the Rust `CommandTokens.argv` carries
-  byte spans only, not token kinds).
+  + idempotency. The ParamBody rewrite path landed in a
+  follow-up that added `CommandTokens::argv_kinds` (the per-word
+  `tcl_lexer::TokenType`); the rewriter consults it to confirm
+  the sole arg was a brace-string token before splicing. 5
+  additional unit tests covering the brace-literal rewrite,
+  dynamic-arg skip, command-subst-arg skip, frame-reach skip,
+  and `{*}`-expansion skip.
 - **C34e — Pipeline integration.** [LANDED]
   `CompilationUnit::build_for` runs
   `inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry)`
