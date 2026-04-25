@@ -21,4 +21,5 @@
 //! resolution + entry point, `C40e*` `PyO3` binding + Python shim +
 //! differential harness).
 
-// Submodules land in subsequent C40 strips.
+pub mod params;
+pub mod types;
