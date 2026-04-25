@@ -73,28 +73,26 @@ pub const OBJ_SIZE: u32 = 32;
 pub const PAGE_SIZE: u32 = 65536;
 pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build flag in future
 
-// Phase 1.3 fix: start the bump heap well past *both* data
-// segments — the user's compiled module data (loaded at offset 0)
-// AND the runtime's own data (loaded by Zig's wasm-wasi linker at
-// 16 MB by default).  The tcl runtime shares its linear memory
-// with the caller's compiled module (see ``import_memory = True``
-// in ``core/compiler/codegen/wasm/_ir.py``), so heap allocations
-// that climb upward will overwrite *whichever* segment they hit
-// first if heap_ptr starts too low.
+// Phase 1.3 fix: start the bump heap past the runtime's static
+// data segment (Zig's wasm-wasi linker loads at ~16 MB) and
+// the imported user module's data segment (loaded at offset 0,
+// up to ~1 MB for tcltest-sized bundles).  Without this, the
+// bump pointer starts at 64 KB and ``alloc()`` hands out
+// addresses inside both data segments — observed as scrambled
+// command names, ``ConstraintInitializer must be complete script``,
+// and ``tcl trap:  ite=153`` (literals like ``site=`` partially
+// overwritten).
 //
-// Symptoms we saw before this fix:
-//   - User-side data overlap (heap_ptr=64 KB): scrambled command
-//     names, ``ConstraintInitializer must be complete script``,
-//     proc-body bytes mostly zeros with text fragments.
-//   - Runtime-side data overlap (heap_ptr=4 MB, after fixing the
-//     first hop): ``tcl trap:  ite=153`` (the literal ``site=``
-//     in the trap path got partially overwritten), ``offs2t`` for
-//     ``offset``.
+// 17 MB clears both segments for current tcltest-sized bundles.
 //
-// 17 MB clears both regions for tcltest-sized bundles (user data
-// well under 1 MB; runtime data tops out near 16.06 MB).  Larger
-// future bundles or runtime data bumps will need a proper
-// ``__heap_base`` reading; tracked under Phase 1.3 follow-up.
+// Known limit (out of Phase 4.5 scope): heavy regex workloads
+// (regexp.test, regexpComp.test, reg.test) hit a different
+// failure where wasi-libc's dlmalloc heap grows past 17 MB and
+// collides with our bump heap.  Both heaps grow upward in shared
+// linear memory with no separation, so they eventually overlap.
+// The proper fix routes ``alloc()`` through wasi-libc malloc
+// (or vice versa) so they share a single coherent heap; tracked
+// as a Phase 1.x follow-up.
 var heap_ptr: u32 = 17 * 1024 * 1024;
 var oom_flag: u32 = 0;
 
