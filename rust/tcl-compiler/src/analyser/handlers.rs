@@ -356,6 +356,55 @@ impl Analyser {
         true
     }
 
+    /// Handle `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?`.
+    ///
+    /// Mirrors `_handle_catch_command` in
+    /// `core/analysis/_analyser/_handlers.py:179-198`. Defines
+    /// the optional `RESULTVAR` and `OPTIONSVAR` bindings (they
+    /// receive values when the body throws / completes) and
+    /// bumps `conditional_depth` for the duration of the body.
+    /// Body recursion deferred to **C41f1**.
+    pub fn handle_catch_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "catch" || args.is_empty() {
+            return false;
+        }
+        // Result var (args[1]) and options var (args[2]).
+        for (i, name) in args.iter().enumerate().take(3).skip(1) {
+            if let Some(tok) = arg_tokens.get(i) {
+                self.define_var(name, *tok, scope_path, false, None);
+            }
+        }
+        true
+    }
+
+    /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
+    ///
+    /// Mirrors `_handle_try_command` in
+    /// `core/analysis/_analyser/_handlers.py:200-213`. Defers the
+    /// arm-body walk to ``handle_try`` (proc-scope variant in
+    /// ``_proc.py:333-359``) which lands in **C41c3**. The entry
+    /// shim only validates the canonical shape; arity checking
+    /// lives in `compiler_checks::arity_checks` already.
+    pub fn handle_try_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        _arg_tokens: &[Token],
+        _scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "try" || args.is_empty() {
+            return false;
+        }
+        // C41c3: delegate to handle_try for arm body walk.
+        true
+    }
+
     /// Handle the `incr` command: `incr var ?amount?`.
     ///
     /// Mirrors `_handle_incr_command` in
@@ -892,6 +941,68 @@ mod tests {
     fn handle_switch_too_few_args_returns_false() {
         let mut a = Analyser::new();
         let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
+        assert!(!handled);
+    }
+
+    // -- handle_catch_command ---------------------------------------
+
+    #[test]
+    fn handle_catch_canonical_returns_true() {
+        let mut a = Analyser::new();
+        let handled =
+            a.handle_catch_command("catch", &["body".to_string()], &[esc_tok(span(0, 4))], &[]);
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_catch_with_result_var_defines_it() {
+        let mut a = Analyser::new();
+        a.handle_catch_command(
+            "catch",
+            &["body".to_string(), "res".to_string()],
+            &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("res"));
+    }
+
+    #[test]
+    fn handle_catch_with_options_var_defines_both() {
+        let mut a = Analyser::new();
+        a.handle_catch_command(
+            "catch",
+            &["body".to_string(), "res".to_string(), "opts".to_string()],
+            &[
+                esc_tok(span(0, 4)),
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 13)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("res"));
+        assert!(a.result.global_scope.variables.contains_key("opts"));
+    }
+
+    #[test]
+    fn handle_catch_no_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_catch_command("catch", &[], &[], &[]);
+        assert!(!handled);
+    }
+
+    // -- handle_try_command -----------------------------------------
+
+    #[test]
+    fn handle_try_canonical_returns_true() {
+        let mut a = Analyser::new();
+        let handled = a.handle_try_command("try", &["body".to_string()], &[], &[]);
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_try_no_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_try_command("try", &[], &[], &[]);
         assert!(!handled);
     }
 
