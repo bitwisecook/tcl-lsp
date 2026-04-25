@@ -19,6 +19,11 @@
 //! * **C33e** — [`cfg_propagation`]: flow-sensitive SSA-version
 //!   propagation.
 
+pub mod info_subcommands;
 pub mod types;
 
+pub use info_subcommands::{
+    is_frame_inspecting_info_subcommand, is_safe_info_subcommand, FRAME_INSPECTING_SUBCOMMANDS,
+    INTERPRETER_GLOBAL_SUBCOMMANDS,
+};
 pub use types::{join, EscapeTag, ProcEscapeSummary};

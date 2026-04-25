@@ -1146,9 +1146,15 @@ remaining chunk. Five strips, one per Python sub-module:
   / info exists). ~700 LOC mirroring the Python module + 25 unit
   tests.
 - **C33c — `info` subcommand audit (`_info_subcommands.py`).**
-  Smaller module: classifies which `info` subcommands cause a
-  proc-pessimistic escape (frame, level, vars, locals) and which
-  are safe (`info exists` literal). ~80 LOC + 8 unit tests.
+  [LANDED] New crate module
+  `rust/tcl-compiler/src/var_escape/info_subcommands.rs` with
+  the two const-slice allow-lists (`FRAME_INSPECTING_SUBCOMMANDS`,
+  `INTERPRETER_GLOBAL_SUBCOMMANDS`) plus the
+  `is_safe_info_subcommand` / `is_frame_inspecting_info_subcommand`
+  predicates. Mirrors the Tcl 9.0 audit Python's
+  `_info_subcommands.py` documents. 4 unit tests covering
+  pessimistic detection, safe detection, unknown-subcommand
+  fall-through, and the disjoint-sets invariant.
 - **C33d — Interprocedural propagation
   (`_interprocedural.py`).** Threads escape sets across call
   edges using the existing
