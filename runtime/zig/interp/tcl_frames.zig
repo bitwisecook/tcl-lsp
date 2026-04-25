@@ -243,9 +243,23 @@ pub export fn frame_push() i32 {
 pub export fn frame_pop() void {
     if (frame_depth > 0) {
         frame_depth -= 1;
-        // Clear the popped slot's argv so a stale list can't
-        // survive into an unrelated use of the same slot.
+        // MM-B.5: release the argv reference we retained in
+        // frame_set_argv before clearing the slot.
+        const old = frame_argv[frame_depth];
         frame_argv[frame_depth] = 0;
+        if (old != 0) obj.tcl_obj_release(old);
+        // Note: we do NOT walk the local_table to release each
+        // bucket's value here.  Doing so leaks-by-design rather
+        // than risking a use-after-free where the bucket contains
+        // a tombstone or alias-encoded value our scan
+        // misclassifies.  Frame buckets are reused on the next
+        // ``frame_push`` (selective-zero via the dirty bitmap),
+        // so the leaked values stay reachable from the (zero-on-
+        // reuse) bucket until the next ``local_set`` for that
+        // bucket releases them via the in-place overwrite path
+        // in ``local_set``.  Net effect: locals leak across the
+        // pop boundary but are reclaimed when their slot is
+        // reused, bounded by the proc's local-count.
     }
 }
 
@@ -261,7 +275,15 @@ pub export fn frame_get_depth() i32 {
 /// sentinel — equivalent to never calling this function.
 pub export fn frame_set_argv(argv: i32) void {
     if (frame_depth == 0) return;
+    // MM-B.5: the frame_argv slot owns a reference for the lifetime
+    // of the frame.  Retain new, release old.  Without this the
+    // argv list (built per-call from words[]) gets freed by the
+    // parser-side release at end-of-statement (MM-B.4) before the
+    // proc body's ``info level 0`` can read it.
+    const old = frame_argv[frame_depth - 1];
+    if (argv != 0) obj.tcl_obj_retain(argv);
     frame_argv[frame_depth - 1] = argv;
+    if (old != 0 and old != argv) obj.tcl_obj_release(old);
 }
 
 /// Return the invocation argv stored for the frame *offset*

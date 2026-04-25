@@ -47,7 +47,18 @@ fn eval_return(words: []const i32) i32 {
         return 0;
     }
     rt.return_flag.* = 1;
+    // MM-B.5: ``return_val`` is a global slot that holds the value
+    // until ``eval_proc_call_bucket`` reads it back.  Retain so
+    // ``MM-B.4``'s parser-side release of ``words[1]`` doesn't free
+    // the value before the caller reads it.  Release the prior
+    // occupant (typically 0 from a clean state, but a nested
+    // ``return`` inside an outer ``return`` could leave a stale
+    // pointer).
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const old = rt.return_val.*;
+    if (result_obj != 0) obj_mod.tcl_obj_retain(result_obj);
     rt.return_val.* = result_obj;
+    if (old != 0 and old != result_obj) obj_mod.tcl_obj_release(old);
     return result_obj;
 }
 
