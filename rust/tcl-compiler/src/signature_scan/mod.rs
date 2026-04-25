@@ -21,5 +21,6 @@
 //! resolution + entry point, `C40e*` `PyO3` binding + Python shim +
 //! differential harness).
 
+mod ctx;
 pub mod params;
 pub mod types;
