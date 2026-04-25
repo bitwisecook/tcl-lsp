@@ -1732,7 +1732,22 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             if (tok.kind == .EXPAND_WORD) continue;
             const wptr_abs: u32 = body_ptr + tok.start;
             if (tok.braced) {
-                word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
+                // Phase 1.3 fix: copy braced-word bytes into an owned
+                // buffer instead of borrowing from the source script.
+                // The parser used to ``obj_new_string(wptr_abs, len)``
+                // — a zero-capacity borrow — so the resulting TclObj's
+                // OBJ_STR_PTR pointed back into the script being
+                // parsed.  When the word later landed in a proc's
+                // body slot (via ``proc_register``) or a frame local
+                // (via parameter binding), and the source script's
+                // TclObj was eventually released and its bump-heap
+                // buffer re-issued by ``alloc()``, the borrow went
+                // stale — observed as ``info complete $script``
+                // returning 0 on a script whose length was correct
+                // but whose bytes had been overwritten.  Copying
+                // here makes every word's bytes live independently of
+                // the source script.
+                word_objs[wi] = obj_mod.obj_new_string_copy(wptr_abs, tok.len);
             } else {
                 word_objs[wi] = subst_word(wptr_abs, tok.len);
             }
@@ -1753,8 +1768,10 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             continue;
         }
         const wptr_abs: u32 = body_ptr + tok.start;
+        // Phase 1.3 fix: see the matching site above for the
+        // borrow-vs-copy rationale.
         const word_obj: i32 = if (tok.braced)
-            obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
+            obj_mod.obj_new_string_copy(wptr_abs, tok.len)
         else
             subst_word(wptr_abs, tok.len);
 
@@ -1797,9 +1814,16 @@ var tcl_eval_depth: u32 = 0;
 pub export fn tcl_eval(script: i32) i32 {
     const s = obj_ensure_string(script);
     if (s.len == 0) return 0;
+    // Retain the script TclObj for the duration of eval_script so
+    // parser-produced word TclObjs that BORROW from the script's
+    // buffer (the common case for braced/quoted words) stay valid
+    // through the eval — even when an intermediate site releases
+    // its handle on the script.  Phase 1.3 fix.
+    obj_mod.tcl_obj_retain(script);
     tcl_eval_depth += 1;
     const r = eval_script(s.ptr, s.len);
     tcl_eval_depth -= 1;
+    obj_mod.tcl_obj_release(script);
     if (tcl_eval_depth == 0) {
         obj_mod.tcl_obj_drain_pending();
     }
