@@ -73,48 +73,49 @@ pub const OBJ_SIZE: u32 = 32;
 pub const PAGE_SIZE: u32 = 65536;
 pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build flag in future
 
-// Phase 1.3 fix: start the bump heap past the runtime's static
-// data segment (Zig's wasm-wasi linker loads at ~16 MB) and
-// the imported user module's data segment (loaded at offset 0,
-// up to ~1 MB for tcltest-sized bundles).  Without this, the
-// bump pointer starts at 64 KB and ``alloc()`` hands out
-// addresses inside both data segments — observed as scrambled
-// command names, ``ConstraintInitializer must be complete script``,
-// and ``tcl trap:  ite=153`` (literals like ``site=`` partially
-// overwritten).
+// Allocator coherence (Phase 1.x — replaces the previous heap_ptr
+// bump allocator):
 //
-// 17 MB clears both segments for current tcltest-sized bundles.
+// We share wasm linear memory with both the runtime's own static
+// data segment AND the regex engine's wasi-libc malloc heap.  The
+// previous bump allocator started at a fixed offset (16-80 MB,
+// chosen to clear data segments) and grew upward via
+// ``@wasmMemoryGrow``.  Problem: wasi-libc's dlmalloc *also*
+// grows upward in the same memory, with no separation, so on
+// heavy regex workloads (regexp.test compiles many regex_t,
+// each malloc'ing a guts struct + sub-allocations) the two heaps
+// eventually overlap and corrupt each other's free-list metadata.
+// Symptom: ``out of bounds memory access at 0x676e6964`` (text
+// bytes "ding" interpreted as a free-list pointer) deep inside
+// ``c.malloc.malloc``.
 //
-// Known limit (out of Phase 4.5 scope): heavy regex workloads
-// (regexp.test, regexpComp.test, reg.test) hit a different
-// failure where wasi-libc's dlmalloc heap grows past 17 MB and
-// collides with our bump heap.  Both heaps grow upward in shared
-// linear memory with no separation, so they eventually overlap.
-// The proper fix routes ``alloc()`` through wasi-libc malloc
-// (or vice versa) so they share a single coherent heap; tracked
-// as a Phase 1.x follow-up.
-var heap_ptr: u32 = 17 * 1024 * 1024;
+// Fix: route every ``alloc()`` through wasi-libc ``malloc`` so
+// the two consumers share one coherent heap.  ``free_sized`` /
+// ``free_obj`` route through ``free``.  This trades the bump
+// allocator's "no per-call cost" for libc's malloc — overhead is
+// a few hundred ns per call but tcltest workloads spend most of
+// their time elsewhere (parser, dispatch) so the wall-time hit
+// is negligible.  In return we get correctness on every
+// regex-heavy workload and lose a class of latent corruption
+// bugs.
+//
+// We keep the size-class free-list machinery as a no-op layer
+// (``class_head_for`` etc. still exist for backwards compat with
+// callers that reach into them) but the lists are never
+// populated — every free goes straight to libc free.
+
+extern fn malloc(size: usize) ?*anyopaque;
+extern fn free(ptr: ?*anyopaque) void;
+extern fn calloc(nmemb: usize, size: usize) ?*anyopaque;
+
 var oom_flag: u32 = 0;
 
-// Per-size-class free-lists.  ``free_lists[i]`` is the head of a
-// singly-linked list of recycled slabs whose aligned size matches
-// ``size_classes[i]``.  Each free slab stores the ``next`` pointer
-// in its first 4 bytes (i.e. at ``addr``).
-//
-// Sizes are chosen to cover the common allocation shapes:
-//   - 32 bytes   = OBJ_SIZE (every TclObj header — index 0)
-//   - 48, 64, 96 = small string buffers, capacity-aware append starts
-//   - 128, 192, 256, 384 = mid-sized list backings, dict pairs
-//   - 512, 1024, 2048 = large list/string buffers, frame tables
-// Anything larger than 2048 falls through to the bump path and is
-// not recycled (rare in practice; capacity-aware append doubles
-// past 2048 only on long-running text-builder workloads).
+// Per-size-class free-lists kept for backwards compat — never
+// populated under the libc-malloc routing.  Anything reading
+// these still gets a valid empty list.
 const SIZE_CLASSES = [_]u32{ 32, 48, 64, 96, 128, 192, 256, 384, 512, 1024, 2048 };
 var free_lists = [_]u32{0} ** SIZE_CLASSES.len;
 
-// Back-compat alias — pre-1.2 code referred to a single ``free_list``
-// for OBJ_SIZE.  Anything that read the old name now gets the new
-// class-0 head.
 fn class_head_for(aligned: u32) ?*u32 {
     for (SIZE_CLASSES, 0..) |sz, i| {
         if (sz == aligned) return &free_lists[i];
@@ -129,77 +130,21 @@ pub fn round_up_to_class(aligned: u32) u32 {
     return aligned; // larger than the largest class — return as-is
 }
 
-/// Ensure ``heap_ptr + size`` fits inside the current linear memory,
-/// growing by enough whole pages to cover the request when not.
-/// Returns ``true`` on success; ``false`` if the runtime cap is hit
-/// or the wasm host refuses to grow.  Callers should treat ``false``
-/// as a fatal allocation failure: ``alloc`` raises the OOM flag and
-/// returns 0 so a caller that derefs the result lands in a deterministic
-/// trap rather than a wild address.
-fn ensure_capacity(needed_end: u32) bool {
-    const current_pages: u32 = @intCast(@wasmMemorySize(0));
-    const current_bytes: u32 = current_pages * PAGE_SIZE;
-    if (needed_end <= current_bytes) return true;
-    const want_bytes = needed_end - current_bytes;
-    var want_pages = (want_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
-    // Grow geometrically — at minimum the requested page count, but
-    // double the current size when that's larger.  Keeps amortised
-    // grow cost O(1) per allocation across a long bundle while still
-    // honouring small allocations exactly.
-    if (want_pages < current_pages) want_pages = current_pages;
-    if (current_pages + want_pages > MAX_HEAP_PAGES) {
-        // Take whatever's left up to the cap.
-        if (current_pages >= MAX_HEAP_PAGES) return false;
-        want_pages = MAX_HEAP_PAGES - current_pages;
-        if (current_bytes + want_pages * PAGE_SIZE < needed_end) return false;
-    }
-    const r = @wasmMemoryGrow(0, want_pages);
-    if (r < 0) return false;
-    return true;
-}
-
 pub fn alloc(size: u32) callconv(.c) u32 {
     const requested = (size + 7) & ~@as(u32, 7);
-    // Fast path for the dominant case — OBJ_SIZE TclObj headers
-    // hit the class-0 free-list directly without scanning the
-    // SIZE_CLASSES table.  Every other size goes through the
-    // generic class lookup.
-    if (requested == OBJ_SIZE) {
-        if (free_lists[0] != 0) {
-            const ptr = free_lists[0];
-            free_lists[0] = @intCast(read_i32(ptr));
-            return ptr;
-        }
-        const ptr = heap_ptr;
-        const end = ptr + OBJ_SIZE;
-        if (!ensure_capacity(end)) {
-            oom_flag = 1;
-            return 0;
-        }
-        heap_ptr = end;
-        return ptr;
-    }
-    const aligned = round_up_to_class(requested);
-    // Try the matching size-class free-list first.
-    if (class_head_for(aligned)) |head_ptr| {
-        if (head_ptr.* != 0) {
-            const ptr = head_ptr.*;
-            head_ptr.* = @intCast(read_i32(ptr));
-            return ptr;
-        }
-    }
-    const ptr = heap_ptr;
-    const end = ptr + aligned;
-    if (!ensure_capacity(end)) {
+    const aligned = if (requested <= 2048) round_up_to_class(requested) else requested;
+    const p = malloc(@intCast(aligned)) orelse {
         oom_flag = 1;
         return 0;
-    }
-    heap_ptr = end;
-    return ptr;
+    };
+    return @intCast(@intFromPtr(p));
 }
 
 pub export fn tcl_test_heap_ptr() i32 {
-    return @bitCast(heap_ptr);
+    // No longer meaningful under the libc-routed allocator; kept
+    // as an export for backwards compat with tests that probed
+    // the old bump-pointer state.  Returns 0.
+    return 0;
 }
 
 /// True if any ``alloc`` call observed an out-of-memory condition since
@@ -216,28 +161,19 @@ pub export fn tcl_oom_clear() void {
 }
 
 fn free_obj(addr: u32) void {
-    // The TclObj header is OBJ_SIZE — recycle into class-0.
-    write_i32(addr, @intCast(free_lists[0]));
-    free_lists[0] = addr;
+    if (addr == 0) return;
+    free(@ptrFromInt(addr));
 }
 
-/// Public free-by-size: callers that own a non-OBJ_SIZE slab (string
-/// buffer, list backing, dict pair table, frame table) push it onto
-/// the matching size-class free-list at the end of its lifetime.
-/// Slabs whose aligned size doesn't match any class are dropped on
-/// the floor — the bump allocator's ``heap_ptr`` is the only resource
-/// that grows, and the next allocation will pull from a fresh page.
-/// That's wasteful but safe; sub-plan 3.1 + 3.2 will eliminate the
-/// allocations that produce these classes by holding capacity in
-/// place.
+/// Public free-by-size: routes through wasi-libc ``free``.  The
+/// ``size`` argument is ignored under the libc-malloc routing
+/// (libc tracks chunk sizes internally) but kept for ABI compat
+/// with the old size-class layer.  Callers that pass ``size = 0``
+/// or with addr == 0 are no-ops.
 pub fn free_sized(addr: u32, size: u32) void {
+    _ = size;
     if (addr == 0) return;
-    const aligned = (size + 7) & ~@as(u32, 7);
-    if (class_head_for(aligned)) |head_ptr| {
-        write_i32(addr, @intCast(head_ptr.*));
-        head_ptr.* = addr;
-    }
-    // else: slab too big for any class — leak to bump pointer.
+    free(@ptrFromInt(addr));
 }
 
 pub fn read_i32(addr: u32) i32 {

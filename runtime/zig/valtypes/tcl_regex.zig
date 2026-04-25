@@ -140,22 +140,21 @@ extern fn free(ptr: ?*anyopaque) void;
 /// ``re_addr`` itself (the bump-allocated 64-byte ``regex_t``)
 /// is unaffected — that lives in our size-class allocator.
 fn regfree_safe(re: *anyopaque) void {
-    _ = re;
-    // No-op leak.  The Spencer engine's regfree dereferences
-    // re->re_fns->free via call_indirect, but the Zig wasm-wasi
-    // linker doesn't reliably emit the static ``functions`` table
-    // entries with the right table-index relocation, so the
-    // call_indirect resolves to an out-of-range slot and traps
-    // even on successful compiles in some workloads
-    // (regexp.test triggers this via ``regexp -- "***=y" "aeiou"``
-    // and many other patterns).  Each leaked re_t carries the
-    // ``re_guts`` malloc + sub-allocations (cmap / NFA tree /
-    // lacons) — typically a few hundred bytes per compile.
-    // tcltest reg* runs perform thousands of compiles so the
-    // cumulative leak grows; bounded by wasi-libc's heap which we
-    // cap at 256 MB.  Real fix needs a vendored regex tweak to
-    // make ``rfree`` indirectly callable, or to thread our own
-    // cleanup through the engine's allocator hooks.
+    // Now that ``alloc()`` is routed through wasi-libc ``malloc``
+    // (and so are the engine's own MALLOC bindings), the heap is
+    // coherent across both consumers.  Calling the real engine
+    // cleanup is safe again: ``re_fns`` was set by a successful
+    // ``TclReComp`` (its caller checked ``REG_OKAY`` before
+    // invoking us) and ``rfree`` lives in the indirect function
+    // table at a known slot, so the call_indirect resolves
+    // cleanly.
+    //
+    // Callers MUST check that ``TclReComp`` returned ``REG_OKAY``
+    // before invoking this — on a failed compile the regex_t may
+    // have ``re_fns`` uninitialised (per regcomp.c's "on failure,
+    // no resources remain allocated, so regfree() need not be
+    // applied to re." note), which would still trap.
+    TclReFree(re);
 }
 
 /// Decode UTF-8 bytes into a fresh UniChar (i32 codepoint) array

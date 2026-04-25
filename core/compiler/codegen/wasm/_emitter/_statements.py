@@ -520,7 +520,22 @@ class _WasmEmitterStmtMixin(_Base):
         # the eval fallback so the interpreter's ``proc`` handler
         # registers under the current namespace.
         if command_emits_nothing(command):
-            if command == "proc" and args and (args[0].startswith("$") or args[0].startswith("[")):
+            if command == "proc" and args and (
+                # Dynamic name (``proc $varName body``)
+                args[0].startswith("$") or args[0].startswith("[")
+                # OR dynamic body (``proc inner {} $body``).  Without
+                # this branch the prologue would register ``inner``
+                # with the literal ``${body}`` source text as the body
+                # — when invoked, eval_script then parses ``${body}``
+                # → one word → ``unknown command: return 7`` (or
+                # whatever ``$body`` substitutes to at the moment of
+                # the proc call).  Routing through the eval-fallback
+                # makes the interpreter perform the substitution
+                # before storing.
+                or (len(args) >= 3 and (args[2].startswith("$") or args[2].startswith("[")))
+                # OR dynamic params (rare but possible: ``proc f $params body``)
+                or (len(args) >= 2 and (args[1].startswith("$") or args[1].startswith("[")))
+            ):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
