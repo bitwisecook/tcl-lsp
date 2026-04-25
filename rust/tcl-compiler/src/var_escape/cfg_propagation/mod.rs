@@ -12,6 +12,8 @@
 //! * **C33e6** — `handle_statement` + `walk_block` + `block_order` +
 //!   `analyse_cfg_function` entry point.
 
+pub mod known_names;
 pub mod state;
 
+pub use known_names::collect_known_names_from_cfg;
 pub use state::{CfgEscapeResult, CfgState};
