@@ -12,6 +12,7 @@
 //! * **C33e6** — `handle_statement` + `walk_block` + `block_order` +
 //!   `analyse_cfg_function` entry point.
 
+pub mod handlers;
 pub mod known_names;
 pub mod state;
 
