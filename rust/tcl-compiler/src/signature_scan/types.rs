@@ -6,6 +6,8 @@
 //!
 //! [`SignatureScanResult`]: super::types::SignatureScanResult
 
+use std::collections::BTreeMap;
+
 use tcl_lexer::Span;
 
 /// A single Tcl proc parameter declaration.
@@ -149,4 +151,50 @@ pub struct SignatureAutoPathEntry {
     pub raw: String,
     /// Source span of the path-element argument.
     pub range: Span,
+}
+
+/// A single command invocation recorded by the signature scanner.
+///
+/// One record per command in the source — populated for every
+/// non-partial command the walker visits. Used by
+/// `WorkspaceIndex.command_usage_counts()` so background-scanned
+/// files still contribute to cross-file command-usage statistics.
+/// `resolved_qualified_name` is intentionally omitted (the full scope
+/// walk required to resolve it is what `signature_scan` skips for
+/// background files).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureCommandInvocation {
+    /// Command head as written at the call site (no namespace
+    /// resolution performed).
+    pub name: String,
+    /// Source span of the command-head token.
+    pub range: Span,
+}
+
+/// The full result returned by `extract_signatures`.
+///
+/// Mirrors the subset of `core.analysis.semantic_model.AnalysisResult`
+/// that `signature_scan.py` populates. Procs / classes / aliases
+/// use `BTreeMap` keyed by qualified name so iteration is
+/// deterministic — important for differential parity testing against
+/// the Python implementation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SignatureScanResult {
+    /// Every proc definition discovered, keyed by qualified name.
+    pub procs: BTreeMap<String, SignatureProc>,
+    /// Every class definition discovered, keyed by qualified name.
+    pub classes: BTreeMap<String, SignatureClass>,
+    /// Every `package require` invocation.
+    pub package_requires: Vec<SignaturePackageRequire>,
+    /// Every `source` invocation.
+    pub source_targets: Vec<SignatureSource>,
+    /// Every local-interpreter `interp alias`, keyed by alias
+    /// qualified name.
+    pub command_aliases: BTreeMap<String, SignatureCommandAlias>,
+    /// Every recorded `namespace import` (direct + conjectured).
+    pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Every `auto_path` mutation (one record per path element).
+    pub auto_path_entries: Vec<SignatureAutoPathEntry>,
+    /// Every command invocation visited (lightweight: name + range).
+    pub command_invocations: Vec<SignatureCommandInvocation>,
 }
