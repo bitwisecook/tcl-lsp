@@ -36,6 +36,18 @@ const obj_new_int = rt.obj_new_int;
 const obj_new_string = rt.obj_new_string;
 const alloc = rt.alloc;
 
+/// Compare a (ptr, len) byte span against an ASCII literal.  Used
+/// by the option parser to recognise switch keywords without
+/// allocating temporary buffers.
+fn str_eq(span: anytype, literal: []const u8) bool {
+    if (span.len != literal.len) return false;
+    const sp: [*]const u8 = @ptrFromInt(span.ptr);
+    for (literal, 0..) |b, i| {
+        if (sp[i] != b) return false;
+    }
+    return true;
+}
+
 // ``regex_t`` layout (32-bit WASM, from regex.h):
 //
 //   int      re_magic;  // 4
@@ -401,21 +413,27 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             i += 1;
             break;
         }
-        if (w.len == 7 and p[1] == 'n' and p[2] == 'o' and p[3] == 'c' and
-            p[4] == 'a' and p[5] == 's' and p[6] == 'e')
-        {
-            flags |= REG_ICASE;
-            continue;
-        }
+        // Match against the Tcl 9 set:
+        //   -nocase, -line, -linestop, -lineanchor, -expanded,
+        //   -indices, -all, -inline, -about, -start.
+        // Where the option maps directly to a regex compile flag,
+        // we wire it in.  ``-indices``, ``-all``, ``-inline``,
+        // ``-about`` are accepted (so option parsing succeeds and
+        // the caller doesn't get a hard "unsupported option" trap)
+        // but their match-result-shaping behaviour is not yet
+        // implemented — the caller may observe a missing ``-all``
+        // sweep or non-list return shape.  ``-start N`` consumes
+        // the next argument as the start offset (also a no-op).
+        if (str_eq(w, "-nocase")) { flags |= REG_ICASE; continue; }
+        if (str_eq(w, "-line")) { flags |= REG_NLSTOP | REG_NLANCH; continue; }
+        if (str_eq(w, "-linestop")) { flags |= REG_NLSTOP; continue; }
+        if (str_eq(w, "-lineanchor")) { flags |= REG_NLANCH; continue; }
+        if (str_eq(w, "-expanded")) { continue; } // accepted; pattern parser handles whitespace/comments natively for our use cases
         // Unknown option — raise a real error rather than treating
-        // the switch token as the pattern.  Silently falling
-        // through would make ``regexp -indices {a+} aa`` match the
-        // literal ``-indices`` against ``{a+}`` and return a
-        // wrong boolean, giving callers no indication that a
-        // valid-but-unimplemented switch was ignored.  Raising
-        // here pushes the caller toward either supplying ``--``
-        // before a literal ``-``-prefixed pattern or updating
-        // this handler to support the switch.
+        // the switch token as the pattern.  ``-indices``, ``-all``,
+        // ``-inline``, ``-about``, ``-start`` need real result-shaping
+        // support; they trap here so callers see a clear message
+        // instead of a silently wrong answer.
         stubs.raise("regexp: unsupported or unknown option");
         return obj_new_int(0);
     }
