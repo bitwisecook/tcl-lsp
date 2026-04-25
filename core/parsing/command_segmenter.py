@@ -17,6 +17,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from ..analysis.semantic_model import Range
+from ..common.document_buffer import DocumentBuffer
 from ..common.ranges import range_from_tokens
 from .known_commands import known_command_names
 
@@ -482,13 +483,21 @@ def segment_commands(
     # Re-segment from the recovery point in the original source.
     remaining = source[recovery_offset:]
     if remaining.strip():
+        # Resolve absolute line/character at recovery_offset so the lexer's
+        # base_line / base_col reflect the original source rather than (0, 0)
+        # — otherwise every recovered token reports its position as if the
+        # slice started a fresh file. Offsets are already absolute via
+        # base_offset.
+        buf = DocumentBuffer.from_source(source)
+        recovery_pos = buf.offset_to_position(recovery_offset)
+        end_pos = buf.offset_to_position(recovery_offset + len(remaining))
         recovered = _segment_raw(
             remaining,
             body_token=Token(
                 type=TokenType.ESC,
                 text=remaining,
-                start=SourcePosition(line=0, character=0, offset=recovery_offset),
-                end=SourcePosition(line=0, character=0, offset=recovery_offset + len(remaining)),
+                start=recovery_pos,
+                end=end_pos,
             ),
             collect_warnings=collect_warnings,
         )
