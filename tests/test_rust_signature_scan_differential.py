@@ -15,17 +15,15 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("tcl_lsp_rust", reason="tcl_lsp_rust extension not built into this venv")
-
-# ty's `# ty: ignore` directive must sit on the diagnostic line —
-# the unresolved-import is reported on the `from tcl_lsp_rust`
-# token (this line), not on the symbol-line below. The
-# `core/analysis/signature_scan.py` shim wraps its import in
-# `try/except ImportError`, which ty treats as a runtime gate; we
-# can't do that here because `pytest.importorskip` already raises a
-# Skipped exception above, so the import block needs an explicit
-# inline suppression.
-from tcl_lsp_rust import signature_scan_extract  # noqa: E402  # ty: ignore[unresolved-import]
+# Capture the binding as a module object — ``from tcl_lsp_rust
+# import …`` would trip ``ty``'s ``unresolved-import`` check in
+# environments where the rust wheel isn't installed (CI lints
+# without building). Mirrors the pattern in
+# ``tests/test_rust_bindings_smoke.py``.
+tcl_lsp_rust = pytest.importorskip(
+    "tcl_lsp_rust",
+    reason="tcl_lsp_rust extension not built into this venv",
+)
 
 from core.analysis.semantic_model import AnalysisResult  # noqa: E402
 from core.analysis.signature_scan import (  # noqa: E402
@@ -51,7 +49,7 @@ def _compare_results(py: AnalysisResult, rust: AnalysisResult) -> None:
 def _assert_same(source: str) -> None:
     """Run both implementations on ``source`` and assert parity."""
     py = _extract_signatures_python(source)
-    rust = _materialise_rust_signatures(source, signature_scan_extract(source))
+    rust = _materialise_rust_signatures(source, tcl_lsp_rust.signature_scan_extract(source))
     _compare_results(py, rust)
 
 
