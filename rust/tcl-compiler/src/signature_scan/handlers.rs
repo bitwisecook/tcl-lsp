@@ -16,8 +16,8 @@ use tcl_lexer::Token;
 use super::ctx::{ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
-    SignatureClass, SignatureNamespaceImport, SignaturePackageRequire, SignatureProc,
-    SignatureScanResult, SignatureSource,
+    SignatureClass, SignatureCommandAlias, SignatureNamespaceImport, SignaturePackageRequire,
+    SignatureProc, SignatureScanResult, SignatureSource,
 };
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
@@ -261,6 +261,34 @@ pub(super) fn handle_source(texts: &[String], argv: &[Token], result: &mut Signa
         range: argv[idx].span,
         is_literal,
     });
+}
+
+/// Handler for `interp alias SLAVE-PATH NAME TARGET-PATH TARGET ?ARG…?`.
+///
+/// Mirrors `_handle_interp` in `core/analysis/signature_scan.py`.
+/// Records only **local-interpreter** aliases (slave path and
+/// target path both empty `{}`); cross-interpreter aliases install
+/// commands inside child interpreters and are not visible to
+/// workspace command resolution, so they are skipped.
+pub(super) fn handle_interp(texts: &[String], result: &mut SignatureScanResult) {
+    if texts.len() < 6 || texts[1] != "alias" {
+        return;
+    }
+    if texts[2] != *"" || texts[4] != *"" {
+        return;
+    }
+    let alias_name = texts[3].clone();
+    let target = texts[5].clone();
+    let extras: Vec<String> = texts.iter().skip(6).cloned().collect();
+    let qualified = qualify("", &alias_name);
+    result.command_aliases.insert(
+        qualified.clone(),
+        SignatureCommandAlias {
+            qualified_name: qualified,
+            target,
+            extras,
+        },
+    );
 }
 
 #[cfg(test)]
@@ -535,5 +563,39 @@ mod tests {
         assert_eq!(req.name, "Tcl");
         assert_eq!(req.version.as_deref(), Some("8.6"));
         assert_eq!(req.range, Span::new(23, 26));
+    }
+
+    #[test]
+    fn handle_interp_local_alias_emitted() {
+        let texts = vec![
+            "interp".to_string(),
+            "alias".to_string(),
+            String::new(),
+            "myalias".to_string(),
+            String::new(),
+            "puts".to_string(),
+            "hello".to_string(),
+        ];
+        let mut result = SignatureScanResult::default();
+        handle_interp(&texts, &mut result);
+        assert_eq!(result.command_aliases.len(), 1);
+        let alias = result.command_aliases.get("::myalias").expect("inserted");
+        assert_eq!(alias.target, "puts");
+        assert_eq!(alias.extras, ["hello".to_string()]);
+    }
+
+    #[test]
+    fn handle_interp_cross_interp_alias_skipped() {
+        let texts = vec![
+            "interp".to_string(),
+            "alias".to_string(),
+            "child".to_string(),
+            "foo".to_string(),
+            String::new(),
+            "puts".to_string(),
+        ];
+        let mut result = SignatureScanResult::default();
+        handle_interp(&texts, &mut result);
+        assert!(result.command_aliases.is_empty());
     }
 }
