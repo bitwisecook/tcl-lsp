@@ -158,3 +158,65 @@ def test_signature_scan_matches_python(label: str, source: str) -> None:
     """Field-by-field parity for every corpus fixture."""
     del label  # only used as the pytest id
     _assert_same(source)
+
+
+# Dispatcher gating tests. The corpus tests above call the Rust path
+# directly; these assert the env-var-gated dispatcher in
+# ``core/analysis/signature_scan.py::extract_signatures`` behaves
+# correctly.
+
+import core.analysis.signature_scan as signature_scan_module  # noqa: E402
+from core.analysis.signature_scan import extract_signatures  # noqa: E402
+
+
+def test_dispatcher_default_off_uses_python(monkeypatch) -> None:
+    """With the env var unset, ``extract_signatures`` must use the
+    Python implementation regardless of binding availability."""
+    monkeypatch.delenv("TCL_LSP_RUST_SIGNATURE_SCAN", raising=False)
+
+    def _boom(_source):
+        raise AssertionError("rust path must not be called when env var unset")
+
+    monkeypatch.setattr(signature_scan_module, "_rust_extract", _boom)
+    result = extract_signatures("proc foo {} {}")
+    assert "::foo" in result.all_procs
+
+
+def test_dispatcher_env_var_on_uses_rust(monkeypatch) -> None:
+    """With ``TCL_LSP_RUST_SIGNATURE_SCAN=1``, the Rust path runs and
+    its result is materialised by ``_materialise_rust_signatures``.
+    A sentinel raw dict from a patched ``_rust_extract`` proves the
+    dispatcher consulted the binding rather than the Python
+    implementation."""
+    monkeypatch.setenv("TCL_LSP_RUST_SIGNATURE_SCAN", "1")
+    sentinel_raw = {
+        "procs": {
+            "::sentinel": {
+                "name": "sentinel",
+                "qualified_name": "::sentinel",
+                "params": [],
+                "name_range": (0, 8),
+                "body_range": (10, 20),
+            }
+        },
+        # Empty collections — exercise the materialiser's defaulting.
+    }
+    monkeypatch.setattr(signature_scan_module, "_rust_extract", lambda _src: sentinel_raw)
+    result = extract_signatures("source ignored — patched rust returns sentinel")
+    assert "::sentinel" in result.all_procs
+    # Python path would have produced no procs for that source.
+    assert "::foo" not in result.all_procs
+
+
+def test_dispatcher_rust_exception_falls_back_to_python(monkeypatch, caplog) -> None:
+    """If the Rust path raises, the dispatcher logs at DEBUG and the
+    Python implementation runs as a safety net."""
+    monkeypatch.setenv("TCL_LSP_RUST_SIGNATURE_SCAN", "1")
+
+    def _raise(_source):
+        raise RuntimeError("simulated rust crash")
+
+    monkeypatch.setattr(signature_scan_module, "_rust_extract", _raise)
+    result = extract_signatures("proc foo {} {}")
+    # Python path produced the proc — fallback worked.
+    assert "::foo" in result.all_procs
