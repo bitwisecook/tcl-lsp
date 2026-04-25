@@ -100,3 +100,53 @@ pub struct SignatureSource {
     /// `true` when the path is a plain literal (no `$` or `[`).
     pub is_literal: bool,
 }
+
+/// A local-interpreter `interp alias` recorded by the signature scanner.
+///
+/// Only the form `interp alias {} ALIAS {} TARGET ?ARG…?` (both
+/// slave and target paths empty) is recorded — cross-interpreter
+/// aliases do not affect command resolution in the current
+/// workspace and are skipped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureCommandAlias {
+    /// Fully-qualified alias name (the `ALIAS` argument with leading
+    /// `::` applied).
+    pub qualified_name: String,
+    /// The target command name (the `TARGET` argument).
+    pub target: String,
+    /// The optional pre-bound arguments appended after `TARGET`.
+    pub extras: Vec<String>,
+}
+
+/// A `namespace import` recorded by the signature scanner.
+///
+/// Records both direct `namespace import PATTERN` calls and the
+/// tcllib `<NS>::import <ALIAS>` wrapper idiom. The latter sets
+/// `conjectured` to `true`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureNamespaceImport {
+    /// Importing namespace, with leading `::`.
+    pub ns: String,
+    /// Imported pattern, fully-qualified (relative patterns are
+    /// resolved against `ns`).
+    pub pattern: String,
+    /// Source span of the pattern argument.
+    pub range: Span,
+    /// `true` when the import is inferred from a tcllib-style
+    /// `<NS>::import <ALIAS>` call rather than a direct `namespace
+    /// import` invocation.
+    pub conjectured: bool,
+}
+
+/// An `auto_path` mutation recorded by the signature scanner.
+///
+/// Covers both `lappend auto_path …` and `set auto_path …` forms.
+/// Each path element gets one record; resolution to absolute paths
+/// happens later in the analyser pipeline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureAutoPathEntry {
+    /// Verbatim path-element text as reconstructed by the segmenter.
+    pub raw: String,
+    /// Source span of the path-element argument.
+    pub range: Span,
+}
