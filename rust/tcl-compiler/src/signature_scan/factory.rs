@@ -14,8 +14,6 @@
 //!
 //! Subsequent C40d sub-strips fill in items 2 and 3.
 
-#![allow(dead_code)]
-
 use std::collections::{HashMap, HashSet};
 
 use super::ctx::{FactoryCandidate, ScanCtx};

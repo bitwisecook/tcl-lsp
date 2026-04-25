@@ -11,8 +11,6 @@
 //! is added incrementally in C40c2-C40c5 sub-strips; the dispatch
 //! arms for those commands call no-op stubs in this scaffold strip.
 
-#![allow(dead_code)]
-
 use tcl_lexer::{Token, TokenType};
 
 use super::ctx::ScanCtx;

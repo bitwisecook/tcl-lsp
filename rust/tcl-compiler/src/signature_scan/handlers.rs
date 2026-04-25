@@ -9,8 +9,6 @@
 //!
 //! [`ScanCtx`]: super::ctx::ScanCtx
 
-#![allow(dead_code)]
-
 use tcl_lexer::{Token, TokenType};
 
 use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx, FACTORY_SKIP_HEADS};

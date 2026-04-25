@@ -10,8 +10,6 @@
 //!
 //! [`SignatureScanResult`]: super::types::SignatureScanResult
 
-#![allow(dead_code)]
-
 use tcl_lexer::Token;
 
 use super::types::SignatureScanResult;
