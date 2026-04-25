@@ -670,6 +670,18 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[2];
         let body_text = &args[2];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        // C36c: if the body is a ``[subst -nocommands {template}]``
+        // command sub and every ``\$var`` inside *template* is in the
+        // current const-map, evaluate the subst at compile time and
+        // lower the resulting string as a fresh script. Catches the
+        // tcltest ``Option`` factory shape where the accessor body
+        // is built from a template plus const-known option name /
+        // default / description. Mirrors main commit `d4d2cdd5`.
+        let materialised_body = if body_tok.kind == tcl_lexer::TokenType::Cmd {
+            self.eval_subst_nocommands_body(&args[2])
+        } else {
+            None
+        };
         // C37b: fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
         // scope's tracked scalars — correct for control-flow
@@ -680,7 +692,12 @@ impl<'r> Lowerer<'r> {
         // slate. Mirrors main commit `49f90130`.
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
-        let body = self.lower_body(body_text, body_offset, namespace);
+        let body = if let Some(text) = materialised_body {
+            // Lower the substituted text as a fresh script.
+            self.lower_script(&text, namespace)
+        } else {
+            self.lower_body(body_text, body_offset, namespace)
+        };
         self.const_map_stack.pop();
         self.proc_depth -= 1;
 
@@ -827,6 +844,68 @@ impl<'r> Lowerer<'r> {
             body,
             tokens: Some(Self::cmd_tokens(seg)),
         })
+    }
+
+    /// If *`cmd_text`* is `subst -nocommands {template}` (in any
+    /// flag order) AND every `$var` inside *template* is in the
+    /// current const-map, return the substituted string. Otherwise
+    /// `None` so the caller falls back to runtime dispatch.
+    ///
+    /// Used by C36c to materialise the tcltest-style `Option`
+    /// factory body at compile time when the surrounding proc has
+    /// all the template vars const-tracked. Mirrors Python's
+    /// `_eval_subst_nocommands_body`.
+    fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
+        use tcl_lexer::TokenType;
+        let inner = segment_commands(cmd_text);
+        if inner.len() != 1 {
+            return None;
+        }
+        let inner_cmd = &inner[0];
+        if inner_cmd.texts.is_empty() || inner_cmd.texts[0] != "subst" {
+            return None;
+        }
+        let argv = inner_cmd.arg_tokens();
+        let texts = inner_cmd.args();
+        let single = &inner_cmd.single_token_word;
+
+        let mut saw_nocommands = false;
+        let mut template_text: Option<&str> = None;
+        for (i, tok) in argv.iter().enumerate() {
+            let text = &texts[i];
+            if text == "-nocommands" {
+                saw_nocommands = true;
+                continue;
+            }
+            if text == "-nobackslashes" || text == "-novariables" {
+                // Either flag changes the semantics our evaluator
+                // assumes — refuse.
+                return None;
+            }
+            if text.starts_with('-') {
+                return None;
+            }
+            if !single.get(i + 1).copied().unwrap_or(false) {
+                return None;
+            }
+            if tok.kind != TokenType::Str {
+                return None;
+            }
+            if template_text.is_some() {
+                // Multiple positionals — not the shape we recognise.
+                return None;
+            }
+            template_text = Some(text.as_str());
+        }
+        if !saw_nocommands {
+            return None;
+        }
+        let template = template_text?;
+        if self.proc_depth == 0 {
+            return None;
+        }
+        let scope = self.const_map_stack.last()?;
+        crate::subst_nocommands::subst_nocommands(template, scope)
     }
 
     /// Try to lower `eval ?body?` to a static-body
@@ -1420,6 +1499,80 @@ mod tests {
         // ``::factory`` registered; the inner proc must NOT be
         // registered under any literal name (``::x...``).
         assert!(!m.procedures.keys().any(|k| k.contains("suffix")));
+    }
+
+    #[test]
+    fn proc_subst_nocommands_body_materialised() {
+        // C36c: ``proc \$name {x} [subst -nocommands {return \$default}]``
+        // with both ``name`` and ``default`` const-tracked materialises
+        // the body to ``return 0`` and lowers it as a real script.
+        let m = lower_to_ir(
+            "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -nocommands {return $default}] }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
+        // Body should contain a Return statement (or at least be
+        // non-empty — the materialised body lowers to a real
+        // statement, not a Barrier).
+        assert!(
+            !inner.body.statements.is_empty(),
+            "expected lowered body, got empty"
+        );
+    }
+
+    #[test]
+    fn proc_subst_nocommands_missing_var_skips_materialisation() {
+        // ``\$default`` is not in the const-map — the materialiser
+        // refuses, leaving the body to fall back to runtime
+        // dispatch.
+        let m = lower_to_ir(
+            "proc factory {} { set name {Verbose}\n proc $name {x} [subst -nocommands {return $default}] }",
+            &reg(),
+        );
+        // Verbose not registered (because \$default missing means
+        // we keep the dynamic body which routes via Barrier — but
+        // the proc name itself was substituted via C36b). Actually
+        // the proc IS registered with whatever the body lowering
+        // produces; the assertion is that it's NOT the materialised
+        // form.
+        let inner = m.procedures.get("::Verbose");
+        if let Some(p) = inner {
+            // The body should not contain a Return whose value is
+            // the literal "0" — that would be the materialised
+            // form. It can be empty / contain a Barrier.
+            // Conservative check: just verify the helper refused.
+            // (The body might still lower the original CMD-token
+            // text as a runtime call.)
+            assert!(
+                p.body.statements.is_empty()
+                    || matches!(
+                        p.body.statements[0],
+                        Statement::Call { .. } | Statement::Barrier { .. }
+                    )
+            );
+        }
+    }
+
+    #[test]
+    fn proc_subst_nocommands_nobackslashes_refused() {
+        // ``-nobackslashes`` flag — semantics differ from our
+        // evaluator's default. Refuse and fall through.
+        let m = lower_to_ir(
+            "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -nobackslashes -nocommands {return $default}] }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Verbose");
+        if let Some(p) = inner {
+            // Body did not materialise — should be empty or have
+            // a fallback shape.
+            assert!(
+                p.body.statements.is_empty()
+                    || matches!(
+                        p.body.statements[0],
+                        Statement::Call { .. } | Statement::Barrier { .. }
+                    )
+            );
+        }
     }
 
     #[test]

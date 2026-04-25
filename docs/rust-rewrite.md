@@ -1056,9 +1056,18 @@ Strips:
   commit `2ad4efc9`. 4 unit tests covering the resolved /
   no-binding / command-sub / latest-set-wins shapes.
 - **C36c — Lowering: materialise `[subst -nocommands {…}]`
-  bodies.** When the body argument is a `[subst -nocommands
-  {template}]` substitution, evaluate the template against the
-  const-map at lowering time. Mirrors main `d4d2cdd5`. ~100 LOC.
+  bodies.** [LANDED] New `Lowerer::eval_subst_nocommands_body`
+  helper: parses the inner CMD-token text via `segment_commands`,
+  verifies `subst` head + a `-nocommands` flag (rejecting
+  `-nobackslashes` / `-novariables` whose semantics differ),
+  finds the single STR-token positional template, then delegates
+  to `crate::subst_nocommands::subst_nocommands` against the
+  current const-map. Wired into `lower_proc` alongside the
+  existing body-lowering path: when the body is a CMD token and
+  the helper succeeds, lower the substituted text via
+  `lower_script` instead of `lower_body`. Mirrors main
+  `d4d2cdd5`. 3 unit tests covering the happy path,
+  missing-var refusal, and `-nobackslashes` refusal.
 - **C36d — Factory shape detector.** New
   `rust/tcl-compiler/src/passes/specialise_factories.rs::detect_factory_shape`.
   Recognises the canonical `proc Configure {name default
