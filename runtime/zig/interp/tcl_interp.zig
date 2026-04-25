@@ -1752,14 +1752,9 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
-        // MM-B.4 stays disabled.  Even with the alias-prefix
-        // retain landed in this session and all prior MM-B work,
-        // cmdIL.test still hits a borrowed-pointer corruption
-        // (``site=N <binary garbage>``) when MM-B.4 is on.  The
-        // remaining audit candidates (parse_cache borrows,
-        // tcl_diag.current_eval_ptr, subst_flagged result chain)
-        // need targeted investigation.  See MM-B.6 in
-        // docs/design/runtime/memory-management.md.
+        // MM-B.4 disabled: cmdIL.test still hits a borrowed-
+        // pointer corruption when on, despite all the
+        // MM-B.5/B.6 retains landed so far.  See doc.
         return eval_command(word_objs[0..wi]);
     }
 

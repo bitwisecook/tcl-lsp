@@ -51,6 +51,17 @@ pub fn subst_flagged(
     var total_out: u32 = 0;
     var lit_start: u32 = 0;
     var lit_run: u32 = 0;
+
+    // MM-B.6: retain every TclObj whose bytes we push into the
+    // pieces buffer.  push_piece records (ptr, len) borrowed from
+    // the source obj; if the source gets released between
+    // push_piece and the final concat, the borrowed bytes go
+    // stale.  The retained_objs scratch holds those refs until
+    // we're done concatenating, then releases them.  Bound is
+    // wlen $-substs / [bracket] subs, so wlen u32s of scratch
+    // is the worst case.
+    const retained_objs = alloc(wlen * 4);
+    var n_retained: u32 = 0;
     const flush_lit = struct {
         fn go(pb: u32, np: *u32, to: *u32, start: u32, run: *u32, base: u32) void {
             if (run.* == 0) return;
@@ -89,6 +100,9 @@ pub fn subst_flagged(
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                    obj_mod.tcl_obj_retain(val);
+                    write_i32(retained_objs + n_retained * 4, val);
+                    n_retained += 1;
                 }
             } else {
                 while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
@@ -102,6 +116,9 @@ pub fn subst_flagged(
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                    obj_mod.tcl_obj_retain(val);
+                    write_i32(retained_objs + n_retained * 4, val);
+                    n_retained += 1;
                 }
             }
             lit_start = i;
@@ -120,6 +137,9 @@ pub fn subst_flagged(
             if (result != 0) {
                 const sv = obj_ensure_string(result);
                 push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                obj_mod.tcl_obj_retain(result);
+                write_i32(retained_objs + n_retained * 4, result);
+                n_retained += 1;
             }
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
@@ -147,6 +167,13 @@ pub fn subst_flagged(
             memcpy(buf + out, p, l);
             out += l;
         }
+    }
+    // MM-B.6: now that the bytes are copied, release the retained
+    // sources.
+    var ri: u32 = 0;
+    while (ri < n_retained) : (ri += 1) {
+        const r = read_i32(retained_objs + ri * 4);
+        if (r != 0) obj_mod.tcl_obj_release(r);
     }
     return obj_new_string(@intCast(buf), @intCast(out));
 }
