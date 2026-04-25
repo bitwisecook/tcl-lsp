@@ -15,7 +15,6 @@
 use pyo3::prelude::*;
 
 use tcl_compiler::optimiser;
-use tcl_registry::CommandRegistry;
 
 /// Run every landed optimisation pass against `source` and
 /// return the overlap-free list of suggestions as a tuple per
@@ -38,10 +37,10 @@ pub fn optimiser_find_optimisations(
     source: &str,
     dialect: Option<&str>,
 ) -> Vec<(String, String, u32, u32, String, Option<u32>, bool)> {
-    let registry = CommandRegistry::build_default();
+    let registry = crate::registry::default_registry();
     let opts = match dialect {
-        Some(d) => optimiser::optimise_with_dialect(source, &registry, Some(d)),
-        None => optimiser::optimise(source, &registry),
+        Some(d) => optimiser::optimise_with_dialect(source, registry, Some(d)),
+        None => optimiser::optimise(source, registry),
     };
     opts.into_iter()
         .map(|o| {
@@ -69,10 +68,10 @@ pub fn optimiser_find_optimisations_raw(
     source: &str,
     dialect: Option<&str>,
 ) -> Vec<(String, String, u32, u32, String, Option<u32>, bool)> {
-    let registry = CommandRegistry::build_default();
+    let registry = crate::registry::default_registry();
     // optimise_raw already constructs a CompilationUnit internally;
     // no need to build one here.
-    let opts = optimiser::optimise_raw(source, &registry, dialect);
+    let opts = optimiser::optimise_raw(source, registry, dialect);
     opts.into_iter()
         .map(|o| {
             (

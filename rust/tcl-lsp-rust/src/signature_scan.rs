@@ -39,7 +39,6 @@ use tcl_compiler::signature_scan::{
     },
 };
 use tcl_lexer::Span;
-use tcl_registry::CommandRegistry;
 
 /// Extract a [`SignatureScanResult`] for `source` and serialise it
 /// to a Python dict.
@@ -50,8 +49,7 @@ use tcl_registry::CommandRegistry;
 #[pyfunction]
 #[pyo3(signature = (source, /))]
 pub fn signature_scan_extract<'py>(py: Python<'py>, source: &str) -> PyResult<Bound<'py, PyDict>> {
-    let registry = CommandRegistry::build_default();
-    let result = extract_signatures(source, &registry);
+    let result = extract_signatures(source, crate::registry::default_registry());
     let out = PyDict::new_bound(py);
 
     let procs = PyDict::new_bound(py);

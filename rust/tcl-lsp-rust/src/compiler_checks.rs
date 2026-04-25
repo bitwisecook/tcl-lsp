@@ -23,7 +23,6 @@ use pyo3::prelude::*;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::{run_all_checks, Severity};
-use tcl_registry::CommandRegistry;
 
 /// Run every landed compiler check against `source` and return a
 /// flat list of diagnostic tuples:
@@ -47,10 +46,10 @@ pub fn compiler_checks_run_all(
     source: &str,
     dialect: Option<&str>,
 ) -> Vec<(String, String, String, String, u32, u32, Option<String>)> {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false)
-        .with_interprocedural(&registry, dialect);
-    let diagnostics = run_all_checks(&cu, &registry, dialect);
+    let registry = crate::registry::default_registry();
+    let cu =
+        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
+    let diagnostics = run_all_checks(&cu, registry, dialect);
     diagnostics
         .into_iter()
         .map(|d| {

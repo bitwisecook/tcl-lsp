@@ -12,7 +12,14 @@ use tcl_registry::traits::Traits;
 use tcl_registry::ArgRole;
 
 /// Cached default registry — built once, reused across all `PyO3` calls.
-fn default_registry() -> &'static CommandRegistry {
+///
+/// The full registry has ~118 Tcl + stdlib + tcllib specs; building
+/// it eagerly (~100k `HashMap` inserts in aggregate when called per
+/// document on a large workspace) was a hot-path waste in every
+/// other binding module that consumed `CommandRegistry::build_default()`
+/// per call. This `OnceLock` is the shared cache; new bindings should
+/// call this rather than `build_default()` directly.
+pub(crate) fn default_registry() -> &'static CommandRegistry {
     static REGISTRY: OnceLock<CommandRegistry> = OnceLock::new();
     REGISTRY.get_or_init(CommandRegistry::build_default)
 }

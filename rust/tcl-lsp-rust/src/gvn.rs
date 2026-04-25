@@ -22,7 +22,6 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::gvn::{
     find_loop_invariants, find_partial_redundancies, find_redundancies, RedundantComputation,
 };
-use tcl_registry::CommandRegistry;
 
 type GvnTuple = (String, u32, u32, u32, u32, String, String);
 
@@ -42,11 +41,11 @@ fn lift(r: RedundantComputation) -> GvnTuple {
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn gvn_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false);
+    let registry = crate::registry::default_registry();
+    let cu = CompilationUnit::build_for(source, registry, false);
     let mut out = Vec::new();
     for fu in cu.functions() {
-        for r in find_redundancies(&registry, &fu.cfg, &fu.ssa, dialect) {
+        for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
             out.push(lift(r));
         }
     }
@@ -57,11 +56,11 @@ pub fn gvn_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false);
+    let registry = crate::registry::default_registry();
+    let cu = CompilationUnit::build_for(source, registry, false);
     let mut out = Vec::new();
     for fu in cu.functions() {
-        for r in find_partial_redundancies(&registry, &fu.cfg, &fu.ssa, dialect) {
+        for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
             out.push(lift(r));
         }
     }
@@ -72,11 +71,11 @@ pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnT
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
 pub fn gvn_loop_invariants(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false);
+    let registry = crate::registry::default_registry();
+    let cu = CompilationUnit::build_for(source, registry, false);
     let mut out = Vec::new();
     for fu in cu.functions() {
-        for r in find_loop_invariants(&registry, &fu.cfg, &fu.ssa, dialect) {
+        for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
             out.push(lift(r));
         }
     }

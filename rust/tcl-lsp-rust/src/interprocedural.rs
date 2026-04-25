@@ -25,7 +25,6 @@ use pyo3::types::{PyDict, PyList};
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::interprocedural::{ConstantReturn, ProcArgTrait, ProcSummary};
-use tcl_registry::CommandRegistry;
 
 /// Return the full interprocedural summary table for `source`.
 ///
@@ -54,9 +53,9 @@ pub fn interprocedural_summaries<'py>(
     source: &str,
     dialect: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false)
-        .with_interprocedural(&registry, dialect);
+    let registry = crate::registry::default_registry();
+    let cu =
+        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
     let out = PyDict::new_bound(py);
     let Some(ia) = cu.interproc.as_ref() else {
         return Ok(out);
