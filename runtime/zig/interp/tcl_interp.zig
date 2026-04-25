@@ -1752,9 +1752,15 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
-        // MM-B.4 disabled: cmdIL.test still hits a borrowed-
-        // pointer corruption when on, despite all the
-        // MM-B.5/B.6 retains landed so far.  See doc.
+        // MM-B.4 (fast path) deferred: enabling here exposes a
+        // bracket-subst lifetime issue in tcltest.tcl-style code
+        // (``[set cmd [namespace which -command [namespace
+        // current]::CleanupTest]]``).  The outer dispatch's
+        // words[0] gets recycled while the inner bracket-substed
+        // result is still being dispatched — site=146 garbage
+        // trap signature in parseOld.test.  See
+        // ``docs/design/runtime/memory-management.md`` MM-B.6 for
+        // the audit chain.
         return eval_command(word_objs[0..wi]);
     }
 

@@ -178,35 +178,34 @@ TclObj refs):
 
 ### B.6 — Pointer-borrow audit (BLOCKER for B.4)
 
-cmdIL.test still traps with `site=N <binary garbage>` when
-B.4 is enabled.  The trap signature: a TclObj's owned buffer
-got freed mid-dispatch and the slab was re-issued before the
-dispatch finished reading the command name from it.
+Original symptom: cmdIL.test trapped with `site=146 <binary
+garbage>` when B.4 was enabled.  Audit candidates (each holds
+a borrowed (ptr, len) into a TclObj's buffer):
 
-Concrete scenario observed: bracket-subst ``[namespace
-current]`` inside ``namespace which -command [namespace
-current] ::CleanupTest``.  The inner eval_script("namespace
-current") parses two words, dispatches "namespace", which
-returns "::tcltest::test".  Then the outer dispatch continues
-with the substituted result — but reading words[0] for the
-outer dispatch returns garbage because something released the
-outer's already-parsed word.
-
-Audit candidates (each holds a borrowed (ptr, len) into a
-TclObj's buffer):
 - `proc_table[].name_ptr` / `.name_len` — currently a heap-
   copied buffer in `alloc_command`, not a TclObj ref, so
-  appears safe.  Verify.
+  appears safe.  Verified.
 - `tcl_ns_export_patterns` — each pattern stored as raw
   `(ptr, len)`.  If the pattern came from a TclObj that was
-  released, the pattern bytes go stale.
+  released, the pattern bytes go stale.  Audit pending.
 - `tcl_alias_*` descriptor structs — alias source / target
-  command names.  Same shape.
-- `parse_cache` entries — token offsets into a body whose
-  buffer might be freed.  Cache invalidation needed.
+  command names.  Fixed: `alias_alloc` retains each prefix
+  TclObj (commit 1ddb903).
+- `subst_flagged` pieces buffer — borrowed (ptr, len) into
+  source TclObjs across the concat pass.  Fixed: source TclObjs
+  are retained in a `retained_objs` scratch until the concat
+  completes (commit 9c7e4ad).
+- `parse_cache` entries — **identified as the cmdIL trap
+  source.**  The cache stores token offsets keyed on
+  `(body_ptr, body_len)`.  Under B.4 a body buffer can be
+  freed and its slab reissued by libc malloc; a subsequent
+  lookup with the recycled `(body_ptr, body_len)` pair returns
+  a stale slab whose tokens point into freed memory.  See
+  `runtime/zig/valtypes/parse_cache.zig::lookup`.
 - `tcl_diag.current_eval_ptr` — recorded for trap context.
   Set per `eval_script` call but might point to a script
-  whose owner is releasing.
+  whose owner is releasing.  Audit pending — not currently a
+  blocker for cmdIL once parse_cache is contained.
 - `frame_argv[]` for `info level 0` — fixed in B.5d but
   similar shape for `info level -N` if implemented.
 
@@ -214,8 +213,43 @@ For each, the fix is the same: either retain the source TclObj
 for the duration the (ptr, len) is held, or copy the bytes
 into a fresh owned buffer at storage time.
 
-Once B.6 is in, B.4 should re-enable cleanly and reg* OOM
-disappears.
+**B.6 status (this commit):** B.4 (fast path) stays disabled.
+The audit found that cmdIL's `site=146` was actually parse_cache
+returning stale slabs under MM-B.4, but disabling parse_cache
+exposed a *second* lifetime issue in `parseOld.test`: the
+bracket-subst pattern in tcltest.tcl
+
+```
+  set cmd [namespace which -command [namespace current]::CleanupTest]
+```
+
+still trips a `site=146 garbage` trap with B.4 on (with or
+without the parse_cache disable).  The inner
+``eval_script("namespace current")`` substitutes a string into
+the outer command's words[], and B.4's release of the outer's
+own already-parsed words[0] frees a buffer the inner-result-
+substituted word borrows from.  Fixing this requires either
+retaining the substituted-in TclObj across the outer dispatch
+(needs a borrow-chain link — see B.7) or copying the inner
+result's bytes at substitution time (wasteful for the common
+no-bracket case).  Out of scope for this commit.
+
+`reg*/regexpComp/reg.test` no longer OOM at HEAD (achieved by
+Phase MM-A's wasi-libc malloc + the MM-B.5/B.6 retain/release
+work that's already committed).  They now trap at real Tcl
+errors (`source: file not found` on the helper file, or
+`couldn't compile regular expression` on a regex pattern).
+The user's primary "no OOM" goal is met.
+
+Follow-ups before re-enabling B.4 fast path:
+1. Add a tombstone-aware `parse_cache.invalidate_for_buffer`
+   hook called from `tcl_obj.release_now` before `free_sized`.
+   The hash table needs tombstone support since the current
+   `find` stops at the first empty slot.
+2. Implement B.7's borrow-chain link so substituted words
+   automatically retain their source.
+3. With both in place, re-enable B.4 fast path and confirm
+   parseOld + cmdIL both reach the same baseline as today.
 
 ### B.7 — Track "shared buffer" relationships explicitly (future)
 
