@@ -710,7 +710,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
-| C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | planned |
+| C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | partial — C33a, C33b, C33c landed; C33d / C33e remain |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
@@ -1138,13 +1138,26 @@ remaining chunk. Five strips, one per Python sub-module:
   callee-induced escape propagation. Mirrors Python's
   `core/compiler/var_escape/_types.py`. 6 unit tests covering
   the lattice + summary API.
-- **C33b — Static rule audit (`_propagation.py`).** The
-  intra-procedural rule engine: walks an `IRScript` and tags
-  variables LOCAL / FRAME based on the rules listed in main commit
-  `69aa16eb`'s body (upvar #0 / global / variable / dynamic-name
-  set / eval-with-literal-body / eval-with-dynamic-body / uplevel
-  / info exists). ~700 LOC mirroring the Python module + 25 unit
-  tests.
+- **C33b — Static rule audit (`_propagation.py`).** [LANDED]
+  Ported as 5 sub-strips (b1 helpers, b2 EscapeState, b3
+  collect_known_names, b4 per-call handlers, b5/b6/b7 walker
+  combined). The walker runs the intra-procedural rule engine
+  over an IR script: per-Statement transfer functions for
+  AssignConst/AssignValue/AssignExpr/Incr (with literal-binding
+  alias tracking), Call (dispatched to upvar / global / variable
+  / namespace upvar / info / dynamic-name-first handlers and a
+  generic callee-recording fallback), Barrier / UpFrame (with
+  eval / uplevel-#0 special cases that recursively escape every
+  name touched in the literal body), structured statements
+  (if / for / while / foreach / catch / try / switch),
+  Statement::Block (transparent splice or eval-relaxed), and
+  value/expr scans for embedded `[info ...]` hazards or
+  non-frameless command substitutions. Public entry point:
+  `var_escape::analyse_script(body, params) -> ProcEscapeSummary`.
+  Mirrors `core/compiler/var_escape/_propagation.py` (979 LOC of
+  Python). 50 unit tests across the 5 strips covering helpers,
+  state, known-name collection, per-call handlers, and the
+  walker's end-to-end shapes.
 - **C33c — `info` subcommand audit (`_info_subcommands.py`).**
   [LANDED] New crate module
   `rust/tcl-compiler/src/var_escape/info_subcommands.rs` with

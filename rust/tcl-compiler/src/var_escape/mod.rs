@@ -25,6 +25,9 @@ pub mod info_subcommands;
 pub mod known_names;
 pub mod state;
 pub mod types;
+pub mod walker;
+
+pub use walker::analyse_script;
 
 pub use info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand, FRAME_INSPECTING_SUBCOMMANDS,
