@@ -464,16 +464,34 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         return obj_new_int(0);
     }
 
-    const nmatch: usize = 10; // whole match + up to 9 capture groups
-    const pmatch_buf = alloc(@intCast(nmatch * REGMATCH_T_SIZE));
-
-    // For -inline we accumulate result list bytes in a string buf.
+    // Pre-allocate a scratch / result buffer BEFORE pmatch_buf so the
+    // pmatch slab lands at a higher heap address than re_addr — mirrors
+    // do_regsub's ordering, which is the reference for correct
+    // run_match_cap usage.  Always alloc (even outside -inline) so the
+    // bump-allocator state matches do_regsub regardless of the option
+    // mix.
     var inline_buf: u32 = 0;
     var inline_off: u32 = 0;
     var inline_cap: u32 = 0;
-    if (inline_mode) {
-        inline_cap = 256;
-        inline_buf = alloc(inline_cap);
+    inline_cap = 256;
+    inline_buf = alloc(inline_cap);
+
+    // nmatch shape mirrors do_regsub's working pattern.  Without
+    // captures we only need slot 0 (whole match start/end) — request
+    // 1, identical to do_regsub.  Capture-bearing forms (-inline,
+    // -indices, matchVar / subMatchVar) need up to 10 slots.
+    const wants_captures = inline_mode or indices_mode or var_words.len > 0;
+    const nmatch: usize = if (wants_captures) 10 else 1;
+    const pmatch_buf = alloc(@intCast(nmatch * REGMATCH_T_SIZE));
+    // Zero-init so the Spencer engine doesn't read stale bump-allocator
+    // bytes during DFA cache lookup with nmatch > 1.  do_regsub gets
+    // away with skipping this because its hot loop uses nmatch=1; here
+    // we always request 10 capture slots, which exposes paths in the
+    // engine that read pmatch entries before writing them.
+    {
+        const pmbytes: [*]u8 = @ptrFromInt(pmatch_buf);
+        var k: usize = 0;
+        while (k < nmatch * REGMATCH_T_SIZE) : (k += 1) pmbytes[k] = 0;
     }
 
     var match_count: i32 = 0;
@@ -517,6 +535,7 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
                     pos_cp,
                     so, eo,
                 );
+                obj.tcl_obj_retain(value);
                 _ = frames.var_set(var_words[v], value);
             }
             // Remaining unset vars get empty (Tcl matches set "").
