@@ -164,3 +164,25 @@ def test_signature_scan_extract_proc_record() -> None:
     assert len(proc["name_range"]) == 2
     # And there should be one command_invocations entry for `proc`.
     assert any(inv["name"] == "proc" for inv in result["command_invocations"])
+
+
+def test_signature_scan_extract_full_collections() -> None:
+    """C40e3 smoke test: a multi-handler source populates every
+    collection key in the returned dict."""
+    src = """
+proc foo {} {}
+oo::class create MyCls {}
+package require Tcl 8.6
+source /a/b.tcl
+interp alias {} myalias {} puts hello
+namespace import ::tcl::mathfunc::*
+lappend auto_path /opt/tclpkgs
+"""
+    result = tcl_lsp_rust.signature_scan_extract(src)
+    assert "::foo" in result["procs"]
+    assert "::MyCls" in result["classes"]
+    assert any(p["name"] == "Tcl" for p in result["package_requires"])
+    assert any(s["raw_path"] == "/a/b.tcl" for s in result["source_targets"])
+    assert "::myalias" in result["command_aliases"]
+    assert any(i["pattern"] == "::tcl::mathfunc::*" for i in result["namespace_imports"])
+    assert any(e["raw"] == "/opt/tclpkgs" for e in result["auto_path_entries"])
