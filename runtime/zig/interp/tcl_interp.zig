@@ -1172,7 +1172,14 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Absorb return signal (like picol: PICOL_RETURN → PICOL_OK)
     if (rt.return_flag.* != 0) {
         rt.return_flag.* = 0;
-        return rt.return_val.*;
+        // MM-B.5: ``return_val`` was retained by ``eval_return``.
+        // Hand its reference to the caller (no transfer-side
+        // retain needed) and clear the slot so a recursive
+        // ``return`` doesn't see a stale pointer in its release
+        // path.  Caller's standard "holds 1" contract is met.
+        const rv = rt.return_val.*;
+        rt.return_val.* = 0;
+        return rv;
     }
     // A break/continue that survived to the proc boundary is a Tcl error
     // ("invoked \"break\" outside of a loop"); clear the flags and raise
@@ -1608,7 +1615,10 @@ pub fn eval_apply(words: []const i32) i32 {
 
     if (rt.return_flag.* != 0) {
         rt.return_flag.* = 0;
-        return rt.return_val.*;
+        // MM-B.5: same as eval_proc_call_bucket.
+        const rv = rt.return_val.*;
+        rt.return_val.* = 0;
+        return rv;
     }
     if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
         rt.break_flag.* = 0;
@@ -1742,22 +1752,14 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
-        // MM-B.4 (fast path) is staged but currently DISABLED.
-        // Re-enable once the audit covers every place that holds a
-        // reference: array element slots, dict pair tables, list
-        // backing arrays, proc parameter binding, alias data,
-        // namespace export tables, frame_argv (info level 0)
-        // storage, error-info chain.  Intermediate state — where
-        // some store sites retain (var_set_scalar, local_set,
-        // proc_register) but others don't — corrupts values held
-        // only by the unbalanced sites: surfaces as ``unknown
-        // command: args`` (the param name) or ``NONE`` (cleared
-        // error-info) traps in tcltest workloads.
-        //
-        // For now we let parser-produced word_objs leak.  The leak
-        // is bounded by the workload's command count × ~64 bytes
-        // each; tcltest bundles top out around a few MB which our
-        // allocator handles fine.
+        // MM-B.4 staged but currently DISABLED.  Even with all of
+        // MM-B.5 (array_set / frame_argv / return_val retain), some
+        // store sites that haven't been audited yet are still
+        // dropping refs we'd need: corrupting command-name TclObjs
+        // mid-dispatch (cmdIL.test trap signature: ``site=N <binary
+        // garbage>``).  Letting parser-produced word_objs leak is
+        // bounded by the workload's command count × ~64 bytes.
+        // tcltest bundles top out around a few MB.
         return eval_command(word_objs[0..wi]);
     }
 
