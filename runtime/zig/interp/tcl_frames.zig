@@ -560,13 +560,24 @@ pub export fn local_set(name: i32, value: i32) i32 {
             const v = read_i32(bucket + OFF_VALUE);
             if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
             if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
+            // MM-B.3 refcount discipline: the frame slot owns a
+            // reference to its value.  Retain the new value, release
+            // the old one.  Without this the slot's hold is "free"
+            // and the parser-side release at end-of-statement
+            // (MM-B.4) would free param values out from under the
+            // running proc body.
+            if (value != 0) obj.tcl_obj_retain(value);
             write_i32(bucket + OFF_VALUE, value);
+            if (v != 0 and v != value) obj.tcl_obj_release(v);
             return value;
         }
+        // Fresh insert — retain the new value (no old to release).
+        if (value != 0) obj.tcl_obj_retain(value);
         frame_insert(base, sn.ptr, sn.len, hash, value);
         return value;
     }
-    // No frame active — set global
+    // No frame active — set global (var_set_scalar handles
+    // refcount on its end via MM-B.2).
     return globals.global_set(name, value);
 }
 

@@ -436,10 +436,22 @@ fn release_now(addr: u32) void {
 /// Drain the deferred-free queue.  Called by the eval loop between
 /// statements so all references to a since-released TclObj's bytes
 /// have been consumed before the slab is reissued.
+///
+/// MM-B race fix: ``tcl_obj_release`` queues by zeroing the obj's
+/// refcount field as a marker.  If the slab gets recycled by an
+/// ``obj_alloc`` between the release and the drain, the new tenant
+/// resets the refcount to 1 — drain detects that here and skips
+/// the free, leaving the new tenant alone.  Without this guard
+/// the drain would free the new tenant's buffer (use-after-free
+/// observable as ``NONE`` trap messages and other "value
+/// vanished" symptoms in long-running tcltest workloads).
 pub export fn tcl_obj_drain_pending() void {
     var i: u32 = 0;
     while (i < pending_free_count) : (i += 1) {
-        release_now(pending_free[i]);
+        const addr = pending_free[i];
+        const rc = read_i32(addr + OBJ_REFCOUNT);
+        if (rc != 0) continue; // slab was reissued — leave alone
+        release_now(addr);
     }
     pending_free_count = 0;
 }

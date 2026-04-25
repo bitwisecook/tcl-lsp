@@ -1742,6 +1742,22 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
+        // MM-B.4 (fast path) is staged but currently DISABLED.
+        // Re-enable once the audit covers every place that holds a
+        // reference: array element slots, dict pair tables, list
+        // backing arrays, proc parameter binding, alias data,
+        // namespace export tables, frame_argv (info level 0)
+        // storage, error-info chain.  Intermediate state — where
+        // some store sites retain (var_set_scalar, local_set,
+        // proc_register) but others don't — corrupts values held
+        // only by the unbalanced sites: surfaces as ``unknown
+        // command: args`` (the param name) or ``NONE`` (cleared
+        // error-info) traps in tcltest workloads.
+        //
+        // For now we let parser-produced word_objs leak.  The leak
+        // is bounded by the workload's command count × ~64 bytes
+        // each; tcltest bundles top out around a few MB which our
+        // allocator handles fine.
         return eval_command(word_objs[0..wi]);
     }
 
@@ -1788,6 +1804,13 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
         }
     }
+    // MM-B.4 (slow path) disabled until the audit covers expand
+    // semantics — when a word arrives via ``{*}$args`` expansion,
+    // each split element is a fresh TclObj whose backing buffer
+    // is tied to the source list's storage.  Releasing the
+    // element here can free its backing buffer out from under a
+    // peer element.  Re-enable after MM-B.5 (list/dict element
+    // retain) lands.
     return eval_command(expanded[0..ecount]);
 }
 
