@@ -590,9 +590,12 @@ none are bridge-specific, none are marked for removal.
 
 ### Test-audit gaps tracked for C40
 
-- **Dispatcher tests missing** (C40-fu4): the three
-  `extract_signatures(source)` tests covering env-var off / on /
-  Rust-raises-fallback are not in the harness yet.
+- **Dispatcher coverage** (landed C40-fu4): four
+  `extract_signatures(source)` tests in
+  `tests/test_rust_signature_scan_differential.py` cover env var
+  unset / set to truthy `1` / set to `"0"` (must NOT enable, per
+  the `rust_shim_enabled` truthy-value contract) / Rust path
+  raising → Python fallback. No longer an open C40 gap.
 - **`command_aliases` corpus is thin**: only one fixture
   (single-`hello` extra). Multi-extras case (`interp alias {} a {}
   b c d e`) should land in a follow-up.

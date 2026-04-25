@@ -277,7 +277,7 @@ pub(super) fn handle_interp(texts: &[String], result: &mut SignatureScanResult) 
     if texts.len() < 6 || texts[1] != "alias" {
         return;
     }
-    if texts[2] != *"" || texts[4] != *"" {
+    if !texts[2].is_empty() || !texts[4].is_empty() {
         return;
     }
     let alias_name = texts[3].clone();

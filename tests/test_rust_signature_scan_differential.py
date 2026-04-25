@@ -1,31 +1,43 @@
 """Differential parity harness for the C40 ``signature_scan`` Rust port.
 
-For each fixture in :data:`CORPUS`, both the Python implementation
+The **parity tests** exercise both the Python implementation
 (``_extract_signatures_python``) and the Rust path (via
 ``signature_scan_extract`` + the ``_materialise_rust_signatures``
-helper) are exercised and asserted to produce field-by-field
-equivalent :class:`AnalysisResult` records on the subset of fields
-``signature_scan`` populates.
+helper) and assert field-by-field equivalent :class:`AnalysisResult`
+records on the subset of fields ``signature_scan`` populates.
 
-Skipped wholesale when the ``tcl_lsp_rust`` binding cannot be
-imported.
+The **dispatcher gating tests** assert the env-var-gated
+dispatcher in ``core/analysis/signature_scan.py::extract_signatures``
+behaves correctly. They patch ``signature_scan_module._rust_extract``
+with a test double and never actually call the real binding, so
+they run in Python-only environments too.
+
+Tests that require the rust wheel call ``_require_rust_binding()``
+on entry; tests that don't are unconditional.
 """
 
 from __future__ import annotations
 
 import pytest
 
-# Capture the binding as a module object — ``from tcl_lsp_rust
-# import …`` would trip ``ty``'s ``unresolved-import`` check in
-# environments where the rust wheel isn't installed (CI lints
-# without building). Mirrors the pattern in
-# ``tests/test_rust_bindings_smoke.py``.
-tcl_lsp_rust = pytest.importorskip(
-    "tcl_lsp_rust",
-    reason="tcl_lsp_rust extension not built into this venv",
-)
+from core.analysis.semantic_model import AnalysisResult
 
-from core.analysis.semantic_model import AnalysisResult  # noqa: E402
+
+def _require_rust_binding():
+    """Skip the calling test when the ``tcl_lsp_rust`` wheel is
+    absent. Returns the module object on success.
+
+    Captured as a module object — ``from tcl_lsp_rust import …``
+    would trip ``ty``'s ``unresolved-import`` check in environments
+    where the wheel isn't installed (CI lints without building).
+    Mirrors the pattern in ``tests/test_rust_bindings_smoke.py``.
+    """
+    return pytest.importorskip(
+        "tcl_lsp_rust",
+        reason="tcl_lsp_rust extension not built into this venv",
+    )
+
+
 from core.analysis.signature_scan import (  # noqa: E402
     _extract_signatures_python,
     _materialise_rust_signatures,
@@ -47,7 +59,11 @@ def _compare_results(py: AnalysisResult, rust: AnalysisResult) -> None:
 
 
 def _assert_same(source: str) -> None:
-    """Run both implementations on ``source`` and assert parity."""
+    """Run both implementations on ``source`` and assert parity.
+
+    Skips the test when the rust binding isn't built.
+    """
+    tcl_lsp_rust = _require_rust_binding()
     py = _extract_signatures_python(source)
     rust = _materialise_rust_signatures(source, tcl_lsp_rust.signature_scan_extract(source))
     _compare_results(py, rust)
