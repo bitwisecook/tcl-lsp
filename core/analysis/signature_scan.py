@@ -180,14 +180,18 @@ class _ScanCtx:
 def extract_signatures(source: str) -> AnalysisResult:
     """Return a minimal AnalysisResult for a background-indexed file.
 
-    Dispatches to the Rust port when ``TCL_LSP_RUST_SIGNATURE_SCAN``
-    is set in the environment **and** the ``tcl_lsp_rust`` binding
-    is importable; otherwise falls back to the Python implementation
-    below. Any exception raised by the Rust path is logged at DEBUG
-    and the Python path runs as a safety net — same fallback shape
-    as `core.compiler.optimiser._manager`.
+    Dispatches to the Rust port by default whenever the
+    ``tcl_lsp_rust`` binding is importable; the Python implementation
+    below runs when ``TCL_LSP_RUST_SIGNATURE_SCAN`` is set to a
+    falsy value (``0`` / ``false`` / ``no`` / ``off``) or when the
+    binding is absent. Any exception raised by the Rust path is
+    logged at DEBUG and the Python path runs as a safety net.
+
+    The dispatch polarity flipped in C40-default-on; before that the
+    env var was opt-in. The Python implementation will retire after
+    a release cycle, at which point the env var goes too.
     """
-    if _rust_extract is not None and rust_shim_enabled("TCL_LSP_RUST_SIGNATURE_SCAN"):
+    if _rust_extract is not None and rust_shim_enabled("TCL_LSP_RUST_SIGNATURE_SCAN", default=True):
         try:
             return _materialise_rust_signatures(source, _rust_extract(source))
         except Exception:  # pragma: no cover - safety net

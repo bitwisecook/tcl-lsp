@@ -713,7 +713,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | S*    | **LSP server migration.** `lsp/` (pygls handlers, workspace orchestration, feature providers) → `rust/tcl-lsp-server/` on `tower-lsp`. This is when `ropey` enters the picture as the document store, the whole pipeline becomes async, and the server ships as a standalone Rust binary. | planned |
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), the rest of `core/analysis/` (`_analyser/` package + `auto_path_eval` / `class_hierarchy` / `irules_checks` / `mro` / `namespace_imports` / `proc_arg_traits` / `proc_lookup` / `semantic_graph` / `semantic_model` / `source_resolver` / `stub_comments` / `var_scoping` — `signature_scan.py` already landed under C40), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
 | C40-followups | **Follow-ups for the C40 `signature_scan` port.** Six items from the post-merge code review: (1) drop stale `#![allow(dead_code)]` from the four `signature_scan/` submodules now every type is wired; (2) sweep "filled in by Cnnnn" doc comments across `mod.rs` / `types.rs` / `ctx.rs` / `handlers.rs` / `walker.rs` / `factory.rs`; (3) cache `CommandRegistry::build_default()` in a `OnceLock` (also fixes the same waste in `interprocedural.rs`, `optimiser.rs`, `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`); (4) three dispatcher tests (`extract_signatures` with binding absent / env-var on / Rust path raising); (5) add a row to `docs/rust-rewrite-test-audit.md`; (6) KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`. | planned |
-| C40-default-on | **Flip the C40 default.** Once the differential corpus has baked, change the `extract_signatures` default to dispatch to Rust by default; gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. After a release cycle, delete `_extract_signatures_python` and the env var entirely. | planned |
+| C40-default-on | **Flip the C40 default.** `extract_signatures` now dispatches to Rust by default whenever the `tcl_lsp_rust` binding is importable; the gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. Shared helper `core.compiler.rust_spans.rust_shim_enabled` gained a `default: bool = False` keyword so the same helper handles both polarities. After a release cycle, delete `_extract_signatures_python` and the env var entirely. | landed |
 | Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` kept it at the first sub-token's end. Surfaced as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. Fix: in `segment_commands_local`, the `else if let Some(last_text) = …` branch now also widens `argv.last_mut().unwrap().span` to `Span::new(prev.span.start(), tok.span.end())`. New `segmenter::tests::multi_token_word_argv_spans_full_word` unit test pins the new behaviour. The previously-omitted `source_substituted_path` fixture (`source $script_dir/init.tcl`) is now part of the differential corpus in `tests/test_rust_signature_scan_differential.py`. | landed |
 | Seg2  | **Segmenter error recovery.** Port the Python `_has_suspicious_token` + `_find_recovery_offset` heuristics from `core/parsing/command_segmenter.py` to the Rust segmenter as `segment_commands_with_recovery(source, &known_commands)`. After raw segmentation, the last command is inspected for an unclosed `{` (`Str` token reaching EOF, line span ≥ 3), `[` (any `Cmd` token reaching EOF), or `"` (`Esc` token reaching EOF, line span ≥ 3); on a hit the suspicious token's inner text is scanned line-by-line for the next known-command name and the slice from there is re-segmented and appended (with absolute spans). The signature_scan walker threads the registry's `command_names()` set through to the top-level call only — body recursion never recovers, mirroring Python. Prerequisite for C40-default-on: without recovery, flipping the dispatcher to Rust would silently regress workspace indexing for any file mid-edit with an unclosed brace. | landed |
 | C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,000 LOC across ~12 sub-modules (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 sub-files, `_class.py`, `_mixin.py`, `_var_scoping.py`, `_utils.py`, …). The natural next chunk after C40; signature_scan was the lead-in. Same default-off PyO3 env-var gate pattern (`TCL_LSP_RUST_ANALYSER=1`). | planned |
@@ -726,7 +726,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
-| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-off env-var gate) |
+| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-on; `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out) |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
@@ -816,25 +816,24 @@ implementation on any exception.
 
 The differential harness
 (`tests/test_rust_signature_scan_differential.py`) parametrises
-26 fixtures across every handler family; the Python and Rust
-paths produce field-equal `AnalysisResult` records on every
-fixture. One source-target fixture (a `source $script_dir/init.tcl`
-shape with a multi-token argv word) is intentionally omitted —
-the Python segmenter widens `argv[i].end` to the end of the whole
-word but the Rust segmenter doesn't, which surfaces as a `Range`
-mismatch. The fix lives in the segmenter
-(`rust/tcl-compiler/src/segmenter.rs`), not in `signature_scan`,
-and is tracked as a follow-up.
+the corpus across every handler family; the Python and Rust paths
+produce field-equal `AnalysisResult` records on every fixture. The
+`source $script_dir/init.tcl` shape that previously diverged on the
+multi-token argv word (`Range` mismatch from the segmenter) is now
+covered by the `source_substituted_path` fixture; the fix landed
+in the segmenter (Seg1) before C40-default-on flipped the default.
 
 Test counts: 70+ Rust unit tests across the `signature_scan/`
 sub-modules; 3 PyO3 smoke tests in
-`tests/test_rust_bindings_smoke.py`; 27 differential parity tests
-in `tests/test_rust_signature_scan_differential.py`. Full
+`tests/test_rust_bindings_smoke.py`; differential parity tests in
+`tests/test_rust_signature_scan_differential.py`. Full
 `make prep-pr` green at every commit.
 
-Default-on flip is **deferred** to a follow-up commit: once the
-default-off path has baked, the env var becomes
-`TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out.
+Default-on flip **landed** as C40-default-on: the dispatcher
+defaults to Rust whenever the binding is importable; the env var
+becomes opt-out (`TCL_LSP_RUST_SIGNATURE_SCAN=0` keeps the Python
+path active). After a release cycle, `_extract_signatures_python`
+and the env var both retire.
 
 ### C40-followups — post-merge clean-up for the `signature_scan` port
 

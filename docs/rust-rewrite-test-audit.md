@@ -591,12 +591,12 @@ none are bridge-specific, none are marked for removal.
 
 ### Test-audit gaps tracked for C40
 
-- **Dispatcher coverage** (landed C40-fu4): four
-  `extract_signatures(source)` tests in
-  `tests/test_rust_signature_scan_differential.py` cover env var
-  unset / set to truthy `1` / set to `"0"` (must NOT enable, per
-  the `rust_shim_enabled` truthy-value contract) / Rust path
-  raising → Python fallback. No longer an open C40 gap.
+- **Dispatcher coverage** (landed C40-fu4, updated for the
+  C40-default-on polarity flip): four `extract_signatures(source)`
+  tests in `tests/test_rust_signature_scan_differential.py` cover
+  env var unset (now → Rust) / explicit `=1` (Rust) / `=0`
+  (forces Python — the post-flip opt-out knob) / Rust path raising
+  → Python fallback. No longer an open C40 gap.
 - **`command_aliases` corpus is thin**: only one fixture
   (single-`hello` extra). Multi-extras case (`interp alias {} a {}
   b c d e`) should land in a follow-up.
@@ -654,7 +654,7 @@ workspace indexing for any file mid-edit with an unclosed brace.
 Pre-existing test
 (`test_unclosed_brace_does_not_swallow_later_procs`) is unchanged
 by Seg2 but now passes through the Rust path under
-`TCL_LSP_RUST_SIGNATURE_SCAN=1` (and will be the default after
+`TCL_LSP_RUST_SIGNATURE_SCAN=1` (and is the default after
 C40-default-on).
 
 ### Differential corpus — recovery fixtures intentionally omitted
@@ -672,3 +672,27 @@ silently goes away once the C40-default-on flip ships
 (consumers see Rust's absolute positions, not Python's rebased
 ones); fixing the Python rebase is tracked as a separate
 follow-up since main hasn't seen this issue.
+
+## C40-default-on — flip the C40 dispatcher to Rust by default
+
+Two-commit chunk:
+
+- **Phase 1** (`rust_shim_enabled` keyword extension): one new test
+  file `tests/test_rust_shim_enabled.py` with 24 parametrised
+  helper-level cases enumerating truthy / falsy / unrecognised /
+  unset × `default=False` / `default=True` permutations. Pins the
+  shared helper contract so a polarity bug is caught at its source
+  rather than via a per-shim regression.
+- **Phase 2** (dispatcher flip): updates the four dispatcher tests
+  in `tests/test_rust_signature_scan_differential.py` to assert the
+  new polarity (unset → Rust; `=1` → Rust; `=0` → Python; Rust
+  raising → Python fallback). The pre-existing Python
+  `tests/test_signature_scan.py` file is unchanged but now exercises
+  the Rust dispatcher by default in any environment with the wheel
+  installed; it stays useful as a public-API behavioural check for
+  whichever path is the default. The differential corpus
+  (`_assert_same`) still calls the Python and Rust paths directly,
+  bypassing the dispatcher, so it remains the parity oracle until
+  the Python implementation retires. Seg2 had to land before Phase 2
+  shipped — without it, the Rust path silently dropped recovered
+  declarations from the workspace index.
