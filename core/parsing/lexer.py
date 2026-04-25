@@ -1055,7 +1055,17 @@ class TclLexer:
             )
 
     def tokenise_all(self) -> list[Token]:
-        """Tokenise the entire source, including SEP and EOL tokens."""
+        """Tokenise the entire source, including SEP and EOL tokens.
+
+        Contract: on return the lexer cursor sits at end-of-source so that
+        a subsequent ``get_token()`` returns ``None`` rather than re-reading
+        from offset 0. Today's loop satisfies this naturally — every
+        ``get_token()`` call advances ``self.pos`` / ``self._line`` /
+        ``self._col`` — but any future bulk-tokenise fast path (e.g. a
+        Rust-binding shortcut that bypasses ``get_token``) must finalise
+        cursor state explicitly so callers can mix ``tokenise_all`` and
+        ``get_token`` on the same instance without divergence.
+        """
         tokens: list[Token] = []
         while True:
             tok = self.get_token()
