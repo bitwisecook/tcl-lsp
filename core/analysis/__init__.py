@@ -4,7 +4,7 @@ _EXPORTS = frozenset(
     {"Analyser", "AnalyserSnapshot", "AnalysisResult", "parse_param_list", "analyse"}
 )
 
-__all__ = list(_EXPORTS)
+__all__ = sorted(_EXPORTS)
 
 
 def __getattr__(name: str):
