@@ -52,7 +52,7 @@ This report compares the in-tree WASM runtime
 | | files | tests passed / total | pass % | run time |
 |---|---:|---:|---:|---:|
 | **WASM (baseline)** | 97 | 355 / 35,921 | 1.00 % | 13.2 s |
-| **WASM (after)** | 97 | **384 / 35,921** | **1.07 %** | (varies — see 09) |
+| **WASM (after)** | 97 | **394 / 35,921** | **1.10 %** | (varies — see 09) |
 | **tclsh** | 97 | 32,695 / 35,921 | 91.0 % | 54.9 s |
 
 After-pass details: [`09-after-action.md`](09-after-action.md).
