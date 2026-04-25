@@ -1752,16 +1752,13 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
-        // MM-B.4 staged but DISABLED.  Even with the large
-        // pending-free queue, MM-B.5a/d retains, return_val
-        // retain, and the drain refcount==0 race fix, cmdIL.test
-        // still exhibits ``site=N <binary garbage>`` traps —
-        // command-name TclObjs whose buffers were freed mid-
-        // dispatch.  Indicates one or more borrowed (ptr, len)
-        // pairs held across a release boundary that we haven't
-        // tracked down (proc-table OFF_NAME_PTR, namespace export
-        // patterns, alias descriptors are the leading
-        // candidates).  See MM-B.6 sub-plan in
+        // MM-B.4 stays disabled.  Even with the alias-prefix
+        // retain landed in this session and all prior MM-B work,
+        // cmdIL.test still hits a borrowed-pointer corruption
+        // (``site=N <binary garbage>``) when MM-B.4 is on.  The
+        // remaining audit candidates (parse_cache borrows,
+        // tcl_diag.current_eval_ptr, subst_flagged result chain)
+        // need targeted investigation.  See MM-B.6 in
         // docs/design/runtime/memory-management.md.
         return eval_command(word_objs[0..wi]);
     }

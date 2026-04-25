@@ -129,15 +129,21 @@ pub fn alias_alloc(
     if (target_name_len > 0) memcpy(tbuf, target_name_ptr, target_name_len);
 
     // Heap-copy the prefix-args array.  Each element is a u32
-    // TclObj handle.  We use the bump allocator + write_i32 to
-    // avoid the ``[*]u32`` alignment cast Zig would otherwise
-    // require for a pointer into bump memory.
+    // TclObj handle.  MM-B.6: retain each handle so the alias's
+    // prefix array survives the parser-side release of the source
+    // words (the dispatch path that called ``interp alias`` will
+    // release its words[] after dispatch returns).
     var pbuf: u32 = 0;
     if (n_prefix > 0 and prefix_args_addr != 0) {
         pbuf = alloc(n_prefix * 4);
         var i: u32 = 0;
         while (i < n_prefix) : (i += 1) {
-            write_i32(pbuf + i * 4, read_i32(prefix_args_addr + i * 4));
+            const handle = read_i32(prefix_args_addr + i * 4);
+            write_i32(pbuf + i * 4, handle);
+            if (handle != 0) {
+                const objm = @import("../valtypes/tcl_obj.zig");
+                objm.tcl_obj_retain(handle);
+            }
         }
     }
 
