@@ -707,7 +707,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed |
 | C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
-| C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
+| C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | planned |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | planned |
@@ -960,21 +960,23 @@ Rust lowering layer.
 The Rust lowering already has a per-function const-map (see
 `Lowerer::const_map`). Main's fix:
 
-- **C37a — Address-keyed body cache.** Lowered `IRScript` for proc
-  bodies is currently re-lowered every time the same proc is
-  visited. Cache by `(body_ptr, body_len)` so the same span text
-  hits the same key whether referenced from one or many call
-  sites. Implement as `HashMap<(usize, usize), IRScript>` on
-  `Lowerer`, keyed by `(slice.as_ptr() as usize,
-  slice.len())`.
-- **C37b — Fresh const-map for nested procs.** When
-  `Lowerer::lower_proc` recurses, push a fresh `const_map`
-  (matching Python's `dict()` reset) so an outer `set foo bar`
-  binding does not leak into the nested proc's body. Add a
-  fixture that exercises the difference: the outer binding must
-  not be substituted into the inner proc's body word.
-  Additionally, refuse to substitute `$::var` in `subst -nocommands`
-  arguments (per main's review tail).
+- **C37a — Address-keyed body cache.** N/A for the Rust compiler.
+  Main commit `b64d7a5f` retitles a Zig runtime cache
+  (`runtime/zig/parse_cache.zig`) — there's no analogous Python
+  body-cache port, and the Rust lowering registers each procedure
+  exactly once into `module.procedures` so re-lowering is not
+  observable. The audit confirmed no Rust-side gap.
+- **C37b — Fresh const-map for nested procs.** [LANDED]
+  `lower_proc` and `lower_when` now push an empty `HashMap` on
+  `const_map_stack` around the body lowering (in addition to the
+  existing `proc_depth` bump). `lower_body` clones the parent
+  scope on entry, so pushing an empty parent first gives the
+  nested proc / event-handler body a clean slate independent of
+  the outer scope's tracked literals. Mirrors main commit
+  `49f90130`. New unit test
+  `const_prop_does_not_leak_into_nested_proc` asserts the inner
+  `uplevel 1 $body` stays a `Call` / `Barrier` even when the
+  outer proc bound `body` to a brace literal.
 
 Done: per-strip fixture; `cargo test -p tcl-compiler --lib`
 clean.

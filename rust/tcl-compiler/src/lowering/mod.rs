@@ -561,8 +561,18 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[2];
         let body_text = &args[2];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        // C37b: fresh const-map frame for the nested proc body.
+        // ``lower_body`` would otherwise inherit the enclosing
+        // scope's tracked scalars — correct for control-flow
+        // bodies (if / catch / loops share the frame) but unsound
+        // for ``proc`` bodies, which have their own runtime frame.
+        // Pushing an empty frame here means the inner ``lower_body``
+        // clones an empty parent, giving the proc body a clean
+        // slate. Mirrors main commit `49f90130`.
         self.proc_depth += 1;
+        self.const_map_stack.push(HashMap::new());
         let body = self.lower_body(body_text, body_offset, namespace);
+        self.const_map_stack.pop();
         self.proc_depth -= 1;
 
         if let std::collections::hash_map::Entry::Vacant(e) =
@@ -603,8 +613,18 @@ impl<'r> Lowerer<'r> {
         let body_tok = seg.arg_tokens()[body_idx];
         let body_text = &args[body_idx];
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        // C37b: fresh const-map frame for the nested proc body.
+        // ``lower_body`` would otherwise inherit the enclosing
+        // scope's tracked scalars — correct for control-flow
+        // bodies (if / catch / loops share the frame) but unsound
+        // for ``proc`` bodies, which have their own runtime frame.
+        // Pushing an empty frame here means the inner ``lower_body``
+        // clones an empty parent, giving the proc body a clean
+        // slate. Mirrors main commit `49f90130`.
         self.proc_depth += 1;
+        self.const_map_stack.push(HashMap::new());
         let body = self.lower_body(body_text, body_offset, namespace);
+        self.const_map_stack.pop();
         self.proc_depth -= 1;
 
         let mut base_priority: u32 = 500;
@@ -1199,6 +1219,26 @@ mod tests {
         let m = lower_to_ir("proc f {} { eval [foo arg] }", &reg());
         let proc = m.procedures.get("::f").expect("proc registered");
         assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
+    }
+
+    #[test]
+    fn const_prop_does_not_leak_into_nested_proc() {
+        // C37b: a ``set body {literal}`` in the outer proc must
+        // NOT appear to a nested ``proc inner``'s
+        // barrier-relaxation gate as a tracked literal.
+        let m = lower_to_ir(
+            "proc outer {} {\n  set body {set x 1}\n  proc inner {} { uplevel 1 $body }\n}",
+            &reg(),
+        );
+        let inner = m.procedures.get("::inner").expect("inner registered");
+        // The inner uplevel must remain a Call/Barrier — NOT an
+        // UpFrame. If the const-map leaked, the inner body would
+        // be folded as UpFrame { body: [set x 1], .. }.
+        let last = inner.body.statements.last().expect("body");
+        assert!(
+            !matches!(last, Statement::UpFrame { .. }),
+            "outer scope's const-map must not leak into nested proc, got {last:?}",
+        );
     }
 
     #[test]
