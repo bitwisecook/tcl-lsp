@@ -479,6 +479,66 @@ impl Analyser {
         }
     }
 
+    /// Handle `oo::class create NAME ?BODY?` — record the class.
+    ///
+    /// **C41b8 stub.** The full port (method extraction, mixin
+    /// handling, body recursion) lands in **C41e1**. For now this
+    /// strip records a minimal [`super::types::ClassDef`] in
+    /// ``result.all_classes`` so consumers see the class in the
+    /// workspace index. Returns `true` when the command shape
+    /// matched.
+    pub fn handle_oo_class_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "oo::class" || args.len() < 2 || arg_tokens.len() < 2 {
+            return false;
+        }
+        if args[0] != "create" {
+            return false;
+        }
+        let raw_name = &args[1];
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        let ns_for_qualify = ns_prefix.trim_start_matches(':');
+        let qualified = qualify(ns_for_qualify, raw_name);
+        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+        let name_span = arg_tokens[1].span;
+        let body_span = arg_tokens.get(2).map_or(arg_tokens[1].span, |t| t.span);
+        let class = super::types::ClassDef {
+            name: simple,
+            qualified_name: qualified.clone(),
+            name_span,
+            body_span,
+        };
+        self.result.all_classes.insert(qualified, class);
+        true
+    }
+
+    /// Handle `oo::define CLASS ?BODY?` — record an extension to
+    /// an existing class.
+    ///
+    /// **C41b8 stub.** The full port (method addition, mixin
+    /// declarations, superclass changes) lands in **C41e2**. For
+    /// now this strip is a recognise-and-no-op so the dispatch
+    /// table can route the command without a fall-through to
+    /// W123 unresolved-command later.
+    pub fn handle_oo_define_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        _arg_tokens: &[Token],
+        _scope_path: &[usize],
+    ) -> bool {
+        if cmd_name != "oo::define" || args.is_empty() {
+            return false;
+        }
+        // C41e2 will populate the class extension here.
+        true
+    }
+
     /// Handle the `incr` command: `incr var ?amount?`.
     ///
     /// Mirrors `_handle_incr_command` in
@@ -1178,6 +1238,88 @@ mod tests {
         let (target, args) = a.resolve_alias("logerr", &["hello".to_string()], &[]);
         assert_eq!(target, "puts");
         assert_eq!(args, vec!["stderr".to_string(), "hello".to_string()]);
+    }
+
+    // -- handle_oo_class_command (C41b8 stub) -----------------------
+
+    #[test]
+    fn handle_oo_class_create_records_class() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_class_command(
+            "oo::class",
+            &["create".to_string(), "MyClass".to_string()],
+            &[
+                esc_tok(span(0, 9)),
+                esc_tok(span(10, 16)),
+                esc_tok(span(17, 24)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert!(a.result.all_classes.contains_key("::MyClass"));
+        let cls = &a.result.all_classes["::MyClass"];
+        assert_eq!(cls.name, "MyClass");
+    }
+
+    #[test]
+    fn handle_oo_class_create_with_body() {
+        // arg_tokens stripped of cmd_name (matching the
+        // ``process_command`` dispatch convention).
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_class_command(
+            "oo::class",
+            &[
+                "create".to_string(),
+                "MyClass".to_string(),
+                "method m {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(10, 16)),
+                esc_tok(span(17, 24)),
+                str_tok(span(25, 41)),
+            ],
+            &[],
+        );
+        assert!(handled);
+        assert_eq!(a.result.all_classes["::MyClass"].body_span, span(25, 41));
+    }
+
+    #[test]
+    fn handle_oo_class_wrong_subcommand_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_class_command(
+            "oo::class",
+            &["destroy".to_string(), "MyClass".to_string()],
+            &[
+                esc_tok(span(0, 9)),
+                esc_tok(span(10, 17)),
+                esc_tok(span(18, 25)),
+            ],
+            &[],
+        );
+        assert!(!handled);
+        assert!(a.result.all_classes.is_empty());
+    }
+
+    // -- handle_oo_define_command (C41b8 stub) ----------------------
+
+    #[test]
+    fn handle_oo_define_recognises_canonical_form() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_define_command(
+            "oo::define",
+            &["MyClass".to_string(), "method m {} {}".to_string()],
+            &[],
+            &[],
+        );
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_oo_define_no_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_define_command("oo::define", &[], &[], &[]);
+        assert!(!handled);
     }
 
     // -- handle_incr_command ----------------------------------------

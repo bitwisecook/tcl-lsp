@@ -91,6 +91,15 @@ impl Analyser {
             return;
         }
 
+        // oo::class create / oo::define — class records + body
+        // walk (C41e1 / C41e2 fill in the body walks).
+        if self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+        if self.handle_oo_define_command(cmd_name, args, arg_tokens, scope_path) {
+            return;
+        }
+
         // namespace eval — opens a namespace child scope.
         if self.handle_namespace_eval_command(cmd_name, args, arg_tokens, scope_path) {
             return;
