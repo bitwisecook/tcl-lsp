@@ -1169,10 +1169,26 @@ remaining chunk. Five strips, one per Python sub-module:
   pessimistic detection, safe detection, unknown-subcommand
   fall-through, and the disjoint-sets invariant.
 - **C33d — Interprocedural propagation
-  (`_interprocedural.py`).** Threads escape sets across call
-  edges using the existing
-  `interprocedural::InterproceduralAnalysis::procedures` map.
-  ~250 LOC + 10 unit tests.
+  (`_interprocedural.py`).** [LANDED] New crate module
+  `rust/tcl-compiler/src/var_escape/interprocedural.rs`.
+  `solve_interprocedural_escape(&HashMap<String,
+  ProcEscapeSummary>) -> HashMap<String, ProcEscapeSummary>`
+  runs a worklist fixpoint over the static call graph built
+  from each proc's `direct_callees`. Resolves bare callees via
+  Tcl's namespace-walking lookup
+  (`name_candidates` walks the caller's namespace then enclosing
+  namespaces then global then bare); after convergence each
+  proc's `upvar_source_names` is the union of its own + every
+  transitive callee's. `unbounded_upvar_source` propagates the
+  same way and triggers `dynamic_barrier` on callers (the
+  interprocedural pessimism rule). `has_fallback` is downgraded
+  per proc when every recorded callee resolves to a tracked
+  proc (compiled-callee dispatch doesn't hit the eval
+  fallback). Mirrors
+  `core/compiler/var_escape/_interprocedural.py`. 12 unit
+  tests covering caller-namespace walking, name-candidates
+  ordering, transitive chains, unbounded propagation,
+  has-call-fallback downgrade vs preserve, self-recursion.
 - **C33e — Flow-sensitive SSA-version propagation
   (`_cfg_propagation.py`).** The biggest piece (686 LOC of
   Python). Walks the CFG in reverse-postorder, tags escapes at

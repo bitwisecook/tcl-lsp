@@ -22,11 +22,13 @@
 pub mod handlers;
 pub mod helpers;
 pub mod info_subcommands;
+pub mod interprocedural;
 pub mod known_names;
 pub mod state;
 pub mod types;
 pub mod walker;
 
+pub use interprocedural::solve_interprocedural_escape;
 pub use walker::analyse_script;
 
 pub use info_subcommands::{
