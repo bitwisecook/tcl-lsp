@@ -432,7 +432,20 @@ fn release_now(addr: u32) void {
     const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
     if (cap > 0) {
         const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
-        if (sp != 0) free_sized(sp, cap);
+        if (sp != 0) {
+            // MM-B.6: invalidate any parse_cache entry keyed on
+            // this buffer before returning it to libc malloc.
+            // Without this, a subsequent ``alloc`` could re-issue
+            // the slab to a new TclObj whose ``(body_ptr,
+            // body_len)`` happens to match a stale entry, and
+            // ``parse_cache.lookup`` would return tokens that
+            // point into freed memory — observed as ``unknown
+            // command: <binary garbage>`` traps at site=146 in
+            // cmdIL.test.
+            const parse_cache = @import("parse_cache.zig");
+            parse_cache.invalidate_for_buffer(sp);
+            free_sized(sp, cap);
+        }
     }
     free_obj(addr);
 }
