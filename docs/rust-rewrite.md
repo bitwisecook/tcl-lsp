@@ -715,7 +715,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
-| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | in progress |
+| C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-off env-var gate) |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
@@ -775,6 +775,55 @@ The Rust signature `extract_signatures(source: &str, _registry:
 &CommandRegistry) -> SignatureScanResult` plumbs a registry param
 through (currently unused) for consistency with every other
 tcl-compiler analysis entry point.
+
+**Landed outcome.** All 37 strips landed across the C40a–C40e
+families. Final commit count: 37 (+ 1 amend on C40a2 + 1 fold of
+the lookup_factory return-type fix into C40d3).
+
+The Rust scanner ports every per-command handler the Python
+implementation has — `proc`, `oo::class create`, `itcl::class`,
+`namespace eval` / `namespace import`, `package require`,
+`source`, `interp alias`, `lappend auto_path` / `set auto_path`,
+the tcllib `<NS>::import <ALIAS>` wrapper idiom, and the tcllib
+`DEFC name args body` / `proc $name $args $body` factory-wrapper
+synthesis pattern (with two-pass `is_factory_body` / `lookup_factory`
+/ `resolve_factory_defs` resolution). Body recursion covers
+`namespace eval`, `if` (then/elseif/else), `catch`, and `try`
+(on/trap/finally) — all branches marked `conditional=true`.
+
+The PyO3 binding emits a `dict` keyed on the eight collection
+names (`procs`, `classes`, `command_invocations`,
+`package_requires`, `source_targets`, `command_aliases`,
+`namespace_imports`, `auto_path_entries`) with spans encoded as
+`(start, end)` `u32` tuples. The Python materialiser
+(`_materialise_rust_signatures` in `core/analysis/signature_scan.py`)
+converts those tuples back into LSP `Range` values via
+`core/compiler/rust_spans.py::build_position_resolver`. The Python
+dispatch shim gates the Rust path on
+`TCL_LSP_RUST_SIGNATURE_SCAN=1`, falling back to the Python
+implementation on any exception.
+
+The differential harness
+(`tests/test_rust_signature_scan_differential.py`) parametrises
+26 fixtures across every handler family; the Python and Rust
+paths produce field-equal `AnalysisResult` records on every
+fixture. One source-target fixture (a `source $script_dir/init.tcl`
+shape with a multi-token argv word) is intentionally omitted —
+the Python segmenter widens `argv[i].end` to the end of the whole
+word but the Rust segmenter doesn't, which surfaces as a `Range`
+mismatch. The fix lives in the segmenter
+(`rust/tcl-compiler/src/segmenter.rs`), not in `signature_scan`,
+and is tracked as a follow-up.
+
+Test counts: 70+ Rust unit tests across the `signature_scan/`
+sub-modules; 3 PyO3 smoke tests in
+`tests/test_rust_bindings_smoke.py`; 27 differential parity tests
+in `tests/test_rust_signature_scan_differential.py`. Full
+`make prep-pr` green at every commit.
+
+Default-on flip is **deferred** to a follow-up commit: once the
+default-off path has baked, the env var becomes
+`TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out.
 
 ### C39 — Small codegen fixes from main
 
