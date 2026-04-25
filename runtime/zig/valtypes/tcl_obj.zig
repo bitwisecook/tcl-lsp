@@ -37,9 +37,63 @@ pub const OBJ_STR_PTR: u32 = 16;
 pub const OBJ_STR_LEN: u32 = 20;
 pub const OBJ_SIZE: u32 = 24;
 
-// Simple bump allocator over WASM linear memory with free-list recycling.
-var heap_ptr: u32 = 65536;
+// WASM linear-memory allocator.
+//
+// Layout:
+//   - bump pointer ``heap_ptr`` starts at the first 64 KB page boundary
+//     above the data segment (initialised to 65536 by convention)
+//   - per-size-class free-lists for recycled slabs (sub-plan 1.2 will
+//     extend the single OBJ_SIZE list to a vector of size classes)
+//   - calls ``@wasmMemoryGrow`` when ``heap_ptr + size`` would cross
+//     the current memory size, instead of unconditionally bumping past
+//     the limit (the previous behaviour caused ``out of bounds memory
+//     access`` traps once allocations exceeded the initial linear-memory
+//     reservation).
+//
+// One WASM memory page is 64 KB (PAGE_SIZE).  ``@wasmMemorySize(0)``
+// returns the current page count; ``@wasmMemoryGrow(0, n)`` requests
+// ``n`` more pages and returns the previous page count, or -1 on
+// failure.
+//
+// A configurable cap (``MAX_HEAP_PAGES``) bounds total memory; reaching
+// it raises a Tcl-friendly "out of memory" via the runtime's catch
+// machinery rather than letting a raw wasm trap surface.
+
+pub const PAGE_SIZE: u32 = 65536;
+pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build flag in future
+
+var heap_ptr: u32 = PAGE_SIZE;
 var free_list: u32 = 0;
+var oom_flag: u32 = 0;
+
+/// Ensure ``heap_ptr + size`` fits inside the current linear memory,
+/// growing by enough whole pages to cover the request when not.
+/// Returns ``true`` on success; ``false`` if the runtime cap is hit
+/// or the wasm host refuses to grow.  Callers should treat ``false``
+/// as a fatal allocation failure: ``alloc`` raises the OOM flag and
+/// returns 0 so a caller that derefs the result lands in a deterministic
+/// trap rather than a wild address.
+fn ensure_capacity(needed_end: u32) bool {
+    const current_pages: u32 = @intCast(@wasmMemorySize(0));
+    const current_bytes: u32 = current_pages * PAGE_SIZE;
+    if (needed_end <= current_bytes) return true;
+    const want_bytes = needed_end - current_bytes;
+    var want_pages = (want_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
+    // Grow geometrically — at minimum the requested page count, but
+    // double the current size when that's larger.  Keeps amortised
+    // grow cost O(1) per allocation across a long bundle while still
+    // honouring small allocations exactly.
+    if (want_pages < current_pages) want_pages = current_pages;
+    if (current_pages + want_pages > MAX_HEAP_PAGES) {
+        // Take whatever's left up to the cap.
+        if (current_pages >= MAX_HEAP_PAGES) return false;
+        want_pages = MAX_HEAP_PAGES - current_pages;
+        if (current_bytes + want_pages * PAGE_SIZE < needed_end) return false;
+    }
+    const r = @wasmMemoryGrow(0, want_pages);
+    if (r < 0) return false;
+    return true;
+}
 
 pub fn alloc(size: u32) callconv(.c) u32 {
     const aligned = (size + 7) & ~@as(u32, 7);
@@ -49,12 +103,30 @@ pub fn alloc(size: u32) callconv(.c) u32 {
         return ptr;
     }
     const ptr = heap_ptr;
-    heap_ptr += aligned;
+    const end = ptr + aligned;
+    if (!ensure_capacity(end)) {
+        oom_flag = 1;
+        return 0;
+    }
+    heap_ptr = end;
     return ptr;
 }
 
 pub export fn tcl_test_heap_ptr() i32 {
     return @bitCast(heap_ptr);
+}
+
+/// True if any ``alloc`` call observed an out-of-memory condition since
+/// the last reset.  Reactor entry-points should clear it via
+/// ``tcl_oom_clear`` at the start of each invocation; the runtime checks
+/// it at strategic points (loop bodies, before host bridges) and
+/// converts to a Tcl error.
+pub export fn tcl_oom_get() i32 {
+    return @bitCast(oom_flag);
+}
+
+pub export fn tcl_oom_clear() void {
+    oom_flag = 0;
 }
 
 fn free_obj(addr: u32) void {
