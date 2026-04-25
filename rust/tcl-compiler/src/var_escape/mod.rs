@@ -29,6 +29,7 @@ pub mod state;
 pub mod types;
 pub mod walker;
 
+pub use cfg_propagation::analyse_cfg_function;
 pub use interprocedural::solve_interprocedural_escape;
 pub use walker::analyse_script;
 

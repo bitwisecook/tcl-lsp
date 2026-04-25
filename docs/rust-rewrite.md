@@ -710,7 +710,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
-| C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | partial — C33a, C33b, C33c landed; C33d / C33e remain |
+| C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
@@ -1190,11 +1190,30 @@ remaining chunk. Five strips, one per Python sub-module:
   ordering, transitive chains, unbounded propagation,
   has-call-fallback downgrade vs preserve, self-recursion.
 - **C33e — Flow-sensitive SSA-version propagation
-  (`_cfg_propagation.py`).** The biggest piece (686 LOC of
-  Python). Walks the CFG in reverse-postorder, tags escapes at
-  `SSAValueKey = (name, version)` granularity. Wire the result
-  into `FunctionUnit::var_escape` in `compilation_unit.rs`. ~700
-  LOC + 20 unit tests.
+  (`_cfg_propagation.py`).** [LANDED] Ported as 6 sub-strips:
+  e1 (CfgEscapeResult + CfgState — SSA-version-aware
+  accumulator), e2 (collect_known_names_from_cfg — SSA-block
+  walker), e3 (per-call handlers — cfg variants taking the
+  defs map), e4/e5/e6 combined walker
+  (escape_every_name_touched_tree + handle_call dispatcher +
+  value/expr scans + handle_statement + walk_block + block_order
+  + analyse_cfg_function entry point). New crate module:
+  `rust/tcl-compiler/src/var_escape/cfg_propagation/`. The
+  walker iterates blocks in CFG reverse-postorder, processes
+  each SsaStatement via per-Statement transfer functions
+  (assign with literal-binding alias tracking, call routed to
+  per-command handlers, barrier / UpFrame / eval-Block routed
+  to handle_barrier with literal-body recursion through
+  escape_every_name_touched_tree, structured statements
+  recursing into nested scripts), and additionally scans each
+  block's terminator branch condition for embedded
+  ``[info ...]`` hazards. The `into_result()` collapse
+  produces both `ssa_tags: HashMap<(String, Version),
+  EscapeTag>` (authoritative) and `name_tags: HashMap<String,
+  EscapeTag>` (per-name view: Frame iff any version was
+  tagged). Wired into `var_escape::analyse_cfg_function`.
+  Mirrors `core/compiler/var_escape/_cfg_propagation.py` (686
+  LOC of Python). 38 unit tests across the 4 sub-modules.
 
 Each strip is independently committable and individually green
 under `make prep-pr`. Wire the analysis into

@@ -15,6 +15,8 @@
 pub mod handlers;
 pub mod known_names;
 pub mod state;
+pub mod walker;
 
 pub use known_names::collect_known_names_from_cfg;
 pub use state::{CfgEscapeResult, CfgState};
+pub use walker::analyse_cfg_function;
