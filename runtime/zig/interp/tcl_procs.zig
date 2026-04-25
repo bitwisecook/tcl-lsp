@@ -262,12 +262,33 @@ fn resolve_for_register(name_ptr: u32, name_len: u32) struct {
 
 /// Register an interpreted proc (body is Tcl source, func_idx = 0).
 /// params_obj and body_obj are TclObj handles (string representations).
+///
+/// Lifetime fix (Phase 1.3): the caller's TclObjs may BORROW their
+/// bytes from a parent script buffer (parser-produced TclObjs use
+/// ``obj_new_string`` with cap=0).  When that parent script is
+/// later released, the borrowed bytes become stale and any read of
+/// the proc body — including the next proc invocation's parser
+/// pass — sees garbage.  The visible symptom in tcltest.tcl was
+/// ``info complete $script`` returning 0 on a script with the
+/// correct length but corrupted bytes (e.g. ``expr {[testCons    pc]}``
+/// instead of ``expr {[testConstraint unix] || [testConstraint pc]}``).
+///
+/// We therefore promote any borrowing input to an owning copy
+/// before storing it, so the proc table holds a stable buffer
+/// independent of the original script's lifetime.
 pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const sn = obj_ensure_string(name);
     lru_invalidate();
     const hash = fnv1a(sn.ptr, sn.len);
 
-    const sp = obj_ensure_string(params_obj);
+    // Promote borrowing TclObjs to owning copies.  ``OBJ_STR_CAP == 0``
+    // means "we don't own this buffer"; copy the bytes into a fresh
+    // owned slab so the proc body / params survive the source-script
+    // teardown.
+    const owned_params = ensure_owned(params_obj);
+    const owned_body = ensure_owned(body_obj);
+
+    const sp = obj_ensure_string(owned_params);
     const n_params = obj.list_count_elements(sp.ptr, sp.len);
 
     const ctx = resolve_for_register(sn.ptr, sn.len);
@@ -283,8 +304,8 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     // Clear any CMD_IMPORTED bit — defining a proc with the same
     // simple name shadows an import in this ns (matches C Tcl).
     write_i32(cmd + OFF_FLAGS, 0);
-    write_i32(cmd + OFF_PARAMS_OBJ, params_obj);
-    write_i32(cmd + OFF_BODY_OBJ, body_obj);
+    write_i32(cmd + OFF_PARAMS_OBJ, owned_params);
+    write_i32(cmd + OFF_BODY_OBJ, owned_body);
     write_i32(cmd + OFF_N_PARAMS, @intCast(n_params));
     write_i32(cmd + OFF_FUNC_IDX, 0);
     write_i32(cmd + OFF_ARGS_TAIL, 0);
@@ -297,9 +318,29 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     // identical.  ``build_for_body`` no-ops on an already-cached
     // ``(body_ptr, body_len)`` tuple so re-registering the same
     // TclObj doesn't re-parse.
-    const body_s = obj_ensure_string(body_obj);
+    const body_s = obj_ensure_string(owned_body);
     parse_cache.build_for_body(body_s.ptr, body_s.len);
     return obj_new_int(0);
+}
+
+/// Promote a possibly-borrowing TclObj to an owning copy.  When the
+/// input already owns its buffer (``OBJ_STR_CAP > 0``) it is returned
+/// unchanged.  When it borrows (``cap == 0``) — typical for parser-
+/// produced word TclObjs that point into the parent script — we
+/// allocate a fresh owned buffer and copy the bytes.  Used by
+/// proc_register so the proc table holds bytes independent of the
+/// outer script's lifetime; without this, releasing the outer
+/// script frees the borrowed-from buffer and the proc body's
+/// pointer becomes stale (Phase 1.3 fix).
+fn ensure_owned(o: i32) i32 {
+    if (o == 0) return 0;
+    const addr: u32 = @bitCast(o);
+    const cap: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_CAP));
+    if (cap > 0) return o;
+    const sptr: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_PTR));
+    const slen: u32 = @bitCast(read_i32(addr + obj.OBJ_STR_LEN));
+    if (slen == 0) return o;
+    return obj.obj_new_string_copy(sptr, slen);
 }
 
 /// Register a compiled proc (AOT). func_idx is the WASM function
