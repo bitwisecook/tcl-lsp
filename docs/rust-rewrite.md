@@ -1034,14 +1034,17 @@ lowering const-map").
 
 Strips:
 
-- **C36a — `subst_nocommands` parser.** New file
-  `rust/tcl-lexer/src/subst_nocommands.rs` (or in
-  `rust/tcl-compiler/src/`, depending on whether re-lexing is
-  required). Implements the limited Tcl `subst` form that handles
-  only `$var` substitution — no command brackets, no backslash
-  escapes outside quoted contexts. Mirrors
-  `core/parsing/subst_nocommands.py::subst_nocommands`. ~250 LOC
-  of Rust + 30 unit tests.
+- **C36a — `subst_nocommands` parser.** [LANDED] New crate
+  module `rust/tcl-compiler/src/subst_nocommands.rs`. Implements
+  `subst_nocommands(template, &const_map) -> Option<String>` — a
+  compile-time evaluator for `[subst -nocommands {template}]` that
+  resolves `$var` / `${var}` against the supplied const-map,
+  decodes `\…` escapes via `tcl_lexer::backslash_subst`, keeps
+  `[…]` literal (the `-nocommands` flag), and refuses (returns
+  `None`) for missing vars, array refs, namespace-qualified
+  names, unbalanced brackets. Mirrors Python's
+  `core/parsing/subst_nocommands.py`. 13 unit tests covering
+  every refusal condition + happy paths.
 - **C36b — Lowering: `proc $var body` resolution.** When the
   proc-name argument is `$name` and the const-map carries a
   literal binding for `name`, lower as a real `IRProcedure` rather

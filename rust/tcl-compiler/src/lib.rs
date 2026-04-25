@@ -98,6 +98,7 @@ pub mod shimmer;
 pub mod side_effects;
 pub mod ssa;
 pub mod static_loops;
+pub mod subst_nocommands;
 pub mod taint;
 pub mod tcl_expr_eval;
 pub mod type_infer;
