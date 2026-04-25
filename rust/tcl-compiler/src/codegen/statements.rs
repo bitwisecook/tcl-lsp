@@ -213,6 +213,19 @@ impl CodegenCtx {
                 self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
             }
 
+            // Static-body uplevel (C34): IRUpFrame is an intermediate
+            // IR form consumed by the (yet-to-land) inline_uplevel
+            // optimiser pass. If it survives to codegen the pass was
+            // not run; emit a NOP placeholder matching the Python
+            // pipeline's ``# unhandled: IRUpFrame`` marker so the
+            // differential corpus stays exact-match. The IRUpFrame
+            // variant is still the right shape for analyses that
+            // walk the IR (interproc, code_sinking, future
+            // var_escape).
+            Statement::UpFrame { .. } => {
+                self.emit_comment(Op::NOP, vec![], "unhandled: IRUpFrame");
+            }
+
             // Structured control flow is handled by the main emitter loop;
             // if we reach these here, emit a NOP placeholder.
             _ => {

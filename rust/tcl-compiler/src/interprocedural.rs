@@ -568,6 +568,20 @@ fn scan_statement(
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
         }
+        Statement::UpFrame { body, .. } => {
+            // Static-body uplevel runs the inner script in the
+            // caller's frame — for interprocedural purposes it can
+            // touch any caller-scope variable, so treat it as a
+            // barrier conservatively. Any reads/writes inside
+            // ``body`` propagate up.
+            facts.has_barrier = true;
+            facts.local_pure = false;
+            facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+            facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+            for inner in &body.statements {
+                scan_statement(inner, caller, known, registry, dialect, facts, params);
+            }
+        }
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }

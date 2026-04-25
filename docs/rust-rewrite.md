@@ -706,7 +706,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | planned |
-| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | planned |
+| C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | partial — C34a landed |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | planned |
 | C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | planned |
@@ -814,6 +814,12 @@ already in place" (C39a/b/c/e/f/h/i/j) — a fixture in
 
 ### C35 — Const-propagate-uplevel
 
+**Order swap.** C35 originally listed before C34, but it has a
+hard dependency on C34's `IRUpFrame` IR node (the static-body
+uplevel case lowers to `IRUpFrame { body: Script, frame_shift: 1 }`
+which doesn't exist until C34 lands). Execute C34 first, then
+return to C35. The strips below stand unchanged.
+
 Port the const-propagation half of main PR #185 — specifically:
 
 - `lower(barrier): const-propagate braced-literal bodies through
@@ -855,13 +861,20 @@ for `IRUpFrame` (currently absent from the Rust port).
 
 Strips:
 
-- **C34a — IRUpFrame IR node.** Add to `rust/tcl-compiler/src/ir.rs`
-  alongside `IRBlock` / `IRBarrier`, with `frame_shift: i32` and
-  `body: IRScript`. Emit it from
-  `lowering/structured.rs::lower_uplevel` for the static-body case
-  (matching main `2992e6cc`'s lowering path). Wire codegen to emit
-  `frame_depth_stash` + `frame_depth_restore` placeholders around
-  the body (matching `698f2f79`).
+- **C34a — IRUpFrame IR node.** [LANDED] Adds the
+  `Statement::UpFrame { span, frame_shift, body, tokens }` variant
+  to `rust/tcl-compiler/src/ir.rs`. The lowering dispatch
+  (`lowering::mod::lower_command`) routes `uplevel ?level? {body}`
+  through `try_lower_uplevel_static` for the static-body case
+  (level is a decimal int or `#N`, body is a brace-string token);
+  dynamic forms fall through to default lowering. Codegen emits a
+  NOP placeholder with comment `# unhandled: IRUpFrame` matching
+  the Python pipeline's expectation that the inline_uplevel pass
+  consumes IRUpFrame before codegen runs. Interprocedural analysis
+  treats it as a barrier and walks the body. Code-sinking matches
+  it alongside `Statement::Catch` for body-walking. 6 unit tests +
+  1 matching fixture (`uplevel-static-body.tcl`). Clippy +
+  differential corpus + `make prep-pr` clean.
 - **C34b — Static (zero-param) passthrough detection.** New
   `inline_uplevel::detect_static_passthrough(IRModule) ->
   HashMap<String, PassthroughShape>`. Gate matches main's four

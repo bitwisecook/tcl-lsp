@@ -244,6 +244,29 @@ pub enum Statement {
         tokens: Option<CommandTokens>,
     },
 
+    /// Static-body uplevel — `uplevel ?level? {body}` where the body
+    /// is a brace-string literal so the body's IR can be lowered
+    /// inline. Models the "shift the active frame, evaluate body,
+    /// restore frame" semantics that `uplevel` provides without the
+    /// runtime [`Self::Barrier`] dispatch.
+    ///
+    /// Introduced in main commit `2992e6cc` ("introduce `IRUpFrame`
+    /// for static-body uplevel"). Codegen emits `frame_depth_stash`
+    /// / `frame_depth_restore` around the body (matching `698f2f79`).
+    UpFrame {
+        /// Source span of the original `uplevel` call.
+        span: Span,
+        /// Frame shift in caller-relative levels — `1` for `uplevel
+        /// 1 {body}` (the canonical form), `0` for the rare `uplevel
+        /// #0 {body}` global form. Sign matches the C Tcl level
+        /// argument: positive = move up the stack, `0` = absolute.
+        frame_shift: i32,
+        /// The pre-lowered body, evaluated at the shifted frame.
+        body: Script,
+        /// Original command tokens for downstream analysis.
+        tokens: Option<CommandTokens>,
+    },
+
     /// Conditional: `if cond body ?elseif cond body ...? ?else body?`.
     If {
         /// Source span.
@@ -384,6 +407,7 @@ impl Statement {
             | Self::Call { span, .. }
             | Self::Return { span, .. }
             | Self::Barrier { span, .. }
+            | Self::UpFrame { span, .. }
             | Self::If { span, .. }
             | Self::For { span, .. }
             | Self::While { span, .. }

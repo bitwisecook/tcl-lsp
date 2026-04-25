@@ -357,7 +357,9 @@ fn statement_uses_var(stmt: &Statement, var: &str) -> bool {
                 .any(|it| text_references_var(&it.list_arg, var))
                 || script_uses_var(body, var)
         }
-        Statement::Catch { body, .. } => script_uses_var(body, var),
+        Statement::Catch { body, .. } | Statement::UpFrame { body, .. } => {
+            script_uses_var(body, var)
+        }
         Statement::Try {
             body,
             handlers,

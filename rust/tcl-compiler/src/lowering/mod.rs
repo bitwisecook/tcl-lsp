@@ -102,6 +102,22 @@ fn parse_param_names(param_str: &str) -> Vec<String> {
     params
 }
 
+/// Parse the level argument of an `uplevel` call into a frame
+/// shift. Accepts the canonical positive-integer form (`uplevel 1
+/// body`, `uplevel 3 body`) and the global form (`#0` / `#N`),
+/// returning `None` when the argument is dynamic (`$lvl`, `[expr
+/// {...}]`) or otherwise unparseable.
+///
+/// The returned shift is normalised so callers can decide whether to
+/// route the call through [`Statement::UpFrame`] (positive shifts)
+/// or fall back to a barrier.
+fn parse_uplevel_level(text: &str) -> Option<i32> {
+    if let Some(rest) = text.strip_prefix('#') {
+        return rest.parse::<i32>().ok().map(|n| -n);
+    }
+    text.parse::<i32>().ok()
+}
+
 /// The lowering engine — accumulates procedures and IR statements.
 pub struct Lowerer<'r> {
     /// Output module being built.
@@ -263,6 +279,18 @@ impl<'r> Lowerer<'r> {
                 Some(self.lower_namespace_eval(seg, namespace))
             }
 
+            // C34a: static-body uplevel. Match `uplevel 1 {body}`,
+            // `uplevel #0 {body}`, and the canonical no-level form
+            // `uplevel {body}` (level defaults to 1) when the body
+            // arg is a brace-string literal token. Dynamic forms
+            // (``uplevel 1 $body`` / ``uplevel $lvl {body}``) fall
+            // through to the default lowering so a runtime ``Call`` /
+            // ``Barrier`` carries the unresolved arguments.
+            "uplevel" => Some(
+                self.try_lower_uplevel_static(seg, namespace)
+                    .unwrap_or_else(|| self.lower_default(seg, namespace)),
+            ),
+
             "if" => Some(self.lower_if(seg, namespace)),
             "switch" => Some(self.lower_switch(seg, namespace)),
             "for" => Some(self.lower_for(seg, namespace)),
@@ -387,6 +415,45 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower `namespace eval ns body`.
+    /// Try to lower `uplevel ?level? {body}` to a static-body
+    /// [`Statement::UpFrame`] when:
+    ///
+    /// 1. The body argument is a brace-string token (`TokenType::Str`),
+    ///    and
+    /// 2. The level argument (if present) parses as a positive integer
+    ///    or `#0` / `#N` global form.
+    ///
+    /// Returns `None` if the call doesn't match the static shape, in
+    /// which case the caller falls back to [`Self::lower_default`]
+    /// (producing a runtime [`Statement::Barrier`]).
+    fn try_lower_uplevel_static(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> Option<Statement> {
+        use tcl_lexer::TokenType;
+        let args = seg.args();
+        let arg_tokens = seg.arg_tokens();
+        let (frame_shift, body_tok_idx) = match args.len() {
+            1 => (1_i32, 0),
+            2 => (parse_uplevel_level(&args[0])?, 1),
+            _ => return None,
+        };
+        let body_tok = arg_tokens.get(body_tok_idx)?;
+        if body_tok.kind != TokenType::Str {
+            return None;
+        }
+        let body_text = &args[body_tok_idx];
+        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let body = self.lower_body(body_text, body_offset, namespace);
+        Some(Statement::UpFrame {
+            span: seg.span,
+            frame_shift,
+            body,
+            tokens: Some(Self::cmd_tokens(seg)),
+        })
+    }
+
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let child_ns = join_namespace(namespace, &args[1]);
@@ -656,5 +723,81 @@ mod tests {
     #[test]
     fn qualify_proc_name_already_qualified() {
         assert_eq!(qualify_proc_name("::ns", "::abs"), "::abs");
+    }
+
+    #[test]
+    fn parse_uplevel_level_decimal() {
+        assert_eq!(parse_uplevel_level("1"), Some(1));
+        assert_eq!(parse_uplevel_level("3"), Some(3));
+        assert_eq!(parse_uplevel_level("0"), Some(0));
+    }
+
+    #[test]
+    fn parse_uplevel_level_hash_form() {
+        assert_eq!(parse_uplevel_level("#0"), Some(0));
+        assert_eq!(parse_uplevel_level("#3"), Some(-3));
+    }
+
+    #[test]
+    fn parse_uplevel_level_dynamic_returns_none() {
+        assert_eq!(parse_uplevel_level("$lvl"), None);
+        assert_eq!(parse_uplevel_level("[expr {1+1}]"), None);
+        assert_eq!(parse_uplevel_level("foo"), None);
+    }
+
+    #[test]
+    fn uplevel_static_body_no_level() {
+        let m = lower_to_ir("uplevel {set x 1}", &reg());
+        assert_eq!(m.top_level.statements.len(), 1);
+        match &m.top_level.statements[0] {
+            Statement::UpFrame {
+                frame_shift, body, ..
+            } => {
+                assert_eq!(*frame_shift, 1);
+                assert_eq!(body.statements.len(), 1);
+            }
+            other => panic!("expected UpFrame, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn uplevel_static_body_with_level_one() {
+        let m = lower_to_ir("uplevel 1 {set x 1}", &reg());
+        match &m.top_level.statements[0] {
+            Statement::UpFrame { frame_shift, .. } => assert_eq!(*frame_shift, 1),
+            other => panic!("expected UpFrame, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn uplevel_static_body_with_hash_zero() {
+        let m = lower_to_ir("uplevel #0 {set x 1}", &reg());
+        match &m.top_level.statements[0] {
+            Statement::UpFrame { frame_shift, .. } => assert_eq!(*frame_shift, 0),
+            other => panic!("expected UpFrame for #0, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn uplevel_dynamic_body_falls_back_to_default() {
+        // ``uplevel 1 $body`` body is a $var, not a brace literal —
+        // can't be statically resolved without C35's const-propagate.
+        // Falls back to ``lower_default`` (Statement::Call).
+        let m = lower_to_ir("uplevel 1 $body", &reg());
+        assert!(matches!(
+            m.top_level.statements[0],
+            Statement::Call { .. } | Statement::Barrier { .. }
+        ));
+    }
+
+    #[test]
+    fn uplevel_dynamic_level_falls_back_to_default() {
+        // ``uplevel $lvl {body}`` — level is dynamic, can't pick a
+        // ``frame_shift``. Falls back to default lowering.
+        let m = lower_to_ir("uplevel $lvl {set x 1}", &reg());
+        assert!(matches!(
+            m.top_level.statements[0],
+            Statement::Call { .. } | Statement::Barrier { .. }
+        ));
     }
 }
