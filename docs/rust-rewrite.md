@@ -1125,10 +1125,19 @@ Port `core/compiler/var_escape/` (2,243 LOC across 7 files in main)
 to `rust/tcl-compiler/src/var_escape/`. This is the single biggest
 remaining chunk. Five strips, one per Python sub-module:
 
-- **C33a — Types + lattice (`_types.py`).** Port `EscapeKind`,
-  `EscapeReason`, `VarEscapeInfo` data types to
-  `rust/tcl-compiler/src/var_escape/types.rs`. ~150 LOC + 6 unit
-  tests covering display + lattice merge (LOCAL ∨ FRAME = FRAME).
+- **C33a — Types + lattice (`_types.py`).** [LANDED] New crate
+  module `rust/tcl-compiler/src/var_escape/{mod,types}.rs`.
+  `EscapeTag` enum (`Local` / `Frame`), `join` lattice operator
+  (`Frame` dominates), and `ProcEscapeSummary` carrying
+  per-name tags, `dynamic_barrier`, `frame_needed`,
+  `upvar_source_names`, `unbounded_upvar_source`,
+  `direct_callees`, `has_fallback`, `has_call_fallback`, and
+  per-SSA-version `ssa_tags`. Methods: `tag` (defaults to
+  `Local`, returns `Frame` when the barrier is set),
+  `is_frame`, `with_escapes(extra, pessimistic)` for
+  callee-induced escape propagation. Mirrors Python's
+  `core/compiler/var_escape/_types.py`. 6 unit tests covering
+  the lattice + summary API.
 - **C33b — Static rule audit (`_propagation.py`).** The
   intra-procedural rule engine: walks an `IRScript` and tags
   variables LOCAL / FRAME based on the rules listed in main commit

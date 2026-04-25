@@ -105,6 +105,7 @@ pub mod tcl_expr_eval;
 pub mod type_infer;
 pub mod types;
 pub mod value_shapes;
+pub mod var_escape;
 pub mod var_refs;
 pub mod var_scoping;
 
