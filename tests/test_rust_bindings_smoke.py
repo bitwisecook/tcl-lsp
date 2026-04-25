@@ -146,3 +146,21 @@ def test_signature_scan_extract_returns_dict() -> None:
     later C40e sub-strips)."""
     result = tcl_lsp_rust.signature_scan_extract("")
     assert isinstance(result, dict)
+
+
+def test_signature_scan_extract_proc_record() -> None:
+    """C40e2 smoke test: ``signature_scan_extract`` populates the
+    ``procs`` collection with name + qualified_name + params +
+    range tuples."""
+    result = tcl_lsp_rust.signature_scan_extract("proc foo {a b} { return $a }")
+    assert "::foo" in result["procs"]
+    proc = result["procs"]["::foo"]
+    assert proc["name"] == "foo"
+    assert proc["qualified_name"] == "::foo"
+    assert len(proc["params"]) == 2
+    assert proc["params"][0]["name"] == "a"
+    assert proc["params"][0]["has_default"] is False
+    assert isinstance(proc["name_range"], tuple)
+    assert len(proc["name_range"]) == 2
+    # And there should be one command_invocations entry for `proc`.
+    assert any(inv["name"] == "proc" for inv in result["command_invocations"])
