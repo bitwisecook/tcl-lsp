@@ -4,8 +4,10 @@
 //! command pieces (head text, per-arg texts, per-arg representative
 //! tokens, surrounding namespace prefix) and mutates a [`ScanCtx`].
 //! Handlers do not recurse into bodies themselves — body recursion
-//! lives in [`super::walker`] and is wired in when the walker sub-strips
-//! land.
+//! lives in [`super::walker`] (`handle_if` / `handle_catch` /
+//! `handle_try` / `maybe_recurse_body`) and the namespace-eval body
+//! recursion lives inside `handle_namespace` here, which calls back
+//! into `walker::maybe_recurse_body`.
 //!
 //! [`ScanCtx`]: super::ctx::ScanCtx
 

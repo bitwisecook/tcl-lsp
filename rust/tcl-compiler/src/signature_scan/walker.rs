@@ -2,14 +2,23 @@
 //!
 //! Walks segmented commands and dispatches them to per-command
 //! handlers in [`super::handlers`]. Body recursion into braced
-//! scripts (proc bodies, namespace eval bodies, structured-command
+//! scripts (proc bodies, namespace-eval bodies, structured-command
 //! branches) lives here too — it must not depend on the IR
 //! lowering pass, which is the whole reason the `signature_scan`
 //! module exists.
 //!
-//! Body recursion for `namespace eval`, `if`, `catch`, and `try`
-//! is added incrementally in C40c2-C40c5 sub-strips; the dispatch
-//! arms for those commands call no-op stubs in this scaffold strip.
+//! Public-to-the-module entry points:
+//!
+//! - [`scan`] — the main walker; called by
+//!   [`super::extract_signatures`] for the top-level source and
+//!   recursively by [`maybe_recurse_body`] for braced bodies.
+//! - [`maybe_recurse_body`] — gates body recursion on `Str`
+//!   (braced) tokens; called from `handle_namespace` (eval arm),
+//!   `handle_if` / `handle_catch` / `handle_try` here.
+//! - [`scan_factory_candidates`] — secondary walker called from
+//!   `handle_proc`; only collects four-token factory candidates and
+//!   recurses into structural-control bodies via
+//!   `scan_factory_structural`.
 
 use tcl_lexer::{Token, TokenType};
 
@@ -101,8 +110,10 @@ pub(super) fn maybe_recurse_body(
     scan(body_text, Some(body_tok), ns_prefix, conditional, ctx);
 }
 
-// -- Body-recursion handler stubs ---------------------------------
-// Filled in by C40c3 (`if`), C40c4 (`catch`), C40c5 (`try`).
+// -- Body-recursion handlers --------------------------------------
+// Each port of a `_handle_*` function from
+// `core/analysis/signature_scan.py` whose Python equivalent recurses
+// into braced bodies.
 
 fn handle_if(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
     // Tcl's `if` takes the shape:

@@ -2,7 +2,7 @@
 //!
 //! After the main walker collects every candidate four-token call
 //! (in `ctx.candidates`) and every proc body's text + params (in
-//! `ctx.proc_bodies`), the resolver:
+//! `ctx.proc_bodies`), [`resolve_factory_defs`]:
 //!
 //! 1. classifies each proc body as a real factory wrapper iff its
 //!    body contains a `proc $a $b $c` shape using the wrapper's own
@@ -10,9 +10,10 @@
 //! 2. for each candidate, looks up the factory it binds to using
 //!    Tcl's command-resolution path ([`lookup_factory`]);
 //! 3. emits a synthetic [`SignatureProc`] under the factory's home
-//!    namespace ([`resolve_factory_defs`]).
+//!    namespace, idempotently skipping any qualified name already
+//!    present in [`super::ctx::ScanCtx::result`]`.procs`.
 //!
-//! Subsequent C40d sub-strips fill in items 2 and 3.
+//! [`SignatureProc`]: super::types::SignatureProc
 
 use std::collections::{HashMap, HashSet};
 

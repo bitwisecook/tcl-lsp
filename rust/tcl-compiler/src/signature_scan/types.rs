@@ -1,10 +1,18 @@
 //! Public record types emitted by the signature scanner.
 //!
 //! Mirrors the subset of `core.analysis.semantic_model` populated by
-//! `signature_scan.py`. The remaining record types and the
-//! [`SignatureScanResult`] aggregator are added by later C40 sub-strips.
+//! `signature_scan.py`: [`SignatureProc`], [`SignatureClass`],
+//! [`SignaturePackageRequire`], [`SignatureSource`],
+//! [`SignatureCommandAlias`], [`SignatureNamespaceImport`],
+//! [`SignatureAutoPathEntry`], [`SignatureCommandInvocation`], plus
+//! the [`SignatureScanResult`] aggregator returned by
+//! [`super::extract_signatures`] and the [`ParamDef`] used inside
+//! [`SignatureProc::params`].
 //!
-//! [`SignatureScanResult`]: super::types::SignatureScanResult
+//! Spans are [`tcl_lexer::Span`]; the `PyO3` binding in
+//! `rust/tcl-lsp-rust/src/signature_scan.rs` flattens them to
+//! `(start, end)` `u32` tuples for the materialiser on the Python
+//! side.
 
 use std::collections::BTreeMap;
 

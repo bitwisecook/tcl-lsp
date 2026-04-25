@@ -16,10 +16,25 @@
 //! whole point of this module is to be fast for background-indexed
 //! files, so it deliberately avoids the lowering pass.
 //!
-//! Submodules are filled in by the C40 sub-strips (`C40a*` types,
-//! `C40b*` per-command handlers, `C40c*` walker, `C40d*` factory
-//! resolution + entry point, `C40e*` `PyO3` binding + Python shim +
-//! differential harness).
+//! Module layout:
+//!
+//! - [`types`] — public record types ([`SignatureScanResult`] +
+//!   per-collection records) plus [`ParamDef`].
+//! - [`params`] — `parse_param_list` for the proc parameter-list arg.
+//! - `ctx` (private) — internal scan state ([`ScanCtx`],
+//!   `FactoryCandidate`, `ProcBodyInfo`, `FACTORY_SKIP_HEADS`).
+//! - `handlers` (private) — per-command handlers
+//!   (`handle_proc`, `handle_namespace`, `handle_package`, …).
+//! - `walker` (private) — top-level `scan` plus the body-recursion
+//!   helpers (`maybe_recurse_body`, `handle_if` / `handle_catch` /
+//!   `handle_try`) and the factory-body sub-walker
+//!   (`scan_factory_candidates` / `scan_factory_structural`).
+//! - `factory` (private) — second-pass factory-wrapper resolver
+//!   (`is_factory_body`, `lookup_factory`, `resolve_factory_defs`).
+//!
+//! The public entry point is [`extract_signatures`].
+//!
+//! [`ParamDef`]: types::ParamDef
 
 mod ctx;
 mod factory;

@@ -2,11 +2,21 @@
 //!
 //! These are crate-private — they accumulate intermediate results
 //! during the walk and are consumed by the second-pass factory
-//! resolver before the public [`SignatureScanResult`] is returned.
+//! resolver (see [`super::factory::resolve_factory_defs`]) before
+//! the public [`SignatureScanResult`] is returned.
 //!
-//! Fields carry `#[allow(dead_code)]` until the C40b/c/d sub-strips
-//! that consume them land; once those wire-ins are in place, the
-//! attributes can be removed.
+//! - [`ScanCtx`] is threaded as `&mut` through the walker and every
+//!   handler; it owns the public `result` accumulator plus the two
+//!   first-pass vectors `candidates` and `proc_bodies`.
+//! - [`FactoryCandidate`] records each four-token call (`HEAD NAME
+//!   ARGS BODY`) the walker spotted, deferring binding to a real
+//!   factory until pass two.
+//! - [`ProcBodyInfo`] records each proc body's text + params +
+//!   home namespace so the factory detector can spot the canonical
+//!   `proc $name $args $body` shape.
+//! - [`FACTORY_SKIP_HEADS`] is the negative list of built-in heads
+//!   that incidentally take the same four-token shape but are
+//!   definitely not factory wrappers.
 //!
 //! [`SignatureScanResult`]: super::types::SignatureScanResult
 
