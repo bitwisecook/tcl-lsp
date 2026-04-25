@@ -159,16 +159,65 @@ once.  Exception: if the result is one of the words (e.g. `set x
 $y` returns `$y`), the *result* keeps a retain via the return
 value — release the others, leave the result alone.
 
-### B.5 — Drain on eval-depth-zero
+**Status:** staged in `execute_parsed_command` (both fast and
+slow paths) but currently DISABLED.  See B.6 for the blocker.
 
-The existing `tcl_obj_drain_pending` mechanism defers actual
-free until the outermost `tcl_eval` returns.  Keep this — it
-prevents a release-mid-dispatch from invalidating a (ptr, len)
-borrow held by the same dispatch.  Document the invariant: any
-`(ptr, len)` borrowed from a TclObj is valid for the duration of
-the current `tcl_eval` call.
+### B.5 — Per-store-site retain/release
 
-### B.6 — Track "shared buffer" relationships explicitly
+Done in this commit:
+- B.5a: `array_set` / `ar_insert` value slot
+- B.5d: `frame_set_argv` + `frame_pop` argv release
+- `eval_return` / `eval_proc_call_bucket` `return_val` slot
+
+Not done (and not needed — list/dict store as strings, not
+TclObj refs):
+- list element setters (`tcl_cmd_list_insert` /
+  `tcl_cmd_list_replace` / `tcl_cmd_list_set`) — rebuild the
+  list as a fresh string TclObj
+- `dict_set` — rebuilds the dict as a fresh string TclObj
+
+### B.6 — Pointer-borrow audit (BLOCKER for B.4)
+
+cmdIL.test still traps with `site=N <binary garbage>` when
+B.4 is enabled.  The trap signature: a TclObj's owned buffer
+got freed mid-dispatch and the slab was re-issued before the
+dispatch finished reading the command name from it.
+
+Concrete scenario observed: bracket-subst ``[namespace
+current]`` inside ``namespace which -command [namespace
+current] ::CleanupTest``.  The inner eval_script("namespace
+current") parses two words, dispatches "namespace", which
+returns "::tcltest::test".  Then the outer dispatch continues
+with the substituted result — but reading words[0] for the
+outer dispatch returns garbage because something released the
+outer's already-parsed word.
+
+Audit candidates (each holds a borrowed (ptr, len) into a
+TclObj's buffer):
+- `proc_table[].name_ptr` / `.name_len` — currently a heap-
+  copied buffer in `alloc_command`, not a TclObj ref, so
+  appears safe.  Verify.
+- `tcl_ns_export_patterns` — each pattern stored as raw
+  `(ptr, len)`.  If the pattern came from a TclObj that was
+  released, the pattern bytes go stale.
+- `tcl_alias_*` descriptor structs — alias source / target
+  command names.  Same shape.
+- `parse_cache` entries — token offsets into a body whose
+  buffer might be freed.  Cache invalidation needed.
+- `tcl_diag.current_eval_ptr` — recorded for trap context.
+  Set per `eval_script` call but might point to a script
+  whose owner is releasing.
+- `frame_argv[]` for `info level 0` — fixed in B.5d but
+  similar shape for `info level -N` if implemented.
+
+For each, the fix is the same: either retain the source TclObj
+for the duration the (ptr, len) is held, or copy the bytes
+into a fresh owned buffer at storage time.
+
+Once B.6 is in, B.4 should re-enable cleanly and reg* OOM
+disappears.
+
+### B.7 — Track "shared buffer" relationships explicitly (future)
 
 Today an `OBJ_STR_CAP == 0` TclObj points into someone else's
 buffer with no link to the lender.  Add a hidden `OBJ_LENDER`
@@ -179,9 +228,12 @@ TclObj's `release_now` releases the lender.
 
 Enables things like `obj_new_string_borrow(parent, off, len)` —
 parser word creation — to set up the lender link automatically.
-
 Avoids the Phase 1.3 corruption because the lender chain is
 explicit and ref-counted.
+
+Optional: this whole story can be skipped if B.6 fully copies
+borrowed bytes at every store site, but that's wasteful for
+the dispatch fast path.  B.7 is the perf-friendly version.
 
 ## Phase MM-C — debug-only leak detection
 

@@ -1752,14 +1752,17 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
             wi += 1;
         }
-        // MM-B.4 staged but currently DISABLED.  Even with all of
-        // MM-B.5 (array_set / frame_argv / return_val retain), some
-        // store sites that haven't been audited yet are still
-        // dropping refs we'd need: corrupting command-name TclObjs
-        // mid-dispatch (cmdIL.test trap signature: ``site=N <binary
-        // garbage>``).  Letting parser-produced word_objs leak is
-        // bounded by the workload's command count × ~64 bytes.
-        // tcltest bundles top out around a few MB.
+        // MM-B.4 staged but DISABLED.  Even with the large
+        // pending-free queue, MM-B.5a/d retains, return_val
+        // retain, and the drain refcount==0 race fix, cmdIL.test
+        // still exhibits ``site=N <binary garbage>`` traps —
+        // command-name TclObjs whose buffers were freed mid-
+        // dispatch.  Indicates one or more borrowed (ptr, len)
+        // pairs held across a release boundary that we haven't
+        // tracked down (proc-table OFF_NAME_PTR, namespace export
+        // patterns, alias descriptors are the leading
+        // candidates).  See MM-B.6 sub-plan in
+        // docs/design/runtime/memory-management.md.
         return eval_command(word_objs[0..wi]);
     }
 

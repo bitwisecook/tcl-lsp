@@ -420,7 +420,11 @@ pub export fn tcl_obj_retain(obj: i32) void {
 // overflow is unlikely on real workloads).  On overflow we bypass
 // the deferral and free immediately — degrades to the old aliasing
 // risk but doesn't lose memory.
-const PENDING_FREE_CAP: u32 = 256;
+// Large queue so MM-B.4 (release every parser word per statement)
+// doesn't overflow into immediate-free, which would race with
+// libc malloc re-issuing a slab while it's still borrowed by an
+// outer eval_script's parser walk.
+const PENDING_FREE_CAP: u32 = 65536;
 var pending_free: [PENDING_FREE_CAP]u32 = [_]u32{0} ** PENDING_FREE_CAP;
 var pending_free_count: u32 = 0;
 
