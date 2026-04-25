@@ -1786,8 +1786,22 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
 }
 
 // Exported: evaluate a Tcl script string.
+//
+// Drains the deferred-free queue at the outermost call boundary
+// so a ``(ptr, len)`` borrowed across an ``alloc`` doesn't alias
+// a freshly-recycled slab while the script body is still walking
+// the bytes.  Nested calls (command substitution, ``eval``,
+// ``[expr]`` bodies) skip the drain — the outer call cleans up
+// for everyone when it unwinds.
+var tcl_eval_depth: u32 = 0;
 pub export fn tcl_eval(script: i32) i32 {
     const s = obj_ensure_string(script);
     if (s.len == 0) return 0;
-    return eval_script(s.ptr, s.len);
+    tcl_eval_depth += 1;
+    const r = eval_script(s.ptr, s.len);
+    tcl_eval_depth -= 1;
+    if (tcl_eval_depth == 0) {
+        obj_mod.tcl_obj_drain_pending();
+    }
+    return r;
 }

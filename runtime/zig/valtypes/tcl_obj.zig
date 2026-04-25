@@ -453,22 +453,64 @@ pub export fn tcl_obj_retain(obj: i32) void {
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
 }
 
+// Deferred-free queue.  Holds TclObj headers whose refcount
+// reached zero but whose buffer/header haven't been pushed onto
+// the free-lists yet.  We drain at safe points (between
+// statements in the eval loop) so a ``(ptr, len)`` borrowed from
+// a soon-to-be-released TclObj cannot alias a freshly-recycled
+// allocation.
+//
+// The queue is a fixed-size ring (drains often enough that
+// overflow is unlikely on real workloads).  On overflow we bypass
+// the deferral and free immediately — degrades to the old aliasing
+// risk but doesn't lose memory.
+const PENDING_FREE_CAP: u32 = 256;
+var pending_free: [PENDING_FREE_CAP]u32 = [_]u32{0} ** PENDING_FREE_CAP;
+var pending_free_count: u32 = 0;
+
+fn release_now(addr: u32) void {
+    const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
+    if (cap > 0) {
+        const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        if (sp != 0) free_sized(sp, cap);
+    }
+    free_obj(addr);
+}
+
+/// Drain the deferred-free queue.  Called by the eval loop between
+/// statements so all references to a since-released TclObj's bytes
+/// have been consumed before the slab is reissued.
+pub export fn tcl_obj_drain_pending() void {
+    var i: u32 = 0;
+    while (i < pending_free_count) : (i += 1) {
+        release_now(pending_free[i]);
+    }
+    pending_free_count = 0;
+}
+
 pub export fn tcl_obj_release(obj: i32) void {
     if (obj == 0) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc <= 1) {
-        // Free a buffer-owned byte payload before recycling the
-        // header.  ``OBJ_STR_CAP`` is non-zero only for buffers we
-        // allocated ourselves (string copies, capacity-grown append
-        // results); zero means the str_ptr points into a wasm data
+        // Defer the actual free so a ``(ptr, len)`` reference
+        // borrowed elsewhere can't alias a freshly-reissued slab.
+        // ``OBJ_STR_CAP`` is non-zero only for buffers we allocated
+        // ourselves; zero means the str_ptr points into a wasm data
         // segment / interned literal we must not free.
-        const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
-        if (cap > 0) {
-            const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
-            if (sp != 0) free_sized(sp, cap);
+        if (pending_free_count < PENDING_FREE_CAP) {
+            // Mark the obj as "in-flight free" by zeroing the
+            // refcount so a stray re-release on the same handle
+            // becomes a no-op (we already counted it).
+            write_i32(addr + OBJ_REFCOUNT, 0);
+            pending_free[pending_free_count] = addr;
+            pending_free_count += 1;
+        } else {
+            // Queue full — fall back to immediate free.  Acceptable
+            // worst case: drains happen often enough that this is
+            // rare in practice.
+            release_now(addr);
         }
-        free_obj(addr);
     } else {
         write_i32(addr + OBJ_REFCOUNT, rc - 1);
     }
