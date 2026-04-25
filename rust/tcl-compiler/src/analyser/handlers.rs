@@ -237,6 +237,39 @@ impl Analyser {
         let body_tok = arg_tokens[2];
         let body_span = body_tok.span;
 
+        // **W113** — proc name shadows a built-in command.
+        // Mirrors ``_proc.py:70-89``.  The check runs against
+        // both the unqualified ``proc_name`` and the fully-
+        // qualified form, with the leading ``::`` trimmed (the
+        // registry indexes by bare command name).  The inner
+        // borrow on ``self.builtin_command_names()`` is dropped
+        // before the diagnostic push so ``self.result`` is free
+        // to mutate.
+        let normalised_proc: String = raw_name.trim_start_matches(':').to_string();
+        let normalised_qual: String = qualified.trim_start_matches(':').to_string();
+        let shadow_match = {
+            let builtins = self.builtin_command_names();
+            if builtins.contains(&normalised_proc) {
+                true
+            } else {
+                builtins.contains(&normalised_qual)
+            }
+        };
+        if shadow_match {
+            let dialect_label = if self.dialect.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", self.dialect)
+            };
+            let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W113".to_string(),
+                span: name_span,
+                message,
+                severity: super::types::Severity::Warning,
+            });
+        }
+
         let params = parse_param_list(&args[1]);
         let doc = std::mem::take(&mut self.last_comment);
 
@@ -1255,6 +1288,146 @@ mod tests {
         );
         assert!(!handled);
         assert!(a.result.all_procs.is_empty());
+    }
+
+    // -- handle_proc_command W113 shadow check (C41c4) --------------
+
+    #[test]
+    fn handle_proc_emits_w113_for_builtin_shadow() {
+        // ``proc set {} {}`` — the proc name is a built-in.
+        // W113 should anchor at the proc-name span and carry
+        // the canonical message shape.
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        let w113s: Vec<&crate::analyser::types::Diagnostic> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W113")
+            .collect();
+        assert_eq!(w113s.len(), 1);
+        assert_eq!(w113s[0].span, span(5, 8));
+        assert!(w113s[0].message.contains("'set' shadows built-in"));
+        assert!(w113s[0].message.contains("(tcl)"));
+        assert_eq!(w113s[0].severity, crate::analyser::types::Severity::Warning);
+    }
+
+    #[test]
+    fn handle_proc_no_w113_for_non_builtin_name() {
+        // ``foo`` is not a built-in — no W113.
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "should NOT emit W113 for non-built-in name 'foo'",
+        );
+    }
+
+    #[test]
+    fn handle_proc_w113_matches_qualified_form() {
+        // ``proc ::set {} {}`` — qualified form also shadows
+        // ``set`` because the registry indexes by bare command
+        // name (``::`` is trimmed at lookup).
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["::set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 10)),
+                str_tok(span(11, 13)),
+                str_tok(span(14, 16)),
+            ],
+            &[],
+        );
+        assert!(a.result.diagnostics.iter().any(|d| d.code == "W113"));
+    }
+
+    #[test]
+    fn handle_proc_w113_no_dialect_label_when_dialect_empty() {
+        // Empty dialect → no parenthetical label in the message.
+        let mut a = Analyser::new();
+        // dialect intentionally left empty
+        a.handle_proc_command(
+            "proc",
+            &["set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        let w113 = a
+            .result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "W113")
+            .expect("W113 expected");
+        assert!(w113.message.contains("'set' shadows built-in"));
+        assert!(!w113.message.contains('('), "no dialect label expected");
+    }
+
+    #[test]
+    fn handle_proc_w113_dialect_specific_command_only_shadows_in_that_dialect() {
+        // ``HTTP::respond`` is iRules-specific; under the
+        // ``f5-irules`` dialect a proc named ``HTTP::respond``
+        // shadows a built-in, but under plain ``tcl`` it does
+        // not.
+        let mut a = Analyser::new();
+        a.dialect = "f5-irules".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["HTTP::respond".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 18)),
+                str_tok(span(19, 21)),
+                str_tok(span(22, 24)),
+            ],
+            &[],
+        );
+        assert!(
+            a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "f5-irules dialect should treat HTTP::respond as built-in",
+        );
+
+        // Same proc, plain tcl dialect → no W113.
+        let mut b = Analyser::new();
+        b.dialect = "tcl".to_string();
+        b.handle_proc_command(
+            "proc",
+            &["HTTP::respond".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 18)),
+                str_tok(span(19, 21)),
+                str_tok(span(22, 24)),
+            ],
+            &[],
+        );
+        assert!(
+            !b.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "plain tcl dialect should NOT flag HTTP::respond",
+        );
     }
 
     // -- handle_proc_command body recursion (C41c1) -----------------

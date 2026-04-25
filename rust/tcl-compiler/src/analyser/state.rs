@@ -86,6 +86,14 @@ pub struct Analyser {
     /// ``self._source`` in
     /// ``core/analysis/_analyser/_core.py:43``.
     pub source: String,
+    /// Active dialect name (``"tcl"``, ``"f5-irules"``,
+    /// ``"f5-iapps"``, etc.).  Set at the top of
+    /// [`Self::analyse`].  Mirrors ``active_dialect()`` in
+    /// Python — handlers that need to compute dialect-specific
+    /// command sets (W113 shadow check, dialect-only command
+    /// gating in C41d) read this directly.  Empty string when
+    /// dialect was not specified.
+    pub dialect: String,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
     /// Last seen comment text, for proc / class doc-comment
@@ -161,6 +169,7 @@ impl Analyser {
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
             source: String::new(),
+            dialect: String::new(),
             disabled_diagnostics: disabled,
             last_comment: String::new(),
             file_path: None,
@@ -210,12 +219,12 @@ impl Analyser {
         use std::collections::HashSet;
         use tcl_registry::CommandRegistry;
 
-        let _ = dialect;
         // Stash the source so handlers (recovery in C41e4/e5,
         // diagnostic emitters in C41d) can re-slice it.  Mirrors
         // ``self._source = source`` in
         // ``core/analysis/_analyser/_core.py``.
         self.source = source.to_string();
+        self.dialect = dialect.to_string();
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -254,6 +263,45 @@ impl Analyser {
         }
 
         std::mem::take(&mut self.result)
+    }
+
+    /// Resolve (and cache) the set of built-in command names for
+    /// the active dialect.
+    ///
+    /// Mirrors the inline cache in
+    /// ``_AnalyserProcMixin._handle_proc``
+    /// (``core/analysis/_analyser/_proc.py:71-74``) — the
+    /// registry is built once per dialect and the resulting name
+    /// set is held on ``self.builtin_names`` for subsequent
+    /// proc / class registrations to consult without rebuilding.
+    /// Used by **W113** (proc shadows built-in) at proc-emit time
+    /// and the **C41d** emitters that gate on built-in vs
+    /// user-defined.
+    ///
+    /// The dialect string is parsed via ``DialectSet::parse``;
+    /// unknown dialect names fall through to the core registry
+    /// (TCL / stdlib / tcllib only) — same fallback Python uses
+    /// implicitly when ``REGISTRY.command_names(dialect)``
+    /// returns just the built-in set.
+    pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
+        use tcl_registry::prelude::DialectSet;
+        use tcl_registry::CommandRegistry;
+        if self.builtin_dialect.as_deref() != Some(self.dialect.as_str())
+            || self.builtin_names.is_none()
+        {
+            let mut registry = CommandRegistry::build_default();
+            if let Some(d) = DialectSet::parse(&self.dialect) {
+                registry.load_dialect(d);
+            }
+            let names: std::collections::HashSet<String> =
+                registry.command_names().map(str::to_string).collect();
+            self.builtin_names = Some(names);
+            self.builtin_dialect = Some(self.dialect.clone());
+        }
+        // Safe: ``builtin_names`` was just set if it was missing.
+        self.builtin_names
+            .as_ref()
+            .expect("builtin_names populated above")
     }
 }
 
@@ -364,6 +412,34 @@ mod tests {
         let mut a = Analyser::new();
         let _ = a.analyse("set x 1", "tcl");
         assert_eq!(a.source, "set x 1");
+    }
+
+    #[test]
+    fn analyse_records_dialect_for_w113_and_emitter_use() {
+        // Handlers (W113 shadow check, dialect-only emitters in
+        // C41d) read ``self.dialect`` directly.  The field must
+        // be populated at the top of ``analyse``.
+        let mut a = Analyser::new();
+        let _ = a.analyse("", "f5-irules");
+        assert_eq!(a.dialect, "f5-irules");
+    }
+
+    #[test]
+    fn builtin_command_names_caches_per_dialect() {
+        // First lookup populates the cache; subsequent lookups
+        // with the same dialect return the same set.
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        let initial_len = a.builtin_command_names().len();
+        // ``set`` is a core built-in across all dialects.
+        assert!(a.builtin_command_names().contains("set"));
+        // Cache invalidation: switching dialect rebuilds.
+        a.dialect = "f5-irules".to_string();
+        let irules_len = a.builtin_command_names().len();
+        assert!(
+            irules_len > initial_len,
+            "f5-irules should add commands beyond core (got {irules_len} vs {initial_len})",
+        );
     }
 
     #[test]
