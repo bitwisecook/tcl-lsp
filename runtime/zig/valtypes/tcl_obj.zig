@@ -129,6 +129,25 @@ fn ensure_capacity(needed_end: u32) bool {
 
 pub fn alloc(size: u32) callconv(.c) u32 {
     const requested = (size + 7) & ~@as(u32, 7);
+    // Fast path for the dominant case — OBJ_SIZE TclObj headers
+    // hit the class-0 free-list directly without scanning the
+    // SIZE_CLASSES table.  Every other size goes through the
+    // generic class lookup.
+    if (requested == OBJ_SIZE) {
+        if (free_lists[0] != 0) {
+            const ptr = free_lists[0];
+            free_lists[0] = @intCast(read_i32(ptr));
+            return ptr;
+        }
+        const ptr = heap_ptr;
+        const end = ptr + OBJ_SIZE;
+        if (!ensure_capacity(end)) {
+            oom_flag = 1;
+            return 0;
+        }
+        heap_ptr = end;
+        return ptr;
+    }
     const aligned = round_up_to_class(requested);
     // Try the matching size-class free-list first.
     if (class_head_for(aligned)) |head_ptr| {

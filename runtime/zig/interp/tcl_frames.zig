@@ -109,6 +109,33 @@ const MAX_DEPTH: u32 = 64;
 var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 pub var frame_depth: u32 = 0;
 
+// Per-frame "dirty" bitmap.  Each bit covers a 128-byte chunk (8
+// buckets × 16 bytes) of the frame buffer.  ``frame_push`` only
+// clears chunks whose bit is set, then resets the bitmap.  Writers
+// (``frame_insert`` / ``frame_overwrite``) OR in the bit covering
+// the bucket they wrote.
+//
+// A no-arg / few-locals proc dirties one or two chunks per call,
+// so push cost drops from a 4 KB ``@memset`` to 128–256 bytes —
+// the dominant fix for the no-arg-proc-call cost.
+//
+// Frames whose overall capacity exceeds 32 chunks (4 KB) would need
+// a wider mask; today FRAME_SIZE = 4096 bytes = 32 chunks, so a
+// single u32 covers the entire frame.
+const FRAME_CHUNK_BYTES: u32 = 128;
+const FRAME_CHUNKS: u32 = FRAME_SIZE / FRAME_CHUNK_BYTES; // 32 with current sizing
+var frame_dirty: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
+/// Mark the chunk containing ``bucket_offset`` (a byte offset within
+/// the frame buffer, NOT an absolute address) as dirty so the next
+/// ``frame_push`` for this slot clears it.
+pub inline fn mark_dirty(idx: u32, bucket_offset: u32) void {
+    const chunk = bucket_offset / FRAME_CHUNK_BYTES;
+    if (chunk < FRAME_CHUNKS) {
+        frame_dirty[idx] |= @as(u32, 1) << @intCast(chunk);
+    }
+}
+
 // Per-frame invocation argv — the list of words (command name +
 // arguments) that entered each frame.  Set by callers immediately
 // after ``frame_push`` — both the interpreter's
@@ -171,21 +198,39 @@ pub export fn frame_take_pending_argv0() i32 {
 pub export fn frame_push() i32 {
     if (frame_depth >= MAX_DEPTH) return -1; // stack overflow
     const idx = frame_depth;
+    var first_use = false;
     if (frame_stack[idx] == 0) {
         // Allocate frame on first use
         frame_stack[idx] = alloc(FRAME_SIZE);
+        first_use = true;
     }
-    // Zero the whole bucket array in one go.  Under
-    // ``-Doptimize=ReleaseFast`` with Zig 0.13's bulk-memory default
-    // this lowers to a single ``memory.fill`` instruction, replacing
-    // the 64-iteration ``write_i32`` loop that dominated
-    // ``proc_call`` cost on dispatch-heavy bundles (tcltest's
-    // ``test`` proc alone invokes this once per test-case).  A
-    // zero ``name_ptr`` at the start of each 16-byte bucket marks
-    // the bucket empty, matching the per-bucket write above.
     const base = frame_stack[idx];
-    const slice: [*]u8 = @ptrFromInt(base);
-    @memset(slice[0..FRAME_SIZE], 0);
+    if (first_use) {
+        // Brand-new buffer from the bump allocator — Zig zero-fills
+        // pages on grow but a recycled OBJ_SIZE slab from the size-
+        // class free-list won't be (and our frame size doesn't
+        // currently come from a free-list, but be defensive).
+        const slice: [*]u8 = @ptrFromInt(base);
+        @memset(slice[0..FRAME_SIZE], 0);
+    } else {
+        // Selective clear via the dirty bitmap.  The bitmap is from
+        // the previous push that recycled this slot, so each set bit
+        // marks a 128-byte chunk that needs zeroing.  Chunks that
+        // were never written stay zero from the previous clear (or
+        // from the first-use ``@memset`` above), so we don't have
+        // to touch them.
+        var dirty = frame_dirty[idx];
+        var chunk: u32 = 0;
+        while (dirty != 0) : (chunk += 1) {
+            if ((dirty & 1) != 0) {
+                const off = chunk * FRAME_CHUNK_BYTES;
+                const slice: [*]u8 = @ptrFromInt(base + off);
+                @memset(slice[0..FRAME_CHUNK_BYTES], 0);
+            }
+            dirty >>= 1;
+        }
+    }
+    frame_dirty[idx] = 0;
     // Clear any stale argv from the previous occupant of this
     // slot so ``info level 0`` after a push without a subsequent
     // ``frame_set_argv`` reads 0, not an outdated list.
@@ -281,6 +326,18 @@ fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) 
     var t = frame_table(base);
     if (t.try_insert_header(name_ptr, name_len, hash)) |bucket| {
         write_i32(bucket + OFF_VALUE, value);
+        // Mark the chunk this bucket lives in as dirty so the next
+        // ``frame_push`` for this slot clears it.  Overwrites to the
+        // same bucket via ``frame_find`` + ``write_i32`` later don't
+        // need a separate ``mark_dirty`` call — once a chunk's bit
+        // is set, subsequent writes within the same chunk are
+        // already covered.
+        if (frame_depth > 0) {
+            const idx = frame_depth - 1;
+            if (frame_stack[idx] == base) {
+                mark_dirty(idx, bucket - base);
+            }
+        }
         return;
     }
     // Frame full — emit a clear diagnostic and trap.  Previously this
