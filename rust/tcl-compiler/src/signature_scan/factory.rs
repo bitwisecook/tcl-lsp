@@ -16,8 +16,10 @@
 
 #![allow(dead_code)]
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use super::ctx::FactoryCandidate;
+use super::handlers::qualify;
 use crate::segmenter::segment_commands;
 
 /// Return `true` when `body_text` contains a top-level
@@ -54,6 +56,36 @@ pub(super) fn is_factory_body(body_text: &str, params: &[String]) -> bool {
         }
     }
     false
+}
+
+/// Resolve `cand.head` to a factory's qualified name, following
+/// Tcl's command-resolution order.
+///
+/// Mirrors `_lookup_factory` in
+/// `core/analysis/signature_scan.py`. Absolute heads (those
+/// starting with `::`) match verbatim. Relative heads try the
+/// call-site qualified name first, then the global namespace —
+/// they never fall through to "any factory with this bare name",
+/// which would bind calls in one namespace to a wrapper in an
+/// unrelated one (Tcl itself refuses to cross those boundaries).
+#[must_use]
+pub(super) fn lookup_factory<'a>(
+    cand: &FactoryCandidate,
+    factories: &'a HashMap<String, String>,
+) -> Option<&'a String> {
+    let head = &cand.head;
+    if head.starts_with("::") {
+        return factories.get(head);
+    }
+    let qualified = qualify(&cand.ns_prefix, head);
+    if let Some(v) = factories.get(&qualified) {
+        return Some(v);
+    }
+    let global_q = format!("::{head}");
+    if global_q != qualified {
+        return factories.get(&global_q);
+    }
+    None
 }
 
 #[cfg(test)]
@@ -95,5 +127,59 @@ mod tests {
         let body = "proc $name $args $body";
         let params = vec!["name".to_string(), "args".to_string()];
         assert!(!is_factory_body(body, &params));
+    }
+
+    use tcl_lexer::{Span, Token, TokenType};
+
+    fn cand(head: &str, ns: &str) -> FactoryCandidate {
+        FactoryCandidate {
+            head: head.to_string(),
+            name: "X".to_string(),
+            name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
+            body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
+            ns_prefix: ns.to_string(),
+        }
+    }
+
+    fn factories(entries: &[(&str, &str)]) -> HashMap<String, String> {
+        entries
+            .iter()
+            .map(|&(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn lookup_absolute_head_matches_verbatim() {
+        let f = factories(&[("::foo::DEFC", "foo")]);
+        let c = cand("::foo::DEFC", "anywhere");
+        assert_eq!(lookup_factory(&c, &f).map(String::as_str), Some("foo"));
+    }
+
+    #[test]
+    fn lookup_call_namespace_qualified_first() {
+        // Both `::ns::DEFC` and `::DEFC` exist; relative call from
+        // `ns` should resolve to the call-site one.
+        let f = factories(&[("::ns::DEFC", "ns_home"), ("::DEFC", "global_home")]);
+        let c = cand("DEFC", "ns");
+        assert_eq!(lookup_factory(&c, &f).map(String::as_str), Some("ns_home"));
+    }
+
+    #[test]
+    fn lookup_global_fallback_when_call_ns_misses() {
+        let f = factories(&[("::DEFC", "global_home")]);
+        let c = cand("DEFC", "ns");
+        assert_eq!(
+            lookup_factory(&c, &f).map(String::as_str),
+            Some("global_home"),
+        );
+    }
+
+    #[test]
+    fn lookup_cross_namespace_never_falls_through() {
+        // A factory under `::other::DEFC` should NOT resolve a
+        // bare `DEFC` call from namespace `ns`.
+        let f = factories(&[("::other::DEFC", "other_home")]);
+        let c = cand("DEFC", "ns");
+        assert!(lookup_factory(&c, &f).is_none());
     }
 }
