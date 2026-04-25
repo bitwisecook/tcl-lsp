@@ -1045,10 +1045,16 @@ Strips:
   names, unbalanced brackets. Mirrors Python's
   `core/parsing/subst_nocommands.py`. 13 unit tests covering
   every refusal condition + happy paths.
-- **C36b — Lowering: `proc $var body` resolution.** When the
-  proc-name argument is `$name` and the const-map carries a
-  literal binding for `name`, lower as a real `IRProcedure` rather
-  than an `IRCall("proc", …)`. Mirrors main `2ad4efc9`. ~80 LOC.
+- **C36b — Lowering: `proc $var body` resolution.** [LANDED]
+  `lower_proc` first checks for the `$var` shape (proc name
+  contains `$`, doesn't contain `[`, single-token VAR, name
+  resolves via `const_map_lookup`) and substitutes the literal
+  before continuing as a normal static-name proc. Multi-token
+  names (`foo_$x`, `$a$b`) and command-substitution names
+  (`$name[suffix]`) stay on the runtime / barrier path. The
+  inner proc registers under the resolved FQN. Mirrors main
+  commit `2ad4efc9`. 4 unit tests covering the resolved /
+  no-binding / command-sub / latest-set-wins shapes.
 - **C36c — Lowering: materialise `[subst -nocommands {…}]`
   bodies.** When the body argument is a `[subst -nocommands
   {template}]` substitution, evaluate the template against the

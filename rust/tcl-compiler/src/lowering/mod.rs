@@ -621,19 +621,49 @@ impl<'r> Lowerer<'r> {
 
     /// Lower `proc name params body`.
     fn lower_proc(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
-        let args = seg.args();
-        let proc_name = &args[0];
+        let args_borrow = seg.args();
+        let proc_name_initial = &args_borrow[0];
 
-        // Dynamic proc names can only be resolved at runtime.
-        if proc_name.contains('$') || proc_name.contains('[') {
-            return Statement::Barrier {
-                span: seg.span,
-                reason: "dynamic proc name".into(),
-                command: "proc".into(),
-                args: args.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
+        // Dynamic proc names: a bare ``$var`` whose value is in the
+        // const-map can be resolved at lowering time (C36b — main
+        // commit `2ad4efc9`). Multi-token names (``foo_$x``) and
+        // command-substitution names (``$name[suffix]``) stay on
+        // the runtime path.
+        let proc_name_owned: String;
+        let mut args_owned: Vec<String>;
+        if proc_name_initial.contains('$') || proc_name_initial.contains('[') {
+            let arg_tokens = seg.arg_tokens();
+            let single_token_proc_name = seg.single_token_word.get(1).copied().unwrap_or(false);
+            let resolved = if !proc_name_initial.contains('[')
+                && single_token_proc_name
+                && arg_tokens
+                    .first()
+                    .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
+            {
+                self.const_map_lookup(proc_name_initial)
+            } else {
+                None
             };
+            let Some(literal) = resolved else {
+                return Statement::Barrier {
+                    span: seg.span,
+                    reason: "dynamic proc name".into(),
+                    command: "proc".into(),
+                    args: args_borrow.to_vec(),
+                    tokens: Some(Self::cmd_tokens(seg)),
+                };
+            };
+            proc_name_owned = literal;
+            args_owned = args_borrow.to_vec();
+            args_owned[0].clone_from(&proc_name_owned);
+        } else {
+            proc_name_owned = proc_name_initial.clone();
+            args_owned = args_borrow.to_vec();
         }
+        // Re-bind ``args`` and ``proc_name`` to the (possibly
+        // substituted) owned values.
+        let args: &[String] = &args_owned;
+        let proc_name = &proc_name_owned;
 
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
@@ -1348,6 +1378,59 @@ mod tests {
             m.namespace_imports,
             vec![("::".to_string(), "::tcltest::*".to_string())]
         );
+    }
+
+    #[test]
+    fn proc_dynamic_name_resolved_via_const_map() {
+        // C36b: ``set name {Verbose}; proc \$name {} { ... }``
+        // inside a proc — ``name`` is in the const-map, so the
+        // inner proc registers as ``::Verbose``.
+        let m = lower_to_ir(
+            "proc factory {} { set name {Verbose}\n proc $name {} { puts hi } }",
+            &reg(),
+        );
+        assert!(
+            m.procedures.contains_key("::Verbose"),
+            "expected ::Verbose in {:?}",
+            m.procedures.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn proc_dynamic_name_no_binding_stays_barrier() {
+        // ``proc \$name`` with no const-map entry — bail to barrier.
+        let m = lower_to_ir("proc factory {} { proc $name {} { puts hi } }", &reg());
+        let factory = m.procedures.get("::factory").expect("factory registered");
+        let last = factory.body.statements.last().expect("body");
+        assert!(
+            matches!(last, Statement::Barrier { .. }),
+            "expected Barrier, got {last:?}"
+        );
+    }
+
+    #[test]
+    fn proc_with_command_substitution_in_name_stays_barrier() {
+        // ``proc \$name[suffix]`` — multi-token name with a command
+        // substitution. The const-map gate only covers single-VAR
+        // tokens; this stays on the runtime path.
+        let m = lower_to_ir(
+            "proc factory {} { set name {x}\n proc $name[suffix] {} { puts hi } }",
+            &reg(),
+        );
+        // ``::factory`` registered; the inner proc must NOT be
+        // registered under any literal name (``::x...``).
+        assert!(!m.procedures.keys().any(|k| k.contains("suffix")));
+    }
+
+    #[test]
+    fn proc_dynamic_name_picks_latest_set() {
+        // Multiple ``set`` calls — the most recent literal wins.
+        let m = lower_to_ir(
+            "proc factory {} { set name {First}\n set name {Second}\n proc $name {} { puts hi } }",
+            &reg(),
+        );
+        assert!(m.procedures.contains_key("::Second"));
+        assert!(!m.procedures.contains_key("::First"));
     }
 
     #[test]
