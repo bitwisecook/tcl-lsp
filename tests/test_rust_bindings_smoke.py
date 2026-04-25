@@ -138,3 +138,11 @@ def test_build_compilation_unit_returns_handle() -> None:
     assert cu.has_interprocedural is True
     # Repr smoke test.
     assert "CompilationUnit" in repr(cu)
+
+
+def test_signature_scan_extract_returns_dict() -> None:
+    """C40e1 smoke test: ``signature_scan_extract`` returns a dict;
+    the empty source case yields an empty dict (collections wired in
+    later C40e sub-strips)."""
+    result = tcl_lsp_rust.signature_scan_extract("")
+    assert isinstance(result, dict)
