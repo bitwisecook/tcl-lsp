@@ -19,10 +19,16 @@ fn eval_cd(words: []const i32) i32 {
     return fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0);
 }
 
+fn eval_source(words: []const i32) i32 {
+    if (words.len < 2) return 0;
+    return fs_mod.tcl_cmd_source(words[1]);
+}
+
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "file", .arity_min = 1, .arity_max = null, .handler = &eval_file },
     .{ .name = "pwd", .arity_min = 0, .arity_max = 0, .handler = &eval_pwd },
     .{ .name = "cd", .arity_min = 0, .arity_max = 1, .handler = &eval_cd },
+    .{ .name = "source", .arity_min = 1, .arity_max = 3, .handler = &eval_source },
 };
 
 // ``file <sub>`` sub-commands — mirrors

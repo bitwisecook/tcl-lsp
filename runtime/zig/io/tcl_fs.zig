@@ -235,6 +235,62 @@ pub export fn tcl_cmd_cd(dir: i32) i32 {
     return obj_new_string(0, 0);
 }
 
+// --- source ---
+
+/// ``source FILE`` — read FILE's contents and evaluate as Tcl.
+///
+/// Resolves *path* against the WASI preopen tree via the existing
+/// ``open(2)`` extern, reads the contents into a heap buffer, and
+/// hands them to ``tcl_eval``.  Returns the result of the
+/// evaluation; on a missing file or read failure the runtime traps
+/// via ``tcl_stubs.raise``.
+///
+/// Buffer ownership: we allocate via the size-class allocator and
+/// release via ``free_sized`` after ``tcl_eval`` returns — the
+/// script's parse-cache copies any needed bytes into its own
+/// storage, so the source text is no longer referenced after
+/// dispatch.
+pub export fn tcl_cmd_source(path: i32) i32 {
+    if (path == 0) {
+        stubs.raise("source: no path given");
+        return 0;
+    }
+    const stat_buf = stat_path(path);
+    if (stat_buf == 0) {
+        stubs.raise("source: file not found");
+        return 0;
+    }
+    const size_i64 = stat_size(stat_buf);
+    if (size_i64 < 0 or size_i64 > 64 * 1024 * 1024) {
+        stubs.raise("source: file size out of range");
+        return 0;
+    }
+    const size: u32 = @intCast(size_i64);
+    if (size == 0) return obj_new_string(0, 0);
+    const fd = open(path_cstr(path), O_RDONLY, 0);
+    if (fd < 0) {
+        stubs.raise("source: open failed");
+        return 0;
+    }
+    const buf = obj.alloc(size);
+    if (buf == 0) {
+        _ = close(fd);
+        return 0;
+    }
+    var off: u32 = 0;
+    while (off < size) {
+        const got = read(fd, @ptrFromInt(buf + off), size - off);
+        if (got <= 0) break;
+        off += @intCast(got);
+    }
+    _ = close(fd);
+    if (off == 0) return obj_new_string(0, 0);
+    // Wrap as a TclObj string and delegate to tcl_eval.
+    const script_obj = obj_new_string(@intCast(buf), @intCast(off));
+    const interp = @import("../interp/tcl_interp.zig");
+    return interp.tcl_eval(script_obj);
+}
+
 fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
     if (alen != literal.len) return false;
     for (0..literal.len) |i| if (a[i] != literal[i]) return false;

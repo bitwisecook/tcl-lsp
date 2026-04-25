@@ -42,7 +42,7 @@ const STUB_TRAP: []const []const u8 = &.{
     "fblocked", "tell", "seek",  "chan",      "fcopy",   "fileevent",
     "socket",
     // Filesystem / process — file/pwd/cd have real impls in BUILTINS.
-    "glob", "exec", "source", "load", "unload",
+    "glob", "exec", "load", "unload",
     // Format / pattern matching — scan/binary are in BUILTINS.
     "regexp",
     // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``

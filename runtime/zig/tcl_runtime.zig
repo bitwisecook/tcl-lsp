@@ -304,7 +304,7 @@ comptime {
     _ = &tcl_fs.tcl_cmd_pwd;
     _ = &tcl_fs.tcl_cmd_cd;
     _ = &tcl_fs_stubs.tcl_cmd_exec;
-    _ = &tcl_fs_stubs.tcl_cmd_source;
+    _ = &tcl_fs.tcl_cmd_source;
     _ = &tcl_fs_stubs.tcl_cmd_load;
     _ = &tcl_fs_stubs.tcl_cmd_unload;
     // format lives in tcl_format.zig (real impl).

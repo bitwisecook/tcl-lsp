@@ -1621,7 +1621,11 @@ class TestDiagMap:
             # see TestFormat.  ``scan`` now has a minimal real impl
             # in tcl_fmt_stubs.zig covering %c / %d / %i / %x / %o /
             # %s; unknown specifiers still trap.
-            ("source foo.tcl\n", "source"),
+            # ``source`` has a real WASI-fd-resolution impl in
+            # tcl_fs.zig — invoking it with a non-existent path
+            # raises ``source: file not found`` rather than the old
+            # ``unsupported command: source``.  See TestSource for
+            # the positive assertion.
             # ``after`` is now a no-op (silently succeeds) so that
             # counter::init -timehist can schedule without erroring in
             # our WASM event-loop-less sandbox.  See stubs_.zig.
