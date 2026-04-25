@@ -29,6 +29,7 @@ Known accepted limitations
 from __future__ import annotations
 
 import re
+import shutil
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -219,6 +220,20 @@ def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
         pytest.fail(f"{label}: compilation failed: {exc}")
 
     with tempfile.TemporaryDirectory(prefix="tcl9test-") as host_tmp:
+        # Stage common tcltest helper files (tcltests.tcl, internals.tcl,
+        # encodingVectors.tcl, pkgIndex.tcl) into the preopened tmpdir so
+        # tests that ``source [file join [file dirname [info script]] X]``
+        # can find them.  ``info script`` returns "" inside our bundles, so
+        # ``[file dirname [info script]]`` returns ".", which the WASI
+        # preopen resolves against the tmpdir root — staging them at the
+        # root is exactly what those tests expect.
+        # tcltest.tcl lives at <root>/library/tcltest/tcltest.tcl,
+        # helper files like ``tcltests.tcl`` live at <root>/tests/.
+        helpers_dir = _tcl9_tcltest().parent.parent.parent / "tests"
+        for helper in ("tcltests.tcl", "internals.tcl", "encodingVectors.tcl", "pkgIndex.tcl"):
+            src_path = helpers_dir / helper
+            if src_path.exists():
+                shutil.copyfile(src_path, Path(host_tmp) / helper)
         try:
             result = _run_wasm(
                 wasm,
