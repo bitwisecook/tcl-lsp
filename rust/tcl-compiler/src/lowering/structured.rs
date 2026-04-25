@@ -131,6 +131,13 @@ impl Lowerer<'_> {
         let mut else_body = None;
         let mut else_span = None;
         let mut i = 0;
+        // C38c: reachability tracking. Once a clause's condition
+        // folds to a static `true`, every later clause + the
+        // ``else`` branch is dead. A clause whose own condition
+        // is a static `false` is dead this iteration but not
+        // necessarily later — track per-clause via the
+        // ``dead_code_depth`` counter.
+        let mut later_clauses_dead = false;
 
         while i < args.len() {
             if args[i] == "elseif" {
@@ -142,7 +149,14 @@ impl Lowerer<'_> {
                     return Self::barrier(seg, "malformed if else clause");
                 }
                 let body_tok = arg_tokens.get(i + 1);
+                let dead = later_clauses_dead;
+                if dead {
+                    self.dead_code_depth += 1;
+                }
                 else_body = Some(self.lower_body_from_tok(&args[i + 1], body_tok, namespace));
+                if dead {
+                    self.dead_code_depth -= 1;
+                }
                 else_span = body_tok.map(|t| t.span);
                 break;
             }
@@ -159,13 +173,26 @@ impl Lowerer<'_> {
             let body_idx = i;
             let body_tok = arg_tokens.get(body_idx);
             let cond_tok = arg_tokens.get(cond_idx);
+            let static_cond = super::static_bool(&args[cond_idx]);
+            let clause_dead = later_clauses_dead || matches!(static_cond, Some(false));
+            if clause_dead {
+                self.dead_code_depth += 1;
+            }
             let body = self.lower_body_from_tok(&args[body_idx], body_tok, namespace);
+            if clause_dead {
+                self.dead_code_depth -= 1;
+            }
             clauses.push(IfClause {
                 condition: parse_expr(&args[cond_idx], None),
                 condition_span: cond_tok.map_or(seg.span, |t| t.span),
                 body,
                 body_span: body_tok.map_or(seg.span, |t| t.span),
             });
+            // Static-true condition latches the dead-code flag so
+            // remaining clauses + the else branch are suppressed.
+            if matches!(static_cond, Some(true)) {
+                later_clauses_dead = true;
+            }
             i += 1;
         }
 

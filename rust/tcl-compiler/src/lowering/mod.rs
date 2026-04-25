@@ -102,6 +102,20 @@ fn parse_param_names(param_str: &str) -> Vec<String> {
     params
 }
 
+/// Return `Some(true)` / `Some(false)` if *`expr_text`* is a
+/// literal Tcl boolean, or `None` when the condition is not a
+/// simple literal. Tolerates surrounding whitespace and is
+/// case-insensitive (matches `Tcl_GetBoolean`). Mirrors Python's
+/// `_static_bool` (main commit `06f42efa`).
+pub(crate) fn static_bool(expr_text: &str) -> Option<bool> {
+    let stripped = expr_text.trim().to_ascii_lowercase();
+    match stripped.as_str() {
+        "0" | "false" | "no" | "off" => Some(false),
+        "1" | "true" | "yes" | "on" => Some(true),
+        _ => None,
+    }
+}
+
 /// Parse the level argument of an `uplevel` call into a frame
 /// shift. Accepts the canonical positive-integer form (`uplevel 1
 /// body`, `uplevel 3 body`) and the global form (`#0` / `#N`),
@@ -268,6 +282,25 @@ pub struct Lowerer<'r> {
     /// flight. A positive value enables the const-map. Mirrors
     /// Python's `_proc_depth`.
     proc_depth: u32,
+    /// `namespace import` directives observed at lowering time
+    /// (C38a). Recorded as `(context_namespace, absolute_pattern)`
+    /// pairs and copied into `Module::namespace_imports` at the
+    /// end of lowering. Order is preserved.
+    namespace_imports: Vec<(String, String)>,
+    /// `namespace export` directives observed at lowering time
+    /// (C38b). Recorded as `(context_namespace, pattern)` pairs
+    /// and copied into `Module::namespace_exports` at the end of
+    /// lowering. Order is preserved.
+    namespace_exports: Vec<(String, String)>,
+    /// Depth of statically-dead branches currently being lowered
+    /// (C38c). `if {0} {…}` / `if {1} {…} else {…}` bump this
+    /// around the dead body so any `namespace import` /
+    /// `namespace export` directives found inside don't register
+    /// with the module-level tables. The IR for the dead code is
+    /// still produced so consumers that walk the tree by syntactic
+    /// offset see the original structure. Mirrors Python's
+    /// `_dead_code_depth`.
+    pub(crate) dead_code_depth: u32,
 }
 
 impl<'r> Lowerer<'r> {
@@ -282,12 +315,20 @@ impl<'r> Lowerer<'r> {
             registry,
             const_map_stack: Vec::new(),
             proc_depth: 0,
+            namespace_imports: Vec::new(),
+            namespace_exports: Vec::new(),
+            dead_code_depth: 0,
         }
     }
 
     /// Lower a complete source string to an IR module.
     pub fn lower(&mut self, source: &str) -> &Module {
         self.module.top_level = self.lower_script(source, "::");
+        // C38a: surface namespace import / export directives onto
+        // the module for downstream consumers (codegen import
+        // resolution, future warning passes).
+        self.module.namespace_imports = std::mem::take(&mut self.namespace_imports);
+        self.module.namespace_exports = std::mem::take(&mut self.namespace_exports);
         &self.module
     }
 
@@ -434,6 +475,7 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower a single command.
+    #[allow(clippy::too_many_lines)]
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {
             return None;
@@ -446,6 +488,43 @@ impl<'r> Lowerer<'r> {
         let args_owned: Vec<String> = args.to_vec();
         if let Some((qualified, target, prepended)) = detect_interp_alias(cmd_name, &args_owned) {
             self.aliases.insert(qualified, (target, prepended));
+        }
+
+        // C38a / C38b: detect ``namespace import ?-force? pattern...``
+        // and ``namespace export pattern...``. Records absolute
+        // patterns only — relative patterns require runtime
+        // namespace-path walking we don't model. Skips
+        // ``{*}``-expanded calls because the actual import /
+        // export list is dynamic. C38c: directives inside
+        // statically-dead branches (``if {0} {…}`` etc.) are
+        // ignored — gated on ``dead_code_depth == 0``.
+        if cmd_name == "namespace" && args.len() >= 2 && self.dead_code_depth == 0 {
+            let no_expand = seg
+                .expand_word
+                .as_ref()
+                .map_or(true, |ew| !ew.iter().any(|&e| e));
+            if no_expand && args[0] == "import" {
+                let mut i = 1usize;
+                while i < args.len() && args[i].starts_with('-') {
+                    i += 1;
+                }
+                for pat in &args[i..] {
+                    if pat.starts_with("::") && pat[2..].contains("::") {
+                        self.namespace_imports
+                            .push((namespace.to_string(), pat.clone()));
+                    }
+                }
+            } else if no_expand && args[0] == "export" {
+                let mut i = 1usize;
+                // ``-clear`` is the only flag for ``namespace export``.
+                while i < args.len() && args[i].starts_with('-') {
+                    i += 1;
+                }
+                for pat in &args[i..] {
+                    self.namespace_exports
+                        .push((namespace.to_string(), pat.clone()));
+                }
+            }
         }
 
         // Try registered lowering hooks first.
@@ -1239,6 +1318,73 @@ mod tests {
             !matches!(last, Statement::UpFrame { .. }),
             "outer scope's const-map must not leak into nested proc, got {last:?}",
         );
+    }
+
+    #[test]
+    fn ns_import_recorded_with_context_namespace() {
+        // C38a: ``namespace import ::tcltest::*`` at top-level
+        // records (``::``, ``::tcltest::*``).
+        let m = lower_to_ir("namespace import ::tcltest::*", &reg());
+        assert_eq!(
+            m.namespace_imports,
+            vec![("::".to_string(), "::tcltest::*".to_string())]
+        );
+    }
+
+    #[test]
+    fn ns_import_skips_relative_pattern() {
+        // Relative patterns (``foo::*`` without leading ``::``)
+        // require runtime namespace-path walking; we skip them.
+        let m = lower_to_ir("namespace import foo::*", &reg());
+        assert!(m.namespace_imports.is_empty());
+    }
+
+    #[test]
+    fn ns_import_handles_force_flag() {
+        // ``-force`` is the documented option; the next word is
+        // the pattern.
+        let m = lower_to_ir("namespace import -force ::tcltest::*", &reg());
+        assert_eq!(
+            m.namespace_imports,
+            vec![("::".to_string(), "::tcltest::*".to_string())]
+        );
+    }
+
+    #[test]
+    fn ns_export_recorded() {
+        let m = lower_to_ir("namespace eval ::tcltest { namespace export test }", &reg());
+        // The export was inside a ``namespace eval`` body so the
+        // context namespace is ``::tcltest``.
+        assert!(m
+            .namespace_exports
+            .iter()
+            .any(|(ns, pat)| ns == "::tcltest" && pat == "test"));
+    }
+
+    #[test]
+    fn ns_import_in_dead_branch_suppressed() {
+        // C38c: ``if {0} { namespace import ::evil::* }`` — the
+        // import is inside a syntactically-dead branch so it must
+        // NOT be recorded.
+        let m = lower_to_ir("if {0} { namespace import ::evil::* }", &reg());
+        assert!(
+            m.namespace_imports.is_empty(),
+            "imports inside dead if{{0}} branch must not be collected, got {:?}",
+            m.namespace_imports,
+        );
+    }
+
+    #[test]
+    fn ns_import_in_static_true_else_suppressed() {
+        // ``if {1} { ... } else { namespace import ::evil::* }``
+        // — the else branch is dead.
+        let m = lower_to_ir(
+            "if {1} { namespace import ::good::* } else { namespace import ::evil::* }",
+            &reg(),
+        );
+        // Only ``::good::*`` recorded.
+        assert_eq!(m.namespace_imports.len(), 1);
+        assert_eq!(m.namespace_imports[0].1, "::good::*");
     }
 
     #[test]

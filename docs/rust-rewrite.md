@@ -708,7 +708,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C35   | **Const-propagate-uplevel.** See the C35 sub-plan below. | landed |
 | C34   | **Uplevel-passthrough whole-callee inlining (`inline_uplevel`).** See the C34 sub-plan below. | landed (param-body rewrite deferred) |
 | C37   | **Parse-cache address-keying + const-map isolation.** See the C37 sub-plan below. | landed (C37b only; C37a is a Zig-runtime concern, N/A for Rust compiler) |
-| C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | planned |
+| C38   | **Namespace-import compile-time resolution.** See the C38 sub-plan below. | landed (data layer; codegen consumer deferred) |
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | planned |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | planned |
 
@@ -991,16 +991,34 @@ suppress namespace import/export in dead if branches` (main
 
 Strips:
 
-- **C38a** — Track `namespace import` declarations on `Lowerer`
-  state and fold direct call references at lowering time when the
-  imported command is fully visible (its namespace is exported and
-  the source proc is statically known).
-- **C38b** — Gate the import shortcut on `namespace export`. If
-  the source namespace's export list does not match the imported
-  pattern, fall back to runtime `IRBarrier` dispatch.
-- **C38c** — Dead-branch elimination for `namespace import` /
-  `namespace export` inside `if {0} { … }`. The lowering pass must
-  recognise the constant branch and skip the import side-effect.
+- **C38a** — [LANDED] `Lowerer::namespace_imports: Vec<(String,
+  String)>` plus a detection block in `lower_command` that
+  matches `namespace import ?-force? pattern...`, skips
+  `{*}`-expanded calls, filters relative patterns, and records
+  `(context_namespace, absolute_pattern)` pairs. Surfaced on
+  `Module::namespace_imports` at the end of `Lowerer::lower`.
+  Mirrors main commit `ea155a5c`'s lowering-side change.
+- **C38b** — [LANDED] `Lowerer::namespace_exports` + a
+  `namespace export` arm in the same dispatch block. Skips
+  `-clear` / option flags, records `(context_namespace, pattern)`
+  pairs, surfaces on `Module::namespace_exports`. The codegen-
+  side gate (using exports to decide whether an import shortcut
+  fires) belongs to a future strip when the Rust compiler grows
+  a namespace-import-resolution path; the data layer is in place
+  for that consumer. Mirrors main commit `2f5cb008`'s
+  lowering-side change.
+- **C38c** — [LANDED] `Lowerer::dead_code_depth: u32` counter +
+  `static_bool(expr_text)` helper. `lower_if` (in
+  `lowering/structured.rs`) detects clauses whose condition is a
+  literal `0`/`false`/`no`/`off` or `1`/`true`/`yes`/`on` and
+  brackets the dead body with `dead_code_depth += 1` /
+  `dead_code_depth -= 1`. A static-true clause latches the flag
+  so every later clause + the `else` branch is dead. The
+  `namespace import` / `namespace export` collection is gated on
+  `dead_code_depth == 0`. Mirrors main commit `06f42efa`. 6 unit
+  tests covering recording, relative-pattern skip, `-force` flag,
+  export recording, dead `if{0}` branch suppression, dead `else`
+  after `if{1}` suppression.
 
 Done: 3 fixtures, ~10 unit tests, differential harness no
 regressions.

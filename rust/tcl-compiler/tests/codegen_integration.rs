@@ -608,6 +608,8 @@ fn codegen_module_with_no_procs() {
         procedures: HashMap::new(),
         methods: HashMap::new(),
         redefined_procedures: HashSet::new(),
+        namespace_imports: Vec::new(),
+        namespace_exports: Vec::new(),
     };
     let asm = codegen_module(&cfg_mod, &ir_mod);
     assert_eq!(asm.top_level.name, "::top");

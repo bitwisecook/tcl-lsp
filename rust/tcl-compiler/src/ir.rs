@@ -572,6 +572,24 @@ pub struct Module {
     pub methods: std::collections::HashMap<String, MethodDef>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
+    /// `namespace import` directives captured at lowering time —
+    /// `(context_namespace, absolute_pattern)` pairs. Future codegen
+    /// passes pattern-match each against the final
+    /// `Self::procedures` table to resolve unqualified calls
+    /// directly instead of falling back to the runtime
+    /// interpreter. Only absolute patterns (`::foo::*` /
+    /// `::foo::bar`) are recorded; relative patterns require
+    /// runtime namespace-path walking which compile-time
+    /// resolution does not model. Mirrors Python's
+    /// `IRModule.namespace_imports` (main commit `ea155a5c`).
+    pub namespace_imports: Vec<(String, String)>,
+    /// `namespace export` directives captured at lowering time —
+    /// `(context_namespace, pattern)` pairs. Codegen consults this
+    /// list to gate the import shortcut on actual exportedness so
+    /// `namespace import ::foo::*` only resolves names that
+    /// `::foo` actually exports. Mirrors Python's
+    /// `IRModule.namespace_exports` (main commit `2f5cb008`).
+    pub namespace_exports: Vec<(String, String)>,
 }
 
 /// Extract the event name from a `::when::` qualified name.
