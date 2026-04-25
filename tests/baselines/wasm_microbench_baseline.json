@@ -1,0 +1,79 @@
+{
+  "baseline": {
+    "tclsh_noop_ns": 122490112,
+    "wasm_noop_ns": 8622955
+  },
+  "benchmarks": [
+    {
+      "label": "set+read variable",
+      "n": 100000,
+      "ratio": 0.61,
+      "tclsh_per_op_ns": 380,
+      "wasm_per_op_ns": 232
+    },
+    {
+      "label": "incr loop",
+      "n": 200000,
+      "ratio": 0.27,
+      "tclsh_per_op_ns": 445,
+      "wasm_per_op_ns": 120
+    },
+    {
+      "label": "expr arithmetic (braced)",
+      "n": 100000,
+      "wasm_status": "trap"
+    },
+    {
+      "label": "list append + lindex",
+      "n": 20000,
+      "wasm_status": "trap"
+    },
+    {
+      "label": "string operations",
+      "n": 5000,
+      "ratio": 0,
+      "tclsh_per_op_ns": 0,
+      "wasm_per_op_ns": 2568
+    },
+    {
+      "label": "proc call (no args)",
+      "n": 50000,
+      "ratio": 3.19,
+      "tclsh_per_op_ns": 48,
+      "wasm_per_op_ns": 153
+    },
+    {
+      "label": "proc call (3 args, expr)",
+      "n": 50000,
+      "ratio": 0.79,
+      "tclsh_per_op_ns": 320,
+      "wasm_per_op_ns": 252
+    },
+    {
+      "label": "if/else branch",
+      "n": 100000,
+      "ratio": 0.52,
+      "tclsh_per_op_ns": 423,
+      "wasm_per_op_ns": 222
+    },
+    {
+      "label": "foreach over list",
+      "n": 20000,
+      "ratio": 0.04,
+      "tclsh_per_op_ns": 2724,
+      "wasm_per_op_ns": 106
+    },
+    {
+      "label": "dict set+get",
+      "n": 5000,
+      "wasm_status": "trap"
+    },
+    {
+      "label": "namespace+proc lookup",
+      "n": 20000,
+      "ratio": 0,
+      "tclsh_per_op_ns": 0,
+      "wasm_per_op_ns": 261
+    }
+  ]
+}
