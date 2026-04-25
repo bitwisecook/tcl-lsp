@@ -291,6 +291,41 @@ pub(super) fn handle_interp(texts: &[String], result: &mut SignatureScanResult) 
     );
 }
 
+/// Handler for `oo::class create NAME ?BODY?`.
+///
+/// Mirrors `_handle_oo_class` in `core/analysis/signature_scan.py`.
+/// When `BODY` is absent the body span falls back to the name token.
+pub(super) fn handle_oo_class(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 || texts[1] != "create" {
+        return;
+    }
+    let body_tok = if argv.len() > 3 { argv[3] } else { argv[2] };
+    emit_class(&texts[2], argv[2], body_tok, ns_prefix, result);
+}
+
+/// Handler for `itcl::class NAME BODY` (or `::itcl::class NAME BODY`).
+///
+/// Mirrors `_handle_itcl_class` in
+/// `core/analysis/signature_scan.py`. Always requires a body
+/// argument — itcl's class statement is not optional like
+/// `oo::class create`.
+pub(super) fn handle_itcl_class(
+    texts: &[String],
+    argv: &[Token],
+    ns_prefix: &str,
+    result: &mut SignatureScanResult,
+) {
+    if texts.len() < 3 {
+        return;
+    }
+    emit_class(&texts[1], argv[1], argv[2], ns_prefix, result);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -597,5 +632,52 @@ mod tests {
         let mut result = SignatureScanResult::default();
         handle_interp(&texts, &mut result);
         assert!(result.command_aliases.is_empty());
+    }
+
+    #[test]
+    fn handle_oo_class_with_body() {
+        let texts = vec![
+            "oo::class".to_string(),
+            "create".to_string(),
+            "MyCls".to_string(),
+            "method foo {} {}".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 22), token(23, 39)];
+        let mut result = SignatureScanResult::default();
+        handle_oo_class(&texts, &argv, "ns", &mut result);
+        let cls = result.classes.get("::ns::MyCls").expect("inserted");
+        assert_eq!(cls.name, "MyCls");
+        assert_eq!(cls.body_range, Span::new(23, 39));
+    }
+
+    #[test]
+    fn handle_oo_class_with_absolute_name() {
+        let texts = vec![
+            "oo::class".to_string(),
+            "create".to_string(),
+            "::Top".to_string(),
+        ];
+        let argv = vec![token(0, 9), token(10, 16), token(17, 22)];
+        let mut result = SignatureScanResult::default();
+        handle_oo_class(&texts, &argv, "ns", &mut result);
+        let cls = result.classes.get("::Top").expect("absolute preserved");
+        assert_eq!(cls.name, "Top");
+        // Body falls back to the name token when omitted.
+        assert_eq!(cls.body_range, Span::new(17, 22));
+    }
+
+    #[test]
+    fn handle_itcl_class_records_class() {
+        let texts = vec![
+            "itcl::class".to_string(),
+            "Foo".to_string(),
+            "constructor {} {}".to_string(),
+        ];
+        let argv = vec![token(0, 11), token(12, 15), token(16, 33)];
+        let mut result = SignatureScanResult::default();
+        handle_itcl_class(&texts, &argv, "", &mut result);
+        let cls = result.classes.get("::Foo").expect("inserted");
+        assert_eq!(cls.name, "Foo");
+        assert_eq!(cls.body_range, Span::new(16, 33));
     }
 }
