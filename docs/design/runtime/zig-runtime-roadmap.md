@@ -41,34 +41,65 @@ file.
 the proc's own `return -code error` after `[info complete $script]`
 returns 0.
 
-**What we know:**
+**Status:** diagnosed.  Blocked on Phase 1.3 (allocator `(ptr, len)`
+lifetime audit) — *not* an `info_complete` walker bug.
 
-- Direct calls of `info complete` against the constraint scripts
-  (`{string equal $::tcl_platform(platform) unix}`,
-  `{expr {[testConstraint unix] || [testConstraint pc]}}`, etc.)
-  return 1 in our runtime — see the manual reproducer in the
-  Phase 4.4 commit message thread.
-- The trap fires only when `info complete` is invoked from inside
-  tcltest's bundled proc, suggesting the input has been transformed
-  somewhere on the way.
+**Diagnostic finding (Phase 4.4.A, this branch):**
+The instrumented `info_complete` (temporary stderr dump of every
+input it received during a `parseExpr.test` run, removed in the
+same commit) shows the script TclObj reaching the walker has the
+*correct length* but *corrupted bytes*.  Sample captures from the
+failing run:
 
-**Hypothesis:** the input arrives already-stripped of its outer
-braces (Tcl rewrites the body when passing through certain dispatch
-paths), and our `info_complete` walker mis-counts unbalanced
-constructs in the stripped form.
+```
+[ic] len=43 bytes='                 _pla        \x907        '
+[ic] len=46 bytes='    `\x90)H\xb6     _platform(pl    rm) windows'
+[ic] len=23 bytes='te    nstraint uni    y'
+[ic] len=51 bytes='expr {[tes    straint unix     [testConstr     pc]}'
+```
 
-**Repro plan:**
+The lengths line up with the expected scripts
+(`string equal $::tcl_platform(platform) windows` ≈ 46 chars,
+`testConstraint unixOnly` ≈ 23, `expr {[testConstraint unix] || [testConstraint pc]}` ≈ 51) but the bytes have been
+partially overwritten — looks like a buffer that was freed back to
+the size-class free-list, then reissued and partially rewritten,
+while the original TclObj's `OBJ_STR_PTR` still points there.
 
-1. Add a debug stderr print in `runtime/zig/cmds/tcl_cmd_info.zig::info_complete`
-   that dumps the input bytes in hex.
-2. Run `parseExpr.test` once and capture what bytes the proc's
-   `info complete` actually saw.
-3. Diff against the source-form bytes.
-4. Either fix the dispatch path that's stripping prematurely, or
-   harden `info_complete` to handle the post-strip shape.
+The walker is correctly returning 0 ("incomplete") on these byte
+sequences (they have unbalanced braces or stray nulls).  The bug
+is upstream: the proc parameter's underlying buffer was freed and
+reused before the proc body finished reading from it.
 
-**Acceptance:** `parseExpr.test` and `dict.test` reach a tcltest
-summary line.
+**Why this is Phase 1.3 work:**
+This is the same class of bug that produces the ``unknown command:
+<garbled>`` traps in 9 other tcltest files (see
+`tmp/wasm-perf-report/REPORT.md`).  A `(ptr, len)` reference is
+held across a call that transitively reaches `obj_release` →
+size-class free-list → `obj_alloc` re-issue.  Phase 1.3's
+deliverable explicitly covers this audit.
+
+**Workaround attempts that did NOT fix it** (so future work
+doesn't re-tread):
+
+- Outer-brace stripping in `execute_parsed_command` for `tok.braced`
+  words — the bytes the parser produces are correct content
+  bytes; the corruption happens later.
+- Proc-side parameter copy via `obj_new_string_copy` — defers but
+  doesn't eliminate the lifetime bug; the copied buffer can also
+  be freed and reissued.
+
+**Real fix path (when Phase 1.3 lands):**
+Audit every `obj_release` site that runs while a parser-borrowed
+TclObj is still in a frame.  Either retain the obj at parameter
+binding time (refcount += 1 in `eval_proc_call_bucket` line 1160
+for each `frames.local_set(param_name, words[arg_idx])`) and
+release on frame_pop, OR copy the bytes into a frame-local buffer
+that lives until frame_pop.
+
+**Acceptance (when Phase 1.3 lands):** `parseExpr.test` and
+`dict.test` reach a tcltest summary line.  The 9 garbled-command
+trap files in 08-tcltest-suites.md should also clear in the same
+commit.
 
 ### 4.5 — regexp result-shape modes (capture / -indices / -inline / -all)
 
