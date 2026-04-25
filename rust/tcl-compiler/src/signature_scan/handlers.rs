@@ -132,6 +132,7 @@ pub(super) fn handle_namespace(
     argv: &[Token],
     ns_prefix: &str,
     conditional: bool,
+    known_commands: &std::collections::HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
     if texts.len() < 2 {
@@ -147,7 +148,14 @@ pub(super) fn handle_namespace(
         } else {
             raw_ns.clone()
         };
-        super::walker::maybe_recurse_body(&texts[3], argv[3], &inner_prefix, conditional, ctx);
+        super::walker::maybe_recurse_body(
+            &texts[3],
+            argv[3],
+            &inner_prefix,
+            conditional,
+            known_commands,
+            ctx,
+        );
         return;
     }
     if sub == "import" && texts.len() >= 3 {

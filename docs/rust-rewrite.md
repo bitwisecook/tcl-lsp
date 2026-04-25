@@ -715,6 +715,7 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C40-followups | **Follow-ups for the C40 `signature_scan` port.** Six items from the post-merge code review: (1) drop stale `#![allow(dead_code)]` from the four `signature_scan/` submodules now every type is wired; (2) sweep "filled in by Cnnnn" doc comments across `mod.rs` / `types.rs` / `ctx.rs` / `handlers.rs` / `walker.rs` / `factory.rs`; (3) cache `CommandRegistry::build_default()` in a `OnceLock` (also fixes the same waste in `interprocedural.rs`, `optimiser.rs`, `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`); (4) three dispatcher tests (`extract_signatures` with binding absent / env-var on / Rust path raising); (5) add a row to `docs/rust-rewrite-test-audit.md`; (6) KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`. | planned |
 | C40-default-on | **Flip the C40 default.** Once the differential corpus has baked, change the `extract_signatures` default to dispatch to Rust by default; gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. After a release cycle, delete `_extract_signatures_python` and the env var entirely. | planned |
 | Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` kept it at the first sub-token's end. Surfaced as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. Fix: in `segment_commands_local`, the `else if let Some(last_text) = …` branch now also widens `argv.last_mut().unwrap().span` to `Span::new(prev.span.start(), tok.span.end())`. New `segmenter::tests::multi_token_word_argv_spans_full_word` unit test pins the new behaviour. The previously-omitted `source_substituted_path` fixture (`source $script_dir/init.tcl`) is now part of the differential corpus in `tests/test_rust_signature_scan_differential.py`. | landed |
+| Seg2  | **Segmenter error recovery.** Port the Python `_has_suspicious_token` + `_find_recovery_offset` heuristics from `core/parsing/command_segmenter.py` to the Rust segmenter as `segment_commands_with_recovery(source, &known_commands)`. After raw segmentation, the last command is inspected for an unclosed `{` (`Str` token reaching EOF, line span ≥ 3), `[` (any `Cmd` token reaching EOF), or `"` (`Esc` token reaching EOF, line span ≥ 3); on a hit the suspicious token's inner text is scanned line-by-line for the next known-command name and the slice from there is re-segmented and appended (with absolute spans). The signature_scan walker threads the registry's `command_names()` set through to the top-level call only — body recursion never recovers, mirroring Python. Prerequisite for C40-default-on: without recovery, flipping the dispatcher to Rust would silently regress workspace indexing for any file mid-edit with an unclosed brace. | landed |
 | C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,000 LOC across ~12 sub-modules (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 sub-files, `_class.py`, `_mixin.py`, `_var_scoping.py`, `_utils.py`, …). The natural next chunk after C40; signature_scan was the lead-in. Same default-off PyO3 env-var gate pattern (`TCL_LSP_RUST_ANALYSER=1`). | planned |
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
@@ -874,6 +875,69 @@ are correctness-blocking; all are landable as one small commit each
   (`TCL_LSP_RUST_OPTIMISER`, `_INTERPROC`, `_GVN`); a single
   `kcs-qa-rust-shim-env-vars.md` covering all five would be cheaper
   than per-shim notes.
+
+### Seg2 — Segmenter error recovery (landed)
+
+The Python `core/parsing/command_segmenter.py::segment_commands`
+includes an error-recovery pass that catches the common case where
+an unclosed `{` / `[` / `"` causes the lexer to consume the rest of
+the file as one giant token, dropping every later top-level
+declaration on the floor. The pass:
+
+1. Detects a "suspicious" token in the last command — `Str` (`{`)
+   or `Esc` (`"`) reaching EOF with a line span ≥ 3, or any `Cmd`
+   (`[`) reaching EOF.
+2. Scans the suspicious token's inner text line-by-line for a line
+   whose first word is a known command name.
+3. Marks the broken command `is_partial = true` and re-segments
+   the source slice from the recovery point so later declarations
+   still surface.
+
+Without recovery on the Rust side, flipping the C40 default to
+Rust would silently regress workspace indexing for any file
+mid-edit with an unclosed brace — so Seg2 is a hard prerequisite
+for C40-default-on.
+
+Landed shape:
+
+- `rust/tcl-compiler/src/segmenter.rs` gains
+  `segment_commands_with_recovery(source: &str,
+  known_commands: &HashSet<&str, S>) -> Vec<SegmentedCommand>`,
+  generic over the `BuildHasher` so callers can pass any
+  `HashSet`. Internal helpers `find_suspicious_token` and
+  `find_recovery_offset` mirror the Python `_has_suspicious_token`
+  / `_find_recovery_offset` 1:1, including the
+  `RECOVERY_LINE_THRESHOLD = 3` constant and the first-word
+  delimiter set (`' '`, `'\t'`, `'\n'`, `'\r'`, `';'`, `'{'`,
+  `'['`).
+- `rust/tcl-compiler/src/signature_scan/walker.rs::scan` threads
+  a `&HashSet<&str>` parameter through to the top-level call;
+  body recursion (`maybe_recurse_body`) keeps passing the same
+  set but uses `segment_commands_with_offset` (no recovery) since
+  recovery only fires at the top level.
+- `extract_signatures` builds the known-commands set from the
+  registry's `command_names()` once per call.
+- 8 new Rust unit tests in `segmenter::recovery_tests` pin every
+  branch (brace recovery, bracket recovery, line-threshold skip,
+  empty known-commands set, no-op on closed input, picks-first
+  recovery point, indented-line skipping, absolute-offset shape).
+
+Recovery offset arithmetic difference from Python: Rust's `Span`
+includes the opening delimiter (`{` / `[` / `"`); Python's
+`Token.text` excludes it. The Rust port strips the leading
+delimiter via the token's `content_offset` before passing the
+inner text to `find_recovery_offset`, so the offset arithmetic
+matches.
+
+Differential-harness parity for recovered procs is *not*
+asserted in the corpus — Python rebases recovered tokens'
+line/character to 0 via a synthetic body_token, which is a
+position-rebasing bug that surfaces only when both
+implementations run side-by-side. Offsets agree; line/character
+disagree. Once C40-default-on flips the dispatcher to Rust, the
+bug silently goes away (Rust uses absolute positions throughout).
+Fixing the Python rebase is tracked as a separate follow-up
+since main hasn't seen this issue.
 
 ### Seg1 — Segmenter argv-widening parity (landed)
 

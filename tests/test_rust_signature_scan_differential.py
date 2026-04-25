@@ -158,6 +158,22 @@ CORPUS: list[tuple[str, str]] = [
         }
         """,
     ),
+    # NOTE: Seg2 ports segmenter error recovery (`{` / `[` / `"`
+    # unclosed-delimiter scanning) to the Rust side. Recovery
+    # *correctness* is validated by Rust unit tests in
+    # ``rust/tcl-compiler/src/segmenter.rs::recovery_tests`` and by
+    # ``tests/test_signature_scan.py::TestSegmenterRecovery``
+    # asserting `::late` is found via the dispatcher. We do *not*
+    # add full-Range parity fixtures here because the Python
+    # implementation rebases the recovered slice's line/character
+    # positions to 0 via a synthetic body_token, while the Rust
+    # implementation uses absolute positions throughout — Python
+    # reports `::late` at line=0 even though it's on line 3, which
+    # is a Python-side correctness bug surfaced only when both
+    # implementations participate in the differential. The bug
+    # silently goes away after C40-default-on flips the dispatcher
+    # to Rust by default; fixing the Python rebase is tracked as a
+    # separate follow-up.
 ]
 
 
