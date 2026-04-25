@@ -68,7 +68,7 @@ pub(super) fn scan(
             }
             "if" => handle_if(texts, argv, ns_prefix, ctx),
             "catch" => handle_catch(texts, argv, ns_prefix, ctx),
-            "try" => handle_try_stub(texts, argv, ns_prefix, ctx),
+            "try" => handle_try(texts, argv, ns_prefix, ctx),
             "lappend" | "set" => handlers::handle_auto_path(texts, argv, &mut ctx.result),
             _ => {
                 handlers::maybe_handle_import_wrapper(
@@ -151,8 +151,29 @@ fn handle_catch(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut Sca
     maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
 }
 
-fn handle_try_stub(_texts: &[String], _argv: &[Token], _ns_prefix: &str, _ctx: &mut ScanCtx) {
-    // TODO(C40c5): main body + on/trap handlers + finally.
+fn handle_try(texts: &[String], argv: &[Token], ns_prefix: &str, ctx: &mut ScanCtx) {
+    // `try BODY ?on CODE VARLIST BODY?... ?trap PATTERN VARLIST BODY?...
+    //  ?finally BODY?` — the main body sits at index 1; handler clauses
+    // (`on`/`trap`) take 4 words each with the body at +3; `finally`
+    // takes 2 words with the body at +1.
+    if texts.len() < 2 {
+        return;
+    }
+    maybe_recurse_body(&texts[1], argv[1], ns_prefix, true, ctx);
+    let mut i = 2;
+    while i < texts.len() {
+        let clause = texts[i].as_str();
+        if clause == "finally" && i + 1 < texts.len() {
+            maybe_recurse_body(&texts[i + 1], argv[i + 1], ns_prefix, true, ctx);
+            return;
+        }
+        if (clause == "on" || clause == "trap") && i + 3 < texts.len() {
+            maybe_recurse_body(&texts[i + 3], argv[i + 3], ns_prefix, true, ctx);
+            i += 4;
+        } else {
+            i += 1;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -282,5 +303,47 @@ mod tests {
         scan("catch $script", None, "", false, &mut ctx);
         // No procs since the body cannot be statically analysed.
         assert!(ctx.result.procs.is_empty());
+    }
+
+    #[test]
+    fn handle_try_with_finally() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "try { proc tryproc {} {} } finally { proc finallyproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::tryproc"));
+        assert!(ctx.result.procs.contains_key("::finallyproc"));
+    }
+
+    #[test]
+    fn handle_try_with_on_handler() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "try { proc tryproc {} {} } on error {res opts} { proc onproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::tryproc"));
+        assert!(ctx.result.procs.contains_key("::onproc"));
+    }
+
+    #[test]
+    fn handle_try_with_trap_handler() {
+        let mut ctx = ScanCtx::default();
+        scan(
+            "try { proc tryproc {} {} } trap {ARITH DIVZERO} {res opts} { proc trapproc {} {} }",
+            None,
+            "",
+            false,
+            &mut ctx,
+        );
+        assert!(ctx.result.procs.contains_key("::tryproc"));
+        assert!(ctx.result.procs.contains_key("::trapproc"));
     }
 }
