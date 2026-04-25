@@ -63,8 +63,40 @@ pub const PAGE_SIZE: u32 = 65536;
 pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build flag in future
 
 var heap_ptr: u32 = PAGE_SIZE;
-var free_list: u32 = 0;
 var oom_flag: u32 = 0;
+
+// Per-size-class free-lists.  ``free_lists[i]`` is the head of a
+// singly-linked list of recycled slabs whose aligned size matches
+// ``size_classes[i]``.  Each free slab stores the ``next`` pointer
+// in its first 4 bytes (i.e. at ``addr``).
+//
+// Sizes are chosen to cover the common allocation shapes:
+//   - 24 bytes   = OBJ_SIZE (every TclObj header)
+//   - 32, 48, 64 = small string buffers
+//   - 96, 128, 192, 256 = mid-sized list backings, dict pairs
+//   - 512, 1024 = large list/string buffers, frame tables
+// Anything larger than 1024 falls through to the bump path and is
+// not recycled (rare in practice; sub-plan 3 will add capacity-aware
+// growth so large strings don't churn the allocator).
+const SIZE_CLASSES = [_]u32{ 24, 32, 48, 64, 96, 128, 192, 256, 512, 1024 };
+var free_lists = [_]u32{0} ** SIZE_CLASSES.len;
+
+// Back-compat alias — pre-1.2 code referred to a single ``free_list``
+// for OBJ_SIZE.  Anything that read the old name now gets the new
+// class-0 head.
+fn class_head_for(aligned: u32) ?*u32 {
+    for (SIZE_CLASSES, 0..) |sz, i| {
+        if (sz == aligned) return &free_lists[i];
+    }
+    return null;
+}
+
+fn round_up_to_class(aligned: u32) u32 {
+    for (SIZE_CLASSES) |sz| {
+        if (sz >= aligned) return sz;
+    }
+    return aligned; // larger than the largest class — return as-is
+}
 
 /// Ensure ``heap_ptr + size`` fits inside the current linear memory,
 /// growing by enough whole pages to cover the request when not.
@@ -96,11 +128,15 @@ fn ensure_capacity(needed_end: u32) bool {
 }
 
 pub fn alloc(size: u32) callconv(.c) u32 {
-    const aligned = (size + 7) & ~@as(u32, 7);
-    if (aligned == OBJ_SIZE and free_list != 0) {
-        const ptr = free_list;
-        free_list = @intCast(read_i32(ptr));
-        return ptr;
+    const requested = (size + 7) & ~@as(u32, 7);
+    const aligned = round_up_to_class(requested);
+    // Try the matching size-class free-list first.
+    if (class_head_for(aligned)) |head_ptr| {
+        if (head_ptr.* != 0) {
+            const ptr = head_ptr.*;
+            head_ptr.* = @intCast(read_i32(ptr));
+            return ptr;
+        }
     }
     const ptr = heap_ptr;
     const end = ptr + aligned;
@@ -130,8 +166,28 @@ pub export fn tcl_oom_clear() void {
 }
 
 fn free_obj(addr: u32) void {
-    write_i32(addr, @intCast(free_list));
-    free_list = addr;
+    // The TclObj header is OBJ_SIZE — recycle into class-0.
+    write_i32(addr, @intCast(free_lists[0]));
+    free_lists[0] = addr;
+}
+
+/// Public free-by-size: callers that own a non-OBJ_SIZE slab (string
+/// buffer, list backing, dict pair table, frame table) push it onto
+/// the matching size-class free-list at the end of its lifetime.
+/// Slabs whose aligned size doesn't match any class are dropped on
+/// the floor — the bump allocator's ``heap_ptr`` is the only resource
+/// that grows, and the next allocation will pull from a fresh page.
+/// That's wasteful but safe; sub-plan 3.1 + 3.2 will eliminate the
+/// allocations that produce these classes by holding capacity in
+/// place.
+pub fn free_sized(addr: u32, size: u32) void {
+    if (addr == 0) return;
+    const aligned = (size + 7) & ~@as(u32, 7);
+    if (class_head_for(aligned)) |head_ptr| {
+        write_i32(addr, @intCast(head_ptr.*));
+        head_ptr.* = addr;
+    }
+    // else: slab too big for any class — leak to bump pointer.
 }
 
 pub fn read_i32(addr: u32) i32 {
