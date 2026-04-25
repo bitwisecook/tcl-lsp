@@ -43,14 +43,14 @@ from typing import TypeAlias
 from ..analysis.semantic_model import Range
 
 try:
-    from tcl_lsp_rust import (
-        gvn_loop_invariants as _rust_gvn_loop_invariants,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        gvn_loop_invariants as _rust_gvn_loop_invariants,
     )
-    from tcl_lsp_rust import (
-        gvn_partial_redundancies as _rust_gvn_partial_redundancies,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        gvn_partial_redundancies as _rust_gvn_partial_redundancies,
     )
-    from tcl_lsp_rust import (
-        gvn_redundancies as _rust_gvn_redundancies,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        gvn_redundancies as _rust_gvn_redundancies,
     )
 except ImportError:
     _rust_gvn_redundancies = None

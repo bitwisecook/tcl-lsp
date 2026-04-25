@@ -404,8 +404,8 @@ class ExprLexer:
 
 try:
     from tcl_lsp_rust import expr_tokenise as _rust_expr_tokenise  # ty: ignore[unresolved-import]
-    from tcl_lsp_rust import (
-        expr_tokenise_checked as _rust_expr_tokenise_checked,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        expr_tokenise_checked as _rust_expr_tokenise_checked,
     )
 except ImportError:
     _rust_expr_tokenise = None

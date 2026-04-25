@@ -16,8 +16,8 @@ import re
 from dataclasses import dataclass, field
 
 try:
-    from tcl_lsp_rust import (
-        interprocedural_summaries as _rust_interprocedural_summaries,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        interprocedural_summaries as _rust_interprocedural_summaries,
     )
 except ImportError:
     _rust_interprocedural_summaries = None

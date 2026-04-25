@@ -48,8 +48,8 @@ from core.parsing.tokens import Token, TokenType
 log = logging.getLogger(__name__)
 
 try:
-    from tcl_lsp_rust import (
-        signature_scan_extract as _rust_extract,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        signature_scan_extract as _rust_extract,
     )
 except ImportError:  # pragma: no cover - rust binding is optional
     _rust_extract = None

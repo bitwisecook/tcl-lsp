@@ -19,8 +19,8 @@ from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
 # manager. Default is off: the Python pipeline still runs so
 # existing tests observe the exact diagnostic shapes they expect.
 try:
-    from tcl_lsp_rust import (
-        optimiser_find_optimisations as _rust_find_optimisations,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        optimiser_find_optimisations as _rust_find_optimisations,
     )
 except ImportError:
     _rust_find_optimisations = None
