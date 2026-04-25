@@ -62,3 +62,41 @@ pub struct SignatureClass {
     /// body is absent — e.g. `oo::class create NAME` without a body).
     pub body_range: Span,
 }
+
+/// A `package require` invocation recorded by the signature scanner.
+///
+/// `version` is `None` when the call supplied no version constraint.
+/// `conditional` is `true` when the call lives inside a guarded
+/// branch (an `if`/`elseif`/`else` body, a `catch` script, or a
+/// `try`/`on`/`trap`/`finally` clause) so workspace-level Tcl-version
+/// inference does not promote a guarded `package require Tcl 8.6` to
+/// an unconditional minimum.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignaturePackageRequire {
+    /// Package name (the `NAME` argument to `package require`).
+    pub name: String,
+    /// Optional version constraint (the `VERSION` argument); `None`
+    /// when no version is supplied.
+    pub version: Option<String>,
+    /// Source span of the name argument.
+    pub range: Span,
+    /// `true` when the call is inside a guarded branch.
+    pub conditional: bool,
+}
+
+/// A `source` invocation recorded by the signature scanner.
+///
+/// `is_literal` is `true` when the path argument contains no `$` or
+/// `[` — the segmenter reconstructs substituted words with the
+/// `${var}` / `[cmd]` markers preserved, so their absence is reliable
+/// evidence the path is a plain literal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureSource {
+    /// Verbatim path text as reconstructed by the segmenter (with
+    /// `${var}` / `[cmd]` markers preserved for substituted words).
+    pub raw_path: String,
+    /// Source span of the path argument.
+    pub range: Span,
+    /// `true` when the path is a plain literal (no `$` or `[`).
+    pub is_literal: bool,
+}
