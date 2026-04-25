@@ -128,7 +128,7 @@
     "self": "TRAPPING_STUB",
     "set": "IMPLEMENTED",
     "socket": "TRAPPING_STUB",
-    "source": "TRAPPING_STUB",
+    "source": "IMPLEMENTED",
     "split": "IMPLEMENTED",
     "string": "IMPLEMENTED",
     "subst": "IMPLEMENTED",
