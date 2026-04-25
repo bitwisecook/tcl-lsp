@@ -42,16 +42,21 @@ This report compares the in-tree WASM runtime
 | 5 | [`05-correctness.md`](05-correctness.md) | Bugs and divergences from tclsh |
 | 6 | [`06-hotspots.md`](06-hotspots.md) | Source-level hot-spot analysis |
 | 7 | [`07-recommendations.md`](07-recommendations.md) | Prioritised list of changes |
-| 8 | [`08-tcltest-suites.md`](08-tcltest-suites.md) | **NEW** — full Tcl 9 in-scope tcltest sweep |
+| 8 | [`08-tcltest-suites.md`](08-tcltest-suites.md) | full Tcl 9 in-scope tcltest sweep |
+| 9 | [`09-after-action.md`](09-after-action.md) | **NEW** — deltas from running the master plan's phases 0–6 |
 
 ## Headline numbers
 
-### tcltest sweep (NEW)
+### tcltest sweep — baseline → after master-plan phases 0–6
 
 | | files | tests passed / total | pass % | run time |
 |---|---:|---:|---:|---:|
-| **WASM** | 97 | **355 / 35,921** | **1.0%** | 13.2 s |
-| **tclsh** | 97 | 32,695 / 35,921 | 91.0% | 54.9 s |
+| **WASM (baseline)** | 97 | 355 / 35,921 | 1.00 % | 13.2 s |
+| **WASM (after)** | 97 | **384 / 35,921** | **1.07 %** | (varies — see 09) |
+| **tclsh** | 97 | 32,695 / 35,921 | 91.0 % | 54.9 s |
+
+After-pass details: [`09-after-action.md`](09-after-action.md).
+Headline run-trap count went from 49 → **45** (4 fewer files).
 
 - **1 file passes 100 %** on WASM (`concat.test`, 9/9).
 - **47 files run partially** — usable signal, mixed pass rates.
