@@ -309,17 +309,21 @@ kick in for specific configurations.
 
 **Non-blocking deferred items (can be fixed independently):**
 
-- **`\<CR>` line tracking.** The Rust `LineIndex` only counts
-  `\n` for line boundaries. The Python lexer's incremental
-  counter also advances on `\r` inside backslash continuations.
-  Bare-CR inputs show a minor position drift. Real-world Tcl
-  files use `\n` or `\r\n`; bare `\r` is essentially
-  non-existent.
-- **UTF-16 column parity.** Both lexers treat `character` as
-  byte-offset-within-line. The LSP specification says `character`
-  must be UTF-16 code units. The fix is a coordinated change in
-  `LineIndex::position_at`. Do before any Rust LSP handler that
-  cares (hover, go-to-definition, etc.).
+- **`\<CR>` line tracking.** [LANDED] `LineIndex::new` now
+  recognises `\n`, `\r\n`, and bare `\r` as single line breaks,
+  matching the Python lexer's incremental counter. 3 new unit
+  tests (`crlf_counts_as_single_line_break`,
+  `bare_cr_counts_as_line_break`, `mixed_line_endings`).
+- **UTF-16 column parity.** [LANDED] New
+  `LineIndex::position_at_utf16(offset, source: &str) ->
+  SourcePosition` method returning the LSP-compliant column
+  counted in UTF-16 code units (BMP characters cost one,
+  supplementary-plane characters cost two via surrogate-pair
+  encoding). Existing `position_at` keeps Python-parity byte-
+  column behaviour for current callers; LSP handlers should
+  switch to the UTF-16 variant before they ship. 4 new unit
+  tests covering ASCII parity, BMP non-ASCII characters,
+  supplementary-plane emoji, and offset-at-line-boundary.
 - **`LineIndex::from_rope_slice`.** Adapter that pulls line
   offsets from the rope's B-tree instead of scanning a flattened
   `&str`. Deferred until the first rope-backed consumer lands.
