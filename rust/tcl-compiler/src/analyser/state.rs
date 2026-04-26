@@ -292,6 +292,134 @@ impl Analyser {
         std::mem::take(&mut self.result)
     }
 
+    /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
+    /// and capture per-chunk snapshots.
+    ///
+    /// Mirrors `Analyser.analyse_chunked` in
+    /// `core/analysis/_analyser/_core.py:195-239`.  Used by the
+    /// LSP for incremental document re-analysis: when the user
+    /// types into the document, dirty chunks are re-segmented
+    /// and fed back through this entry while clean chunks are
+    /// restored from a prior snapshot.
+    ///
+    /// Returns the final [`AnalysisResult`] plus a list of
+    /// [`super::AnalyserSnapshot`]s, one per chunk in the input
+    /// order.  The caller stores the snapshots alongside the
+    /// chunk segmentation so a later edit can rewind to the
+    /// matching prefix.
+    ///
+    /// `chunk_commands` is grouped already — each inner `Vec`
+    /// is one chunk's worth of commands.  `dialect` mirrors the
+    /// argument to [`Self::analyse`].  Stub-pre-scan (Python's
+    /// `scan_source_for_stubs`) is deferred — that path lands
+    /// alongside the ``stub_commands`` field which the Rust
+    /// `AnalysisResult` doesn't carry yet.
+    pub fn analyse_chunked(
+        &mut self,
+        source: &str,
+        chunk_commands: Vec<Vec<crate::segmenter::SegmentedCommand>>,
+        dialect: &str,
+    ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
+        use tcl_registry::CommandRegistry;
+        self.source = source.to_string();
+        self.dialect = dialect.to_string();
+        self.unresolved_commands_emitted = false;
+        self.ns_cache.clear();
+
+        for code in super::utils::parse_file_suppression(source) {
+            self.disabled_diagnostics.insert(code);
+        }
+
+        let mut snapshots: Vec<super::snapshot::AnalyserSnapshot> =
+            Vec::with_capacity(chunk_commands.len());
+        for cmds in chunk_commands {
+            self.analyse_commands_inner(&cmds);
+            snapshots.push(self.snapshot());
+        }
+
+        // Same diagnostic-emission tail as ``analyse``.
+        let mut diag_registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            diag_registry.load_dialect(d);
+        }
+        self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.emit_variable_usage_diagnostics();
+        self.emit_cfg_ssa_diagnostics(source);
+        self.apply_disabled_diagnostics();
+        self.dedupe_diagnostics();
+
+        (std::mem::take(&mut self.result), snapshots)
+    }
+
+    /// **C41f2** — Analyse pre-segmented commands without
+    /// re-segmenting `source`.
+    ///
+    /// Mirrors `Analyser.analyse_commands` in
+    /// `core/analysis/_analyser/_core.py:241-272`.  This is
+    /// the single-chunk variant used by the LSP's incremental
+    /// path after a prior `restore` — the analyser starts from
+    /// a snapshot covering earlier clean chunks, then walks the
+    /// dirty chunk's commands through the dispatcher.
+    ///
+    /// When `finalise` is `true` the diagnostic-emission tail
+    /// (orchestrator + filters) runs.  When `false` only the
+    /// command walk happens — the caller is building a partial
+    /// snapshot and will run the tail later.
+    pub fn analyse_commands(
+        &mut self,
+        source: &str,
+        commands: &[crate::segmenter::SegmentedCommand],
+        dialect: &str,
+        finalise: bool,
+    ) -> AnalysisResult {
+        use tcl_registry::CommandRegistry;
+        self.source = source.to_string();
+        self.dialect = dialect.to_string();
+        self.unresolved_commands_emitted = false;
+        self.ns_cache.clear();
+
+        for code in super::utils::parse_file_suppression(source) {
+            self.disabled_diagnostics.insert(code);
+        }
+
+        self.analyse_commands_inner(commands);
+
+        if finalise {
+            let mut diag_registry = CommandRegistry::build_default();
+            if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+                diag_registry.load_dialect(d);
+            }
+            self.emit_unresolved_command_diagnostics(&diag_registry);
+            self.emit_variable_usage_diagnostics();
+            self.emit_cfg_ssa_diagnostics(source);
+            self.apply_disabled_diagnostics();
+            self.dedupe_diagnostics();
+        }
+
+        std::mem::take(&mut self.result)
+    }
+
+    /// Inner dispatch loop shared by [`Self::analyse_chunked`]
+    /// and [`Self::analyse_commands`].  Walks pre-segmented
+    /// commands at the current scope path.
+    ///
+    /// Mirrors `_analyse_commands_inner` in
+    /// `core/analysis/_analyser/_core.py:274-354`.  The Rust
+    /// port is much smaller than Python's because the
+    /// var-read recording, CMD-substitution recursion, and
+    /// recovery hooks land per-strip in C41c / C41e.  This
+    /// helper covers the dispatch portion that's load-bearing
+    /// for incremental analysis.
+    fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+        let scope_path = self.current_scope_path.clone();
+        for cmd in commands {
+            if cmd.is_partial || cmd.argv.is_empty() {
+                continue;
+            }
+            self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
+        }
+    }
+
     /// Resolve (and cache) the set of built-in command names for
     /// the active dialect.
     ///
@@ -498,6 +626,57 @@ mod tests {
             irules_len > initial_len,
             "f5-irules should add commands beyond core (got {irules_len} vs {initial_len})",
         );
+    }
+
+    #[test]
+    fn analyse_commands_pre_segmented_records_proc() {
+        // ``analyse_commands`` is the incremental entry — same
+        // dispatcher as ``analyse``, but without re-segmentation.
+        // Smoke-test that a pre-segmented chunk records its proc.
+        use crate::segmenter::segment_commands;
+        let source = "proc foo {} {}";
+        let commands = segment_commands(source);
+        let mut a = Analyser::new();
+        let r = a.analyse_commands(source, &commands, "tcl", true);
+        assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_chunked_returns_per_chunk_snapshots() {
+        // ``analyse_chunked`` returns one snapshot per chunk.
+        // Two chunks → two snapshots; the second snapshot
+        // captures cumulative state.
+        use crate::segmenter::segment_commands;
+        let source = "set x 1\nproc foo {} {}";
+        let chunk1 = segment_commands("set x 1");
+        let chunk2 = segment_commands("proc foo {} {}");
+        let mut a = Analyser::new();
+        let (r, snapshots) = a.analyse_chunked(source, vec![chunk1, chunk2], "tcl");
+        assert_eq!(snapshots.len(), 2);
+        // After chunk 1, x is in scope.
+        assert!(snapshots[0].result.global_scope.variables.contains_key("x"));
+        // After chunk 2, foo is in all_procs.
+        assert!(snapshots[1].result.all_procs.contains_key("::foo"));
+        // The final result has both.
+        assert!(r.global_scope.variables.contains_key("x"));
+        assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_commands_finalise_false_skips_diagnostic_tail() {
+        // When ``finalise=false``, the dedupe/disabled-codes
+        // filters don't run — useful for partial-snapshot paths
+        // where the tail is deferred.
+        use crate::segmenter::segment_commands;
+        let source = "proc set {} {}"; // would normally trip W113
+        let commands = segment_commands(source);
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        let r = a.analyse_commands(source, &commands, "tcl", false);
+        // W113 was emitted by handle_proc but the tail didn't
+        // run, so apply_disabled_diagnostics / dedupe didn't
+        // touch the diag list.  The diag is still there.
+        assert!(r.diagnostics.iter().any(|d| d.code == "W113"));
     }
 
     #[test]

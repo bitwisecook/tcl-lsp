@@ -65,7 +65,13 @@
 //!   Error, leading-zero → Warning) and IPv6 parsing via
 //!   ``std::net::Ipv6Addr``.  Anchors at the SSA def site;
 //!   seen-offsets dedup avoids duplicates across SSA versions.
-//! - **C41d7** — IRULE3020 (`_diag_racy.py`).
+//! - **C41d7** — `_diag_racy.py`.  ⏸ deferred: IRULE4005
+//!   (racy ``static::`` cross-event flow) needs the
+//!   connection-scope / cross-event analysis that the Rust
+//!   pipeline doesn't yet have (Python's
+//!   ``cu.connection_scope.racy_static_defs``).  Once
+//!   ``ConnectionScope`` lands on the Rust side, the emitter
+//!   wires up in a single call to ``emit_racy_static_diagnostics``.
 
 use std::collections::HashSet;
 
