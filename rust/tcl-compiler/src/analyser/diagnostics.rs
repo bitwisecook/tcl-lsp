@@ -54,8 +54,12 @@
 //!   mean…?" suggestions, and the
 //!   ``unknown_proc_info`` / ``has_dynamic_providers``
 //!   early-returns.
-//! - **C41d5** — W123 / W130..W138 (`_diag_branches.py` +
-//!   `_diag_channel.py`).
+//! - **C41d5** — `_diag_branches.py` + `_diag_channel.py`.
+//!   ✅ landed: I230 / I231 (constant branch / switch-arm) and
+//!   W126 (channel argument validation) all wired through the
+//!   per-function dispatcher.  Severity-Info Python diagnostics
+//!   map to ``Severity::Hint`` here (no Info variant on the
+//!   Rust side).
 //! - **C41d6** — IRULE3010..3019 (`_diag_ip.py`).
 //! - **C41d7** — IRULE3020 (`_diag_racy.py`).
 
@@ -160,8 +164,10 @@ impl Analyser {
         // Iterate top-level explicitly so we can pass the IR
         // module through.
         self.emit_cfg_ssa_diagnostics_for_function(&cu.top_level, &cu.ir_module);
+        self.emit_channel_diagnostics(&cu.top_level, &registry);
         for fu in cu.procedures.values() {
             self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
+            self.emit_channel_diagnostics(fu, &registry);
         }
 
         // Cross-function post-pass: resolve $var-as-command sites
@@ -202,12 +208,10 @@ impl Analyser {
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
         self.emit_read_before_set_diagnostics(function_unit, ir_proc, &defined, &scope_aliases);
+        self.emit_constant_branch_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
         }
-        // C41d4: emit_invalid_ip_diagnostics (W122)
-        // C41d5: emit_constant_branch_diagnostics (W123)
-        // C41d5: emit_channel_diagnostics (W130..W138)
     }
 
     /// W220 — dead-store hint.
@@ -630,6 +634,221 @@ impl Analyser {
                     message,
                     severity: Severity::Warning,
                 });
+            }
+        }
+    }
+
+    /// I230 / I231 — constant branch / switch-arm condition.
+    ///
+    /// Mirrors `_emit_constant_branch_diagnostics` in
+    /// `core/analysis/_analyser/_diag_branches.py`.  For every
+    /// branch SCCP folded to a constant, when the *not-taken*
+    /// target is also unreachable (i.e. SCCP confirmed only one
+    /// path is feasible), emit an Info-level diagnostic so the
+    /// LSP can highlight the dead arm.
+    ///
+    /// Code selection follows the Python rules:
+    /// - Block name starts with ``switch_`` → I231 (switch-arm).
+    /// - Block name starts with ``if_`` → I230 (constant if).
+    /// - Otherwise → I230 with the generic
+    ///   ``"Branch condition '...' is constant"`` message.
+    ///
+    /// Severity is mapped to ``Hint`` because the Rust
+    /// [`Severity`] enum has no ``Info`` variant — ``Hint`` is
+    /// the closest non-actionable level.
+    fn emit_constant_branch_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        for branch in &fu.sccp.constant_branches {
+            // The Python check is "not_taken_target in
+            // unreachable_blocks".  Rust SCCP exposes
+            // ``executable_blocks`` (the complement); a block
+            // is unreachable iff it's in ``cfg.blocks`` but
+            // NOT in ``executable_blocks``.
+            if fu.sccp.executable_blocks.contains(&branch.not_taken_target) {
+                continue;
+            }
+            // Locate the branch's terminator span.
+            let Some(block) = fu.cfg.blocks.get(&branch.block) else {
+                continue;
+            };
+            let Some(crate::cfg::Terminator::Branch {
+                span: Some(span), ..
+            }) = &block.terminator
+            else {
+                continue;
+            };
+            let span = *span;
+
+            let names = [
+                branch.block.as_str(),
+                branch.taken_target.as_str(),
+                branch.not_taken_target.as_str(),
+            ];
+            let is_switch = names.iter().any(|n| n.starts_with("switch_"));
+            let is_if = names.iter().any(|n| n.starts_with("if_"));
+
+            let (code, message) = if is_switch {
+                let code = "I231";
+                let msg = if branch.value {
+                    format!(
+                        "Switch condition '{}' is always true here; \
+                         subsequent switch arms are unreachable",
+                        branch.condition,
+                    )
+                } else {
+                    format!(
+                        "Switch arm condition '{}' is always false; \
+                         this arm is unreachable",
+                        branch.condition,
+                    )
+                };
+                (code, msg)
+            } else if is_if {
+                let msg = if branch.value {
+                    format!(
+                        "Condition '{}' is always true; \
+                         the alternate branch is unreachable",
+                        branch.condition,
+                    )
+                } else {
+                    format!(
+                        "Condition '{}' is always false; \
+                         the alternate branch is unreachable",
+                        branch.condition,
+                    )
+                };
+                ("I230", msg)
+            } else {
+                let msg = format!(
+                    "Branch condition '{}' is constant; one branch is unreachable",
+                    branch.condition,
+                );
+                ("I230", msg)
+            };
+
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: code.to_string(),
+                span,
+                message,
+                severity: Severity::Hint,
+            });
+        }
+    }
+
+    /// W126 — channel-argument validation.
+    ///
+    /// Mirrors `_emit_channel_diagnostics` in
+    /// `core/analysis/_analyser/_diag_channel.py`.  Walks every
+    /// SSA-annotated `Call` statement for commands that declare
+    /// `ArgRole::Channel` arguments; for each channel-position
+    /// argument, checks the SSA type lattice to determine whether
+    /// the value is genuinely a channel.  Two failure modes:
+    ///
+    /// - **`$var` reference** with `TypeKind::Known` and a non-
+    ///   `TclType::Channel` type — emits "passed as channel … has
+    ///   type X, not CHANNEL".
+    /// - **String literal** that isn't `stdin` / `stdout` /
+    ///   `stderr` and contains no substitutions — emits
+    ///   "String literal 'X' used as channel argument".
+    ///
+    /// The standard channels (`stdin`, `stdout`, `stderr`) are
+    /// always accepted.  Unknown / overdefined types skip the
+    /// check (could be anything).
+    fn emit_channel_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        use crate::ir::Statement;
+        use crate::types::TypeKind;
+        use tcl_registry::ArgRole;
+
+        const STANDARD_CHANNELS: &[&str] = &["stdout", "stderr", "stdin"];
+
+        for block in fu.ssa.blocks.values() {
+            for ssa_stmt in &block.statements {
+                let Statement::Call {
+                    command,
+                    args,
+                    span,
+                    ..
+                } = &ssa_stmt.statement
+                else {
+                    continue;
+                };
+                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                let channel_indices =
+                    registry.arg_indices_for_role(command, &arg_refs, ArgRole::Channel);
+                if channel_indices.is_empty() {
+                    continue;
+                }
+                for idx in channel_indices {
+                    if idx >= args.len() {
+                        continue;
+                    }
+                    let arg_text = &args[idx];
+                    // Extract bare var name from ``$var`` / ``${var}``.
+                    let var_name: Option<&str> =
+                        if arg_text.starts_with("${") && arg_text.ends_with('}') {
+                            Some(&arg_text[2..arg_text.len() - 1])
+                        } else if let Some(rest) = arg_text.strip_prefix('$') {
+                            Some(rest)
+                        } else {
+                            None
+                        };
+
+                    if let Some(name) = var_name {
+                        let Some(&version) = ssa_stmt.uses.get(name) else {
+                            continue;
+                        };
+                        let key: crate::ssa::ValueKey = (name.to_string(), version);
+                        let Some(var_type) = fu.types.get(&key) else {
+                            continue;
+                        };
+                        if var_type.kind != TypeKind::Known {
+                            continue;
+                        }
+                        let Some(tcl_type) = var_type.tcl_type else {
+                            continue;
+                        };
+                        if matches!(tcl_type, tcl_registry::TclType::Channel) {
+                            continue;
+                        }
+                        let type_label = format!("{tcl_type:?}").to_uppercase();
+                        let message = format!(
+                            "Variable '${name}' passed as channel to '{command}' \
+                             has type {type_label}, not CHANNEL.",
+                        );
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W126".to_string(),
+                            span: *span,
+                            message,
+                            severity: Severity::Warning,
+                        });
+                    } else {
+                        // Literal — strip surrounding braces / quotes.
+                        let literal = arg_text
+                            .trim_matches('"')
+                            .trim_start_matches('{')
+                            .trim_end_matches('}');
+                        if STANDARD_CHANNELS.contains(&literal) {
+                            continue;
+                        }
+                        // Only warn for clearly-not-substituted literals.
+                        if arg_text.contains('$') || arg_text.contains('[') {
+                            continue;
+                        }
+                        let message = format!(
+                            "String literal '{literal}' used as channel argument to \
+                             '{command}' — expected a channel from open/socket/chan create.",
+                        );
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W126".to_string(),
+                            span: *span,
+                            message,
+                            severity: Severity::Warning,
+                        });
+                    }
+                }
             }
         }
     }
@@ -1278,6 +1497,35 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must not fire at top-level (deferred); got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_i230_constant_if_branch() {
+        // ``proc foo {} { if {1} { puts hi } }`` — the ``if 1``
+        // condition is constant, the false branch is unreachable.
+        // I230 should fire.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { if {1} { puts hi } }", "tcl");
+        let i230s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "I230").collect();
+        assert!(
+            !i230s.is_empty(),
+            "I230 expected for constant ``if 1``; got {:?}",
+            r.diagnostics,
+        );
+        assert!(i230s[0].message.contains("always true"));
+    }
+
+    #[test]
+    fn analyse_no_i230_for_dynamic_condition() {
+        // ``proc foo {x} { if {$x > 0} {} }`` — ``$x > 0`` is
+        // not constant; no I230.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {x} { if {$x > 0} { puts hi } }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "I230"),
+            "I230 must not fire on dynamic condition; got {:?}",
+            r.diagnostics,
         );
     }
 
