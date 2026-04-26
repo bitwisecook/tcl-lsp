@@ -387,6 +387,7 @@ mod tests {
             top_level: fu,
             procedures: HashMap::new(),
             interproc: None,
+            connection_scope: None,
         }
     }
 

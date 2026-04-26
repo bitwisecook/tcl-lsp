@@ -138,6 +138,13 @@ pub struct CompilationUnit {
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
     pub interproc: Option<InterproceduralAnalysis>,
+    /// Cross-event variable scope analysis.  ``Some`` when at
+    /// least one ``::when::*`` procedure is in
+    /// [`Self::procedures`]; ``None`` for non-iRules sources or
+    /// any source with no ``when`` blocks.  Mirrors Python's
+    /// ``CompilationUnit.connection_scope``.  Lands alongside
+    /// **C41d7** (the IRULE4005 emitter).
+    pub connection_scope: Option<crate::connection_scope::ConnectionScope>,
 }
 
 impl CompilationUnit {
@@ -170,6 +177,22 @@ impl CompilationUnit {
                 FunctionUnit::build(qname, cfg.clone(), registry),
             );
         }
+        // **C41d7.** Build the cross-event scope from the
+        // ``::when::*`` subset of procedures.  ``None`` when no
+        // ``when`` block is present so non-iRules consumers
+        // skip the (empty) sweep.
+        let connection_scope = {
+            let when_procs: HashMap<String, FunctionUnit> = procedures
+                .iter()
+                .filter(|(qn, _)| qn.starts_with("::when::"))
+                .map(|(qn, fu)| (qn.clone(), fu.clone()))
+                .collect();
+            if when_procs.is_empty() {
+                None
+            } else {
+                Some(crate::connection_scope::build_connection_scope(&when_procs))
+            }
+        };
         Self {
             source: source.to_owned(),
             ir_module,
@@ -177,6 +200,7 @@ impl CompilationUnit {
             top_level,
             procedures,
             interproc: None,
+            connection_scope,
         }
     }
 

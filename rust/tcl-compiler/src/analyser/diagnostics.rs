@@ -262,9 +262,23 @@ impl Analyser {
             &globals_written,
         );
         self.emit_channel_diagnostics(&cu.top_level, &registry);
-        for fu in cu.procedures.values() {
+        for (qname, fu) in &cu.procedures {
             self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
             self.emit_channel_diagnostics(fu, &registry);
+            // **C41d7.** IRULE4005 — racy ``static::``
+            // cross-event flow.  Only fires for non-RULE_INIT
+            // ``when`` procs when ``ConnectionScope::racy_static_defs``
+            // is non-empty.  Mirrors Python's
+            // ``_emit_racy_static_diagnostics`` call site in
+            // ``_diagnostics.py:171-175``.
+            if let Some(scope) = cu.connection_scope.as_ref() {
+                if qname.starts_with("::when::") && !scope.racy_static_defs.is_empty() {
+                    let event = crate::ir::when_event_name(qname);
+                    if event != "RULE_INIT" {
+                        self.emit_racy_static_diagnostics(fu, &scope.racy_static_defs);
+                    }
+                }
+            }
         }
 
         // Cross-function post-pass: resolve $var-as-command sites
@@ -1604,6 +1618,59 @@ impl Analyser {
             .diagnostics
             .retain(|d| !disabled.contains(&d.code));
     }
+
+    /// IRULE4005 — racy ``static::`` cross-event flow.
+    ///
+    /// Mirrors `_emit_racy_static_diagnostics` in
+    /// `core/analysis/_analyser/_diag_racy.py`.  Walks every
+    /// SSA statement in `fu` and emits IRULE4005 for any
+    /// non-``unset`` def of a name in `racy_vars`.
+    /// `racy_vars` comes from
+    /// [`crate::connection_scope::ConnectionScope::racy_static_defs`]
+    /// — built once per `CompilationUnit` and shared by every
+    /// ``::when::*`` proc except `RULE_INIT`.
+    fn emit_racy_static_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        racy_vars: &HashSet<String>,
+    ) {
+        if self.disabled_diagnostics.contains("IRULE4005") {
+            return;
+        }
+        let mut emitted_spans: HashSet<u32> = HashSet::new();
+        for block in fu.ssa.blocks.values() {
+            for stmt in &block.statements {
+                // Skip unset — not a real write.  Mirrors the
+                // Python guard.
+                if let crate::ir::Statement::Call { command, .. } = &stmt.statement {
+                    if command == "unset" {
+                        continue;
+                    }
+                }
+                for name in stmt.defs.keys() {
+                    if !racy_vars.contains(name) {
+                        continue;
+                    }
+                    let span = stmt.statement.span();
+                    if span.is_empty() || !emitted_spans.insert(span.start()) {
+                        continue;
+                    }
+                    let message = format!(
+                        "Potential race: '{name}' is written outside RULE_INIT and read in \
+                         another event. static:: variables persist across all connections on \
+                         the same virtual server; concurrent writes can produce unpredictable \
+                         results."
+                    );
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "IRULE4005".to_string(),
+                        span,
+                        message,
+                        severity: Severity::Warning,
+                    });
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1931,6 +1998,42 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must be suppressed via global-alias case; got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_irule4005_racy_static_emitted_for_per_request_writes() {
+        // ``static::counter`` written in HTTP_REQUEST and read
+        // in HTTP_RESPONSE — both per-request events; the
+        // cross-event flow is racy ⇒ IRULE4005 fires.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "when HTTP_REQUEST { incr static::counter }\n\
+             when HTTP_RESPONSE { log local0. \"$static::counter\" }",
+            "f5-irules",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "IRULE4005"),
+            "IRULE4005 expected for racy static cross-event flow; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_irule4005_no_emit_for_rule_init_writes() {
+        // ``static::config`` written in RULE_INIT is racy-safe
+        // (RULE_INIT runs once at iRule load) — IRULE4005 must
+        // not fire.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "when RULE_INIT { set static::config 1 }\n\
+             when HTTP_REQUEST { log local0. \"$static::config\" }",
+            "f5-irules",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "IRULE4005"),
+            "IRULE4005 must not fire for RULE_INIT writes; got {:?}",
+            r.diagnostics,
         );
     }
 
