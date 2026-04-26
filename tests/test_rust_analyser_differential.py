@@ -226,13 +226,19 @@ CORPUS: list[tuple[str, str]] = [
         "namespace_eval_with_proc",
         "namespace eval pkg { proc helper {} {} }",
     ),
-    # ``nested_namespace_eval`` (``namespace eval outer { namespace
-    # eval inner { proc deep {} {} } }``) is intentionally absent —
-    # Python's analyser records the proc as ``::inner::deep`` (it
-    # drops the outer namespace), while the Rust port records it
-    # correctly as ``::outer::inner::deep``.  The Rust shape is the
-    # one that downstream consumers expect; the Python rebase bug
-    # is tracked separately and out-of-scope for the C41 chunk.
+    # The two fixtures below pin the Python parity bugs fixed
+    # alongside the C41-default-on flip: ``proc ::ns::foo`` no
+    # longer yields a stray ``::::ns::foo`` qualified-name key, and
+    # ``namespace eval outer { namespace eval inner { ... } }`` no
+    # longer drops the outer namespace.
+    (
+        "nested_namespace_eval_proc",
+        "namespace eval outer { namespace eval inner { proc deep {} {} } }",
+    ),
+    (
+        "nested_namespace_eval_class",
+        "namespace eval outer { namespace eval inner { oo::class create C {} } }",
+    ),
     # -- control flow --
     (
         "for_loop_with_inner_set",
