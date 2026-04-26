@@ -8,6 +8,9 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from ...common.naming import (
+    normalise_qualified_name as _normalise_qualified_name,
+)
 from ...common.ranges import range_from_token
 from ...compiler.compiler_checks import iter_ir_statements
 from ...compiler.ir import (
@@ -43,6 +46,8 @@ class _AnalyserOOMixin(_Base):
         # From _AnalyserBase (also declared here for clarity via inherited _Base)
         # From _AnalyserCommandsMixin
         def _analyse_body(self, *a: Any, **kw: Any) -> None: ...
+        # From _AnalyserScopeMixin
+        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
 
     def _handle_oo_class_command(
         self,
@@ -68,17 +73,19 @@ class _AnalyserOOMixin(_Base):
         name_range = range_from_token(arg_tokens[1]) if len(arg_tokens) > 1 else Range.zero()
         body_range = range_from_token(arg_tokens[2]) if len(arg_tokens) > 2 else name_range
 
-        # Determine qualified name
-        if scope.kind == "namespace":
-            qualified = f"::{scope.name}::{class_name}"
-        else:
-            qualified = f"::{class_name}"
+        # Use ``_namespace_from_scope`` so nested ``namespace eval`` blocks
+        # produce the full path (matches the ``_proc.py`` fix); collapse
+        # ``::`` runs so a class declared as ``::ns::C`` doesn't pick up
+        # a stray leading ``::``.
+        ns = self._namespace_from_scope(scope) if scope.kind == "namespace" else "::"
+        qualified = _normalise_qualified_name(f"{ns}::{class_name}")
+        bare_name = class_name.rsplit("::", 1)[-1] or class_name
 
         preceding_doc = self._last_comment
         self._last_comment = ""
 
         class_def = ClassDef(
-            name=class_name,
+            name=bare_name,
             qualified_name=qualified,
             name_range=name_range,
             body_range=body_range,
@@ -91,7 +98,7 @@ class _AnalyserOOMixin(_Base):
                 body, arg_tokens[2] if len(arg_tokens) > 2 else None, class_def, scope
             )
 
-        scope.classes[class_name] = class_def
+        scope.classes[bare_name] = class_def
         self.result.all_classes[qualified] = class_def
         return True
 
@@ -109,23 +116,22 @@ class _AnalyserOOMixin(_Base):
             return False
 
         class_name = args[0]
-        # Determine qualified name
-        if scope.kind == "namespace":
-            qualified = f"::{scope.name}::{class_name}"
-        else:
-            qualified = f"::{class_name}"
+        # See ``_handle_oo_class_command`` for the qualified-name shape.
+        ns = self._namespace_from_scope(scope) if scope.kind == "namespace" else "::"
+        qualified = _normalise_qualified_name(f"{ns}::{class_name}")
+        bare_name = class_name.rsplit("::", 1)[-1] or class_name
 
         # Look up or create partial ClassDef
         class_def = self.result.all_classes.get(qualified)
         if class_def is None:
             name_range = range_from_token(arg_tokens[0]) if arg_tokens else Range.zero()
             class_def = ClassDef(
-                name=class_name,
+                name=bare_name,
                 qualified_name=qualified,
                 name_range=name_range,
                 body_range=name_range,
             )
-            scope.classes[class_name] = class_def
+            scope.classes[bare_name] = class_def
             self.result.all_classes[qualified] = class_def
 
         # Distinguish body form from inline form.

@@ -40,6 +40,7 @@ class _AnalyserProcMixin(_Base):
         def _record_var_read(self, *a: Any, **kw: Any) -> None: ...
         def _lookup_const_string(self, *a: Any, **kw: Any) -> Any: ...
         def _record_defining_set_as_regex(self, *a: Any, **kw: Any) -> None: ...
+        def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
         # From _AnalyserOOMixin
         def _extract_unknown_proc_info(self, *a: Any, **kw: Any) -> Any: ...
 
@@ -56,11 +57,19 @@ class _AnalyserProcMixin(_Base):
 
         params = parse_param_list(param_str)
 
-        # Determine qualified name
-        if scope.kind == "namespace":
-            qualified = f"::{scope.name}::{proc_name}"
-        else:
-            qualified = f"::{proc_name}"
+        # Determine qualified name. Use ``_namespace_from_scope`` so a
+        # nested ``namespace eval outer { namespace eval inner { proc foo
+        # ... } }`` produces ``::outer::inner::foo`` (the bare ``scope.name``
+        # would drop everything outside the innermost namespace).
+        # ``normalise_qualified_name`` collapses ``::`` runs so a proc
+        # already declared as ``::ns::foo`` doesn't pick up a stray
+        # leading ``::``.
+        ns = self._namespace_from_scope(scope) if scope.kind == "namespace" else "::"
+        qualified = _normalise_qualified_name(f"{ns}::{proc_name}")
+        # The ``name`` field carries the bare proc name even when the
+        # source declared it qualified (``proc ::ns::foo``); the bare
+        # tail is what consumers display in hover / outline UIs.
+        bare_name = proc_name.rsplit("::", 1)[-1] or proc_name
 
         if not arg_tokens:
             return
@@ -100,7 +109,7 @@ class _AnalyserProcMixin(_Base):
             body_doc = extract_body_docstring(body)
 
         proc_def = ProcDef(
-            name=proc_name,
+            name=bare_name,
             qualified_name=qualified,
             params=params,
             name_range=name_range,
@@ -108,11 +117,15 @@ class _AnalyserProcMixin(_Base):
             doc=preceding_doc or body_doc,
         )
 
-        scope.procs[proc_name] = proc_def
+        # ``scope.procs`` is keyed by the bare proc name so per-scope
+        # shadowing works whether the source declared the proc as
+        # ``foo`` or ``::ns::foo``.  ``all_procs`` keeps the full
+        # qualified key.
+        scope.procs[bare_name] = proc_def
         self.result.all_procs[qualified] = proc_def
 
         # Analyse the body in a new proc scope
-        proc_scope = Scope(kind="proc", name=proc_name, parent=scope, body_range=body_range)
+        proc_scope = Scope(kind="proc", name=bare_name, parent=scope, body_range=body_range)
         scope.children.append(proc_scope)
 
         # Define parameters as variables in the proc scope

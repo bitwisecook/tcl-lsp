@@ -137,6 +137,41 @@ class TestNamespaceAnalysis:
         result = analyse(source)
         assert "::math::add" in result.all_procs
 
+    def test_proc_already_qualified_no_double_prefix(self):
+        """``proc ::ns::foo`` at top level must register as
+        ``::ns::foo`` — not ``::::ns::foo``.  Regression for the
+        Python-side double-prefix bug fixed alongside C41-default-on."""
+        result = analyse("proc ::ns::foo {} {}")
+        assert sorted(result.all_procs.keys()) == ["::ns::foo"]
+        assert result.all_procs["::ns::foo"].name == "foo"
+
+    def test_class_already_qualified_no_double_prefix(self):
+        """Mirrors :meth:`test_proc_already_qualified_no_double_prefix`
+        for ``oo::class create ::ns::C`` and ``oo::define
+        ::ns::C ...``."""
+        result = analyse("oo::class create ::ns::Cls {}")
+        assert sorted(result.all_classes.keys()) == ["::ns::Cls"]
+        assert result.all_classes["::ns::Cls"].name == "Cls"
+
+        result = analyse("oo::define ::ns::Other { method m {} {} }")
+        assert sorted(result.all_classes.keys()) == ["::ns::Other"]
+        assert result.all_classes["::ns::Other"].name == "Other"
+
+    def test_nested_namespace_eval_keeps_outer_prefix(self):
+        """``namespace eval outer { namespace eval inner { proc deep
+        ... } }`` must record the proc as ``::outer::inner::deep`` —
+        not ``::inner::deep`` (which dropped the outer namespace).
+        Regression for the C41-default-on parity bug."""
+        source = "namespace eval outer { namespace eval inner { proc deep {} {} } }"
+        result = analyse(source)
+        assert sorted(result.all_procs.keys()) == ["::outer::inner::deep"]
+
+    def test_nested_namespace_eval_keeps_outer_prefix_for_class(self):
+        """Mirror of the proc case for ``oo::class``."""
+        source = "namespace eval outer { namespace eval inner { oo::class create C {} } }"
+        result = analyse(source)
+        assert sorted(result.all_classes.keys()) == ["::outer::inner::C"]
+
 
 # Arity checking / diagnostics
 class TestDiagnostics:
