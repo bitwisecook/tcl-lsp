@@ -421,24 +421,53 @@ def test_analyser_shape_matches_python(label: str, source: str) -> None:
 FIELD_PARITY_LABELS: frozenset[str] = frozenset(
     {
         "bare_proc",
+        "proc_with_params",
         "proc_with_default",
         "proc_qualified_name",
         "proc_inside_namespace_eval",
+        "set_global",
+        "set_qualified",
+        "incr_init",
         "set_then_read",
-        "namespace_eval_with_proc",
-        "nested_namespace_eval_proc",
+        "multiple_globals",
+        "w113_proc_shadows_set",
+        "w113_proc_shadows_puts",
+        "w123_unknown_command",
+        "w123_user_proc_resolves",
+        "w210_read_before_set_proc",
+        "w210_read_before_set_top_level",
+        "w210_suppressed_when_proc_writes_global",
+        "w211_unused_var",
+        "unknown_proc_with_switch",
+        "unknown_proc_empty_stub",
+        "unknown_proc_with_exec",
         "package_require_with_version",
         "package_require_exact",
+        "namespace_eval_with_proc",
+        "nested_namespace_eval_proc",
+        "foreach_loop",
+        "switch_form_2",
     }
 )
 
-# OO fixtures are intentionally excluded from
-# :data:`FIELD_PARITY_LABELS`: the Rust analyser populates
-# ``result.all_classes`` (so the qualified-name + scope-tree
-# top-level comparison succeeds) but does not yet thread class
-# definitions back into the per-scope ``Scope.classes`` map.
-# That parity gap is a Rust-side follow-up; until it closes, OO
-# fixtures stay on shape-only parity.
+# Fixtures excluded from :data:`FIELD_PARITY_LABELS` and the gap
+# they currently exercise:
+#
+# - **OO fixtures** (``oo_class_*``, ``oo_define_*``,
+#   ``nested_namespace_eval_class``, ``package_plus_proc_plus_class``).
+#   The Rust analyser populates ``result.all_classes`` (so the
+#   qualified-name + scope-tree top-level comparison succeeds) but
+#   does not yet thread class definitions back into the per-scope
+#   ``Scope.classes`` map.
+# - ``w213_unset_no_complain`` — the Rust port doesn't record an
+#   ``unset xs`` argument as a per-scope variable, so the proc
+#   scope's variable set diverges.
+# - ``for_loop_with_inner_set`` — the Rust port doesn't surface
+#   the ``set i 0`` from the for-loop init body in the enclosing
+#   scope's variable set.
+#
+# Each gap is a Rust-side follow-up; fixtures graduate to
+# :data:`FIELD_PARITY_LABELS` as the gaps close.
 
 
 @pytest.mark.parametrize(
