@@ -304,17 +304,64 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
     return result
 
 
+def _merge_rust_with_python_supplement(
+    rust: AnalysisResult, python: AnalysisResult
+) -> AnalysisResult:
+    """Merge Rust structural data with Python-supplied side channels.
+
+    The Rust analyser populates the structural payload (``all_procs``,
+    ``all_classes``, ``all_variables``, ``global_scope``,
+    ``unknown_proc_info``, plus the ``command_invocations`` /
+    ``command_aliases`` / ``package_requires`` side channels). It does
+    **not** yet emit ``source_targets``, ``namespace_imports``,
+    ``regex_patterns``, ``stub_commands``, ``stub_expr_defs``,
+    ``auto_path_entries``, ``package_provides``, ``suppressed_lines``,
+    or the post-pass diagnostics that Python's ``Analyser`` integrates
+    via ``run_compiler_checks`` (W110 / W220 / W304, …).
+
+    For the default-on transition we keep Rust as the authoritative
+    source for the structural fields and copy the Python pass's
+    side-channel data over. As the Rust port lands the missing
+    emitters those copies become no-ops (Rust will populate them
+    first); the merger then becomes a thin shim that future chunks
+    can delete.
+    """
+    rust.source_targets = python.source_targets
+    rust.regex_patterns = python.regex_patterns
+    rust.stub_commands = python.stub_commands
+    rust.stub_expr_defs = python.stub_expr_defs
+    rust.auto_path_entries = python.auto_path_entries
+    rust.package_provides = python.package_provides
+    rust.has_dynamic_providers = python.has_dynamic_providers
+    rust.suppressed_lines = python.suppressed_lines
+    if not rust.namespace_imports:
+        rust.namespace_imports = python.namespace_imports
+    if not rust.command_aliases:
+        rust.command_aliases = python.command_aliases
+    # Python's diagnostics list is a strict superset of the Rust port's
+    # for the codes both sides emit: Python emits the same analyser
+    # diagnostics plus the post-pass W110 / W220 / W304 from
+    # ``run_compiler_checks``. Take Python's.
+    rust.diagnostics = python.diagnostics
+    return rust
+
+
 def analyse(source: str, cu=None) -> AnalysisResult:
     """Analyse `source` for the active dialect.
 
     Dispatches to the Rust port when ``TCL_LSP_RUST_ANALYSER`` is
-    set to a truthy value AND no caller-provided
-    :class:`CompilationUnit` is supplied (the Rust path builds its
-    own CU internally; reusing a pre-built one isn't supported
-    yet).  Default polarity is **OFF** — the Python implementation
-    runs unless the env var is explicitly set.  Any exception
-    raised by the Rust path is logged at DEBUG and the Python
-    path runs as a safety net.
+    set to a truthy value (or unset, after the C41-default-on flip)
+    AND no caller-provided :class:`CompilationUnit` is supplied
+    (the Rust path builds its own CU internally; reusing a
+    pre-built one isn't supported yet).  Default polarity is
+    **OFF** — set ``TCL_LSP_RUST_ANALYSER=1`` to opt in.
+
+    Under the env var the Rust binding is consulted for the
+    structural payload; a Python supplementary pass fills in the
+    side-channel fields the Rust port doesn't emit yet
+    (see :func:`_merge_rust_with_python_supplement`).  Any
+    exception raised by the Rust path is logged at DEBUG and the
+    Python path runs alone as a safety net.
     """
     from core.common.dialect import active_dialect
     from core.compiler.rust_spans import rust_shim_enabled
@@ -325,7 +372,11 @@ def analyse(source: str, cu=None) -> AnalysisResult:
         and rust_shim_enabled("TCL_LSP_RUST_ANALYSER", default=False)
     ):
         try:
-            return _materialise_rust_analysis(source, _rust_analyse(source, active_dialect()))
+            rust_result = _materialise_rust_analysis(
+                source, _rust_analyse(source, active_dialect())
+            )
+            python_result = Analyser().analyse(source, cu=cu)
+            return _merge_rust_with_python_supplement(rust_result, python_result)
         except Exception:  # pragma: no cover - safety net
             log.debug("rust analyser failed, falling back to python", exc_info=True)
     return Analyser().analyse(source, cu=cu)
