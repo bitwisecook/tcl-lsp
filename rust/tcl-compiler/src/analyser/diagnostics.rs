@@ -27,15 +27,13 @@
 //!
 //! - **C41d1** — orchestrator scaffold + dedupe + disabled-
 //!   codes filter.  ✅ landed.
-//! - **C41d2** — `_diag_var_lifecycle.py`.  ✅ partial:
-//!   W220 (dead store) and W214 (unused parameter) are wired
-//!   today; W210 / W213 (read-before-set, unset on possibly-
-//!   undef), W211 (unused variable), and H300 (paste error)
-//!   are deferred to a follow-up strip — each needs extra
-//!   plumbing (textual-reference filter, scope-alias
-//!   detection, SSA-version-0 distinction between real proc
-//!   params and synthetic RBS reads) that doesn't exist on
-//!   the Rust side yet.
+//! - **C41d2** — `_diag_var_lifecycle.py`.  ✅ landed:
+//!   W220 (dead store), W211 (unused variable), W214
+//!   (unused parameter), W210 (read-before-set), W213
+//!   (unset on possibly-undef), and H300 (paste error).
+//!   W210 / W213 are gated on procs only — top-level RBS
+//!   needs the ``globals_written_by_procs`` filter Python
+//!   uses, deferred until interproc analysis is wired in.
 //! - **C41d3** — W230..W239 (`_diag_var_command.py`).
 //! - **C41d4** — W120 / W121 / W122 / W242
 //!   (`_diag_commands.py`).
@@ -124,17 +122,11 @@ impl Analyser {
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
     ///
-    /// **C41d2 baseline.**  W220 (dead store hint) and W214
-    /// (unused parameter hint) are wired through the per-function
-    /// dispatcher.  W211 (unused variable), W210 / W213
-    /// (read-before-set / unset on possibly-undef), and H300
-    /// (paste error) are deferred to a follow-up — each needs
-    /// extra plumbing (textual-reference filter, scope-alias
-    /// detection, SSA-version-0 distinction between real proc
-    /// params and synthetic RBS reads) that doesn't exist on
-    /// the Rust side yet.  The cross-function post-passes
-    /// (var-as-command for W307, interpolated-command resolution
-    /// for W242) land in **C41d3** / **C41d4**.
+    /// **C41d2 lands** the full ``_diag_var_lifecycle.py``
+    /// emitter set (W220, W211, W214, W210, W213, H300).
+    /// Cross-function post-passes (var-as-command for W307,
+    /// interpolated-command resolution for W242) land in
+    /// **C41d3** / **C41d4**.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
         use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
@@ -163,21 +155,33 @@ impl Analyser {
     /// script and once per procedure.  Each per-emitter call is
     /// gated on its own predicate inside the helper.
     ///
-    /// **C41d2 baseline.**  Only W220 + W214 are wired today.
-    /// Each future C41d strip adds another emitter call here.
+    /// **C41d2 wires** all six ``_diag_var_lifecycle.py``
+    /// emitters.  Each future C41d strip adds another emitter
+    /// call here.
     pub fn emit_cfg_ssa_diagnostics_for_function(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
         ir_module: &crate::ir::Module,
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
-        self.emit_dead_store_diagnostics(function_unit, &defined);
-        if let Some(ir_proc) = ir_module.procedures.get(&function_unit.name) {
+        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
+        let textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
+            &self.source,
+            &function_unit.cfg,
+        );
+        let ir_proc = ir_module.procedures.get(&function_unit.name);
+        self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases);
+        self.emit_unused_variable_diagnostics(
+            function_unit,
+            &defined,
+            &scope_aliases,
+            &textually_referenced,
+        );
+        self.emit_possible_paste_error_diagnostics(function_unit);
+        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &defined, &scope_aliases);
+        if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
         }
-        // C41d2 follow-up: emit_unused_variable_diagnostics (W211)
-        // C41d2 follow-up: emit_read_before_set_diagnostics (W210/W213)
-        // C41d2 follow-up: emit_possible_paste_error_diagnostics (H300)
         // C41d4: emit_invalid_ip_diagnostics (W122)
         // C41d5: emit_constant_branch_diagnostics (W123)
         // C41d5: emit_channel_diagnostics (W130..W138)
@@ -208,6 +212,7 @@ impl Analyser {
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         defined_vars: &HashSet<String>,
+        scope_aliases: &HashSet<String>,
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
@@ -216,10 +221,17 @@ impl Analyser {
                 continue;
             }
             let (var, version) = &chain.key;
+            // Scope-aliased vars (introduced via ``global`` or
+            // ``upvar``) write through to a different scope — the
+            // local "no use" verdict is unsafe.
+            if scope_aliases.contains(var) {
+                continue;
+            }
             // ``any_other_live`` — another SSA version of this
             // variable has live uses, so this assignment is
             // overwritten.  When no other version is live, the
-            // variable is truly unused — that's W211 (deferred).
+            // variable is truly unused — that's W211, handled
+            // separately.
             let any_other_live = fu
                 .def_use
                 .chains
@@ -251,6 +263,171 @@ impl Analyser {
                 message,
                 severity: Severity::Hint,
             });
+        }
+    }
+
+    /// W211 — unused-variable hint.
+    ///
+    /// Mirrors `_emit_unused_variable_diagnostics` in
+    /// `_diag_var_lifecycle.py:226-258`.  Fires when an
+    /// assignment's variable has no live uses **and** no other
+    /// SSA version is live (so the variable is entirely unused
+    /// — distinct from W220's overwritten-before-read case).
+    ///
+    /// Three filters apply:
+    ///
+    /// 1. **Scope aliases** (``global`` / ``upvar``) — writes
+    ///    are visible in the aliased scope, so a "no local use"
+    ///    verdict is unsafe.
+    /// 2. **Textual references** — variable names that appear
+    ///    inside a ``"$x"`` string interpolation or a
+    ///    ``Return`` value are kept live; the def-use builder
+    ///    doesn't track those reads.
+    /// 3. **Empty spans** — synthetic IR statements with no
+    ///    user-visible source text.
+    ///
+    /// "Did you mean…?" suggestions use case-insensitive
+    /// matching against the function's defined-variable set.
+    fn emit_unused_variable_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        defined_vars: &HashSet<String>,
+        scope_aliases: &HashSet<String>,
+        textually_referenced: &HashSet<String>,
+    ) {
+        use crate::def_use::DefKind;
+        use std::fmt::Write as _;
+        for chain in fu.def_use.chains.values() {
+            if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+                continue;
+            }
+            let (var, version) = &chain.key;
+            if scope_aliases.contains(var) {
+                continue;
+            }
+            if textually_referenced.contains(var) {
+                continue;
+            }
+            // Only emit when no other SSA version of this var is
+            // live — the W220 path handles overwritten cases.
+            let any_other_live = fu
+                .def_use
+                .chains
+                .iter()
+                .any(|(k, c)| k.0 == *var && k.1 != *version && !c.is_dead());
+            if any_other_live {
+                continue;
+            }
+            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+                continue;
+            };
+            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+                continue;
+            };
+            let Some(stmt) = block.statements.get(idx) else {
+                continue;
+            };
+            let span = stmt.span();
+            if span.is_empty() {
+                continue;
+            }
+            let mut message = format!("Variable '{var}' is set but never used");
+            if let Some(similar) = find_case_mismatch(var, defined_vars) {
+                let _ = write!(message, "; did you mean '{similar}'?");
+            }
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W211".to_string(),
+                span,
+                message,
+                severity: Severity::Hint,
+            });
+        }
+    }
+
+    /// H300 — possible paste error (duplicate dead-store with
+    /// identical literal).
+    ///
+    /// Mirrors `_emit_possible_paste_error_diagnostics` in
+    /// `_diag_var_lifecycle.py:74-121`.  When two consecutive
+    /// statements in the same block are both dead stores AND
+    /// share the same paste-fingerprint
+    /// (same variable name + same trimmed literal value), emit
+    /// a Hint at the *second* statement's span — the duplicate
+    /// is the one that's almost certainly a paste error.
+    ///
+    /// Variables whose names start with ``_`` are excluded from
+    /// the heuristic on the assumption that the leading
+    /// underscore signals the user has flagged them as
+    /// intentional.
+    fn emit_possible_paste_error_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) {
+        use crate::def_use::DefKind;
+        use std::collections::HashMap;
+
+        // Pre-compute, per block, the set of statement indices
+        // that are dead stores.  Walk every dead Statement-kind
+        // chain in def_use, bucket by block.
+        let mut dead_idx: HashMap<&str, HashSet<usize>> = HashMap::new();
+        for chain in fu.def_use.chains.values() {
+            if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+                continue;
+            }
+            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+                continue;
+            };
+            dead_idx
+                .entry(chain.definition.block.as_str())
+                .or_default()
+                .insert(idx);
+        }
+
+        for (block_name, block) in &fu.cfg.blocks {
+            let Some(dead_indices) = dead_idx.get(block_name.as_str()) else {
+                continue;
+            };
+            // Walk consecutive pairs (idx, idx + 1).  Only the
+            // first must be dead — the second's
+            // dead-status is irrelevant; what matters is whether
+            // the value being assigned matches.
+            for idx in 0..block.statements.len().saturating_sub(1) {
+                if !dead_indices.contains(&idx) {
+                    continue;
+                }
+                let Some(first) = super::utils::possible_paste_fingerprint(&block.statements[idx])
+                else {
+                    continue;
+                };
+                let Some(second) =
+                    super::utils::possible_paste_fingerprint(&block.statements[idx + 1])
+                else {
+                    continue;
+                };
+                if first != second {
+                    continue;
+                }
+                let (var_name, literal) = first;
+                if var_name.starts_with('_') {
+                    continue;
+                }
+                let span = block.statements[idx + 1].span();
+                if span.is_empty() {
+                    continue;
+                }
+                let pretty = super::utils::format_literal_for_message(&literal);
+                let message = format!(
+                    "Possible paste error: repeated assignment to '{var_name}' \
+                     with static value '{pretty}'; \
+                     did you mean to assign a different variable?"
+                );
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "H300".to_string(),
+                    span,
+                    message,
+                    severity: Severity::Hint,
+                });
+            }
         }
     }
 
@@ -300,6 +477,137 @@ impl Analyser {
                 message,
                 severity: Severity::Hint,
             });
+        }
+    }
+
+    /// W210 + W213 — read-before-set / unset on possibly-undefined.
+    ///
+    /// Mirrors `_emit_read_before_set_diagnostics` in
+    /// `_diag_var_lifecycle.py:159-224`.  Walks every
+    /// version-0 chain (`DefKind::Parameter`) in `fu.def_use`
+    /// — those are the synthetic defs the def-use builder
+    /// emits when a variable is used without a preceding def.
+    ///
+    /// Distinguishes real proc parameters from synthetic RBS
+    /// reads via `ir_proc.params`.  Only emits inside procedures
+    /// (i.e. when `ir_proc` is `Some`) — top-level RBS would
+    /// need the `globals_written_by_procs` filter Python uses
+    /// (deferred to a later strip).
+    ///
+    /// Per use site:
+    ///
+    /// - **Phi-incoming uses** are skipped — they sit at block
+    ///   boundaries and don't anchor on a real statement.
+    /// - **`unset` without `-nocomplain`** emits W213 (the more
+    ///   specific code) instead of W210.  W213 message tells
+    ///   the user to add `-nocomplain` rather than initialise
+    ///   the variable.
+    /// - **`safe_on_uninit` calls** that initialise the variable
+    ///   themselves (it's in their `defs`) are skipped —
+    ///   commands like `lappend` / `incr` / `dict set` safely
+    ///   initialise an uninitialised variable.
+    /// - Everything else emits W210 with the canonical
+    ///   "read before set" message + optional "did you mean…?"
+    ///   suggestion.
+    fn emit_read_before_set_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ir_proc: Option<&crate::ir::Procedure>,
+        defined_vars: &HashSet<String>,
+        scope_aliases: &HashSet<String>,
+    ) {
+        use crate::def_use::{DefKind, UseKind};
+        use crate::ir::Statement;
+        use std::fmt::Write as _;
+
+        // Top-level RBS would need ``globals_written_by_procs``
+        // filtering to avoid false positives on globals set by
+        // helper procs.  Defer until that plumbing lands.
+        let Some(ir_proc) = ir_proc else {
+            return;
+        };
+        let params: HashSet<&str> = ir_proc.params.iter().map(String::as_str).collect();
+
+        for chain in fu.def_use.chains.values() {
+            if chain.definition.kind != DefKind::Parameter {
+                continue;
+            }
+            let (var, _version) = &chain.key;
+            if params.contains(var.as_str()) {
+                continue;
+            }
+            if scope_aliases.contains(var) {
+                continue;
+            }
+            for use_site in &chain.uses {
+                if matches!(use_site.kind, UseKind::PhiIncoming) {
+                    continue;
+                }
+                let Some(block) = fu.cfg.blocks.get(&use_site.block) else {
+                    continue;
+                };
+                let (span, stmt_opt): (tcl_lexer::Span, Option<&Statement>) =
+                    if use_site.statement_index == -1 {
+                        let Some(span) = block
+                            .terminator
+                            .as_ref()
+                            .and_then(crate::cfg::Terminator::span)
+                        else {
+                            continue;
+                        };
+                        (span, None)
+                    } else {
+                        let Ok(idx) = usize::try_from(use_site.statement_index) else {
+                            continue;
+                        };
+                        let Some(stmt) = block.statements.get(idx) else {
+                            continue;
+                        };
+                        (stmt.span(), Some(stmt))
+                    };
+                if span.is_empty() {
+                    continue;
+                }
+                // ``unset`` without ``-nocomplain`` → W213.
+                if let Some(Statement::Call { command, args, .. }) = stmt_opt {
+                    if command == "unset" && !args.iter().any(|a| a == "-nocomplain") {
+                        let message = format!(
+                            "Variable '{var}' may not exist; \
+                             use 'unset -nocomplain' to suppress the error",
+                        );
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W213".to_string(),
+                            span,
+                            message,
+                            severity: Severity::Warning,
+                        });
+                        continue;
+                    }
+                }
+                // ``safe_on_uninit`` calls that initialise the
+                // variable themselves are not RBS — they handle
+                // the uninitialised case.
+                if let Some(Statement::Call {
+                    safe_on_uninit,
+                    defs,
+                    ..
+                }) = stmt_opt
+                {
+                    if *safe_on_uninit && defs.contains(var) {
+                        continue;
+                    }
+                }
+                let mut message = format!("Variable '{var}' is read before it is set");
+                if let Some(similar) = find_case_mismatch(var, defined_vars) {
+                    let _ = write!(message, "; did you mean '{similar}'?");
+                }
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W210".to_string(),
+                    span,
+                    message,
+                    severity: Severity::Warning,
+                });
+            }
         }
     }
 
@@ -491,6 +799,209 @@ mod tests {
         assert!(w214s[0].message.contains("'y'"));
         assert!(w214s[0].message.contains("'::foo'"));
         assert_eq!(w214s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w211_unused_variable() {
+        // ``proc foo {} { set y 1 }`` — y is set, never read,
+        // and there's no other version → W211 fires.
+        // Top-level test would be subject to global-scope
+        // assumptions, so use a proc body where the local-only
+        // verdict is safe.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set y 1 }");
+        let w211s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W211")
+            .collect();
+        assert!(
+            !w211s.is_empty(),
+            "W211 expected for unused var ``y`` in proc foo; got {:?}",
+            a.result.diagnostics,
+        );
+        assert!(w211s[0].message.contains("'y'"));
+        assert!(w211s[0].message.contains("set but never used"));
+        assert_eq!(w211s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
+        // ``proc foo {} { set msg hello; puts "got $msg" }`` —
+        // ``msg`` is referenced inside a quoted string; the
+        // textual-reference filter should suppress W211 because
+        // the def-use builder doesn't track ``"$msg"`` reads.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set msg hello; puts \"got $msg\" }");
+        let w211s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W211" && d.message.contains("'msg'"))
+            .collect();
+        assert!(
+            w211s.is_empty(),
+            "W211 must not fire on var referenced via $-interpolation; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased() {
+        // ``proc foo {} { global config; set config 1 }`` —
+        // ``config`` is global-aliased; the write goes to the
+        // outer scope, so the local "no use" verdict is unsafe.
+        // W211 must not fire.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { global config; set config 1 }");
+        let w211s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W211" && d.message.contains("'config'"))
+            .collect();
+        assert!(
+            w211s.is_empty(),
+            "W211 must not fire on global-aliased var; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_h300_repeated_assignment() {
+        // ``proc foo {} { set x 1; set x 1 }`` — same var,
+        // same literal value, consecutive statements.  The
+        // first is a dead store; H300 fires on the second.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nset x 1 }");
+        let h300s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "H300")
+            .collect();
+        assert!(
+            !h300s.is_empty(),
+            "H300 expected for repeated ``set x 1``; got {:?}",
+            a.result.diagnostics,
+        );
+        assert!(h300s[0].message.contains("'x'"));
+        assert!(h300s[0].message.contains("Possible paste error"));
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_h300_skips_underscore_vars() {
+        // Vars starting with ``_`` are excluded (the convention
+        // for "intentionally unused").
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set _x 1\nset _x 1 }");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "H300"),
+            "H300 must not fire on underscore-prefixed vars",
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_h300_skips_distinct_values() {
+        // Same var, different literal → not a paste error.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nset x 2 }");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "H300"),
+            "H300 must not fire when literal values differ",
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_read_before_set() {
+        // ``proc foo {} { puts $undef }`` — undef is not a
+        // parameter and not in scope; W210 fires at the use.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { puts $undef }");
+        let w210s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W210" && d.message.contains("'undef'"))
+            .collect();
+        assert!(
+            !w210s.is_empty(),
+            "W210 expected for read of undef ``$undef``; got {:?}",
+            a.result.diagnostics,
+        );
+        assert_eq!(w210s[0].severity, Severity::Warning);
+        assert!(w210s[0].message.contains("read before it is set"));
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_skipped_for_real_param() {
+        // ``proc foo {x} { puts $x }`` — x IS a real parameter,
+        // so W210 must not fire.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {x} { puts $x }");
+        let w210s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W210" && d.message.contains("'x'"))
+            .collect();
+        assert!(
+            w210s.is_empty(),
+            "W210 must not fire on real param ``x``; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
+        // ``proc foo {} { unset xs }`` — ``xs`` may not exist;
+        // ``unset`` without ``-nocomplain`` would error at
+        // runtime.  W213 fires (instead of W210) at the unset
+        // statement.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { unset xs }");
+        let w213s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W213")
+            .collect();
+        assert!(
+            !w213s.is_empty(),
+            "W213 expected for ``unset xs`` on possibly-undef var; got {:?}",
+            a.result.diagnostics,
+        );
+        assert!(w213s[0].message.contains("'xs'"));
+        assert!(w213s[0].message.contains("unset -nocomplain"));
+        assert_eq!(w213s[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w213_skipped_with_nocomplain() {
+        // ``unset -nocomplain xs`` is the safe form — W213
+        // must not fire.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { unset -nocomplain xs }");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W213"),
+            "W213 must not fire when ``-nocomplain`` is present; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_skipped_for_top_level() {
+        // Top-level RBS is deferred until ``globals_written_by_procs``
+        // filtering lands; the C41d2 baseline must not emit on
+        // top-level.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("puts $undef");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must not fire at top-level (deferred); got {:?}",
+            a.result.diagnostics,
+        );
     }
 
     #[test]

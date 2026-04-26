@@ -358,7 +358,7 @@ fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
 /// function's own CFG extent now that the segmenter emits
 /// absolute spans for proc bodies — so false-positive
 /// suppression across proc boundaries no longer applies.
-fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
+pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
     // Absolute spans now cover the function's own source range.
     // Union every statement span plus every terminator span
     // (which includes Return-value reads) and scan the enclosing
@@ -444,7 +444,7 @@ fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<St
 /// `variable`, `upvar`, `namespace upvar`) and collect the
 /// variable names they bind. Those must not be flagged as dead
 /// stores / unused — writes go to a different scope.
-fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
+pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
     let mut aliases: HashSet<String> = HashSet::new();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
