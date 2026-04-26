@@ -230,12 +230,31 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
     # Workspace-index, alias-driven role propagation, and
     # ``package require``-keyed feature gating all rely on these
     # being threaded through to the materialised result.
+    #
+    # ``resolved_qualified_name`` is **not** populated by the Rust
+    # binding yet; resolve it Python-side here against the
+    # materialised ``all_procs`` so workspace usage counts (``::name``
+    # → invocation count) keep working under default-on.
+    proc_name_set = frozenset(result.all_procs.keys())
     for inv in raw.get("command_invocations", []):
+        cmd_name = inv["name"]
+        resolved = inv.get("resolved_qualified_name")
+        if resolved is None and cmd_name and proc_name_set:
+            from ...common.naming import normalise_qualified_name as _nq
+
+            if cmd_name.startswith("::"):
+                candidate = _nq(cmd_name)
+            elif "::" in cmd_name:
+                candidate = _nq(f"::{cmd_name}")
+            else:
+                candidate = _nq(f"::{cmd_name}")
+            if candidate in proc_name_set:
+                resolved = candidate
         result.command_invocations.append(
             CommandInvocation(
-                name=inv["name"],
+                name=cmd_name,
                 range=range_at(*inv["range"]),
-                resolved_qualified_name=inv.get("resolved_qualified_name"),
+                resolved_qualified_name=resolved,
             )
         )
     for pr in raw.get("package_requires", []):
