@@ -105,6 +105,7 @@ pub mod static_loops;
 pub mod subst_nocommands;
 pub mod taint;
 pub mod tcl_expr_eval;
+pub mod text;
 pub mod type_infer;
 pub mod types;
 pub mod value_shapes;

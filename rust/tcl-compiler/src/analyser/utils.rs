@@ -63,6 +63,114 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
     codes
 }
 
+/// Scan `source` for inline ``# tcl-lsp: stub <name> ...``
+/// declarations bounded by ``# tcl-lsp: stubs-begin`` /
+/// ``# tcl-lsp: stubs-end`` markers, returning the set of
+/// declared command names.
+///
+/// Mirrors the name-extraction subset of
+/// `core/analysis/stub_comments.py::scan_source_for_stubs`.
+/// The Python helper additionally parses arg-roles and flags
+/// (``-loop``, ``-barrier``, etc.) into a full
+/// ``StubCommandDef`` record; the Rust analyser doesn't yet
+/// carry that field on ``AnalysisResult`` so we extract just
+/// the names.  Adding the names to the W123 candidate set is
+/// the load-bearing use case — the role/flag data only
+/// matters for downstream diagnostic emitters that the Rust
+/// port hasn't yet wired.
+///
+/// Stubs declared *outside* the begin/end markers are ignored
+/// (matches Python).  ``expr-func`` / ``expr-op`` lines are
+/// skipped — they declare expression functions, not commands.
+#[must_use]
+pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
+    let mut names: HashSet<String> = HashSet::new();
+    let mut in_block = false;
+    for line in source.lines() {
+        let stripped = line.trim();
+        if !stripped.starts_with('#') {
+            continue;
+        }
+        let body = stripped.trim_start_matches('#').trim_start();
+        // Markers — both case-insensitive on the keyword.
+        if matches_marker(body, "stubs-begin") {
+            in_block = true;
+            continue;
+        }
+        if matches_marker(body, "stubs-end") {
+            in_block = false;
+            continue;
+        }
+        if !in_block {
+            continue;
+        }
+        if let Some(name) = parse_stub_name(body) {
+            // Skip ``expr-func`` / ``expr-op`` — those
+            // declare expression-language symbols, not
+            // commands.
+            if name.starts_with("expr-") {
+                continue;
+            }
+            names.insert(name.to_string());
+        }
+    }
+    names
+}
+
+/// Match a ``# tcl-lsp: <marker>`` line, where `marker` is
+/// e.g. ``"stubs-begin"`` / ``"stubs-end"``.  Case-insensitive
+/// on the keyword run; whitespace flexible.
+fn matches_marker(body: &str, marker: &str) -> bool {
+    let s = body.trim_start();
+    let lower_prefix = "tcl-lsp";
+    let kw_end = lower_prefix.len();
+    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+        return false;
+    }
+    let rest = s[kw_end..].trim_start();
+    let Some(rest) = rest.strip_prefix(':') else {
+        return false;
+    };
+    let rest = rest.trim_start();
+    let m_end = marker.len();
+    if rest.len() < m_end {
+        return false;
+    }
+    rest[..m_end].eq_ignore_ascii_case(marker)
+}
+
+/// Extract the command name from a ``# tcl-lsp: stub NAME …``
+/// line.  Returns the raw name as a borrowed slice or `None`
+/// when the line doesn't match the stub shape.
+fn parse_stub_name(body: &str) -> Option<&str> {
+    let s = body.trim_start();
+    let lower_prefix = "tcl-lsp";
+    let kw_end = lower_prefix.len();
+    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+        return None;
+    }
+    let rest = s[kw_end..].trim_start();
+    let rest = rest.strip_prefix(':')?.trim_start();
+    let stub_kw = "stub";
+    let stub_end = stub_kw.len();
+    if rest.len() < stub_end || !rest[..stub_end].eq_ignore_ascii_case(stub_kw) {
+        return None;
+    }
+    let after = rest[stub_end..].trim_start();
+    if after.is_empty() {
+        return None;
+    }
+    // First whitespace-delimited token is the command name.
+    let end = after
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(after.len());
+    if end == 0 {
+        None
+    } else {
+        Some(&after[..end])
+    }
+}
+
 /// Match `# tcl-lsp: disable=…` (case-insensitive on the keyword),
 /// returning the trailing CODE list as a borrowed slice. Returns
 /// `None` if the line doesn't match the directive shape.
@@ -346,5 +454,71 @@ mod tests {
         assert_eq!(params[0].name, "a");
         assert_eq!(params[2].name, "c");
         assert!(params[2].has_default);
+    }
+
+    #[test]
+    fn scan_stub_command_names_extracts_inline_stubs() {
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub my_cmd {arg1:var body:body} -loop
+# tcl-lsp: stub my_eval {script:body} -barrier
+# tcl-lsp: stubs-end
+proc foo {} {}
+";
+        let names = scan_stub_command_names(src);
+        assert!(names.contains("my_cmd"));
+        assert!(names.contains("my_eval"));
+        assert_eq!(names.len(), 2);
+    }
+
+    #[test]
+    fn scan_stub_command_names_ignores_outside_block() {
+        let src = "\
+# tcl-lsp: stub orphan_cmd {x:var}
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub inside {x:var}
+# tcl-lsp: stubs-end
+# tcl-lsp: stub also_orphan {x:var}
+";
+        let names = scan_stub_command_names(src);
+        assert!(names.contains("inside"));
+        assert!(!names.contains("orphan_cmd"));
+        assert!(!names.contains("also_orphan"));
+    }
+
+    #[test]
+    fn scan_stub_command_names_skips_expr_func_op_lines() {
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub expr-func sizeof 1
+# tcl-lsp: stub expr-op contains 2
+# tcl-lsp: stub regular_cmd {x:var}
+# tcl-lsp: stubs-end
+";
+        let names = scan_stub_command_names(src);
+        assert!(names.contains("regular_cmd"));
+        assert!(!names.iter().any(|n| n.starts_with("expr-")));
+    }
+
+    #[test]
+    fn scan_stub_command_names_handles_multiple_blocks() {
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub a {x:var}
+# tcl-lsp: stubs-end
+proc foo {} {}
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub b {y:var}
+# tcl-lsp: stubs-end
+";
+        let names = scan_stub_command_names(src);
+        assert!(names.contains("a"));
+        assert!(names.contains("b"));
+    }
+
+    #[test]
+    fn scan_stub_command_names_empty_source() {
+        let names = scan_stub_command_names("");
+        assert!(names.is_empty());
     }
 }
