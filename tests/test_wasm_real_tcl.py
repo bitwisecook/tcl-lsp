@@ -39,6 +39,21 @@ _engine: wasmtime.Engine | None = None
 _rt_module: wasmtime.Module | None = None
 _engine_with_timeout: wasmtime.Engine | None = None
 _rt_module_with_timeout: wasmtime.Module | None = None
+# Tracks how many times we've called ``increment_epoch`` on the
+# timeout engine.  ``set_epoch_deadline`` takes an *absolute* counter
+# value: each watchdog fire bumps ``engine.epoch`` permanently, so
+# subsequent stores that set deadline=1 trap immediately because the
+# engine's counter has already passed that value from previous
+# invocations.  Compute the per-call deadline as ``_epoch_count + 1``
+# and update ``_epoch_count`` after the watchdog fires (or after the
+# call returns clean) so we stay one step ahead.
+_epoch_count: int = 0
+
+
+def _epoch_count_set(v: int) -> None:
+    """Update the cached counter; only used on watchdog fire."""
+    global _epoch_count
+    _epoch_count = max(_epoch_count, v)
 
 
 def _get_engine() -> wasmtime.Engine:
@@ -155,13 +170,18 @@ def _run_wasm(
     """
     engine = _get_engine_with_timeout() if timeout_s is not None else _get_engine()
     store = wasmtime.Store(engine)
+    deadline_value = 0
     if timeout_s is not None:
-        # ``set_epoch_deadline(1)`` arms the store: the wasm code runs
-        # until the engine's epoch passes 1, which the watchdog Timer
-        # below triggers via ``engine.increment_epoch()`` after the
-        # deadline elapses.  Without epoch_interruption on the
-        # engine config this would be a no-op.
-        store.set_epoch_deadline(1)
+        # ``set_epoch_deadline`` takes an absolute counter value.  We
+        # track how many ``increment_epoch`` calls we've made (across
+        # all prior watchdog fires + setup increments below); the
+        # next trap point is one tick beyond that.  Without the
+        # tracking, a stale ``set_epoch_deadline(1)`` after the engine
+        # has already advanced past 1 traps immediately and produces
+        # zero output — which looked like an instantiation hang.
+        global _epoch_count
+        deadline_value = _epoch_count + 1
+        store.set_epoch_deadline(deadline_value)
     wasi_config = wasmtime.WasiConfig()
 
     stdout_path = None
@@ -236,11 +256,13 @@ def _run_wasm(
 
     boxed_args = tuple(obj_new_int(store, a) for a in args)
     watchdog = None
+    watchdog_fired = [False]
     if timeout_s is not None:
         import threading
 
         def _bump_epoch():
             engine.increment_epoch()
+            watchdog_fired[0] = True
 
         watchdog = threading.Timer(timeout_s, _bump_epoch)
         watchdog.daemon = True
@@ -251,17 +273,20 @@ def _run_wasm(
     except BaseException:
         # Drain captured stderr/stdout before re-raising so the trap
         # site message written by the runtime is visible to the
-        # caller.  ``_TrapWithCaptures`` is an exception subclass that
-        # wraps the original trap and exposes the captures.
+        # caller.  Attach unconditionally — earlier the attach was
+        # gated on ``stderr_text`` being non-empty, which silently
+        # discarded captures whenever a test trapped while writing
+        # only to stdout (e.g. tcltest's per-test FAILED markers go
+        # to stdout, but a watchdog-driven epoch trap leaves stderr
+        # empty).  Result: callers got back ``""`` and thought the
+        # bundle had hung from instantiation, when in fact it had
+        # produced hundreds of lines of stdout before the trap.
         stdout_text = _maybe_read(stdout_path)
         stderr_text = _maybe_read(stderr_path)
         import sys
 
         exc = sys.exc_info()[1]
-        if exc is not None and stderr_text:
-            # Attach as attribute so the caller can grab it without
-            # catching an unrelated exception type.  wasmtime.Trap is
-            # a plain exception and allows attribute assignment.
+        if exc is not None:
             try:
                 exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]
                 exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]
@@ -271,6 +296,15 @@ def _run_wasm(
     finally:
         if watchdog is not None:
             watchdog.cancel()
+            # Keep ``_epoch_count`` in sync with the engine's actual
+            # counter.  If the watchdog fired, the engine advanced by
+            # one tick and we record that so the next call's deadline
+            # is computed correctly.  If the wasm completed before the
+            # watchdog, the engine's counter is still at the previous
+            # value but we still consumed the deadline slot — bumping
+            # ``_epoch_count`` keeps deadlines monotonically ahead.
+            if watchdog_fired[0]:
+                _epoch_count_set(deadline_value)
 
     stdout_text = _maybe_read(stdout_path)
     stderr_text = _maybe_read(stderr_path)
