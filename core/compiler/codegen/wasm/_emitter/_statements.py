@@ -1019,15 +1019,33 @@ class _WasmEmitterStmtMixin(_Base):
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             func_idx, n_params = proc_info
+            qname = self._resolve_proc_qname(command)
+            has_args_tail = qname is not None and qname in self._proc_args_tail
             # Stash the invoked word for the callee's
             # ``info level 0`` argv0 — see
             # :meth:`_emit_prepare_pending_argv0`.
             argv0_local = self._emit_prepare_pending_argv0(command)
-            # Push exactly n_params args (truncate surplus, pad missing)
-            for i in range(min(n_params, len(args))):
-                self._emit_value(args[i])
-            for _ in range(n_params - len(args)):
-                self._emit_i32_const(0)
+            if has_args_tail and n_params > 0:
+                # Variadic proc — pack call-site args past the fixed
+                # positionals into a single list TclObj for the
+                # trailing ``args`` slot.  Without this branch, a
+                # tail-position call to ``proc f {x args}`` from
+                # inside another proc body silently truncates to
+                # ``f a`` (dropping ``b c d``) — same fix-shape as
+                # ``_emit_cmd_proc_call`` (statement context) and
+                # ``_emit_command_subst_value`` (value context).
+                fixed = n_params - 1
+                for i in range(min(fixed, len(args))):
+                    self._emit_value(args[i])
+                for _slot in range(len(args), fixed):
+                    self._emit_i32_const(0)
+                self._emit_args_list(tuple(args[fixed:]))
+            else:
+                # Push exactly n_params args (truncate surplus, pad missing)
+                for i in range(min(n_params, len(args))):
+                    self._emit_value(args[i])
+                for _ in range(n_params - len(args)):
+                    self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             # i32 result stays on the stack

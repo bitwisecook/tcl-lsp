@@ -875,6 +875,16 @@ def _scan_needed_imports(
             if proc.params and proc.params[-1] == "args":
                 needed.add("tcl_list_length")
                 needed.add("tcl_list_index")
+                # Call sites pack surplus call-site args into the
+                # trailing ``args`` slot via ``_emit_args_list`` →
+                # ``tcl_cmd_lappend``.  When the tail contains any
+                # non-literal element (``$var`` / ``[cmd]``) the
+                # all-literals compile-time concat path doesn't
+                # apply, so the runtime needs ``tcl_lappend``
+                # available.  Without this, the fallback compile-
+                # time path quotes ``${x}`` as the literal string
+                # and the value never reaches the callee.
+                needed.add("tcl_lappend")
                 break
 
     return needed
