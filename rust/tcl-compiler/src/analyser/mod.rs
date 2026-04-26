@@ -36,6 +36,7 @@ pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
 pub mod mro;
+pub mod oo;
 pub mod scope;
 pub mod snapshot;
 pub mod state;

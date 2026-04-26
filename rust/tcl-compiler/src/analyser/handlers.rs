@@ -744,8 +744,9 @@ impl Analyser {
         let qualified = qualify(ns_for_qualify, raw_name);
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
         let name_span = arg_tokens[1].span;
-        let body_span = arg_tokens.get(2).map_or(arg_tokens[1].span, |t| t.span);
-        let class = super::types::ClassDef {
+        let body_tok_opt = arg_tokens.get(2).copied();
+        let body_span = body_tok_opt.map_or(arg_tokens[1].span, |t| t.span);
+        let mut class = super::types::ClassDef {
             name: simple,
             qualified_name: qualified.clone(),
             name_span,
@@ -755,6 +756,12 @@ impl Analyser {
             methods: std::collections::HashMap::new(),
             class_methods: std::collections::HashMap::new(),
         };
+        // **C41e1.** Walk the class body when present —
+        // populates ``superclasses`` / ``mixins`` / ``methods`` /
+        // ``class_methods`` from the OO-define subcommands.
+        if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
+            self.parse_oo_definition_body(body_text, body_tok, &mut class);
+        }
         self.result.all_classes.insert(qualified, class);
         true
     }
@@ -762,22 +769,105 @@ impl Analyser {
     /// Handle `oo::define CLASS ?BODY?` — record an extension to
     /// an existing class.
     ///
-    /// **C41b8 stub.** The full port (method addition, mixin
-    /// declarations, superclass changes) lands in **C41e2**. For
-    /// now this strip is a recognise-and-no-op so the dispatch
-    /// table can route the command without a fall-through to
-    /// W123 unresolved-command later.
+    /// **C41e2.** Looks up the class by qualified name in
+    /// ``result.all_classes``; when found, walks the body or
+    /// inline-form arguments via the OO walkers in
+    /// [`super::oo`] to extend ``superclasses`` / ``mixins`` /
+    /// ``methods`` / ``class_methods``.  When the class isn't
+    /// in the index yet (e.g. the class definition lives in a
+    /// separate file the workspace index hasn't reached), a
+    /// stub ``ClassDef`` is created so subsequent
+    /// ``oo::define`` calls + the workspace index see a
+    /// consistent record.
     pub fn handle_oo_define_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "oo::define" || args.is_empty() {
             return false;
         }
-        // C41e2 will populate the class extension here.
+        let raw_class_name = &args[0];
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        let ns_for_qualify = ns_prefix.trim_start_matches(':');
+        let qualified = qualify(ns_for_qualify, raw_class_name);
+
+        // Distinguish body-form from inline-form by inspecting
+        // ``args[1]``.  Body-form: ``oo::define Class { ... }``
+        // — args[1] is a single body argument.  Inline-form:
+        // ``oo::define Class method foo {} {}`` — args[1] is a
+        // known define subcommand.
+        if args.len() < 2 {
+            return true;
+        }
+
+        // The set of known define subcommands is the same as
+        // body-form subcommands.  Anything not in this set falls
+        // through to body-form handling (the segmenter does the
+        // re-parse).
+        let define_subcmds: &[&str] = &[
+            "method",
+            "classmethod",
+            "constructor",
+            "destructor",
+            "superclass",
+            "mixin",
+            "variable",
+            "filter",
+            "forward",
+            "export",
+            "unexport",
+            "property",
+            "private",
+            "initialise",
+            "initialize",
+            "definitionnamespace",
+            "deletemethod",
+            "renamemethod",
+            "self",
+        ];
+        let inline_form = define_subcmds.contains(&args[1].as_str());
+
+        // Look up or create the partial ClassDef in
+        // ``result.all_classes``.
+        let mut class_def = self
+            .result
+            .all_classes
+            .remove(&qualified)
+            .unwrap_or_else(|| {
+                let name_span = arg_tokens.first().map_or(
+                    super::types::Scope::default()
+                        .body_span
+                        .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
+                    |t| t.span,
+                );
+                super::types::ClassDef {
+                    name: raw_class_name.clone(),
+                    qualified_name: qualified.clone(),
+                    name_span,
+                    body_span: name_span,
+                    superclasses: Vec::new(),
+                    mixins: Vec::new(),
+                    methods: std::collections::HashMap::new(),
+                    class_methods: std::collections::HashMap::new(),
+                }
+            });
+
+        if inline_form {
+            // ``oo::define Class subcmd ...`` — args[1..] is
+            // the subcommand + its args.
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            self.parse_oo_define_inline(&inline_args, &inline_tokens, &mut class_def);
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            // ``oo::define Class { body }`` — args[1] is the
+            // body text, arg_tokens[1] is the body token.
+            self.parse_oo_definition_body(&args[1], body_tok, &mut class_def);
+        }
+
+        self.result.all_classes.insert(qualified, class_def);
         true
     }
 
@@ -2480,6 +2570,67 @@ mod tests {
         );
         assert!(!handled);
         assert!(a.result.all_classes.is_empty());
+    }
+
+    // -- handle_oo_class_command body walking (C41e1) ---------------
+
+    #[test]
+    fn analyse_oo_class_body_records_superclass_and_methods() {
+        // End-to-end: ``oo::class create Sub`` with a body
+        // declaring a superclass and a method.  After analyse
+        // ``::Sub`` should carry both fields.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create Sub { superclass ::Base\nmethod greet {} { puts hi } }",
+            "tcl",
+        );
+        assert!(r.all_classes.contains_key("::Sub"));
+        let cls = &r.all_classes["::Sub"];
+        assert_eq!(cls.superclasses, vec!["::Base"]);
+        assert!(cls.methods.contains_key("greet"));
+        assert_eq!(cls.methods["greet"].kind, "method");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_classmethod_and_mixin() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { mixin ::M\nclassmethod build {} { return ok } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.mixins, vec!["::M"]);
+        assert!(cls.class_methods.contains_key("build"));
+        assert!(!cls.methods.contains_key("build"));
+    }
+
+    // -- handle_oo_define_command body walking (C41e2) --------------
+
+    #[test]
+    fn analyse_oo_define_body_extends_existing_class() {
+        // ``oo::class create C {}`` followed by ``oo::define
+        // C { method m {} {} }`` — the method ends up in the
+        // already-recorded class.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C {}\noo::define C { method m {} {} }",
+            "tcl",
+        );
+        assert!(r.all_classes.contains_key("::C"));
+        let cls = &r.all_classes["::C"];
+        assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn analyse_oo_define_inline_form_extends_class() {
+        // ``oo::define C method m {} {}`` — inline form,
+        // single subcommand.  Works whether or not the class
+        // was previously declared (creates a stub if absent).
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::define MyClass method greet {} { puts hi }", "tcl");
+        assert!(r.all_classes.contains_key("::MyClass"));
+        let cls = &r.all_classes["::MyClass"];
+        assert!(cls.methods.contains_key("greet"));
     }
 
     // -- handle_oo_define_command (C41b8 stub) ----------------------
