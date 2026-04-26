@@ -681,7 +681,38 @@ class _WasmEmitterStmtMixin(_Base):
             # define→rename-delete→re-define→rename-delete on
             # ``linenumber``.)
             if command == "proc" and self._is_static_proc_args(args):
-                self._emit_re_register_proc(args[0], args[1])
+                # First static def with this name at top level: re-emit
+                # ``proc_register_compiled`` so a previous
+                # ``rename NAME {}`` followed by ``proc NAME`` re-
+                # installs the bucket (the prologue's one-shot
+                # registration won't fire twice).
+                #
+                # Second-or-later static def with the same name:
+                # the lifter only kept the FIRST def's body in
+                # ``ir_module.procedures``, so the compile-time
+                # direct-call resolution path would always invoke
+                # the stale body.  Route through eval-fallback (the
+                # interpreter's ``proc`` registers a fresh
+                # interpreted body and clears ``func_idx``), and
+                # remove the entry from ``_proc_index`` so any
+                # SUBSEQUENT compile-time call-site resolution
+                # misses and falls through to the bucket dispatch
+                # — which then reads the new body.
+                qname = args[0] if args[0].startswith("::") else f"::{args[0]}"
+                seen = getattr(self, "_seen_top_level_procs", None)
+                if seen is None:
+                    seen = set()
+                    self._seen_top_level_procs = seen
+                if qname in seen:
+                    self._emit_eval_fallback(command, args)
+                    self._emit(WasmOp.DROP)
+                    # Drop both the qualified and bare entries so
+                    # ``_resolve_proc`` (which probes both) misses.
+                    self._proc_index.pop(qname, None)
+                    self._proc_index.pop(args[0], None)
+                else:
+                    seen.add(qname)
+                    self._emit_re_register_proc(args[0], args[1])
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
