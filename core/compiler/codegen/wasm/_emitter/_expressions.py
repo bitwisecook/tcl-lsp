@@ -460,6 +460,30 @@ class _WasmEmitterExprMixin(_Base):
             self._emit_unbox_int()
             return
 
+        # ``regexp`` / ``regsub`` with options or capture vars — same
+        # rationale as the value-context branch in ``_values.py`` and
+        # the statement-context hook in ``cmds/regexp_.py``: the
+        # fixed-argc runtime import would silently take ``-indices``
+        # as the pattern arg.  Route through eval-fallback (with
+        # ``script_override``) so the dispatcher in ``cmds/regexp.zig``
+        # → ``eval_regexp_cmd`` parses options correctly.
+        if cmd_name in ("regexp", "regsub") and cmd_args:
+            n_pos = 0
+            uses_options = False
+            for a in cmd_args:
+                if a.startswith("-") and len(a) > 1:
+                    uses_options = True
+                    break
+                n_pos += 1
+            min_positional = 2 if cmd_name == "regexp" else 3
+            if uses_options or n_pos > min_positional:
+                from .cmds.regexp_ import _capture_vars_for as _cap_vars
+                for vname in _cap_vars(cmd_name, tuple(cmd_args)):
+                    self._intern_local(vname)
+                self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                self._emit_unbox_int()
+                return
+
         # Runtime command — returns i32 TclObj, unbox to i64
         rimp = runtime_import_for(cmd_name)
         if rimp is not None:

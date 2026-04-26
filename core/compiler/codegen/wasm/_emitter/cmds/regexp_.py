@@ -31,19 +31,71 @@ from __future__ import annotations
 from ......commands.registry import REGISTRY, EmitContext
 
 
-def _has_options_or_capture_vars(args: tuple[str, ...]) -> bool:
-    n_positional = 0
-    for a in args:
-        if a.startswith("-") and len(a) > 1:
-            return True
-        n_positional += 1
-        if n_positional > 2:
-            return True
-    return False
+def _split_options_and_positionals(
+    args: tuple[str, ...],
+) -> tuple[list[str], list[str]]:
+    """Separate leading ``-foo`` options from the trailing positional words.
+
+    ``-start`` consumes a following value; ``--`` ends option parsing.
+    Numbers and bare ``-`` aren't options.
+    """
+    options: list[str] = []
+    positionals: list[str] = []
+    i = 0
+    in_options = True
+    while i < len(args):
+        a = args[i]
+        if in_options and a.startswith("-") and len(a) > 1 and not (a[1].isdigit() or a[1] == "."):
+            if a == "--":
+                in_options = False
+                i += 1
+                continue
+            options.append(a)
+            if a == "-start" and i + 1 < len(args):
+                options.append(args[i + 1])
+                i += 2
+                continue
+            i += 1
+            continue
+        in_options = False
+        positionals.append(a)
+        i += 1
+    return options, positionals
+
+
+def _capture_vars_for(cmd: str, args: tuple[str, ...]) -> list[str]:
+    """Identify capture-target var names so the proc's readback can sync them.
+
+    For ``regexp ?opts? PAT STR ?varname ...?`` — every positional after
+    PAT/STR.
+    For ``regsub ?opts? PAT STR REPL ?varname?`` — the optional varname.
+    Returns names for which the capture write happens via the
+    interpreter's ``frames.var_set``; without pre-interning these,
+    ``_emit_frame_readback`` skips them and the compiled body keeps
+    reading the stale wasm-local.
+    """
+    options, positionals = _split_options_and_positionals(args)
+    inline_mode = "-inline" in options
+    if cmd == "regexp":
+        # PAT, SUBJECT, then capture vars (skipped under -inline).
+        if inline_mode or len(positionals) <= 2:
+            return []
+        return [p for p in positionals[2:] if p and not p.startswith("$")]
+    # regsub
+    if len(positionals) <= 3:
+        return []
+    return [p for p in positionals[3:] if p and not p.startswith("$")]
 
 
 def _hook_regexp(emitter, args, defs, context):
     if _has_options_or_capture_vars(args):
+        # Pre-intern any capture-var names so the proc's frame readback
+        # after eval-fallback reloads them into the wasm-local cache.
+        # Without this, ``regexp -indices PAT STR all`` inside a compiled
+        # proc body sets ``all`` in the runtime frame but the next
+        # ``$all`` read sees the stale (empty) wasm-local.
+        for vname in _capture_vars_for("regexp", args):
+            emitter._intern_local(vname)
         emitter._emit_eval_fallback("regexp", args)
         if context is EmitContext.STATEMENT:
             from ..._ir import WasmOp
@@ -55,6 +107,8 @@ def _hook_regexp(emitter, args, defs, context):
 
 def _hook_regsub(emitter, args, defs, context):
     if _has_options_or_capture_vars(args):
+        for vname in _capture_vars_for("regsub", args):
+            emitter._intern_local(vname)
         emitter._emit_eval_fallback("regsub", args)
         if context is EmitContext.STATEMENT:
             from ..._ir import WasmOp
@@ -62,6 +116,17 @@ def _hook_regsub(emitter, args, defs, context):
         return True
     emitter._emit_cmd_runtime("regsub", args, defs, context)
     return True
+
+
+def _has_options_or_capture_vars(args: tuple[str, ...]) -> bool:
+    n_positional = 0
+    for a in args:
+        if a.startswith("-") and len(a) > 1:
+            return True
+        n_positional += 1
+        if n_positional > 2:
+            return True
+    return False
 
 
 REGISTRY.register_wasm_emitter("regexp", _hook_regexp)
