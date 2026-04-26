@@ -528,6 +528,49 @@ fn walk_unqualified_path(ctx: *CmdWalkCtx) void {
     }
 
     if (start != root and !root_in_path) scan_ns_cmd_table(root, ctx);
+
+    // Walk the builtin command table.  Builtins (``puts``, ``string``,
+    // ``try``, ``trace``, ...) live in a static array assembled from
+    // each ``cmds/<name>.zig`` rather than in any namespace's
+    // ``cmd_table``, so without this pass ``info commands t*`` /
+    // ``info commands string`` etc. came back empty.  ``info procs``
+    // narrows to interpreted procs only, so it skips this pass.
+    if (ctx.kind == .commands) scan_builtin_table(ctx);
+}
+
+/// Walk the static BUILTINS slice from ``tcl_cmd_table.zig`` and emit
+/// each builtin command name that matches the filter.  Names are
+/// emitted as-is (unqualified) — the builtins live in the root ns
+/// for resolution purposes but we don't currently auto-prefix
+/// ``::`` to ``info commands`` results to match tclsh's flat output.
+fn scan_builtin_table(ctx: *CmdWalkCtx) void {
+    const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+    const entries = cmd_table.entries();
+    for (entries) |e| {
+        const name_ptr: u32 = @intFromPtr(e.name.ptr);
+        const name_len: u32 = @intCast(e.name.len);
+        if (ctx.has_pattern) {
+            if (!tcl_string.glob_match(ctx.pat_ptr, ctx.pat_len, name_ptr, name_len)) {
+                continue;
+            }
+        }
+        if (ctx.buf == 0) {
+            if (ctx.count > 0) ctx.total += 1; // separator
+            ctx.total += name_len;
+            ctx.count += 1;
+        } else {
+            if (ctx.count > 0) {
+                const sep: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+                sep[0] = ' ';
+                ctx.off += 1;
+            }
+            const dst: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+            const src: [*]const u8 = @ptrFromInt(name_ptr);
+            for (0..name_len) |k| dst[k] = src[k];
+            ctx.off += name_len;
+            ctx.count += 1;
+        }
+    }
 }
 
 /// Walk only the target namespace's ``cmd_table`` — used when the

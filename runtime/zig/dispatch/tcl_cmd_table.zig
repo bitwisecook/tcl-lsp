@@ -70,3 +70,11 @@ const BUILTINS: []const reg.CmdEntry = &(
 pub fn lookup(name_ptr: u32, name_len: u32) ?reg.HandlerFn {
     return reg.lookup(BUILTINS, name_ptr, name_len);
 }
+
+/// Read access to the BUILTINS slice.  ``info commands`` walks every
+/// registered builtin so an ``info commands t*`` glob can find
+/// ``try`` / ``time`` / ``trace`` etc. — these aren't in any
+/// namespace's cmd_table.
+pub fn entries() []const reg.CmdEntry {
+    return BUILTINS;
+}
