@@ -34,7 +34,15 @@
 //!   W210 / W213 are gated on procs only — top-level RBS
 //!   needs the ``globals_written_by_procs`` filter Python
 //!   uses, deferred until interproc analysis is wired in.
-//! - **C41d3** — W230..W239 (`_diag_var_command.py`).
+//! - **C41d3** — `_diag_var_command.py`.  ✅ partial:
+//!   ``var_command_sites`` and ``cmd_command_sites`` are now
+//!   recorded during the walk dispatch, and W307 (non-literal
+//!   command name) is emitted via the cross-function post-pass.
+//!   W308 (unknown method on object) is deferred — needs the
+//!   ``class_hierarchy`` / MRO port (the C41e0 architectural
+//!   decision still pending).  Likewise the ``[cmd] method``
+//!   suppression via return-type analysis is deferred — needs
+//!   IR-level type-lattice plumbing extended into the analyser.
 //! - **C41d4** — W120 / W121 / W122 / W242
 //!   (`_diag_commands.py`).
 //! - **C41d5** — W123 / W130..W138 (`_diag_branches.py` +
@@ -124,9 +132,9 @@ impl Analyser {
     ///
     /// **C41d2 lands** the full ``_diag_var_lifecycle.py``
     /// emitter set (W220, W211, W214, W210, W213, H300).
-    /// Cross-function post-passes (var-as-command for W307,
-    /// interpolated-command resolution for W242) land in
-    /// **C41d3** / **C41d4**.
+    /// **C41d3 lands** the var-as-command post-pass (W307); W308
+    /// awaits the class-hierarchy port.  W242 (interpolated-
+    /// command resolution) lands in **C41d4**.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
         use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
@@ -146,6 +154,12 @@ impl Analyser {
         for fu in cu.procedures.values() {
             self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
         }
+
+        // Cross-function post-pass: resolve $var-as-command sites
+        // collected during the walk.  Mirrors
+        // ``_emit_var_command_diagnostics`` in
+        // ``_diag_var_command.py``.
+        self.emit_var_command_diagnostics(&cu, &registry);
     }
 
     /// Per-function diagnostic dispatcher.
@@ -611,6 +625,132 @@ impl Analyser {
         }
     }
 
+    /// W307 — non-literal command name (variable / command-sub
+    /// used as command head).
+    ///
+    /// Mirrors the W307 half of `_emit_var_command_diagnostics`
+    /// in `core/analysis/_analyser/_diag_var_command.py:22-294`.
+    /// Walks every recorded site in [`Self::var_command_sites`]
+    /// and emits W307 unless the variable's value is statically
+    /// resolvable to a finite set of known command names.
+    ///
+    /// **Resolution paths** (mirrors Python; first match
+    /// suppresses W307):
+    ///
+    /// - Aggregate every CONSTSET / CONST entry in `cu`'s SCCP
+    ///   results for the variable name; if every value in the
+    ///   set is a known command, proc, class, or class-tail name,
+    ///   the command head is statically resolvable — suppress.
+    ///
+    /// **Known limitations.**  W308 (unknown method on object)
+    /// is deferred to a follow-up — it needs the
+    /// `class_hierarchy` / MRO port (the C41e0 architectural
+    /// decision still pending).  Likewise the
+    /// `_cmd_command_sites` (``[cmd] method``) suppression via
+    /// return-type analysis is deferred — that path needs the
+    /// IR-level type-lattice plumbing extended into the
+    /// analyser, which is a larger change than fits this strip.
+    /// In-method W307 suppression and dict-with /
+    /// dict-update barrier-range suppression also defer.
+    fn emit_var_command_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        use crate::analyses::{ConstValue, LatticeValue};
+        use std::collections::HashMap;
+
+        if self.var_command_sites.is_empty() {
+            return;
+        }
+        // Aggregate constant-string knowledge per variable name
+        // across every function in the CompilationUnit.  Python
+        // uses ``_lattice_to_set`` which expands CONST and
+        // CONSTSET into a flat set of values; we replicate that
+        // shape here.
+        let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
+        let collect_from = |sccp: &crate::sccp::SccpResult,
+                            out: &mut HashMap<String, HashSet<String>>| {
+            for (key, lv) in &sccp.values {
+                let (var_name, _ver) = key;
+                let values: Option<Vec<String>> = match lv {
+                    LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
+                    LatticeValue::ConstSet(set) => set
+                        .iter()
+                        .map(|cv| match cv {
+                            ConstValue::String(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>(),
+                    _ => None,
+                };
+                let Some(values) = values else { continue };
+                let entry = out.entry(var_name.clone()).or_default();
+                for v in values {
+                    entry.insert(v);
+                }
+            }
+        };
+        collect_from(&cu.top_level.sccp, &mut all_constsets);
+        for fu in cu.procedures.values() {
+            collect_from(&fu.sccp, &mut all_constsets);
+        }
+
+        // Build the "known commands" universe — registry +
+        // user-defined procs + class tail names.
+        let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
+        let known_procs: HashSet<String> = self.result.all_procs.keys().cloned().collect();
+        let known_proc_bare: HashSet<String> = known_procs
+            .iter()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        let known_class_tails: HashSet<String> = self
+            .result
+            .all_classes
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, tail)| tail.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let is_known_command = |v: &str| {
+            known_cmds.contains(v)
+                || known_procs.contains(v)
+                || known_proc_bare.contains(v)
+                || known_procs.contains(&format!("::{v}"))
+                || known_class_tails.contains(v)
+                || self.result.all_classes.contains_key(&format!("::{v}"))
+        };
+
+        // Drain sites so we can borrow self.result mutably below.
+        let sites = std::mem::take(&mut self.var_command_sites);
+        for site in &sites {
+            // ``in_method`` short-circuits W307 because OO
+            // methods routinely use ``$obj method`` patterns.
+            // The Rust analyser doesn't track method context
+            // yet (lands in C41e), so this filter currently
+            // matches Python's ``in_method=False`` always-fall-through
+            // behaviour.
+            if site.in_method {
+                continue;
+            }
+            if let Some(values) = all_constsets.get(&site.var_name) {
+                if !values.is_empty() && values.iter().all(|v| is_known_command(v)) {
+                    continue;
+                }
+            }
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W307".to_string(),
+                span: site.cmd_span,
+                message: "Non-literal command name — cannot statically analyze".to_string(),
+                severity: Severity::Warning,
+            });
+        }
+        // Restore the sites list — snapshot/restore expects it
+        // to round-trip independently of emission.
+        self.var_command_sites = sites;
+    }
+
     /// Drop exact-duplicate diagnostics + line-based suppression
     /// pairs.
     ///
@@ -1001,6 +1141,72 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must not fire at top-level (deferred); got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_var_as_command() {
+        // ``proc foo {x} { $x arg1 }`` — ``$x`` used as command
+        // head; we have no static knowledge of what it holds, so
+        // W307 fires.  Must go through ``analyse`` (not raw
+        // ``emit_cfg_ssa_diagnostics``) because ``var_command_sites``
+        // is populated by the analyser's walk dispatch, not the
+        // emitter pipeline.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {x} { $x arg1 }", "tcl");
+        let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+        assert!(
+            !w307s.is_empty(),
+            "W307 expected for ``$x arg1``; got {:?}",
+            r.diagnostics,
+        );
+        assert_eq!(w307s[0].severity, Severity::Warning);
+        assert!(w307s[0].message.contains("Non-literal command name"));
+    }
+
+    #[test]
+    fn analyse_no_w307_for_static_known_command() {
+        // ``proc foo {} { set cmd puts; $cmd hello }`` — ``cmd``
+        // has constant value "puts" which IS a known command, so
+        // W307 must be suppressed.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set cmd puts\n$cmd hello }", "tcl");
+        let w307s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W307").collect();
+        assert!(
+            w307s.is_empty(),
+            "W307 must be suppressed when var holds known command name; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_var_command_sites_recorded_during_walk() {
+        // Smoke: confirm the recording infrastructure populates
+        // ``var_command_sites`` for ``$var`` heads.  Run analyse
+        // (not just emit) so the apply_disabled_diagnostics +
+        // dedupe don't matter — we inspect post-analyse state.
+        let mut a = Analyser::new();
+        let _ = a.analyse("proc foo {x} { $x arg }", "tcl");
+        // After analyse, var_command_sites is consumed by the
+        // post-pass but restored at the end (snapshot/restore
+        // contract).
+        assert!(
+            a.var_command_sites.iter().any(|s| s.var_name == "x"),
+            "var_command_sites should record ``$x`` head; got {:?}",
+            a.var_command_sites,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_cmd_command_sites_recorded_during_walk() {
+        // ``[cmd] arg`` records to ``cmd_command_sites`` even
+        // though no W307 emitter consumes it yet.
+        let mut a = Analyser::new();
+        let _ = a.analyse("proc foo {} { [puts hi] arg }", "tcl");
+        assert!(
+            !a.cmd_command_sites.is_empty(),
+            "cmd_command_sites should be populated for ``[cmd] arg``; got {:?}",
+            a.cmd_command_sites,
         );
     }
 

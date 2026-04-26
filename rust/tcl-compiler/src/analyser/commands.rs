@@ -123,6 +123,42 @@ impl Analyser {
             &[]
         };
 
+        // **C41d3.** Record variable-as-command and command-sub-as-
+        // command sites so the post-walk W307 / W308 emitters can
+        // resolve them.  Mirrors the inline recording in
+        // ``_AnalyserCommandsMixin._process_command``
+        // (``core/analysis/_analyser/_commands.py:182-198``).
+        // The token-text is resolved via ``SourceMap::token_text`` —
+        // the same helper that strips the ``$`` / ``${...}`` prefix
+        // for VAR tokens.
+        let cmd_tok = arg_tokens_in[0];
+        let in_method = false; // OO method-context detection lands in C41e.
+        match cmd_tok.kind {
+            TokenType::Var => {
+                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let var_name = sm.token_text(cmd_tok).to_string();
+                let method_name = args.first().cloned();
+                self.var_command_sites.push(super::state::VarCommandSite {
+                    var_name,
+                    method_name,
+                    cmd_span: cmd_tok.span,
+                    in_method,
+                });
+            }
+            TokenType::Cmd => {
+                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let cmd_text = sm.token_text(cmd_tok).to_string();
+                let method_name = args.first().cloned();
+                self.cmd_command_sites.push(super::state::CmdCommandSite {
+                    cmd_text,
+                    method_name,
+                    cmd_span: cmd_tok.span,
+                    in_method,
+                });
+            }
+            _ => {}
+        }
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
