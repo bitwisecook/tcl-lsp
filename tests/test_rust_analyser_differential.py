@@ -513,6 +513,68 @@ def test_analyser_field_matches_python(label: str, source: str) -> None:
     _compare_fields(py, rust)
 
 
+# Inline iRules-dialect corpus.  Each fixture is run with the
+# active signature profile switched to ``f5-irules`` (so Python's
+# ``Analyser`` sees the iRules command set) and the Rust binding
+# is invoked with the same dialect string so command-resolution
+# and W113 dialect-label wording line up.
+IRULES_CORPUS: list[tuple[str, str]] = [
+    ("irules_when_client_accepted", "when CLIENT_ACCEPTED {\n    log local0. hi\n}"),
+    (
+        "irules_when_http_request",
+        "when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}",
+    ),
+    ("irules_pool_select", "when HTTP_REQUEST {\n    pool myPool\n}"),
+    (
+        "irules_switch_uri",
+        'when HTTP_REQUEST {\n    switch -glob [HTTP::uri] {\n        "/api/*" { pool apiPool }\n        default { pool webPool }\n    }\n}',
+    ),
+    (
+        "irules_two_when_blocks",
+        "when CLIENT_ACCEPTED {\n    log local0. accepted\n}\n"
+        "when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}",
+    ),
+]
+# Note: ``set tmm_id [TMM::cmp_unit]`` inside a ``when`` block
+# surfaces a Rust-side gap (variables defined inside when bodies
+# are not threaded back to the enclosing scope's variable set).
+# Track separately; once that closes the fixture can graduate.
+
+
+@pytest.fixture
+def _irules_profile():
+    """Activate the ``f5-irules`` signature profile for the
+    duration of the test, restoring the prior profile on exit."""
+    from core.commands.registry.runtime import (
+        active_signature_profile,
+        configure_signatures,
+    )
+
+    prev = active_signature_profile()
+    prev_dialect = prev.get("dialect")
+    configure_signatures(dialect="f5-irules")
+    try:
+        yield
+    finally:
+        if isinstance(prev_dialect, str):
+            configure_signatures(dialect=prev_dialect)
+
+
+@pytest.mark.parametrize(
+    ("label", "source"),
+    IRULES_CORPUS,
+    ids=[label for label, _ in IRULES_CORPUS],
+)
+def test_analyser_irules_field_matches_python(label: str, source: str, _irules_profile) -> None:
+    """Strict field-by-field parity for iRules-dialect fixtures."""
+    del label  # only used as the pytest id
+    tcl_lsp_rust = _require_rust_binding()
+    py = Analyser().analyse(source)
+    rust_raw = tcl_lsp_rust.analyser_analyse(source, "f5-irules")
+    rust = _materialise_rust_analysis(source, rust_raw)
+    _compare_fields(py, rust)
+
+
 # Dispatcher gating tests. The corpus tests above call the Rust
 # path directly; these assert the env-var-gated dispatcher in
 # ``core/analysis/_analyser/__init__.py::analyse`` behaves
