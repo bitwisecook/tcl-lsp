@@ -32,8 +32,16 @@ pub fn esc(text: &str, limit: usize) -> String {
         }
     }
     if parts.len() > limit {
-        let truncated: String = parts.chars().take(limit - 3).collect();
-        format!("{truncated}...")
+        if limit <= 3 {
+            // Degenerate case: ``limit`` is too small to fit
+            // even a single character before the ellipsis.
+            // Return ``limit`` dots so we never panic on the
+            // ``limit - 3`` subtraction below.
+            ".".repeat(limit)
+        } else {
+            let truncated: String = parts.chars().take(limit - 3).collect();
+            format!("{truncated}...")
+        }
     } else {
         parts
     }

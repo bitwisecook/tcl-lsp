@@ -102,8 +102,8 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             name=p["name"],
             qualified_name=p["qualified_name"],
             params=_params(p["params"]),
-            name_range=range_at(p["name_range"]),
-            body_range=range_at(p["body_range"]),
+            name_range=range_at(*p["name_range"]),
+            body_range=range_at(*p["body_range"]),
             doc=p.get("doc") or "",
         )
 
@@ -111,14 +111,14 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
         return ClassDef(
             name=c["name"],
             qualified_name=c["qualified_name"],
-            name_range=range_at(c["name_range"]),
-            body_range=range_at(c["body_range"]),
+            name_range=range_at(*c["name_range"]),
+            body_range=range_at(*c["body_range"]),
         )
 
     def _var(v: dict) -> VarDef:
         return VarDef(
             name=v["name"],
-            definition_range=range_at(v["definition_range"]),
+            definition_range=range_at(*v["definition_range"]),
             warn_if_unused=v["warn_if_unused"],
         )
 
@@ -126,7 +126,7 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
         scope = Scope(
             kind=s["kind"],
             name=s["name"],
-            body_range=range_at(s["body_range"]) if s.get("body_range") else None,
+            body_range=range_at(*s["body_range"]) if s.get("body_range") else None,
         )
         for name, v in s.get("variables", {}).items():
             scope.variables[name] = _var(v)
@@ -148,7 +148,7 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
     for d in raw.get("diagnostics", []):
         result.diagnostics.append(
             Diagnostic(
-                range=range_at(d["range"]),
+                range=range_at(*d["range"]),
                 message=d["message"],
                 severity=_SEVERITY_MAP.get(d["severity"], Severity.WARNING),
                 code=d["code"],

@@ -172,14 +172,13 @@ pub struct ClassDef {
 /// The analyser builds a tree of these as it walks; the root is
 /// ``AnalysisResult.global_scope``.
 ///
-/// Children are stored as ``Box<Scope>`` so the tree is a
-/// strict ownership graph; the parent link is implicit (held by
-/// the analyser's traversal stack rather than embedded as a back
-/// pointer the way Python's [`Scope.parent`] is). Snapshot /
+/// Children are stored inline as ``Vec<Scope>``, so the tree is
+/// a strict ownership graph.  The parent link is implicit, held
+/// by the analyser's traversal stack
+/// (``Analyser::current_scope_path``) rather than embedded as a
+/// back-pointer the way Python's ``Scope.parent`` is.  Snapshot /
 /// restore (**C41a3**) only needs to copy the result tree, not
 /// rewrite back-pointers.
-///
-/// [`Scope.parent`]: https://example.com (intentionally placeholder)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Scope {
     /// Scope kind (global, namespace, proc).
