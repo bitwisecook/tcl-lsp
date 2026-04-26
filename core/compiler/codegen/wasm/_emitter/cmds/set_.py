@@ -29,8 +29,15 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
             and emitter._block_namespace != "::"
             and array_ref is None
         )
+        # Top-level vars must use the var path so the global mirror is
+        # kept consistent with reads (which go through ``tcl_global_get``
+        # at top level — see _variables.py Phase 4.5 finalisation).
+        # A bare ``local.tee`` would update only the WASM local while
+        # leaving globals stale.
+        at_top_level = not emitter._is_proc
         use_var_path = (
-            var in emitter._aliases or array_base_aliased or array_ref is not None or in_ns_block
+            at_top_level
+            or var in emitter._aliases or array_base_aliased or array_ref is not None or in_ns_block
         )
         if use_var_path:
             if len(args) >= 2:
@@ -83,8 +90,12 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             and emitter._block_namespace != "::"
             and array_ref is None
         )
+        # Top-level vars must use the var path so the global mirror is
+        # kept consistent with reads (see set fast-path comment above).
+        at_top_level = not emitter._is_proc
         if (
-            var in emitter._aliases
+            at_top_level
+            or var in emitter._aliases
             or base in emitter._aliases
             or array_ref is not None
             or in_ns_block

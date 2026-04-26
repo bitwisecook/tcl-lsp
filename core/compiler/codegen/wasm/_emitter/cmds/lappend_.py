@@ -27,8 +27,20 @@ def _emit_lappend(
     # ``arr(key)`` + alias + aliased-array-base must go through the var
     # subsystem so the write lands in the array hash table; otherwise
     # ``_intern_local`` creates a scalar slot named ``arr(key)``.
+    #
+    # Top-level vars must also use the var path: ``_emit_var_read_obj``
+    # at top level routes through ``tcl_global_get`` (the WASM-local
+    # mirror is bypassed so eval-fallback writes stay visible — see
+    # Phase 4.5 finalisation comment in _variables.py).  If we wrote
+    # ``lappend`` results via plain ``local_set`` here, the global
+    # table would still hold the pre-lappend value and ``puts $l``
+    # would print the stale value.  ``_emit_var_write_obj`` does the
+    # global mirror itself, so routing through it keeps writes and
+    # reads consistent.
+    at_top_level = not emitter._is_proc
     use_var_path = (
-        var_name in emitter._aliases
+        at_top_level
+        or var_name in emitter._aliases
         or array_ref is not None
         or (array_ref is None and "(" in var_name and var_name.split("(")[0] in emitter._aliases)
     )
