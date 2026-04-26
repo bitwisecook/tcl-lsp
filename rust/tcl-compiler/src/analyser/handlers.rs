@@ -387,15 +387,31 @@ impl Analyser {
         }
         let ns_name = args[1].clone();
         let body_span = arg_tokens.get(2).map(|t| t.span);
-
-        let mut child = super::types::Scope::new(super::types::ScopeKind::Namespace, ns_name);
-        child.body_span = body_span;
+        let body_text = args.get(2).cloned();
+        let body_tok = arg_tokens.get(2).copied();
 
         let path = scope_path.to_vec();
-        let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) else {
-            return false;
+        let child_scope_idx = {
+            let mut child = super::types::Scope::new(super::types::ScopeKind::Namespace, ns_name);
+            child.body_span = body_span;
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+            else {
+                return false;
+            };
+            parent.children.push(child);
+            parent.children.len() - 1
         };
-        parent.children.push(child);
+        let mut child_path = path;
+        child_path.push(child_scope_idx);
+
+        // **C41e3 follow-up.** Body recursion lets procs and
+        // classes declared inside ``namespace eval`` register
+        // with the correct namespace prefix.  Mirrors Python's
+        // ``_handle_namespace_eval_command`` which calls
+        // ``_analyse_body`` on the body text + token.
+        if let (Some(text), Some(tok)) = (body_text, body_tok) {
+            self.analyse_body(&text, tok, &child_path);
+        }
         true
     }
 
