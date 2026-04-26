@@ -950,7 +950,11 @@ impl Analyser {
         let inline_form = define_subcmds.contains(&args[1].as_str());
 
         // Look up or create the partial ClassDef in
-        // ``result.all_classes``.
+        // ``result.all_classes``. The ``name`` field carries the
+        // bare tail even when the source declared the class
+        // qualified (``oo::define ::ns::Other``); mirrors the
+        // ``simple`` extraction in ``handle_oo_class_command``.
+        let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
         let mut class_def = self
             .result
             .all_classes
@@ -963,7 +967,7 @@ impl Analyser {
                     |t| t.span,
                 );
                 super::types::ClassDef {
-                    name: raw_class_name.clone(),
+                    name: simple,
                     qualified_name: qualified.clone(),
                     name_span,
                     body_span: name_span,

@@ -583,45 +583,45 @@ def test_analyser_irules_field_matches_python(label: str, source: str, _irules_p
 import core.analysis._analyser as analyser_module  # noqa: E402
 from core.analysis._analyser import analyse  # noqa: E402
 
+_SENTINEL_PACKAGE = "C41DefaultOnSentinelPackage"
+
 
 def _sentinel_raw() -> dict:
     """A skeletal ``analyser_analyse`` return value with a
-    well-known proc name.  Patched in via monkeypatch so the
-    dispatcher gating tests don't need the real Rust binding."""
+    well-known package-require entry.  Patched in via
+    ``monkeypatch`` so the dispatcher gating tests don't need
+    the real Rust binding.
+
+    The sentinel is placed in ``package_requires`` (rather than
+    ``all_procs``) because the C41-default-on hybrid materialiser
+    replaces ``all_procs`` with the Python pass's value;
+    ``package_requires`` is one of the few side channels kept
+    verbatim from the Rust dict, so a sentinel package name
+    survives the merger and proves the Rust path ran.
+    """
     return {
         "global_scope": {
             "kind": "global",
             "name": "::",
             "body_range": None,
             "variables": {},
-            "procs": {
-                "sentinel": {
-                    "name": "sentinel",
-                    "qualified_name": "::sentinel",
-                    "params": [],
-                    "name_range": (0, 8),
-                    "body_range": (10, 20),
-                    "doc": "",
-                },
-            },
+            "procs": {},
             "classes": {},
             "children": [],
         },
-        "all_procs": {
-            "::sentinel": {
-                "name": "sentinel",
-                "qualified_name": "::sentinel",
-                "params": [],
-                "name_range": (0, 8),
-                "body_range": (10, 20),
-                "doc": "",
-            },
-        },
+        "all_procs": {},
         "all_classes": {},
         "all_variables": {},
         "diagnostics": [],
         "command_invocations": [],
-        "package_requires": [],
+        "package_requires": [
+            {
+                "name": _SENTINEL_PACKAGE,
+                "version": None,
+                "range": (0, 8),
+                "conditional": False,
+            },
+        ],
         "source_targets": [],
         "command_aliases": {},
         "namespace_imports": [],
@@ -629,40 +629,45 @@ def _sentinel_raw() -> dict:
     }
 
 
+def _has_sentinel(result) -> bool:
+    return any(pr.name == _SENTINEL_PACKAGE for pr in result.package_requires)
+
+
 def test_dispatcher_default_off_uses_python(monkeypatch) -> None:
-    """With the env var unset, ``analyse`` must dispatch to the
-    Python path (default-OFF polarity at C41f6).  Asserted by
-    patching ``_rust_analyse`` with a sentinel and confirming the
-    real Python proc name (``::foo``) — not the sentinel — is
-    populated."""
+    """With the env var unset, ``analyse`` must skip the Rust
+    path entirely (default-OFF polarity).  The sentinel
+    ``package_requires`` entry is absent because the patched
+    ``_rust_analyse`` was never invoked; ``::foo`` from the
+    Python pass proves Python ran."""
     monkeypatch.delenv("TCL_LSP_RUST_ANALYSER", raising=False)
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("proc foo {} {}")
-    # Python path produces ::foo; sentinel absent proves Python ran.
     assert "::foo" in result.all_procs
-    assert "::sentinel" not in result.all_procs
+    assert not _has_sentinel(result)
 
 
 def test_dispatcher_env_var_on_uses_rust(monkeypatch) -> None:
-    """``TCL_LSP_RUST_ANALYSER=1`` (explicit opt-in) flips to the
-    Rust dispatch — sentinel proves the binding ran instead of
-    the Python implementation."""
+    """``TCL_LSP_RUST_ANALYSER=1`` (explicit opt-in) routes
+    through the Rust dispatch.  The sentinel ``package_requires``
+    survives the C41-default-on hybrid merger (Rust populates
+    ``package_requires``; the Python pass that follows leaves
+    that field alone), proving the Rust path ran."""
     monkeypatch.setenv("TCL_LSP_RUST_ANALYSER", "1")
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("source ignored — patched rust returns sentinel")
-    assert "::sentinel" in result.all_procs
-    assert "::foo" not in result.all_procs
+    assert _has_sentinel(result)
 
 
 def test_dispatcher_env_var_zero_keeps_python(monkeypatch) -> None:
-    """``TCL_LSP_RUST_ANALYSER=0`` is explicit opt-out — must
-    keep the Python path even when patched ``_rust_analyse`` is
-    available."""
+    """``TCL_LSP_RUST_ANALYSER=0`` is explicit opt-out — the
+    Rust path is skipped even when the binding is patched in.
+    Sentinel absence proves Rust never ran; ``::foo`` from the
+    Python pass is the result."""
     monkeypatch.setenv("TCL_LSP_RUST_ANALYSER", "0")
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("proc foo {} {}")
     assert "::foo" in result.all_procs
-    assert "::sentinel" not in result.all_procs
+    assert not _has_sentinel(result)
 
 
 def test_dispatcher_falls_back_when_rust_raises(monkeypatch) -> None:
@@ -679,3 +684,4 @@ def test_dispatcher_falls_back_when_rust_raises(monkeypatch) -> None:
     result = analyse("proc foo {} {}")
     # Python fallback ran ⇒ ::foo present.
     assert "::foo" in result.all_procs
+    assert not _has_sentinel(result)

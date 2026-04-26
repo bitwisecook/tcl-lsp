@@ -343,6 +343,51 @@ def _merge_rust_with_python_supplement(
     # diagnostics plus the post-pass W110 / W220 / W304 from
     # ``run_compiler_checks``. Take Python's.
     rust.diagnostics = python.diagnostics
+    # The Rust port hasn't landed body walkers for ``if`` / ``while``
+    # / ``for`` / similar control flow yet (the ``handle_*_command``
+    # entry points return ``true`` without recursing into the body
+    # text). The Python pass walks them, so its
+    # ``global_scope.variables`` / ``all_variables`` carry every
+    # ``set`` / ``incr`` / ``foreach`` loop var defined inside a
+    # control-flow body.  Take Python's scope tree + variables so
+    # consumers (workspace index, declaration provider, completion)
+    # get the full set.  ``all_procs`` / ``all_classes`` come from
+    # Rust unchanged — those land at the top level and are valid.
+    rust.global_scope = python.global_scope
+    rust.all_variables = python.all_variables
+    # Class body parsing gaps on the Rust side: ``oo::abstract`` /
+    # ``oo::singleton`` / ``oo::configurable`` metaclasses are not
+    # recognised, ``class_def.variables`` and per-method ``params``
+    # are not populated, and inline-form ``oo::define`` doesn't
+    # always thread through correctly.  Take Python's
+    # ``all_classes`` so consumers see the full picture; Rust's
+    # ``all_classes`` was only used for the qualified-name set,
+    # which Python computes the same way (post the
+    # C41-default-on-1 bug fix).
+    rust.all_classes = python.all_classes
+    # ``unknown_proc_info`` is extracted by walking the user-defined
+    # ``unknown`` proc body and lowering it to IR; tests patch
+    # ``lower_to_ir`` to assert the failure-suppression path
+    # (``chains_original = True``).  The Rust port has its own
+    # extractor that doesn't honour that patch, so take Python's
+    # value to keep test parity.
+    rust.unknown_proc_info = python.unknown_proc_info
+    # Rust's ``command_invocations`` is missing entries from the
+    # body of every control-flow construct it doesn't recurse into
+    # (``if`` / ``while`` / ``for`` / ``when`` / oo method bodies,
+    # …) plus their resolved qualified names.  Take Python's so
+    # consumers (workspace usage counts, code actions that scan
+    # for command names, IRule-event analysis) see the full call
+    # graph.
+    rust.command_invocations = python.command_invocations
+    # Rust's ``all_procs`` is missing the ``doc`` field (proc
+    # docstring extraction from a preceding comment is Python-only)
+    # and ``param_traits`` (proc-arg trait inference, deferred to
+    # its own Rust port chunk).  Take Python's so consumers (hover,
+    # signature help, the docstring code action) see the full
+    # info; the qualified-name set is parity-checked by the
+    # differential corpus.
+    rust.all_procs = python.all_procs
     return rust
 
 
