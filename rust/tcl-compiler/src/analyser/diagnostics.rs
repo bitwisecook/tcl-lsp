@@ -23,13 +23,19 @@
 //! - [`Analyser::apply_disabled_diagnostics`] — filter out
 //!   codes the caller asked to silence.
 //!
-//! **C41d1 baseline.**  This strip lands the orchestrator
-//! scaffold + the dedupe / disabled-codes filters.  The
-//! per-emitter calls are stubbed as TODO comments — each one
-//! gets filled in by a subsequent C41d strip:
+//! **Strip-by-strip status.**
 //!
-//! - **C41d2** — W210 / W211 / W212 / W214 / W220 / W221
-//!   (`_diag_var_lifecycle.py`).
+//! - **C41d1** — orchestrator scaffold + dedupe + disabled-
+//!   codes filter.  ✅ landed.
+//! - **C41d2** — `_diag_var_lifecycle.py`.  ✅ partial:
+//!   W220 (dead store) and W214 (unused parameter) are wired
+//!   today; W210 / W213 (read-before-set, unset on possibly-
+//!   undef), W211 (unused variable), and H300 (paste error)
+//!   are deferred to a follow-up strip — each needs extra
+//!   plumbing (textual-reference filter, scope-alias
+//!   detection, SSA-version-0 distinction between real proc
+//!   params and synthetic RBS reads) that doesn't exist on
+//!   the Rust side yet.
 //! - **C41d3** — W230..W239 (`_diag_var_command.py`).
 //! - **C41d4** — W120 / W121 / W122 / W242
 //!   (`_diag_commands.py`).
@@ -37,13 +43,6 @@
 //!   `_diag_channel.py`).
 //! - **C41d6** — IRULE3010..3019 (`_diag_ip.py`).
 //! - **C41d7** — IRULE3020 (`_diag_racy.py`).
-//!
-//! Wiring the orchestrator into [`Analyser::analyse`] also
-//! lands here so dedupe + disabled-codes filtering applies to
-//! W113 (the only currently-emitting code).  The emitter
-//! dispatch path stays inert until the first C41d2 emitter
-//! lands — see [`Analyser::emit_cfg_ssa_diagnostics`] for the
-//! ``defer to C41d2`` short-circuit.
 
 use std::collections::HashSet;
 
@@ -51,6 +50,58 @@ use tcl_lexer::SourceMap;
 
 use super::state::Analyser;
 use super::types::Severity;
+
+/// Find a case-insensitive match for `variable` in `defined_vars`.
+///
+/// Mirrors `_find_case_mismatch` in
+/// `core/analysis/_analyser/_diag_var_lifecycle.py:135-148`.
+/// Returns the lexicographically smallest other-cased variant —
+/// deterministic across runs.
+fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> Option<&'a str> {
+    let lower = variable.to_lowercase();
+    let mut matches: Vec<&str> = defined_vars
+        .iter()
+        .filter(|n| n.as_str() != variable && n.to_lowercase() == lower)
+        .map(String::as_str)
+        .collect();
+    matches.sort_unstable();
+    matches.into_iter().next()
+}
+
+/// Collect every variable name defined anywhere in `cfg`.
+///
+/// Mirrors `_collect_defined_vars` in
+/// `_diag_var_lifecycle.py:123-133`.  Walks every block and pulls
+/// the `defs` field off each [`crate::ir::Statement`] that has
+/// one (assignments, ``incr``, ``Call`` statements with explicit
+/// defs).  Used for the "did you mean…?" case-mismatch
+/// suggestion in W210 / W211 / W220 messages.
+fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut names: HashSet<String> = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::AssignConst { name, .. }
+                | Statement::AssignExpr { name, .. }
+                | Statement::AssignValue { name, .. }
+                | Statement::Incr { name, .. } => {
+                    let normalised = crate::naming::normalise_var_name(name);
+                    if !normalised.is_empty() {
+                        names.insert(normalised.to_string());
+                    }
+                }
+                Statement::Call { defs, .. } => {
+                    for def in defs {
+                        names.insert(def.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    names
+}
 
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
@@ -69,25 +120,40 @@ impl Analyser {
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in
     /// `_diagnostics.py:118-181`.  Builds a
-    /// [`crate::compilation_unit::CompilationUnit`] for `source`
-    /// when one isn't provided, then walks the top-level + every
-    /// procedure, dispatching per-function emitters and the
-    /// cross-function post-passes.
+    /// [`crate::compilation_unit::CompilationUnit`] for `source`,
+    /// then walks the top-level + every procedure, dispatching
+    /// per-function emitters.
     ///
-    /// **C41d1 baseline.**  None of the per-function emitters
-    /// have landed yet, so the dispatch body is currently empty.
-    /// Each future C41d strip extends
-    /// [`Self::emit_cfg_ssa_diagnostics_for_function`] in place.
-    /// The [`crate::compilation_unit::CompilationUnit`] build is
-    /// also deferred — there's nothing to feed yet — so this
-    /// method short-circuits without touching the registry.
-    /// When the first emitter (C41d2) lands, the CU build wires
-    /// up here.
+    /// **C41d2 baseline.**  W220 (dead store hint) and W214
+    /// (unused parameter hint) are wired through the per-function
+    /// dispatcher.  W211 (unused variable), W210 / W213
+    /// (read-before-set / unset on possibly-undef), and H300
+    /// (paste error) are deferred to a follow-up — each needs
+    /// extra plumbing (textual-reference filter, scope-alias
+    /// detection, SSA-version-0 distinction between real proc
+    /// params and synthetic RBS reads) that doesn't exist on
+    /// the Rust side yet.  The cross-function post-passes
+    /// (var-as-command for W307, interpolated-command resolution
+    /// for W242) land in **C41d3** / **C41d4**.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        let _ = source;
-        // C41d2 wiring point: build CompilationUnit and dispatch.
-        // Until at least one emitter lands the CU build is wasted
-        // work, so leave it inert.
+        use tcl_registry::prelude::DialectSet;
+        use tcl_registry::CommandRegistry;
+
+        let mut registry = CommandRegistry::build_default();
+        if let Some(d) = DialectSet::parse(&self.dialect) {
+            registry.load_dialect(d);
+        }
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+
+        // Top-level first, then procedures in insertion order —
+        // matches the iteration order of
+        // ``CompilationUnit::functions``.
+        // Iterate top-level explicitly so we can pass the IR
+        // module through.
+        self.emit_cfg_ssa_diagnostics_for_function(&cu.top_level, &cu.ir_module);
+        for fu in cu.procedures.values() {
+            self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
+        }
     }
 
     /// Per-function diagnostic dispatcher.
@@ -95,24 +161,146 @@ impl Analyser {
     /// Mirrors `_emit_cfg_ssa_diagnostics_for_function` in
     /// `_diagnostics.py:183-209`.  Called once for the top-level
     /// script and once per procedure.  Each per-emitter call is
-    /// gated on its own dialect / context predicate inside the
-    /// helper, so this dispatcher just runs them in declaration
-    /// order — same shape as Python.
+    /// gated on its own predicate inside the helper.
     ///
-    /// **C41d1 baseline.**  Per-emitter calls are stubbed; each
-    /// future strip wires its own line into this body.
+    /// **C41d2 baseline.**  Only W220 + W214 are wired today.
+    /// Each future C41d strip adds another emitter call here.
     pub fn emit_cfg_ssa_diagnostics_for_function(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
+        ir_module: &crate::ir::Module,
     ) {
-        let _ = function_unit;
-        // C41d2: emit_constant_branch_diagnostics
-        // C41d2: emit_dead_store_diagnostics
-        // C41d4: emit_possible_paste_error_diagnostics
-        // C41d2: emit_read_before_set_diagnostics
-        // C41d2: emit_unused_variable_diagnostics
-        // C41d4: emit_invalid_ip_diagnostics
-        // C41d5: emit_channel_diagnostics (gated on ssa)
+        let defined = collect_defined_vars(&function_unit.cfg);
+        self.emit_dead_store_diagnostics(function_unit, &defined);
+        if let Some(ir_proc) = ir_module.procedures.get(&function_unit.name) {
+            self.emit_unused_param_diagnostics(function_unit, ir_proc);
+        }
+        // C41d2 follow-up: emit_unused_variable_diagnostics (W211)
+        // C41d2 follow-up: emit_read_before_set_diagnostics (W210/W213)
+        // C41d2 follow-up: emit_possible_paste_error_diagnostics (H300)
+        // C41d4: emit_invalid_ip_diagnostics (W122)
+        // C41d5: emit_constant_branch_diagnostics (W123)
+        // C41d5: emit_channel_diagnostics (W130..W138)
+    }
+
+    /// W220 — dead-store hint.
+    ///
+    /// Mirrors `_emit_dead_store_diagnostics` in
+    /// `_diag_var_lifecycle.py:29-72`.  A *dead store* is an
+    /// assignment whose value is overwritten before being read —
+    /// some other SSA version of the same variable is live, so
+    /// this version's value never reaches a user.
+    ///
+    /// Walks every dead [`Statement`](crate::ir::Statement) chain
+    /// in `fu.def_use`, checks that another version of the same
+    /// variable has live uses, and emits a Hint at the dead
+    /// statement's span.  When the variable's name has a
+    /// case-insensitive twin among `defined_vars`, the message
+    /// includes a "did you mean…?" suggestion.
+    ///
+    /// **Known limitations** (deferred to a follow-up): no
+    /// scope-alias filter (vars introduced via ``global`` /
+    /// ``upvar`` are visible elsewhere and may be falsely
+    /// flagged); no textual-reference filter (vars only ever
+    /// referenced inside ``"$x"`` interpolations or inside a
+    /// ``Return`` value miss the def-use scan).
+    fn emit_dead_store_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        defined_vars: &HashSet<String>,
+    ) {
+        use crate::def_use::DefKind;
+        use std::fmt::Write as _;
+        for chain in fu.def_use.chains.values() {
+            if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
+                continue;
+            }
+            let (var, version) = &chain.key;
+            // ``any_other_live`` — another SSA version of this
+            // variable has live uses, so this assignment is
+            // overwritten.  When no other version is live, the
+            // variable is truly unused — that's W211 (deferred).
+            let any_other_live = fu
+                .def_use
+                .chains
+                .iter()
+                .any(|(k, c)| k.0 == *var && k.1 != *version && !c.is_dead());
+            if !any_other_live {
+                continue;
+            }
+            let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+                continue;
+            };
+            let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+                continue;
+            };
+            let Some(stmt) = block.statements.get(idx) else {
+                continue;
+            };
+            let span = stmt.span();
+            if span.is_empty() {
+                continue;
+            }
+            let mut message = format!("Assignment to '{var}' is never read");
+            if let Some(similar) = find_case_mismatch(var, defined_vars) {
+                let _ = write!(message, "; did you mean '{similar}'?");
+            }
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W220".to_string(),
+                span,
+                message,
+                severity: Severity::Hint,
+            });
+        }
+    }
+
+    /// W214 — unused-parameter hint.
+    ///
+    /// Mirrors `_emit_unused_param_diagnostics` in
+    /// `_diag_var_lifecycle.py:260-274`.  For every parameter
+    /// declared in `ir_proc.params`, check whether any def-use
+    /// chain for the parameter (any SSA version) has live uses.
+    /// When all chains are dead, the parameter is unused —
+    /// emit a Hint at the proc's span.
+    ///
+    /// Diverges slightly from Python's ``analysis.unused_params``:
+    /// Python pre-computes the unused-params list during
+    /// ``analyse_ir_module``; the Rust port inlines the same
+    /// def-use scan here because the Rust ``FunctionAnalysis``
+    /// builder hasn't been ported yet.  The check is equivalent —
+    /// a parameter is unused iff no SSA version of its name has
+    /// live uses.
+    fn emit_unused_param_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        ir_proc: &crate::ir::Procedure,
+    ) {
+        for param in &ir_proc.params {
+            // Tcl's variadic ``args`` parameter is conventionally
+            // declared even when unused (as a "consume the rest"
+            // marker).  Skip it from W214.
+            if param == "args" {
+                continue;
+            }
+            let any_live = fu
+                .def_use
+                .chains
+                .iter()
+                .any(|(k, c)| k.0 == *param && !c.is_dead());
+            if any_live {
+                continue;
+            }
+            let message = format!(
+                "Parameter '{param}' of proc '{name}' is unused",
+                name = ir_proc.qualified_name,
+            );
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W214".to_string(),
+                span: ir_proc.span,
+                message,
+                severity: Severity::Hint,
+            });
+        }
     }
 
     /// Drop exact-duplicate diagnostics + line-based suppression
@@ -236,15 +424,86 @@ mod tests {
     }
 
     #[test]
-    fn emit_cfg_ssa_diagnostics_is_inert_until_c41d2() {
-        // Baseline orchestrator runs without panicking and
-        // doesn't add or remove any diagnostics on its own.
+    fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
+        // Smoke test — the orchestrator handles empty input
+        // gracefully (an empty CompilationUnit yields no
+        // diagnostics).
         let mut a = Analyser::new();
-        a.result
-            .diagnostics
-            .push(diag("W113", Span::new(0, 3), "x"));
+        a.emit_cfg_ssa_diagnostics("");
+        assert!(a.result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_no_w220_on_simple_assignment() {
+        // ``set x 1`` — single assignment, no overwrite, no
+        // W220.  Smoke test that pipeline runs without
+        // emitting spurious W codes for clean code.
+        let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics("set x 1");
-        assert_eq!(a.result.diagnostics.len(), 1);
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 must not fire on a single assignment; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_dead_store_overwritten() {
+        // ``set x 1\nset x 2\nputs $x`` — the first ``set x 1``
+        // is overwritten before being read.  W220 should fire
+        // at the first assignment.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("set x 1\nset x 2\nputs $x");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            !w220s.is_empty(),
+            "W220 expected for overwritten ``set x 1``; got {:?}",
+            a.result.diagnostics,
+        );
+        assert!(w220s.iter().any(|d| d.message.contains("'x'")));
+        assert_eq!(w220s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w214_unused_param() {
+        // ``proc foo {x y} { puts $x }`` — parameter ``y`` is
+        // declared but never read in the body.  W214 should
+        // fire on it.  Parameter ``x`` is read, so no W214.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {x y} { puts $x }");
+        let w214s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W214")
+            .collect();
+        assert_eq!(
+            w214s.len(),
+            1,
+            "expected exactly one W214 for unused param ``y``; got {:?}",
+            a.result.diagnostics,
+        );
+        assert!(w214s[0].message.contains("'y'"));
+        assert!(w214s[0].message.contains("'::foo'"));
+        assert_eq!(w214s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w214_skips_args_param() {
+        // The variadic ``args`` is conventional and frequently
+        // declared without use; W214 must not fire on it.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {x args} { puts $x }");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W214"),
+            "W214 should not fire on ``args``; got {:?}",
+            a.result.diagnostics,
+        );
     }
 
     #[test]
