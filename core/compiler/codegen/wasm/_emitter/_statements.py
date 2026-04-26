@@ -233,7 +233,35 @@ class _WasmEmitterStmtMixin(_Base):
                     if hook is None or not hook(self, barrier_args, (), EmitContext.STATEMENT):
                         self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
-                    self._emit_eval_fallback(barrier_cmd, barrier_args)
+                    # ``while`` / ``for`` / ``if`` barriers carry their
+                    # condition / scripts as plain ``args`` strings
+                    # rather than tokens.  The default eval-fallback
+                    # quoting heuristic treats a leading ``[`` as a
+                    # command-substitution word, which gets evaluated
+                    # ONCE by the runtime parser instead of staying as
+                    # the cond expression — turning
+                    # ``while [string length $s] { ... }`` into
+                    # ``while CONST_LEN { ... }`` that loops forever.
+                    # Build a script with the cond/scripts always
+                    # brace-wrapped so the runtime sees the literal
+                    # expression / body.
+                    if barrier_cmd == "while" and len(barrier_args) >= 2:
+                        cond, body = barrier_args[0], barrier_args[1]
+                        script = (
+                            "while "
+                            + ("{" + cond + "}" if not (cond.startswith("{") and cond.endswith("}")) else cond)
+                            + " "
+                            + ("{" + body + "}" if not (body.startswith("{") and body.endswith("}")) else body)
+                        )
+                        self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
+                    elif barrier_cmd == "for" and len(barrier_args) >= 4:
+                        init, cond, nxt, body = barrier_args[0], barrier_args[1], barrier_args[2], barrier_args[3]
+                        def _br(s):
+                            return s if (s.startswith("{") and s.endswith("}")) else "{" + s + "}"
+                        script = "for " + _br(init) + " " + _br(cond) + " " + _br(nxt) + " " + _br(body)
+                        self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
+                    else:
+                        self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
