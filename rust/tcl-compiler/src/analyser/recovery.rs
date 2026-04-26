@@ -19,9 +19,28 @@
 //!   to see if it looks like a ``pattern { body }`` pair (used
 //!   by C41e5's ``_recover_missing_open_brace``).
 //!
-//! **Deferred to C41e5**: ``recover_missing_open_brace`` (the
-//! orphaned-switch-cases recovery) and ``detect_stolen_close_brace``
-//! (E103 — inner ``{`` consumed the enclosing ``}``).
+//! **C41e5** adds the gnarlier helpers:
+//!
+//! - [`Analyser::recover_missing_open_brace`] — when a
+//!   ``switch`` is followed by orphaned ``pattern body``
+//!   command segments (because the user forgot the
+//!   ``{``-body brace), the orphans are spliced into the
+//!   switch's argv as additional pattern/body words and an
+//!   E101 diagnostic is emitted.
+//! - [`Analyser::detect_stolen_close_brace`] — when a partial
+//!   command's body STR token has balanced inner braces and
+//!   the inner ``{`` consumed the enclosing scope's ``}``,
+//!   emits E103 instead of the generic E200.
+//!
+//! **Deferred:** the Python helpers attach a [`CodeFix`] to the
+//! E101 / E103 diagnostics that points at the exact insertion
+//! offset.  The Rust ``Diagnostic`` struct doesn't carry
+//! ``CodeFix`` yet (chunk-log carry-over: "W123 'did you
+//! mean…?' suggestions + CodeFix payload — needs ``CodeFix``
+//! field on ``Diagnostic``").  When the field lands the
+//! emitter call sites in ``recover_missing_open_brace`` /
+//! ``detect_stolen_close_brace`` populate it; for now they
+//! emit code + message + range only.
 //!
 //! ## Quoted-context filtering
 //!
@@ -170,6 +189,261 @@ impl Analyser {
             .splice(cmd_start_argv_idx..=bracket_argv_idx, [virtual_text]);
         cmd.single_token_word
             .splice(cmd_start_argv_idx..=bracket_argv_idx, [true]);
+    }
+
+    /// Repair a ``switch`` command whose source is missing
+    /// the ``{`` before the body, splicing orphaned
+    /// ``pattern body`` segments into the switch's argv.
+    ///
+    /// Mirrors `_recover_missing_open_brace` in
+    /// `core/analysis/_analyser/_recovery.py:179-324`.  Two
+    /// shapes Python recognises:
+    ///
+    /// - **Case A** — no whitespace after the switch's string
+    ///   argument, so the EOL terminates the switch and **all**
+    ///   pattern/body pairs become separate top-level commands.
+    /// - **Case B** — whitespace after the string arg lets the
+    ///   first pair merge as Form 1 args, leaving only the
+    ///   *subsequent* pairs orphaned.
+    ///
+    /// In either case the orphaned commands are appended to
+    /// ``cmd.argv`` / ``cmd.texts`` / ``cmd.all_tokens`` /
+    /// ``cmd.single_token_word`` and an E101 diagnostic is
+    /// emitted (no ``CodeFix`` payload yet — see module docs).
+    /// Returns the number of consumed orphaned commands so the
+    /// caller can advance its iterator past them.
+    pub(super) fn recover_missing_open_brace(
+        &mut self,
+        cmd: &mut SegmentedCommand,
+        commands: &[SegmentedCommand],
+        cmd_idx: usize,
+    ) -> usize {
+        if cmd.texts.first().map_or("", String::as_str) != "switch" {
+            return 0;
+        }
+
+        // Parse switch options (mirrors Python's option scan).
+        let args = if cmd.texts.len() > 1 {
+            &cmd.texts[1..]
+        } else {
+            &[][..]
+        };
+        let mut arg_start: usize = 0;
+        while arg_start < args.len() && args[arg_start].starts_with('-') {
+            if args[arg_start] == "--" {
+                arg_start += 1;
+                break;
+            }
+            if matches!(args[arg_start].as_str(), "-matchvar" | "-indexvar") {
+                arg_start += 2;
+                continue;
+            }
+            arg_start += 1;
+        }
+
+        let non_option_args = if arg_start <= args.len() {
+            &args[arg_start..]
+        } else {
+            &[][..]
+        };
+
+        // Form 2 detection: when the last non-option arg is a
+        // braced body (Str token) and it's the only one after
+        // the string, the switch is well-formed and recovery
+        // is unnecessary.
+        if non_option_args.len() >= 2 {
+            let last_arg_idx = args.len().saturating_sub(1);
+            let last_tok = if last_arg_idx + 1 < cmd.argv.len() {
+                cmd.argv[last_arg_idx + 1]
+            } else {
+                *cmd.argv.last().unwrap_or(&cmd.argv[0])
+            };
+            if non_option_args.len() == 2
+                && last_tok.kind == TokenType::Str
+                && last_arg_idx == arg_start + 1
+            {
+                return 0;
+            }
+        }
+
+        // Build a builtins set so ``looks_like_switch_case``
+        // can reject command-name-headed orphans.
+        let builtins_owned = self.builtin_command_names_const();
+        let builtins_view: Vec<&str> = builtins_owned.iter().map(String::as_str).collect();
+
+        // Count consecutive case-like commands following the
+        // switch.
+        let mut case_count: usize = 0;
+        for follow in commands.iter().skip(cmd_idx + 1) {
+            if looks_like_switch_case(follow, &builtins_view) {
+                case_count += 1;
+            } else {
+                break;
+            }
+        }
+        if case_count == 0 {
+            return 0;
+        }
+
+        // Splice the orphans into the switch.
+        for k in 0..case_count {
+            let orphan = &commands[cmd_idx + 1 + k];
+            for (text, (tok, single)) in orphan.texts.iter().zip(
+                orphan
+                    .argv
+                    .iter()
+                    .zip(orphan.single_token_word.iter().copied()),
+            ) {
+                cmd.argv.push(*tok);
+                cmd.texts.push(text.clone());
+                cmd.single_token_word.push(single);
+                cmd.all_tokens.push(*tok);
+            }
+        }
+
+        // Diagnostic anchor: end of the switch's string arg.
+        let string_arg_argv_idx = arg_start + 1;
+        let diag_span = if string_arg_argv_idx < cmd.argv.len() {
+            let t = cmd.argv[string_arg_argv_idx];
+            tcl_lexer::Span::new(t.span.end(), t.span.end())
+        } else {
+            tcl_lexer::Span::new(cmd.span.end(), cmd.span.end())
+        };
+        if !self.disabled_diagnostics.contains("E101") {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "E101".to_string(),
+                span: diag_span,
+                message: "Missing '{' after switch — body cases follow without braces".to_string(),
+                severity: super::types::Severity::Error,
+            });
+        }
+
+        case_count
+    }
+
+    /// Detect when an inner ``{`` consumed the enclosing scope's
+    /// ``}`` and emit E103 instead of the generic E200.
+    ///
+    /// Mirrors `_detect_stolen_close_brace` in
+    /// `core/analysis/_analyser/_recovery.py:326-449`.  Walks
+    /// the body STR token's text with a stack-based brace scan
+    /// (skipping backslash-escaped pairs) and looks for the
+    /// pattern where every ``{`` is matched by a ``}`` *and*
+    /// the final ``}`` is the last significant content in the
+    /// body.  When found, that ``}`` is the brace that "got
+    /// stolen" — the missing one belongs after the inner block.
+    ///
+    /// Returns ``true`` when E103 was emitted; the caller skips
+    /// E200 in that case.  ``CodeFix`` payload deferred — see
+    /// module docs.
+    pub(super) fn detect_stolen_close_brace(&mut self, cmd: &SegmentedCommand) -> bool {
+        // Find the unclosed body STR token — last STR in argv.
+        let mut body_tok: Option<Token> = None;
+        for &tok in cmd.argv.iter().rev() {
+            if tok.kind == TokenType::Str {
+                body_tok = Some(tok);
+                break;
+            }
+        }
+        let Some(body_tok) = body_tok else {
+            return false;
+        };
+
+        // Re-slice the body content.  ``content_offset`` skips
+        // the opening ``{`` so ``text`` mirrors Python's
+        // ``body_tok.text``.
+        let start = body_tok.span.start() as usize + body_tok.content_offset as usize;
+        let end = body_tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return false;
+        }
+        let text = self.source[start..end].to_string();
+        if text.is_empty() {
+            return false;
+        }
+
+        // Stack-based brace scan, skipping backslash-escaped pairs.
+        let bytes = text.as_bytes();
+        let mut stack: Vec<usize> = Vec::new();
+        let mut last_pop: Option<(usize, usize)> = None;
+        let mut i: usize = 0;
+        while i < bytes.len() {
+            let ch = bytes[i];
+            if ch == b'\\' && i + 1 < bytes.len() {
+                i += 2;
+                continue;
+            }
+            if ch == b'{' {
+                stack.push(i);
+            } else if ch == b'}' {
+                let Some(open_off) = stack.pop() else {
+                    return false; // more closes than opens
+                };
+                last_pop = Some((open_off, i));
+            }
+            i += 1;
+        }
+
+        if !stack.is_empty() {
+            return false;
+        }
+        let Some((_open_offset, close_offset)) = last_pop else {
+            return false;
+        };
+
+        // The stolen ``}`` must be the last significant content.
+        let trailing = &text[close_offset + 1..];
+        if !trailing.trim().is_empty() {
+            return false;
+        }
+
+        // Map body-text offsets to absolute source spans.
+        let abs_close = u32::try_from(start + close_offset).expect("close offset fits in u32");
+        let stolen_span = tcl_lexer::Span::new(abs_close, abs_close + 1);
+
+        if !self.disabled_diagnostics.contains("E103") {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "E103".to_string(),
+                span: stolen_span,
+                message: "Missing '}' — a nested body consumed this closing brace".to_string(),
+                severity: super::types::Severity::Error,
+            });
+        }
+        true
+    }
+
+    /// Emit the generic E200 ("missing close-…") diagnostic for a
+    /// partial command.
+    ///
+    /// Mirrors the E200 emission in
+    /// `core/analysis/_analyser/_core.py:476-493`.  Inspects the
+    /// last unclosed token in the command to pick the right
+    /// suffix (`brace` / `bracket` / `"`).  Always emits when
+    /// E200 isn't disabled — callers gate this on
+    /// `detect_stolen_close_brace` having returned ``false``.
+    pub(super) fn emit_partial_command_diagnostic(&mut self, cmd: &SegmentedCommand) {
+        if self.disabled_diagnostics.contains("E200") {
+            return;
+        }
+        // Pick the last token whose span reaches EOF / the
+        // command end; that's the unclosed delimiter.
+        let kind = cmd
+            .all_tokens
+            .iter()
+            .rev()
+            .find(|t| matches!(t.kind, TokenType::Str | TokenType::Cmd | TokenType::Esc))
+            .map(|t| t.kind);
+        let suffix = match kind {
+            Some(TokenType::Cmd) => "missing close-bracket",
+            Some(TokenType::Esc) => "missing \"",
+            _ => "missing close-brace",
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "E200".to_string(),
+            span: cmd.span,
+            message: suffix.to_string(),
+            severity: super::types::Severity::Error,
+        });
     }
 
     /// Lookup a token's text by re-slicing the analyser's source
@@ -426,5 +700,149 @@ mod tests {
         let source = "foo";
         let cmd = segment(source);
         assert!(!looks_like_switch_case(&cmd, &[]));
+    }
+
+    // -- C41e5: missing-open-brace recovery --------------------------
+
+    #[test]
+    fn recover_missing_open_brace_emits_e101_and_consumes_orphans() {
+        // ``switch $x\nfoo { puts hi }\nbar { puts bye }`` —
+        // both ``foo`` and ``bar`` are orphaned switch cases
+        // because the user forgot ``{`` after ``$x``.
+        let source = "switch $x\nfoo { puts hi }\nbar { puts bye }";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        assert!(commands.len() >= 3, "test expects 3 segmented commands");
+        let mut switch_cmd = commands[0].clone();
+        let consumed = a.recover_missing_open_brace(&mut switch_cmd, &commands, 0);
+        assert_eq!(consumed, 2, "both orphans should be consumed");
+        // The orphans were spliced in as additional argv words —
+        // the switch now carries 4 pattern/body args plus the
+        // string arg + the ``switch`` name.
+        assert!(switch_cmd.texts.len() >= 6);
+        // E101 was emitted.
+        let e101 = a
+            .result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "E101")
+            .expect("E101 emitted");
+        assert!(e101.message.contains("Missing '{'"));
+    }
+
+    #[test]
+    fn recover_missing_open_brace_no_op_for_form_2_switch() {
+        // ``switch $x { a {b} c {d} }`` — already in Form 2
+        // (single braced body), recovery must not fire.
+        let source = "switch $x { a {b} c {d} }";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let mut switch_cmd = commands[0].clone();
+        let consumed = a.recover_missing_open_brace(&mut switch_cmd, &commands, 0);
+        assert_eq!(consumed, 0);
+        assert!(!a.result.diagnostics.iter().any(|d| d.code == "E101"));
+    }
+
+    #[test]
+    fn recover_missing_open_brace_no_op_when_no_orphans() {
+        // Plain ``switch`` followed by an unrelated command.
+        let source = "switch $x\nputs hi";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let mut switch_cmd = commands[0].clone();
+        let consumed = a.recover_missing_open_brace(&mut switch_cmd, &commands, 0);
+        // ``puts hi`` is a known command so it can't be a
+        // switch-case orphan.
+        assert_eq!(consumed, 0);
+    }
+
+    #[test]
+    fn recover_missing_open_brace_skips_non_switch() {
+        let source = "set x 1";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let mut cmd = commands[0].clone();
+        let consumed = a.recover_missing_open_brace(&mut cmd, &commands, 0);
+        assert_eq!(consumed, 0);
+    }
+
+    // -- C41e5: stolen-close-brace detection -------------------------
+
+    #[test]
+    fn detect_stolen_close_brace_emits_e103_for_inner_brace_pattern() {
+        // ``proc foo {} { switch $x { a { puts hi } }`` — the
+        // inner ``{ a { puts hi } }`` consumed the outer
+        // ``proc`` body's closing brace, leaving the proc
+        // unclosed.  Build a synthetic command with a body STR
+        // token whose text matches the stolen-brace pattern.
+        let source = "{ switch $x {\n    a { puts hi }\n}}";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let cmd = &commands[0];
+        let detected = a.detect_stolen_close_brace(cmd);
+        assert!(detected, "stolen brace pattern should be detected");
+        let e103 = a
+            .result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "E103")
+            .expect("E103 emitted");
+        assert!(e103.message.contains("Missing '}'"));
+    }
+
+    #[test]
+    fn detect_stolen_close_brace_no_op_when_no_str_token() {
+        // ``set x 1`` has no STR body token.
+        let source = "set x 1";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let cmd = &commands[0];
+        assert!(!a.detect_stolen_close_brace(cmd));
+        assert!(a.result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_stolen_close_brace_no_op_when_unbalanced() {
+        // Body whose inner content has more ``}`` than ``{`` —
+        // the lexer can produce that shape when the body STR
+        // contains a literal escaped close-brace via ``\}``
+        // before any opening brace.  Our scan skips ``\}``
+        // pairs, so the body sees zero ``{`` and zero ``}``,
+        // and the early-out for "more closes than opens" or
+        // "no last_pop" rejects the input.
+        let source = r"{ \} a }";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let cmd = &commands[0];
+        let detected = a.detect_stolen_close_brace(cmd);
+        assert!(!detected);
+    }
+
+    #[test]
+    fn detect_stolen_close_brace_no_op_when_trailing_content() {
+        // Body where the last ``}`` is followed by more text —
+        // it legitimately closed an inner block, the missing
+        // ``}`` is the outer one.
+        let source = "{ a { puts hi } extra }";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let cmd = &commands[0];
+        // Balanced braces, so detect_stolen_close_brace will
+        // return false because there's content after the last
+        // ``}``.
+        let detected = a.detect_stolen_close_brace(cmd);
+        assert!(!detected);
+    }
+
+    #[test]
+    fn emit_partial_command_diagnostic_emits_e200_for_unclosed_brace() {
+        // Build a fake partial command via segment (a really
+        // unclosed brace at end of source).
+        let source = "{ unclosed";
+        let mut a = analyser_with_source(source);
+        let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
+        let cmd = &commands[0];
+        a.emit_partial_command_diagnostic(cmd);
+        assert!(a.result.diagnostics.iter().any(|d| d.code == "E200"));
     }
 }
