@@ -367,6 +367,16 @@ fn eval_lseq(words: []const i32) i32 {
             if (lseq_match_word(words, idx, "by")) {
                 if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
                 have_step = true;
+            } else if (idx < words.len) {
+                // ``lseq START END STEP`` (or ``lseq START to END STEP``)
+                // — Tcl 9 accepts the trailing positional as the step
+                // without an explicit ``by`` keyword.  Without this
+                // branch, ``lseq 1000000 2000000 100000`` falls through
+                // with step=1 and tries to enumerate a million-element
+                // sequence with O(N²) tcl_list appends — that's the
+                // lseq.test hang at lseq-1.16.
+                step_val = rt.obj_get_int(words[idx]);
+                have_step = true;
             }
         }
 
