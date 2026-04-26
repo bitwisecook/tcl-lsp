@@ -279,6 +279,11 @@ impl Analyser {
         //    ``analyse``).
         // 5. ``dedupe_diagnostics`` — drop exact duplicates and
         //    the line-based suppression pairs.
+        let mut diag_registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            diag_registry.load_dialect(d);
+        }
+        self.emit_unresolved_command_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.apply_disabled_diagnostics();

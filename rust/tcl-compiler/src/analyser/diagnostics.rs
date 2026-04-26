@@ -43,8 +43,17 @@
 //!   decision still pending).  Likewise the ``[cmd] method``
 //!   suppression via return-type analysis is deferred — needs
 //!   IR-level type-lattice plumbing extended into the analyser.
-//! - **C41d4** — W120 / W121 / W122 / W242
-//!   (`_diag_commands.py`).
+//! - **C41d4** — `_diag_commands.py`.  ✅ partial: W123
+//!   (unknown command) is wired via the cross-function post-
+//!   pass.  ``command_invocations`` are now recorded for every
+//!   command head during the walk dispatch.  Deferred:
+//!   ``_resolve_interpolated_commands`` (CONSTSET-driven W123
+//!   suppression for ``$``-bearing names),
+//!   ``_globals_written_by_procs`` (used by the C41d2 W210
+//!   top-level RBS filter), ``suggest_similar`` "did you
+//!   mean…?" suggestions, and the
+//!   ``unknown_proc_info`` / ``has_dynamic_providers``
+//!   early-returns.
 //! - **C41d5** — W123 / W130..W138 (`_diag_branches.py` +
 //!   `_diag_channel.py`).
 //! - **C41d6** — IRULE3010..3019 (`_diag_ip.py`).
@@ -625,6 +634,134 @@ impl Analyser {
         }
     }
 
+    /// W123 — unknown / unresolved command head.
+    ///
+    /// Mirrors `_emit_unresolved_command_diagnostics` in
+    /// `core/analysis/_analyser/_diag_commands.py:39-186`.
+    /// Walks every command invocation recorded during the
+    /// analyser walk and emits W123 ("Unknown command 'X'")
+    /// when no matching definition is in scope.
+    ///
+    /// Resolution paths checked in order — first match
+    /// suppresses W123:
+    ///
+    /// - `cmd_name in registry_names` (built-in command).
+    /// - `cmd_name` contains `::` (qualified — defer to
+    ///   per-namespace logic, conservative skip).
+    /// - `cmd_name` starts with `$` / `[` (interpolated /
+    ///   substituted head — handled by W307 / W308).
+    /// - User-defined proc tail or absolute name.
+    /// - User-defined class tail or absolute name.
+    /// - Command alias tail.
+    /// - Ensemble namespace tail.
+    ///
+    /// Idempotency: ``self.unresolved_commands_emitted`` guards
+    /// against double-emission when ``analyse`` is called twice
+    /// or the chunked entry runs both passes.
+    ///
+    /// **Deferred** (Python parity gaps documented in the
+    /// commit body): ``unknown_proc_info`` and
+    /// ``has_dynamic_providers`` early-returns; ``stub_commands``
+    /// candidate set; ``suggest_similar`` "did you mean…?"
+    /// suggestions and the ``CodeFix`` payload; the
+    /// CONSTSET-driven interpolation suppression for ``$``-bearing
+    /// command names.
+    pub fn emit_unresolved_command_diagnostics(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if self.unresolved_commands_emitted {
+            return;
+        }
+        self.unresolved_commands_emitted = true;
+        if self.disabled_diagnostics.contains("W123") {
+            return;
+        }
+
+        // Conservative gate: if any ``package require`` was seen,
+        // suppress W123 entirely.  The package may load arbitrary
+        // commands at runtime that the analyser can't see.
+        if !self.result.package_requires.is_empty() {
+            return;
+        }
+
+        let registry_names: HashSet<String> =
+            registry.command_names().map(str::to_string).collect();
+        let proc_tail_names: HashSet<String> = self
+            .result
+            .all_procs
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        let class_tail_names: HashSet<String> = self
+            .result
+            .all_classes
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        let alias_names: HashSet<String> = self
+            .result
+            .command_aliases
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        let ensemble_cmds: HashSet<String> = self
+            .ensemble_namespaces
+            .iter()
+            .filter_map(|ns| ns.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        // Drain so the iteration loop can mutate
+        // ``self.result.diagnostics`` freely; restore at the end
+        // (matches the snapshot/restore round-trip contract).
+        let invocations = std::mem::take(&mut self.result.command_invocations);
+        for inv in &invocations {
+            let name = &inv.name;
+            if registry_names.contains(name) {
+                continue;
+            }
+            if name.contains("::") {
+                continue;
+            }
+            if name.starts_with('$') || name.starts_with('[') {
+                continue;
+            }
+            if proc_tail_names.contains(name) {
+                continue;
+            }
+            if class_tail_names.contains(name) {
+                continue;
+            }
+            if alias_names.contains(name) {
+                continue;
+            }
+            if ensemble_cmds.contains(name) {
+                continue;
+            }
+            // Absolute-form fallback — ``cmd`` may be defined as
+            // ``::cmd`` in the global namespace.
+            if self.result.all_procs.contains_key(&format!("::{name}")) {
+                continue;
+            }
+            if self.result.all_classes.contains_key(&format!("::{name}")) {
+                continue;
+            }
+
+            let message = format!("Unknown command '{name}'");
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W123".to_string(),
+                span: inv.range,
+                message,
+                severity: Severity::Hint,
+            });
+        }
+        self.result.command_invocations = invocations;
+    }
+
     /// W307 — non-literal command name (variable / command-sub
     /// used as command head).
     ///
@@ -1141,6 +1278,107 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must not fire at top-level (deferred); got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_unknown_command() {
+        // ``no_such_cmd hello`` — bare name that's not a
+        // built-in / proc / class / alias.  W123 fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("no_such_cmd hello", "tcl");
+        let w123s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W123").collect();
+        assert!(
+            !w123s.is_empty(),
+            "W123 expected for unknown command; got {:?}",
+            r.diagnostics,
+        );
+        assert!(w123s[0].message.contains("'no_such_cmd'"));
+        assert_eq!(w123s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn analyse_no_w123_for_builtin_command() {
+        // ``puts hello`` — ``puts`` is a built-in; no W123.
+        let mut a = Analyser::new();
+        let r = a.analyse("puts hello", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 must not fire on built-in command; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_no_w123_for_user_proc() {
+        // User-defined proc, then call it.  Both go through
+        // the analyser walk; the call site must NOT trip W123.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc greet {} { puts hi }\ngreet", "tcl");
+        let w123s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W123").collect();
+        assert!(
+            w123s.is_empty(),
+            "W123 must not fire on user-defined proc call; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_no_w123_for_qualified_command_name() {
+        // Qualified names (``a::b``) skip W123 — defer to
+        // per-namespace logic.
+        let mut a = Analyser::new();
+        let r = a.analyse("ns::cmd hello", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 must not fire on qualified command name; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_package_require_gate_suppresses_when_recorded() {
+        // The ``package_requires`` gate suppresses W123 entirely
+        // when any package require has been recorded.  The
+        // analyser walk doesn't yet record ``package require``
+        // (deferred — handler not landed), so we exercise the
+        // gate by pre-populating ``result.package_requires``
+        // and re-running the post-pass directly.
+        use crate::signature_scan::types::SignaturePackageRequire;
+        use tcl_lexer::Span;
+        let mut a = Analyser::new();
+        a.result.package_requires.push(SignaturePackageRequire {
+            name: "Tcl".to_string(),
+            version: Some("8.6".to_string()),
+            range: Span::new(0, 24),
+            conditional: false,
+        });
+        // Seed an invocation that would otherwise trip W123.
+        a.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: "random_cmd".to_string(),
+                range: Span::new(25, 35),
+            },
+        );
+        let registry = tcl_registry::CommandRegistry::build_default();
+        a.emit_unresolved_command_diagnostics(&registry);
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 must be fully suppressed when package_requires is non-empty; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_filtered_by_disabled_diagnostics() {
+        // ``# tcl-lsp: disable=W123`` at top of file silences
+        // the diagnostic via the existing disable filter.
+        let mut a = Analyser::new();
+        let r = a.analyse("# tcl-lsp: disable=W123\nno_such_cmd hello", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 must be silenced by file-suppression directive; got {:?}",
+            r.diagnostics,
         );
     }
 

@@ -123,6 +123,23 @@ impl Analyser {
             &[]
         };
 
+        // **C41d4.** Record this invocation so the post-walk
+        // ``emit_unresolved_command_diagnostics`` (W123) can iterate
+        // every command head the analyser visited.  Mirrors the
+        // matching ``self.result.command_invocations.append(...)``
+        // call in ``_AnalyserCommandsMixin._process_command``
+        // (``core/analysis/_analyser/_commands.py``).  ``inv.range``
+        // anchors at the command-head token so the W123 message
+        // points at the unresolved name rather than the whole
+        // command line.
+        let cmd_tok = arg_tokens_in[0];
+        self.result.command_invocations.push(
+            crate::signature_scan::types::SignatureCommandInvocation {
+                name: cmd_name.to_string(),
+                range: cmd_tok.span,
+            },
+        );
+
         // **C41d3.** Record variable-as-command and command-sub-as-
         // command sites so the post-walk W307 / W308 emitters can
         // resolve them.  Mirrors the inline recording in
@@ -131,7 +148,6 @@ impl Analyser {
         // The token-text is resolved via ``SourceMap::token_text`` —
         // the same helper that strips the ``$`` / ``${...}`` prefix
         // for VAR tokens.
-        let cmd_tok = arg_tokens_in[0];
         let in_method = false; // OO method-context detection lands in C41e.
         match cmd_tok.kind {
             TokenType::Var => {
