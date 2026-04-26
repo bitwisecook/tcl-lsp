@@ -43,7 +43,7 @@ TCLSH = REPO / "tmp" / "tcl9.0.3" / "unix" / "tclsh"
 TESTS_DIR = REPO / "tmp" / "tcl9.0.3" / "tests"
 OUTPUT = REPO / "tmp" / "perf-output"
 
-TIMEOUT_S = 60
+TIMEOUT_S = 15
 
 _SUMMARY_RE = re.compile(
     r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)"
