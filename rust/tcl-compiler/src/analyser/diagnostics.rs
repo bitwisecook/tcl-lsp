@@ -34,15 +34,19 @@
 //!   W210 / W213 are gated on procs only — top-level RBS
 //!   needs the ``globals_written_by_procs`` filter Python
 //!   uses, deferred until interproc analysis is wired in.
-//! - **C41d3** — `_diag_var_command.py`.  ✅ partial:
-//!   ``var_command_sites`` and ``cmd_command_sites`` are now
-//!   recorded during the walk dispatch, and W307 (non-literal
-//!   command name) is emitted via the cross-function post-pass.
-//!   W308 (unknown method on object) is deferred — needs the
-//!   ``class_hierarchy`` / MRO port (the C41e0 architectural
-//!   decision still pending).  Likewise the ``[cmd] method``
-//!   suppression via return-type analysis is deferred — needs
-//!   IR-level type-lattice plumbing extended into the analyser.
+//! - **C41d3** — `_diag_var_command.py`.  ✅ landed:
+//!   ``var_command_sites`` / ``cmd_command_sites`` recorded
+//!   during the walk dispatch; **W307** (non-literal command
+//!   name) and **W308** (unknown method on object) both emit
+//!   via the cross-function post-pass.  W308 uses the C41e0
+//!   ``ClassHierarchy::method_target`` for MRO-aware method
+//!   resolution, with all the Python suppression paths
+//!   wired (inherited ``unknown`` handler, external
+//!   superclass, ``oo::objdefine`` per-instance methods).
+//!   The ``[cmd] method`` return-type suppression for W307
+//!   on ``cmd_command_sites`` remains deferred — it needs
+//!   IR-level type-lattice plumbing extended into the
+//!   analyser, which is a separate strip.
 //! - **C41d4** — `_diag_commands.py`.  ✅ partial: W123
 //!   (unknown command) is wired via the cross-function post-
 //!   pass.  ``command_invocations`` are now recorded for every
@@ -1149,17 +1153,61 @@ impl Analyser {
     /// analyser, which is a larger change than fits this strip.
     /// In-method W307 suppression and dict-with /
     /// dict-update barrier-range suppression also defer.
+    #[allow(clippy::too_many_lines)]
     fn emit_var_command_diagnostics(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
         use crate::analyses::{ConstValue, LatticeValue};
+        use crate::types::TypeKind;
         use std::collections::HashMap;
 
         if self.var_command_sites.is_empty() {
             return;
         }
+        // Aggregate type-lattice knowledge per variable name
+        // across every FunctionUnit.  For each var with a
+        // ``TclType::Object`` lattice entry that has a
+        // ``class_name``, record the class qualified name so
+        // W308 can validate the method against the class
+        // hierarchy.  Mirrors the ``all_typed_vars`` /
+        // ``all_types`` aggregation in
+        // ``_diag_var_command.py:49-67``.
+        let mut all_object_types: HashMap<String, HashSet<String>> = HashMap::new();
+        let collect_object_types =
+            |types: &HashMap<crate::ssa::ValueKey, crate::types::TypeLattice>,
+             out: &mut HashMap<String, HashSet<String>>| {
+                for ((var_name, _ver), tl) in types {
+                    if tl.kind != TypeKind::Known {
+                        continue;
+                    }
+                    if !matches!(tl.tcl_type, Some(tcl_registry::TclType::Object)) {
+                        continue;
+                    }
+                    let Some(class_name) = &tl.class_name else {
+                        continue;
+                    };
+                    out.entry(var_name.clone())
+                        .or_default()
+                        .insert(class_name.clone());
+                }
+            };
+        collect_object_types(&cu.top_level.types, &mut all_object_types);
+        for fu in cu.procedures.values() {
+            collect_object_types(&fu.types, &mut all_object_types);
+        }
+
+        // Build the class hierarchy once for W308 method
+        // resolution (uses the C41e0 ``ClassHierarchy``).
+        let hierarchy = if self.result.all_classes.is_empty() {
+            None
+        } else {
+            Some(super::class_hierarchy::build_class_hierarchy(
+                self.result.all_classes.clone(),
+            ))
+        };
+
         // Aggregate constant-string knowledge per variable name
         // across every function in the CompilationUnit.  Python
         // uses ``_lattice_to_set`` which expands CONST and
@@ -1221,13 +1269,96 @@ impl Analyser {
 
         // Drain sites so we can borrow self.result mutably below.
         let sites = std::mem::take(&mut self.var_command_sites);
+        let objdefined_vars = self.objdefined_vars.clone();
         for site in &sites {
+            // **W308 path.**  Variable known to hold an Object
+            // — validate the method name against the class
+            // hierarchy.  When the method isn't found and the
+            // class doesn't have an external superclass that
+            // could carry it, emit W308.
+            if let Some(class_names) = all_object_types.get(&site.var_name) {
+                if let (Some(method_name), Some(hierarchy)) = (&site.method_name, &hierarchy) {
+                    let mut found = false;
+                    let mut has_local_class = false;
+                    for cls in class_names {
+                        if hierarchy.method_target(cls, method_name).is_some() {
+                            found = true;
+                            break;
+                        }
+                        if let Some(cd) = self.result.all_classes.get(cls) {
+                            has_local_class = true;
+                            if cd.methods.contains_key(method_name)
+                                || cd.class_methods.contains_key(method_name)
+                                || matches!(
+                                    method_name.as_str(),
+                                    "new" | "create" | "destroy" | "configure" | "cget"
+                                )
+                                || cd.methods.contains_key("unknown")
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    // Inherited ``unknown`` handler via MRO.
+                    if !found && has_local_class {
+                        for cls in class_names {
+                            if hierarchy.method_target(cls, "unknown").is_some() {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    // External superclass: a method might come
+                    // from a class outside the current index.
+                    if !found && has_local_class {
+                        const OO_BASE: &[&str] = &["oo::object", "oo::class"];
+                        'cls_loop: for cls in class_names {
+                            if let Some(cd) = self.result.all_classes.get(cls) {
+                                for s in &cd.superclasses {
+                                    if !self.result.all_classes.contains_key(s)
+                                        && !OO_BASE.contains(&s.as_str())
+                                    {
+                                        found = true;
+                                        break 'cls_loop;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // ``oo::objdefine`` adds per-instance
+                    // methods we can't see at the class level.
+                    if !found && objdefined_vars.contains(&site.var_name) {
+                        found = true;
+                    }
+                    if !found && has_local_class && !self.disabled_diagnostics.contains("W308") {
+                        let mut classes_sorted: Vec<&str> =
+                            class_names.iter().map(String::as_str).collect();
+                        classes_sorted.sort_unstable();
+                        let cls_display = classes_sorted.join(", ");
+                        let message =
+                            format!("Unknown method '{method_name}' on class '{cls_display}'",);
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W308".to_string(),
+                            span: site.cmd_span,
+                            message,
+                            severity: Severity::Warning,
+                        });
+                    }
+                }
+                // W307 path doesn't fire when the var is a
+                // known Object — the method-name check is the
+                // load-bearing piece.
+                continue;
+            }
+
+            // **W307 path.**  Variable not a known Object.
             // ``in_method`` short-circuits W307 because OO
             // methods routinely use ``$obj method`` patterns.
             // The Rust analyser doesn't track method context
-            // yet (lands in C41e), so this filter currently
-            // matches Python's ``in_method=False`` always-fall-through
-            // behaviour.
+            // yet (lands in C41e — pending a Method scope kind),
+            // so this filter currently matches Python's
+            // ``in_method=False`` always-fall-through behaviour.
             if site.in_method {
                 continue;
             }
