@@ -339,11 +339,9 @@ mod tests {
 
     #[test]
     fn fold_interpolation_set_preserves_pure_literal() {
-        // No ``$`` — a single segment.  But our function expects
-        // a ``$`` to be present; for pure literal call sites we
-        // simply skip the folder.  Verify the contract: a pure
-        // literal still returns the literal as a one-element
-        // set.
+        // No ``$`` — just a single literal segment.  The helper
+        // still accepts this and resolves it to a one-element
+        // set containing the literal unchanged.
         let vars: HashMap<String, HashSet<String>> = HashMap::new();
         let set = fold_interpolation_set("foo", &vars).expect("resolved");
         assert!(set.contains("foo"));

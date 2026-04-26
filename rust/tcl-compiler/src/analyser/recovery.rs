@@ -48,7 +48,7 @@
 //! plumbing because the segmenter already preserves
 //! ``in_quote`` per-token.
 
-#![allow(clippy::doc_markdown)]
+#![allow(clippy::doc_markdown, clippy::implicit_hasher)]
 
 use tcl_lexer::{Span, Token, TokenType};
 
@@ -161,9 +161,12 @@ impl Analyser {
 
         // Build the virtual Cmd token spanning from the start
         // of the resolved sub-command to the byte just before
-        // the stray ``]``.  ``content_offset = 1`` mirrors a
-        // real ``[…]`` token where the ``[`` is the leading
-        // delimiter byte.
+        // the stray ``]``.  ``content_offset`` is **0** here
+        // (not the usual ``1`` for real ``[…]`` tokens) because
+        // the synthetic span doesn't include a leading ``[`` —
+        // there's no ``[`` to skip in the source.  The whole
+        // span is content; downstream token-text slicing
+        // therefore yields the inner command directly.
         let src_start = cmd.argv[cmd_start_argv_idx].span.start() as usize;
         let bracket_char_offset = bracket_tok.span.start() as usize + bracket_char_idx;
         let virtual_span = Span::new(
@@ -262,15 +265,15 @@ impl Analyser {
         }
 
         // Build a builtins set so ``looks_like_switch_case``
-        // can reject command-name-headed orphans.
+        // can reject command-name-headed orphans.  Passed by
+        // reference for O(1) lookup in the per-command loop.
         let builtins_owned = self.builtin_command_names_const();
-        let builtins_view: Vec<&str> = builtins_owned.iter().map(String::as_str).collect();
 
         // Count consecutive case-like commands following the
         // switch.
         let mut case_count: usize = 0;
         for follow in commands.iter().skip(cmd_idx + 1) {
-            if looks_like_switch_case(follow, &builtins_view) {
+            if looks_like_switch_case(follow, &builtins_owned) {
                 case_count += 1;
             } else {
                 break;
@@ -608,12 +611,19 @@ fn lookup_max_arity(cmd_name: &str) -> Option<usize> {
 /// not be a known command name) followed either by a brace-
 /// quoted body (`Str` token) or the literal `-` fall-through
 /// marker.
-pub fn looks_like_switch_case(cmd: &SegmentedCommand, builtins: &[&str]) -> bool {
+///
+/// `builtins` is the set of known command names — passed by
+/// reference so the per-command recovery loop can use O(1)
+/// lookup instead of an O(N) linear scan.
+pub fn looks_like_switch_case(
+    cmd: &SegmentedCommand,
+    builtins: &std::collections::HashSet<String>,
+) -> bool {
     if cmd.texts.len() != 2 {
         return false;
     }
     let first = cmd.texts[0].as_str();
-    if builtins.contains(&first) {
+    if builtins.contains(first) {
         return false;
     }
     // Body must be brace-quoted (Str) or fall-through dash.
@@ -699,18 +709,26 @@ mod tests {
         assert_eq!(cmd.texts.first().map(String::as_str), Some("set"));
     }
 
+    fn empty_builtins() -> std::collections::HashSet<String> {
+        std::collections::HashSet::new()
+    }
+
+    fn builtins_with(names: &[&str]) -> std::collections::HashSet<String> {
+        names.iter().map(|s| (*s).to_string()).collect()
+    }
+
     #[test]
     fn looks_like_switch_case_brace_body() {
         let source = "foo { puts hi }";
         let cmd = segment(source);
-        assert!(looks_like_switch_case(&cmd, &[]));
+        assert!(looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
     #[test]
     fn looks_like_switch_case_dash_fallthrough() {
         let source = "foo -";
         let cmd = segment(source);
-        assert!(looks_like_switch_case(&cmd, &[]));
+        assert!(looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
     #[test]
@@ -719,21 +737,21 @@ mod tests {
         // with a switch case.
         let source = "set x";
         let cmd = segment(source);
-        assert!(!looks_like_switch_case(&cmd, &["set"]));
+        assert!(!looks_like_switch_case(&cmd, &builtins_with(&["set"])));
     }
 
     #[test]
     fn looks_like_switch_case_rejects_three_or_more_words() {
         let source = "foo bar baz";
         let cmd = segment(source);
-        assert!(!looks_like_switch_case(&cmd, &[]));
+        assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
     #[test]
     fn looks_like_switch_case_rejects_single_word() {
         let source = "foo";
         let cmd = segment(source);
-        assert!(!looks_like_switch_case(&cmd, &[]));
+        assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
     }
 
     // -- C41e5: missing-open-brace recovery --------------------------

@@ -1219,16 +1219,25 @@ impl Analyser {
         }
 
         // **C41e3 follow-up.** When the document defines a
-        // user-level ``unknown`` proc, the handler may resolve
-        // any command name at runtime — the analyser can't
-        // statically prove a command is unresolved.  Match
-        // Python's
-        // ``_diag_commands.py:_emit_unresolved_command_diagnostics``
-        // early-return.  An empty-stub ``unknown`` (``proc
-        // unknown {cmd args} {}``) intentionally resolves
-        // nothing, so don't suppress for that shape.
+        // user-level ``unknown`` proc with a *dynamic* dispatch
+        // shape — chains the original handler, case-folds,
+        // uses pattern (glob / regexp) dispatch, calls
+        // ``exec``, or calls ``auto_load`` — the analyser can't
+        // statically prove which commands are resolvable, so
+        // suppress W123 entirely.  For the *non-dynamic* shape
+        // (only explicit ``dispatch_targets`` listed), W123
+        // still fires below; the per-invocation loop checks
+        // ``dispatch_targets`` membership and lets unrelated
+        // commands surface their warnings.  Empty-stub
+        // ``unknown`` (``proc unknown {cmd args} {}``) resolves
+        // nothing so we never hit this gate.
         if let Some(info) = self.result.unknown_proc_info.as_ref() {
-            if !info.empty_stub {
+            let is_dynamic = info.chains_original
+                || info.case_insensitive
+                || info.has_pattern_dispatch
+                || info.has_exec
+                || info.has_auto_load;
+            if is_dynamic {
                 return;
             }
         }
@@ -1653,11 +1662,38 @@ impl Analyser {
                 continue;
             }
 
+            // **Codex P1 fix.** ``[Dog new]`` / ``[Dog create
+            // name]`` produce an Object whose class is ``Dog``.
+            // The registry lookup for the bare class name
+            // returns Overdefined (the class isn't a built-in
+            // command) so we recognise the constructor pattern
+            // explicitly here — mirrors the Python
+            // ``_return_type_for_command`` branch in
+            // ``core/compiler/core_analyses.py`` that maps
+            // ``known_class new/create`` to ``TclType.OBJECT``
+            // with the class name attached.
+            let class_qn = self.canonicalise_class_name(head);
+            let head_is_known_class = self.result.all_classes.contains_key(&class_qn)
+                || self.result.all_classes.contains_key(head);
+            let is_constructor_call = head_is_known_class
+                && arg_strs
+                    .first()
+                    .is_some_and(|sub| matches!(*sub, "new" | "create"));
+
             // Look up the return type via the registry.  When
             // the head is a user proc / class, fall back to
             // ``Overdefined`` (matches the registry behaviour
             // for unknown commands).
-            let ret_type = crate::type_infer::return_type_for_command(registry, head, &arg_strs);
+            let ret_type = if is_constructor_call {
+                crate::types::TypeLattice {
+                    kind: crate::types::TypeKind::Known,
+                    tcl_type: Some(tcl_registry::TclType::Object),
+                    from_type: None,
+                    class_name: Some(class_qn.clone()),
+                }
+            } else {
+                crate::type_infer::return_type_for_command(registry, head, &arg_strs)
+            };
 
             // ``Object`` return type — suppress W307; if the
             // class is known, validate the method (W308).
@@ -2363,6 +2399,48 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must be suppressed via global-alias case; got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_for_known_class_constructor_chain() {
+        // ``[Dog new] bark`` — ``Dog`` is a user class so
+        // ``new`` returns an Object whose class is ``Dog``.
+        // The W307 cmd-sub suppression should kick in.  Since
+        // ``bark`` is declared on ``Dog``, no W308 either.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} { return woof } }\n[Dog new] bark",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must not fire for [KnownClass new] method chain; got {:?}",
+            r.diagnostics,
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W308"),
+            "W308 must not fire when method is declared on the class; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
+        // ``[Dog new] fly`` — ``fly`` isn't declared on ``Dog``.
+        // W307 is suppressed (constructor returns Object) but
+        // W308 fires for the missing method.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} { return woof } }\n[Dog new] fly",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W308" && d.message.contains("fly")),
+            "W308 expected for unknown method on known class; got {:?}",
+            r.diagnostics,
         );
     }
 

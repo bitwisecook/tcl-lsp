@@ -741,9 +741,18 @@ impl Analyser {
     ///
     /// The conditional flag is ``self.conditional_depth > 0``,
     /// matching Python's `_conditional_depth`.
+    ///
+    /// `cmd_tok` is the command-head token (the ``package``
+    /// word).  The recorded
+    /// [`SignaturePackageRequire::range`](crate::signature_scan::types::SignaturePackageRequire::range)
+    /// uses its span so the range matches Python's
+    /// ``range_from_token(argv[0])`` — code-action /
+    /// quick-fix UX points at the ``package`` keyword rather
+    /// than at the ``require`` subcommand word.
     pub fn handle_package_command(
         &mut self,
         cmd_name: &str,
+        cmd_tok: Token,
         args: &[String],
         arg_tokens: &[Token],
     ) {
@@ -789,31 +798,12 @@ impl Analyser {
             }
         }
 
-        // Diagnostic anchor: command-head token (``package``).
-        let head_span = arg_tokens
-            .first()
-            .map_or_else(
-                || Token::new(TokenType::Esc, tcl_lexer::Span::new(0, 0)),
-                |t| *t,
-            )
-            .span;
-        // Walk back to the actual ``package`` token via the head's
-        // own span — but ``arg_tokens`` excludes the command-name
-        // token, so we synthesise a span pointing at the first
-        // arg's start as a coarse anchor (matches Python's
-        // ``range_from_token(argv[0])`` which IS the command-name
-        // token; the Rust caller doesn't pass ``argv`` in here so
-        // the per-command span is the closest equivalent).
-        let _ = head_span;
-
         self.result
             .package_requires
             .push(crate::signature_scan::types::SignaturePackageRequire {
                 name: name_text,
                 version,
-                range: arg_tokens
-                    .first()
-                    .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span),
+                range: cmd_tok.span,
                 conditional: self.conditional_depth > 0,
             });
     }
@@ -2968,15 +2958,66 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w123_suppressed_when_unknown_proc_defined() {
-        // ``proc unknown {cmd args} {...}`` with a non-empty
-        // body should suppress W123 entirely.
+    fn analyse_w123_suppressed_when_unknown_proc_chains_original() {
+        // ``proc unknown`` that chains the original handler is
+        // a *dynamic* shape — Python suppresses W123 entirely
+        // because runtime can resolve any command name.
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse(
-            "proc unknown {cmd args} { return $cmd }\nbogus_command arg",
+            "proc unknown {cmd args} { _original_unknown $cmd {*}$args }\nbogus_command arg",
             "tcl",
         );
         assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_unknown_proc_calls_exec() {
+        // ``exec $cmd`` inside ``unknown`` is a dynamic shape;
+        // any command may be a real binary on PATH.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { exec $cmd {*}$args }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_still_fires_outside_explicit_dispatch_targets() {
+        // ``proc unknown`` with ONLY explicit dispatch targets
+        // (no exec / auto_load / chain / pattern / case-fold)
+        // is *not* dynamic — W123 should still fire for
+        // commands not in the explicit target set.  Mirrors
+        // Python's behaviour from ``_diag_commands.py:64-71``.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 expected for ``bogus_command`` outside explicit dispatch targets; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_explicit_dispatch_target() {
+        // ``foo`` is in the explicit dispatch_targets — even
+        // for the non-dynamic shape, the per-invocation loop
+        // suppresses W123 for it.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nfoo arg",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W123" && d.message.contains("'foo'")),
+            "W123 should not fire for command listed in dispatch_targets; got {:?}",
+            r.diagnostics,
+        );
     }
 
     #[test]
