@@ -1328,9 +1328,27 @@ const obj_new_int_pub = obj.obj_new_int;
 const obj_get_int_pub = obj.obj_get_int;
 
 /// Set a global variable.  Lazy-creates the ``*Var`` if missing.
+/// Strip a single leading ``::`` from a name span so the root
+/// namespace's ``var_table`` is keyed on the simple name.  Tcl's
+/// global-namespace ``::x`` is the variable ``x`` *in* root, not a
+/// distinct entry whose key happens to include the prefix; without
+/// this the same physical variable would be stored under ``x`` (by
+/// the codegen's ``set x …`` lowering) and looked up under ``::x``
+/// (by ``$::x`` / ``info exists ::x``), missing every time.
+fn strip_global_prefix(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
+    if (len >= 2) {
+        const p: [*]const u8 = @ptrFromInt(ptr);
+        if (p[0] == ':' and p[1] == ':') {
+            return .{ .ptr = ptr + 2, .len = len - 2 };
+        }
+    }
+    return .{ .ptr = ptr, .len = len };
+}
+
 pub export fn global_set(name: i32, value: i32) i32 {
     const sn = obj.obj_ensure_string(name);
-    const v = ns_var_create(ns_root(), sn.ptr, sn.len);
+    const k = strip_global_prefix(sn.ptr, sn.len);
+    const v = ns_var_create(ns_root(), k.ptr, k.len);
     var_set_scalar(v, @bitCast(value));
     return value;
 }
@@ -1339,7 +1357,8 @@ pub export fn global_set(name: i32, value: i32) i32 {
 /// var has never been set.
 pub export fn global_get(name: i32) i32 {
     const sn = obj.obj_ensure_string(name);
-    const v = ns_var_find(ns_root(), sn.ptr, sn.len);
+    const k = strip_global_prefix(sn.ptr, sn.len);
+    const v = ns_var_find(ns_root(), k.ptr, k.len);
     if (v == 0) return 0;
     return @bitCast(var_get_scalar(v));
 }
@@ -1352,7 +1371,8 @@ pub export fn global_get(name: i32) i32 {
 /// be checked separately to support ``info exists arrName``.
 pub export fn global_exists(name: i32) i32 {
     const sn = obj.obj_ensure_string(name);
-    const v = ns_var_find(ns_root(), sn.ptr, sn.len);
+    const k = strip_global_prefix(sn.ptr, sn.len);
+    const v = ns_var_find(ns_root(), k.ptr, k.len);
     if (v != 0) {
         const val = var_get_scalar(v);
         if (val != 0) return obj_new_int_pub(1);

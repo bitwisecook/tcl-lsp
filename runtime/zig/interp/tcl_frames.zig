@@ -680,7 +680,12 @@ pub export fn var_resolve(name: i32) i32 {
             const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
             for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
             const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
-            if (globals.global_exists(qname) != 0) {
+            // global_exists returns a TclObj wrapping 0 or 1 — its
+            // *handle* is always non-zero (a fresh integer obj), so a
+            // raw ``!= 0`` test always passed and we always returned
+            // ``global_get(qname)`` even for non-existent names.  Check
+            // the wrapped int.
+            if (obj.obj_get_int(globals.global_exists(qname)) != 0) {
                 return globals.global_get(qname);
             }
         }
