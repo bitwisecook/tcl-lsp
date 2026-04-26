@@ -111,11 +111,39 @@ pub struct ProcDef {
     pub doc: String,
 }
 
+/// Method definition inside a `TclOO` class.
+///
+/// Mirrors ``MethodDef`` in ``core/analysis/semantic_model.py``.
+/// Populated by **C41e1** when the class-body walker lands; the
+/// shape lives here from **C41e0** so the class-hierarchy /
+/// MRO algorithms have a stable target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodDef {
+    /// Method name as written.
+    pub name: String,
+    /// Source span of the name token.
+    pub name_span: Span,
+    /// Source span of the method body (braces excluded).
+    pub body_span: Span,
+    /// Method kind: ``"method"`` / ``"classmethod"`` /
+    /// ``"forward"`` / ``"constructor"`` / ``"destructor"``.
+    pub kind: String,
+    /// Visibility: ``"public"`` / ``"private"`` /
+    /// ``"unexported"``.
+    pub visibility: String,
+    /// Doc-comment text harvested from preceding lines.
+    pub doc: String,
+}
+
 /// Class definition record.
 ///
 /// Mirrors ``ClassDef`` in ``core/analysis/semantic_model.py``.
-/// Methods + properties land in **C41e**; this strip seeds the
-/// shape so ``handle_oo_class`` has a target to populate.
+/// **C41e0** lands the structural fields (`superclasses`,
+/// `mixins`, `methods`, `class_methods`) needed by the
+/// class-hierarchy / MRO algorithms; **C41e1** wires the body
+/// walker that populates them.  Until C41e1 lands the maps are
+/// empty for every class — the MRO computations still
+/// terminate cleanly (single-element chain, no methods).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassDef {
     /// Class name as written.
@@ -126,6 +154,16 @@ pub struct ClassDef {
     pub name_span: Span,
     /// Source span of the class body (braces excluded).
     pub body_span: Span,
+    /// Direct superclasses in declaration order.  Each entry
+    /// is a fully-qualified class name with leading ``::``.
+    pub superclasses: Vec<String>,
+    /// Class-level mixins in declaration order.  Same naming
+    /// convention as `superclasses`.
+    pub mixins: Vec<String>,
+    /// Instance methods keyed by simple name.
+    pub methods: HashMap<String, MethodDef>,
+    /// Class methods keyed by simple name.
+    pub class_methods: HashMap<String, MethodDef>,
 }
 
 /// A lexical scope (global, namespace, or proc body).

@@ -185,6 +185,32 @@ fn class_to_dict<'py>(py: Python<'py>, c: &ClassDef) -> PyResult<Bound<'py, PyDi
     d.set_item("qualified_name", &c.qualified_name)?;
     d.set_item("name_range", span_tuple(c.name_span))?;
     d.set_item("body_range", span_tuple(c.body_span))?;
+    d.set_item("superclasses", PyList::new_bound(py, &c.superclasses))?;
+    d.set_item("mixins", PyList::new_bound(py, &c.mixins))?;
+    let methods = PyDict::new_bound(py);
+    for (name, m) in &c.methods {
+        methods.set_item(name, method_to_dict(py, m)?)?;
+    }
+    d.set_item("methods", methods)?;
+    let class_methods = PyDict::new_bound(py);
+    for (name, m) in &c.class_methods {
+        class_methods.set_item(name, method_to_dict(py, m)?)?;
+    }
+    d.set_item("class_methods", class_methods)?;
+    Ok(d)
+}
+
+fn method_to_dict<'py>(
+    py: Python<'py>,
+    m: &tcl_compiler::analyser::MethodDef,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    d.set_item("name", &m.name)?;
+    d.set_item("name_range", span_tuple(m.name_span))?;
+    d.set_item("body_range", span_tuple(m.body_span))?;
+    d.set_item("kind", &m.kind)?;
+    d.set_item("visibility", &m.visibility)?;
+    d.set_item("doc", &m.doc)?;
     Ok(d)
 }
 

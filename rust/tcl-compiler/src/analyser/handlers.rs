@@ -750,6 +750,10 @@ impl Analyser {
             qualified_name: qualified.clone(),
             name_span,
             body_span,
+            superclasses: Vec::new(),
+            mixins: Vec::new(),
+            methods: std::collections::HashMap::new(),
+            class_methods: std::collections::HashMap::new(),
         };
         self.result.all_classes.insert(qualified, class);
         true
