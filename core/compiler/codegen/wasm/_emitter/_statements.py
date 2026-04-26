@@ -440,6 +440,79 @@ class _WasmEmitterStmtMixin(_Base):
                 return qn
         return None
 
+    @staticmethod
+    def _proc_param_name(spec: str) -> str:
+        """Extract the formal name from a ``proc`` param spec.
+
+        ``foo`` → ``foo`` (required).
+        ``{foo bar}`` → ``foo`` (optional with default ``bar``).
+        Used to detect the trailing ``args`` formal so the runtime
+        knows to pack surplus call-site args into a list.
+        """
+        s = spec.strip()
+        if s.startswith("{") and s.endswith("}"):
+            inner = s[1:-1].strip()
+            sp = inner.split(None, 1)
+            return sp[0] if sp else ""
+        return s
+
+    def _is_static_proc_args(self, args: tuple[str, ...]) -> bool:
+        """Return True if ``proc NAME PARAMS BODY`` is fully static.
+
+        Static means none of NAME/PARAMS/BODY contain ``$`` / ``[``
+        substitutions — the dynamic paths are handled earlier by the
+        eval-fallback branch.
+        """
+        if len(args) < 3:
+            return False
+        return all(
+            not a.startswith("$") and not a.startswith("[") for a in args[:3]
+        )
+
+    def _emit_re_register_proc(self, name: str, params: str) -> None:
+        """Emit ``tcl_proc_register_compiled`` for a previously-lifted proc.
+
+        Called from the runtime ``proc NAME PARAMS BODY`` site (in
+        addition to the prologue) so a re-define after ``rename
+        NAME {}`` (or any other path that clears the cmd_table)
+        re-installs the bucket.  Without this hook the prologue
+        registration is one-shot: post-rename re-defines silently
+        no-op and a later call traps with ``unknown command``.
+
+        Derives the (n_params, has_args_tail, n_required) shape from
+        the source-level ``params`` text rather than the proc-index,
+        so the hook works at top level (``::top``) where the index is
+        empty — same as ``_compute_n_required``'s logic.
+        """
+        reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
+        if reg_idx is None:
+            return
+        # Parse PARAMS as a Tcl list.  Each element is either a bare
+        # name (required positional) or a ``{name default}`` 2-elem
+        # list (optional with default).  The trailing ``args`` formal
+        # is variadic.
+        from ....codegen._helpers import _split_list_simple
+        try:
+            param_list = _split_list_simple(params)
+        except Exception:
+            param_list = []
+        n_params = len(param_list)
+        has_args_tail = bool(param_list and self._proc_param_name(param_list[-1]) == "args")
+        n_required = n_params - (1 if has_args_tail else 0)
+        for p in param_list[: n_params - (1 if has_args_tail else 0)]:
+            # ``{name default}`` form — has whitespace and balanced
+            # braces.  ``_split_list_simple`` returns the raw element
+            # so we re-split it.
+            if " " in p.strip() or p.strip().startswith("{"):
+                n_required -= 1
+        self._emit_obj_literal(name if name.startswith("::") else f"::{name}")
+        self._emit_i32_const(n_params)
+        self._emit_i32_const(1)  # func_idx marker
+        self._emit_i32_const(1 if has_args_tail else 0)
+        self._emit_i32_const(n_required)
+        self._emit_call(reg_idx)
+        self._emit(WasmOp.DROP)
+
     def _resolve_proc_qname(self, command: str) -> str | None:
         """Resolve ``command`` to the qualified proc name if it matches."""
         if command.startswith("::"):
@@ -598,6 +671,17 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
+            # Static ``proc NAME PARAMS BODY`` at runtime: re-emit
+            # ``tcl_proc_register_compiled`` so a previously-renamed
+            # away or unset proc gets re-registered.  Without this,
+            # the prologue-only registration is one-shot — after
+            # ``rename foo {}`` clears the cmd_table, a later
+            # ``proc foo {} {body}`` becomes a no-op and the proc
+            # stays absent.  (dict.test 23.X+ uses
+            # define→rename-delete→re-define→rename-delete on
+            # ``linenumber``.)
+            if command == "proc" and self._is_static_proc_args(args):
+                self._emit_re_register_proc(args[0], args[1])
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
