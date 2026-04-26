@@ -262,6 +262,16 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
     );
 
     regfree_safe(re_ptr);
+    // Release per-call scratch alloc'd via wasi-libc malloc.
+    // Without this, every regex invocation leaks ``pat_len*4 +
+    // sub_len*4 + 64`` bytes; on a tcltest-sized run with hundreds
+    // of regex calls (constraint matching, SubstArguments, etc.)
+    // the leak compounds enough to OOM the wasi-libc heap mid-
+    // suite — observed as a malloc trap in newnfa during
+    // lseq.test.
+    obj.free_sized(pat_u.ptr, @intCast(pat_s.len * 4));
+    obj.free_sized(sub_u.ptr, @intCast(sub_s.len * 4));
+    obj.free_sized(re_addr, REGEX_T_SIZE);
     return exec_rc == REG_OKAY;
 }
 
@@ -609,6 +619,14 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     }
 
     regfree_safe(re_ptr);
+    // Release scratch allocs (see run_match's matching free for
+    // rationale).  pmatch_buf is freed too.  Caller-owned obj
+    // results — already heap-allocated separately — survive.
+    obj.free_sized(pat_u.ptr, @intCast(pat_s.len * 4));
+    obj.free_sized(sub_u.ptr, @intCast(sub_s.len * 4));
+    obj.free_sized(re_addr, REGEX_T_SIZE);
+    if (pmatch_buf != 0) obj.free_sized(pmatch_buf, @intCast(nmatch * REGMATCH_T_SIZE));
+    if (!inline_mode and inline_buf != 0) obj.free_sized(inline_buf, inline_cap);
 
     if (inline_mode) {
         return obj_new_string(@intCast(inline_buf), @intCast(inline_off));
