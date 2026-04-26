@@ -30,17 +30,23 @@
 //! flip to default-on once the differential corpus has baked, same
 //! as ``C40-default-on``).
 
+pub mod class_hierarchy;
 pub mod commands;
+pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
+pub mod mro;
+pub mod oo;
 pub mod scope;
 pub mod snapshot;
 pub mod state;
 pub mod types;
 pub mod utils;
 
+pub use class_hierarchy::{build_class_hierarchy, ClassHierarchy};
+pub use mro::{build_mro_map, tcloo_linearise, MroError};
 pub use snapshot::AnalyserSnapshot;
 pub use state::Analyser;
 pub use types::{
-    AnalysisResult, ClassDef, Diagnostic, ProcDef, Scope, ScopeKind, Severity, VarDef,
+    AnalysisResult, ClassDef, Diagnostic, MethodDef, ProcDef, Scope, ScopeKind, Severity, VarDef,
 };

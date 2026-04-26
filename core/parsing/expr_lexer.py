@@ -416,17 +416,54 @@ except ImportError:
 _VALUE_TO_EXPR_TYPE: dict[int, ExprTokenType] = {m.value: m for m in ExprTokenType}
 
 
-def _wrap_rust_expr_token(rust_tok: object) -> ExprToken:
+def _wrap_rust_expr_token(rust_tok: object, byte_to_char: list[int] | None) -> ExprToken:
     """Convert a Rust ``PyExprToken`` into a Python ``ExprToken``
     so that ``tok.type is ExprTokenType.X`` works for downstream
     consumers.
+
+    Rust ``ExprToken.start`` / ``end`` are *byte* offsets; Python's
+    ``ExprToken.start`` / ``end`` are *character* offsets within the
+    Python ``str`` (consumers slice ``source[start:end+1]``).  When
+    the source is non-ASCII the two diverge — convert via the
+    pre-computed *byte_to_char* lookup table.  ``None`` means the
+    source was ASCII-only and byte offsets are already correct.
     """
+    start = rust_tok.start  # type: ignore[union-attr]
+    end = rust_tok.end  # type: ignore[union-attr]
+    if byte_to_char is not None:
+        start = byte_to_char[start]
+        end = byte_to_char[end]
     return ExprToken(
         type=_VALUE_TO_EXPR_TYPE[rust_tok.type.value],  # type: ignore[union-attr]
         text=rust_tok.text,  # type: ignore[union-attr]
-        start=rust_tok.start,  # type: ignore[union-attr]
-        end=rust_tok.end,  # type: ignore[union-attr]
+        start=start,
+        end=end,
     )
+
+
+def _build_byte_to_char_table(source: str) -> list[int] | None:
+    """Return a list mapping byte offset → character offset for
+    *source*, or ``None`` when the source is ASCII-only (in which
+    case the two offset spaces are identical and the wrapper can
+    skip the translation step).
+
+    The table has one entry per byte plus one extra slot so that
+    ``end`` offsets pointing at a multi-byte character's last byte
+    still resolve to the right character index, and an end-of-source
+    sentinel lookup is also valid.
+    """
+    if source.isascii():
+        return None
+    table: list[int] = []
+    for char_idx, ch in enumerate(source):
+        # Each character expands to one or more UTF-8 bytes; every
+        # byte of the same character maps back to the same char idx.
+        for _ in range(len(ch.encode("utf-8"))):
+            table.append(char_idx)
+    # Sentinel for offsets that point one past the last byte
+    # (some end-of-source tokens land here).
+    table.append(len(source))
+    return table
 
 
 def _python_tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]:
@@ -449,7 +486,10 @@ def tokenise_expr(source: str, *, dialect: str | None = None) -> list[ExprToken]
     the wheel is not available.
     """
     if _rust_expr_tokenise is not None:
-        return [_wrap_rust_expr_token(t) for t in _rust_expr_tokenise(source, dialect)]
+        byte_to_char = _build_byte_to_char_table(source)
+        return [
+            _wrap_rust_expr_token(t, byte_to_char) for t in _rust_expr_tokenise(source, dialect)
+        ]
     return _python_tokenise_expr(source, dialect=dialect)
 
 
@@ -463,5 +503,6 @@ def tokenise_expr_checked(
     """
     if _rust_expr_tokenise_checked is not None:
         rust_tokens, has_unknown = _rust_expr_tokenise_checked(source, dialect)
-        return [_wrap_rust_expr_token(t) for t in rust_tokens], has_unknown
+        byte_to_char = _build_byte_to_char_table(source)
+        return [_wrap_rust_expr_token(t, byte_to_char) for t in rust_tokens], has_unknown
     return _python_tokenise_expr_checked(source, dialect=dialect)

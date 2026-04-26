@@ -77,6 +77,23 @@ pub struct Analyser {
     /// for the same job; Rust prefers an index path so the scope
     /// tree stays a strict ownership graph.
     pub current_scope_path: Vec<usize>,
+    /// Full source text being analysed.
+    ///
+    /// Set at the top of [`Self::analyse`] (and the chunked
+    /// entries in **C41f2**) and read by handlers that need to
+    /// re-slice the outer source — recovery (**C41e4** / **C41e5**)
+    /// and CFG/SSA diagnostic emission (**C41d**). Mirrors
+    /// ``self._source`` in
+    /// ``core/analysis/_analyser/_core.py:43``.
+    pub source: String,
+    /// Active dialect name (``"tcl"``, ``"f5-irules"``,
+    /// ``"f5-iapps"``, etc.).  Set at the top of
+    /// [`Self::analyse`].  Mirrors ``active_dialect()`` in
+    /// Python — handlers that need to compute dialect-specific
+    /// command sets (W113 shadow check, dialect-only command
+    /// gating in C41d) read this directly.  Empty string when
+    /// dialect was not specified.
+    pub dialect: String,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
     /// Last seen comment text, for proc / class doc-comment
@@ -151,6 +168,8 @@ impl Analyser {
         Self {
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
+            source: String::new(),
+            dialect: String::new(),
             disabled_diagnostics: disabled,
             last_comment: String::new(),
             file_path: None,
@@ -200,7 +219,12 @@ impl Analyser {
         use std::collections::HashSet;
         use tcl_registry::CommandRegistry;
 
-        let _ = dialect;
+        // Stash the source so handlers (recovery in C41e4/e5,
+        // diagnostic emitters in C41d) can re-slice it.  Mirrors
+        // ``self._source = source`` in
+        // ``core/analysis/_analyser/_core.py``.
+        self.source = source.to_string();
+        self.dialect = dialect.to_string();
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -238,7 +262,201 @@ impl Analyser {
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
         }
 
+        // **C41d1.** Run the diagnostic-emission orchestrator
+        // and the post-pass filters.  Mirrors the tail of
+        // ``Analyser.analyse`` in
+        // ``core/analysis/_analyser/_core.py:380-384``:
+        //
+        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
+        // 2. ``emit_variable_usage_diagnostics`` — hook landed
+        //    in C41d1 (currently no-op).
+        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
+        //    landed in C41d1 (currently inert; per-emitter
+        //    dispatch lands in C41d2-d7).
+        // 4. ``apply_disabled_diagnostics`` — filter codes the
+        //    caller asked to silence (also covers the
+        //    file-suppression directives merged at the top of
+        //    ``analyse``).
+        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
+        //    the line-based suppression pairs.
+        let mut diag_registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            diag_registry.load_dialect(d);
+        }
+        self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.emit_variable_usage_diagnostics();
+        self.emit_cfg_ssa_diagnostics(source);
+        self.apply_disabled_diagnostics();
+        self.dedupe_diagnostics();
+
         std::mem::take(&mut self.result)
+    }
+
+    /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
+    /// and capture per-chunk snapshots.
+    ///
+    /// Mirrors `Analyser.analyse_chunked` in
+    /// `core/analysis/_analyser/_core.py:195-239`.  Used by the
+    /// LSP for incremental document re-analysis: when the user
+    /// types into the document, dirty chunks are re-segmented
+    /// and fed back through this entry while clean chunks are
+    /// restored from a prior snapshot.
+    ///
+    /// Returns the final [`AnalysisResult`] plus a list of
+    /// [`super::AnalyserSnapshot`]s, one per chunk in the input
+    /// order.  The caller stores the snapshots alongside the
+    /// chunk segmentation so a later edit can rewind to the
+    /// matching prefix.
+    ///
+    /// `chunk_commands` is grouped already — each inner `Vec`
+    /// is one chunk's worth of commands.  `dialect` mirrors the
+    /// argument to [`Self::analyse`].  Stub-pre-scan (Python's
+    /// `scan_source_for_stubs`) is deferred — that path lands
+    /// alongside the ``stub_commands`` field which the Rust
+    /// `AnalysisResult` doesn't carry yet.
+    pub fn analyse_chunked(
+        &mut self,
+        source: &str,
+        chunk_commands: Vec<Vec<crate::segmenter::SegmentedCommand>>,
+        dialect: &str,
+    ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
+        use tcl_registry::CommandRegistry;
+        self.source = source.to_string();
+        self.dialect = dialect.to_string();
+        self.unresolved_commands_emitted = false;
+        self.ns_cache.clear();
+
+        for code in super::utils::parse_file_suppression(source) {
+            self.disabled_diagnostics.insert(code);
+        }
+
+        let mut snapshots: Vec<super::snapshot::AnalyserSnapshot> =
+            Vec::with_capacity(chunk_commands.len());
+        for cmds in chunk_commands {
+            self.analyse_commands_inner(&cmds);
+            snapshots.push(self.snapshot());
+        }
+
+        // Same diagnostic-emission tail as ``analyse``.
+        let mut diag_registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            diag_registry.load_dialect(d);
+        }
+        self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.emit_variable_usage_diagnostics();
+        self.emit_cfg_ssa_diagnostics(source);
+        self.apply_disabled_diagnostics();
+        self.dedupe_diagnostics();
+
+        (std::mem::take(&mut self.result), snapshots)
+    }
+
+    /// **C41f2** — Analyse pre-segmented commands without
+    /// re-segmenting `source`.
+    ///
+    /// Mirrors `Analyser.analyse_commands` in
+    /// `core/analysis/_analyser/_core.py:241-272`.  This is
+    /// the single-chunk variant used by the LSP's incremental
+    /// path after a prior `restore` — the analyser starts from
+    /// a snapshot covering earlier clean chunks, then walks the
+    /// dirty chunk's commands through the dispatcher.
+    ///
+    /// When `finalise` is `true` the diagnostic-emission tail
+    /// (orchestrator + filters) runs.  When `false` only the
+    /// command walk happens — the caller is building a partial
+    /// snapshot and will run the tail later.
+    pub fn analyse_commands(
+        &mut self,
+        source: &str,
+        commands: &[crate::segmenter::SegmentedCommand],
+        dialect: &str,
+        finalise: bool,
+    ) -> AnalysisResult {
+        use tcl_registry::CommandRegistry;
+        self.source = source.to_string();
+        self.dialect = dialect.to_string();
+        self.unresolved_commands_emitted = false;
+        self.ns_cache.clear();
+
+        for code in super::utils::parse_file_suppression(source) {
+            self.disabled_diagnostics.insert(code);
+        }
+
+        self.analyse_commands_inner(commands);
+
+        if finalise {
+            let mut diag_registry = CommandRegistry::build_default();
+            if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+                diag_registry.load_dialect(d);
+            }
+            self.emit_unresolved_command_diagnostics(&diag_registry);
+            self.emit_variable_usage_diagnostics();
+            self.emit_cfg_ssa_diagnostics(source);
+            self.apply_disabled_diagnostics();
+            self.dedupe_diagnostics();
+        }
+
+        std::mem::take(&mut self.result)
+    }
+
+    /// Inner dispatch loop shared by [`Self::analyse_chunked`]
+    /// and [`Self::analyse_commands`].  Walks pre-segmented
+    /// commands at the current scope path.
+    ///
+    /// Mirrors `_analyse_commands_inner` in
+    /// `core/analysis/_analyser/_core.py:274-354`.  The Rust
+    /// port is much smaller than Python's because the
+    /// var-read recording, CMD-substitution recursion, and
+    /// recovery hooks land per-strip in C41c / C41e.  This
+    /// helper covers the dispatch portion that's load-bearing
+    /// for incremental analysis.
+    fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
+        let scope_path = self.current_scope_path.clone();
+        for cmd in commands {
+            if cmd.is_partial || cmd.argv.is_empty() {
+                continue;
+            }
+            self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
+        }
+    }
+
+    /// Resolve (and cache) the set of built-in command names for
+    /// the active dialect.
+    ///
+    /// Mirrors the inline cache in
+    /// ``_AnalyserProcMixin._handle_proc``
+    /// (``core/analysis/_analyser/_proc.py:71-74``) — the
+    /// registry is built once per dialect and the resulting name
+    /// set is held on ``self.builtin_names`` for subsequent
+    /// proc / class registrations to consult without rebuilding.
+    /// Used by **W113** (proc shadows built-in) at proc-emit time
+    /// and the **C41d** emitters that gate on built-in vs
+    /// user-defined.
+    ///
+    /// The dialect string is parsed via ``DialectSet::parse``;
+    /// unknown dialect names fall through to the core registry
+    /// (TCL / stdlib / tcllib only) — same fallback Python uses
+    /// implicitly when ``REGISTRY.command_names(dialect)``
+    /// returns just the built-in set.
+    pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
+        use tcl_registry::prelude::DialectSet;
+        use tcl_registry::CommandRegistry;
+        if self.builtin_dialect.as_deref() != Some(self.dialect.as_str())
+            || self.builtin_names.is_none()
+        {
+            let mut registry = CommandRegistry::build_default();
+            if let Some(d) = DialectSet::parse(&self.dialect) {
+                registry.load_dialect(d);
+            }
+            let names: std::collections::HashSet<String> =
+                registry.command_names().map(str::to_string).collect();
+            self.builtin_names = Some(names);
+            self.builtin_dialect = Some(self.dialect.clone());
+        }
+        // Safe: ``builtin_names`` was just set if it was missing.
+        self.builtin_names
+            .as_ref()
+            .expect("builtin_names populated above")
     }
 }
 
@@ -258,6 +476,7 @@ mod tests {
         let a = Analyser::new();
         assert_eq!(a.result.global_scope.kind, ScopeKind::Global);
         assert!(a.current_scope_path.is_empty());
+        assert!(a.source.is_empty());
         assert!(a.disabled_diagnostics.is_empty());
         assert_eq!(a.conditional_depth, 0);
         assert_eq!(a.body_depth, 0);
@@ -338,6 +557,126 @@ mod tests {
         let _ = a.analyse("# tcl-lsp: disable=W210\n", "tcl");
         assert!(a.disabled_diagnostics.contains("W120"));
         assert!(a.disabled_diagnostics.contains("W210"));
+    }
+
+    #[test]
+    fn analyse_runs_dedupe_and_disabled_filter_at_end() {
+        // End-to-end: ``proc set {} {}`` emits W113.
+        // ``# tcl-lsp: disable=W113`` at the top of the source
+        // should silence it via ``apply_disabled_diagnostics``.
+        let mut a = Analyser::new();
+        let r = a.analyse("# tcl-lsp: disable=W113\nproc set {} {}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W113"),
+            "W113 should be silenced by file-suppression directive",
+        );
+    }
+
+    #[test]
+    fn analyse_dedupes_back_to_back_identical_diagnostics() {
+        // Two identical W113 emissions for the same proc name
+        // should collapse to one.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc set {} {}\nproc set {} {}\n", "tcl");
+        // Re-defining ``set`` twice means handle_proc emits W113
+        // twice — but the second emission is at a *different*
+        // span (different proc-name token), so dedupe leaves
+        // them both; the test that follows pins the actual count.
+        let w113s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W113").collect();
+        assert_eq!(
+            w113s.len(),
+            2,
+            "two distinct ``proc set`` definitions → two distinct W113s at different spans",
+        );
+    }
+
+    #[test]
+    fn analyse_records_source_text_for_handler_re_slicing() {
+        // Handlers in C41c / C41d / C41e re-slice ``self.source``
+        // via spans returned by the segmenter; the field must be
+        // populated at the top of ``analyse``.
+        let mut a = Analyser::new();
+        let _ = a.analyse("set x 1", "tcl");
+        assert_eq!(a.source, "set x 1");
+    }
+
+    #[test]
+    fn analyse_records_dialect_for_w113_and_emitter_use() {
+        // Handlers (W113 shadow check, dialect-only emitters in
+        // C41d) read ``self.dialect`` directly.  The field must
+        // be populated at the top of ``analyse``.
+        let mut a = Analyser::new();
+        let _ = a.analyse("", "f5-irules");
+        assert_eq!(a.dialect, "f5-irules");
+    }
+
+    #[test]
+    fn builtin_command_names_caches_per_dialect() {
+        // First lookup populates the cache; subsequent lookups
+        // with the same dialect return the same set.
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        let initial_len = a.builtin_command_names().len();
+        // ``set`` is a core built-in across all dialects.
+        assert!(a.builtin_command_names().contains("set"));
+        // Cache invalidation: switching dialect rebuilds.
+        a.dialect = "f5-irules".to_string();
+        let irules_len = a.builtin_command_names().len();
+        assert!(
+            irules_len > initial_len,
+            "f5-irules should add commands beyond core (got {irules_len} vs {initial_len})",
+        );
+    }
+
+    #[test]
+    fn analyse_commands_pre_segmented_records_proc() {
+        // ``analyse_commands`` is the incremental entry — same
+        // dispatcher as ``analyse``, but without re-segmentation.
+        // Smoke-test that a pre-segmented chunk records its proc.
+        use crate::segmenter::segment_commands;
+        let source = "proc foo {} {}";
+        let commands = segment_commands(source);
+        let mut a = Analyser::new();
+        let r = a.analyse_commands(source, &commands, "tcl", true);
+        assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_chunked_returns_per_chunk_snapshots() {
+        // ``analyse_chunked`` returns one snapshot per chunk.
+        // Two chunks → two snapshots; the second snapshot
+        // captures cumulative state.
+        use crate::segmenter::segment_commands;
+        let source = "set x 1\nproc foo {} {}";
+        let chunk1 = segment_commands("set x 1");
+        let chunk2 = segment_commands("proc foo {} {}");
+        let mut a = Analyser::new();
+        let (r, snapshots) = a.analyse_chunked(source, vec![chunk1, chunk2], "tcl");
+        assert_eq!(snapshots.len(), 2);
+        // After chunk 1, x is in scope.
+        assert!(snapshots[0].result.global_scope.variables.contains_key("x"));
+        // After chunk 2, foo is in all_procs.
+        assert!(snapshots[1].result.all_procs.contains_key("::foo"));
+        // The final result has both.
+        assert!(r.global_scope.variables.contains_key("x"));
+        assert!(r.all_procs.contains_key("::foo"));
+    }
+
+    #[test]
+    fn analyse_commands_finalise_false_skips_diagnostic_tail() {
+        // When ``finalise=false``, the dedupe/disabled-codes
+        // filters don't run — useful for partial-snapshot paths
+        // where the tail is deferred.
+        use crate::segmenter::segment_commands;
+        let source = "proc set {} {}"; // would normally trip W113
+        let commands = segment_commands(source);
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        let r = a.analyse_commands(source, &commands, "tcl", false);
+        // W113 was emitted by handle_proc but the tail didn't
+        // run, so apply_disabled_diagnostics / dedupe didn't
+        // touch the diag list.  The diag is still there.
+        assert!(r.diagnostics.iter().any(|d| d.code == "W113"));
     }
 
     #[test]

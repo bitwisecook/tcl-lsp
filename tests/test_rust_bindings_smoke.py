@@ -186,3 +186,64 @@ lappend auto_path /opt/tclpkgs
     assert "::myalias" in result["command_aliases"]
     assert any(i["pattern"] == "::tcl::mathfunc::*" for i in result["namespace_imports"])
     assert any(e["raw"] == "/opt/tclpkgs" for e in result["auto_path_entries"])
+
+
+def test_analyser_analyse_returns_dict() -> None:
+    """C41f3 smoke test: ``analyser_analyse`` returns a dict
+    with the canonical AnalysisResult shape; the empty source
+    case yields empty collections."""
+    result = tcl_lsp_rust.analyser_analyse("", "tcl")
+    assert isinstance(result, dict)
+    assert "global_scope" in result
+    assert "all_procs" in result
+    assert "all_classes" in result
+    assert "all_variables" in result
+    assert "diagnostics" in result
+    assert "command_invocations" in result
+    assert "package_requires" in result
+    assert "source_targets" in result
+    assert "command_aliases" in result
+    assert "namespace_imports" in result
+    # Empty source → all collections empty.
+    assert result["all_procs"] == {}
+    assert result["all_classes"] == {}
+    assert result["diagnostics"] == []
+
+
+def test_analyser_analyse_records_proc_with_params_and_doc() -> None:
+    """C41f3 smoke test: a proc definition populates ``all_procs``
+    with name/qualified_name/params/spans/doc and the proc scope
+    appears as a child of global_scope with the params bound."""
+    src = "# greet someone\nproc greet {who} { puts $who }"
+    result = tcl_lsp_rust.analyser_analyse(src, "tcl")
+    assert "::greet" in result["all_procs"]
+    proc = result["all_procs"]["::greet"]
+    assert proc["name"] == "greet"
+    assert proc["qualified_name"] == "::greet"
+    assert len(proc["params"]) == 1
+    assert proc["params"][0]["name"] == "who"
+    assert isinstance(proc["name_range"], tuple)
+    assert len(proc["name_range"]) == 2
+    # body_range is also a (start, end) tuple.
+    assert isinstance(proc["body_range"], tuple)
+    # The proc scope appears under global.
+    proc_scopes = [c for c in result["global_scope"]["children"] if c["kind"] == "proc"]
+    assert any(s["name"] == "greet" for s in proc_scopes)
+    # ``who`` is bound as a local in the proc scope.
+    greet_scope = next(s for s in proc_scopes if s["name"] == "greet")
+    assert "who" in greet_scope["variables"]
+
+
+def test_analyser_analyse_emits_w113_for_builtin_shadow() -> None:
+    """C41f3 smoke test: end-to-end diagnostic emission flows
+    through to the dict.  ``proc set {} {}`` shadows a built-in
+    so W113 fires; the dialect parenthetical reflects the
+    dialect arg."""
+    result = tcl_lsp_rust.analyser_analyse("proc set {} {}", "tcl")
+    diagnostics = result["diagnostics"]
+    w113s = [d for d in diagnostics if d["code"] == "W113"]
+    assert len(w113s) == 1
+    assert w113s[0]["severity"] == "warning"
+    assert "set" in w113s[0]["message"]
+    assert "(tcl)" in w113s[0]["message"]
+    assert isinstance(w113s[0]["range"], tuple)

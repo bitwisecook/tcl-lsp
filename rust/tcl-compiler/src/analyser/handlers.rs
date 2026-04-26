@@ -48,14 +48,55 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     }
 }
 
+/// Split a form-2 ``switch`` braced body into its flat list of
+/// pattern/body elements.
+///
+/// Mirrors `_parse_switch_body` in
+/// `core/analysis/_analyser/_proc.py:259-331`. Python re-lexes
+/// the inner body with `TclLexer` and groups consecutive
+/// non-separator tokens into "elements"; the Rust port leans on
+/// the existing segmenter — every word across every command in
+/// the body is one element, which produces the same flat
+/// alternating pattern/body sequence.
+///
+/// Returns `(text, token)` pairs in source order.  The token's
+/// span is rebased into the outer source's offset space via the
+/// body token's `content_offset`.  Dynamic bodies (non-`Str`
+/// tokens) yield an empty list — the caller must fall back to
+/// form-1-style alternation when the form-2 body cannot be
+/// statically split.
+fn parse_switch_body_elements(body_text: &str, body_tok: Token) -> Vec<(String, Token)> {
+    if body_tok.kind != TokenType::Str {
+        return Vec::new();
+    }
+    let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+    let cmds = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
+    let mut elements = Vec::new();
+    for cmd in cmds {
+        if cmd.is_partial {
+            continue;
+        }
+        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()) {
+            elements.push((text.clone(), *tok));
+        }
+    }
+    elements
+}
+
 impl Analyser {
     /// Handle the `set` command: `set var ?value?`.
     ///
     /// Mirrors `_handle_set_command` in
-    /// `core/analysis/_analyser/_handlers.py:51-70`. Defines the
-    /// target variable in the scope at `scope_path` and tracks
-    /// the value as a constant string when the value is a
-    /// single-token literal (no interpolation, no command sub).
+    /// `core/analysis/_analyser/_handlers.py:51-70` and the inner
+    /// `_handle_set` in `_proc.py:177-191`.
+    ///
+    /// - **Two-arg form** (`set var value`) — defines the variable
+    ///   in the scope at `scope_path` and tracks the value as a
+    ///   constant string when the value is a single-token literal
+    ///   (no interpolation, no command sub).
+    /// - **One-arg form** (`set var`) — records a var read on the
+    ///   variable.  Tcl `set` with no value returns the current
+    ///   value, so this is a reference, not a definition.
     ///
     /// `single_token_word` parallels `args` and `arg_tokens` —
     /// `true` when the corresponding word is a single atomic
@@ -63,13 +104,6 @@ impl Analyser {
     /// `value_token.text == args[1]` check, which boils down to
     /// "is this word's text the same as a single token's raw
     /// text?".
-    ///
-    /// **C41c hook.** The Python source also calls
-    /// `_AnalyserProcMixin._handle_set` (which lives in
-    /// `_proc.py:177-191`) for the proc-scope variant. That
-    /// inner walk is ported in **C41c2**; for now this handler
-    /// only does the const-string tracking + the
-    /// outer-scope define.
     pub fn handle_set_command(
         &mut self,
         cmd_name: &str,
@@ -82,16 +116,18 @@ impl Analyser {
             return;
         }
 
-        // Define the variable being assigned. The Python source
-        // does this through `_handle_set` (deferred to C41c2);
-        // we inline the basic case here so handlers built on top
-        // see the var in scope without requiring C41c2 to land
-        // first.
-        if let Some(name_tok) = arg_tokens.first() {
+        // _handle_set: arg-count branch from ``_proc.py:177-191``.
+        let Some(name_tok) = arg_tokens.first() else {
+            return;
+        };
+        if args.len() >= 2 {
             self.define_var(&args[0], *name_tok, scope_path, true, None);
+        } else {
+            self.record_var_read(&args[0], name_tok.span, scope_path);
         }
 
         // Track constant-string assignments for regex propagation.
+        // Skipped for the 1-arg read form (no value to track).
         if args.len() < 2 || arg_tokens.len() < 2 {
             return;
         }
@@ -150,22 +186,34 @@ impl Analyser {
     /// Handle the `proc` command: `proc NAME PARAMS BODY`.
     ///
     /// Mirrors `_handle_proc_command` in
-    /// `core/analysis/_analyser/_handlers.py:39-49`. Returns
-    /// `true` when the command was actually handled (callers use
-    /// the bool to decide whether further processing is needed),
-    /// `false` when the input doesn't match the expected shape.
+    /// `core/analysis/_analyser/_handlers.py:39-49` plus the body
+    /// walk in `_AnalyserProcMixin._handle_proc`
+    /// (`_proc.py:46-176`). Returns `true` when the command was
+    /// handled (callers use the bool to decide whether further
+    /// processing is needed), `false` when the input doesn't
+    /// match the expected shape.
     ///
-    /// **C41b2 baseline + C41c1 hook.** Python delegates to
-    /// `_AnalyserProcMixin._handle_proc` (which lives in
-    /// `_proc.py:46-176` and does the proc-body walk + parameter-
-    /// trait inference). The proc-body walk lands in **C41c1**;
-    /// for now this strip records the basic [`ProcDef`] shape
-    /// (qualified name, params, name + body spans, doc-comment)
-    /// in both `current_scope.procs` and `result.all_procs` so
-    /// downstream consumers (`signature_scan` parity, the LSP
-    /// rename feature, the workspace index) see a correct proc
-    /// list immediately. The deeper body walk + scope creation
-    /// is deferred.
+    /// **C41b2 baseline + C41c1.** Records the [`ProcDef`] in
+    /// both `scope.procs` (keyed by simple name) and
+    /// `result.all_procs` (keyed by qualified name).  When the
+    /// body is a braced literal, opens a fresh
+    /// [`ScopeKind::Proc`] child scope, defines each parameter
+    /// in it, and re-segments the body via
+    /// [`crate::segmenter::segment_commands_with_offset`] —
+    /// every body command is dispatched through
+    /// [`Analyser::process_command`] with the new scope path.
+    /// Body recursion does **not** invoke segmenter recovery —
+    /// that fires only at the top level (mirrors Python's
+    /// `_analyse_body` vs. `_analyse_body_inner` split).
+    /// Dynamic bodies (`$body`, `[gen]`) skip the walk because
+    /// they cannot be statically re-segmented; the proc record
+    /// is still emitted so downstream consumers see the
+    /// signature.
+    ///
+    /// W113 (proc shadows built-in), parameter-trait inference,
+    /// and the user-defined ``unknown`` proc detection from
+    /// `_proc.py` are deferred to **C41d** / future strips —
+    /// this strip is structural only.
     pub fn handle_proc_command(
         &mut self,
         cmd_name: &str,
@@ -184,8 +232,43 @@ impl Analyser {
         let ns_for_qualify = ns_prefix.trim_start_matches(':');
         let qualified = qualify(ns_for_qualify, raw_name);
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
-        let name_span = arg_tokens[0].span;
-        let body_span = arg_tokens[2].span;
+        let name_tok = arg_tokens[0];
+        let name_span = name_tok.span;
+        let body_tok = arg_tokens[2];
+        let body_span = body_tok.span;
+
+        // **W113** — proc name shadows a built-in command.
+        // Mirrors ``_proc.py:70-89``.  The check runs against
+        // both the unqualified ``proc_name`` and the fully-
+        // qualified form, with the leading ``::`` trimmed (the
+        // registry indexes by bare command name).  The inner
+        // borrow on ``self.builtin_command_names()`` is dropped
+        // before the diagnostic push so ``self.result`` is free
+        // to mutate.
+        let normalised_proc: String = raw_name.trim_start_matches(':').to_string();
+        let normalised_qual: String = qualified.trim_start_matches(':').to_string();
+        let shadow_match = {
+            let builtins = self.builtin_command_names();
+            if builtins.contains(&normalised_proc) {
+                true
+            } else {
+                builtins.contains(&normalised_qual)
+            }
+        };
+        if shadow_match {
+            let dialect_label = if self.dialect.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", self.dialect)
+            };
+            let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W113".to_string(),
+                span: name_span,
+                message,
+                severity: super::types::Severity::Warning,
+            });
+        }
 
         let params = parse_param_list(&args[1]);
         let doc = std::mem::take(&mut self.last_comment);
@@ -193,7 +276,7 @@ impl Analyser {
         let proc = ProcDef {
             name: simple,
             qualified_name: qualified.clone(),
-            params,
+            params: params.clone(),
             name_span,
             body_span,
             doc,
@@ -215,8 +298,53 @@ impl Analyser {
             scope.procs.insert(simple_key, proc);
         }
 
-        // C41c1 hook: the proc-body walk happens here. For now
-        // the body span is recorded so consumers can post-process.
+        // **C41c1.** Walk the body in a fresh proc scope when the
+        // body is a braced literal. ``raw_name`` is used as the
+        // proc-scope name to mirror Python's
+        // ``Scope(kind="proc", name=proc_name, ...)``
+        // (``_proc.py:115``); ``define_var`` keys
+        // ``result.all_variables`` on ``"<scope_name>::<var>"``,
+        // so matching the Python scope name is what keeps that
+        // map in parity.
+        if body_tok.kind == TokenType::Str {
+            let proc_scope_idx = {
+                let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+                    .expect("scope_path resolved when registering proc must still resolve");
+                let mut child =
+                    super::types::Scope::new(super::types::ScopeKind::Proc, raw_name.clone());
+                child.body_span = Some(body_span);
+                parent.children.push(child);
+                parent.children.len() - 1
+            };
+            let mut child_path = path.clone();
+            child_path.push(proc_scope_idx);
+
+            // Parameters become locals in the proc scope. Python
+            // anchors each param's definition range to the proc
+            // *name* token (`_proc.py:120-124`) — there's no
+            // per-parameter span available without re-tokenising
+            // the param-list literal. Mirror the same coarse
+            // anchor here; per-param spans can land in a follow-up.
+            for p in &params {
+                self.define_var(&p.name, name_tok, &child_path, false, None);
+            }
+
+            // Save / restore last_comment around the body walk so
+            // a doc-comment inside the proc body doesn't bleed to
+            // whatever follows the proc at the outer scope. Mirrors
+            // ``saved_comment = self._last_comment`` in
+            // ``_proc.py:128-131``.
+            let saved_comment = std::mem::take(&mut self.last_comment);
+
+            // Body recursion via the shared helper.  Re-segments
+            // the body (no recovery — top-level only) and
+            // dispatches each command at the new proc scope path.
+            let body_text = args[2].clone();
+            self.analyse_body(&body_text, body_tok, &child_path);
+
+            self.last_comment = saved_comment;
+        }
+
         true
     }
 
@@ -347,22 +475,94 @@ impl Analyser {
     /// Handle `switch ?options? string ?pattern body? ...`.
     ///
     /// Mirrors `_handle_switch_command` in
-    /// `core/analysis/_analyser/_handlers.py:164-177`. Arity
-    /// checking now lives in `compiler_checks::arity_checks` via
-    /// the IR; this handler delegates the body walk to the
-    /// `_handle_switch` proc-scope variant in
-    /// ``_proc.py:192-258``, deferred to **C41c2**.
+    /// `core/analysis/_analyser/_handlers.py:164-177` plus the
+    /// `_handle_switch` arm walker in `_proc.py:192-258`. Arity
+    /// checking lives in `compiler_checks::arity_checks` via the
+    /// IR; this handler walks each arm body so locals defined
+    /// inside an arm land in the enclosing scope.
+    ///
+    /// Switch has two forms:
+    ///
+    /// 1. ``switch ?options? string pattern body ?pattern body? ...``
+    ///    — pattern and body args alternate inline.
+    /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
+    ///    — pattern/body pairs live inside a single braced
+    ///    block.  See [`Self::parse_switch_body_elements`] for
+    ///    how that braced form is split.
+    ///
+    /// Bodies that are literally ``-`` are fall-through markers
+    /// (the next arm's body fires) and are skipped — recursing
+    /// into the literal ``-`` would produce a useless command.
+    ///
+    /// **Deferred.** ``-regexp`` pattern recording (Python
+    /// ``_proc.py:233-252``) emits ``RegexPattern`` records into
+    /// ``result.regex_patterns``; the Rust analyser doesn't yet
+    /// carry that field (lands alongside the diagnostic emitters
+    /// in **C41d**).  The flag is detected here as a marker for
+    /// the future hook but no records are emitted yet.
     pub fn handle_switch_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "switch" || args.len() < 2 {
             return false;
         }
-        // C41c2: delegate to handle_switch for arm body recursion.
+
+        // Scan and skip option flags. ``--`` ends the option
+        // section explicitly (and is consumed). ``-regexp``
+        // would gate regex-pattern recording in C41d; tracked
+        // here so the future hook only needs to consult the flag.
+        let mut i = 0;
+        let mut _is_regexp = false;
+        while i < args.len() && args[i].starts_with('-') {
+            if args[i] == "-regexp" {
+                _is_regexp = true;
+            }
+            if args[i] == "--" {
+                i += 1;
+                break;
+            }
+            i += 1;
+        }
+        // Skip the ``string`` argument that follows the options.
+        i += 1;
+
+        if i >= args.len() {
+            return true;
+        }
+
+        if i == args.len() - 1 {
+            // Form 2 — single braced body containing all pairs.
+            let body_text = args[i].clone();
+            let Some(body_tok) = arg_tokens.get(i).copied() else {
+                return true;
+            };
+            let elements = parse_switch_body_elements(&body_text, body_tok);
+            let mut j = 0;
+            while j + 1 < elements.len() {
+                // Pattern at j, body at j+1. Regex-pattern recording
+                // for ``-regexp`` lands in C41d.
+                let (body_text, body_tok) = &elements[j + 1];
+                if body_text != "-" {
+                    self.analyse_body(body_text, *body_tok, scope_path);
+                }
+                j += 2;
+            }
+        } else {
+            // Form 1 — pattern/body pairs inline in args/arg_tokens.
+            while i + 1 < args.len() {
+                let body_text = &args[i + 1];
+                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
+                    if body_text != "-" {
+                        self.analyse_body(body_text, body_tok, scope_path);
+                    }
+                }
+                i += 2;
+            }
+        }
         true
     }
 
@@ -396,22 +596,53 @@ impl Analyser {
     /// Handle `try BODY ?on/trap CODE VARLIST BODY?... ?finally BODY?`.
     ///
     /// Mirrors `_handle_try_command` in
-    /// `core/analysis/_analyser/_handlers.py:200-213`. Defers the
-    /// arm-body walk to ``handle_try`` (proc-scope variant in
-    /// ``_proc.py:333-359``) which lands in **C41c3**. The entry
-    /// shim only validates the canonical shape; arity checking
-    /// lives in `compiler_checks::arity_checks` already.
+    /// `core/analysis/_analyser/_handlers.py:200-213` plus the
+    /// `_handle_try` arm walker in `_proc.py:333-359`. Walks the
+    /// main try body and every handler / finally clause; arity
+    /// checking lives in `compiler_checks::arity_checks` already.
+    ///
+    /// Clause shapes:
+    ///
+    /// - ``finally BODY`` (2 words) — recurse into ``BODY``.
+    /// - ``on CODE VARLIST BODY`` / ``trap PATTERN VARLIST BODY``
+    ///   (4 words) — recurse into ``BODY``.  The handler's
+    ///   ``VARLIST`` (e.g. ``{result options}``) is **not**
+    ///   defined as a binding here; mirrors Python's
+    ///   ``_handle_try`` which doesn't define them either
+    ///   (``_proc.py:333-359``).  A future strip can add the
+    ///   varList define if Python is updated to match.
     pub fn handle_try_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "try" || args.is_empty() {
             return false;
         }
-        // C41c3: delegate to handle_try for arm body walk.
+        // Main try body at args[0].
+        if let Some(body_tok) = arg_tokens.first().copied() {
+            self.analyse_body(&args[0], body_tok, scope_path);
+        }
+        // Walk handler / finally clauses.
+        let mut i = 1;
+        while i < args.len() {
+            let kw = args[i].as_str();
+            if kw == "finally" && i + 1 < args.len() {
+                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
+                    self.analyse_body(&args[i + 1], body_tok, scope_path);
+                }
+                i += 2;
+            } else if matches!(kw, "on" | "trap") && i + 3 < args.len() {
+                if let Some(body_tok) = arg_tokens.get(i + 3).copied() {
+                    self.analyse_body(&args[i + 3], body_tok, scope_path);
+                }
+                i += 4;
+            } else {
+                i += 1;
+            }
+        }
         true
     }
 
@@ -513,13 +744,24 @@ impl Analyser {
         let qualified = qualify(ns_for_qualify, raw_name);
         let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
         let name_span = arg_tokens[1].span;
-        let body_span = arg_tokens.get(2).map_or(arg_tokens[1].span, |t| t.span);
-        let class = super::types::ClassDef {
+        let body_tok_opt = arg_tokens.get(2).copied();
+        let body_span = body_tok_opt.map_or(arg_tokens[1].span, |t| t.span);
+        let mut class = super::types::ClassDef {
             name: simple,
             qualified_name: qualified.clone(),
             name_span,
             body_span,
+            superclasses: Vec::new(),
+            mixins: Vec::new(),
+            methods: std::collections::HashMap::new(),
+            class_methods: std::collections::HashMap::new(),
         };
+        // **C41e1.** Walk the class body when present —
+        // populates ``superclasses`` / ``mixins`` / ``methods`` /
+        // ``class_methods`` from the OO-define subcommands.
+        if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
+            self.parse_oo_definition_body(body_text, body_tok, &mut class);
+        }
         self.result.all_classes.insert(qualified, class);
         true
     }
@@ -527,22 +769,105 @@ impl Analyser {
     /// Handle `oo::define CLASS ?BODY?` — record an extension to
     /// an existing class.
     ///
-    /// **C41b8 stub.** The full port (method addition, mixin
-    /// declarations, superclass changes) lands in **C41e2**. For
-    /// now this strip is a recognise-and-no-op so the dispatch
-    /// table can route the command without a fall-through to
-    /// W123 unresolved-command later.
+    /// **C41e2.** Looks up the class by qualified name in
+    /// ``result.all_classes``; when found, walks the body or
+    /// inline-form arguments via the OO walkers in
+    /// [`super::oo`] to extend ``superclasses`` / ``mixins`` /
+    /// ``methods`` / ``class_methods``.  When the class isn't
+    /// in the index yet (e.g. the class definition lives in a
+    /// separate file the workspace index hasn't reached), a
+    /// stub ``ClassDef`` is created so subsequent
+    /// ``oo::define`` calls + the workspace index see a
+    /// consistent record.
     pub fn handle_oo_define_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "oo::define" || args.is_empty() {
             return false;
         }
-        // C41e2 will populate the class extension here.
+        let raw_class_name = &args[0];
+        let ns_prefix = self.namespace_from_scope_path(scope_path);
+        let ns_for_qualify = ns_prefix.trim_start_matches(':');
+        let qualified = qualify(ns_for_qualify, raw_class_name);
+
+        // Distinguish body-form from inline-form by inspecting
+        // ``args[1]``.  Body-form: ``oo::define Class { ... }``
+        // — args[1] is a single body argument.  Inline-form:
+        // ``oo::define Class method foo {} {}`` — args[1] is a
+        // known define subcommand.
+        if args.len() < 2 {
+            return true;
+        }
+
+        // The set of known define subcommands is the same as
+        // body-form subcommands.  Anything not in this set falls
+        // through to body-form handling (the segmenter does the
+        // re-parse).
+        let define_subcmds: &[&str] = &[
+            "method",
+            "classmethod",
+            "constructor",
+            "destructor",
+            "superclass",
+            "mixin",
+            "variable",
+            "filter",
+            "forward",
+            "export",
+            "unexport",
+            "property",
+            "private",
+            "initialise",
+            "initialize",
+            "definitionnamespace",
+            "deletemethod",
+            "renamemethod",
+            "self",
+        ];
+        let inline_form = define_subcmds.contains(&args[1].as_str());
+
+        // Look up or create the partial ClassDef in
+        // ``result.all_classes``.
+        let mut class_def = self
+            .result
+            .all_classes
+            .remove(&qualified)
+            .unwrap_or_else(|| {
+                let name_span = arg_tokens.first().map_or(
+                    super::types::Scope::default()
+                        .body_span
+                        .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
+                    |t| t.span,
+                );
+                super::types::ClassDef {
+                    name: raw_class_name.clone(),
+                    qualified_name: qualified.clone(),
+                    name_span,
+                    body_span: name_span,
+                    superclasses: Vec::new(),
+                    mixins: Vec::new(),
+                    methods: std::collections::HashMap::new(),
+                    class_methods: std::collections::HashMap::new(),
+                }
+            });
+
+        if inline_form {
+            // ``oo::define Class subcmd ...`` — args[1..] is
+            // the subcommand + its args.
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            self.parse_oo_define_inline(&inline_args, &inline_tokens, &mut class_def);
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            // ``oo::define Class { body }`` — args[1] is the
+            // body text, arg_tokens[1] is the body token.
+            self.parse_oo_definition_body(&args[1], body_tok, &mut class_def);
+        }
+
+        self.result.all_classes.insert(qualified, class_def);
         true
     }
 
@@ -567,6 +892,131 @@ impl Analyser {
         }
         if let (Some(name), Some(tok)) = (args.first(), arg_tokens.first()) {
             self.define_var(name, *tok, scope_path, true, None);
+        }
+    }
+
+    /// Resolve a command name to the `ProcDef` that implements
+    /// it, walking the scope chain from `scope_path` outwards.
+    ///
+    /// Mirrors `_resolve_proc_call` in
+    /// `core/analysis/_analyser/_proc.py:361-392`.  Build-up:
+    ///
+    /// - Absolute name (`::foo`) → look up directly.
+    /// - Qualified relative (`a::b`) → prepend `::` and look up.
+    /// - Bare name → walk up the scope chain; for every
+    ///   ``namespace`` scope on the chain, prepend its name and
+    ///   try; finally fall back to global ``::name``.
+    ///
+    /// All candidate names are run through
+    /// [`crate::naming::normalise_qualified_name`] so the lookup
+    /// keys match the canonical form ``result.all_procs`` uses.
+    /// Returns the first matching ``ProcDef`` (by reference into
+    /// ``result.all_procs``), or `None` if no candidate is known.
+    #[must_use]
+    pub fn resolve_proc_call(
+        &self,
+        cmd_name: &str,
+        scope_path: &[usize],
+    ) -> Option<&super::types::ProcDef> {
+        use std::collections::HashSet;
+        if cmd_name.is_empty() {
+            return None;
+        }
+
+        let mut candidates: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut add_candidate = |raw: &str| {
+            let qname = crate::naming::normalise_qualified_name(raw);
+            if qname.is_empty() || seen.contains(&qname) {
+                return;
+            }
+            seen.insert(qname.clone());
+            candidates.push(qname);
+        };
+
+        if cmd_name.starts_with("::") {
+            add_candidate(cmd_name);
+        } else if cmd_name.contains("::") {
+            add_candidate(&format!("::{cmd_name}"));
+        } else {
+            // Walk the scope chain — every namespace scope on the
+            // chain contributes a candidate ``<ns_name>::<cmd>``.
+            // ``ancestor_paths`` walks longest-first (current scope
+            // before its ancestors), matching Python's ``while``
+            // upward loop.
+            let mut cursor: &super::types::Scope = &self.result.global_scope;
+            let mut walked: Vec<&super::types::Scope> = vec![cursor];
+            for &idx in scope_path {
+                let Some(child) = cursor.children.get(idx) else {
+                    break;
+                };
+                walked.push(child);
+                cursor = child;
+            }
+            for scope in walked.iter().rev() {
+                if scope.kind == super::types::ScopeKind::Namespace {
+                    add_candidate(&format!("{}::{cmd_name}", scope.name));
+                }
+            }
+            add_candidate(&format!("::{cmd_name}"));
+        }
+
+        for qname in &candidates {
+            if let Some(proc) = self.result.all_procs.get(qname) {
+                return Some(proc);
+            }
+        }
+        None
+    }
+
+    /// Static element count for a `{*}`-expanded word.
+    ///
+    /// Mirrors `_resolve_expansion_count` in
+    /// `core/analysis/_analyser/_proc.py:394-444`.  Used by the
+    /// proc-call arity checker (which lives in
+    /// `compiler_checks::arity_checks` on the Rust side) to
+    /// decide whether a ``{*}``-expanded argument contributes a
+    /// statically-known number of runtime arguments.
+    ///
+    /// - **Braced literal** (`Str` token, ``{a b c}``) — split
+    ///   the token's inner text as a list and return its length.
+    /// - **Pure variable reference** (`Var` token, ``$x``) — if
+    ///   the variable has a known constant value in the current
+    ///   scope chain, split that value and return its length.
+    /// - **Anything else** — `None`: count not statically known.
+    ///
+    /// Refinement is only attempted when ``single_token`` is
+    /// `true`; for concatenated words like ``{*}$x$y`` or
+    /// ``{*}{a b}$suffix`` the segmenter exposes only the *first*
+    /// token, which would otherwise be misinterpreted as a pure
+    /// literal or pure var ref.  Token text is resolved via
+    /// [`tcl_lexer::SourceMap::token_text`] — the same helper the
+    /// rest of the analyser uses — so the inner-content stripping
+    /// rules (kind-specific delimiter handling) stay in one
+    /// place.
+    #[must_use]
+    pub fn resolve_expansion_count(
+        &self,
+        tok: Token,
+        single_token: bool,
+        scope_path: &[usize],
+    ) -> Option<usize> {
+        use tcl_lexer::SourceMap;
+        if !single_token {
+            return None;
+        }
+        let sm = SourceMap::new(&self.source);
+        match tok.kind {
+            TokenType::Str => {
+                let inner = sm.token_text(tok);
+                Some(crate::codegen::helpers::split_list_simple(inner).len())
+            }
+            TokenType::Var => {
+                let var_name = sm.token_text(tok);
+                let const_val = self.lookup_const_string(var_name, scope_path)?;
+                Some(crate::codegen::helpers::split_list_simple(const_val).len())
+            }
+            _ => None,
         }
     }
 }
@@ -652,7 +1102,37 @@ mod tests {
     }
 
     #[test]
-    fn handle_set_no_value_only_defines_var() {
+    fn handle_set_no_value_records_read_not_definition() {
+        // ``set x`` (one-arg form) is a *read*, not a definition —
+        // Tcl returns the current value of ``x``. Mirrors
+        // ``_handle_set`` in ``_proc.py:177-191``: the 1-arg
+        // branch calls ``_record_var_read``, not ``_define_var``.
+        let mut a = Analyser::new();
+        // Pre-define x so the read records a reference.
+        a.define_var("x", esc_tok(span(0, 1)), &[], false, None);
+        a.handle_set_command(
+            "set",
+            &["x".to_string()],
+            &[esc_tok(span(10, 11))],
+            &[true],
+            &[],
+        );
+        // The read appended a reference; no second definition.
+        assert!(a.result.global_scope.variables.contains_key("x"));
+        assert_eq!(
+            a.result.global_scope.variables["x"].references,
+            vec![span(10, 11)],
+        );
+        // No const-string tracking for the 1-arg form.
+        assert_eq!(a.lookup_const_string("x", &[]), None);
+    }
+
+    #[test]
+    fn handle_set_no_value_undefined_var_is_silent() {
+        // ``set x`` on an undefined variable is still a read
+        // (matching Python's ``_record_var_read`` path); the
+        // record_var_read helper silently no-ops when the name
+        // isn't in scope, so no spurious binding lands.
         let mut a = Analyser::new();
         a.handle_set_command(
             "set",
@@ -661,8 +1141,7 @@ mod tests {
             &[true],
             &[],
         );
-        assert!(a.result.global_scope.variables.contains_key("x"));
-        assert_eq!(a.lookup_const_string("x", &[]), None);
+        assert!(!a.result.global_scope.variables.contains_key("x"));
     }
 
     #[test]
@@ -905,6 +1384,346 @@ mod tests {
         assert!(a.result.all_procs.is_empty());
     }
 
+    // -- handle_proc_command W113 shadow check (C41c4) --------------
+
+    #[test]
+    fn handle_proc_emits_w113_for_builtin_shadow() {
+        // ``proc set {} {}`` — the proc name is a built-in.
+        // W113 should anchor at the proc-name span and carry
+        // the canonical message shape.
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        let w113s: Vec<&crate::analyser::types::Diagnostic> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W113")
+            .collect();
+        assert_eq!(w113s.len(), 1);
+        assert_eq!(w113s[0].span, span(5, 8));
+        assert!(w113s[0].message.contains("'set' shadows built-in"));
+        assert!(w113s[0].message.contains("(tcl)"));
+        assert_eq!(w113s[0].severity, crate::analyser::types::Severity::Warning);
+    }
+
+    #[test]
+    fn handle_proc_no_w113_for_non_builtin_name() {
+        // ``foo`` is not a built-in — no W113.
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "should NOT emit W113 for non-built-in name 'foo'",
+        );
+    }
+
+    #[test]
+    fn handle_proc_w113_matches_qualified_form() {
+        // ``proc ::set {} {}`` — qualified form also shadows
+        // ``set`` because the registry indexes by bare command
+        // name (``::`` is trimmed at lookup).
+        let mut a = Analyser::new();
+        a.dialect = "tcl".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["::set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 10)),
+                str_tok(span(11, 13)),
+                str_tok(span(14, 16)),
+            ],
+            &[],
+        );
+        assert!(a.result.diagnostics.iter().any(|d| d.code == "W113"));
+    }
+
+    #[test]
+    fn handle_proc_w113_no_dialect_label_when_dialect_empty() {
+        // Empty dialect → no parenthetical label in the message.
+        let mut a = Analyser::new();
+        // dialect intentionally left empty
+        a.handle_proc_command(
+            "proc",
+            &["set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        let w113 = a
+            .result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "W113")
+            .expect("W113 expected");
+        assert!(w113.message.contains("'set' shadows built-in"));
+        assert!(!w113.message.contains('('), "no dialect label expected");
+    }
+
+    #[test]
+    fn handle_proc_w113_dialect_specific_command_only_shadows_in_that_dialect() {
+        // ``HTTP::respond`` is iRules-specific; under the
+        // ``f5-irules`` dialect a proc named ``HTTP::respond``
+        // shadows a built-in, but under plain ``tcl`` it does
+        // not.
+        let mut a = Analyser::new();
+        a.dialect = "f5-irules".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["HTTP::respond".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 18)),
+                str_tok(span(19, 21)),
+                str_tok(span(22, 24)),
+            ],
+            &[],
+        );
+        assert!(
+            a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "f5-irules dialect should treat HTTP::respond as built-in",
+        );
+
+        // Same proc, plain tcl dialect → no W113.
+        let mut b = Analyser::new();
+        b.dialect = "tcl".to_string();
+        b.handle_proc_command(
+            "proc",
+            &["HTTP::respond".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 18)),
+                str_tok(span(19, 21)),
+                str_tok(span(22, 24)),
+            ],
+            &[],
+        );
+        assert!(
+            !b.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "plain tcl dialect should NOT flag HTTP::respond",
+        );
+    }
+
+    // -- handle_proc_command body recursion (C41c1) -----------------
+
+    #[test]
+    fn handle_proc_creates_proc_scope_for_braced_body() {
+        // ``proc foo {} {}`` — empty braced body still opens a
+        // proc scope so subsequent body-walking handlers have a
+        // place to record locals.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children.len(), 1);
+        let proc_scope = &a.result.global_scope.children[0];
+        assert_eq!(proc_scope.kind, crate::analyser::types::ScopeKind::Proc);
+        assert_eq!(proc_scope.name, "foo");
+        assert_eq!(proc_scope.body_span, Some(span(12, 14)));
+    }
+
+    #[test]
+    fn handle_proc_defines_params_in_proc_scope() {
+        // ``proc foo {a b} {}`` — a, b become locals in the
+        // proc scope, not in the outer scope.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "a b".to_string(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 14)),
+                str_tok(span(15, 17)),
+            ],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(proc_scope.variables.contains_key("a"));
+        assert!(proc_scope.variables.contains_key("b"));
+        // Outer scope must be untouched.
+        assert!(!a.result.global_scope.variables.contains_key("a"));
+    }
+
+    #[test]
+    fn handle_proc_walks_body_set_defines_local() {
+        // ``proc foo {} {set x 1}`` — body walk segments the
+        // body and dispatches `set x 1` against the proc scope,
+        // landing the local in proc_scope.variables, not global.
+        // The body token's span must mirror the outer source so
+        // the segmenter rebases correctly: source layout is
+        // ``proc foo {} {set x 1}`` with the body occupying [13, 22].
+        // ``content_offset = 1`` skips the leading ``{`` so the
+        // re-segmented inner runs at base 14.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "set x 1".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(13, 22)),
+            ],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(
+            proc_scope.variables.contains_key("x"),
+            "body walk should land 'x' in proc scope; vars: {:?}",
+            proc_scope.variables.keys().collect::<Vec<_>>(),
+        );
+        assert!(!a.result.global_scope.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn handle_proc_walks_body_global_falls_into_proc_scope() {
+        // ``proc foo {} {global a b}`` — the ``global`` handler
+        // defines bindings in the proc scope so the body's later
+        // reads/writes resolve correctly. Real ``global`` semantics
+        // (link to outer var) live with diagnostic emission later.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "global a b".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(13, 25)),
+            ],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(proc_scope.variables.contains_key("a"));
+        assert!(proc_scope.variables.contains_key("b"));
+    }
+
+    #[test]
+    fn handle_proc_nested_proc_creates_nested_scopes() {
+        // Body-walk recursion must dispatch `proc` inside the body,
+        // creating a nested proc scope under the outer proc.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &[
+                "outer".to_string(),
+                String::new(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(5, 10)),
+                str_tok(span(11, 13)),
+                str_tok(span(15, 33)),
+            ],
+            &[],
+        );
+        // Outer proc registered.
+        assert!(a.result.all_procs.contains_key("::outer"));
+        // Inner proc registered under outer's qualified prefix? In
+        // Python, ``namespace_from_scope_path`` skips proc scopes —
+        // so an `inner` proc declared inside ``outer`` qualifies as
+        // ``::inner`` (the outer proc is not a namespace). Match
+        // that contract here.
+        assert!(a.result.all_procs.contains_key("::inner"));
+        // Outer's proc scope holds the nested proc scope as a child.
+        let outer_scope = &a.result.global_scope.children[0];
+        assert!(!outer_scope.children.is_empty());
+        assert_eq!(
+            outer_scope.children[0].kind,
+            crate::analyser::types::ScopeKind::Proc,
+        );
+        assert_eq!(outer_scope.children[0].name, "inner");
+    }
+
+    #[test]
+    fn handle_proc_dynamic_body_skips_walk() {
+        // ``proc foo {} $body`` — the body is a Var token, not a
+        // Str token; we cannot statically re-segment a dynamic
+        // body, so the body walk is skipped. The proc record
+        // itself still lands so downstream signature consumers see
+        // the proc; only the inner walk is gated.
+        let mut a = Analyser::new();
+        let var_tok = Token::new(TokenType::Var, span(13, 18));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "$body".to_string()],
+            &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
+            &[],
+        );
+        assert!(a.result.all_procs.contains_key("::foo"));
+        // No proc scope opened — Str gate failed.
+        assert!(a.result.global_scope.children.is_empty());
+    }
+
+    #[test]
+    fn handle_proc_body_walk_increments_body_depth_temporarily() {
+        // ``body_depth`` is bumped for the duration of the body
+        // walk and restored on exit — top-level-only command
+        // checks (C41d) rely on the depth being zero outside any
+        // body.
+        let mut a = Analyser::new();
+        assert_eq!(a.body_depth, 0);
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert_eq!(a.body_depth, 0);
+    }
+
+    #[test]
+    fn handle_proc_body_walk_does_not_leak_inner_doc_comment() {
+        // A trailing comment inside the body should not bleed into
+        // ``last_comment`` for whatever follows the proc at the
+        // outer scope. The outer comment ("doc string") is consumed
+        // as the proc's own doc; after the walk, ``last_comment``
+        // is restored to empty.
+        let mut a = Analyser::new();
+        a.last_comment = "doc string".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
+        assert!(a.last_comment.is_empty());
+    }
+
     // -- handle_namespace_eval_command ------------------------------
 
     #[test]
@@ -1113,7 +1932,7 @@ mod tests {
         let handled = a.handle_switch_command(
             "switch",
             &["$x".to_string(), "{a {puts a} b {puts b}}".to_string()],
-            &[],
+            &[esc_tok(span(7, 9)), str_tok(span(10, 36))],
             &[],
         );
         assert!(handled);
@@ -1124,6 +1943,124 @@ mod tests {
         let mut a = Analyser::new();
         let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
         assert!(!handled);
+    }
+
+    #[test]
+    fn handle_switch_form1_walks_each_arm_body() {
+        // Form 1: ``switch $x a {set y 1} b {set z 2}``.
+        // Each arm body should land its ``set`` in the
+        // surrounding scope.  Source layout has the bodies at
+        // offsets 13..23 (``{set y 1}``) and 27..37 (``{set z 2}``).
+        let mut a = Analyser::new();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "$x".to_string(),
+                "a".to_string(),
+                "set y 1".to_string(),
+                "b".to_string(),
+                "set z 2".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 11)),
+                str_tok(span(13, 22)),
+                esc_tok(span(24, 25)),
+                str_tok(span(27, 36)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_switch_form2_braced_body_walks_each_arm() {
+        // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
+        // The single braced body holds all pattern/body pairs;
+        // ``parse_switch_body_elements`` re-segments to surface
+        // each pair, then each body recurses.
+        let mut a = Analyser::new();
+        let body_text = " a {set y 1} b {set z 2} ".to_string();
+        // body span: outer source positions 10..(10 + len(body)+2).
+        // body_text has 25 chars, plus surrounding braces → token
+        // span 10..37, content_offset = 1 to skip the opening ``{``.
+        a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), body_text],
+            &[esc_tok(span(7, 9)), str_tok(span(10, 37))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_switch_form1_skips_fallthrough_marker() {
+        // ``switch $x a - b {set y 1}`` — the ``-`` body for
+        // pattern ``a`` is fall-through (next arm fires); only
+        // ``b``'s body should be walked.
+        let mut a = Analyser::new();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "$x".to_string(),
+                "a".to_string(),
+                "-".to_string(),
+                "b".to_string(),
+                "set y 1".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 11)),
+                esc_tok(span(12, 13)),
+                esc_tok(span(14, 15)),
+                str_tok(span(17, 26)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_switch_recognises_dashdash_options_terminator() {
+        // ``switch -- $x a {set y 1}`` — ``--`` ends the option
+        // section; the string arg follows.  Walker still finds
+        // the arm body and lands ``y``.
+        let mut a = Analyser::new();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "--".to_string(),
+                "$x".to_string(),
+                "a".to_string(),
+                "set y 1".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 12)),
+                esc_tok(span(13, 14)),
+                str_tok(span(16, 25)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_switch_dynamic_form2_body_skips_walk() {
+        // Form 2 with a dynamic body (``$body`` instead of a
+        // braced literal) yields no elements; the walk no-ops.
+        let mut a = Analyser::new();
+        let var_tok = Token::new(TokenType::Var, span(10, 15));
+        a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), "$body".to_string()],
+            &[esc_tok(span(7, 9)), var_tok],
+            &[],
+        );
+        // No body walked → no vars defined.
+        assert!(a.result.global_scope.variables.is_empty());
     }
 
     // -- handle_catch_command ---------------------------------------
@@ -1177,7 +2114,8 @@ mod tests {
     #[test]
     fn handle_try_canonical_returns_true() {
         let mut a = Analyser::new();
-        let handled = a.handle_try_command("try", &["body".to_string()], &[], &[]);
+        let handled =
+            a.handle_try_command("try", &["body".to_string()], &[str_tok(span(0, 4))], &[]);
         assert!(handled);
     }
 
@@ -1186,6 +2124,291 @@ mod tests {
         let mut a = Analyser::new();
         let handled = a.handle_try_command("try", &[], &[], &[]);
         assert!(!handled);
+    }
+
+    #[test]
+    fn handle_try_walks_main_body() {
+        // ``try {set y 1}`` — main body walks and lands ``y``.
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &["set y 1".to_string()],
+            &[str_tok(span(5, 14))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_try_walks_finally_body() {
+        // ``try {} finally {set z 1}`` — finally clause body walks.
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &[String::new(), "finally".to_string(), "set z 1".to_string()],
+            &[
+                str_tok(span(5, 7)),
+                esc_tok(span(8, 15)),
+                str_tok(span(16, 25)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_try_walks_on_handler_body() {
+        // ``try {} on error {result options} {set q 1}`` — the
+        // handler body at offset i+3 walks; the varList at i+2
+        // is *not* defined as a local (matches Python).
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &[
+                String::new(),
+                "on".to_string(),
+                "error".to_string(),
+                "result options".to_string(),
+                "set q 1".to_string(),
+            ],
+            &[
+                str_tok(span(5, 7)),
+                esc_tok(span(8, 10)),
+                esc_tok(span(11, 16)),
+                str_tok(span(17, 33)),
+                str_tok(span(34, 43)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("q"));
+        // varList NOT defined — matches Python's ``_handle_try``
+        // which doesn't define those bindings.
+        assert!(!a.result.global_scope.variables.contains_key("result"));
+        assert!(!a.result.global_scope.variables.contains_key("options"));
+    }
+
+    #[test]
+    fn handle_try_walks_trap_handler_body() {
+        // ``try {} trap NONE {result} {set q 1}`` — same shape
+        // as ``on``, but the keyword is ``trap``.
+        let mut a = Analyser::new();
+        a.handle_try_command(
+            "try",
+            &[
+                String::new(),
+                "trap".to_string(),
+                "NONE".to_string(),
+                "result".to_string(),
+                "set q 1".to_string(),
+            ],
+            &[
+                str_tok(span(5, 7)),
+                esc_tok(span(8, 12)),
+                esc_tok(span(13, 17)),
+                str_tok(span(18, 26)),
+                str_tok(span(27, 36)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("q"));
+    }
+
+    // -- resolve_proc_call (C41c3) ----------------------------------
+
+    #[test]
+    fn resolve_proc_call_absolute_qualified_name() {
+        // ``::foo`` resolves directly when registered.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        let resolved = a.resolve_proc_call("::foo", &[]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_bare_name_walks_namespace_chain() {
+        // ``foo`` declared inside ``ns1`` is found when resolved
+        // from ``ns1``'s scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[0],
+        );
+        // Resolve from inside ns1 — should find ::ns1::foo.
+        let resolved = a.resolve_proc_call("foo", &[0]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::ns1::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_falls_back_to_global() {
+        // Bare ``foo`` declared at global is found from any scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+        );
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        // Resolve from inside ns1 — chain misses ::ns1::foo,
+        // falls back to ::foo.
+        let resolved = a.resolve_proc_call("foo", &[0]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_qualified_relative_name() {
+        // ``a::b`` (qualified but not absolute) prepends ``::``.
+        let mut a = Analyser::new();
+        a.result.all_procs.insert(
+            "::a::b".to_string(),
+            super::ProcDef {
+                name: "b".to_string(),
+                qualified_name: "::a::b".to_string(),
+                params: Vec::new(),
+                name_span: span(0, 0),
+                body_span: span(0, 0),
+                doc: String::new(),
+            },
+        );
+        let resolved = a.resolve_proc_call("a::b", &[]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::a::b");
+    }
+
+    #[test]
+    fn resolve_proc_call_unknown_name_returns_none() {
+        let a = Analyser::new();
+        assert!(a.resolve_proc_call("nope", &[]).is_none());
+    }
+
+    #[test]
+    fn resolve_proc_call_empty_name_returns_none() {
+        let a = Analyser::new();
+        assert!(a.resolve_proc_call("", &[]).is_none());
+    }
+
+    // -- resolve_expansion_count (C41c3) ----------------------------
+
+    #[test]
+    fn resolve_expansion_count_braced_literal() {
+        // ``{a b c}`` — Str token; inner content "a b c" splits
+        // to three elements.
+        let mut a = Analyser::new();
+        a.source = "{a b c}".to_string();
+        // Span covers ``{a b c`` (5 inner chars + opening brace),
+        // content_offset = 1 to skip ``{``.  Closing ``}`` is
+        // OUTSIDE the span by lexer convention for non-degenerate
+        // STR tokens.
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 6),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
+    }
+
+    #[test]
+    fn resolve_expansion_count_braced_empty_list() {
+        // ``{}`` — degenerate Str case; span extended to include
+        // ``}``, token_text returns empty string.
+        let mut a = Analyser::new();
+        a.source = "{}".to_string();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 2),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(0));
+    }
+
+    #[test]
+    fn resolve_expansion_count_var_with_const_value() {
+        // ``$xs`` where xs has known constant ``a b c`` — splits
+        // to three elements.
+        let mut a = Analyser::new();
+        a.source = "$xs".to_string();
+        a.set_const_string("xs", "a b c".to_string(), span(0, 5), &[]);
+        // Var token: span covers ``xs`` (after `$`) by lexer
+        // convention; content_offset = 0 because the lexer's
+        // ``_start`` for VAR is set after the ``$``.
+        // For testing, place the var name at offset 1..3 in source.
+        let tok = Token {
+            kind: TokenType::Var,
+            span: span(1, 3),
+            content_offset: 0,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
+    }
+
+    #[test]
+    fn resolve_expansion_count_var_without_const_value() {
+        // Var with no known constant value → None.
+        let mut a = Analyser::new();
+        a.source = "$xs".to_string();
+        let tok = Token {
+            kind: TokenType::Var,
+            span: span(1, 3),
+            content_offset: 0,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
+    }
+
+    #[test]
+    fn resolve_expansion_count_concatenated_word_returns_none() {
+        // ``single_token = false`` short-circuits to None.
+        let mut a = Analyser::new();
+        a.source = "{a b c}".to_string();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 6),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(a.resolve_expansion_count(tok, false, &[]), None);
+    }
+
+    #[test]
+    fn resolve_expansion_count_other_token_kind_returns_none() {
+        // Non-Str, non-Var token kinds aren't statically
+        // resolvable.
+        let a = Analyser::new();
+        let tok = esc_tok(span(0, 4));
+        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
     }
 
     // -- handle_interp_alias ----------------------------------------
@@ -1347,6 +2570,67 @@ mod tests {
         );
         assert!(!handled);
         assert!(a.result.all_classes.is_empty());
+    }
+
+    // -- handle_oo_class_command body walking (C41e1) ---------------
+
+    #[test]
+    fn analyse_oo_class_body_records_superclass_and_methods() {
+        // End-to-end: ``oo::class create Sub`` with a body
+        // declaring a superclass and a method.  After analyse
+        // ``::Sub`` should carry both fields.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create Sub { superclass ::Base\nmethod greet {} { puts hi } }",
+            "tcl",
+        );
+        assert!(r.all_classes.contains_key("::Sub"));
+        let cls = &r.all_classes["::Sub"];
+        assert_eq!(cls.superclasses, vec!["::Base"]);
+        assert!(cls.methods.contains_key("greet"));
+        assert_eq!(cls.methods["greet"].kind, "method");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_classmethod_and_mixin() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { mixin ::M\nclassmethod build {} { return ok } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.mixins, vec!["::M"]);
+        assert!(cls.class_methods.contains_key("build"));
+        assert!(!cls.methods.contains_key("build"));
+    }
+
+    // -- handle_oo_define_command body walking (C41e2) --------------
+
+    #[test]
+    fn analyse_oo_define_body_extends_existing_class() {
+        // ``oo::class create C {}`` followed by ``oo::define
+        // C { method m {} {} }`` — the method ends up in the
+        // already-recorded class.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C {}\noo::define C { method m {} {} }",
+            "tcl",
+        );
+        assert!(r.all_classes.contains_key("::C"));
+        let cls = &r.all_classes["::C"];
+        assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn analyse_oo_define_inline_form_extends_class() {
+        // ``oo::define C method m {} {}`` — inline form,
+        // single subcommand.  Works whether or not the class
+        // was previously declared (creates a stub if absent).
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::define MyClass method greet {} { puts hi }", "tcl");
+        assert!(r.all_classes.contains_key("::MyClass"));
+        let cls = &r.all_classes["::MyClass"];
+        assert!(cls.methods.contains_key("greet"));
     }
 
     // -- handle_oo_define_command (C41b8 stub) ----------------------

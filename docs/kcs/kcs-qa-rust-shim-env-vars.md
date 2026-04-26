@@ -44,6 +44,7 @@ knob until the Python implementation retires entirely.
 | `TCL_LSP_RUST_OPTIMISER`         | Optimiser pass manager    | `core/compiler/optimiser/_manager.py`          |
 | `TCL_LSP_RUST_INTERPROC`         | Interprocedural analysis  | `core/compiler/interprocedural.py`             |
 | `TCL_LSP_RUST_GVN`               | GVN redundancy detection  | `core/compiler/gvn.py`                         |
+| `TCL_LSP_RUST_ANALYSER`          | Single-pass Tcl analyser  | `core/analysis/_analyser/__init__.py`          |
 
 The Rust path is gated on (a) the binding being importable and
 (b) the env var resolving to "use Rust"; any exception from the
