@@ -25,6 +25,22 @@ from .._ir import (
 from ._ops import _is_end_relative_index
 
 
+def _looks_like_string_option(arg: str) -> bool:
+    """Detect a leading ``-flag`` argument on a ``string`` sub-command.
+
+    Used to bypass the fixed-param-count fast path for forms like
+    ``string map -nocase``, ``string match -nocase``, and
+    ``string compare -nocase`` which would otherwise pass ``-nocase``
+    as the first positional argument and silently corrupt the result.
+    """
+    if not arg or len(arg) < 2 or arg[0] != "-":
+        return False
+    if arg in ("-", "--"):
+        return False
+    second = arg[1]
+    return not (second.isdigit() or second == ".")
+
+
 class _WasmEmitterValuesMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterVarMixin
@@ -523,9 +539,25 @@ class _WasmEmitterValuesMixin(_Base):
                 return
             sri = subcommand_runtime_import_for("string", subcmd)
             if sri is not None and sri.import_key in self._shared_imports:
+                sub_args = cmd_args[1:]
+                # ``string map -nocase ...`` / ``string match -nocase ...``
+                # / ``string compare -nocase ...`` — the fixed-param
+                # runtime import would silently take ``-nocase`` as the
+                # first positional argument and corrupt the result.
+                # Fall through to eval so the runtime dispatcher
+                # parses the option correctly.  Use ``script_override``
+                # with the raw bracket body so braced args like
+                # ``{HELLO WORLD}`` keep their original quoting (the
+                # default eval-fallback path re-list-quotes them which
+                # would double-brace and the runtime would treat them
+                # as single-element lists).
+                if sub_args and _looks_like_string_option(sub_args[0]):
+                    self._emit_eval_fallback(
+                        "string", cmd_args, script_override=cmd_text
+                    )
+                    return
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
-                sub_args = cmd_args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):

@@ -76,6 +76,7 @@ pub const tcl_expr_order_cmp = tcl_string.tcl_expr_order_cmp;
 pub const string_equal = tcl_string.string_equal;
 pub const string_match = tcl_string.string_match;
 pub const string_map = tcl_string.string_map;
+pub const string_map_nocase = tcl_string.string_map_nocase;
 pub const string_trim = tcl_string.string_trim;
 pub const string_trimleft = tcl_string.string_trimleft;
 pub const string_trimright = tcl_string.string_trimright;
@@ -230,6 +231,7 @@ comptime {
     _ = &tcl_string.string_index;
     _ = &tcl_string.string_range;
     _ = &tcl_string.string_map;
+    _ = &tcl_string.string_map_nocase;
     _ = &tcl_string.string_match;
     _ = &tcl_string.string_trim;
     _ = &tcl_string.string_trimleft;
