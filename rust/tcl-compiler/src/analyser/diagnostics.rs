@@ -1297,6 +1297,21 @@ impl Analyser {
             }
         }
 
+        // Pre-compute the deduplicated ``Vec<&str>`` over the
+        // candidate set once, instead of rebuilding it per
+        // unresolved invocation.  ``candidates`` may carry
+        // duplicates because each contributor (registry / proc
+        // tails / class tails / aliases / ensemble cmds /
+        // stubs / unknown-proc dispatch_targets) is unioned
+        // independently — dedupe via a ``HashSet`` filter
+        // while preserving stable iteration order.
+        let mut seen_candidate_strs: HashSet<&str> = HashSet::new();
+        let candidate_strs: Vec<&str> = candidates
+            .iter()
+            .map(String::as_str)
+            .filter(|candidate| seen_candidate_strs.insert(*candidate))
+            .collect();
+
         // Drain so the iteration loop can mutate
         // ``self.result.diagnostics`` freely; restore at the end
         // (matches the snapshot/restore round-trip contract).
@@ -1345,9 +1360,12 @@ impl Analyser {
             // via Levenshtein.  Mirrors the
             // ``suggest_similar(cmd_name, candidates,
             // max_suggestions=1, max_distance=2)`` call in
-            // ``_diag_commands.py:166``.
-            let candidate_strs: Vec<&str> = candidates.iter().map(String::as_str).collect();
-            let suggestions = crate::text::suggest_similar(name, candidate_strs, 1, 2);
+            // ``_diag_commands.py:166``.  ``candidate_strs`` was
+            // deduplicated above so every name in it is unique;
+            // copying the slice per invocation is cheap (Vec of
+            // ``&str`` references).
+            let suggestions =
+                crate::text::suggest_similar(name, candidate_strs.iter().copied(), 1, 2);
             let mut message = format!("Unknown command '{name}'");
             let mut fixes: Vec<super::types::CodeFix> = Vec::new();
             if let Some(best) = suggestions.first() {

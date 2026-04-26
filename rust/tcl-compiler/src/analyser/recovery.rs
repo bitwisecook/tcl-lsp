@@ -308,12 +308,15 @@ impl Analyser {
             tcl_lexer::Span::new(cmd.span.end(), cmd.span.end())
         };
         if !self.disabled_diagnostics.contains("E101") {
-            // Insertion point: one byte past the string-arg
-            // token so the inserted ``{`` lands at the same
-            // offset Python computes via ``insert_pos =
-            // diag_pos.offset + 1``.
-            let insert_off = diag_span.end().saturating_add(1);
-            let insert_span = tcl_lexer::Span::new(insert_off, insert_off);
+            // Insertion point: Rust spans are exclusive-end, so
+            // ``diag_span.end()`` is already the first byte
+            // after the string-arg token — use it directly as
+            // the zero-width insertion span.  (Python's
+            // arithmetic adds ``+1`` because its
+            // ``SourcePosition`` columns are inclusive; mirroring
+            // that arithmetic in Rust shifts the insertion one
+            // byte past the intended location.)
+            let insert_span = tcl_lexer::Span::new(diag_span.end(), diag_span.end());
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "E101".to_string(),
                 span: diag_span,

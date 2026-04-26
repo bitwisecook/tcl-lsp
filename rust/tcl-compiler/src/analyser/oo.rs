@@ -136,12 +136,27 @@ impl Analyser {
             .first()
             .map_or_else(|| "cmd".to_string(), |p| p.name.clone());
 
-        // Lower to IR.  On failure mirror Python's "be
-        // conservative — assume fully dynamic" fallback.
-        let module: Module = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Lower to IR.  On panic mirror Python's "be
+        // conservative — assume fully dynamic" fallback by
+        // returning an ``UnknownProcInfo`` with every dynamic
+        // flag set so the W123 emitter suppresses unresolved-
+        // command warnings file-wide (the safe direction when
+        // we couldn't analyse the handler body).
+        let module: Module = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             crate::lowering::lower_to_ir(body, &tcl_registry::CommandRegistry::build_default())
-        }))
-        .unwrap_or_else(|_| Module::default());
+        })) {
+            Ok(module) => module,
+            Err(_) => {
+                return UnknownProcInfo {
+                    chains_original: true,
+                    case_insensitive: true,
+                    has_pattern_dispatch: true,
+                    has_exec: true,
+                    has_auto_load: true,
+                    ..Default::default()
+                };
+            }
+        };
 
         let mut info = UnknownProcInfo::default();
 
