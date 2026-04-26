@@ -53,12 +53,31 @@ pub enum ScopeKind {
     Proc,
 }
 
+/// A suggested fix for a [`Diagnostic`] — maps to an LSP
+/// `TextEdit`.
+///
+/// Mirrors ``CodeFix`` in ``core/analysis/semantic_model.py``.
+/// Populated by emitters that know exactly *what* the user
+/// should change (E101 inserts a missing ``{``, E103 inserts a
+/// missing ``}``, W123 may suggest a similarly-named command,
+/// etc.).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeFix {
+    /// Source span the replacement applies to.  An insertion
+    /// is a zero-width span anchored at the insertion point.
+    pub span: Span,
+    /// Text to replace ``span`` with.
+    pub new_text: String,
+    /// Human-readable description of the fix
+    /// (e.g. ``"Insert missing '{'"``).  Empty when omitted.
+    pub description: String,
+}
+
 /// Diagnostic emitted by the analyser.
 ///
 /// Carries a stable ``code`` (e.g. ``"W210"``), the source
-/// [`Span`] the diagnostic anchors to, a one-line ``message``, and
-/// a [`Severity`]. Replacement / fix-it suggestions land later via
-/// a sibling ``CodeFix`` type (filled in **C41d**).
+/// [`Span`] the diagnostic anchors to, a one-line ``message``, a
+/// [`Severity`], and optional [`CodeFix`] suggestions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Stable W-/IRULE-coded identifier.
@@ -69,6 +88,9 @@ pub struct Diagnostic {
     pub message: String,
     /// Severity classifier.
     pub severity: Severity,
+    /// Suggested fixes (zero or more).  Empty when no
+    /// emitter-supplied fix is available.
+    pub fixes: Vec<CodeFix>,
 }
 
 /// Variable definition record.

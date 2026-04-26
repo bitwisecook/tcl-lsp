@@ -40,8 +40,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use tcl_compiler::analyser::{
-    Analyser, AnalysisResult, ClassDef, Diagnostic, ProcDef, PropertyDef, Scope, ScopeKind,
-    Severity, UnknownProcInfo, VarDef,
+    Analyser, AnalysisResult, ClassDef, CodeFix, Diagnostic, ProcDef, PropertyDef, Scope,
+    ScopeKind, Severity, UnknownProcInfo, VarDef,
 };
 use tcl_compiler::signature_scan::types::{
     SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceImport,
@@ -303,7 +303,20 @@ fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'p
     out.set_item("range", span_tuple(d.span))?;
     out.set_item("message", &d.message)?;
     out.set_item("severity", severity_str(d.severity))?;
+    let fixes = PyList::empty_bound(py);
+    for fix in &d.fixes {
+        fixes.append(code_fix_to_dict(py, fix)?)?;
+    }
+    out.set_item("fixes", fixes)?;
     Ok(out)
+}
+
+fn code_fix_to_dict<'py>(py: Python<'py>, fix: &CodeFix) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    d.set_item("range", span_tuple(fix.span))?;
+    d.set_item("new_text", &fix.new_text)?;
+    d.set_item("description", &fix.description)?;
+    Ok(d)
 }
 
 fn severity_str(s: Severity) -> &'static str {

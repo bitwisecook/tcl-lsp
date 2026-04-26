@@ -5,6 +5,7 @@ import logging
 from ..semantic_model import (
     AnalysisResult,
     ClassDef,
+    CodeFix,
     Diagnostic,
     MethodDef,
     ParamDef,
@@ -202,12 +203,22 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
     for qname, v in raw.get("all_variables", {}).items():
         result.all_variables[qname] = _var(v)
     for d in raw.get("diagnostics", []):
+        fixes_raw = d.get("fixes") or ()
+        fixes = tuple(
+            CodeFix(
+                range=range_at(*f["range"]),
+                new_text=f.get("new_text") or "",
+                description=f.get("description") or "",
+            )
+            for f in fixes_raw
+        )
         result.diagnostics.append(
             Diagnostic(
                 range=range_at(*d["range"]),
                 message=d["message"],
                 severity=_SEVERITY_MAP.get(d["severity"], Severity.WARNING),
                 code=d["code"],
+                fixes=fixes,
             )
         )
 

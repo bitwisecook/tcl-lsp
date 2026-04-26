@@ -431,6 +431,7 @@ impl Analyser {
                 span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -509,6 +510,7 @@ impl Analyser {
                 span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -595,6 +597,7 @@ impl Analyser {
                     span,
                     message,
                     severity: Severity::Hint,
+                    fixes: Vec::new(),
                 });
             }
         }
@@ -645,6 +648,7 @@ impl Analyser {
                 span: ir_proc.span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -756,6 +760,7 @@ impl Analyser {
                             span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                         continue;
                     }
@@ -782,6 +787,7 @@ impl Analyser {
                     span,
                     message,
                     severity: Severity::Warning,
+                    fixes: Vec::new(),
                 });
             }
         }
@@ -879,6 +885,7 @@ impl Analyser {
                 span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -972,6 +979,7 @@ impl Analyser {
                             span: *span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                     } else {
                         // Literal — strip surrounding braces / quotes.
@@ -995,6 +1003,7 @@ impl Analyser {
                             span: *span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                     }
                 }
@@ -1129,6 +1138,7 @@ impl Analyser {
             span,
             message: message.to_string(),
             severity,
+            fixes: Vec::new(),
         });
     }
 
@@ -1269,6 +1279,7 @@ impl Analyser {
                 span: inv.range,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
         self.result.command_invocations = invocations;
@@ -1491,6 +1502,7 @@ impl Analyser {
                             span: site.cmd_span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                     }
                 }
@@ -1520,6 +1532,7 @@ impl Analyser {
                 span: site.cmd_span,
                 message: "Non-literal command name — cannot statically analyze".to_string(),
                 severity: Severity::Warning,
+                fixes: Vec::new(),
             });
         }
         // Restore the sites list — snapshot/restore expects it
@@ -1666,6 +1679,7 @@ impl Analyser {
                         span,
                         message,
                         severity: Severity::Warning,
+                        fixes: Vec::new(),
                     });
                 }
             }
@@ -1685,6 +1699,7 @@ mod tests {
             span,
             message: msg.to_string(),
             severity: Severity::Warning,
+            fixes: Vec::new(),
         }
     }
 

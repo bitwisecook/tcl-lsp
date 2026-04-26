@@ -267,6 +267,7 @@ impl Analyser {
                 span: name_span,
                 message,
                 severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
             });
         }
 

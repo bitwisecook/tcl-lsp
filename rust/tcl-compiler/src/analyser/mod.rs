@@ -49,6 +49,6 @@ pub use mro::{build_mro_map, tcloo_linearise, MroError};
 pub use snapshot::AnalyserSnapshot;
 pub use state::Analyser;
 pub use types::{
-    AnalysisResult, ClassDef, Diagnostic, MethodDef, ProcDef, PropertyDef, Scope, ScopeKind,
-    Severity, UnknownProcInfo, VarDef,
+    AnalysisResult, ClassDef, CodeFix, Diagnostic, MethodDef, ProcDef, PropertyDef, Scope,
+    ScopeKind, Severity, UnknownProcInfo, VarDef,
 };

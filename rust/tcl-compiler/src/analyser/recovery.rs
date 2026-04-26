@@ -32,15 +32,10 @@
 //!   the inner ``{`` consumed the enclosing scope's ``}``,
 //!   emits E103 instead of the generic E200.
 //!
-//! **Deferred:** the Python helpers attach a [`CodeFix`] to the
-//! E101 / E103 diagnostics that points at the exact insertion
-//! offset.  The Rust ``Diagnostic`` struct doesn't carry
-//! ``CodeFix`` yet (chunk-log carry-over: "W123 'did you
-//! mean…?' suggestions + CodeFix payload — needs ``CodeFix``
-//! field on ``Diagnostic``").  When the field lands the
-//! emitter call sites in ``recover_missing_open_brace`` /
-//! ``detect_stolen_close_brace`` populate it; for now they
-//! emit code + message + range only.
+//! Both E101 and E103 emit a [`super::types::CodeFix`]
+//! payload pointing at the exact insertion offset (mirrors
+//! Python's ``CodeFix`` shape — same range, same insertion
+//! text, same description).
 //!
 //! ## Quoted-context filtering
 //!
@@ -310,11 +305,22 @@ impl Analyser {
             tcl_lexer::Span::new(cmd.span.end(), cmd.span.end())
         };
         if !self.disabled_diagnostics.contains("E101") {
+            // Insertion point: one byte past the string-arg
+            // token so the inserted ``{`` lands at the same
+            // offset Python computes via ``insert_pos =
+            // diag_pos.offset + 1``.
+            let insert_off = diag_span.end().saturating_add(1);
+            let insert_span = tcl_lexer::Span::new(insert_off, insert_off);
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "E101".to_string(),
                 span: diag_span,
                 message: "Missing '{' after switch — body cases follow without braces".to_string(),
                 severity: super::types::Severity::Error,
+                fixes: vec![super::types::CodeFix {
+                    span: insert_span,
+                    new_text: " {".to_string(),
+                    description: "Insert missing '{'".to_string(),
+                }],
             });
         }
 
@@ -387,7 +393,7 @@ impl Analyser {
         if !stack.is_empty() {
             return false;
         }
-        let Some((_open_offset, close_offset)) = last_pop else {
+        let Some((open_offset, close_offset)) = last_pop else {
             return false;
         };
 
@@ -401,12 +407,39 @@ impl Analyser {
         let abs_close = u32::try_from(start + close_offset).expect("close offset fits in u32");
         let stolen_span = tcl_lexer::Span::new(abs_close, abs_close + 1);
 
+        // Compute the indentation of the inner ``{`` line so the
+        // CodeFix inserts a same-indent ``}`` on the next line.
+        // Mirrors the Python ``indent`` extraction in
+        // ``_recovery.py:388-396``.
+        let line_start = text[..open_offset].rfind('\n').map_or(0, |i| i + 1);
+        let mut indent = String::new();
+        for c in text[line_start..].chars() {
+            if c == ' ' || c == '\t' {
+                indent.push(c);
+            } else {
+                break;
+            }
+        }
+        // Insertion point: start of the line containing the
+        // stolen ``}``.  Mirrors Python's ``insert_off``.
+        let stolen_line_start = text[..close_offset]
+            .rfind('\n')
+            .map_or(close_offset, |i| i + 1);
+        let abs_insert =
+            u32::try_from(start + stolen_line_start).expect("insert offset fits in u32");
+        let insert_span = tcl_lexer::Span::new(abs_insert, abs_insert);
+
         if !self.disabled_diagnostics.contains("E103") {
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "E103".to_string(),
                 span: stolen_span,
                 message: "Missing '}' — a nested body consumed this closing brace".to_string(),
                 severity: super::types::Severity::Error,
+                fixes: vec![super::types::CodeFix {
+                    span: insert_span,
+                    new_text: format!("{indent}}}\n"),
+                    description: "Insert missing '}'".to_string(),
+                }],
             });
         }
         true
@@ -443,6 +476,7 @@ impl Analyser {
             span: cmd.span,
             message: suffix.to_string(),
             severity: super::types::Severity::Error,
+            fixes: Vec::new(),
         });
     }
 
