@@ -178,6 +178,23 @@ pub export fn string_range(value: i32, first: i32, last: i32) i32 {
 
 // Exported: string map — apply a mapping list {from to from to ...} to a string.
 pub export fn string_map(mapping: i32, value: i32) i32 {
+    return string_map_impl(mapping, value, false);
+}
+
+/// ``string map -nocase MAP STRING`` — case-insensitive variant.
+/// Splits the same MAP/STRING handling as ``string_map`` but
+/// compares each MAP key against STRING with ASCII case folded.
+/// The replacement bytes are inserted as-is (case preserved).
+pub export fn string_map_nocase(mapping: i32, value: i32) i32 {
+    return string_map_impl(mapping, value, true);
+}
+
+fn ascii_lower(c: u8) u8 {
+    if (c >= 'A' and c <= 'Z') return c + 32;
+    return c;
+}
+
+fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
     const sm = obj_ensure_string(mapping);
     const sv = obj_ensure_string(value);
     if (sv.len == 0) return value;
@@ -200,7 +217,10 @@ pub export fn string_map(mapping: i32, value: i32) i32 {
                 const fp: [*]const u8 = @ptrFromInt(sm.ptr + from.start);
                 var match = true;
                 for (0..from.len) |k| {
-                    if (src[pos + k] != fp[k]) {
+                    const a = src[pos + k];
+                    const b = fp[k];
+                    const eq = if (nocase) ascii_lower(a) == ascii_lower(b) else a == b;
+                    if (!eq) {
                         match = false;
                         break;
                     }
