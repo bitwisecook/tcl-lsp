@@ -387,6 +387,20 @@ fn eval_lseq(words: []const i32) i32 {
     }
     if (step_val == 0) return obj_new_string(0, 0);
 
+    // Sanity bound: ``lseq 1e50 1e50+1`` and similar large-double
+    // forms convert to out-of-range i64 via ``@intFromFloat`` and
+    // can otherwise loop for billions of iterations before tripping
+    // the wasmtime watchdog.  Cap the absolute span so a poorly
+    // formed call returns an empty list (or partial result) instead
+    // of hanging the test runner.  The cap is conservative — well
+    // above any realistic production lseq — but small enough that
+    // a runaway terminates in <100ms.
+    const max_count: i64 = 16 * 1024 * 1024; // 16 M elements
+    const span: i64 = if (step_val > 0) end_val - start_val else start_val - end_val;
+    if (span < 0 or @divTrunc(span, if (step_val > 0) step_val else -step_val) > max_count) {
+        return obj_new_string(0, 0);
+    }
+
     var acc: i32 = obj_new_string(0, 0);
     var i: i64 = start_val;
     if (step_val > 0) {
