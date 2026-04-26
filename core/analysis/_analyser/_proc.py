@@ -124,8 +124,12 @@ class _AnalyserProcMixin(_Base):
         scope.procs[bare_name] = proc_def
         self.result.all_procs[qualified] = proc_def
 
-        # Analyse the body in a new proc scope
-        proc_scope = Scope(kind="proc", name=bare_name, parent=scope, body_range=body_range)
+        # Analyse the body in a new proc scope. The scope name carries
+        # the *raw* declared name (``::ns::foo`` form preserved) — this
+        # matches the Rust port's choice in ``analyser/handlers.rs`` at
+        # the ``Scope::new(ScopeKind::Proc, raw_name.clone())`` site, and
+        # is what the per-scope ``all_variables`` key prefix relies on.
+        proc_scope = Scope(kind="proc", name=proc_name, parent=scope, body_range=body_range)
         scope.children.append(proc_scope)
 
         # Define parameters as variables in the proc scope

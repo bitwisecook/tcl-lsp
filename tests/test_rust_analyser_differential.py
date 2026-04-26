@@ -119,6 +119,126 @@ def _compare_shapes(py: AnalysisResult, rust: AnalysisResult) -> None:
     )
 
 
+def _fmt_range(r) -> tuple | None:
+    """Compact tuple representation of a :class:`Range`, suitable
+    for direct equality comparison."""
+    if r is None:
+        return None
+    return (
+        (r.start.line, r.start.character, r.start.offset),
+        (r.end.line, r.end.character, r.end.offset),
+    )
+
+
+def _params_tuple(params) -> tuple:
+    """Comparable tuple of :class:`ParamDef` fields."""
+    return tuple((p.name, p.has_default, p.default_value) for p in params)
+
+
+def _compare_fields(py: AnalysisResult, rust: AnalysisResult) -> None:
+    """Strict per-field parity for the structural payload of
+    :class:`AnalysisResult`.
+
+    Compared:
+
+    - ``all_procs`` keys (with the ``::::``/``::`` normalisation),
+      and for each common qualified name the proc's bare ``name``,
+      ``params`` tuple, ``name_range``, and ``body_range``.
+    - ``all_classes`` keys, and for each common class the bare
+      ``name``, ``name_range``, ``body_range``, ``methods`` /
+      ``class_methods`` key sets, ``superclasses``, and ``mixins``.
+    - The recursive scope-tree shape: ``kind``, ``name``, child
+      variable / proc / class name sets at every level.
+
+    Diagnostics are intentionally **not** compared field-by-field
+    here. Python's ``Analyser().analyse`` integrates
+    ``run_compiler_checks`` (which adds style + SSA-based dead-store
+    diagnostics — W110, W220, W304, …); the Rust
+    ``analyser_analyse`` is analyser-only. Mismatched diagnostic
+    sets would fire on every fixture for an architectural reason
+    rather than a regression. A future strip can layer a
+    diagnostic-by-diagnostic comparison once the layering is
+    aligned.
+    """
+    py_procs = {_normalise_qname(k): v for k, v in py.all_procs.items()}
+    rust_procs = {_normalise_qname(k): v for k, v in rust.all_procs.items()}
+    assert set(py_procs) == set(rust_procs), (
+        f"all_procs keys: py={sorted(py_procs)} rust={sorted(rust_procs)}"
+    )
+    for qn in sorted(set(py_procs) & set(rust_procs)):
+        p, r = py_procs[qn], rust_procs[qn]
+        assert p.name == r.name, f"proc {qn} name: py={p.name!r} rust={r.name!r}"
+        assert _params_tuple(p.params) == _params_tuple(r.params), (
+            f"proc {qn} params: py={_params_tuple(p.params)} rust={_params_tuple(r.params)}"
+        )
+        assert _fmt_range(p.name_range) == _fmt_range(r.name_range), (
+            f"proc {qn} name_range: py={_fmt_range(p.name_range)} rust={_fmt_range(r.name_range)}"
+        )
+        assert _fmt_range(p.body_range) == _fmt_range(r.body_range), (
+            f"proc {qn} body_range: py={_fmt_range(p.body_range)} rust={_fmt_range(r.body_range)}"
+        )
+
+    py_classes = {_normalise_qname(k): v for k, v in py.all_classes.items()}
+    rust_classes = {_normalise_qname(k): v for k, v in rust.all_classes.items()}
+    assert set(py_classes) == set(rust_classes), (
+        f"all_classes keys: py={sorted(py_classes)} rust={sorted(rust_classes)}"
+    )
+    for qn in sorted(set(py_classes) & set(rust_classes)):
+        p, r = py_classes[qn], rust_classes[qn]
+        assert p.name == r.name, f"class {qn} name: py={p.name!r} rust={r.name!r}"
+        assert _fmt_range(p.name_range) == _fmt_range(r.name_range), (
+            f"class {qn} name_range: py={_fmt_range(p.name_range)} rust={_fmt_range(r.name_range)}"
+        )
+        assert _fmt_range(p.body_range) == _fmt_range(r.body_range), (
+            f"class {qn} body_range: py={_fmt_range(p.body_range)} rust={_fmt_range(r.body_range)}"
+        )
+        assert sorted(p.methods) == sorted(r.methods), (
+            f"class {qn} methods: py={sorted(p.methods)} rust={sorted(r.methods)}"
+        )
+        assert sorted(p.class_methods) == sorted(r.class_methods), (
+            f"class {qn} class_methods: py={sorted(p.class_methods)} rust={sorted(r.class_methods)}"
+        )
+        assert list(p.superclasses) == list(r.superclasses), (
+            f"class {qn} superclasses: py={p.superclasses} rust={r.superclasses}"
+        )
+        assert list(p.mixins) == list(r.mixins), f"class {qn} mixins: py={p.mixins} rust={r.mixins}"
+
+    _compare_scope_tree(py.global_scope, rust.global_scope, path="<global>")
+
+
+def _compare_scope_tree(py_scope, rust_scope, *, path: str) -> None:
+    """Recursive scope-shape parity: kind, name, var / proc /
+    class names at every level. Child scopes are matched by
+    ``(kind, name)`` so insertion order doesn't matter."""
+    assert py_scope.kind == rust_scope.kind, (
+        f"scope {path} kind: py={py_scope.kind!r} rust={rust_scope.kind!r}"
+    )
+    assert py_scope.name == rust_scope.name, (
+        f"scope {path} name: py={py_scope.name!r} rust={rust_scope.name!r}"
+    )
+    assert sorted(py_scope.variables) == sorted(rust_scope.variables), (
+        f"scope {path} variables: py={sorted(py_scope.variables)} "
+        f"rust={sorted(rust_scope.variables)}"
+    )
+    assert sorted(py_scope.procs) == sorted(rust_scope.procs), (
+        f"scope {path} procs: py={sorted(py_scope.procs)} rust={sorted(rust_scope.procs)}"
+    )
+    assert sorted(py_scope.classes) == sorted(rust_scope.classes), (
+        f"scope {path} classes: py={sorted(py_scope.classes)} rust={sorted(rust_scope.classes)}"
+    )
+    py_children = {(c.kind, c.name): c for c in py_scope.children}
+    rust_children = {(c.kind, c.name): c for c in rust_scope.children}
+    assert set(py_children) == set(rust_children), (
+        f"scope {path} child set: py={sorted(py_children)} rust={sorted(rust_children)}"
+    )
+    for key in sorted(py_children.keys() & rust_children.keys()):
+        _compare_scope_tree(
+            py_children[key],
+            rust_children[key],
+            path=f"{path}/{key[0]}:{key[1]}",
+        )
+
+
 def _assert_same(source: str) -> None:
     """Run both implementations on ``source`` and assert shape parity.
 
@@ -284,6 +404,57 @@ def test_analyser_shape_matches_python(label: str, source: str) -> None:
     """
     del label  # only used as the pytest id
     _assert_same(source)
+
+
+# Field-by-field corpus — strict per-fixture parity on the
+# structural payload of :class:`AnalysisResult` (proc / class
+# fields, scope tree). The set is intentionally a subset of
+# ``CORPUS``: each fixture here is one we've audited as passing
+# the strict comparator. New fixtures graduate from
+# ``CORPUS`` (shape-only) to this list as parity gaps close.
+#
+# Diagnostic-by-diagnostic parity is **not** included — Python's
+# ``Analyser().analyse`` integrates ``run_compiler_checks``
+# (style + SSA dead-store diagnostics) while the Rust
+# ``analyser_analyse`` is analyser-only; layering alignment is a
+# follow-up chunk.
+FIELD_PARITY_LABELS: frozenset[str] = frozenset(
+    {
+        "bare_proc",
+        "proc_with_default",
+        "proc_qualified_name",
+        "proc_inside_namespace_eval",
+        "set_then_read",
+        "namespace_eval_with_proc",
+        "nested_namespace_eval_proc",
+        "package_require_with_version",
+        "package_require_exact",
+    }
+)
+
+# OO fixtures are intentionally excluded from
+# :data:`FIELD_PARITY_LABELS`: the Rust analyser populates
+# ``result.all_classes`` (so the qualified-name + scope-tree
+# top-level comparison succeeds) but does not yet thread class
+# definitions back into the per-scope ``Scope.classes`` map.
+# That parity gap is a Rust-side follow-up; until it closes, OO
+# fixtures stay on shape-only parity.
+
+
+@pytest.mark.parametrize(
+    ("label", "source"),
+    [(label, source) for label, source in CORPUS if label in FIELD_PARITY_LABELS],
+    ids=[label for label, _ in CORPUS if label in FIELD_PARITY_LABELS],
+)
+def test_analyser_field_matches_python(label: str, source: str) -> None:
+    """Strict field-by-field parity for the audited subset
+    (:data:`FIELD_PARITY_LABELS`) of fixtures."""
+    del label  # only used as the pytest id
+    tcl_lsp_rust = _require_rust_binding()
+    py = Analyser().analyse(source)
+    rust_raw = tcl_lsp_rust.analyser_analyse(source, "tcl")
+    rust = _materialise_rust_analysis(source, rust_raw)
+    _compare_fields(py, rust)
 
 
 # Dispatcher gating tests. The corpus tests above call the Rust
