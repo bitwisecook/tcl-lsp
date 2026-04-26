@@ -6,13 +6,17 @@ from ..semantic_model import (
     AnalysisResult,
     ClassDef,
     CodeFix,
+    CommandInvocation,
     Diagnostic,
     MethodDef,
+    NamespaceImport,
+    PackageRequire,
     ParamDef,
     ProcDef,
     PropertyDef,
     Scope,
     Severity,
+    SourceTarget,
     UnknownProcInfo,
     VarDef,
 )
@@ -220,6 +224,50 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
                 code=d["code"],
                 fixes=fixes,
             )
+        )
+
+    # Side-channel fields the Rust dict already populates.
+    # Workspace-index, alias-driven role propagation, and
+    # ``package require``-keyed feature gating all rely on these
+    # being threaded through to the materialised result.
+    for inv in raw.get("command_invocations", []):
+        result.command_invocations.append(
+            CommandInvocation(
+                name=inv["name"],
+                range=range_at(*inv["range"]),
+                resolved_qualified_name=inv.get("resolved_qualified_name"),
+            )
+        )
+    for pr in raw.get("package_requires", []):
+        result.package_requires.append(
+            PackageRequire(
+                name=pr["name"],
+                version=pr.get("version"),
+                range=range_at(*pr["range"]),
+                conditional=pr.get("conditional", False),
+            )
+        )
+    for st in raw.get("source_targets", []):
+        result.source_targets.append(
+            SourceTarget(
+                raw_path=st["raw_path"],
+                range=range_at(*st["range"]),
+                is_literal=st.get("is_literal", True),
+            )
+        )
+    for ni in raw.get("namespace_imports", []):
+        result.namespace_imports.append(
+            NamespaceImport(
+                ns=ni["ns"],
+                pattern=ni["pattern"],
+                range=range_at(*ni["range"]),
+                conjectured=ni.get("conjectured", False),
+            )
+        )
+    for qname, alias in (raw.get("command_aliases") or {}).items():
+        result.command_aliases[qname] = (
+            alias["target"],
+            tuple(alias.get("extras") or ()),
         )
 
     # C41e3 — UnknownProcInfo from a user-defined ``unknown`` proc.
