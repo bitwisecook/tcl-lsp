@@ -716,6 +716,34 @@ pub export fn var_set(name: i32, value: i32) i32 {
 /// Check if a variable exists in local frame OR globals.
 pub export fn var_exists(name: i32) i32 {
     const sn = obj_ensure_string(name);
+    // Array-element form: ``arr(key)``.  Split on the first ``(`` and
+    // probe the array storage for the named element.  ``var_exists``
+    // is the implementation of ``info exists`` (see
+    // ``cmds/tcl_cmd_info.zig::info_exists``), which Tcl 9 documents
+    // as supporting both whole-variable and element forms.  Without
+    // the split, ``info exists arr(key)`` looked up the literal
+    // string ``arr(key)`` as a single var name, missed every time,
+    // and any tcltest constraint check (``info exists
+    // testConstraints($c)``) returned 0 — which caused the
+    // ``Skipped`` proc to fall through to "do not skip" for every
+    // simple constraint, so ``testevalex``-gated tests ran instead
+    // of being skipped.
+    if (sn.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var paren: u32 = 0;
+        var found = false;
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            if (sp[k] == '(') { paren = k; found = true; break; }
+        }
+        if (found and paren > 0 and sp[sn.len - 1] == ')') {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            const key_len = sn.len - paren - 2;
+            const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
+            return tcl_array.array_element_exists(arr_name, key);
+        }
+    }
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
