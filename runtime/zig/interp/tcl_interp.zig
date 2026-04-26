@@ -937,16 +937,44 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
         .prev_current_ns = tcl_ns.current_ns,
     };
     tcl_ns.current_ns = tcl_ns.ns_root();
+    // Try the user-proc registry first — same priority as
+    // ``eval_command``.  On miss, fall through to the builtin cmd_table
+    // so an alias target like ``try`` / ``puts`` / ``string`` (Tcl
+    // commands implemented in the runtime, not as procs) dispatches
+    // correctly.  Without this, the proc-lookup-only path above
+    // surfaced ``unknown command: try`` for ``interp alias {} run
+    // {} try`` callers — string.test relied on this to alias ``run``
+    // onto ``try`` for its compiled / non-compiled variants.
     const target_bucket = procs.proc_lookup(new_words[0]);
-    if (target_bucket == 0) {
+    if (target_bucket != 0) {
+        const result = eval_proc_call_bucket(new_words[0..total], target_bucket);
         interp_reg.leave(save);
-        const catch_mod = @import("tcl_catch.zig");
-        catch_mod.error_unknown_command(new_words[0]);
-        return 0;
+        return result;
     }
-    const result = eval_proc_call_bucket(new_words[0..total], target_bucket);
+    const target_s = obj_ensure_string(new_words[0]);
+    if (target_s.len > 0) {
+        if (cmd_table.lookup(target_s.ptr, target_s.len)) |handler| {
+            const result = handler(new_words[0..total]);
+            interp_reg.leave(save);
+            return result;
+        }
+        // ``::cmd`` qualified — strip and retry, mirrors eval_command's
+        // builtin lookup branch.
+        if (target_s.len >= 2) {
+            const tp: [*]const u8 = @ptrFromInt(target_s.ptr);
+            if (tp[0] == ':' and tp[1] == ':') {
+                if (cmd_table.lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
+                    const result = handler(new_words[0..total]);
+                    interp_reg.leave(save);
+                    return result;
+                }
+            }
+        }
+    }
     interp_reg.leave(save);
-    return result;
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.error_unknown_command(new_words[0]);
+    return 0;
 }
 
 fn eval_proc_call(words: []const i32) i32 {
