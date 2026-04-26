@@ -45,9 +45,7 @@ OUTPUT = REPO / "tmp" / "perf-output"
 
 TIMEOUT_S = 15
 
-_SUMMARY_RE = re.compile(
-    r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)"
-)
+_SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)")
 
 
 def _parse_summary(text: str):
@@ -171,10 +169,7 @@ def main():
             f"{wasm.get('passed', 0)}P/{wasm.get('failed', 0)}F/"
             f"{wasm.get('skipped', 0)}S of {wasm.get('total', 0)}"
             if "total" in wasm
-            else (
-                "compile-FAIL" if wasm.get("compile_error")
-                else "run-FAIL"
-            )
+            else ("compile-FAIL" if wasm.get("compile_error") else "run-FAIL")
         )
         t_summary = (
             f"{tclsh.get('passed', 0)}P/{tclsh.get('failed', 0)}F/"
@@ -197,9 +192,7 @@ def main():
 
         # Flush incrementally so we don't lose the report if a later
         # file crashes Python.
-        (OUTPUT / "tcltest_results.json").write_text(
-            json.dumps(rows, indent=2, sort_keys=True)
-        )
+        (OUTPUT / "tcltest_results.json").write_text(json.dumps(rows, indent=2, sort_keys=True))
 
     print("\nWrote tcltest_results.json", file=sys.stderr)
 

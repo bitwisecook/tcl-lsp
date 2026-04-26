@@ -57,6 +57,7 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_unbox_int(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_prepare_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_args_list(self, *a: Any, **kw: Any) -> Any: ...
         def _intern_string(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
@@ -249,16 +250,33 @@ class _WasmEmitterStmtMixin(_Base):
                         cond, body = barrier_args[0], barrier_args[1]
                         script = (
                             "while "
-                            + ("{" + cond + "}" if not (cond.startswith("{") and cond.endswith("}")) else cond)
+                            + (
+                                "{" + cond + "}"
+                                if not (cond.startswith("{") and cond.endswith("}"))
+                                else cond
+                            )
                             + " "
-                            + ("{" + body + "}" if not (body.startswith("{") and body.endswith("}")) else body)
+                            + (
+                                "{" + body + "}"
+                                if not (body.startswith("{") and body.endswith("}"))
+                                else body
+                            )
                         )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
                     elif barrier_cmd == "for" and len(barrier_args) >= 4:
-                        init, cond, nxt, body = barrier_args[0], barrier_args[1], barrier_args[2], barrier_args[3]
+                        init, cond, nxt, body = (
+                            barrier_args[0],
+                            barrier_args[1],
+                            barrier_args[2],
+                            barrier_args[3],
+                        )
+
                         def _br(s):
                             return s if (s.startswith("{") and s.endswith("}")) else "{" + s + "}"
-                        script = "for " + _br(init) + " " + _br(cond) + " " + _br(nxt) + " " + _br(body)
+
+                        script = (
+                            "for " + _br(init) + " " + _br(cond) + " " + _br(nxt) + " " + _br(body)
+                        )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
                     else:
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
@@ -465,9 +483,7 @@ class _WasmEmitterStmtMixin(_Base):
         """
         if len(args) < 3:
             return False
-        return all(
-            not a.startswith("$") and not a.startswith("[") for a in args[:3]
-        )
+        return all(not a.startswith("$") and not a.startswith("[") for a in args[:3])
 
     def _emit_re_register_proc(self, name: str, params: str) -> None:
         """Emit ``tcl_proc_register_compiled`` for a previously-lifted proc.
@@ -492,6 +508,7 @@ class _WasmEmitterStmtMixin(_Base):
         # list (optional with default).  The trailing ``args`` formal
         # is variadic.
         from ....codegen._helpers import _split_list_simple
+
         try:
             param_list = _split_list_simple(params)
         except Exception:
@@ -621,21 +638,26 @@ class _WasmEmitterStmtMixin(_Base):
         # the eval fallback so the interpreter's ``proc`` handler
         # registers under the current namespace.
         if command_emits_nothing(command):
-            if command == "proc" and args and (
-                # Dynamic name (``proc $varName body``)
-                args[0].startswith("$") or args[0].startswith("[")
-                # OR dynamic body (``proc inner {} $body``).  Without
-                # this branch the prologue would register ``inner``
-                # with the literal ``${body}`` source text as the body
-                # — when invoked, eval_script then parses ``${body}``
-                # → one word → ``unknown command: return 7`` (or
-                # whatever ``$body`` substitutes to at the moment of
-                # the proc call).  Routing through the eval-fallback
-                # makes the interpreter perform the substitution
-                # before storing.
-                or (len(args) >= 3 and (args[2].startswith("$") or args[2].startswith("[")))
-                # OR dynamic params (rare but possible: ``proc f $params body``)
-                or (len(args) >= 2 and (args[1].startswith("$") or args[1].startswith("[")))
+            if (
+                command == "proc"
+                and args
+                and (
+                    # Dynamic name (``proc $varName body``)
+                    args[0].startswith("$")
+                    or args[0].startswith("[")
+                    # OR dynamic body (``proc inner {} $body``).  Without
+                    # this branch the prologue would register ``inner``
+                    # with the literal ``${body}`` source text as the body
+                    # — when invoked, eval_script then parses ``${body}``
+                    # → one word → ``unknown command: return 7`` (or
+                    # whatever ``$body`` substitutes to at the moment of
+                    # the proc call).  Routing through the eval-fallback
+                    # makes the interpreter perform the substitution
+                    # before storing.
+                    or (len(args) >= 3 and (args[2].startswith("$") or args[2].startswith("[")))
+                    # OR dynamic params (rare but possible: ``proc f $params body``)
+                    or (len(args) >= 2 and (args[1].startswith("$") or args[1].startswith("[")))
+                )
             ):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
@@ -648,9 +670,7 @@ class _WasmEmitterStmtMixin(_Base):
                 # Bridge drops the result since we're in statement context.
                 # If imports are missing the bridge returns False and we
                 # silently skip (statement context has no stack commitments).
-                self._emit_namespace_eval_bridge(
-                    args[2:], drop_result=True, ns_name=args[1]
-                )
+                self._emit_namespace_eval_bridge(args[2:], drop_result=True, ns_name=args[1])
                 return
             # ``namespace import`` / ``namespace export`` / ``namespace
             # forget`` — record the side effect at runtime so the
@@ -1029,9 +1049,7 @@ class _WasmEmitterStmtMixin(_Base):
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
             if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
-                if self._emit_namespace_eval_bridge(
-                    args[2:], drop_result=False, ns_name=args[1]
-                ):
+                if self._emit_namespace_eval_bridge(args[2:], drop_result=False, ns_name=args[1]):
                     return
                 # Runtime imports missing — push null TclObj as fallback.
                 self._emit_i32_const(0)

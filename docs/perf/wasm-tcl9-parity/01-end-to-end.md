@@ -57,5 +57,6 @@ real script work.
   sample 10 has undefined vars + `%2$s` format. These are
   correctness gaps, not perf signals.
 
-Detailed traps + stdout/stderr captures are in
-[`results.json`](results.json).
+Detailed traps + stdout/stderr captures are written by
+``scripts/perf_samples_compare.py`` to ``tmp/perf-output/results.json``
+when the harness runs.

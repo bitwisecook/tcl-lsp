@@ -18,7 +18,6 @@ The script writes ``results.json`` plus a Markdown report
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -139,9 +138,7 @@ def baseline_spawn_ns(iterations: int) -> float:
     samples = []
     for _ in range(iterations):
         t0 = time.perf_counter_ns()
-        subprocess.run(
-            [str(TCLSH)], input="", capture_output=True, text=True, timeout=10
-        )
+        subprocess.run([str(TCLSH)], input="", capture_output=True, text=True, timeout=10)
         samples.append(time.perf_counter_ns() - t0)
     samples.sort()
     return samples[len(samples) // 2]  # median
@@ -218,9 +215,7 @@ def collect():
             entry["compile_ok"] = True
         except BaseException as exc:
             entry["compile_ok"] = False
-            entry["compile_error"] = (
-                f"{type(exc).__name__}: {exc}\n" + traceback.format_exc()
-            )
+            entry["compile_error"] = f"{type(exc).__name__}: {exc}\n" + traceback.format_exc()
             print(f"  compile FAILED: {exc}", file=sys.stderr)
             results["samples"].append(entry)
             continue
@@ -237,9 +232,7 @@ def collect():
             continue
 
         # WASM runs.
-        wasm_samples, wasm_stdout, wasm_stderr, wasm_err = time_wasm(
-            wasm, ITERATIONS, WARMUP
-        )
+        wasm_samples, wasm_stdout, wasm_stderr, wasm_err = time_wasm(wasm, ITERATIONS, WARMUP)
         entry["wasm_stats"] = stats(wasm_samples)
         entry["wasm_stdout"] = wasm_stdout
         entry["wasm_stderr"] = wasm_stderr
@@ -264,17 +257,14 @@ def collect():
         entry["tclsh_timeout"] = tcl_timeout
         if entry["tclsh_stats"]:
             print(
-                f"  tclsh median: {entry['tclsh_stats']['median_ns'] / 1e6:.2f} ms"
-                f" (rc={tcl_rc})",
+                f"  tclsh median: {entry['tclsh_stats']['median_ns'] / 1e6:.2f} ms (rc={tcl_rc})",
                 file=sys.stderr,
             )
         elif tcl_timeout:
             print("  tclsh timed out", file=sys.stderr)
 
         # Output equality (post-strip-CRLF).
-        entry["stdout_match"] = (wasm_stdout or "").strip() == (
-            tcl_stdout or ""
-        ).strip()
+        entry["stdout_match"] = (wasm_stdout or "").strip() == (tcl_stdout or "").strip()
 
         results["samples"].append(entry)
 

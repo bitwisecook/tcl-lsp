@@ -37,7 +37,10 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
         at_top_level = not emitter._is_proc
         use_var_path = (
             at_top_level
-            or var in emitter._aliases or array_base_aliased or array_ref is not None or in_ns_block
+            or var in emitter._aliases
+            or array_base_aliased
+            or array_ref is not None
+            or in_ns_block
         )
         if use_var_path:
             if len(args) >= 2:

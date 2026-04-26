@@ -99,6 +99,7 @@ def _hook_regexp(emitter, args, defs, context):
         emitter._emit_eval_fallback("regexp", args)
         if context is EmitContext.STATEMENT:
             from ..._ir import WasmOp
+
             emitter._emit(WasmOp.DROP)
         return True
     emitter._emit_cmd_runtime("regexp", args, defs, context)
@@ -112,6 +113,7 @@ def _hook_regsub(emitter, args, defs, context):
         emitter._emit_eval_fallback("regsub", args)
         if context is EmitContext.STATEMENT:
             from ..._ir import WasmOp
+
             emitter._emit(WasmOp.DROP)
         return True
     emitter._emit_cmd_runtime("regsub", args, defs, context)

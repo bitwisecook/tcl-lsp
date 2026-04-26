@@ -43,8 +43,14 @@ def classify(w: dict) -> str:
 
 # Status hierarchy: higher rank = better outcome.
 RANK = {
-    "pass": 6, "partial": 5, "no-summary": 4, "no-pass": 3,
-    "run-trap": 2, "compile-fail": 1, "missing": 0, "unknown": 0,
+    "pass": 6,
+    "partial": 5,
+    "no-summary": 4,
+    "no-pass": 3,
+    "run-trap": 2,
+    "compile-fail": 1,
+    "missing": 0,
+    "unknown": 0,
 }
 
 

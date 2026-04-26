@@ -46,6 +46,7 @@ class _WasmEmitterExprMixin(_Base):
         def _emit_box_int(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_obj_literal(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_args_list(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_prepare_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
@@ -478,6 +479,7 @@ class _WasmEmitterExprMixin(_Base):
             min_positional = 2 if cmd_name == "regexp" else 3
             if uses_options or n_pos > min_positional:
                 from .cmds.regexp_ import _capture_vars_for as _cap_vars
+
                 for vname in _cap_vars(cmd_name, tuple(cmd_args)):
                     self._intern_local(vname)
                 self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
@@ -496,7 +498,12 @@ class _WasmEmitterExprMixin(_Base):
                     # outer braces from braced args first so we don't
                     # double-brace inside ``_emit_args_list``.
                     def _strip_braces(s: str) -> str:
-                        return s[1:-1] if (len(s) >= 2 and s.startswith("{") and s.endswith("}")) else s
+                        return (
+                            s[1:-1]
+                            if (len(s) >= 2 and s.startswith("{") and s.endswith("}"))
+                            else s
+                        )
+
                     self._emit_value(cmd_args[0] if cmd_args else "")
                     self._emit_args_list(tuple(_strip_braces(a) for a in cmd_args[1:]))
                 else:

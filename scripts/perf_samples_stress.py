@@ -41,9 +41,7 @@ def _compile_wasm(src: str, fname: str) -> bytes:
 def _run_wasm(wasm: bytes, preopen_dir: str):
     from tests.test_wasm_real_tcl import _run_wasm
 
-    return _run_wasm(
-        wasm, capture_stdout=True, capture_stderr=True, preopen_tmpdir=preopen_dir
-    )
+    return _run_wasm(wasm, capture_stdout=True, capture_stderr=True, preopen_tmpdir=preopen_dir)
 
 
 def _wrap(body: str, n: int, drop_puts: bool = True) -> str:
@@ -172,9 +170,7 @@ def main():
             continue
 
         wasm_samples, wasm_stdout, wasm_err = time_wasm(wasm, WASM_ITERS, WASM_WARM)
-        tcl_samples, tcl_stdout, tcl_err, tcl_rc = time_tclsh(
-            stress_path, TCLSH_ITERS, TCLSH_WARM
-        )
+        tcl_samples, tcl_stdout, tcl_err, tcl_rc = time_tclsh(stress_path, TCLSH_ITERS, TCLSH_WARM)
 
         wasm_med = median(wasm_samples)
         tcl_med = median(tcl_samples)

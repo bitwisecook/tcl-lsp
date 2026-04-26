@@ -111,6 +111,7 @@ from . import (
     subst_,  # noqa: F401
     switch_,  # noqa: F401
     tailcall,  # noqa: F401
+    tcl_build_info,  # noqa: F401
     tell,  # noqa: F401
     throw,  # noqa: F401
     time,  # noqa: F401

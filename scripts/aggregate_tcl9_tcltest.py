@@ -56,9 +56,7 @@ def per_file_table():
         wr_ms = w.get("run_ns", 0) / 1e6
         tr_ms = t.get("run_ns", 0) / 1e6
         if "total" in w:
-            wasm_summary = (
-                f"{w.get('passed', 0)}/{w.get('failed', 0)}/{w.get('skipped', 0)} of {w.get('total', 0)}"
-            )
+            wasm_summary = f"{w.get('passed', 0)}/{w.get('failed', 0)}/{w.get('skipped', 0)} of {w.get('total', 0)}"
         elif w.get("compile_error"):
             wasm_summary = "COMPILE-FAIL"
         elif w.get("run_error"):
@@ -66,9 +64,7 @@ def per_file_table():
         else:
             wasm_summary = "no-summary"
         if "total" in t:
-            tcl_summary = (
-                f"{t.get('passed', 0)}/{t.get('failed', 0)}/{t.get('skipped', 0)} of {t.get('total', 0)}"
-            )
+            tcl_summary = f"{t.get('passed', 0)}/{t.get('failed', 0)}/{t.get('skipped', 0)} of {t.get('total', 0)}"
         elif t.get("timed_out"):
             tcl_summary = "TIMEOUT"
         else:
@@ -153,8 +149,12 @@ def per_subsystem_table():
         for k, v in b.items():
             if isinstance(v, (int, float)):
                 tot[k] += v
-    twpct = (tot["wasm_total_passed"] / tot["tcl_total_total"] * 100) if tot["tcl_total_total"] else 0
-    ttpct = (tot["tcl_total_passed"] / tot["tcl_total_total"] * 100) if tot["tcl_total_total"] else 0
+    twpct = (
+        (tot["wasm_total_passed"] / tot["tcl_total_total"] * 100) if tot["tcl_total_total"] else 0
+    )
+    ttpct = (
+        (tot["tcl_total_passed"] / tot["tcl_total_total"] * 100) if tot["tcl_total_total"] else 0
+    )
     ratio = tot["wasm_run_ms"] / tot["tcl_run_ms"] if tot["tcl_run_ms"] else 0
     print(
         f"| **TOTAL** | {tot['files']} | {tot['wasm_pass_files']} | {tot['wasm_partial_files']} | "

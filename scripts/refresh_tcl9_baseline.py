@@ -54,20 +54,20 @@ def main() -> None:
     for r in rows_in:
         w = r.get("wasm", {})
         t = r.get("tclsh", {})
-        rows_out.append({
-            "stem": r["stem"],
-            "subsystem": r["subsystem"],
-            "tcl_passed": t.get("passed", 0),
-            "tcl_total": t.get("total", 0),
-            "wasm_failed": w.get("failed", 0),
-            "wasm_passed": w.get("passed", 0),
-            "wasm_status": classify(w),
-            "wasm_total": w.get("total", 0),
-        })
+        rows_out.append(
+            {
+                "stem": r["stem"],
+                "subsystem": r["subsystem"],
+                "tcl_passed": t.get("passed", 0),
+                "tcl_total": t.get("total", 0),
+                "wasm_failed": w.get("failed", 0),
+                "wasm_passed": w.get("passed", 0),
+                "wasm_status": classify(w),
+                "wasm_total": w.get("total", 0),
+            }
+        )
     rows_out.sort(key=lambda r: (r["subsystem"], r["stem"]))
-    BASELINE.write_text(
-        json.dumps({"rows": rows_out}, indent=2, sort_keys=True) + "\n"
-    )
+    BASELINE.write_text(json.dumps({"rows": rows_out}, indent=2, sort_keys=True) + "\n")
     print(f"wrote {len(rows_out)} rows to {BASELINE.relative_to(REPO)}")
 
 

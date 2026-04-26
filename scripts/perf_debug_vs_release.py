@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import statistics
 import sys
 import tempfile
 import time
@@ -15,8 +14,8 @@ sys.path.insert(0, str(REPO))
 
 import wasmtime  # noqa: E402
 
-from core.compiler.codegen.wasm import wasm_codegen_module  # noqa: E402
 from core.compiler.cfg import build_cfg  # noqa: E402
+from core.compiler.codegen.wasm import wasm_codegen_module  # noqa: E402
 from core.compiler.lowering import lower_to_ir  # noqa: E402
 
 OUTPUT = REPO / "tmp" / "perf-output"
@@ -24,16 +23,13 @@ RELEASE_RT = REPO / "runtime" / "zig" / "zig-out" / "bin" / "tcl_runtime.wasm"
 DEBUG_RT = OUTPUT / "tcl_runtime_debug.wasm"
 
 WORKLOADS = {
-    "set+incr (50k)": (
-        "set x 0\nfor {set i 0} {$i < 50000} {incr i} { incr x }\n"
-    ),
+    "set+incr (50k)": ("set x 0\nfor {set i 0} {$i < 50000} {incr i} { incr x }\n"),
     "if/else (20k)": (
         "set t 0\nfor {set i 0} {$i < 20000} {incr i} { "
         "if {$i > 0} { incr t } else { incr t -1 } }\n"
     ),
     "proc call no-args (20k)": (
-        "proc f {} { return 42 }\n"
-        "for {set i 0} {$i < 20000} {incr i} { f }\n"
+        "proc f {} { return 42 }\nfor {set i 0} {$i < 20000} {incr i} { f }\n"
     ),
 }
 
@@ -64,11 +60,11 @@ def _run_with_runtime(rt_path: Path, wasm: bytes) -> float:
         def _ccp(name_ptr, name_len, argv_ptr, argc):
             raise RuntimeError("no compiled-proc dispatch in this bench")
 
-        ftype = wasmtime.FuncType(
-            [wasmtime.ValType.i32()] * 4, [wasmtime.ValType.i32()]
-        )
+        ftype = wasmtime.FuncType([wasmtime.ValType.i32()] * 4, [wasmtime.ValType.i32()])
         linker.define(
-            store, "env", "call_compiled_proc",
+            store,
+            "env",
+            "call_compiled_proc",
             wasmtime.Func(store, ftype, _ccp),
         )
 
@@ -117,9 +113,7 @@ def main():
                 f"runtime={rt.stat().st_size / 1024 / 1024:.1f} MB",
                 file=sys.stderr,
             )
-    (OUTPUT / "debug_vs_release.json").write_text(
-        json.dumps(out, indent=2, sort_keys=True)
-    )
+    (OUTPUT / "debug_vs_release.json").write_text(json.dumps(out, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
