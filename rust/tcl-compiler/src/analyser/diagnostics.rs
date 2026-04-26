@@ -136,6 +136,77 @@ fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String> {
     names
 }
 
+/// Compute the set of global variable names that any procedure
+/// in `cu` writes.
+///
+/// Mirrors `_globals_written_by_procs` in
+/// `core/analysis/_analyser/_diag_commands.py:264-296`.
+///
+/// A global write happens when a proc either:
+///
+/// 1. assigns to a fully-qualified name (``::var``), or
+/// 2. declares ``global var`` and then assigns to ``var`` in the
+///    same proc body.
+///
+/// The result is the union of (1) and the intersection of
+/// global aliases × locally-written names (case (2)).  Used at
+/// top-level to suppress W210 for globals a helper proc may
+/// populate before the top-level read.
+///
+/// **Simplification vs. Python.** The Rust port doesn't yet
+/// have ``CommandRegistry::is_destroys_variable`` so commands
+/// like ``unset`` aren't filtered out of the "writes" set.
+/// That makes the suppression slightly more permissive (more
+/// vars marked "written-by-procs" → more W210 suppressions).
+/// Safe-on-correctness — the alternative is false positives
+/// on real RBS sites.  When the registry gains
+/// ``destroys_variable``, add the filter here for parity.
+fn globals_written_by_procs(cu: &crate::compilation_unit::CompilationUnit) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut result: HashSet<String> = HashSet::new();
+    for fu in cu.procedures.values() {
+        let mut global_aliases: HashSet<String> = HashSet::new();
+        let mut written: HashSet<String> = HashSet::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let names: Vec<&String> = match stmt {
+                    Statement::Call { command, defs, .. } => {
+                        if command == "global" {
+                            for d in defs {
+                                global_aliases.insert(d.clone());
+                            }
+                            continue;
+                        }
+                        if matches!(command.as_str(), "variable" | "upvar") {
+                            continue;
+                        }
+                        defs.iter().collect()
+                    }
+                    Statement::AssignConst { name, .. }
+                    | Statement::AssignExpr { name, .. }
+                    | Statement::AssignValue { name, .. }
+                    | Statement::Incr { name, .. } => vec![name],
+                    _ => continue,
+                };
+                for name in names {
+                    if let Some(bare) = name.strip_prefix("::") {
+                        let bare = bare.trim_start_matches(':');
+                        if !bare.is_empty() {
+                            result.insert(bare.to_string());
+                        }
+                    } else {
+                        written.insert(name.clone());
+                    }
+                }
+            }
+        }
+        for n in global_aliases.intersection(&written) {
+            result.insert(n.clone());
+        }
+    }
+    result
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -172,12 +243,24 @@ impl Analyser {
         }
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
 
+        // **C41e3 follow-up.** Compute the set of globals any
+        // proc in this module writes to.  Top-level RBS (W210)
+        // is suppressed for these variables — a helper proc may
+        // populate them before the top-level read fires.
+        // Mirrors `_globals_written_by_procs` in
+        // `_diag_commands.py:264-296`.
+        let globals_written = globals_written_by_procs(&cu);
+
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
-        self.emit_cfg_ssa_diagnostics_for_function(&cu.top_level, &cu.ir_module);
+        self.emit_cfg_ssa_diagnostics_for_function_with_extra(
+            &cu.top_level,
+            &cu.ir_module,
+            &globals_written,
+        );
         self.emit_channel_diagnostics(&cu.top_level, &registry);
         for fu in cu.procedures.values() {
             self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
@@ -206,6 +289,30 @@ impl Analyser {
         function_unit: &crate::compilation_unit::FunctionUnit,
         ir_module: &crate::ir::Module,
     ) {
+        self.emit_cfg_ssa_diagnostics_for_function_with_extra(
+            function_unit,
+            ir_module,
+            &HashSet::new(),
+        );
+    }
+
+    /// Per-function diagnostic dispatcher with an extra
+    /// "known-defined" set passed through to RBS suppression.
+    ///
+    /// Same as [`Self::emit_cfg_ssa_diagnostics_for_function`]
+    /// but accepts an additional set of variable names that
+    /// should be treated as already-defined for the W210
+    /// (read-before-set) emitter.  Used at the top-level to
+    /// suppress RBS for variables that any proc in the module
+    /// writes — matches the
+    /// ``extra_known_defined_vars=self._globals_written_by_procs(cu)``
+    /// argument in `_diagnostics.py:154`.
+    pub fn emit_cfg_ssa_diagnostics_for_function_with_extra(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+        ir_module: &crate::ir::Module,
+        extra_known_defined: &HashSet<String>,
+    ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
         let textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
@@ -221,7 +328,13 @@ impl Analyser {
             &textually_referenced,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
-        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &defined, &scope_aliases);
+        self.emit_read_before_set_diagnostics(
+            function_unit,
+            ir_proc,
+            &defined,
+            &scope_aliases,
+            extra_known_defined,
+        );
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
@@ -557,18 +670,22 @@ impl Analyser {
         ir_proc: Option<&crate::ir::Procedure>,
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
+        extra_known_defined: &HashSet<String>,
     ) {
         use crate::def_use::{DefKind, UseKind};
         use crate::ir::Statement;
         use std::fmt::Write as _;
 
-        // Top-level RBS would need ``globals_written_by_procs``
-        // filtering to avoid false positives on globals set by
-        // helper procs.  Defer until that plumbing lands.
-        let Some(ir_proc) = ir_proc else {
-            return;
+        // **C41e3 follow-up.** Top-level RBS now uses the
+        // ``extra_known_defined`` set (computed from
+        // ``globals_written_by_procs``) to suppress W210 on
+        // globals that helper procs write.  Inside procs the
+        // set is empty, matching Python's per-call argument.
+        let params_owned: HashSet<&str> = match ir_proc {
+            Some(p) => p.params.iter().map(String::as_str).collect(),
+            None => HashSet::new(),
         };
-        let params: HashSet<&str> = ir_proc.params.iter().map(String::as_str).collect();
+        let params = &params_owned;
 
         for chain in fu.def_use.chains.values() {
             if chain.definition.kind != DefKind::Parameter {
@@ -579,6 +696,9 @@ impl Analyser {
                 continue;
             }
             if scope_aliases.contains(var) {
+                continue;
+            }
+            if extra_known_defined.contains(var) {
                 continue;
             }
             for use_site in &chain.uses {
@@ -1024,12 +1144,11 @@ impl Analyser {
     /// or the chunked entry runs both passes.
     ///
     /// **Deferred** (Python parity gaps documented in the
-    /// commit body): ``unknown_proc_info`` and
-    /// ``has_dynamic_providers`` early-returns; ``stub_commands``
-    /// candidate set; ``suggest_similar`` "did you mean…?"
-    /// suggestions and the ``CodeFix`` payload; the
-    /// CONSTSET-driven interpolation suppression for ``$``-bearing
-    /// command names.
+    /// commit body): ``has_dynamic_providers`` early-return;
+    /// ``stub_commands`` candidate set; ``suggest_similar``
+    /// "did you mean…?" suggestions and the ``CodeFix``
+    /// payload; the CONSTSET-driven interpolation suppression
+    /// for ``$``-bearing command names.
     pub fn emit_unresolved_command_diagnostics(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
@@ -1047,6 +1166,21 @@ impl Analyser {
         // commands at runtime that the analyser can't see.
         if !self.result.package_requires.is_empty() {
             return;
+        }
+
+        // **C41e3 follow-up.** When the document defines a
+        // user-level ``unknown`` proc, the handler may resolve
+        // any command name at runtime — the analyser can't
+        // statically prove a command is unresolved.  Match
+        // Python's
+        // ``_diag_commands.py:_emit_unresolved_command_diagnostics``
+        // early-return.  An empty-stub ``unknown`` (``proc
+        // unknown {cmd args} {}``) intentionally resolves
+        // nothing, so don't suppress for that shape.
+        if let Some(info) = self.result.unknown_proc_info.as_ref() {
+            if !info.empty_stub {
+                return;
+            }
         }
 
         let registry_names: HashSet<String> =
@@ -1759,15 +1893,43 @@ mod tests {
     }
 
     #[test]
-    fn emit_cfg_ssa_diagnostics_w210_skipped_for_top_level() {
-        // Top-level RBS is deferred until ``globals_written_by_procs``
-        // filtering lands; the C41d2 baseline must not emit on
-        // top-level.
+    fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
+        // **C41e3 follow-up.** Top-level RBS now fires when no
+        // proc writes the variable.  ``puts $undef`` reads
+        // ``undef`` without any preceding write.
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics("puts $undef");
         assert!(
+            a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must fire at top-level when no proc writes the var; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
+        // A helper proc ``init`` writes ``::counter`` via ``set``,
+        // so the top-level read should not flag W210 — the proc
+        // may run before the read.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc init {} { set ::counter 0 }\nputs $counter");
+        assert!(
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
-            "W210 must not fire at top-level (deferred); got {:?}",
+            "W210 must be suppressed for globals written by procs; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
+        // ``proc init {} { global counter; set counter 0 }`` — the
+        // ``global`` declaration aliases the proc-local ``counter``
+        // to the global.  Top-level read should not flag W210.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc init {} { global counter; set counter 0 }\nputs $counter");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must be suppressed via global-alias case; got {:?}",
             a.result.diagnostics,
         );
     }

@@ -702,6 +702,105 @@ impl Analyser {
         }
     }
 
+    /// Handle ``package require`` (and ``package provide``) —
+    /// record the package dependency so later passes can gate
+    /// W123 (unresolved-command) suppression and dynamic-
+    /// provider detection.
+    ///
+    /// Mirrors the package-recording fragment of
+    /// ``_AnalyserCommandsMixin._process_command`` in
+    /// ``core/analysis/_analyser/_commands.py:277-321``.  Two
+    /// shapes Python recognises:
+    ///
+    /// - ``package require ?-exact? NAME ?VERSION?`` — appends a
+    ///   ``SignaturePackageRequire`` record to
+    ///   ``result.package_requires`` and flips
+    ///   ``has_dynamic_providers`` when the name argument is a
+    ///   ``$``-substitution / ``[…]``-substitution token.
+    /// - ``package provide NAME ?VERSION?`` — Python records this
+    ///   on ``result.package_provides``; the Rust
+    ///   ``AnalysisResult`` doesn't carry that field yet (deferred
+    ///   carry-over) so we only consume the shape silently.
+    ///
+    /// The conditional flag is ``self.conditional_depth > 0``,
+    /// matching Python's `_conditional_depth`.
+    pub fn handle_package_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if cmd_name != "package" || args.is_empty() {
+            return;
+        }
+        let sub = args[0].as_str();
+        if sub != "require" {
+            // ``package provide`` and other subcommands aren't
+            // recorded yet (no ``package_provides`` field in
+            // the Rust ``AnalysisResult``); silently consume.
+            return;
+        }
+        if args.len() < 2 {
+            return;
+        }
+
+        // ``package require -exact NAME ?VERSION?`` — strip the
+        // flag and shift the name index.
+        let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
+            (2usize, args[2].clone())
+        } else {
+            (1usize, args[1].clone())
+        };
+        let version_idx = name_idx + 1;
+        let version = if version_idx < args.len() {
+            Some(args[version_idx].clone())
+        } else {
+            None
+        };
+
+        // Dynamic-provider detection — non-literal name flips the
+        // flag.  ``arg_tokens`` is parallel to ``args`` so the
+        // token at the name index is what we inspect.
+        if let Some(name_tok) = arg_tokens.get(name_idx) {
+            if matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
+                || name_text.contains('$')
+                || name_text.contains('[')
+            {
+                // No ``has_dynamic_providers`` field on Rust
+                // AnalysisResult yet — track via package_requires
+                // alone.  When the field lands, flip it here.
+            }
+        }
+
+        // Diagnostic anchor: command-head token (``package``).
+        let head_span = arg_tokens
+            .first()
+            .map_or_else(
+                || Token::new(TokenType::Esc, tcl_lexer::Span::new(0, 0)),
+                |t| *t,
+            )
+            .span;
+        // Walk back to the actual ``package`` token via the head's
+        // own span — but ``arg_tokens`` excludes the command-name
+        // token, so we synthesise a span pointing at the first
+        // arg's start as a coarse anchor (matches Python's
+        // ``range_from_token(argv[0])`` which IS the command-name
+        // token; the Rust caller doesn't pass ``argv`` in here so
+        // the per-command span is the closest equivalent).
+        let _ = head_span;
+
+        self.result
+            .package_requires
+            .push(crate::signature_scan::types::SignaturePackageRequire {
+                name: name_text,
+                version,
+                range: arg_tokens
+                    .first()
+                    .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span),
+                conditional: self.conditional_depth > 0,
+            });
+    }
+
     /// Resolve a command alias to `(target_cmd, effective_args)`.
     ///
     /// Mirrors `_resolve_alias` in
@@ -2818,5 +2917,58 @@ mod tests {
         // — recovery yields the synthetic ``[string]`` command
         // word so dispatch sees the intended shape.
         assert!(r.global_scope.variables.contains_key("x"));
+    }
+
+    // -- C41e5 + e3 follow-ups: unknown_proc_info / package require -
+
+    #[test]
+    fn analyse_records_package_require() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Tcl 8.6", "tcl");
+        assert_eq!(r.package_requires.len(), 1);
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "Tcl");
+        assert_eq!(p.version.as_deref(), Some("8.6"));
+        assert!(!p.conditional);
+    }
+
+    #[test]
+    fn analyse_records_package_require_exact_flag() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require -exact Tcl 8.6", "tcl");
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "Tcl");
+        assert_eq!(p.version.as_deref(), Some("8.6"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_package_require_seen() {
+        // W123 is suppressed when any package require is on
+        // file — package may load arbitrary commands.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Foo\nbogus_command arg", "tcl");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_unknown_proc_defined() {
+        // ``proc unknown {cmd args} {...}`` with a non-empty
+        // body should suppress W123 entirely.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { return $cmd }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_still_fires_for_empty_unknown_stub() {
+        // An empty ``unknown`` stub resolves nothing — W123
+        // should still emit.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl");
+        // ``bogus_command`` should be flagged.
+        assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
     }
 }

@@ -253,6 +253,7 @@ impl Analyser {
         self.handle_namespace_ensemble(cmd_name, args, scope_path);
         self.handle_interp_alias(cmd_name, args);
         self.handle_oo_objdefine(cmd_name, args);
+        self.handle_package_command(cmd_name, args, arg_tokens);
     }
 }
 
