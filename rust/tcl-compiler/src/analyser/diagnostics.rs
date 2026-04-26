@@ -207,6 +207,25 @@ fn globals_written_by_procs(cu: &crate::compilation_unit::CompilationUnit) -> Ha
     result
 }
 
+/// External OO base classes that aren't in the per-document
+/// ``ClassDef`` index but are recognised as legitimate
+/// superclasses for W308 / W308-related gates.
+const OO_BASE: [&str; 2] = ["oo::object", "oo::class"];
+
+/// Extract the first single-quoted word from a diagnostic
+/// message string, or `None` if the message has no quoted run.
+///
+/// Used by [`Analyser::resolve_interpolated_w123_diagnostics`]
+/// to recover the command name from a "Unknown command 'NAME'"
+/// W123 message.  Mirrors the Python equivalent in
+/// `_diag_commands.py:233-237`.
+fn extract_quoted_word(message: &str) -> Option<String> {
+    let start = message.find('\'')?;
+    let rest = &message[start + 1..];
+    let end = rest.find('\'')?;
+    Some(rest[..end].to_string())
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -286,6 +305,14 @@ impl Analyser {
         // ``_emit_var_command_diagnostics`` in
         // ``_diag_var_command.py``.
         self.emit_var_command_diagnostics(&cu, &registry);
+
+        // **C41 follow-up.** Suppress W123 for command-name
+        // heads with partial interpolations like ``foo$suffix``
+        // when ``$suffix`` resolves cleanly to a finite set of
+        // known commands via SCCP.  Mirrors
+        // ``_resolve_interpolated_commands`` in
+        // ``_diag_commands.py:188-260``.
+        self.resolve_interpolated_w123_diagnostics(&cu);
     }
 
     /// Per-function diagnostic dispatcher.
@@ -1371,7 +1398,7 @@ impl Analyser {
         use crate::types::TypeKind;
         use std::collections::HashMap;
 
-        if self.var_command_sites.is_empty() {
+        if self.var_command_sites.is_empty() && self.cmd_command_sites.is_empty() {
             return;
         }
         // Aggregate type-lattice knowledge per variable name
@@ -1587,6 +1614,280 @@ impl Analyser {
         // Restore the sites list — snapshot/restore expects it
         // to round-trip independently of emission.
         self.var_command_sites = sites;
+
+        // **C41 follow-up.** ``[cmd] method`` sites — emit
+        // W307 only when the inner command's return type is
+        // unknown AND the call isn't an OO self-dispatch
+        // (``my`` / ``self``).  When the return type is a
+        // known class, validate the method against the
+        // hierarchy and emit W308 instead of W307.  This
+        // mirrors the cmd_command_sites branch of
+        // ``_emit_var_command_diagnostics`` in
+        // ``_diag_var_command.py:296-375``.
+        let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
+        for site in &cmd_sites {
+            if site.in_method {
+                continue;
+            }
+            // Parse the command-substitution text into
+            // ``head ?args...``.  ``cmd_text`` is what the
+            // analyser captured from
+            // ``SourceMap::token_text``; the leading ``[`` /
+            // trailing ``]`` are stripped already because
+            // ``content_offset`` skipped them.
+            let inner = site.cmd_text.trim();
+            let inner = inner
+                .strip_prefix('[')
+                .map_or(inner, str::trim)
+                .strip_suffix(']')
+                .map_or(inner, str::trim);
+            let mut parts = inner.split_whitespace();
+            let Some(head) = parts.next() else {
+                continue;
+            };
+            let arg_strs: Vec<&str> = parts.collect();
+
+            // OO self-dispatch ⇒ suppress W307.
+            let is_oo_self_dispatch = matches!(head, "my" | "self");
+            if is_oo_self_dispatch {
+                continue;
+            }
+
+            // Look up the return type via the registry.  When
+            // the head is a user proc / class, fall back to
+            // ``Overdefined`` (matches the registry behaviour
+            // for unknown commands).
+            let ret_type = crate::type_infer::return_type_for_command(registry, head, &arg_strs);
+
+            // ``Object`` return type — suppress W307; if the
+            // class is known, validate the method (W308).
+            let is_object = ret_type.kind == crate::types::TypeKind::Known
+                && matches!(ret_type.tcl_type, Some(tcl_registry::TclType::Object));
+            if is_object {
+                if !self.disabled_diagnostics.contains("W308") {
+                    if let (Some(method), Some(class_name)) =
+                        (site.method_name.as_ref(), ret_type.class_name.as_ref())
+                    {
+                        let cls_qn = self.canonicalise_class_name(class_name);
+                        let cd = self.result.all_classes.get(&cls_qn).cloned();
+                        let method_ok = self.validate_method_on_class(
+                            &cls_qn,
+                            method,
+                            cd.as_ref(),
+                            hierarchy.as_ref(),
+                        );
+                        if !method_ok {
+                            self.result.diagnostics.push(super::types::Diagnostic {
+                                code: "W308".to_string(),
+                                span: site.cmd_span,
+                                message: format!(
+                                    "Unknown method '{method}' on class '{class_name}'"
+                                ),
+                                severity: Severity::Warning,
+                                fixes: Vec::new(),
+                            });
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // Type is unknown — emit W307 (matching Python's
+            // emit-then-suppress shape, but only the emit-half
+            // for the residual unknown-type case).
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W307".to_string(),
+                span: site.cmd_span,
+                message: "Non-literal command name — cannot statically analyze".to_string(),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+        self.cmd_command_sites = cmd_sites;
+    }
+
+    /// Resolve a possibly-bare class name to its fully-qualified
+    /// form keyed in `result.all_classes`.
+    fn canonicalise_class_name(&self, name: &str) -> String {
+        if name.starts_with("::") {
+            return name.to_string();
+        }
+        let qualified = format!("::{name}");
+        if self.result.all_classes.contains_key(&qualified) {
+            qualified
+        } else {
+            name.to_string()
+        }
+    }
+
+    /// Decide whether `method` is callable on `class_name`,
+    /// consulting the class hierarchy + the class's local
+    /// method tables.
+    ///
+    /// Mirrors the W308 method-resolution gate in
+    /// ``_diag_var_command.py:341-361``.  A method is OK when
+    /// the class's MRO produces a concrete provider, or the
+    /// class is external (no local `ClassDef`), or the method
+    /// is one of the OO standard hooks (``new`` / ``create`` /
+    /// ``destroy`` / ``configure`` / ``cget``), or the class
+    /// declares an ``unknown`` method, or the class extends an
+    /// external superclass we can't introspect.
+    fn validate_method_on_class(
+        &self,
+        class_name: &str,
+        method: &str,
+        cd: Option<&super::types::ClassDef>,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> bool {
+        if hierarchy.is_some_and(|h| h.method_target(class_name, method).is_some()) {
+            return true;
+        }
+        let Some(cd) = cd else {
+            // External class — can't validate.
+            return true;
+        };
+        if cd.methods.contains_key(method) || cd.class_methods.contains_key(method) {
+            return true;
+        }
+        if matches!(method, "new" | "create" | "destroy" | "configure" | "cget") {
+            return true;
+        }
+        if cd.methods.contains_key("unknown") {
+            return true;
+        }
+        if hierarchy.is_some_and(|h| h.method_target(class_name, "unknown").is_some()) {
+            return true;
+        }
+        // External superclass ⇒ skip W308.
+        if !cd.superclasses.is_empty() {
+            for s in &cd.superclasses {
+                if !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Suppress W123 diagnostics whose command-name contains a
+    /// `$` interpolation that resolves cleanly via SCCP.
+    ///
+    /// Mirrors `_resolve_interpolated_commands` in
+    /// `core/analysis/_analyser/_diag_commands.py:188-260`.
+    /// Walks every emitted W123, extracts the command name
+    /// from the message, and runs
+    /// [`crate::text::fold_interpolation_set`] over the
+    /// aggregated SCCP results.  When every resolved value is
+    /// a known command, proc, class, or class-tail name, the
+    /// W123 is removed.
+    ///
+    /// **Simplification vs. Python.**  Python builds a
+    /// per-function SCCP map and uses range-based lookup so
+    /// each W123 site sees only the variables in its enclosing
+    /// function's scope.  The Rust port uses the union of
+    /// every function's SCCP — slightly more permissive
+    /// (over-suppresses if a same-named variable in a
+    /// different function happens to resolve cleanly) but
+    /// safe in practice.  Range-based lookup can land later
+    /// when the parity gap surfaces.
+    fn resolve_interpolated_w123_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+    ) {
+        use crate::analyses::{ConstValue, LatticeValue};
+        use std::collections::HashMap;
+
+        // Bail early when no W123 carries a ``$`` — the common
+        // case for non-iRules code.
+        let has_interpolated = self
+            .result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W123" && d.message.contains('$'));
+        if !has_interpolated {
+            return;
+        }
+
+        // Aggregate SCCP-resolved string sets per variable name
+        // across every function in the CU.  Same shape as
+        // ``emit_var_command_diagnostics``.
+        let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
+        let collect_from = |sccp: &crate::sccp::SccpResult,
+                            out: &mut HashMap<String, HashSet<String>>| {
+            for ((var_name, _ver), lv) in &sccp.values {
+                let values: Option<Vec<String>> = match lv {
+                    LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
+                    LatticeValue::ConstSet(set) => set
+                        .iter()
+                        .map(|cv| match cv {
+                            ConstValue::String(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>(),
+                    _ => None,
+                };
+                let Some(values) = values else { continue };
+                let entry = out.entry(var_name.clone()).or_default();
+                for v in values {
+                    entry.insert(v);
+                }
+            }
+        };
+        collect_from(&cu.top_level.sccp, &mut all_constsets);
+        for fu in cu.procedures.values() {
+            collect_from(&fu.sccp, &mut all_constsets);
+        }
+
+        // Build the universe of names that count as "known
+        // commands" for the resolution check.  Same set the
+        // emitter used to skip suggestions in the first pass.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
+        let known_proc_tails: HashSet<String> = self
+            .result
+            .all_procs
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        // Walk W123 diagnostics and remove those whose
+        // interpolated command name resolves cleanly.
+        let drained = std::mem::take(&mut self.result.diagnostics);
+        let mut kept: Vec<super::types::Diagnostic> = Vec::with_capacity(drained.len());
+        for d in drained {
+            if d.code != "W123" {
+                kept.push(d);
+                continue;
+            }
+            let Some(cmd_name) = extract_quoted_word(&d.message) else {
+                kept.push(d);
+                continue;
+            };
+            if !cmd_name.contains('$') {
+                kept.push(d);
+                continue;
+            }
+            let Some(resolved) = crate::text::fold_interpolation_set(&cmd_name, &all_constsets)
+            else {
+                kept.push(d);
+                continue;
+            };
+            // All resolved candidates must be known commands.
+            let all_known = resolved.iter().all(|name| {
+                known_cmds.contains(name)
+                    || known_proc_tails.contains(name)
+                    || self.result.all_procs.contains_key(&format!("::{name}"))
+                    || self.result.all_procs.contains_key(name)
+            });
+            if all_known {
+                // Suppress this W123 — the interpolated head
+                // statically resolves to a known command set.
+                continue;
+            }
+            kept.push(d);
+        }
+        self.result.diagnostics = kept;
     }
 
     /// Drop exact-duplicate diagnostics + line-based suppression
@@ -2062,6 +2363,70 @@ mod tests {
             !a.result.diagnostics.iter().any(|d| d.code == "W210"),
             "W210 must be suppressed via global-alias case; got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type() {
+        // ``[bogus_cmd] foo`` — the inner command isn't in the
+        // registry, so the return type is unknown.  W307 should
+        // fire for the cmd-as-command site.
+        let src = "[bogus_cmd] foo";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 expected for [unknown] method pattern; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_for_my_self_dispatch() {
+        // ``[my method]`` is OO self-dispatch — never trips W307.
+        let src = "[my m] arg";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must not fire for OO self-dispatch; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_partial_interpolation_resolving_to_known_proc() {
+        // ``set suffix _hi`` makes ``$suffix`` resolve to ``_hi``;
+        // ``foo$suffix`` therefore resolves to ``foo_hi``, which
+        // is a known proc.  W123 should not fire.
+        let src = "\
+proc foo_hi {} {}
+set suffix _hi
+foo$suffix
+";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 should be suppressed when partial interpolation resolves to a known proc; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_kept_when_partial_interpolation_resolves_to_unknown() {
+        // ``set suffix _missing`` makes ``foo$suffix`` resolve
+        // to ``foo_missing`` — not a known command — so W123
+        // should still fire.
+        let src = "\
+set suffix _missing
+foo$suffix
+";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 expected when partial interpolation resolves to an unknown command",
         );
     }
 

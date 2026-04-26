@@ -69,7 +69,7 @@ fn literal_type(text: &str) -> TypeLattice {
 /// Checks the command spec's `return_type` field, with subcommand
 /// support.
 #[must_use]
-fn return_type_for_command(
+pub fn return_type_for_command(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
