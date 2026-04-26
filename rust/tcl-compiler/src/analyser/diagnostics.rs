@@ -60,7 +60,11 @@
 //!   per-function dispatcher.  Severity-Info Python diagnostics
 //!   map to ``Severity::Hint`` here (no Info variant on the
 //!   Rust side).
-//! - **C41d6** — IRULE3010..3019 (`_diag_ip.py`).
+//! - **C41d6** — `_diag_ip.py`.  ✅ landed: W124 (invalid IP
+//!   address literal) — IPv4 octet validation (over-255 →
+//!   Error, leading-zero → Warning) and IPv6 parsing via
+//!   ``std::net::Ipv6Addr``.  Anchors at the SSA def site;
+//!   seen-offsets dedup avoids duplicates across SSA versions.
 //! - **C41d7** — IRULE3020 (`_diag_racy.py`).
 
 use std::collections::HashSet;
@@ -209,6 +213,7 @@ impl Analyser {
         self.emit_possible_paste_error_diagnostics(function_unit);
         self.emit_read_before_set_diagnostics(function_unit, ir_proc, &defined, &scope_aliases);
         self.emit_constant_branch_diagnostics(function_unit);
+        self.emit_invalid_ip_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
         }
@@ -851,6 +856,136 @@ impl Analyser {
                 }
             }
         }
+    }
+
+    /// W124 — invalid IP address literal.
+    ///
+    /// Mirrors `_emit_invalid_ip_diagnostics` in
+    /// `core/analysis/_analyser/_diag_ip.py`.  Walks every
+    /// SSA-tracked constant string in the function's SCCP
+    /// values; regex-searches for IPv4 dotted-quad and IPv6
+    /// candidates and validates each.
+    ///
+    /// **Validation:**
+    /// - **IPv4** — each octet must be 0..255; leading-zero
+    ///   octets emit a Warning (interpreted as octal in some
+    ///   contexts); over-255 octets emit an Error.  Patterns
+    ///   preceded by ``/`` (CIDR / version-number context) are
+    ///   skipped.
+    /// - **IPv6** — parsed via [`std::net::Ipv6Addr`]; failure
+    ///   emits an Error.
+    ///
+    /// Diagnostic anchors at the SSA def site (the assignment
+    /// statement's span); seen-offsets dedup avoids duplicate
+    /// emissions when multiple SSA versions share a def.
+    fn emit_invalid_ip_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        use crate::analyses::{ConstValue, LatticeValue};
+        use std::net::Ipv6Addr;
+        use std::str::FromStr;
+
+        let dotted_quad =
+            regex::Regex::new(r"\b(\d{1,4})\.(\d{1,4})\.(\d{1,4})\.(\d{1,4})\b").expect("regex");
+        let ipv6_candidate =
+            regex::Regex::new(r"\b([0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{0,4}){2,7})\b").expect("regex");
+
+        let mut seen_offsets: HashSet<u32> = HashSet::new();
+        for (key, lv) in &fu.sccp.values {
+            let Some(text) = (match lv {
+                LatticeValue::Const(ConstValue::String(s)) => Some(s.as_str()),
+                _ => None,
+            }) else {
+                continue;
+            };
+
+            // ---- IPv4 candidates ----
+            for caps in dotted_quad.captures_iter(text) {
+                let m = caps.get(0).unwrap();
+                if m.start() > 0 && text.as_bytes()[m.start() - 1] == b'/' {
+                    continue;
+                }
+                let octets: Vec<&str> = (1..=4).map(|i| caps.get(i).unwrap().as_str()).collect();
+                let mut diag: Option<(String, Severity)> = None;
+                for (i, octet) in octets.iter().enumerate() {
+                    let v: u32 = octet.parse().unwrap_or(0);
+                    if v > 255 {
+                        diag = Some((
+                            format!(
+                                "IPv4 octet {} ({}) exceeds 255 — this is not a valid IP address.",
+                                i + 1,
+                                octet,
+                            ),
+                            Severity::Error,
+                        ));
+                        break;
+                    }
+                    if octet.len() > 1
+                        && octet.starts_with('0')
+                        && octet.bytes().all(|b| (b'0'..=b'7').contains(&b))
+                    {
+                        diag = Some((
+                            format!(
+                                "IPv4 octet {} ({}) has a leading zero — may be interpreted as octal in some contexts.",
+                                i + 1,
+                                octet,
+                            ),
+                            Severity::Warning,
+                        ));
+                        break;
+                    }
+                }
+                if let Some((msg, sev)) = diag {
+                    self.emit_ip_diag_at_def(fu, key, &msg, sev, &mut seen_offsets);
+                    break;
+                }
+            }
+
+            // ---- IPv6 candidates ----
+            for caps in ipv6_candidate.captures_iter(text) {
+                let candidate = caps.get(1).unwrap().as_str();
+                if Ipv6Addr::from_str(candidate).is_err() {
+                    let msg = format!("Invalid IPv6 address '{candidate}'.");
+                    self.emit_ip_diag_at_def(fu, key, &msg, Severity::Error, &mut seen_offsets);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Helper for [`Self::emit_invalid_ip_diagnostics`].
+    fn emit_ip_diag_at_def(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        key: &crate::ssa::ValueKey,
+        message: &str,
+        severity: Severity,
+        seen_offsets: &mut HashSet<u32>,
+    ) {
+        let (var_name, version) = key;
+        let Some(chain) = fu.def_use.chain_for(var_name, *version) else {
+            return;
+        };
+        let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            return;
+        };
+        let Ok(idx) = usize::try_from(chain.definition.statement_index) else {
+            return;
+        };
+        let Some(stmt) = block.statements.get(idx) else {
+            return;
+        };
+        let span = stmt.span();
+        if span.is_empty() {
+            return;
+        }
+        if !seen_offsets.insert(span.start()) {
+            return;
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W124".to_string(),
+            span,
+            message: message.to_string(),
+            severity,
+        });
     }
 
     /// W123 — unknown / unresolved command head.
@@ -1498,6 +1633,52 @@ mod tests {
             "W210 must not fire at top-level (deferred); got {:?}",
             a.result.diagnostics,
         );
+    }
+
+    #[test]
+    fn analyse_w124_ipv4_octet_overflow() {
+        // ``proc foo {} { set ip 192.168.1.999 }`` — 999 > 255,
+        // not a valid IP.  W124 fires at the assignment.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set ip 192.168.1.999 }", "tcl");
+        let w124s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W124").collect();
+        assert!(
+            !w124s.is_empty(),
+            "W124 expected for IPv4 octet > 255; got {:?}",
+            r.diagnostics,
+        );
+        assert!(w124s[0].message.contains("999"));
+        assert!(w124s[0].message.contains("exceeds 255"));
+        assert_eq!(w124s[0].severity, Severity::Error);
+    }
+
+    #[test]
+    fn analyse_no_w124_for_valid_ipv4() {
+        // ``proc foo {} { set ip 192.168.1.1 }`` — valid IP.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set ip 192.168.1.1 }", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W124"),
+            "W124 must not fire on valid IPv4; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w124_ipv4_leading_zero_warning() {
+        // ``proc foo {} { set ip 192.168.01.1 }`` — leading
+        // zero on octet 3; might be octal in some contexts.
+        // Severity is Warning.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {} { set ip 192.168.01.1 }", "tcl");
+        let w124s: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W124").collect();
+        assert!(
+            !w124s.is_empty(),
+            "W124 expected for IPv4 leading-zero octet; got {:?}",
+            r.diagnostics,
+        );
+        assert_eq!(w124s[0].severity, Severity::Warning);
+        assert!(w124s[0].message.contains("leading zero"));
     }
 
     #[test]
