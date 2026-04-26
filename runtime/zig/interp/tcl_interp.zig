@@ -292,6 +292,20 @@ fn eval_command(words: []const i32) i32 {
     // files under cmds/ and assembled in tcl_cmd_table.zig.
     if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words);
 
+    // ``::concat``, ``::expr``, etc. — fully-qualified names for
+    // root-namespace builtins.  Strip the leading ``::`` and retry
+    // the builtin table.  tcltest's ``Eval`` uses this form
+    // (``uplevel 1 ::concat $body``) and without the strip it
+    // surfaces as ``unknown command: ::concat`` mid-test.
+    if (cmd_s.len >= 2) {
+        const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+        if (cmd_p[0] == ':' and cmd_p[1] == ':') {
+            if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
+                return handler(words);
+            }
+        }
+    }
+
     // -- Proc dispatch: check registry before erroring --
     return eval_proc_call(words);
 }

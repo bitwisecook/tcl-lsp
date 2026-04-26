@@ -635,6 +635,15 @@ class _WasmEmitterValuesMixin(_Base):
                 n_pos += 1
             min_positional = 2 if cmd_name == "regexp" else 3
             if uses_options or n_pos > min_positional:
+                # Pre-intern capture-var names so the proc's frame
+                # readback after eval-fallback reloads them into
+                # the wasm-local cache.  Without this, ``regexp
+                # PAT STR a b c`` inside a compiled proc body
+                # leaves ``$a`` / ``$b`` / ``$c`` reading stale
+                # (empty) wasm-locals — see cmds/regexp_.py.
+                from .cmds.regexp_ import _capture_vars_for as _cap_vars
+                for vname in _cap_vars(cmd_name, tuple(cmd_args)):
+                    self._intern_local(vname)
                 # Use ``script_override`` with the original source text
                 # so braced patterns like ``{a+}`` survive verbatim
                 # rather than being re-list-quoted to ``{{a+}}`` (which
