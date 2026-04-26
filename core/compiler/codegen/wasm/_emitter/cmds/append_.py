@@ -31,8 +31,17 @@ def _emit_append(
     # (``upvar 0 target var``); the array-ref branch covers the
     # unaliased array-element case and the aliased-base case
     # (``upvar 0 srcArr a; append a(key) …``).
+    #
+    # Top-level vars also use the var path: ``_emit_var_read_obj`` at
+    # top level routes through ``tcl_global_get`` (the WASM-local
+    # mirror is bypassed so eval-fallback writes stay visible — see
+    # _variables.py Phase 4.5 finalisation).  A bare ``local_set`` at
+    # top level would update the WASM local but leave the global
+    # stale, so subsequent ``$var`` reads see the pre-append value.
+    at_top_level = not emitter._is_proc
     use_var_path = (
-        var_name in emitter._aliases
+        at_top_level
+        or var_name in emitter._aliases
         or array_ref is not None
         or (array_ref is None and "(" in var_name and var_name.split("(")[0] in emitter._aliases)
     )
