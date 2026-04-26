@@ -480,25 +480,45 @@ impl Analyser {
         if let Some(tok) = arg_tokens.first() {
             self.define_vars_from_list(&args[0], *tok, scope_path);
         }
+        // Body recursion mirrors ``_handle_foreach_command`` in
+        // ``core/analysis/_analyser/_handlers.py``.  The body is
+        // always the last argument; recurse so vars defined inside
+        // the loop land in the enclosing scope.
+        if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
+            self.analyse_body(body_text, body_tok, scope_path);
+        }
         true
     }
 
     /// Handle `for init test next body`.
     ///
     /// Mirrors `_handle_for_command` in
-    /// `core/analysis/_analyser/_handlers.py:144-162`. Body
-    /// recursion deferred to **C41f1**.
+    /// `core/analysis/_analyser/_handlers.py:144-162`. Recurses
+    /// into init / next / body so locals defined inside any of
+    /// the three statement positions land in the enclosing
+    /// scope's variable set.
     pub fn handle_for_command(
         &mut self,
         cmd_name: &str,
         args: &[String],
-        _arg_tokens: &[Token],
-        _scope_path: &[usize],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
     ) -> bool {
         if cmd_name != "for" || args.len() < 4 {
             return false;
         }
-        // Body / test / next recursion lands in C41f1.
+        // init body
+        if let Some(tok) = arg_tokens.first().copied() {
+            self.analyse_body(&args[0], tok, scope_path);
+        }
+        // next body
+        if let Some(tok) = arg_tokens.get(2).copied() {
+            self.analyse_body(&args[2], tok, scope_path);
+        }
+        // main body
+        if let Some(tok) = arg_tokens.get(3).copied() {
+            self.analyse_body(&args[3], tok, scope_path);
+        }
         true
     }
 
