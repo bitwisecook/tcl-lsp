@@ -109,6 +109,7 @@ pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
 pub const dict_create = tcl_dict.dict_create;
 pub const dict_get = tcl_dict.dict_get;
 pub const dict_set = tcl_dict.dict_set;
+pub const dict_unset = tcl_dict.dict_unset;
 pub const dict_exists = tcl_dict.dict_exists;
 pub const dict_keys = tcl_dict.dict_keys;
 pub const dict_values = tcl_dict.dict_values;
@@ -126,6 +127,8 @@ pub const return_flag = &tcl_catch.return_flag;
 pub const return_val = &tcl_catch.return_val;
 pub const break_flag = &tcl_catch.break_flag;
 pub const continue_flag = &tcl_catch.continue_flag;
+pub const flow_consume_break = tcl_catch.flow_consume_break;
+pub const flow_consume_continue = tcl_catch.flow_consume_continue;
 
 // Frames
 pub const frame_push = tcl_frames.frame_push;
@@ -269,6 +272,7 @@ comptime {
     _ = &tcl_dict.dict_create;
     _ = &tcl_dict.dict_get;
     _ = &tcl_dict.dict_set;
+    _ = &tcl_dict.dict_unset;
     _ = &tcl_dict.dict_merge_pair;
     _ = &tcl_dict.dict_exists;
     _ = &tcl_dict.dict_keys;
@@ -280,6 +284,8 @@ comptime {
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
     _ = &tcl_catch.catch_set_ok_result;
+    _ = &tcl_catch.flow_consume_break;
+    _ = &tcl_catch.flow_consume_continue;
     _ = &tcl_catch.tcl_cmd_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than

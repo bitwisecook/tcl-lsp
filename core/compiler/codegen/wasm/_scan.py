@@ -756,13 +756,24 @@ def _scan_needed_imports(
                 _scan_expr(condition)
                 _scan_script(body)
                 _scan_script(next_s)
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
             case IRWhile(condition=condition, body=body):
                 _scan_expr(condition)
                 _scan_script(body)
+                # See _emit_while: body's eval-fallback (e.g. dict
+                # update) may set ``break_flag`` / ``continue_flag``;
+                # the compiled loop probes these via
+                # ``flow_consume_*`` after the body to propagate the
+                # signal.
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
             case IRForeach(body=body):
                 needed.add("tcl_list_length")
                 needed.add("tcl_list_index")
                 _scan_script(body)
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
             case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
                 if mode == "glob":
                     needed.add("tcl_string_match")

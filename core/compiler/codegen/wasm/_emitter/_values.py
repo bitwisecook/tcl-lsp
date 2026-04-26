@@ -719,6 +719,23 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_value(cmd_args[-1])
                     for _ in range(param_count - 1):
                         self._emit_i32_const(0)
+                elif cmd_name == "apply":
+                    # ``apply lambda ?arg ...?`` — the runtime export's
+                    # second param is a Tcl *list* of every positional
+                    # arg (it list-parses to recover individual words).
+                    # The default ``param_count=2`` fast path passes the
+                    # raw arg verbatim, which mis-fires when the arg
+                    # contains whitespace (``apply LAM {a 1 c 2}`` →
+                    # the lambda's first param sees only ``a``).  Pack
+                    # the args into a single list TclObj.
+                    #
+                    # ``_split_command_subst`` keeps outer ``{…}`` on
+                    # braced words; strip them before re-list-quoting
+                    # so we don't double-brace.
+                    def _strip_braces(s: str) -> str:
+                        return s[1:-1] if (len(s) >= 2 and s.startswith("{") and s.endswith("}")) else s
+                    self._emit_value(cmd_args[0] if cmd_args else "")
+                    self._emit_args_list(tuple(_strip_braces(a) for a in cmd_args[1:]))
                 else:
                     for i in range(min(param_count, len(cmd_args))):
                         self._emit_value(cmd_args[i])
