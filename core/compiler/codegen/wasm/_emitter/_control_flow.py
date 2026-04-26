@@ -130,9 +130,40 @@ class _WasmEmitterCtrlMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
+        # Propagate ``break`` / ``continue`` from interpreter-side
+        # bodies that ran through eval-fallback.  Compiled ``break``
+        # already emits a wasm ``br`` directly, so these consume calls
+        # only fire after a runtime-side flow-control signal (e.g.
+        # ``while 1 { dict update d k v { break } }`` — the dict-
+        # update body's ``break`` flips ``break_flag`` and we need to
+        # see it here to exit the wasm loop).
+        self._emit_flow_consume_after_loop_body(break_label_depth=1)
+
         self._emit_br(0)
         self._emit(WasmOp.END)
         self._emit(WasmOp.END)
+
+    def _emit_flow_consume_after_loop_body(self, *, break_label_depth: int) -> None:
+        """Emit the ``flow_consume_break`` / ``_continue`` probes.
+
+        ``break_label_depth`` is the relative depth of the outer
+        BLOCK that ``break`` should jump to (1 inside ``LOOP{}`` for
+        ``while``; 2 inside ``LOOP{ BLOCK{} }`` for ``foreach``).
+        ``continue`` is satisfied by simply not skipping the
+        loop-restart ``br`` that follows, so we just consume the
+        flag without branching.
+        """
+        bbreak = self._shared_imports.get("tcl_flow_consume_break")
+        bcont = self._shared_imports.get("tcl_flow_consume_continue")
+        if bbreak is not None:
+            self._emit_call(bbreak)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(break_label_depth)
+            self._emit(WasmOp.END)
+        if bcont is not None:
+            # Drain the flag so the next iteration starts clean.
+            self._emit_call(bcont)
+            self._emit(WasmOp.DROP)
 
     def _emit_foreach(
         self,

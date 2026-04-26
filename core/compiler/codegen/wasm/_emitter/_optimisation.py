@@ -412,6 +412,27 @@ class _WasmEmitterOptMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
+        # Propagate ``break`` / ``continue`` from interpreter-side
+        # bodies that ran through eval-fallback.  Compiled ``break``
+        # already emits a wasm ``br`` directly, so these consume calls
+        # only fire after a runtime-side flow-control signal (e.g.
+        # ``while 1 { dict update d k v { break } }`` — the dict-
+        # update body's ``break`` flips ``break_flag`` and we need to
+        # see it here to exit the wasm loop).  We're inside the
+        # ``LOOP{}`` (post-continue-BLOCK end), so depth 0 = LOOP,
+        # depth 1 = outer break BLOCK.  Inside the ``IF{}`` the
+        # depths shift up by 1, so ``br 2`` exits to the break block.
+        bbreak = self._shared_imports.get("tcl_flow_consume_break")
+        bcont = self._shared_imports.get("tcl_flow_consume_continue")
+        if bbreak is not None:
+            self._emit_call(bbreak)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(2)
+            self._emit(WasmOp.END)
+        if bcont is not None:
+            self._emit_call(bcont)
+            self._emit(WasmOp.DROP)
+
         # Emit the step block (if any) AFTER the continue block so
         # `continue` still runs it.
         if step_block is not None:

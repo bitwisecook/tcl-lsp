@@ -11,6 +11,7 @@ import list below can stay alphabetical (ruff/isort-friendly).
 
 from . import (
     append_,
+    apply_,
     catch_,
     concat_,
     dict_,
@@ -37,6 +38,7 @@ runtime_.register_generic_runtime_hooks()
 
 __all__ = [
     "append_",
+    "apply_",
     "catch_",
     "concat_",
     "dict_",

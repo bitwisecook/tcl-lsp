@@ -490,10 +490,20 @@ class _WasmEmitterExprMixin(_Base):
             func_idx = self._shared_imports.get(rimp.import_key)
             if func_idx is not None:
                 param_count = len(rimp.params)
-                for i in range(min(param_count, len(cmd_args))):
-                    self._emit_value(cmd_args[i])
-                for _ in range(param_count - len(cmd_args)):
-                    self._emit_i32_const(0)
+                if cmd_name == "apply":
+                    # ``apply LAMBDA ?arg ...?`` — pack tail into a Tcl
+                    # list (see _values.py for the rationale).  Strip
+                    # outer braces from braced args first so we don't
+                    # double-brace inside ``_emit_args_list``.
+                    def _strip_braces(s: str) -> str:
+                        return s[1:-1] if (len(s) >= 2 and s.startswith("{") and s.endswith("}")) else s
+                    self._emit_value(cmd_args[0] if cmd_args else "")
+                    self._emit_args_list(tuple(_strip_braces(a) for a in cmd_args[1:]))
+                else:
+                    for i in range(min(param_count, len(cmd_args))):
+                        self._emit_value(cmd_args[i])
+                    for _ in range(param_count - len(cmd_args)):
+                        self._emit_i32_const(0)
                 self._emit_call(func_idx)
                 if rimp.results:
                     self._emit_unbox_int()
