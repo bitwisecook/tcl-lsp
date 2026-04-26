@@ -746,35 +746,62 @@ purpose-built corpus instead.
   side only* — they don't compare against Python.
 
 **Known parity gaps surfaced by the differential** (each
-tracked as its own Rust-side or materialiser-side follow-up;
-see the `C41-default-on` chunk-log row):
+tracked as its own Rust-side follow-up; see the
+`C41-default-on` chunk-log row):
 
-- **Materialiser gaps** in
-  `core/analysis/_analyser/__init__.py::_materialise_rust_analysis`
-  — the Rust dict carries `command_invocations`,
-  `command_aliases`, `package_requires`, plus empty
-  `namespace_imports` / `source_targets` keys, but the Python
-  materialiser only extracts `global_scope` / `all_procs` /
-  `all_classes` / `all_variables` / `diagnostics` /
-  `unknown_proc_info`. Side-channel fields drop on the floor,
-  which is what blocked the polarity flip with ≈535 fast-suite
-  failures.
-- **Rust-side emitter gaps**: `source_targets`,
-  `namespace_imports`, `regex_patterns`, `auto_path_entries`,
-  `stub_commands`, `stub_expr_defs`, `package_provides`, plus
-  the post-pass equivalent of `run_compiler_checks` (W220 /
-  W304 / W110).
-- Per-feature gaps tracked inline next to
-  `FIELD_PARITY_LABELS`: OO `Scope.classes` not threaded back
-  per-scope; `unset xs` not recorded as a per-scope variable;
-  for-loop init body's `set i 0` not surfaced into the
-  enclosing scope; variables defined inside `when` event
-  bodies not surfaced into the enclosing scope's variable set.
-- Diagnostic-code-set deltas (`W113` dialect-label wording,
-  `W214` over-emit on `[expr {$param}]` patterns, `W220`
-  under-emit, `W304` not emitted by Rust) — exposed by the
-  audit but accepted as known divergences for now; the
-  field-by-field comparator does not assert on diagnostics.
+- **Materialiser fields landed**:
+  `_materialise_rust_analysis` now extracts
+  `command_invocations` (with Python-side
+  `resolved_qualified_name` resolution against the
+  materialised `all_procs`), `command_aliases`,
+  `package_requires`, `source_targets`, and
+  `namespace_imports` from the Rust dict.
+- **Hybrid supplement landed**:
+  `_merge_rust_with_python_supplement` runs the Python
+  `Analyser` alongside the Rust pass and copies in the
+  fields the Rust port doesn't emit yet
+  (`source_targets`, `regex_patterns`, `stub_commands`,
+  `stub_expr_defs`, `auto_path_entries`,
+  `package_provides`, `has_dynamic_providers`,
+  `suppressed_lines`, `namespace_imports` /
+  `command_aliases` when Rust returns empty,
+  `unknown_proc_info`, `all_procs`, `all_classes`,
+  `global_scope`, `all_variables`,
+  `command_invocations`, `diagnostics`).  The result is
+  functionally complete under the env var even with the
+  Rust-side gaps below, at the cost of running both
+  passes (>5× the default-OFF baseline runtime — the
+  reason the polarity flip waits).
+- **Rust-side emitter gaps still blocking the polarity
+  flip** (each is its own port chunk):
+  - **Generic body iteration via `ArgRole::Body`** is not
+    wired into `analyser/commands.rs::process_command`,
+    so `if` / `while` / `when` / `oo` method body
+    statements are not walked.
+  - **Class body parsing**: `oo::abstract` /
+    `oo::singleton` / `oo::configurable` metaclasses
+    unrecognised; `class_def.variables` + per-method
+    `params` not extracted.
+  - **Proc doc**: `ProcDef.doc` not extracted from a
+    preceding comment.
+  - **Per-scope `Scope.classes`** not threaded back
+    (`result.all_classes` is populated; the per-scope
+    map is empty).
+  - `unset xs` argument not recorded as a per-scope
+    variable.
+  - `for_loop_with_inner_set` no longer in
+    `FIELD_PARITY_LABELS`-excluded list — the
+    Rust `for` / `foreach` body recursion landed in
+    `C41-default-on-9`.
+  - The post-pass equivalent of `run_compiler_checks`
+    (W110 / W220 / W304 emission) is not ported.
+- Diagnostic-code-set deltas (`W113` dialect-label
+  wording, `W214` over-emit on `[expr {$param}]`
+  patterns, `W220` under-emit, `W304` not emitted by
+  Rust) — exposed by the audit but absorbed by the
+  hybrid (Python's diagnostics list is the superset);
+  the field-by-field comparator does not assert on
+  diagnostics.
 
 ## C41-default-on — flip the C41 dispatcher to Rust by default
 
