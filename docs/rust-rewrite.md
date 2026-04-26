@@ -714,9 +714,10 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | R*    | **Remainder.** `vm/` (bytecode VM, interpreter, REPL), `core/commands/` (command registry), the rest of `core/analysis/` (`_analyser/` package + `auto_path_eval` / `class_hierarchy` / `irules_checks` / `mro` / `namespace_imports` / `proc_arg_traits` / `proc_lookup` / `semantic_graph` / `semantic_model` / `source_resolver` / `stub_comments` / `var_scoping` — `signature_scan.py` already landed under C40), `core/formatting/` (formatter engine), `core/minifier/`, `core/irule_test/`, `debugger/`, `fuzzing/`, `explorer/`, CLI tooling (`scripts/`). A Python interface is kept on top for Claude skills, the MCP server, and other integrations. | planned |
 | C40-followups | **Follow-ups for the C40 `signature_scan` port.** Six items from the post-merge code review: (1) drop stale `#![allow(dead_code)]` from the four `signature_scan/` submodules now every type is wired; (2) sweep "filled in by Cnnnn" doc comments across `mod.rs` / `types.rs` / `ctx.rs` / `handlers.rs` / `walker.rs` / `factory.rs`; (3) cache `CommandRegistry::build_default()` in a `OnceLock` (also fixes the same waste in `interprocedural.rs`, `optimiser.rs`, `compiler_checks.rs`, `gvn.rs`, `compilation_unit.rs`); (4) three dispatcher tests (`extract_signatures` with binding absent / env-var on / Rust path raising); (5) add a row to `docs/rust-rewrite-test-audit.md`; (6) KCS Q&A note for `TCL_LSP_RUST_SIGNATURE_SCAN`. | planned |
 | C40-default-on | **Flip the C40 default.** `extract_signatures` now dispatches to Rust by default whenever the `tcl_lsp_rust` binding is importable; the gate becomes `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out. Shared helper `core.compiler.rust_spans.rust_shim_enabled` gained a `default: bool = False` keyword so the same helper handles both polarities. After a release cycle, delete `_extract_signatures_python` and the env var entirely. | landed |
+| C41-default-on | **Flip the C41 default.** Mirrors the `C40-default-on` shape: `core.analysis._analyser.analyse` dispatches to Rust by default whenever the `tcl_lsp_rust` binding is importable; the gate becomes `TCL_LSP_RUST_ANALYSER=0` opt-out. Reuses the existing `rust_shim_enabled` helper with `default=True`. Prerequisites: (a) `tests/test_rust_analyser_differential.py` corpus expanded to cover every W-code family and run green at field-by-field (not shape-only) parity; (b) Python-side bugs surfaced by the differential (the `::::ns::foo` double-prefix quirk and the `nested_namespace_eval` outer-namespace-drop bug) fixed; (c) at least one release cycle of soak time on default-OFF. After C41-default-on stabilises, a follow-up chunk deletes the Python `_AnalyserBase` mixin set and the env var entirely. | planned |
 | Seg1  | **Segmenter argv-widening parity.** The Python `core/parsing/command_segmenter.py` widens `argv[i].end` to the end of the whole Tcl word for multi-token words (e.g. `$var/literal.tcl`); the Rust `rust/tcl-compiler/src/segmenter.rs` kept it at the first sub-token's end. Surfaced as a `Range` mismatch on `source $script_dir/init.tcl`-style fixtures. Fix: in `segment_commands_local`, the `else if let Some(last_text) = …` branch now also widens `argv.last_mut().unwrap().span` to `Span::new(prev.span.start(), tok.span.end())`. New `segmenter::tests::multi_token_word_argv_spans_full_word` unit test pins the new behaviour. The previously-omitted `source_substituted_path` fixture (`source $script_dir/init.tcl`) is now part of the differential corpus in `tests/test_rust_signature_scan_differential.py`. | landed |
 | Seg2  | **Segmenter error recovery.** Port the Python `_has_suspicious_token` + `_find_recovery_offset` heuristics from `core/parsing/command_segmenter.py` to the Rust segmenter as `segment_commands_with_recovery(source, &known_commands)`. After raw segmentation, the last command is inspected for an unclosed `{` (`Str` token reaching EOF, line span ≥ 3), `[` (any `Cmd` token reaching EOF), or `"` (`Esc` token reaching EOF, line span ≥ 3); on a hit the suspicious token's inner text is scanned line-by-line for the next known-command name and the slice from there is re-segmented and appended (with absolute spans). The signature_scan walker threads the registry's `command_names()` set through to the top-level call only — body recursion never recovers, mirroring Python. Prerequisite for C40-default-on: without recovery, flipping the dispatcher to Rust would silently regress workspace indexing for any file mid-edit with an unclosed brace. | landed |
-| C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,074 LOC across 17 files (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 `_diag_*.py` sub-files, `_oo.py`, `_handlers.py`, `_recovery.py`, `_scope.py`, `_snapshot.py`, `_utils.py`). Six sub-strip families: **C41a** (skeleton + types + utils, 5 strips) — **landed**; **C41b** (per-command handlers, 8 strips) — **landed**; **C41c** (proc-body analysis, 4 strips) — **landed**; **C41d** (diagnostic emitters, 7 strips) — **landed except C41d7** (IRULE4005 needs the Rust-side connection-scope / cross-event analysis, deferred until that prerequisite lands); **C41e** (OO + recovery): **C41e0 landed** (port `class_hierarchy.py` + `mro.py` to Rust, ~344 LOC + tests; the user's chosen Option A — full Rust rewrite, no PyO3 callbacks); **C41e1-e5** (class-body walking, OO define handlers, property defs, recovery) — planned next; **C41f** (public entry + PyO3 + harness, 6 strips) — **C41f1, f2, f3, f4, f6 landed**; **f5** (differential-fuzzer corpus) deferred pending fixture-corpus build-out. Default-off PyO3 env-var gate (`TCL_LSP_RUST_ANALYSER=1`); `C41-default-on` flips polarity in a separate chunk after the differential corpus has baked. | landed (default-off env-var gate) |
+| C41   | **Analyser core port.** `core/analysis/_analyser/` package — ~5,074 LOC across 17 files (`_core.py`, `_commands.py`, `_proc.py`, `_diagnostics.py` + 7 `_diag_*.py` sub-files, `_oo.py`, `_handlers.py`, `_recovery.py`, `_scope.py`, `_snapshot.py`, `_utils.py`). Six sub-strip families: **C41a** (skeleton + types + utils, 5 strips) — **landed**; **C41b** (per-command handlers, 8 strips) — **landed**; **C41c** (proc-body analysis, 4 strips) — **landed**; **C41d** (diagnostic emitters, 7 strips) — **landed** (d7 closed alongside the `ConnectionScope` port to `rust/tcl-compiler/src/connection_scope.rs` + `EventRegistry::variable_scope_note`); **C41e** (OO + recovery, 5 strips) — **landed** (e0 class_hierarchy + mro pure-Rust port; e1-e2 class-body walker + oo::define extension; e3 property defs + `UnknownProcInfo` + the W123 unknown-proc gate + package-require recording + top-level RBS via `globals_written_by_procs`; e4 stray-close-bracket recovery + switch-case helper; e5 missing-open-brace recovery + stolen-close-brace detection + generic E200 emitter); **C41f** (public entry + PyO3 + harness, 6 strips) — **landed** (f1-f4, f6 from earlier; f5 differential-fuzzer corpus + 4 dispatcher gating tests landed in `tests/test_rust_analyser_differential.py`). Default-off PyO3 env-var gate (`TCL_LSP_RUST_ANALYSER=1`); `C41-default-on` flips polarity in a separate chunk after the differential corpus has baked. **Carry-overs landed alongside the C41 close-out:** `CodeFix` payload on `Diagnostic` + populated for E101/E103/W123; `suggest_similar` (Levenshtein) port + W123 "did you mean…?" suggestions; `stub_commands` name extraction (used by W123 candidate set + suppression); `unknown_proc_info.dispatch_targets` added to W123 candidate / suppression sets; `_fold_interpolation_set` + `_resolve_interpolated_commands` (CONSTSET-driven W123 suppression for partial-interpolation heads like `foo$suffix`); W307 `cmd_command_sites` suppression via return-type analysis (`my` / `self` self-dispatch suppress; in_method suppress; Object return type triggers W308 method-validation against the class hierarchy; otherwise W307 fires). **Outstanding (own chunk):** `infer_param_traits` port — 525 LOC, free-standing per the original handoff (own chunk `Cnnnn`). | landed (default-off env-var gate) |
 | Sync  | **Rebase the rust rewrite branch onto main HEAD.** The rewrite branch had disjoint history from main; this sync hard-resets the branch pointer to `origin/main` and re-applies every rust-rewrite-unique file (the `rust/` workspace, `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust docs, `core/compiler/rust_spans.py`, the `tests/test_rust_*.py` + `tests/test_tokens.py` set) plus the Python-side dispatch shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` envs in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`, the rust primary path in the four `core/parsing/` lexer-adjacent files), splices the `rust-build` / `rust-test` / `rust-lint` / `rust-format` targets into main's `Makefile`, and fixes a stale `core/analysis/analyser.py` reference (split into `_analyser/` on main) plus an out-of-date `core/irule_test/tcl/_registry_data.tcl` codegen output. Also ports main's IEEE 754 special-literal fix (`Inf` / `NaN` / `Infinity` tokenise as `NUMBER` not `FUNCTION`) into `rust/tcl-lexer/src/expr_lexer.rs::Lexer::ident` so the Rust expr-lexer stays parity with the Python fallback. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo test --workspace` + `make rust-build` + `make prep-pr` all green at the sync commit. | landed |
 | R2    | **Registry deltas from main.** Adds the three new tcl command specs introduced in main (`registry`, `lseq`, `zlib`) under `rust/tcl-registry/src/commands/tcl/` (the `registry` spec lives in `registry_.rs` to avoid colliding with the crate-level `registry` module). Aligns top-level arity for `fcopy` (`Arity::at_least(2)` → `Arity::new(2, 6)`, matching C Tcl 9.0's two channels + four optional option-pair flags) and `tailcall` (`Arity::at_least(1)` → `Arity::any()`, matching C Tcl 9.0's "no args clears scheduled tailcall, with args replaces it" semantics). 118 tcl specs total (was 115). | landed |
 | C39   | **Small codegen fixes from main (audit + per-fix strips).** See the C39 sub-plan below. | landed |
@@ -1022,22 +1023,44 @@ Six sub-strip families:
   W230..W239 (d3); `_diag_commands.py` — W120..W122 / W242 (d4);
   `_diag_branches.py` + `_diag_channel.py` (d5);
   `_diag_ip.py` (d6); `_diag_racy.py` (d7).
+- **C41d7 — IRULE4005 (racy `static::` cross-event flow)** —
+  *landed*.  Ported `core/compiler/connection_scope.py` to
+  `rust/tcl-compiler/src/connection_scope.rs` (~280 LOC),
+  added `EventRegistry::variable_scope_note` to
+  `rust/tcl-registry/src/events.rs`, gave `CompilationUnit` a
+  `connection_scope: Option<ConnectionScope>` field, and
+  wired the IRULE4005 emitter
+  (`Analyser::emit_racy_static_diagnostics`) into
+  `emit_cfg_ssa_diagnostics`.  The emitter only fires for
+  non-`RULE_INIT` `::when::*` procedures and consults
+  `ConnectionScope::racy_static_defs`.  One simplification
+  vs. Python: `_extract_event_summary`'s branch-condition
+  scan via `vars_in_expr_node` is omitted — SSA statement
+  uses already cover the common case.
 - **C41e — OO + recovery** (5 strips). `_oo.py`:
-  `handle_oo_class_command` + `extract_method_def` (e1);
-  `handle_oo_define_command` (e2); `extract_property_defs` +
-  `extract_unknown_proc_info` (e3). `_recovery.py`:
-  `_recover_stray_close_bracket` (e4);
-  `_recover_missing_open_brace` + `_detect_stolen_close_brace`
-  (e5).
+  `handle_oo_class_command` + `extract_method_def` (e1 — landed);
+  `handle_oo_define_command` (e2 — landed);
+  `extract_property_defs` + `extract_unknown_proc_info` (e3 —
+  landed, including the full `ClassDef` field set: `metaclass`,
+  `constructors`, `destructor`, `variables`, `properties`,
+  `filters`, `exports`, `unexports`, `doc`; W123 gate +
+  package-require recording + top-level RBS landed alongside).
+  `_recovery.py`: `_recover_stray_close_bracket` +
+  `_looks_like_switch_case` (e4 — landed in
+  `analyser/recovery.rs`, wired into both top-level walk and
+  body-walk dispatcher); `_recover_missing_open_brace` +
+  `_detect_stolen_close_brace` + the generic E200 emitter
+  (e5 — landed; ``CodeFix`` payload deferred until the
+  ``Diagnostic`` struct gains a ``CodeFix`` field).
 - **C41f — Public entry + PyO3 + harness** (6 strips).
   `analyse_chunked` + `analyse_commands` orchestration (f1);
   public `analyse` entry + `_check_stub_shadows` +
   `_dedupe_diagnostics` (f2); PyO3 binding
   `analyser_analyse(source, dialect)` + 3 smoke tests (f3);
   Python dispatch shim with `TCL_LSP_RUST_ANALYSER=1` (f4);
-  differential harness with starting corpus (~30-40 fixtures)
-  + 4 dispatcher gating tests (f5); KCS Q&A + test-audit row +
-  chunk-log status flip (f6).
+  differential harness with starting corpus (40 fixtures + 4
+  dispatcher gating tests) — landed (f5); KCS Q&A + test-audit
+  row + chunk-log status flip (f6).
 
 **Risks flagged up front:**
 

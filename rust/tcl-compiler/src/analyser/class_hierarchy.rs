@@ -269,8 +269,7 @@ mod tests {
             body_span: span(),
             superclasses: supers.iter().map(|s| (*s).to_string()).collect(),
             mixins: mixins.iter().map(|s| (*s).to_string()).collect(),
-            methods: HashMap::new(),
-            class_methods: HashMap::new(),
+            ..Default::default()
         };
         for m in methods {
             cd.methods.insert(

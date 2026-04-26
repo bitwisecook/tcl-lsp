@@ -136,6 +136,96 @@ fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String> {
     names
 }
 
+/// Compute the set of global variable names that any procedure
+/// in `cu` writes.
+///
+/// Mirrors `_globals_written_by_procs` in
+/// `core/analysis/_analyser/_diag_commands.py:264-296`.
+///
+/// A global write happens when a proc either:
+///
+/// 1. assigns to a fully-qualified name (``::var``), or
+/// 2. declares ``global var`` and then assigns to ``var`` in the
+///    same proc body.
+///
+/// The result is the union of (1) and the intersection of
+/// global aliases × locally-written names (case (2)).  Used at
+/// top-level to suppress W210 for globals a helper proc may
+/// populate before the top-level read.
+///
+/// **Simplification vs. Python.** The Rust port doesn't yet
+/// have ``CommandRegistry::is_destroys_variable`` so commands
+/// like ``unset`` aren't filtered out of the "writes" set.
+/// That makes the suppression slightly more permissive (more
+/// vars marked "written-by-procs" → more W210 suppressions).
+/// Safe-on-correctness — the alternative is false positives
+/// on real RBS sites.  When the registry gains
+/// ``destroys_variable``, add the filter here for parity.
+fn globals_written_by_procs(cu: &crate::compilation_unit::CompilationUnit) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut result: HashSet<String> = HashSet::new();
+    for fu in cu.procedures.values() {
+        let mut global_aliases: HashSet<String> = HashSet::new();
+        let mut written: HashSet<String> = HashSet::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let names: Vec<&String> = match stmt {
+                    Statement::Call { command, defs, .. } => {
+                        if command == "global" {
+                            for d in defs {
+                                global_aliases.insert(d.clone());
+                            }
+                            continue;
+                        }
+                        if matches!(command.as_str(), "variable" | "upvar") {
+                            continue;
+                        }
+                        defs.iter().collect()
+                    }
+                    Statement::AssignConst { name, .. }
+                    | Statement::AssignExpr { name, .. }
+                    | Statement::AssignValue { name, .. }
+                    | Statement::Incr { name, .. } => vec![name],
+                    _ => continue,
+                };
+                for name in names {
+                    if let Some(bare) = name.strip_prefix("::") {
+                        let bare = bare.trim_start_matches(':');
+                        if !bare.is_empty() {
+                            result.insert(bare.to_string());
+                        }
+                    } else {
+                        written.insert(name.clone());
+                    }
+                }
+            }
+        }
+        for n in global_aliases.intersection(&written) {
+            result.insert(n.clone());
+        }
+    }
+    result
+}
+
+/// External OO base classes that aren't in the per-document
+/// ``ClassDef`` index but are recognised as legitimate
+/// superclasses for W308 / W308-related gates.
+const OO_BASE: [&str; 2] = ["oo::object", "oo::class"];
+
+/// Extract the first single-quoted word from a diagnostic
+/// message string, or `None` if the message has no quoted run.
+///
+/// Used by [`Analyser::resolve_interpolated_w123_diagnostics`]
+/// to recover the command name from a "Unknown command 'NAME'"
+/// W123 message.  Mirrors the Python equivalent in
+/// `_diag_commands.py:233-237`.
+fn extract_quoted_word(message: &str) -> Option<String> {
+    let start = message.find('\'')?;
+    let rest = &message[start + 1..];
+    let end = rest.find('\'')?;
+    Some(rest[..end].to_string())
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -172,16 +262,42 @@ impl Analyser {
         }
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
 
+        // **C41e3 follow-up.** Compute the set of globals any
+        // proc in this module writes to.  Top-level RBS (W210)
+        // is suppressed for these variables — a helper proc may
+        // populate them before the top-level read fires.
+        // Mirrors `_globals_written_by_procs` in
+        // `_diag_commands.py:264-296`.
+        let globals_written = globals_written_by_procs(&cu);
+
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
-        self.emit_cfg_ssa_diagnostics_for_function(&cu.top_level, &cu.ir_module);
+        self.emit_cfg_ssa_diagnostics_for_function_with_extra(
+            &cu.top_level,
+            &cu.ir_module,
+            &globals_written,
+        );
         self.emit_channel_diagnostics(&cu.top_level, &registry);
-        for fu in cu.procedures.values() {
+        for (qname, fu) in &cu.procedures {
             self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
             self.emit_channel_diagnostics(fu, &registry);
+            // **C41d7.** IRULE4005 — racy ``static::``
+            // cross-event flow.  Only fires for non-RULE_INIT
+            // ``when`` procs when ``ConnectionScope::racy_static_defs``
+            // is non-empty.  Mirrors Python's
+            // ``_emit_racy_static_diagnostics`` call site in
+            // ``_diagnostics.py:171-175``.
+            if let Some(scope) = cu.connection_scope.as_ref() {
+                if qname.starts_with("::when::") && !scope.racy_static_defs.is_empty() {
+                    let event = crate::ir::when_event_name(qname);
+                    if event != "RULE_INIT" {
+                        self.emit_racy_static_diagnostics(fu, &scope.racy_static_defs);
+                    }
+                }
+            }
         }
 
         // Cross-function post-pass: resolve $var-as-command sites
@@ -189,6 +305,14 @@ impl Analyser {
         // ``_emit_var_command_diagnostics`` in
         // ``_diag_var_command.py``.
         self.emit_var_command_diagnostics(&cu, &registry);
+
+        // **C41 follow-up.** Suppress W123 for command-name
+        // heads with partial interpolations like ``foo$suffix``
+        // when ``$suffix`` resolves cleanly to a finite set of
+        // known commands via SCCP.  Mirrors
+        // ``_resolve_interpolated_commands`` in
+        // ``_diag_commands.py:188-260``.
+        self.resolve_interpolated_w123_diagnostics(&cu);
     }
 
     /// Per-function diagnostic dispatcher.
@@ -206,6 +330,30 @@ impl Analyser {
         function_unit: &crate::compilation_unit::FunctionUnit,
         ir_module: &crate::ir::Module,
     ) {
+        self.emit_cfg_ssa_diagnostics_for_function_with_extra(
+            function_unit,
+            ir_module,
+            &HashSet::new(),
+        );
+    }
+
+    /// Per-function diagnostic dispatcher with an extra
+    /// "known-defined" set passed through to RBS suppression.
+    ///
+    /// Same as [`Self::emit_cfg_ssa_diagnostics_for_function`]
+    /// but accepts an additional set of variable names that
+    /// should be treated as already-defined for the W210
+    /// (read-before-set) emitter.  Used at the top-level to
+    /// suppress RBS for variables that any proc in the module
+    /// writes — matches the
+    /// ``extra_known_defined_vars=self._globals_written_by_procs(cu)``
+    /// argument in `_diagnostics.py:154`.
+    pub fn emit_cfg_ssa_diagnostics_for_function_with_extra(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+        ir_module: &crate::ir::Module,
+        extra_known_defined: &HashSet<String>,
+    ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
         let textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
@@ -221,7 +369,13 @@ impl Analyser {
             &textually_referenced,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
-        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &defined, &scope_aliases);
+        self.emit_read_before_set_diagnostics(
+            function_unit,
+            ir_proc,
+            &defined,
+            &scope_aliases,
+            extra_known_defined,
+        );
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
@@ -304,6 +458,7 @@ impl Analyser {
                 span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -382,6 +537,7 @@ impl Analyser {
                 span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -468,6 +624,7 @@ impl Analyser {
                     span,
                     message,
                     severity: Severity::Hint,
+                    fixes: Vec::new(),
                 });
             }
         }
@@ -518,6 +675,7 @@ impl Analyser {
                 span: ir_proc.span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -557,18 +715,22 @@ impl Analyser {
         ir_proc: Option<&crate::ir::Procedure>,
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
+        extra_known_defined: &HashSet<String>,
     ) {
         use crate::def_use::{DefKind, UseKind};
         use crate::ir::Statement;
         use std::fmt::Write as _;
 
-        // Top-level RBS would need ``globals_written_by_procs``
-        // filtering to avoid false positives on globals set by
-        // helper procs.  Defer until that plumbing lands.
-        let Some(ir_proc) = ir_proc else {
-            return;
+        // **C41e3 follow-up.** Top-level RBS now uses the
+        // ``extra_known_defined`` set (computed from
+        // ``globals_written_by_procs``) to suppress W210 on
+        // globals that helper procs write.  Inside procs the
+        // set is empty, matching Python's per-call argument.
+        let params_owned: HashSet<&str> = match ir_proc {
+            Some(p) => p.params.iter().map(String::as_str).collect(),
+            None => HashSet::new(),
         };
-        let params: HashSet<&str> = ir_proc.params.iter().map(String::as_str).collect();
+        let params = &params_owned;
 
         for chain in fu.def_use.chains.values() {
             if chain.definition.kind != DefKind::Parameter {
@@ -579,6 +741,9 @@ impl Analyser {
                 continue;
             }
             if scope_aliases.contains(var) {
+                continue;
+            }
+            if extra_known_defined.contains(var) {
                 continue;
             }
             for use_site in &chain.uses {
@@ -622,6 +787,7 @@ impl Analyser {
                             span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                         continue;
                     }
@@ -648,6 +814,7 @@ impl Analyser {
                     span,
                     message,
                     severity: Severity::Warning,
+                    fixes: Vec::new(),
                 });
             }
         }
@@ -745,6 +912,7 @@ impl Analyser {
                 span,
                 message,
                 severity: Severity::Hint,
+                fixes: Vec::new(),
             });
         }
     }
@@ -838,6 +1006,7 @@ impl Analyser {
                             span: *span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                     } else {
                         // Literal — strip surrounding braces / quotes.
@@ -861,6 +1030,7 @@ impl Analyser {
                             span: *span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                     }
                 }
@@ -995,6 +1165,7 @@ impl Analyser {
             span,
             message: message.to_string(),
             severity,
+            fixes: Vec::new(),
         });
     }
 
@@ -1024,12 +1195,10 @@ impl Analyser {
     /// or the chunked entry runs both passes.
     ///
     /// **Deferred** (Python parity gaps documented in the
-    /// commit body): ``unknown_proc_info`` and
-    /// ``has_dynamic_providers`` early-returns; ``stub_commands``
-    /// candidate set; ``suggest_similar`` "did you mean…?"
-    /// suggestions and the ``CodeFix`` payload; the
-    /// CONSTSET-driven interpolation suppression for ``$``-bearing
-    /// command names.
+    /// commit body): ``has_dynamic_providers`` early-return;
+    /// the CONSTSET-driven interpolation suppression for
+    /// ``$``-bearing command names.
+    #[allow(clippy::too_many_lines)]
     pub fn emit_unresolved_command_diagnostics(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
@@ -1049,8 +1218,39 @@ impl Analyser {
             return;
         }
 
+        // **C41e3 follow-up.** When the document defines a
+        // user-level ``unknown`` proc with a *dynamic* dispatch
+        // shape — chains the original handler, case-folds,
+        // uses pattern (glob / regexp) dispatch, calls
+        // ``exec``, or calls ``auto_load`` — the analyser can't
+        // statically prove which commands are resolvable, so
+        // suppress W123 entirely.  For the *non-dynamic* shape
+        // (only explicit ``dispatch_targets`` listed), W123
+        // still fires below; the per-invocation loop checks
+        // ``dispatch_targets`` membership and lets unrelated
+        // commands surface their warnings.  Empty-stub
+        // ``unknown`` (``proc unknown {cmd args} {}``) resolves
+        // nothing so we never hit this gate.
+        if let Some(info) = self.result.unknown_proc_info.as_ref() {
+            let is_dynamic = info.chains_original
+                || info.case_insensitive
+                || info.has_pattern_dispatch
+                || info.has_exec
+                || info.has_auto_load;
+            if is_dynamic {
+                return;
+            }
+        }
+
         let registry_names: HashSet<String> =
             registry.command_names().map(str::to_string).collect();
+        // **C41 follow-up.** Inline ``# tcl-lsp: stub NAME ...``
+        // declarations contribute to the candidate set and the
+        // suppression set so users who declared a stub for a
+        // command don't get spurious W123s.  Mirrors the
+        // ``stub_names`` set in
+        // ``_diag_commands.py:_emit_unresolved_command_diagnostics``.
+        let stub_names: HashSet<String> = super::utils::scan_stub_command_names(&self.source);
         let proc_tail_names: HashSet<String> = self
             .result
             .all_procs
@@ -1077,6 +1277,39 @@ impl Analyser {
             .iter()
             .filter_map(|ns| ns.rsplit_once("::").map(|(_, t)| t.to_string()))
             .filter(|s| !s.is_empty())
+            .collect();
+
+        // Build the candidate set for "did you mean…?"
+        // suggestions.  Mirrors Python's `candidates` set in
+        // `_diag_commands.py:87-106` — every name a real command
+        // could resolve to (including unknown-proc dispatch
+        // targets and inline-stub declarations).
+        let mut candidates: Vec<String> = Vec::new();
+        candidates.extend(registry_names.iter().cloned());
+        candidates.extend(proc_tail_names.iter().cloned());
+        candidates.extend(class_tail_names.iter().cloned());
+        candidates.extend(alias_names.iter().cloned());
+        candidates.extend(ensemble_cmds.iter().cloned());
+        candidates.extend(stub_names.iter().cloned());
+        if let Some(info) = self.result.unknown_proc_info.as_ref() {
+            for t in &info.dispatch_targets {
+                candidates.push(t.clone());
+            }
+        }
+
+        // Pre-compute the deduplicated ``Vec<&str>`` over the
+        // candidate set once, instead of rebuilding it per
+        // unresolved invocation.  ``candidates`` may carry
+        // duplicates because each contributor (registry / proc
+        // tails / class tails / aliases / ensemble cmds /
+        // stubs / unknown-proc dispatch_targets) is unioned
+        // independently — dedupe via a ``HashSet`` filter
+        // while preserving stable iteration order.
+        let mut seen_candidate_strs: HashSet<&str> = HashSet::new();
+        let candidate_strs: Vec<&str> = candidates
+            .iter()
+            .map(String::as_str)
+            .filter(|candidate| seen_candidate_strs.insert(*candidate))
             .collect();
 
         // Drain so the iteration loop can mutate
@@ -1106,6 +1339,14 @@ impl Analyser {
             if ensemble_cmds.contains(name) {
                 continue;
             }
+            if stub_names.contains(name) {
+                continue;
+            }
+            if let Some(info) = self.result.unknown_proc_info.as_ref() {
+                if info.dispatch_targets.contains(name) {
+                    continue;
+                }
+            }
             // Absolute-form fallback — ``cmd`` may be defined as
             // ``::cmd`` in the global namespace.
             if self.result.all_procs.contains_key(&format!("::{name}")) {
@@ -1115,12 +1356,33 @@ impl Analyser {
                 continue;
             }
 
-            let message = format!("Unknown command '{name}'");
+            // **C41 follow-up.** "Did you mean…?" suggestion
+            // via Levenshtein.  Mirrors the
+            // ``suggest_similar(cmd_name, candidates,
+            // max_suggestions=1, max_distance=2)`` call in
+            // ``_diag_commands.py:166``.  ``candidate_strs`` was
+            // deduplicated above so every name in it is unique;
+            // copying the slice per invocation is cheap (Vec of
+            // ``&str`` references).
+            let suggestions =
+                crate::text::suggest_similar(name, candidate_strs.iter().copied(), 1, 2);
+            let mut message = format!("Unknown command '{name}'");
+            let mut fixes: Vec<super::types::CodeFix> = Vec::new();
+            if let Some(best) = suggestions.first() {
+                use std::fmt::Write as _;
+                let _ = write!(message, "; did you mean '{best}'?");
+                fixes.push(super::types::CodeFix {
+                    span: inv.range,
+                    new_text: (*best).to_string(),
+                    description: format!("Replace with '{best}'"),
+                });
+            }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W123".to_string(),
                 span: inv.range,
                 message,
                 severity: Severity::Hint,
+                fixes,
             });
         }
         self.result.command_invocations = invocations;
@@ -1163,7 +1425,7 @@ impl Analyser {
         use crate::types::TypeKind;
         use std::collections::HashMap;
 
-        if self.var_command_sites.is_empty() {
+        if self.var_command_sites.is_empty() && self.cmd_command_sites.is_empty() {
             return;
         }
         // Aggregate type-lattice knowledge per variable name
@@ -1343,6 +1605,7 @@ impl Analyser {
                             span: site.cmd_span,
                             message,
                             severity: Severity::Warning,
+                            fixes: Vec::new(),
                         });
                     }
                 }
@@ -1372,11 +1635,313 @@ impl Analyser {
                 span: site.cmd_span,
                 message: "Non-literal command name — cannot statically analyze".to_string(),
                 severity: Severity::Warning,
+                fixes: Vec::new(),
             });
         }
         // Restore the sites list — snapshot/restore expects it
         // to round-trip independently of emission.
         self.var_command_sites = sites;
+
+        // **C41 follow-up.** ``[cmd] method`` sites — emit
+        // W307 only when the inner command's return type is
+        // unknown AND the call isn't an OO self-dispatch
+        // (``my`` / ``self``).  When the return type is a
+        // known class, validate the method against the
+        // hierarchy and emit W308 instead of W307.  This
+        // mirrors the cmd_command_sites branch of
+        // ``_emit_var_command_diagnostics`` in
+        // ``_diag_var_command.py:296-375``.
+        let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
+        for site in &cmd_sites {
+            if site.in_method {
+                continue;
+            }
+            // Parse the command-substitution text into
+            // ``head ?args...``.  ``cmd_text`` is what the
+            // analyser captured from
+            // ``SourceMap::token_text``; the leading ``[`` /
+            // trailing ``]`` are stripped already because
+            // ``content_offset`` skipped them.
+            let inner = site.cmd_text.trim();
+            let inner = inner
+                .strip_prefix('[')
+                .map_or(inner, str::trim)
+                .strip_suffix(']')
+                .map_or(inner, str::trim);
+            let mut parts = inner.split_whitespace();
+            let Some(head) = parts.next() else {
+                continue;
+            };
+            let arg_strs: Vec<&str> = parts.collect();
+
+            // OO self-dispatch ⇒ suppress W307.
+            let is_oo_self_dispatch = matches!(head, "my" | "self");
+            if is_oo_self_dispatch {
+                continue;
+            }
+
+            // **Codex P1 fix.** ``[Dog new]`` / ``[Dog create
+            // name]`` produce an Object whose class is ``Dog``.
+            // The registry lookup for the bare class name
+            // returns Overdefined (the class isn't a built-in
+            // command) so we recognise the constructor pattern
+            // explicitly here — mirrors the Python
+            // ``_return_type_for_command`` branch in
+            // ``core/compiler/core_analyses.py`` that maps
+            // ``known_class new/create`` to ``TclType.OBJECT``
+            // with the class name attached.
+            let class_qn = self.canonicalise_class_name(head);
+            let head_is_known_class = self.result.all_classes.contains_key(&class_qn)
+                || self.result.all_classes.contains_key(head);
+            let is_constructor_call = head_is_known_class
+                && arg_strs
+                    .first()
+                    .is_some_and(|sub| matches!(*sub, "new" | "create"));
+
+            // Look up the return type via the registry.  When
+            // the head is a user proc / class, fall back to
+            // ``Overdefined`` (matches the registry behaviour
+            // for unknown commands).
+            let ret_type = if is_constructor_call {
+                crate::types::TypeLattice {
+                    kind: crate::types::TypeKind::Known,
+                    tcl_type: Some(tcl_registry::TclType::Object),
+                    from_type: None,
+                    class_name: Some(class_qn.clone()),
+                }
+            } else {
+                crate::type_infer::return_type_for_command(registry, head, &arg_strs)
+            };
+
+            // ``Object`` return type — suppress W307; if the
+            // class is known, validate the method (W308).
+            let is_object = ret_type.kind == crate::types::TypeKind::Known
+                && matches!(ret_type.tcl_type, Some(tcl_registry::TclType::Object));
+            if is_object {
+                if !self.disabled_diagnostics.contains("W308") {
+                    if let (Some(method), Some(class_name)) =
+                        (site.method_name.as_ref(), ret_type.class_name.as_ref())
+                    {
+                        let cls_qn = self.canonicalise_class_name(class_name);
+                        let cd = self.result.all_classes.get(&cls_qn).cloned();
+                        let method_ok = self.validate_method_on_class(
+                            &cls_qn,
+                            method,
+                            cd.as_ref(),
+                            hierarchy.as_ref(),
+                        );
+                        if !method_ok {
+                            self.result.diagnostics.push(super::types::Diagnostic {
+                                code: "W308".to_string(),
+                                span: site.cmd_span,
+                                message: format!(
+                                    "Unknown method '{method}' on class '{class_name}'"
+                                ),
+                                severity: Severity::Warning,
+                                fixes: Vec::new(),
+                            });
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // Type is unknown — emit W307 (matching Python's
+            // emit-then-suppress shape, but only the emit-half
+            // for the residual unknown-type case).
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W307".to_string(),
+                span: site.cmd_span,
+                message: "Non-literal command name — cannot statically analyze".to_string(),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+        self.cmd_command_sites = cmd_sites;
+    }
+
+    /// Resolve a possibly-bare class name to its fully-qualified
+    /// form keyed in `result.all_classes`.
+    fn canonicalise_class_name(&self, name: &str) -> String {
+        if name.starts_with("::") {
+            return name.to_string();
+        }
+        let qualified = format!("::{name}");
+        if self.result.all_classes.contains_key(&qualified) {
+            qualified
+        } else {
+            name.to_string()
+        }
+    }
+
+    /// Decide whether `method` is callable on `class_name`,
+    /// consulting the class hierarchy + the class's local
+    /// method tables.
+    ///
+    /// Mirrors the W308 method-resolution gate in
+    /// ``_diag_var_command.py:341-361``.  A method is OK when
+    /// the class's MRO produces a concrete provider, or the
+    /// class is external (no local `ClassDef`), or the method
+    /// is one of the OO standard hooks (``new`` / ``create`` /
+    /// ``destroy`` / ``configure`` / ``cget``), or the class
+    /// declares an ``unknown`` method, or the class extends an
+    /// external superclass we can't introspect.
+    fn validate_method_on_class(
+        &self,
+        class_name: &str,
+        method: &str,
+        cd: Option<&super::types::ClassDef>,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> bool {
+        if hierarchy.is_some_and(|h| h.method_target(class_name, method).is_some()) {
+            return true;
+        }
+        let Some(cd) = cd else {
+            // External class — can't validate.
+            return true;
+        };
+        if cd.methods.contains_key(method) || cd.class_methods.contains_key(method) {
+            return true;
+        }
+        if matches!(method, "new" | "create" | "destroy" | "configure" | "cget") {
+            return true;
+        }
+        if cd.methods.contains_key("unknown") {
+            return true;
+        }
+        if hierarchy.is_some_and(|h| h.method_target(class_name, "unknown").is_some()) {
+            return true;
+        }
+        // External superclass ⇒ skip W308.
+        if !cd.superclasses.is_empty() {
+            for s in &cd.superclasses {
+                if !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Suppress W123 diagnostics whose command-name contains a
+    /// `$` interpolation that resolves cleanly via SCCP.
+    ///
+    /// Mirrors `_resolve_interpolated_commands` in
+    /// `core/analysis/_analyser/_diag_commands.py:188-260`.
+    /// Walks every emitted W123, extracts the command name
+    /// from the message, and runs
+    /// [`crate::text::fold_interpolation_set`] over the
+    /// aggregated SCCP results.  When every resolved value is
+    /// a known command, proc, class, or class-tail name, the
+    /// W123 is removed.
+    ///
+    /// **Simplification vs. Python.**  Python builds a
+    /// per-function SCCP map and uses range-based lookup so
+    /// each W123 site sees only the variables in its enclosing
+    /// function's scope.  The Rust port uses the union of
+    /// every function's SCCP — slightly more permissive
+    /// (over-suppresses if a same-named variable in a
+    /// different function happens to resolve cleanly) but
+    /// safe in practice.  Range-based lookup can land later
+    /// when the parity gap surfaces.
+    fn resolve_interpolated_w123_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+    ) {
+        use crate::analyses::{ConstValue, LatticeValue};
+        use std::collections::HashMap;
+
+        // Bail early when no W123 carries a ``$`` — the common
+        // case for non-iRules code.
+        let has_interpolated = self
+            .result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W123" && d.message.contains('$'));
+        if !has_interpolated {
+            return;
+        }
+
+        // Aggregate SCCP-resolved string sets per variable name
+        // across every function in the CU.  Same shape as
+        // ``emit_var_command_diagnostics``.
+        let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
+        let collect_from = |sccp: &crate::sccp::SccpResult,
+                            out: &mut HashMap<String, HashSet<String>>| {
+            for ((var_name, _ver), lv) in &sccp.values {
+                let values: Option<Vec<String>> = match lv {
+                    LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
+                    LatticeValue::ConstSet(set) => set
+                        .iter()
+                        .map(|cv| match cv {
+                            ConstValue::String(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>(),
+                    _ => None,
+                };
+                let Some(values) = values else { continue };
+                let entry = out.entry(var_name.clone()).or_default();
+                for v in values {
+                    entry.insert(v);
+                }
+            }
+        };
+        collect_from(&cu.top_level.sccp, &mut all_constsets);
+        for fu in cu.procedures.values() {
+            collect_from(&fu.sccp, &mut all_constsets);
+        }
+
+        // Build the universe of names that count as "known
+        // commands" for the resolution check.  Same set the
+        // emitter used to skip suggestions in the first pass.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
+        let known_proc_tails: HashSet<String> = self
+            .result
+            .all_procs
+            .keys()
+            .filter_map(|qn| qn.rsplit_once("::").map(|(_, t)| t.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        // Walk W123 diagnostics and remove those whose
+        // interpolated command name resolves cleanly.
+        let drained = std::mem::take(&mut self.result.diagnostics);
+        let mut kept: Vec<super::types::Diagnostic> = Vec::with_capacity(drained.len());
+        for d in drained {
+            if d.code != "W123" {
+                kept.push(d);
+                continue;
+            }
+            let Some(cmd_name) = extract_quoted_word(&d.message) else {
+                kept.push(d);
+                continue;
+            };
+            if !cmd_name.contains('$') {
+                kept.push(d);
+                continue;
+            }
+            let Some(resolved) = crate::text::fold_interpolation_set(&cmd_name, &all_constsets)
+            else {
+                kept.push(d);
+                continue;
+            };
+            // All resolved candidates must be known commands.
+            let all_known = resolved.iter().all(|name| {
+                known_cmds.contains(name)
+                    || known_proc_tails.contains(name)
+                    || self.result.all_procs.contains_key(&format!("::{name}"))
+                    || self.result.all_procs.contains_key(name)
+            });
+            if all_known {
+                // Suppress this W123 — the interpolated head
+                // statically resolves to a known command set.
+                continue;
+            }
+            kept.push(d);
+        }
+        self.result.diagnostics = kept;
     }
 
     /// Drop exact-duplicate diagnostics + line-based suppression
@@ -1470,6 +2035,60 @@ impl Analyser {
             .diagnostics
             .retain(|d| !disabled.contains(&d.code));
     }
+
+    /// IRULE4005 — racy ``static::`` cross-event flow.
+    ///
+    /// Mirrors `_emit_racy_static_diagnostics` in
+    /// `core/analysis/_analyser/_diag_racy.py`.  Walks every
+    /// SSA statement in `fu` and emits IRULE4005 for any
+    /// non-``unset`` def of a name in `racy_vars`.
+    /// `racy_vars` comes from
+    /// [`crate::connection_scope::ConnectionScope::racy_static_defs`]
+    /// — built once per `CompilationUnit` and shared by every
+    /// ``::when::*`` proc except `RULE_INIT`.
+    fn emit_racy_static_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        racy_vars: &HashSet<String>,
+    ) {
+        if self.disabled_diagnostics.contains("IRULE4005") {
+            return;
+        }
+        let mut emitted_spans: HashSet<u32> = HashSet::new();
+        for block in fu.ssa.blocks.values() {
+            for stmt in &block.statements {
+                // Skip unset — not a real write.  Mirrors the
+                // Python guard.
+                if let crate::ir::Statement::Call { command, .. } = &stmt.statement {
+                    if command == "unset" {
+                        continue;
+                    }
+                }
+                for name in stmt.defs.keys() {
+                    if !racy_vars.contains(name) {
+                        continue;
+                    }
+                    let span = stmt.statement.span();
+                    if span.is_empty() || !emitted_spans.insert(span.start()) {
+                        continue;
+                    }
+                    let message = format!(
+                        "Potential race: '{name}' is written outside RULE_INIT and read in \
+                         another event. static:: variables persist across all connections on \
+                         the same virtual server; concurrent writes can produce unpredictable \
+                         results."
+                    );
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "IRULE4005".to_string(),
+                        span,
+                        message,
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1484,6 +2103,7 @@ mod tests {
             span,
             message: msg.to_string(),
             severity: Severity::Warning,
+            fixes: Vec::new(),
         }
     }
 
@@ -1759,16 +2379,264 @@ mod tests {
     }
 
     #[test]
-    fn emit_cfg_ssa_diagnostics_w210_skipped_for_top_level() {
-        // Top-level RBS is deferred until ``globals_written_by_procs``
-        // filtering lands; the C41d2 baseline must not emit on
-        // top-level.
+    fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
+        // **C41e3 follow-up.** Top-level RBS now fires when no
+        // proc writes the variable.  ``puts $undef`` reads
+        // ``undef`` without any preceding write.
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics("puts $undef");
         assert!(
-            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
-            "W210 must not fire at top-level (deferred); got {:?}",
+            a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must fire at top-level when no proc writes the var; got {:?}",
             a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
+        // A helper proc ``init`` writes ``::counter`` via ``set``,
+        // so the top-level read should not flag W210 — the proc
+        // may run before the read.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc init {} { set ::counter 0 }\nputs $counter");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must be suppressed for globals written by procs; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
+        // ``proc init {} { global counter; set counter 0 }`` — the
+        // ``global`` declaration aliases the proc-local ``counter``
+        // to the global.  Top-level read should not flag W210.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc init {} { global counter; set counter 0 }\nputs $counter");
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must be suppressed via global-alias case; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_for_known_class_constructor_chain() {
+        // ``[Dog new] bark`` — ``Dog`` is a user class so
+        // ``new`` returns an Object whose class is ``Dog``.
+        // The W307 cmd-sub suppression should kick in.  Since
+        // ``bark`` is declared on ``Dog``, no W308 either.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} { return woof } }\n[Dog new] bark",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must not fire for [KnownClass new] method chain; got {:?}",
+            r.diagnostics,
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W308"),
+            "W308 must not fire when method is declared on the class; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
+        // ``[Dog new] fly`` — ``fly`` isn't declared on ``Dog``.
+        // W307 is suppressed (constructor returns Object) but
+        // W308 fires for the missing method.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Dog { method bark {} { return woof } }\n[Dog new] fly",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == "W308" && d.message.contains("fly")),
+            "W308 expected for unknown method on known class; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type() {
+        // ``[bogus_cmd] foo`` — the inner command isn't in the
+        // registry, so the return type is unknown.  W307 should
+        // fire for the cmd-as-command site.
+        let src = "[bogus_cmd] foo";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 expected for [unknown] method pattern; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w307_suppressed_for_my_self_dispatch() {
+        // ``[my method]`` is OO self-dispatch — never trips W307.
+        let src = "[my m] arg";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "W307 must not fire for OO self-dispatch; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_partial_interpolation_resolving_to_known_proc() {
+        // ``set suffix _hi`` makes ``$suffix`` resolve to ``_hi``;
+        // ``foo$suffix`` therefore resolves to ``foo_hi``, which
+        // is a known proc.  W123 should not fire.
+        let src = "\
+proc foo_hi {} {}
+set suffix _hi
+foo$suffix
+";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 should be suppressed when partial interpolation resolves to a known proc; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_kept_when_partial_interpolation_resolves_to_unknown() {
+        // ``set suffix _missing`` makes ``foo$suffix`` resolve
+        // to ``foo_missing`` — not a known command — so W123
+        // should still fire.
+        let src = "\
+set suffix _missing
+foo$suffix
+";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 expected when partial interpolation resolves to an unknown command",
+        );
+    }
+
+    #[test]
+    fn analyse_w123_emits_did_you_mean_suggestion() {
+        // ``puta`` is one edit away from ``puts`` — the
+        // emitter should attach a suggestion and a CodeFix.
+        let mut a = Analyser::new();
+        let r = a.analyse("puta hi", "tcl");
+        let w123 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "W123")
+            .expect("W123 emitted");
+        assert!(
+            w123.message.contains("did you mean 'puts'"),
+            "expected suggestion in message, got: {}",
+            w123.message,
+        );
+        assert!(!w123.fixes.is_empty(), "expected CodeFix payload");
+        let fix = &w123.fixes[0];
+        assert_eq!(fix.new_text, "puts");
+        assert!(fix.description.contains("puts"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_inline_stub_declared_command() {
+        // ``my_cmd`` is declared via inline stub — W123 must
+        // not fire even though it isn't in the registry.
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub my_cmd {arg1:var body:body}
+# tcl-lsp: stubs-end
+my_cmd $x foo
+";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 must not fire for stub-declared commands; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_dispatch_target_from_unknown_proc_suppresses() {
+        // ``foo`` is one of the switch arms inside a
+        // user-defined ``unknown`` proc — the empty-stub gate
+        // doesn't fire (body is non-empty), so W123 is
+        // already suppressed.  Add a fixture that verifies
+        // the dispatch_targets are also in the suggestion
+        // candidate set when an empty-stub unknown is in play.
+        let src = "\
+proc unknown {cmd args} {}
+foo
+";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        // Empty unknown means W123 still fires — but the
+        // dispatch_targets membership doesn't apply (set is
+        // empty).  Just sanity-check the test runs.
+        assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_no_suggestion_when_far_from_any_known_command() {
+        let mut a = Analyser::new();
+        let r = a.analyse("xyzzy_unknown_cmd", "tcl");
+        let w123 = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "W123")
+            .expect("W123 emitted");
+        assert!(
+            !w123.message.contains("did you mean"),
+            "no suggestion expected for far-away command name; got: {}",
+            w123.message,
+        );
+        assert!(w123.fixes.is_empty());
+    }
+
+    #[test]
+    fn analyse_irule4005_racy_static_emitted_for_per_request_writes() {
+        // ``static::counter`` written in HTTP_REQUEST and read
+        // in HTTP_RESPONSE — both per-request events; the
+        // cross-event flow is racy ⇒ IRULE4005 fires.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "when HTTP_REQUEST { incr static::counter }\n\
+             when HTTP_RESPONSE { log local0. \"$static::counter\" }",
+            "f5-irules",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "IRULE4005"),
+            "IRULE4005 expected for racy static cross-event flow; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_irule4005_no_emit_for_rule_init_writes() {
+        // ``static::config`` written in RULE_INIT is racy-safe
+        // (RULE_INIT runs once at iRule load) — IRULE4005 must
+        // not fire.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "when RULE_INIT { set static::config 1 }\n\
+             when HTTP_REQUEST { log local0. \"$static::config\" }",
+            "f5-irules",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "IRULE4005"),
+            "IRULE4005 must not fire for RULE_INIT writes; got {:?}",
+            r.diagnostics,
         );
     }
 

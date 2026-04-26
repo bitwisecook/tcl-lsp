@@ -190,6 +190,43 @@ impl EventRegistry {
     pub fn is_per_request(&self, event: &str) -> bool {
         self.per_request.contains(event)
     }
+
+    /// Return a note when a variable set in `set_event` has
+    /// scoping concerns when read in `read_event`.
+    ///
+    /// Mirrors `variable_scope_note` in
+    /// `core/commands/registry/namespace_data.py:2125-2144`.
+    /// Returns `None` when there's no concern — the caller's
+    /// cross-event analysis (`ConnectionScope::build`) treats
+    /// a `None` result as "valid cross-event flow" and records
+    /// the variable in the `cross_event_defs` /
+    /// `cross_event_imports` sets.
+    #[must_use]
+    pub fn variable_scope_note(&self, set_event: &str, read_event: &str) -> Option<String> {
+        if set_event == "RULE_INIT" {
+            return None;
+        }
+        let set_idx = self.master_order_index(set_event)?;
+        let read_idx = self.master_order_index(read_event)?;
+        if read_idx < set_idx {
+            return Some(format!(
+                "variable set in {set_event} is not yet available in {read_event} (fires earlier)"
+            ));
+        }
+        if self.per_request.contains(set_event) && self.once_per_connection.contains(read_event) {
+            return Some(format!(
+                "variable set in {set_event} (per-request) may not \
+                 be set yet in {read_event} (per-connection)"
+            ));
+        }
+        None
+    }
+
+    /// Position of `event` in [`Self::master_order`], or `None`
+    /// when the event isn't in the firing-order table.
+    fn master_order_index(&self, event: &str) -> Option<usize> {
+        self.order.iter().position(|e| e.event == event)
+    }
 }
 
 // Full static data — auto-generated from Python namespace_data.py

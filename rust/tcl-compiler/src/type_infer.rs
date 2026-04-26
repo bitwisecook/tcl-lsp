@@ -67,9 +67,11 @@ fn literal_type(text: &str) -> TypeLattice {
 /// Return the type produced by a known command's return value.
 ///
 /// Checks the command spec's `return_type` field, with subcommand
-/// support.
+/// support.  ``pub(crate)`` rather than ``pub`` so the helper
+/// stays an internal API surface — only the analyser-side
+/// W307 / W308 emitter consumes it today.
 #[must_use]
-fn return_type_for_command(
+pub(crate) fn return_type_for_command(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],

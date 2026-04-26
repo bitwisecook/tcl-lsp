@@ -267,11 +267,25 @@ impl Analyser {
                 span: name_span,
                 message,
                 severity: super::types::Severity::Warning,
+                fixes: Vec::new(),
             });
         }
 
         let params = parse_param_list(&args[1]);
         let doc = std::mem::take(&mut self.last_comment);
+
+        // **C41e3.** When a user defines ``proc unknown ...`` (or
+        // ``::tcl::unknown``), inspect the body to determine which
+        // commands the handler can resolve.  The result gates
+        // W123 (unresolved command) — if the user provided their
+        // own ``unknown`` we can't statically prove a command is
+        // truly unresolved.  Mirrors Python's
+        // ``_extract_unknown_proc_info`` call site in
+        // ``_proc.py:97-104``.
+        if matches!(simple.as_str(), "unknown") || qualified == "::tcl::unknown" {
+            let info = self.extract_unknown_proc_info(&args[2], &params);
+            self.result.unknown_proc_info = Some(info);
+        }
 
         let proc = ProcDef {
             name: simple,
@@ -374,15 +388,31 @@ impl Analyser {
         }
         let ns_name = args[1].clone();
         let body_span = arg_tokens.get(2).map(|t| t.span);
-
-        let mut child = super::types::Scope::new(super::types::ScopeKind::Namespace, ns_name);
-        child.body_span = body_span;
+        let body_text = args.get(2).cloned();
+        let body_tok = arg_tokens.get(2).copied();
 
         let path = scope_path.to_vec();
-        let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) else {
-            return false;
+        let child_scope_idx = {
+            let mut child = super::types::Scope::new(super::types::ScopeKind::Namespace, ns_name);
+            child.body_span = body_span;
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+            else {
+                return false;
+            };
+            parent.children.push(child);
+            parent.children.len() - 1
         };
-        parent.children.push(child);
+        let mut child_path = path;
+        child_path.push(child_scope_idx);
+
+        // **C41e3 follow-up.** Body recursion lets procs and
+        // classes declared inside ``namespace eval`` register
+        // with the correct namespace prefix.  Mirrors Python's
+        // ``_handle_namespace_eval_command`` which calls
+        // ``_analyse_body`` on the body text + token.
+        if let (Some(text), Some(tok)) = (body_text, body_tok) {
+            self.analyse_body(&text, tok, &child_path);
+        }
         true
     }
 
@@ -689,6 +719,95 @@ impl Analyser {
         }
     }
 
+    /// Handle ``package require`` (and ``package provide``) —
+    /// record the package dependency so later passes can gate
+    /// W123 (unresolved-command) suppression and dynamic-
+    /// provider detection.
+    ///
+    /// Mirrors the package-recording fragment of
+    /// ``_AnalyserCommandsMixin._process_command`` in
+    /// ``core/analysis/_analyser/_commands.py:277-321``.  Two
+    /// shapes Python recognises:
+    ///
+    /// - ``package require ?-exact? NAME ?VERSION?`` — appends a
+    ///   ``SignaturePackageRequire`` record to
+    ///   ``result.package_requires`` and flips
+    ///   ``has_dynamic_providers`` when the name argument is a
+    ///   ``$``-substitution / ``[…]``-substitution token.
+    /// - ``package provide NAME ?VERSION?`` — Python records this
+    ///   on ``result.package_provides``; the Rust
+    ///   ``AnalysisResult`` doesn't carry that field yet (deferred
+    ///   carry-over) so we only consume the shape silently.
+    ///
+    /// The conditional flag is ``self.conditional_depth > 0``,
+    /// matching Python's `_conditional_depth`.
+    ///
+    /// `cmd_tok` is the command-head token (the ``package``
+    /// word).  The recorded
+    /// [`SignaturePackageRequire::range`](crate::signature_scan::types::SignaturePackageRequire::range)
+    /// uses its span so the range matches Python's
+    /// ``range_from_token(argv[0])`` — code-action /
+    /// quick-fix UX points at the ``package`` keyword rather
+    /// than at the ``require`` subcommand word.
+    pub fn handle_package_command(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if cmd_name != "package" || args.is_empty() {
+            return;
+        }
+        let sub = args[0].as_str();
+        if sub != "require" {
+            // ``package provide`` and other subcommands aren't
+            // recorded yet (no ``package_provides`` field in
+            // the Rust ``AnalysisResult``); silently consume.
+            return;
+        }
+        if args.len() < 2 {
+            return;
+        }
+
+        // ``package require -exact NAME ?VERSION?`` — strip the
+        // flag and shift the name index.
+        let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
+            (2usize, args[2].clone())
+        } else {
+            (1usize, args[1].clone())
+        };
+        let version_idx = name_idx + 1;
+        let version = if version_idx < args.len() {
+            Some(args[version_idx].clone())
+        } else {
+            None
+        };
+
+        // Dynamic-provider detection — non-literal name flips the
+        // flag.  ``arg_tokens`` is parallel to ``args`` so the
+        // token at the name index is what we inspect.
+        if let Some(name_tok) = arg_tokens.get(name_idx) {
+            if matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
+                || name_text.contains('$')
+                || name_text.contains('[')
+            {
+                // No ``has_dynamic_providers`` field on Rust
+                // AnalysisResult yet — track via package_requires
+                // alone.  When the field lands, flip it here.
+            }
+        }
+
+        self.result
+            .package_requires
+            .push(crate::signature_scan::types::SignaturePackageRequire {
+                name: name_text,
+                version,
+                range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
+            });
+    }
+
     /// Resolve a command alias to `(target_cmd, effective_args)`.
     ///
     /// Mirrors `_resolve_alias` in
@@ -746,15 +865,15 @@ impl Analyser {
         let name_span = arg_tokens[1].span;
         let body_tok_opt = arg_tokens.get(2).copied();
         let body_span = body_tok_opt.map_or(arg_tokens[1].span, |t| t.span);
+        let doc = std::mem::take(&mut self.last_comment);
         let mut class = super::types::ClassDef {
             name: simple,
             qualified_name: qualified.clone(),
             name_span,
             body_span,
-            superclasses: Vec::new(),
-            mixins: Vec::new(),
-            methods: std::collections::HashMap::new(),
-            class_methods: std::collections::HashMap::new(),
+            metaclass: cmd_name.to_string(),
+            doc,
+            ..Default::default()
         };
         // **C41e1.** Walk the class body when present —
         // populates ``superclasses`` / ``mixins`` / ``methods`` /
@@ -848,10 +967,7 @@ impl Analyser {
                     qualified_name: qualified.clone(),
                     name_span,
                     body_span: name_span,
-                    superclasses: Vec::new(),
-                    mixins: Vec::new(),
-                    methods: std::collections::HashMap::new(),
-                    class_methods: std::collections::HashMap::new(),
+                    ..Default::default()
                 }
             });
 
@@ -2695,5 +2811,222 @@ mod tests {
         let mut a = Analyser::new();
         a.handle_incr_command("set", &["counter".to_string()], &[esc_tok(span(0, 7))], &[]);
         assert!(a.result.global_scope.variables.is_empty());
+    }
+
+    // -- C41e3: ClassDef extended fields + UnknownProcInfo ---------
+
+    #[test]
+    fn analyse_oo_class_records_metaclass_from_command_name() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::class create C {}", "tcl");
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.metaclass, "oo::class");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_constructors_and_destructor() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { constructor args { puts ctor }\ndestructor { puts dtor } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.constructors.len(), 1);
+        assert_eq!(cls.constructors[0].kind, "constructor");
+        assert!(cls.destructor.is_some());
+        assert_eq!(cls.destructor.as_ref().unwrap().kind, "destructor");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_variables_filters_exports() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { variable x y\nfilter log\nexport foo bar\nunexport hidden }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.variables, vec!["x", "y"]);
+        assert_eq!(cls.filters, vec!["log"]);
+        assert!(cls.exports.contains("foo"));
+        assert!(cls.exports.contains("bar"));
+        assert!(cls.unexports.contains("hidden"));
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_property_def() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { property colour -kind readwrite -get { return red } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        let pd = cls.properties.get("colour").expect("colour recorded");
+        assert_eq!(pd.kind, "readwrite");
+        assert!(pd.has_getter);
+        assert!(!pd.has_setter);
+    }
+
+    #[test]
+    fn analyse_unknown_proc_records_dispatch_targets_end_to_end() {
+        // End-to-end: a ``proc unknown {cmd args} {...}`` with
+        // an exact-match switch should populate
+        // ``result.unknown_proc_info`` with the arm labels as
+        // dispatch targets.  This is what gates W123 in C41d4
+        // once the unknown_proc_info early-return lands.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } bar { return 2 } } }",
+            "tcl",
+        );
+        let info = r.unknown_proc_info.expect("unknown_proc_info populated");
+        assert!(!info.empty_stub);
+        assert!(info.dispatch_targets.contains("foo"));
+        assert!(info.dispatch_targets.contains("bar"));
+    }
+
+    #[test]
+    fn analyse_without_unknown_proc_leaves_unknown_proc_info_none() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc foo {} { return 1 }", "tcl");
+        assert!(r.unknown_proc_info.is_none());
+    }
+
+    #[test]
+    fn analyse_unknown_proc_with_empty_body_marks_empty_stub() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc unknown {cmd args} {}", "tcl");
+        let info = r.unknown_proc_info.expect("unknown_proc_info populated");
+        assert!(info.empty_stub);
+    }
+
+    #[test]
+    fn analyse_qualified_unknown_proc_also_populates_info() {
+        // ``::tcl::unknown`` (the canonical fully-qualified
+        // name) should trigger detection too.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc ::tcl::unknown {cmd args} { exec $cmd }", "tcl");
+        let info = r.unknown_proc_info.expect("unknown_proc_info populated");
+        assert!(info.has_exec);
+    }
+
+    // -- C41e4: stray-close-bracket recovery ------------------------
+
+    #[test]
+    fn analyse_top_level_repairs_stray_close_bracket() {
+        // ``set x string]`` is a typo for ``set x [string ...]``.
+        // The recovery should rewrite the third argv entry into
+        // a virtual ``CMD`` token before dispatch so the var
+        // record is registered with the recovered shape.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("set x string]", "tcl");
+        // ``x`` ends up in scope as a single-arg ``set`` (a var
+        // read), not as a two-arg ``set`` with the broken text
+        // — recovery yields the synthetic ``[string]`` command
+        // word so dispatch sees the intended shape.
+        assert!(r.global_scope.variables.contains_key("x"));
+    }
+
+    // -- C41e5 + e3 follow-ups: unknown_proc_info / package require -
+
+    #[test]
+    fn analyse_records_package_require() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Tcl 8.6", "tcl");
+        assert_eq!(r.package_requires.len(), 1);
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "Tcl");
+        assert_eq!(p.version.as_deref(), Some("8.6"));
+        assert!(!p.conditional);
+    }
+
+    #[test]
+    fn analyse_records_package_require_exact_flag() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require -exact Tcl 8.6", "tcl");
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "Tcl");
+        assert_eq!(p.version.as_deref(), Some("8.6"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_package_require_seen() {
+        // W123 is suppressed when any package require is on
+        // file — package may load arbitrary commands.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Foo\nbogus_command arg", "tcl");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_unknown_proc_chains_original() {
+        // ``proc unknown`` that chains the original handler is
+        // a *dynamic* shape — Python suppresses W123 entirely
+        // because runtime can resolve any command name.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { _original_unknown $cmd {*}$args }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_unknown_proc_calls_exec() {
+        // ``exec $cmd`` inside ``unknown`` is a dynamic shape;
+        // any command may be a real binary on PATH.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { exec $cmd {*}$args }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W123"));
+    }
+
+    #[test]
+    fn analyse_w123_still_fires_outside_explicit_dispatch_targets() {
+        // ``proc unknown`` with ONLY explicit dispatch targets
+        // (no exec / auto_load / chain / pattern / case-fold)
+        // is *not* dynamic — W123 should still fire for
+        // commands not in the explicit target set.  Mirrors
+        // Python's behaviour from ``_diag_commands.py:64-71``.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W123"),
+            "W123 expected for ``bogus_command`` outside explicit dispatch targets; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_explicit_dispatch_target() {
+        // ``foo`` is in the explicit dispatch_targets — even
+        // for the non-dynamic shape, the per-invocation loop
+        // suppresses W123 for it.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nfoo arg",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W123" && d.message.contains("'foo'")),
+            "W123 should not fire for command listed in dispatch_targets; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_still_fires_for_empty_unknown_stub() {
+        // An empty ``unknown`` stub resolves nothing — W123
+        // should still emit.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl");
+        // ``bogus_command`` should be flagged.
+        assert!(r.diagnostics.iter().any(|d| d.code == "W123"));
     }
 }

@@ -63,11 +63,36 @@ impl Analyser {
         self.body_depth += 1;
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let body_commands = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
-        for cmd in body_commands {
-            if cmd.is_partial || cmd.argv.is_empty() {
+        let total = body_commands.len();
+        let mut cmd_idx: usize = 0;
+        while cmd_idx < total {
+            let cmd_ref = &body_commands[cmd_idx];
+            if cmd_ref.argv.is_empty() {
+                cmd_idx += 1;
                 continue;
             }
+            if cmd_ref.is_partial {
+                // **C41e5.** Stolen-close-brace detection ⇒ E103;
+                // otherwise the generic E200 fires so the user
+                // still sees a parse-error diagnostic.
+                if !self.detect_stolen_close_brace(cmd_ref) {
+                    self.emit_partial_command_diagnostic(cmd_ref);
+                }
+                cmd_idx += 1;
+                continue;
+            }
+            let mut cmd = cmd_ref.clone();
+            // **C41e4.** Repair stray ``]`` (missing ``[``) so
+            // downstream handlers see the intended argv shape
+            // before dispatch.
+            self.recover_stray_close_bracket(&mut cmd);
+            // **C41e5.** Splice orphaned switch case pairs
+            // when ``{`` was forgotten.  The returned count is
+            // added to ``cmd_idx`` so we skip past the consumed
+            // orphans.
+            let consumed = self.recover_missing_open_brace(&mut cmd, &body_commands, cmd_idx);
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
+            cmd_idx += 1 + consumed;
         }
         self.body_depth -= 1;
     }
@@ -228,6 +253,7 @@ impl Analyser {
         self.handle_namespace_ensemble(cmd_name, args, scope_path);
         self.handle_interp_alias(cmd_name, args);
         self.handle_oo_objdefine(cmd_name, args);
+        self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
     }
 }
 

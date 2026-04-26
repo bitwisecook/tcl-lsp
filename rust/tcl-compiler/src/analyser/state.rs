@@ -254,12 +254,31 @@ impl Analyser {
         // Walk each command through the dispatcher. Body recursion
         // (proc bodies, namespace bodies, control-flow arms) is
         // C41c / C41e work; this baseline only walks the top level.
-        for cmd in commands {
-            if cmd.is_partial || cmd.argv.is_empty() {
+        // **C41e4** wires ``recover_stray_close_bracket``;
+        // **C41e5** wires ``recover_missing_open_brace`` (for
+        // switch with forgotten body brace), ``detect_stolen_close_brace``
+        // (E103), and the generic E200 partial-command emitter.
+        let total = commands.len();
+        let mut cmd_idx: usize = 0;
+        while cmd_idx < total {
+            let cmd_ref = &commands[cmd_idx];
+            if cmd_ref.argv.is_empty() {
+                cmd_idx += 1;
                 continue;
             }
+            if cmd_ref.is_partial {
+                if !self.detect_stolen_close_brace(cmd_ref) {
+                    self.emit_partial_command_diagnostic(cmd_ref);
+                }
+                cmd_idx += 1;
+                continue;
+            }
+            let mut cmd = cmd_ref.clone();
+            self.recover_stray_close_bracket(&mut cmd);
+            let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
+            cmd_idx += 1 + consumed;
         }
 
         // **C41d1.** Run the diagnostic-emission orchestrator
@@ -412,11 +431,35 @@ impl Analyser {
     /// for incremental analysis.
     fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
         let scope_path = self.current_scope_path.clone();
-        for cmd in commands {
-            if cmd.is_partial || cmd.argv.is_empty() {
+        let total = commands.len();
+        let mut cmd_idx: usize = 0;
+        while cmd_idx < total {
+            let cmd_ref = &commands[cmd_idx];
+            if cmd_ref.argv.is_empty() {
+                cmd_idx += 1;
                 continue;
             }
+            if cmd_ref.is_partial {
+                // **C41e5** parity — partial commands surface
+                // E103 / E200 in the chunked path too so the
+                // LSP shows parse errors during incremental
+                // analysis.
+                if !self.detect_stolen_close_brace(cmd_ref) {
+                    self.emit_partial_command_diagnostic(cmd_ref);
+                }
+                cmd_idx += 1;
+                continue;
+            }
+            // **C41e4 + C41e5.** Repair stray ``]`` and missing
+            // ``{`` in a clone of the segmented command before
+            // dispatch — chunked analysis keeps the original
+            // snapshot copies untouched so re-runs are
+            // deterministic.
+            let mut cmd = cmd_ref.clone();
+            self.recover_stray_close_bracket(&mut cmd);
+            let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
+            cmd_idx += 1 + consumed;
         }
     }
 

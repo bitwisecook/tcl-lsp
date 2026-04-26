@@ -696,3 +696,75 @@ Two-commit chunk:
   the Python implementation retires. Seg2 had to land before Phase 2
   shipped — without it, the Rust path silently dropped recovered
   declarations from the workspace index.
+
+## C41 — `core/analysis/_analyser/`
+
+The analyser has the largest test surface in the repo
+(`tests/test_analyser.py` carries 2,049 cases covering every
+W-code, every iRule diagnostic, and every recovery shape).
+The C41 chunk does **not** add per-Python-test parity coverage
+to the Rust port — the bar is differential parity on a
+purpose-built corpus instead.
+
+- **Differential corpus**
+  (`tests/test_rust_analyser_differential.py`): 40 parametrised
+  fixtures × the `_compare_shapes` helper.  Each fixture runs
+  the Python `Analyser().analyse(source)` and the Rust
+  `tcl_lsp_rust.analyser_analyse(source, "tcl")` →
+  `_materialise_rust_analysis` paths, then asserts the
+  proc-qualified-name set and class-qualified-name set match
+  (modulo a `::::`→`::` normalisation for Python's known
+  double-prefix quirk).  The comparison is intentionally coarse
+  — finer-grained equality (per-proc params, per-class methods,
+  scope-tree shape, `all_variables` membership, diagnostic-code
+  parity) is the bar **after** C41-default-on bakes; landing it
+  now would force xfail markers, and the chunk-log policy
+  forbids shipping xfails.
+- **Dispatcher gating**: 4 cases in the same file assert the
+  env-var-gated dispatcher in `core/analysis/_analyser/__init__.py`:
+  unset → Python (default-OFF), `=1` → Rust, `=0` → Python,
+  Rust raising → Python fallback.  The Rust binding is patched
+  in via `monkeypatch.setattr(analyser_module, "_rust_analyse",
+  …)` so the gating tests run in Python-only CI environments
+  too.
+- **Cargo unit tests**: 1,724 across the workspace.  The
+  per-strip files (`analyser/oo.rs`, `analyser/recovery.rs`,
+  `analyser/diagnostics.rs`, `analyser/handlers.rs`) carry
+  in-module `mod tests` blocks for each handler, recovery
+  helper, and diagnostic emitter.  These tests cover the *Rust
+  side only* — they don't compare against Python.
+
+**Known parity gaps surfaced by the differential** (deferred
+until the C41-default-on flip is in scope):
+
+- `nested_namespace_eval` (`namespace eval outer { namespace
+  eval inner { proc deep {} {} } }`) — Python records
+  `::inner::deep` (drops outer); Rust records
+  `::outer::inner::deep`.  Python-side rebase bug; fixture
+  intentionally absent from the corpus.
+- Diagnostic-code-set differences across `W210` / `W211` /
+  `W213` / `W214` / `W220` between the two emitter sets — the
+  Rust port emits a slightly different subset.  Each gap is
+  tracked as a per-emitter follow-up under the C41d strip
+  family.
+
+## C41-default-on — flip the C41 dispatcher to Rust by default
+
+Mirrors the C40-default-on shape.  Two phases:
+
+- **Phase 1**: tighten the differential corpus's
+  `_compare_shapes` helper from set-equality to field-by-field
+  equality (per-proc params, per-class methods, scope-tree
+  shape, `all_variables`, diagnostic-code parity).  Each
+  fixture that fails the tightened check goes through one of
+  three resolutions: Rust-side fix, Python-side fix (filed as
+  a separate change), or removal from the corpus with an
+  explanatory comment.  Lands when every fixture is
+  field-by-field green.
+- **Phase 2**: flip the dispatcher polarity in
+  `core/analysis/_analyser/__init__.py::analyse` — change
+  `rust_shim_enabled("TCL_LSP_RUST_ANALYSER", default=False)`
+  to `default=True`.  Update the four dispatcher tests in
+  `test_rust_analyser_differential.py` to assert the new
+  polarity.  Once a release cycle has soaked, retire the
+  Python `_AnalyserBase` mixin set and the env var.

@@ -25,6 +25,14 @@
 //! - `source_targets` — list of `{raw_path, range, is_literal}`
 //! - `command_aliases` — `{qualified_name: {qualified_name, target, extras}}`
 //! - `namespace_imports` — list of `{ns, pattern, range, conjectured}`
+//! - `unknown_proc_info` — `{dispatch_targets, chains_original,
+//!   empty_stub, case_insensitive, has_pattern_dispatch, has_exec,
+//!   has_auto_load}` or ``None`` (C41e3)
+//!
+//! Class dicts (since C41e3) carry the full Python `ClassDef`
+//! field set: `metaclass`, `constructors`, `destructor`,
+//! `variables`, `properties`, `filters`, `exports`, `unexports`,
+//! and `doc` in addition to the C41e0/e1/e2 fields.
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
@@ -32,7 +40,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use tcl_compiler::analyser::{
-    Analyser, AnalysisResult, ClassDef, Diagnostic, ProcDef, Scope, ScopeKind, Severity, VarDef,
+    Analyser, AnalysisResult, ClassDef, CodeFix, Diagnostic, ProcDef, PropertyDef, Scope,
+    ScopeKind, Severity, UnknownProcInfo, VarDef,
 };
 use tcl_compiler::signature_scan::types::{
     SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceImport,
@@ -117,6 +126,14 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     }
     out.set_item("namespace_imports", imports)?;
 
+    // **C41e3.** Optional unknown-proc-info dict; ``None`` when
+    // the document didn't define a ``proc unknown`` (the W123
+    // emitter then runs unconditionally).
+    match &r.unknown_proc_info {
+        Some(info) => out.set_item("unknown_proc_info", unknown_proc_info_to_dict(py, info)?)?,
+        None => out.set_item("unknown_proc_info", py.None())?,
+    }
+
     Ok(out)
 }
 
@@ -185,6 +202,7 @@ fn class_to_dict<'py>(py: Python<'py>, c: &ClassDef) -> PyResult<Bound<'py, PyDi
     d.set_item("qualified_name", &c.qualified_name)?;
     d.set_item("name_range", span_tuple(c.name_span))?;
     d.set_item("body_range", span_tuple(c.body_span))?;
+    d.set_item("metaclass", &c.metaclass)?;
     d.set_item("superclasses", PyList::new_bound(py, &c.superclasses))?;
     d.set_item("mixins", PyList::new_bound(py, &c.mixins))?;
     let methods = PyDict::new_bound(py);
@@ -197,6 +215,58 @@ fn class_to_dict<'py>(py: Python<'py>, c: &ClassDef) -> PyResult<Bound<'py, PyDi
         class_methods.set_item(name, method_to_dict(py, m)?)?;
     }
     d.set_item("class_methods", class_methods)?;
+    let constructors = PyList::empty_bound(py);
+    for ctor in &c.constructors {
+        constructors.append(method_to_dict(py, ctor)?)?;
+    }
+    d.set_item("constructors", constructors)?;
+    match &c.destructor {
+        Some(dtor) => d.set_item("destructor", method_to_dict(py, dtor)?)?,
+        None => d.set_item("destructor", py.None())?,
+    }
+    d.set_item("variables", PyList::new_bound(py, &c.variables))?;
+    let properties = PyDict::new_bound(py);
+    for (name, p) in &c.properties {
+        properties.set_item(name, property_to_dict(py, p)?)?;
+    }
+    d.set_item("properties", properties)?;
+    d.set_item("filters", PyList::new_bound(py, &c.filters))?;
+    // ``HashSet`` iteration is non-deterministic; sort for stable
+    // output so downstream callers (and golden tests) see a
+    // consistent ordering.
+    let mut exports: Vec<&String> = c.exports.iter().collect();
+    exports.sort();
+    d.set_item("exports", PyList::new_bound(py, &exports))?;
+    let mut unexports: Vec<&String> = c.unexports.iter().collect();
+    unexports.sort();
+    d.set_item("unexports", PyList::new_bound(py, &unexports))?;
+    d.set_item("doc", &c.doc)?;
+    Ok(d)
+}
+
+fn property_to_dict<'py>(py: Python<'py>, p: &PropertyDef) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    d.set_item("name", &p.name)?;
+    d.set_item("name_range", span_tuple(p.name_span))?;
+    d.set_item("kind", &p.kind)?;
+    d.set_item("has_getter", p.has_getter)?;
+    d.set_item("has_setter", p.has_setter)?;
+    Ok(d)
+}
+
+fn unknown_proc_info_to_dict<'py>(
+    py: Python<'py>,
+    info: &UnknownProcInfo,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    let targets: Vec<&String> = info.dispatch_targets.iter().collect();
+    d.set_item("dispatch_targets", PyList::new_bound(py, &targets))?;
+    d.set_item("chains_original", info.chains_original)?;
+    d.set_item("empty_stub", info.empty_stub)?;
+    d.set_item("case_insensitive", info.case_insensitive)?;
+    d.set_item("has_pattern_dispatch", info.has_pattern_dispatch)?;
+    d.set_item("has_exec", info.has_exec)?;
+    d.set_item("has_auto_load", info.has_auto_load)?;
     Ok(d)
 }
 
@@ -233,7 +303,20 @@ fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'p
     out.set_item("range", span_tuple(d.span))?;
     out.set_item("message", &d.message)?;
     out.set_item("severity", severity_str(d.severity))?;
+    let fixes = PyList::empty_bound(py);
+    for fix in &d.fixes {
+        fixes.append(code_fix_to_dict(py, fix)?)?;
+    }
+    out.set_item("fixes", fixes)?;
     Ok(out)
+}
+
+fn code_fix_to_dict<'py>(py: Python<'py>, fix: &CodeFix) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new_bound(py);
+    d.set_item("range", span_tuple(fix.span))?;
+    d.set_item("new_text", &fix.new_text)?;
+    d.set_item("description", &fix.description)?;
+    Ok(d)
 }
 
 fn severity_str(s: Severity) -> &'static str {

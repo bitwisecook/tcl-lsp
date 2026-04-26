@@ -5,12 +5,15 @@ import logging
 from ..semantic_model import (
     AnalysisResult,
     ClassDef,
+    CodeFix,
     Diagnostic,
     MethodDef,
     ParamDef,
     ProcDef,
+    PropertyDef,
     Scope,
     Severity,
+    UnknownProcInfo,
     VarDef,
 )
 from ._commands import _AnalyserCommandsMixin
@@ -119,6 +122,15 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             doc=m.get("doc") or "",
         )
 
+    def _property(p: dict) -> PropertyDef:
+        return PropertyDef(
+            name=p["name"],
+            name_range=range_at(*p["name_range"]),
+            kind=p.get("kind") or "readwrite",
+            has_getter=p.get("has_getter", False),
+            has_setter=p.get("has_setter", False),
+        )
+
     def _class(c: dict) -> ClassDef:
         cd = ClassDef(
             name=c["name"],
@@ -129,6 +141,8 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
         # The Rust analyser populates these structural fields from
         # C41e0+e1+e2 onwards.  Older binding builds may omit them
         # — fall back to the dataclass defaults.
+        if "metaclass" in c:
+            cd.metaclass = c["metaclass"]
         if "superclasses" in c:
             cd.superclasses = list(c["superclasses"])
         if "mixins" in c:
@@ -137,6 +151,24 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             cd.methods[name] = _method(m)
         for name, m in c.get("class_methods", {}).items():
             cd.class_methods[name] = _method(m)
+        # C41e3 fields — present when the Rust binding is C41e3+;
+        # older builds omit them and we keep the dataclass defaults.
+        for ctor in c.get("constructors", []):
+            cd.constructors.append(_method(ctor))
+        if c.get("destructor") is not None:
+            cd.destructor = _method(c["destructor"])
+        if "variables" in c:
+            cd.variables = list(c["variables"])
+        for name, p in c.get("properties", {}).items():
+            cd.properties[name] = _property(p)
+        if "filters" in c:
+            cd.filters = list(c["filters"])
+        if "exports" in c:
+            cd.exports = set(c["exports"])
+        if "unexports" in c:
+            cd.unexports = set(c["unexports"])
+        if "doc" in c:
+            cd.doc = c["doc"]
         return cd
 
     def _var(v: dict) -> VarDef:
@@ -171,13 +203,36 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
     for qname, v in raw.get("all_variables", {}).items():
         result.all_variables[qname] = _var(v)
     for d in raw.get("diagnostics", []):
+        fixes_raw = d.get("fixes") or ()
+        fixes = tuple(
+            CodeFix(
+                range=range_at(*f["range"]),
+                new_text=f.get("new_text") or "",
+                description=f.get("description") or "",
+            )
+            for f in fixes_raw
+        )
         result.diagnostics.append(
             Diagnostic(
                 range=range_at(*d["range"]),
                 message=d["message"],
                 severity=_SEVERITY_MAP.get(d["severity"], Severity.WARNING),
                 code=d["code"],
+                fixes=fixes,
             )
+        )
+
+    # C41e3 — UnknownProcInfo from a user-defined ``unknown`` proc.
+    upi = raw.get("unknown_proc_info")
+    if upi is not None:
+        result.unknown_proc_info = UnknownProcInfo(
+            dispatch_targets=frozenset(upi.get("dispatch_targets", [])),
+            chains_original=upi.get("chains_original", False),
+            empty_stub=upi.get("empty_stub", False),
+            case_insensitive=upi.get("case_insensitive", False),
+            has_pattern_dispatch=upi.get("has_pattern_dispatch", False),
+            has_exec=upi.get("has_exec", False),
+            has_auto_load=upi.get("has_auto_load", False),
         )
     return result
 

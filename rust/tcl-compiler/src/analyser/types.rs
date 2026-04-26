@@ -10,7 +10,7 @@
 //! identifiers stay UK-spelt, ``snake_case`` Python field names
 //! stay ``snake_case`` in Rust.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
 
@@ -53,12 +53,31 @@ pub enum ScopeKind {
     Proc,
 }
 
+/// A suggested fix for a [`Diagnostic`] — maps to an LSP
+/// `TextEdit`.
+///
+/// Mirrors ``CodeFix`` in ``core/analysis/semantic_model.py``.
+/// Populated by emitters that know exactly *what* the user
+/// should change (E101 inserts a missing ``{``, E103 inserts a
+/// missing ``}``, W123 may suggest a similarly-named command,
+/// etc.).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeFix {
+    /// Source span the replacement applies to.  An insertion
+    /// is a zero-width span anchored at the insertion point.
+    pub span: Span,
+    /// Text to replace ``span`` with.
+    pub new_text: String,
+    /// Human-readable description of the fix
+    /// (e.g. ``"Insert missing '{'"``).  Empty when omitted.
+    pub description: String,
+}
+
 /// Diagnostic emitted by the analyser.
 ///
 /// Carries a stable ``code`` (e.g. ``"W210"``), the source
-/// [`Span`] the diagnostic anchors to, a one-line ``message``, and
-/// a [`Severity`]. Replacement / fix-it suggestions land later via
-/// a sibling ``CodeFix`` type (filled in **C41d**).
+/// [`Span`] the diagnostic anchors to, a one-line ``message``, a
+/// [`Severity`], and optional [`CodeFix`] suggestions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Stable W-/IRULE-coded identifier.
@@ -69,6 +88,9 @@ pub struct Diagnostic {
     pub message: String,
     /// Severity classifier.
     pub severity: Severity,
+    /// Suggested fixes (zero or more).  Empty when no
+    /// emitter-supplied fix is available.
+    pub fixes: Vec<CodeFix>,
 }
 
 /// Variable definition record.
@@ -135,15 +157,39 @@ pub struct MethodDef {
     pub doc: String,
 }
 
+/// `TclOO` property definition.
+///
+/// Mirrors ``PropertyDef`` in ``core/analysis/semantic_model.py``.
+/// Recorded by the OO body walker for ``property`` subcommands
+/// inside an ``oo::class create`` / ``oo::define`` block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PropertyDef {
+    /// Property name as written.
+    pub name: String,
+    /// Source span of the property-name token.
+    pub name_span: Span,
+    /// Property kind: ``"readable"`` / ``"writable"`` /
+    /// ``"readwrite"``.  Defaults to ``"readwrite"`` when ``-kind``
+    /// is omitted (matches Python).
+    pub kind: String,
+    /// True when ``-get BODY`` was supplied.
+    pub has_getter: bool,
+    /// True when ``-set BODY`` was supplied.
+    pub has_setter: bool,
+}
+
 /// Class definition record.
 ///
 /// Mirrors ``ClassDef`` in ``core/analysis/semantic_model.py``.
 /// **C41e0** lands the structural fields (`superclasses`,
 /// `mixins`, `methods`, `class_methods`) needed by the
 /// class-hierarchy / MRO algorithms; **C41e1** wires the body
-/// walker that populates them.  Until C41e1 lands the maps are
-/// empty for every class — the MRO computations still
-/// terminate cleanly (single-element chain, no methods).
+/// walker that populates them.  **C41e3** extends the record
+/// with the remaining Python fields (``metaclass``, ``properties``,
+/// ``variables``, ``filters``, ``exports``, ``unexports``,
+/// ``constructors``, ``destructor``, ``doc``) so the
+/// ``_materialise_rust_analysis`` helper can populate the full
+/// dataclass shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassDef {
     /// Class name as written.
@@ -154,6 +200,10 @@ pub struct ClassDef {
     pub name_span: Span,
     /// Source span of the class body (braces excluded).
     pub body_span: Span,
+    /// Metaclass — one of ``"oo::class"`` / ``"oo::configurable"``
+    /// / ``"oo::abstract"`` / ``"oo::singleton"``.  Defaults to
+    /// ``"oo::class"`` (matches Python's dataclass default).
+    pub metaclass: String,
     /// Direct superclasses in declaration order.  Each entry
     /// is a fully-qualified class name with leading ``::``.
     pub superclasses: Vec<String>,
@@ -164,6 +214,57 @@ pub struct ClassDef {
     pub methods: HashMap<String, MethodDef>,
     /// Class methods keyed by simple name.
     pub class_methods: HashMap<String, MethodDef>,
+    /// Constructor methods (multiple constructors allowed under
+    /// ``oo::configurable``).  Stored in declaration order.
+    pub constructors: Vec<MethodDef>,
+    /// Destructor method, when one was defined.
+    pub destructor: Option<MethodDef>,
+    /// Class-level instance variables declared via ``variable``.
+    pub variables: Vec<String>,
+    /// Configurable properties keyed by name.
+    pub properties: HashMap<String, PropertyDef>,
+    /// Method filters declared via ``filter``.
+    pub filters: Vec<String>,
+    /// Methods explicitly exported via ``export``.
+    pub exports: HashSet<String>,
+    /// Methods explicitly unexported via ``unexport``.
+    pub unexports: HashSet<String>,
+    /// Doc-comment text harvested from the line(s) above the
+    /// ``oo::class create`` / ``oo::define`` statement.
+    pub doc: String,
+}
+
+impl Default for ClassDef {
+    /// Default-construct a [`ClassDef`].
+    ///
+    /// All names default to empty strings, both spans default to
+    /// ``Span::new(0, 0)``, and the metaclass defaults to
+    /// ``"oo::class"`` to mirror the Python dataclass default.
+    /// Used by handlers that build a class record incrementally
+    /// (most common shape — only `name` / `qualified_name` /
+    /// `name_span` / `body_span` need explicit values).
+    fn default() -> Self {
+        let zero = Span::new(0, 0);
+        Self {
+            name: String::new(),
+            qualified_name: String::new(),
+            name_span: zero,
+            body_span: zero,
+            metaclass: "oo::class".to_string(),
+            superclasses: Vec::new(),
+            mixins: Vec::new(),
+            methods: HashMap::new(),
+            class_methods: HashMap::new(),
+            constructors: Vec::new(),
+            destructor: None,
+            variables: Vec::new(),
+            properties: HashMap::new(),
+            filters: Vec::new(),
+            exports: HashSet::new(),
+            unexports: HashSet::new(),
+            doc: String::new(),
+        }
+    }
 }
 
 /// A lexical scope (global, namespace, or proc body).
@@ -220,6 +321,40 @@ impl Scope {
     }
 }
 
+/// Analysis result from a user-defined ``unknown`` proc.
+///
+/// Mirrors ``UnknownProcInfo`` in
+/// ``core/analysis/semantic_model.py``.  Populated by **C41e3**
+/// when the analyser encounters ``proc unknown {cmd args} {
+/// ... }``: the body is lowered to IR and inspected for
+/// dispatch shapes (switch arms, ``exec``, ``auto_load``,
+/// chains to a saved ``_original_unknown``, case-folding
+/// dispatch).  The result gates the W123 (unresolved command)
+/// emitter so commands handled by ``unknown`` aren't false-
+/// positived.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct UnknownProcInfo {
+    /// Command names explicitly dispatched (e.g. switch arm
+    /// labels).
+    pub dispatch_targets: std::collections::BTreeSet<String>,
+    /// Calls a renamed original ``unknown`` (e.g.
+    /// ``_original_unknown``).
+    pub chains_original: bool,
+    /// Body is empty — nothing resolves at all.
+    pub empty_stub: bool,
+    /// Normalises case before dispatch (all known commands are
+    /// valid).
+    pub case_insensitive: bool,
+    /// Uses glob or regexp switch dispatch — opaque match
+    /// semantics.
+    pub has_pattern_dispatch: bool,
+    /// Calls ``exec`` — opaque external dispatch.
+    pub has_exec: bool,
+    /// Calls ``auto_load`` — dynamic package loading.
+    pub has_auto_load: bool,
+}
+
 /// Complete analysis result for a single document.
 ///
 /// Mirrors ``AnalysisResult`` in
@@ -253,6 +388,10 @@ pub struct AnalysisResult {
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// Analysis result from a user-defined ``unknown`` proc, when
+    /// one was seen.  ``None`` when the document didn't define
+    /// one (the W123 emitter then runs unconditionally).
+    pub unknown_proc_info: Option<UnknownProcInfo>,
 }
 
 impl Default for Scope {
@@ -289,5 +428,23 @@ mod tests {
         assert!(r.source_targets.is_empty());
         assert!(r.command_aliases.is_empty());
         assert!(r.namespace_imports.is_empty());
+        assert!(r.unknown_proc_info.is_none());
+    }
+
+    #[test]
+    fn class_def_default_has_oo_class_metaclass() {
+        // Mirrors the Python dataclass default — ``metaclass``
+        // is the only non-trivial default the rest of the
+        // analyser depends on.
+        let c = ClassDef::default();
+        assert_eq!(c.metaclass, "oo::class");
+        assert!(c.constructors.is_empty());
+        assert!(c.destructor.is_none());
+        assert!(c.variables.is_empty());
+        assert!(c.properties.is_empty());
+        assert!(c.filters.is_empty());
+        assert!(c.exports.is_empty());
+        assert!(c.unexports.is_empty());
+        assert!(c.doc.is_empty());
     }
 }
