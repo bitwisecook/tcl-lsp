@@ -37,8 +37,11 @@ const stubs = @import("../stubs/tcl_stubs.zig");
 /// new stub is one line.  Order doesn't matter — the lookup is a
 /// linear scan.
 const STUB_TRAP: []const []const u8 = &.{
-    // I/O + channel — fconfigure has a real impl dispatched by BUILTINS.
-    "open", "close", "read",     "gets",      "eof",     "flush",
+    // I/O + channel — fconfigure / flush have real impls dispatched
+    // by BUILTINS.  The codegen fast path calls them directly; the
+    // interpreter's stub-fallback table is only consulted for
+    // commands without a runtime impl OR a builtin entry.
+    "open", "close", "read",     "gets",      "eof",
     "fblocked", "tell", "seek",  "chan",      "fcopy",   "fileevent",
     "socket",
     // Filesystem / process — file/pwd/cd have real impls in BUILTINS.

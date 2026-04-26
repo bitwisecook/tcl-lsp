@@ -11,6 +11,20 @@ fn eval_puts(words: []const i32) i32 {
     return 0;
 }
 
+/// ``flush ?channelId?`` — under WASI our writes are synchronous /
+/// unbuffered so flush is a no-op that returns the empty string,
+/// matching tclsh's contract.  Without this entry the interpreter
+/// route (e.g. ``flush`` issued from inside a tcltest body
+/// uplevel'd by ``test``/``Eval``/``RunTest``) hits ``STUB_TRAP``
+/// and fails with ``unsupported command: flush``, breaking any
+/// script that explicitly flushes between writes.  The compiled
+/// fast path in the codegen calls ``tcl_cmd_flush`` directly and
+/// has always worked.
+fn eval_flush(words: []const i32) i32 {
+    _ = words;
+    return 0;
+}
+
 fn eval_append(words: []const i32) i32 {
     if (words.len >= 2) {
         var result = frames.var_resolve(words[1]);
@@ -34,6 +48,7 @@ fn eval_format(words: []const i32) i32 {
 
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "puts", .arity_min = 1, .arity_max = 2, .handler = &eval_puts },
+    .{ .name = "flush", .arity_min = 0, .arity_max = 1, .handler = &eval_flush },
     .{ .name = "append", .arity_min = 1, .arity_max = null, .handler = &eval_append },
     .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_format },
 };
