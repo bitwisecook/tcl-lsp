@@ -552,9 +552,7 @@ class _WasmEmitterValuesMixin(_Base):
                 # would double-brace and the runtime would treat them
                 # as single-element lists).
                 if sub_args and _looks_like_string_option(sub_args[0]):
-                    self._emit_eval_fallback(
-                        "string", cmd_args, script_override=cmd_text
-                    )
+                    self._emit_eval_fallback("string", cmd_args, script_override=cmd_text)
                     return
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
@@ -642,6 +640,7 @@ class _WasmEmitterValuesMixin(_Base):
                 # leaves ``$a`` / ``$b`` / ``$c`` reading stale
                 # (empty) wasm-locals — see cmds/regexp_.py.
                 from .cmds.regexp_ import _capture_vars_for as _cap_vars
+
                 for vname in _cap_vars(cmd_name, tuple(cmd_args)):
                     self._intern_local(vname)
                 # Use ``script_override`` with the original source text
@@ -733,7 +732,12 @@ class _WasmEmitterValuesMixin(_Base):
                     # braced words; strip them before re-list-quoting
                     # so we don't double-brace.
                     def _strip_braces(s: str) -> str:
-                        return s[1:-1] if (len(s) >= 2 and s.startswith("{") and s.endswith("}")) else s
+                        return (
+                            s[1:-1]
+                            if (len(s) >= 2 and s.startswith("{") and s.endswith("}"))
+                            else s
+                        )
+
                     self._emit_value(cmd_args[0] if cmd_args else "")
                     self._emit_args_list(tuple(_strip_braces(a) for a in cmd_args[1:]))
                 else:

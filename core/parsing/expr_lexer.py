@@ -145,9 +145,7 @@ class ExprLexer:
             # matters for ``if {(![info exists arr($k)]) \<NL><tabs>
             # || (!$arr($k))}``-style multi-line conditions in tcltest).
             if ch in " \t\n\r" or (
-                ch == "\\"
-                and self._pos + 1 < len(self._src)
-                and self._src[self._pos + 1] == "\n"
+                ch == "\\" and self._pos + 1 < len(self._src) and self._src[self._pos + 1] == "\n"
             ):
                 start = self._pos
                 while self._pos < len(self._src):

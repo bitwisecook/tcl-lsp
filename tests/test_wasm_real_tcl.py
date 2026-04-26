@@ -105,7 +105,8 @@ def _get_rt_module_with_timeout() -> wasmtime.Module:
         if not _ZIG_RUNTIME_PATH.exists():
             raise RuntimeError(f"Zig WASM runtime not built: {_ZIG_RUNTIME_PATH}")
         _rt_module_with_timeout = wasmtime.Module.from_file(
-            _get_engine_with_timeout(), str(_ZIG_RUNTIME_PATH),
+            _get_engine_with_timeout(),
+            str(_ZIG_RUNTIME_PATH),
         )
     return _rt_module_with_timeout
 
@@ -209,9 +210,7 @@ def _run_wasm(
 
     # Instantiate Zig runtime — modules are engine-bound, so the
     # timeout variant needs its own pre-compiled copy.
-    rt_module = (
-        _get_rt_module_with_timeout() if timeout_s is not None else _get_rt_module()
-    )
+    rt_module = _get_rt_module_with_timeout() if timeout_s is not None else _get_rt_module()
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
 
@@ -296,13 +295,15 @@ def _run_wasm(
     finally:
         if watchdog is not None:
             watchdog.cancel()
-            # Keep ``_epoch_count`` in sync with the engine's actual
-            # counter.  If the watchdog fired, the engine advanced by
-            # one tick and we record that so the next call's deadline
-            # is computed correctly.  If the wasm completed before the
-            # watchdog, the engine's counter is still at the previous
-            # value but we still consumed the deadline slot — bumping
-            # ``_epoch_count`` keeps deadlines monotonically ahead.
+            # ``_epoch_count`` mirrors the engine's epoch counter so
+            # subsequent ``set_epoch_deadline`` values are always
+            # strictly ahead of the live counter.  Only the watchdog
+            # path advances the engine via ``increment_epoch``; a
+            # clean wasm return leaves the engine's counter where it
+            # was, so we do nothing here in that case.  Bumping on a
+            # clean return would fabricate ticks the engine never
+            # observed and eventually push deadlines past what a
+            # single ``increment_epoch`` can reach.
             if watchdog_fired[0]:
                 _epoch_count_set(deadline_value)
 

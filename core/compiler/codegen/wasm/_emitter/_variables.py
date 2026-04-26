@@ -380,9 +380,7 @@ class _WasmEmitterVarMixin(_Base):
             and "tcl_ns_restore" in self._shared_imports
         ):
             ns_set_idx = self._shared_imports["tcl_ns_set"]
-            ns_saved_local = self._add_extra_local(
-                prefix="_ns_eval_saved", val_type=ValType.I64
-            )
+            ns_saved_local = self._add_extra_local(prefix="_ns_eval_saved", val_type=ValType.I64)
             offset = self._intern_string(ns_name)
             encoded = ns_name.encode("utf-8", errors="surrogatepass")
             self._emit_i32_const(offset + 4)

@@ -51,7 +51,7 @@ class SourceCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1, 2),
+                arity=Arity(1, 3),
             ),
             return_type=TclType.STRING,
             side_effect_hints=(

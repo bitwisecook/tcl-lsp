@@ -60,9 +60,7 @@ def bench_tclsh(src: str, label: str, iters: int = 9, warm: int = 2):
     for _ in range(warm):
         subprocess.run([str(TCLSH), str(src_path)], capture_output=True, timeout=30)
     return time_n(
-        lambda: subprocess.run(
-            [str(TCLSH), str(src_path)], capture_output=True, timeout=30
-        ),
+        lambda: subprocess.run([str(TCLSH), str(src_path)], capture_output=True, timeout=30),
         iters,
     )
 
@@ -94,7 +92,7 @@ PRIMITIVES = {
         20_000,
     ),
     "string operations": (
-        "set s \"\"\nfor {set i 0} {$i < $N} {incr i} { append s x; set len [string length $s] }",
+        'set s ""\nfor {set i 0} {$i < $N} {incr i} { append s x; set len [string length $s] }',
         5_000,
     ),
     "proc call (no args)": (
@@ -192,9 +190,7 @@ def main():
             }
         )
 
-    (OUTPUT / "microbench_results.json").write_text(
-        json.dumps(out, indent=2, sort_keys=True)
-    )
+    (OUTPUT / "microbench_results.json").write_text(json.dumps(out, indent=2, sort_keys=True))
     print("\nWrote microbench_results.json", file=sys.stderr)
 
 

@@ -17,7 +17,6 @@ sys.path.insert(0, str(REPO))
 from tests.external.run_tcl9_tests import _bundle  # noqa: E402
 from tests.test_wasm_real_tcl import _compile_tcl_with_diag, _run_wasm  # noqa: E402
 
-
 _PROBE = r"""
 # ----- bisect_tcltest.py probe -----
 puts stderr "PROBE: reached top of test-file body"
