@@ -22,6 +22,7 @@ use std::borrow::Cow;
 
 use pyo3::prelude::*;
 
+mod analyser;
 mod compilation_unit;
 mod compiler_checks;
 mod expr_lexer;
@@ -91,5 +92,6 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     gvn::register_with(m)?;
     compilation_unit::register_with(m)?;
     signature_scan::register_with(m)?;
+    analyser::register_with(m)?;
     Ok(())
 }
