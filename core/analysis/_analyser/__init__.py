@@ -6,6 +6,7 @@ from ..semantic_model import (
     AnalysisResult,
     ClassDef,
     Diagnostic,
+    MethodDef,
     ParamDef,
     ProcDef,
     Scope,
@@ -107,18 +108,42 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             doc=p.get("doc") or "",
         )
 
+    def _method(m: dict) -> MethodDef:
+        return MethodDef(
+            name=m["name"],
+            params=tuple(_params(m.get("params", []))),
+            name_range=range_at(*m["name_range"]),
+            body_range=range_at(*m["body_range"]),
+            visibility=m.get("visibility") or "public",
+            kind=m.get("kind") or "method",
+            doc=m.get("doc") or "",
+        )
+
     def _class(c: dict) -> ClassDef:
-        return ClassDef(
+        cd = ClassDef(
             name=c["name"],
             qualified_name=c["qualified_name"],
             name_range=range_at(*c["name_range"]),
             body_range=range_at(*c["body_range"]),
         )
+        # The Rust analyser populates these structural fields from
+        # C41e0+e1+e2 onwards.  Older binding builds may omit them
+        # — fall back to the dataclass defaults.
+        if "superclasses" in c:
+            cd.superclasses = list(c["superclasses"])
+        if "mixins" in c:
+            cd.mixins = list(c["mixins"])
+        for name, m in c.get("methods", {}).items():
+            cd.methods[name] = _method(m)
+        for name, m in c.get("class_methods", {}).items():
+            cd.class_methods[name] = _method(m)
+        return cd
 
     def _var(v: dict) -> VarDef:
         return VarDef(
             name=v["name"],
             definition_range=range_at(*v["definition_range"]),
+            references=[range_at(*r) for r in v.get("references", [])],
             warn_if_unused=v["warn_if_unused"],
         )
 

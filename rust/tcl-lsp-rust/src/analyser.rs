@@ -19,7 +19,7 @@
 //! - `all_procs` — `{qualified_name: proc_dict}`
 //! - `all_classes` — `{qualified_name: class_dict}`
 //! - `all_variables` — `{qualified_name: var_dict}`
-//! - `diagnostics` — list of `{code, span, message, severity}`
+//! - `diagnostics` — list of `{code, range, message, severity}`
 //! - `command_invocations` — list of `{name, range}`
 //! - `package_requires` — list of `{name, version, range, conditional}`
 //! - `source_targets` — list of `{raw_path, range, is_literal}`

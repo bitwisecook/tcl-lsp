@@ -1084,7 +1084,7 @@ class TclLexer:
         Python lexer. The Python fallback is used when virtual
         insertions are present or the Rust wheel is not available.
         """
-        if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals:
+        if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals and self.pos == 0:
             try:
                 tokens, warnings = _rust_lexer_tokenise_cfg(
                     self.text,
