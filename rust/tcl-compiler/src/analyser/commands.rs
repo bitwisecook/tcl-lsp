@@ -63,10 +63,14 @@ impl Analyser {
         self.body_depth += 1;
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let body_commands = crate::segmenter::segment_commands_with_offset(body_text, base_offset);
-        for cmd in body_commands {
+        for mut cmd in body_commands {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
+            // **C41e4.** Repair stray ``]`` (missing ``[``) so
+            // downstream handlers see the intended argv shape
+            // before dispatch.
+            self.recover_stray_close_bracket(&mut cmd);
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
         }
         self.body_depth -= 1;

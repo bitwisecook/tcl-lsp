@@ -254,10 +254,14 @@ impl Analyser {
         // Walk each command through the dispatcher. Body recursion
         // (proc bodies, namespace bodies, control-flow arms) is
         // C41c / C41e work; this baseline only walks the top level.
-        for cmd in commands {
+        // **C41e4** wires ``recover_stray_close_bracket`` so a
+        // typo like ``set x agent_id]`` repairs to the intended
+        // ``set x [agent_id]`` argv shape before dispatch.
+        for mut cmd in commands {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
+            self.recover_stray_close_bracket(&mut cmd);
             let single = cmd.single_token_word.clone();
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
         }
@@ -416,6 +420,12 @@ impl Analyser {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
+            // **C41e4.** Repair stray ``]`` (missing ``[``) in
+            // a clone of the segmented command before dispatch
+            // — chunked analysis keeps the original snapshot
+            // copies untouched so re-runs are deterministic.
+            let mut cmd = cmd.clone();
+            self.recover_stray_close_bracket(&mut cmd);
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
         }
     }

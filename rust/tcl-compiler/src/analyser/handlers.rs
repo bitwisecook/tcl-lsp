@@ -2802,4 +2802,21 @@ mod tests {
         let info = r.unknown_proc_info.expect("unknown_proc_info populated");
         assert!(info.has_exec);
     }
+
+    // -- C41e4: stray-close-bracket recovery ------------------------
+
+    #[test]
+    fn analyse_top_level_repairs_stray_close_bracket() {
+        // ``set x string]`` is a typo for ``set x [string ...]``.
+        // The recovery should rewrite the third argv entry into
+        // a virtual ``CMD`` token before dispatch so the var
+        // record is registered with the recovered shape.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("set x string]", "tcl");
+        // ``x`` ends up in scope as a single-arg ``set`` (a var
+        // read), not as a two-arg ``set`` with the broken text
+        // — recovery yields the synthetic ``[string]`` command
+        // word so dispatch sees the intended shape.
+        assert!(r.global_scope.variables.contains_key("x"));
+    }
 }
