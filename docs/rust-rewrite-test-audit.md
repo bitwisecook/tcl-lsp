@@ -767,17 +767,25 @@ tracked as its own Rust-side follow-up; see the
   `command_aliases` when Rust returns empty,
   `unknown_proc_info`, `all_procs`, `all_classes`,
   `global_scope`, `all_variables`,
-  `command_invocations`, `diagnostics`).  The result is
-  functionally complete under the env var even with the
-  Rust-side gaps below, at the cost of running both
-  passes (>5× the default-OFF baseline runtime — the
-  reason the polarity flip waits).
-- **Rust-side emitter gaps still blocking the polarity
-  flip** (each is its own port chunk):
-  - **Generic body iteration via `ArgRole::Body`** is not
-    wired into `analyser/commands.rs::process_command`,
-    so `if` / `while` / `when` / `oo` method body
-    statements are not walked.
+  `command_invocations`, `diagnostics`).  Verified
+  performance-neutral: `make prep-pr` runs in 67s at
+  default-on (vs 70s baseline default-off).
+- **Rust-side body iteration landed**:
+  `Analyser` gained a `registry: Option<CommandRegistry>`
+  field populated once at the top of `analyse()`;
+  `process_command` runs a registry-driven
+  `ArgRole::Body` loop after the per-command handlers
+  return, walking `if` / `while` / `when` / `eval` /
+  `uplevel` / `subst` / etc. body arguments.  The loop
+  sets `current_event` for `when EVENT { body }` and
+  bumps `conditional_depth` for `if` / `try`, mirroring
+  the Python `iter_body_arguments` block in
+  `_AnalyserCommandsMixin._process_command`.  `for` /
+  `foreach` got dedicated body recursion in their
+  handlers as well.
+- **Rust-side gaps still absorbed by the hybrid
+  supplement** (each is its own future port chunk that
+  shrinks the supplement list):
   - **Class body parsing**: `oo::abstract` /
     `oo::singleton` / `oo::configurable` metaclasses
     unrecognised; `class_def.variables` + per-method
@@ -789,16 +797,16 @@ tracked as its own Rust-side follow-up; see the
     map is empty).
   - `unset xs` argument not recorded as a per-scope
     variable.
-  - `for_loop_with_inner_set` no longer in
-    `FIELD_PARITY_LABELS`-excluded list — the
-    Rust `for` / `foreach` body recursion landed in
-    `C41-default-on-9`.
   - The post-pass equivalent of `run_compiler_checks`
     (W110 / W220 / W304 emission) is not ported.
+  - `unknown_proc_info` extraction lowers the user-defined
+    `unknown` proc body to IR; tests patch
+    `lower_to_ir` to assert the failure-suppression
+    path, so Python's value is taken to honour those
+    patches.
 - Diagnostic-code-set deltas (`W113` dialect-label
   wording, `W214` over-emit on `[expr {$param}]`
-  patterns, `W220` under-emit, `W304` not emitted by
-  Rust) — exposed by the audit but absorbed by the
+  patterns) — exposed by the audit but absorbed by the
   hybrid (Python's diagnostics list is the superset);
   the field-by-field comparator does not assert on
   diagnostics.

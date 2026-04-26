@@ -254,6 +254,53 @@ impl Analyser {
         self.handle_interp_alias(cmd_name, args);
         self.handle_oo_objdefine(cmd_name, args);
         self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
+
+        // Generic body recursion via the command registry's
+        // `ArgRole::Body`.  Mirrors the `iter_body_arguments` loop
+        // in `_AnalyserCommandsMixin._process_command` (Python).
+        // Picks up `if` / `while` / `when` / `eval` / `uplevel`
+        // / `subst` / etc. — every command whose registry spec
+        // marks an argument index as `BODY`.  The dedicated
+        // `handle_*_command` calls above already returned early
+        // for the commands they own (proc, oo::class, oo::define,
+        // namespace eval, foreach, for, switch, catch, try), so
+        // this loop only fires for the rest.
+        //
+        // For `when EVENT { body }` the iRules dialect spec
+        // marks arg 1 as BODY; set `current_event` for the body
+        // walk so race-detection diagnostics see the event
+        // name, mirroring the Python behaviour.
+        if let Some(registry) = self.registry.as_ref() {
+            let body_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            let body_indices = registry.arg_indices_for_role(
+                cmd_name,
+                &body_args,
+                tcl_registry::arg_role::ArgRole::Body,
+            );
+            if !body_indices.is_empty() {
+                let prev_event = self.current_event.clone();
+                if cmd_name == "when" && !args.is_empty() {
+                    self.current_event = Some(args[0].clone());
+                }
+                let is_conditional = matches!(cmd_name, "if" | "try");
+                if is_conditional {
+                    self.conditional_depth += 1;
+                }
+                for idx in body_indices {
+                    if let (Some(body_text), Some(body_tok)) =
+                        (args.get(idx), arg_tokens.get(idx).copied())
+                    {
+                        self.analyse_body(body_text, body_tok, scope_path);
+                    }
+                }
+                if is_conditional {
+                    self.conditional_depth -= 1;
+                }
+                if cmd_name == "when" {
+                    self.current_event = prev_event;
+                }
+            }
+        }
     }
 }
 

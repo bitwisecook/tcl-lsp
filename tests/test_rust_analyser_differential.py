@@ -633,25 +633,25 @@ def _has_sentinel(result) -> bool:
     return any(pr.name == _SENTINEL_PACKAGE for pr in result.package_requires)
 
 
-def test_dispatcher_default_off_uses_python(monkeypatch) -> None:
-    """With the env var unset, ``analyse`` must skip the Rust
-    path entirely (default-OFF polarity).  The sentinel
-    ``package_requires`` entry is absent because the patched
-    ``_rust_analyse`` was never invoked; ``::foo`` from the
-    Python pass proves Python ran."""
+def test_dispatcher_default_on_uses_rust(monkeypatch) -> None:
+    """With the env var unset, ``analyse`` dispatches through
+    the Rust path by default (default-ON polarity, post C41-default-on
+    flip).  The sentinel ``package_requires`` survives the hybrid
+    merger (Rust populates it; the Python supplement pass leaves
+    that field alone), proving the Rust path ran."""
     monkeypatch.delenv("TCL_LSP_RUST_ANALYSER", raising=False)
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("proc foo {} {}")
+    # Hybrid: Python supplement also runs, so ``::foo`` lands
+    # alongside the Rust sentinel.  Both must be present.
     assert "::foo" in result.all_procs
-    assert not _has_sentinel(result)
+    assert _has_sentinel(result)
 
 
 def test_dispatcher_env_var_on_uses_rust(monkeypatch) -> None:
-    """``TCL_LSP_RUST_ANALYSER=1`` (explicit opt-in) routes
-    through the Rust dispatch.  The sentinel ``package_requires``
-    survives the C41-default-on hybrid merger (Rust populates
-    ``package_requires``; the Python pass that follows leaves
-    that field alone), proving the Rust path ran."""
+    """``TCL_LSP_RUST_ANALYSER=1`` (explicit opt-in, redundant
+    after the polarity flip but still respected) routes through
+    the Rust dispatch.  Same hybrid behaviour as default-ON."""
     monkeypatch.setenv("TCL_LSP_RUST_ANALYSER", "1")
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("source ignored — patched rust returns sentinel")

@@ -148,6 +148,14 @@ pub struct Analyser {
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
     pub unresolved_commands_emitted: bool,
+    /// Command registry for the active dialect.  Populated at the
+    /// top of [`Self::analyse`] so per-command handlers
+    /// (especially the registry-driven body iteration in
+    /// `process_command` for `if` / `while` / `when` / OO method
+    /// bodies) don't have to rebuild it on every command.  `None`
+    /// outside an active analysis run; handlers that need the
+    /// registry must check `self.registry.is_some()`.
+    pub registry: Option<tcl_registry::CommandRegistry>,
 }
 
 impl Analyser {
@@ -187,6 +195,7 @@ impl Analyser {
             ensemble_namespaces: HashSet::new(),
             objdefined_vars: HashSet::new(),
             unresolved_commands_emitted: false,
+            registry: None,
         }
     }
 
@@ -247,9 +256,22 @@ impl Analyser {
 
         // Segment with Seg2 recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
-        let registry = CommandRegistry::build_default();
-        let known_commands: HashSet<&str> = registry.command_names().collect();
+        // Build the dialect-aware registry once and stash on
+        // ``self`` so per-command handlers (registry-driven body
+        // iteration in ``process_command``) reuse it.
+        let mut registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            registry.load_dialect(d);
+        }
+        self.registry = Some(registry);
+        let known_commands: HashSet<&str> = self
+            .registry
+            .as_ref()
+            .expect("registry just stashed")
+            .command_names()
+            .collect();
         let commands = crate::segmenter::segment_commands_with_recovery(source, &known_commands);
+        drop(known_commands);
 
         // Walk each command through the dispatcher. Body recursion
         // (proc bodies, namespace bodies, control-flow arms) is
