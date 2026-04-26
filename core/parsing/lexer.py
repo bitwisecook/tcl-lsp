@@ -1064,6 +1064,15 @@ class TclLexer:
     def tokenise_all(self) -> list[Token]:
         """Tokenise the entire source, including SEP and EOL tokens.
 
+        Contract: on return the lexer cursor sits at end-of-source so that
+        a subsequent ``get_token()`` returns ``None`` rather than re-reading
+        from offset 0. The pure-Python loop below satisfies this naturally
+        because every ``get_token()`` call advances ``self.pos`` /
+        ``self._line`` / ``self._col``; the Rust fast-path bypasses
+        ``get_token`` so it finalises cursor state explicitly before
+        returning. Callers can mix ``tokenise_all`` and ``get_token`` on
+        the same instance without divergence.
+
         When the Rust ``tcl_lsp_rust`` wheel is installed and this
         lexer has no virtual insertions, this method dispatches to
         the Rust implementation for a ~17× speedup. The Rust path
@@ -1093,6 +1102,12 @@ class TclLexer:
                 raise TclParseError(str(exc)) from exc
             if warnings:
                 self.warnings.extend(warnings)
+            # Finalise cursor state so a subsequent ``get_token()``
+            # returns ``None`` instead of re-reading from offset 0.
+            # Mirrors the post-condition the pure-Python loop reaches
+            # naturally on EOF.  See ``tests/test_lexer_cursor_state.py``.
+            self.pos = self._len
+            self._type = TokenType.EOF
             return tokens
         tokens: list[Token] = []
         while True:
