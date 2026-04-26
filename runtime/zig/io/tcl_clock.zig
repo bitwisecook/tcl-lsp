@@ -238,5 +238,16 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
             },
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    // Claim ownership of the output buffer via OBJ_STR_CAP so an
+    // eventual ``tcl_obj_release`` reclaims it via ``free_sized``.
+    // Without this, ``cap`` is treated as 0 (non-owning) and the
+    // ``cap`` bytes leak on every call — pathological under
+    // long-running ``clock format`` loops in test bodies.
+    const out_obj = obj_new_string(@intCast(buf), @intCast(off));
+    if (out_obj == 0) {
+        obj.free_sized(buf, cap);
+        return 0;
+    }
+    obj.write_i32(@as(u32, @intCast(out_obj)) + obj.OBJ_STR_CAP, @intCast(cap));
+    return out_obj;
 }

@@ -265,6 +265,10 @@ pub export fn tcl_cmd_source(path: i32) i32 {
         return 0;
     }
     const size_i64 = stat_size(stat_buf);
+    // Free the stat scratch buffer immediately — repeated sources of
+    // a missing file used to leak STAT_SIZE bytes per call.  After
+    // this point ``stat_buf`` must not be dereferenced.
+    obj.free_sized(stat_buf, STAT_SIZE);
     if (size_i64 < 0 or size_i64 > 64 * 1024 * 1024) {
         stubs.raise("source: file size out of range");
         return 0;
@@ -311,6 +315,15 @@ pub export fn tcl_cmd_source(path: i32) i32 {
     // our caller-owned reference; the deferred-free queue keeps
     // the buffer alive across any words still borrowing from it.
     const script_obj = obj_new_string(@intCast(buf), @intCast(off));
+    if (script_obj == 0) {
+        // Header alloc OOM — free the read buffer ourselves (without
+        // a TclObj header to attach it to, ``tcl_obj_release`` would
+        // never see it) and surface as a clean Tcl error rather than
+        // a write-through-zero trap.
+        obj.free_sized(buf, size);
+        stubs.raise("source: out of memory");
+        return 0;
+    }
     obj.write_i32(@as(u32, @intCast(script_obj)) + obj.OBJ_STR_CAP, @intCast(size));
     const interp = @import("../interp/tcl_interp.zig");
     const result = interp.tcl_eval(script_obj);
