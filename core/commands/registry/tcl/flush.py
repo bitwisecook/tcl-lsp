@@ -39,11 +39,11 @@ class FlushCommand(CommandDef):
             forms=(
                 FormSpec(
                     kind=FormKind.DEFAULT,
-                    synopsis="flush channel",
+                    synopsis="flush ?channelId?",
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1, 1),
+                arity=Arity(0, 1),
             ),
             arg_roles={0: ArgRole.CHANNEL},
             return_type=TclType.STRING,

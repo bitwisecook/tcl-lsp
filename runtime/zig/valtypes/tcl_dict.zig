@@ -71,7 +71,14 @@ pub export fn dict_unset(dict: i32, key: i32) i32 {
 }
 
 fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) i32 {
-    const buf = alloc(sd_len * 2 + 16);
+    const cap: u32 = sd_len * 2 + 16;
+    const buf = alloc(cap);
+    // OOM: under the libc-malloc routing alloc() returns 0 on
+    // failure.  Without this guard the @ptrFromInt(buf + off)
+    // writes below would deref address 0 and trap; instead, return
+    // an empty TclObj string so the caller's ``dict unset`` becomes
+    // a benign no-op rather than an unrecoverable trap.
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
@@ -96,7 +103,18 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
             off += elem.len;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    // Claim ownership of ``buf`` via OBJ_STR_CAP so eventual
+    // ``tcl_obj_release`` reclaims the bytes through ``free_sized``.
+    // Without this the rebuilt-dict buffer would leak on every
+    // ``dict unset`` (or any caller that releases the returned
+    // dict TclObj).
+    const out = obj_new_string(@intCast(buf), @intCast(off));
+    if (out == 0) {
+        obj.free_sized(buf, cap);
+        return 0;
+    }
+    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @intCast(cap));
+    return out;
 }
 
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
