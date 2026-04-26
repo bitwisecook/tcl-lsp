@@ -372,6 +372,26 @@ CORPUS: list[tuple[str, str]] = [
         "switch_form_2",
         "switch $x { a { puts a } b { puts b } default { puts other } }",
     ),
+    # -- W124 (IP literal compare in expr) --
+    (
+        "w124_ip_literal_compare",
+        'proc f {} { set ip "10.0.0.1"; if {$ip eq "192.168.1.1"} { puts yes } }',
+    ),
+    # -- W214 (unused proc parameter) --
+    ("w214_unused_first_param", "proc f {a b} { puts $b }"),
+    ("w214_unused_only_param", "proc f {x} {}"),
+    # -- H300 (case-mismatch hint) --
+    (
+        "h300_case_mismatch_both_used",
+        "proc f {} { set Foo 1; puts $foo; puts $Foo }",
+    ),
+    (
+        "h300_case_mismatch_proc_param",
+        "proc render {Total} { return $total }",
+    ),
+    # -- E101 (recovery: unclosed proc body) --
+    ("e101_unclosed_proc_body", "proc foo {} {\nset x 1\n"),
+    ("e101_unclosed_proc_body_short", "proc foo {} { puts hi\n"),
     # -- combined --
     (
         "package_plus_proc_plus_class",
@@ -447,6 +467,13 @@ FIELD_PARITY_LABELS: frozenset[str] = frozenset(
         "nested_namespace_eval_proc",
         "foreach_loop",
         "switch_form_2",
+        "w124_ip_literal_compare",
+        "w214_unused_first_param",
+        "w214_unused_only_param",
+        "h300_case_mismatch_both_used",
+        "h300_case_mismatch_proc_param",
+        "e101_unclosed_proc_body",
+        "e101_unclosed_proc_body_short",
     }
 )
 
