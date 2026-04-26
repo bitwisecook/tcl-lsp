@@ -707,19 +707,30 @@ to the Rust port — the bar is differential parity on a
 purpose-built corpus instead.
 
 - **Differential corpus**
-  (`tests/test_rust_analyser_differential.py`): 40 parametrised
-  fixtures × the `_compare_shapes` helper.  Each fixture runs
-  the Python `Analyser().analyse(source)` and the Rust
-  `tcl_lsp_rust.analyser_analyse(source, "tcl")` →
-  `_materialise_rust_analysis` paths, then asserts the
-  proc-qualified-name set and class-qualified-name set match
-  (modulo a `::::`→`::` normalisation for Python's known
-  double-prefix quirk).  The comparison is intentionally coarse
-  — finer-grained equality (per-proc params, per-class methods,
-  scope-tree shape, `all_variables` membership, diagnostic-code
-  parity) is the bar **after** C41-default-on bakes; landing it
-  now would force xfail markers, and the chunk-log policy
-  forbids shipping xfails.
+  (`tests/test_rust_analyser_differential.py`): 92 parametrised
+  fixtures across two comparators after the
+  `C41-default-on-1` … `C41-default-on-6` strips.
+  Each fixture runs the Python `Analyser().analyse(source)` and
+  the Rust `tcl_lsp_rust.analyser_analyse(source, dialect)` →
+  `_materialise_rust_analysis` paths.
+  - The 53-fixture **shape-only** subset uses `_compare_shapes`
+    and asserts the proc-qualified-name set and class-qualified-name
+    set match (with the `::::`→`::` normalisation kept for
+    backwards-compat against any pre-fix output).
+  - The 34-fixture **field-by-field** subset
+    (`FIELD_PARITY_LABELS`) plus 5 iRules-dialect fixtures
+    (`IRULES_CORPUS` activated under the `_irules_profile`
+    fixture) use the strict `_compare_fields` helper —
+    `all_procs` keys, the bare `name` / `params` / `name_range`
+    / `body_range`, the `all_classes` keys + per-class
+    `methods` / `class_methods` / `superclasses` / `mixins`,
+    and the recursive scope-tree shape (`kind`, `name`, child
+    var/proc/class name sets at every level).
+  - Diagnostics are intentionally **not** compared
+    field-by-field — Python's `Analyser.analyse` integrates
+    `run_compiler_checks` (style + SSA dead-store W110 / W220
+    / W304 …) while Rust's `analyser_analyse` is analyser-only;
+    layering alignment is its own follow-up.
 - **Dispatcher gating**: 4 cases in the same file assert the
   env-var-gated dispatcher in `core/analysis/_analyser/__init__.py`:
   unset → Python (default-OFF), `=1` → Rust, `=0` → Python,
@@ -727,26 +738,43 @@ purpose-built corpus instead.
   in via `monkeypatch.setattr(analyser_module, "_rust_analyse",
   …)` so the gating tests run in Python-only CI environments
   too.
-- **Cargo unit tests**: 1,724 across the workspace.  The
+- **Cargo unit tests**: 1,765 across the workspace.  The
   per-strip files (`analyser/oo.rs`, `analyser/recovery.rs`,
   `analyser/diagnostics.rs`, `analyser/handlers.rs`) carry
   in-module `mod tests` blocks for each handler, recovery
   helper, and diagnostic emitter.  These tests cover the *Rust
   side only* — they don't compare against Python.
 
-**Known parity gaps surfaced by the differential** (deferred
-until the C41-default-on flip is in scope):
+**Known parity gaps surfaced by the differential** (each
+tracked as its own Rust-side or materialiser-side follow-up;
+see the `C41-default-on` chunk-log row):
 
-- `nested_namespace_eval` (`namespace eval outer { namespace
-  eval inner { proc deep {} {} } }`) — Python records
-  `::inner::deep` (drops outer); Rust records
-  `::outer::inner::deep`.  Python-side rebase bug; fixture
-  intentionally absent from the corpus.
-- Diagnostic-code-set differences across `W210` / `W211` /
-  `W213` / `W214` / `W220` between the two emitter sets — the
-  Rust port emits a slightly different subset.  Each gap is
-  tracked as a per-emitter follow-up under the C41d strip
-  family.
+- **Materialiser gaps** in
+  `core/analysis/_analyser/__init__.py::_materialise_rust_analysis`
+  — the Rust dict carries `command_invocations`,
+  `command_aliases`, `package_requires`, plus empty
+  `namespace_imports` / `source_targets` keys, but the Python
+  materialiser only extracts `global_scope` / `all_procs` /
+  `all_classes` / `all_variables` / `diagnostics` /
+  `unknown_proc_info`. Side-channel fields drop on the floor,
+  which is what blocked the polarity flip with ≈535 fast-suite
+  failures.
+- **Rust-side emitter gaps**: `source_targets`,
+  `namespace_imports`, `regex_patterns`, `auto_path_entries`,
+  `stub_commands`, `stub_expr_defs`, `package_provides`, plus
+  the post-pass equivalent of `run_compiler_checks` (W220 /
+  W304 / W110).
+- Per-feature gaps tracked inline next to
+  `FIELD_PARITY_LABELS`: OO `Scope.classes` not threaded back
+  per-scope; `unset xs` not recorded as a per-scope variable;
+  for-loop init body's `set i 0` not surfaced into the
+  enclosing scope; variables defined inside `when` event
+  bodies not surfaced into the enclosing scope's variable set.
+- Diagnostic-code-set deltas (`W113` dialect-label wording,
+  `W214` over-emit on `[expr {$param}]` patterns, `W220`
+  under-emit, `W304` not emitted by Rust) — exposed by the
+  audit but accepted as known divergences for now; the
+  field-by-field comparator does not assert on diagnostics.
 
 ## C41-default-on — flip the C41 dispatcher to Rust by default
 
