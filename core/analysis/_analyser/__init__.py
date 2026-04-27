@@ -427,18 +427,19 @@ def _merge_rust_with_python_supplement(
     # ``ProcDef.param_traits``; ``unknown_proc_info``
     # patched-``lower_to_ir`` test path.  Take Python's
     # structural data wholesale until each gap closes.
+    # ``global_scope`` / ``all_variables`` / ``all_procs`` form
+    # a consistent triple — ``global_scope.procs`` and
+    # ``all_procs`` reference the same ProcDef instances on the
+    # Python side, and consumers (declaration, references,
+    # rename, hover) cross-look-up between them.  Take Python's
+    # for all three so the cross-references stay coherent.
     rust.global_scope = python.global_scope
     rust.all_variables = python.all_variables
-    # ``all_procs`` keeps Python's insertion order — Rust uses
-    # ``HashMap`` which iterates in arbitrary order; downstream
-    # consumers (references / rename / call-hierarchy) use
-    # first-match-by-name lookup that relies on the
-    # source-declaration order.  Switching the Rust map to
-    # something order-preserving (``IndexMap`` / ``BTreeMap``)
-    # would unblock removing this copy.
     rust.all_procs = python.all_procs
-    # ``all_classes`` is left to Rust — class-name lookups are
-    # less order-sensitive (qualified-name lookups dominate).
+    # ``all_classes`` is independently consistent — class-name
+    # lookups go through ``find_class_by_*`` helpers that don't
+    # depend on cross-referencing into ``Scope.classes`` ranges.
+    # Rust populates it with parity per the differential corpus.
     rust.unknown_proc_info = python.unknown_proc_info
     return rust
 

@@ -636,12 +636,11 @@ def _has_sentinel(result) -> bool:
 def test_dispatcher_default_on_uses_rust(monkeypatch) -> None:
     """With the env var unset, ``analyse`` dispatches through
     the Rust path by default (default-ON polarity, post
-    C41-default-on flip).  Python's supplement still overwrites
-    ``all_procs`` to preserve insertion order for downstream
-    lookup (Rust uses an unordered ``HashMap``), so ``::foo``
-    from the Python pass lands there alongside the sentinel
-    ``package_requires`` record from Rust — both must be
-    present."""
+    C41-default-on flip).  The Rust ``package_requires`` entry
+    survives the hybrid merger (the supplement reads it from
+    Rust); a sentinel package name proves the Rust path ran.
+    The Python supplement still runs alongside, so ``::foo``
+    lands in ``all_procs``."""
     monkeypatch.delenv("TCL_LSP_RUST_ANALYSER", raising=False)
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("proc foo {} {}")
