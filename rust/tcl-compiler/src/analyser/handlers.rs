@@ -550,12 +550,14 @@ impl Analyser {
     /// (the next arm's body fires) and are skipped — recursing
     /// into the literal ``-`` would produce a useless command.
     ///
-    /// **Deferred.** ``-regexp`` pattern recording (Python
-    /// ``_proc.py:233-252``) emits ``RegexPattern`` records into
-    /// ``result.regex_patterns``; the Rust analyser doesn't yet
-    /// carry that field (lands alongside the diagnostic emitters
-    /// in **C41d**).  The flag is detected here as a marker for
-    /// the future hook but no records are emitted yet.
+    /// `-regexp` literal-pattern recording mirrors Python's
+    /// ``_proc.py::_handle_switch`` lines 233-252 — each non-`default`
+    /// pattern arm whose token is a literal (`Esc` / `Str`) is
+    /// pushed as a `RegexPattern` with ``command = "switch"``.
+    /// Variable / command-substitution patterns (the
+    /// ``set p "..."; switch -regexp -- $p { ... }`` shape) are
+    /// deferred to the ``regex-vars`` chunk where the const-string
+    /// map gets threaded through this handler.
     pub fn handle_switch_command(
         &mut self,
         cmd_name: &str,
@@ -568,14 +570,12 @@ impl Analyser {
         }
 
         // Scan and skip option flags. ``--`` ends the option
-        // section explicitly (and is consumed). ``-regexp``
-        // would gate regex-pattern recording in C41d; tracked
-        // here so the future hook only needs to consult the flag.
+        // section explicitly (and is consumed).
         let mut i = 0;
-        let mut _is_regexp = false;
+        let mut is_regexp = false;
         while i < args.len() && args[i].starts_with('-') {
             if args[i] == "-regexp" {
-                _is_regexp = true;
+                is_regexp = true;
             }
             if args[i] == "--" {
                 i += 1;
@@ -599,9 +599,11 @@ impl Analyser {
             let elements = parse_switch_body_elements(&body_text, body_tok);
             let mut j = 0;
             while j + 1 < elements.len() {
-                // Pattern at j, body at j+1. Regex-pattern recording
-                // for ``-regexp`` lands in C41d.
+                let (pat_text, pat_tok) = &elements[j];
                 let (body_text, body_tok) = &elements[j + 1];
+                if is_regexp {
+                    self.record_switch_regexp_pattern(pat_text, *pat_tok);
+                }
                 if body_text != "-" {
                     self.analyse_body(body_text, *body_tok, scope_path);
                 }
@@ -610,6 +612,11 @@ impl Analyser {
         } else {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
             while i + 1 < args.len() {
+                if is_regexp {
+                    if let Some(pat_tok) = arg_tokens.get(i).copied() {
+                        self.record_switch_regexp_pattern(&args[i], pat_tok);
+                    }
+                }
                 let body_text = &args[i + 1];
                 if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
                     if body_text != "-" {
@@ -620,6 +627,25 @@ impl Analyser {
             }
         }
         true
+    }
+
+    /// Record one ``switch -regexp`` arm's pattern as a literal
+    /// `RegexPattern`.  Skipped for the ``default`` keyword (Tcl's
+    /// catch-all) and for non-literal pattern tokens (`Var` /
+    /// `Cmd` substitutions) — those land in the ``regex-vars``
+    /// chunk via const-string propagation.
+    fn record_switch_regexp_pattern(&mut self, pattern: &str, tok: Token) {
+        if pattern == "default" {
+            return;
+        }
+        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            return;
+        }
+        self.result.regex_patterns.push(super::types::RegexPattern {
+            range: tok.span,
+            pattern: pattern.to_string(),
+            command: "switch".to_string(),
+        });
     }
 
     /// Handle `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?`.

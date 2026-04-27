@@ -1035,6 +1035,101 @@ mod tests {
         assert!(!r.command_aliases.contains_key("::="));
     }
 
+    // -- ``switch -regexp`` literal-pattern recording
+    //
+    // Mirror the relevant cases in
+    // ``tests/test_analyser.py``'s switch / regex tests.  The
+    // pattern arms whose token is a literal are recorded as
+    // ``RegexPattern { command = "switch" }``; ``default`` and
+    // var / cmd-sub patterns are skipped (variable patterns are
+    // the regex-vars chunk's territory).
+
+    #[test]
+    fn analyse_switch_regexp_form1_records_literal_patterns() {
+        // Form 1: pattern/body pairs inline.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val \"^foo\" { puts foo } \"^bar\" { puts bar }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 2);
+        assert_eq!(switch_pats[0].pattern, "^foo");
+        assert_eq!(switch_pats[1].pattern, "^bar");
+    }
+
+    #[test]
+    fn analyse_switch_regexp_form2_records_literal_patterns() {
+        // Form 2: braced body with pattern/body pairs.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val { ^foo { puts foo } ^bar { puts bar } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 2);
+        assert_eq!(switch_pats[0].pattern, "^foo");
+        assert_eq!(switch_pats[1].pattern, "^bar");
+    }
+
+    #[test]
+    fn analyse_switch_regexp_skips_default_arm() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val { ^foo { puts foo } default { puts none } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 1);
+        assert_eq!(switch_pats[0].pattern, "^foo");
+    }
+
+    #[test]
+    fn analyse_switch_without_regexp_records_nothing() {
+        // No ``-regexp`` flag — patterns are glob, not regex.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -- $val { foo { puts foo } bar { puts bar } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert!(switch_pats.is_empty());
+    }
+
+    #[test]
+    fn analyse_switch_regexp_skips_var_pattern() {
+        // ``$pat`` arm — deferred to the regex-vars chunk where
+        // const-string propagation will resolve the literal.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val { $pat { puts hit } ^lit { puts lit } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 1);
+        assert_eq!(switch_pats[0].pattern, "^lit");
+    }
+
     #[test]
     fn analyse_alias_with_prepended_args_recorded() {
         // Prepended args after the target are stored on
