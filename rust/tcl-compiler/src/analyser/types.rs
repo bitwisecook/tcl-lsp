@@ -437,13 +437,46 @@ pub struct AutoPathEntry {
     pub range: Span,
 }
 
+/// One parameter declared inside a ``# tcl-lsp: stub NAME {ARGS}``
+/// brace block.  Mirrors Python's ``StubArgDef`` in
+/// ``core/analysis/semantic_model.py``.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StubArgDef {
+    /// Argument name as written.  Optional markers (``?…?``) are
+    /// stripped before storage.
+    pub name: String,
+    /// Argument role — one of ``body`` / ``expr`` / ``var`` /
+    /// ``var_read`` / ``name`` / ``pattern`` / ``channel`` /
+    /// ``value`` (the default when no ``:role`` annotation is
+    /// supplied).
+    pub role: String,
+    /// ``true`` when the source token is wrapped in ``?…?``.
+    pub optional: bool,
+}
+
 /// Inline `# stub: NAME ARGS BODY` directive capture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StubCommandDef {
     /// Stub command name.
     pub name: String,
+    /// Parsed parameter list from the ``{ARGS}`` brace block
+    /// (empty when the block is ``{}``).
+    pub args: Vec<StubArgDef>,
     /// Span of the comment line carrying the directive.
     pub range: Span,
+    /// ``-barrier`` flag — command creates a dynamic barrier.
+    pub barrier: bool,
+    /// ``-loop`` flag — command has a loop body.
+    pub r#loop: bool,
+    /// ``-pure`` flag — command is side-effect-free.
+    pub pure: bool,
+    /// ``-mutator`` flag — command mutates state.
+    pub mutator: bool,
+    /// ``-unsafe`` flag — command is unsafe.
+    pub r#unsafe: bool,
+    /// ``-scope_alias`` flag — command creates a scope alias
+    /// (``upvar``-like).
+    pub scope_alias: bool,
 }
 
 /// Inline `# stub-expr: NAME ARGS` directive capture.
@@ -454,6 +487,10 @@ pub struct StubExprDef {
     /// Either ``"function"`` (``stub expr-func``) or
     /// ``"operator"`` (``stub expr-op``).
     pub kind: String,
+    /// Number of arguments (functions) or operands (operators).
+    /// Defaults to 1 for functions and 2 for operators when the
+    /// trailing arity word is absent.
+    pub arity: u32,
     /// Span of the comment line carrying the directive.
     pub range: Span,
 }

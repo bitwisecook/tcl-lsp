@@ -150,7 +150,22 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     for sc in &r.stub_commands {
         let d = PyDict::new_bound(py);
         d.set_item("name", &sc.name)?;
+        let args = PyList::empty_bound(py);
+        for a in &sc.args {
+            let ad = PyDict::new_bound(py);
+            ad.set_item("name", &a.name)?;
+            ad.set_item("role", &a.role)?;
+            ad.set_item("optional", a.optional)?;
+            args.append(ad)?;
+        }
+        d.set_item("args", args)?;
         d.set_item("range", span_tuple(sc.range))?;
+        d.set_item("barrier", sc.barrier)?;
+        d.set_item("loop", sc.r#loop)?;
+        d.set_item("pure", sc.pure)?;
+        d.set_item("mutator", sc.mutator)?;
+        d.set_item("unsafe", sc.r#unsafe)?;
+        d.set_item("scope_alias", sc.scope_alias)?;
         stub_cmds.append(d)?;
     }
     out.set_item("stub_commands", stub_cmds)?;
@@ -160,6 +175,7 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
         let d = PyDict::new_bound(py);
         d.set_item("name", &se.name)?;
         d.set_item("kind", &se.kind)?;
+        d.set_item("arity", se.arity)?;
         d.set_item("range", span_tuple(se.range))?;
         stub_exprs.append(d)?;
     }

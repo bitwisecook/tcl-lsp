@@ -20,6 +20,7 @@ from ..semantic_model import (
     Scope,
     Severity,
     SourceTarget,
+    StubArgDef,
     StubCommandDef,
     StubExprDef,
     UnknownProcInfo,
@@ -311,22 +312,41 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
                 range=range_at(*ap["range"]),
             )
         )
-    # The Rust stub scanner only carries names + ranges today;
-    # arg-roles / flags (``-loop`` / ``-barrier`` / ``-pure`` …)
-    # remain on the Python supplement until a richer port lands.
+    # The Rust stub scanner now carries the full Python parity:
+    # ``args`` (from the ``{ARGS}`` brace block) and the six flag
+    # bools (``-barrier`` / ``-loop`` / ``-pure`` / ``-mutator`` /
+    # ``-unsafe`` / ``-scope_alias``) per
+    # ``stub_comments.py::_parse_args`` / ``_parse_flags``, plus the
+    # arity word on ``stub expr-func`` / ``stub expr-op``.
     for sc in raw.get("stub_commands", []):
+        args = tuple(
+            StubArgDef(
+                name=a["name"],
+                role=a.get("role") or "value",
+                optional=a.get("optional", False),
+            )
+            for a in sc.get("args", ())
+        )
         result.stub_commands.append(
             StubCommandDef(
                 name=sc["name"],
-                args=(),
+                args=args,
                 range=range_at(*sc["range"]),
+                barrier=sc.get("barrier", False),
+                loop=sc.get("loop", False),
+                pure=sc.get("pure", False),
+                mutator=sc.get("mutator", False),
+                unsafe=sc.get("unsafe", False),
+                scope_alias=sc.get("scope_alias", False),
             )
         )
     for se in raw.get("stub_expr_defs", []):
+        kind = se.get("kind") or "function"
         result.stub_expr_defs.append(
             StubExprDef(
                 name=se["name"],
-                kind=se.get("kind") or "function",
+                kind=kind,
+                arity=se.get("arity", 1 if kind == "function" else 2),
                 range=range_at(*se["range"]),
             )
         )
@@ -386,9 +406,6 @@ def _merge_rust_with_python_supplement(
     # - ``regex_patterns``: variable-driven pattern propagation
     #   (``set p "..."; switch -regexp -- $p { ... }``) and
     #   deep-recursion patterns aren't ported.
-    # - ``stub_commands`` / ``stub_expr_defs``: arg-roles, flags
-    #   (``-loop`` / ``-barrier`` / ``-pure``), and the per-arg
-    #   ``StubArgDef`` machinery are Python-only.
     # - ``auto_path_entries``: ``[info script]`` resolution and
     #   substitution evaluation are Python-only.
     # - ``namespace_imports`` / ``source_targets``: tcllib-style
@@ -399,12 +416,10 @@ def _merge_rust_with_python_supplement(
     #
     # Each "Python over Rust" line is a future Rust-port
     # follow-up; trimming this block is the way to slim the
-    # supplement.
+    # supplement.  ``stub_commands`` / ``stub_expr_defs`` retired
+    # by the ``stub-args`` chunk — the Rust scanner now carries
+    # arg-roles, flags, and arity at parity with Python.
     rust.regex_patterns = python.regex_patterns
-    if not rust.stub_commands:
-        rust.stub_commands = python.stub_commands
-    if not rust.stub_expr_defs:
-        rust.stub_expr_defs = python.stub_expr_defs
     if not rust.auto_path_entries:
         rust.auto_path_entries = python.auto_path_entries
     if not rust.namespace_imports:
