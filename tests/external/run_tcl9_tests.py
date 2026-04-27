@@ -110,6 +110,44 @@ eval {
 # is provided by the pre-tcltest stub above).  Returning 1 mirrors
 # Tcl's "command auto-loaded successfully" return.
 proc auto_load {cmd args} { return 1 }
+
+# ::tcl::tm::path stub — Tcl Modules path-list ensemble.  Real Tcl
+# implements this in tmp/tcl9.0.3/library/tm.tcl as a 150-line
+# command with ``add`` / ``remove`` / ``list`` subcommands plus
+# ancestor-conflict validation.  safe.test (lines 1729 / 1735 /
+# 2215 / 2241) calls ``$i eval ::tcl::tm::path list`` on safe
+# child interpreters; without the command the test traps with
+# ``unknown command: ::tcl::tm::path`` and the whole file aborts.
+# This stub is a minimal namespace ensemble that mimics the
+# upstream shape closely enough that the four directly-affected
+# tests reach a tcltest summary line.  Other safe.test gaps
+# (filesystem, package machinery) remain out of scope.
+namespace eval ::tcl::tm {
+    variable paths {}
+    proc path {sub args} {
+        variable paths
+        switch -- $sub {
+            list { return $paths }
+            add {
+                foreach p $args {
+                    if {[lsearch -exact $paths $p] < 0} { lappend paths $p }
+                }
+                return
+            }
+            remove {
+                foreach p $args {
+                    set i [lsearch -exact $paths $p]
+                    if {$i >= 0} { set paths [lreplace $paths $i $i] }
+                }
+                return
+            }
+            default {
+                return -code error "unknown ::tcl::tm::path subcommand \"$sub\""
+            }
+        }
+    }
+    namespace export path
+}
 """
 
 _PREAMBLE = r"""

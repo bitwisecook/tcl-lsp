@@ -268,8 +268,19 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
 
 // -- Command dispatch --
 
+/// Per-interp counter of commands dispatched.  Mirrors C Tcl's
+/// ``Interp.cmdCount`` (see ``tclCmdIL.c``).  Read by
+/// ``info cmdcount``; incremented for every dispatched command —
+/// builtin, proc, alias, or stub-trap path.  Compiled procs that
+/// bypass the dispatcher entirely (the AOT fast path) are NOT
+/// counted, matching the historical contract that ``info cmdcount``
+/// reports interpreter-visible commands; if a future test exposes
+/// the discrepancy, increment in the compiled-proc prologue too.
+pub var cmd_count: i64 = 0;
+
 fn eval_command(words: []const i32) i32 {
     if (words.len == 0) return 0;
+    cmd_count +%= 1;
     const cmd_s = obj_ensure_string(words[0]);
     if (cmd_s.len == 0) return 0;
 

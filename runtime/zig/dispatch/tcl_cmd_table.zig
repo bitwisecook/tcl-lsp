@@ -38,6 +38,7 @@ const interp_cmd    = @import("../cmds/interp.zig");
 const stubs_cmd     = @import("../cmds/stubs.zig");
 const scan_cmd      = @import("../cmds/scan.zig");
 const binary_cmd    = @import("../cmds/binary.zig");
+const oo_cmd        = @import("../cmds/oo.zig");
 
 const BUILTINS: []const reg.CmdEntry = &(
     [_]reg.CmdEntry{string_cmd.registration} ++
@@ -61,7 +62,8 @@ const BUILTINS: []const reg.CmdEntry = &(
     interp_cmd.registrations ++
     stubs_cmd.registrations ++
     scan_cmd.registrations ++
-    binary_cmd.registrations
+    binary_cmd.registrations ++
+    oo_cmd.registrations
 );
 
 /// Look up a command by name.  Returns the handler function pointer on

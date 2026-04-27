@@ -54,22 +54,21 @@ const fnv1a = ht.fnv1a;
 // grow path), and inserts go through ``try_insert_header``.
 
 const FRAME_BUCKET_SIZE: u32 = 16;
-// Per-frame hash table capacity.  Procs with more than this many distinct
-// local names are rare but possible; insertion is bounded and traps on
-// overflow rather than looping.  If this limit is hit in practice, bump
-// here or switch to a growable per-frame hash table (mirroring globals).
-// Per-frame hash table capacity.  Must be a power of 2.  Was 64;
-// bumped to 256 because tcltest's ``test`` proc (which is uplevel'd
-// by ``RunTest``) accumulates over 100 distinct locals once every
-// tcltest option variable is read — 64 and 128 both overflowed the
-// open-addressing probe chain and traced to ``frame_insert``
-// raising "frame local table full".  256 × 16 B = 4 KB per frame
-// × 64 max depth = 256 KB total frame memory — acceptable for the
-// web container's bump allocator.  When growable per-frame tables
-// land this cap can move back down; the trap is load-bearing so
-// callers notice rather than silently looping.
-const FRAME_BUCKET_COUNT: u32 = 256;
-const FRAME_SIZE: u32 = FRAME_BUCKET_COUNT * FRAME_BUCKET_SIZE; // 4096 bytes
+// Per-frame hash table capacity.  Phase 2.1: tables are growable,
+// starting at FRAME_INITIAL_BUCKETS (256 B per frame — fits a typical
+// proc with ≤ 8 locals) and doubling on probe-chain exhaustion via
+// :func:`frame_grow_at_base`, capped at FRAME_MAX_BUCKETS.
+//
+// Empirical lower bound: tcltest's ``test`` proc + every option
+// variable read accumulates > 256 distinct names — bumping the
+// ceiling to 1024 buckets (16 KB per frame) keeps that path
+// inside the grow path rather than the trap path.  The dirty
+// bitmap below uses u64 to track 64 chunks at 256 bytes each
+// (16 KB total), so the cap and the bitmap stay in sync.  Most
+// procs never grow past the initial 16.
+const FRAME_INITIAL_BUCKETS: u32 = 16;
+const FRAME_MAX_BUCKETS: u32 = 1024;
+const FRAME_BUFFER_MAX: u32 = FRAME_MAX_BUCKETS * FRAME_BUCKET_SIZE; // 16384 bytes
 const OFF_VALUE: u32 = ht.HEADER_SIZE; // 12 — value follows header
 
 const FrameTable = ht.Table(FRAME_BUCKET_SIZE);
@@ -78,9 +77,24 @@ const FrameTable = ht.Table(FRAME_BUCKET_SIZE);
 /// capacity hash table.  Frames are pre-allocated in ``frame_push``
 /// (not ``Table.init``-allocated), so the view's ``count`` field is
 /// not authoritative — we never call ``grow`` / ``needs_grow`` on
-/// these tables.
+/// these tables; growth is driven by :func:`frame_grow_at_base`
+/// instead and the per-frame capacity lives in ``frame_capacity``.
 inline fn frame_table(base: u32) FrameTable {
-    return .{ .buf = base, .cap = FRAME_BUCKET_COUNT, .count = 0 };
+    return .{ .buf = base, .cap = capacity_for_base(base), .count = 0 };
+}
+
+/// Look up a frame's current bucket capacity by base address.
+/// O(MAX_DEPTH) linear scan over ``frame_stack`` — cheap (≤64
+/// entries) and avoids threading an extra ``cap`` parameter through
+/// every internal helper.  Falls back to ``FRAME_INITIAL_BUCKETS``
+/// if the base isn't found in the live stack (defensive — keeps
+/// the table view valid for transitional callers).
+inline fn capacity_for_base(base: u32) u32 {
+    var i: u32 = 0;
+    while (i < MAX_DEPTH) : (i += 1) {
+        if (frame_stack[i] == base) return frame_capacity[i];
+    }
+    return FRAME_INITIAL_BUCKETS;
 }
 
 /// Sentinel: alias to a global variable with the same local name.
@@ -107,6 +121,12 @@ const MAX_DEPTH: u32 = 64;
 
 // Frame stack — array of frame buffer pointers
 var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+// Per-frame bucket capacity — Phase 2.1 of the master plan.  Slots
+// start at ``FRAME_INITIAL_BUCKETS`` and double on probe-chain
+// exhaustion.  Slots that have never been allocated stay 0;
+// ``frame_push`` initialises this to ``FRAME_INITIAL_BUCKETS`` on
+// first use and ``frame_grow_at_base`` updates it on growth.
+var frame_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 pub var frame_depth: u32 = 0;
 
 // Per-frame "dirty" bitmap.  Each bit covers a 128-byte chunk (8
@@ -119,20 +139,21 @@ pub var frame_depth: u32 = 0;
 // so push cost drops from a 4 KB ``@memset`` to 128–256 bytes —
 // the dominant fix for the no-arg-proc-call cost.
 //
-// Frames whose overall capacity exceeds 32 chunks (4 KB) would need
-// a wider mask; today FRAME_SIZE = 4096 bytes = 32 chunks, so a
-// single u32 covers the entire frame.
-const FRAME_CHUNK_BYTES: u32 = 128;
-const FRAME_CHUNKS: u32 = FRAME_SIZE / FRAME_CHUNK_BYTES; // 32 with current sizing
-var frame_dirty: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+// Phase 2.1: frames are growable up to ``FRAME_MAX_BUCKETS``
+// (16 KB = 64 chunks at 256 bytes each), so a single u64 covers
+// the entire max-sized buffer.  Growth past that ceiling would
+// need a wider mask — most procs never get close.
+const FRAME_CHUNK_BYTES: u32 = 256;
+const FRAME_CHUNKS_MAX: u32 = FRAME_BUFFER_MAX / FRAME_CHUNK_BYTES; // 64 with 16 KB buffer
+var frame_dirty: [MAX_DEPTH]u64 = [_]u64{0} ** MAX_DEPTH;
 
 /// Mark the chunk containing ``bucket_offset`` (a byte offset within
 /// the frame buffer, NOT an absolute address) as dirty so the next
 /// ``frame_push`` for this slot clears it.
 pub inline fn mark_dirty(idx: u32, bucket_offset: u32) void {
     const chunk = bucket_offset / FRAME_CHUNK_BYTES;
-    if (chunk < FRAME_CHUNKS) {
-        frame_dirty[idx] |= @as(u32, 1) << @intCast(chunk);
+    if (chunk < FRAME_CHUNKS_MAX) {
+        frame_dirty[idx] |= @as(u64, 1) << @intCast(chunk);
     }
 }
 
@@ -200,18 +221,23 @@ pub export fn frame_push() i32 {
     const idx = frame_depth;
     var first_use = false;
     if (frame_stack[idx] == 0) {
-        // Allocate frame on first use
-        frame_stack[idx] = alloc(FRAME_SIZE);
+        // Allocate frame on first use at the initial capacity.
+        // Growth (Phase 2.1) is driven by ``frame_grow_at_base``
+        // when an insert exhausts the probe chain.
+        frame_capacity[idx] = FRAME_INITIAL_BUCKETS;
+        frame_stack[idx] = alloc(FRAME_INITIAL_BUCKETS * FRAME_BUCKET_SIZE);
         first_use = true;
     }
     const base = frame_stack[idx];
+    const cap = frame_capacity[idx];
+    const buffer_bytes = cap * FRAME_BUCKET_SIZE;
     if (first_use) {
         // Brand-new buffer from the bump allocator — Zig zero-fills
         // pages on grow but a recycled OBJ_SIZE slab from the size-
         // class free-list won't be (and our frame size doesn't
         // currently come from a free-list, but be defensive).
         const slice: [*]u8 = @ptrFromInt(base);
-        @memset(slice[0..FRAME_SIZE], 0);
+        @memset(slice[0..buffer_bytes], 0);
     } else {
         // Selective clear via the dirty bitmap.  The bitmap is from
         // the previous push that recycled this slot, so each set bit
@@ -224,8 +250,12 @@ pub export fn frame_push() i32 {
         while (dirty != 0) : (chunk += 1) {
             if ((dirty & 1) != 0) {
                 const off = chunk * FRAME_CHUNK_BYTES;
-                const slice: [*]u8 = @ptrFromInt(base + off);
-                @memset(slice[0..FRAME_CHUNK_BYTES], 0);
+                if (off < buffer_bytes) {
+                    const remaining = buffer_bytes - off;
+                    const span = if (remaining < FRAME_CHUNK_BYTES) remaining else FRAME_CHUNK_BYTES;
+                    const slice: [*]u8 = @ptrFromInt(base + off);
+                    @memset(slice[0..span], 0);
+                }
             }
             dirty >>= 1;
         }
@@ -237,6 +267,81 @@ pub export fn frame_push() i32 {
     frame_argv[idx] = 0;
     frame_depth += 1;
     return @intCast(idx);
+}
+
+/// Grow the frame at *base* to double its current bucket capacity
+/// (capped at ``FRAME_MAX_BUCKETS``).  Allocates a new buffer,
+/// rehashes every populated bucket from the old buffer into the
+/// new one, swaps the pointer in ``frame_stack``, and frees the
+/// old buffer.  Returns the new base address, or 0 if the frame
+/// is already at the max capacity (caller traps).
+///
+/// Pointer invariant: callers reach the frame via ``frame_stack``
+/// indices (or via a same-frame ``current_frame`` lookup), not by
+/// caching raw bucket addresses across calls.  After the swap,
+/// ``frame_stack[idx]`` is the new base; any previously cached
+/// bucket pointer into the old buffer is stale and must be re-
+/// resolved through ``frame_find``.
+fn frame_grow_at_base(base: u32) u32 {
+    var idx: u32 = 0;
+    while (idx < MAX_DEPTH) : (idx += 1) {
+        if (frame_stack[idx] == base) break;
+    }
+    if (idx == MAX_DEPTH) return 0;
+
+    const old_cap = frame_capacity[idx];
+    if (old_cap >= FRAME_MAX_BUCKETS) return 0;
+    const new_cap = old_cap * 2;
+    const new_buffer_bytes = new_cap * FRAME_BUCKET_SIZE;
+    const new_base = alloc(new_buffer_bytes);
+    if (new_base == 0) return 0;
+    const new_slice: [*]u8 = @ptrFromInt(new_base);
+    @memset(new_slice[0..new_buffer_bytes], 0);
+
+    // Rehash every populated bucket from the old buffer into the
+    // new (larger) buffer.  Use the new table's ``try_insert_header``
+    // — its probe chain is bounded by the new capacity, which is
+    // strictly larger than the old, so insertion always succeeds.
+    var new_table: FrameTable = .{ .buf = new_base, .cap = new_cap, .count = 0 };
+    // Bucket header layout (see hash_table.zig:63):
+    //   [0..3]   name_ptr  (0 or TOMBSTONE means skip)
+    //   [4..7]   name_len
+    //   [8..11]  hash
+    //   [12..]   value
+    var i: u32 = 0;
+    while (i < old_cap) : (i += 1) {
+        const old_bucket = base + i * FRAME_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(old_bucket));
+        if (name_ptr == 0 or name_ptr == ht.TOMBSTONE) continue;
+        const name_len: u32 = @bitCast(read_i32(old_bucket + 4));
+        if (name_len == 0) continue;
+        const hash: u32 = @bitCast(read_i32(old_bucket + 8));
+        const value = read_i32(old_bucket + OFF_VALUE);
+        if (new_table.try_insert_header(name_ptr, name_len, hash)) |new_bucket| {
+            write_i32(new_bucket + OFF_VALUE, value);
+        }
+    }
+
+    // Swap.  The dirty bitmap from the old buffer is now stale
+    // (different chunk → bucket mapping); reset it — every
+    // populated bucket lives in the new buffer's chunk(s) which
+    // were just zeroed, so the next ``frame_push`` for this slot
+    // doesn't need to clear anything until ``frame_insert``
+    // re-marks chunks.
+    obj.free_sized(base, old_cap * FRAME_BUCKET_SIZE);
+    frame_stack[idx] = new_base;
+    frame_capacity[idx] = new_cap;
+    frame_dirty[idx] = 0;
+    // Re-mark every populated bucket as dirty so the NEXT push of
+    // this slot clears them.  Without this, recycled-slot reads
+    // could see stale entries from a previous occupant.
+    var j: u32 = 0;
+    while (j < new_cap) : (j += 1) {
+        const new_bucket = new_base + j * FRAME_BUCKET_SIZE;
+        const np: u32 = @bitCast(read_i32(new_bucket));
+        if (np != 0) mark_dirty(idx, j * FRAME_BUCKET_SIZE);
+    }
+    return new_base;
 }
 
 /// Pop the current call frame. Caller should not access frame locals after this.
@@ -345,28 +450,52 @@ fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
 }
 
 fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) void {
-    var t = frame_table(base);
-    if (t.try_insert_header(name_ptr, name_len, hash)) |bucket| {
-        write_i32(bucket + OFF_VALUE, value);
-        // Mark the chunk this bucket lives in as dirty so the next
-        // ``frame_push`` for this slot clears it.  Overwrites to the
-        // same bucket via ``frame_find`` + ``write_i32`` later don't
-        // need a separate ``mark_dirty`` call — once a chunk's bit
-        // is set, subsequent writes within the same chunk are
-        // already covered.
-        if (frame_depth > 0) {
-            const idx = frame_depth - 1;
-            if (frame_stack[idx] == base) {
-                mark_dirty(idx, bucket - base);
-            }
+    var current_base = base;
+    var attempts: u32 = 0;
+    // Phase 2.1: retry-with-grow loop.  Each grow doubles the
+    // bucket count (up to FRAME_MAX_BUCKETS); a single growth may
+    // not be enough on a heavily-clustered hash chain, so loop
+    // until we either succeed, run out of grow budget, or the
+    // grow itself fails to make progress.
+    while (attempts < 8) : (attempts += 1) {
+        var t = frame_table(current_base);
+        if (t.try_insert_header(name_ptr, name_len, hash)) |bucket| {
+            write_i32(bucket + OFF_VALUE, value);
+            // Mark the chunk this bucket lives in as dirty so the
+            // next ``frame_push`` for this slot clears it.
+            // Overwrites to the same bucket via ``frame_find`` +
+            // ``write_i32`` later don't need a separate
+            // ``mark_dirty`` call — once a chunk's bit is set,
+            // subsequent writes within the same chunk are already
+            // covered.
+            mark_dirty_for_base(current_base, bucket - current_base);
+            return;
         }
-        return;
+        // Probe chain exhausted — grow and retry.
+        const new_base = frame_grow_at_base(current_base);
+        if (new_base == 0 or new_base == current_base) break;
+        current_base = new_base;
     }
-    // Frame full — emit a clear diagnostic and trap.  Previously this
-    // looped forever; now we fail loudly so the limit is discoverable.
+    // At the cap or grow alloc failed — fall through to the
+    // load-bearing trap so callers notice rather than looping.
     const errmsg = "frame local table full";
     rt_fd_write_stderr(errmsg);
     @trap();
+}
+
+/// ``mark_dirty`` keyed by base address — looks up the matching
+/// frame index in ``frame_stack`` and forwards the bucket offset.
+/// Replaces the older "current frame only" check; needed because
+/// frame_insert can run against any frame whose base is passed in
+/// (uplevel paths reach into other frames).
+inline fn mark_dirty_for_base(base: u32, bucket_offset: u32) void {
+    var i: u32 = 0;
+    while (i < MAX_DEPTH) : (i += 1) {
+        if (frame_stack[i] == base) {
+            mark_dirty(i, bucket_offset);
+            return;
+        }
+    }
 }
 
 /// Write *msg* directly to stderr (fd=2) via WASI.  Used only in the
