@@ -231,13 +231,21 @@ class _WasmEmitterExprMixin(_Base):
         new_str_idx = self._shared_imports.get("tcl_obj_new_string")
         try:
             int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
-            if new_int_idx is not None:
-                self._emit_i64_const(int_val)
-                self._emit_call(new_int_idx)
-            else:
-                self._emit_i64_const(int_val)
-                self._emit_box_int()
-            return
+            # Tcl 9 BigInt literals: ``expr {0x8000000000000000}`` or
+            # ``expr {-9223372036854775808}`` (parsed as unary-minus
+            # of 2^63) produce values outside signed i64.  Falling
+            # through to the string path lets the runtime parse the
+            # source bytes lazily and preserve precision; emitting
+            # ``i64.const`` here would saturate to the i64 boundary
+            # and silently miscompute every BigInt expression.
+            if -(1 << 63) <= int_val <= (1 << 63) - 1:
+                if new_int_idx is not None:
+                    self._emit_i64_const(int_val)
+                    self._emit_call(new_int_idx)
+                else:
+                    self._emit_i64_const(int_val)
+                    self._emit_box_int()
+                return
         except ValueError:
             pass
         try:

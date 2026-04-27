@@ -30,6 +30,15 @@ from .._parsing import (
     _derive_proc_namespace,
 )
 
+# Signed integer ranges for ``i32.const`` / ``i64.const`` LEB128
+# saturation in :meth:`_WasmEmitterBase._emit_i32_const` and
+# :meth:`_WasmEmitterBase._emit_i64_const`.  Tcl 9 supports BigInt
+# literals; the wasm spec rejects encodings outside these ranges.
+_I32_MIN = -(1 << 31)
+_I32_MAX = (1 << 31) - 1
+_I64_MIN = -(1 << 63)
+_I64_MAX = (1 << 63) - 1
+
 
 class _WasmEmitterBase:
     if TYPE_CHECKING:
@@ -303,9 +312,27 @@ class _WasmEmitterBase:
         )
 
     def _emit_i64_const(self, value: int) -> None:
+        # wasmtime rejects ``i64.const`` values outside signed 64-bit
+        # range with ``invalid var_i64: integer too large``.  Tcl 9
+        # supports BigInt literals (e.g. ``expr {0x8000000000000000}``
+        # or ``-9223372036854775808`` parsed as unary-minus of a 2^63
+        # literal), so a naive ``_leb128_signed(2**63)`` here produces
+        # an LEB128 wasmtime refuses to validate and the WHOLE module
+        # fails to instantiate.  Saturate to the i64 boundary; loads
+        # of arbitrary-precision integers should reach this through
+        # the string-literal path (see ``_emit_obj_literal_for_expr``)
+        # which preserves the source text for the runtime to parse.
+        if value > _I64_MAX:
+            value = _I64_MAX
+        elif value < _I64_MIN:
+            value = _I64_MIN
         self._emit(WasmOp.I64_CONST, _leb128_signed(value))
 
     def _emit_i32_const(self, value: int) -> None:
+        if value > _I32_MAX:
+            value = _I32_MAX
+        elif value < _I32_MIN:
+            value = _I32_MIN
         self._emit(WasmOp.I32_CONST, _leb128_signed(value))
 
     def _emit_f64_const(self, value: float) -> None:
