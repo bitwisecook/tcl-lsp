@@ -396,36 +396,34 @@ def _merge_rust_with_python_supplement(
     #   targets) is Python-only.
     # - ``command_aliases``: ``interp alias`` chains across
     #   namespace boundaries are Python-only.
-    # - ``command_invocations``: invocations inside method /
-    #   when bodies are Python-walked deeper than the Rust
-    #   ``ArgRole::Body`` loop reaches today.
     #
     # Each "Python over Rust" line is a future Rust-port
     # follow-up; trimming this block is the way to slim the
     # supplement.
-    rust.source_targets = python.source_targets
     rust.regex_patterns = python.regex_patterns
     rust.stub_commands = python.stub_commands
     rust.stub_expr_defs = python.stub_expr_defs
     rust.auto_path_entries = python.auto_path_entries
-    rust.package_provides = python.package_provides
-    rust.has_dynamic_providers = python.has_dynamic_providers
-    rust.suppressed_lines = python.suppressed_lines
     if not rust.namespace_imports:
         rust.namespace_imports = python.namespace_imports
+    if not rust.source_targets:
+        rust.source_targets = python.source_targets
     if not rust.command_aliases:
         rust.command_aliases = python.command_aliases
+    # ``command_invocations``: Python's pass walks deeper (recovery
+    # splits, control-flow body recursion, ``call`` indirection,
+    # IRule event bodies) than the Rust ``ArgRole::Body`` loop
+    # reaches today.  Take Python's list to keep workspace usage
+    # counts, references / rename, and call-hierarchy correct.
     rust.command_invocations = python.command_invocations
     # Python's diagnostics list is a strict superset (it integrates
     # ``run_compiler_checks`` for W110 / W220 / W304).  Take Python's.
     rust.diagnostics = python.diagnostics
     # Structural Rust gaps the differential corpus tracks:
-    # ``ProcDef.doc`` (preceding-comment extraction works for
-    # most cases now but extract_body_docstring fallback is
-    # Python-only); ``ProcDef.param_traits``;
-    # ``unknown_proc_info`` patched-``lower_to_ir`` test path.
-    # Take Python's structural data wholesale until each gap
-    # closes.
+    # ``ProcDef.doc`` ``extract_body_docstring`` fallback;
+    # ``ProcDef.param_traits``; ``unknown_proc_info``
+    # patched-``lower_to_ir`` test path.  Take Python's
+    # structural data wholesale until each gap closes.
     rust.global_scope = python.global_scope
     rust.all_variables = python.all_variables
     rust.all_procs = python.all_procs

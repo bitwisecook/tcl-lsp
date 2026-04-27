@@ -165,6 +165,25 @@ impl Analyser {
             },
         );
 
+        // iRules ``call PROC ARG...`` — record an additional
+        // ``CommandInvocation`` for the target proc so that
+        // references, rename, and call-hierarchy see through the
+        // indirection.  Mirrors
+        // ``_AnalyserCommandsMixin._process_command`` line 231 in
+        // ``core/analysis/_analyser/_commands.py``.
+        if cmd_name == "call" && self.dialect == "f5-irules" {
+            if let (Some(target_name), Some(target_tok)) =
+                (args.first(), arg_tokens_in.get(1).copied())
+            {
+                self.result.command_invocations.push(
+                    crate::signature_scan::types::SignatureCommandInvocation {
+                        name: target_name.clone(),
+                        range: target_tok.span,
+                    },
+                );
+            }
+        }
+
         // **C41d3.** Record variable-as-command and command-sub-as-
         // command sites so the post-walk W307 / W308 emitters can
         // resolve them.  Mirrors the inline recording in
