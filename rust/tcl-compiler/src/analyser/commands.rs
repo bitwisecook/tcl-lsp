@@ -247,12 +247,31 @@ impl Analyser {
                     }
                 }
             } else {
-                // For ``Esc`` (bareword / quoted) and ``Str``
-                // (braced) tokens the span covers the full token
-                // including any quotes / braces; ``scan_nested_*``
-                // walks ``[…]`` substitutions inside.
-                for (name, off) in scan_nested_command_heads(arg_src) {
-                    let abs_start = arg_start + off;
+                // For ``Esc`` (bareword / quoted) tokens the span
+                // covers the full token; ``scan_nested_*`` walks
+                // ``[…]`` substitutions inside.  For ``Str`` (braced)
+                // tokens, strip the surrounding ``{…}`` via
+                // ``content_offset`` first — otherwise the scanner
+                // sees the outer ``{`` and skips the entire braced
+                // region opaquely, missing every nested ``[cmd]``
+                // inside braced expr args (``if { [HTTP::uri] eq
+                // "/foo" }`` etc.).
+                let (inner_src, inner_base) = if matches!(arg_tok.kind, TokenType::Str) {
+                    let inner_off = arg_tok.content_offset as usize;
+                    if inner_off <= arg_src.len() {
+                        // Trim the trailing ``}`` if present.
+                        let trimmed = arg_src[inner_off..]
+                            .strip_suffix('}')
+                            .unwrap_or(&arg_src[inner_off..]);
+                        (trimmed, arg_start + inner_off as u32)
+                    } else {
+                        (arg_src, arg_start)
+                    }
+                } else {
+                    (arg_src, arg_start)
+                };
+                for (name, off) in scan_nested_command_heads(inner_src) {
+                    let abs_start = inner_base + off;
                     let abs_end = abs_start + name.len() as u32;
                     self.result.command_invocations.push(
                         crate::signature_scan::types::SignatureCommandInvocation {

@@ -1144,13 +1144,16 @@ mod tests {
     fn analyse_regexp_resolves_var_pattern_to_const_string() {
         let mut a = Analyser::new();
         let r = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
+        // Two records: the use site (the ``$p`` token) and the
+        // defining ``set`` value (mirrors
+        // ``_record_defining_set_as_regex``).
         let regexp_pats: Vec<_> = r
             .regex_patterns
             .iter()
             .filter(|p| p.command == "regexp")
             .collect();
-        assert_eq!(regexp_pats.len(), 1);
-        assert_eq!(regexp_pats[0].pattern, "^foo");
+        assert_eq!(regexp_pats.len(), 2);
+        assert!(regexp_pats.iter().all(|p| p.pattern == "^foo"));
     }
 
     #[test]
@@ -1162,8 +1165,8 @@ mod tests {
             .iter()
             .filter(|p| p.command == "regsub")
             .collect();
-        assert_eq!(regsub_pats.len(), 1);
-        assert_eq!(regsub_pats[0].pattern, "a+");
+        assert_eq!(regsub_pats.len(), 2);
+        assert!(regsub_pats.iter().all(|p| p.pattern == "a+"));
     }
 
     #[test]
@@ -1190,6 +1193,52 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("regexp $p $line\n", "tcl");
         assert!(r.regex_patterns.is_empty());
+    }
+
+    // -- ``recovery`` chunk: body-walk and nested-cmd improvements
+    //
+    // Verify ``when EVENT { body }`` recurses (registry
+    // ``arg_role_resolver`` now records BODY at the last index)
+    // and that braced expr args (``Str`` tokens) have their
+    // outer braces unwrapped before the nested-``[cmd]`` scan
+    // (otherwise the scanner skips the entire braced region
+    // opaquely).
+
+    #[test]
+    fn analyse_when_body_records_inner_command_invocations() {
+        // ``when HTTP_REQUEST { body }`` — ``call`` and the
+        // target ``myhelper`` should appear in
+        // ``command_invocations`` from the body recursion.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc myhelper {} {}\nwhen HTTP_REQUEST { call myhelper }\n",
+            "f5-irules",
+        );
+        let names: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert!(names.contains(&"call"), "got {names:?}");
+        assert!(names.contains(&"myhelper"), "got {names:?}");
+    }
+
+    #[test]
+    fn analyse_braced_expr_arg_records_inner_substitution() {
+        // ``if { [HTTP::uri] eq "/foo" } { ... }`` — the
+        // ``[HTTP::uri]`` substitution inside the braced expr
+        // arg must surface in ``command_invocations``.  Without
+        // the ``Str`` unwrap, the nested-cmd scanner sees the
+        // outer ``{`` and skips the entire braced region
+        // opaquely.
+        let mut a = Analyser::new();
+        let r = a.analyse("if { [HTTP::uri] eq \"/foo\" } { puts ok }\n", "f5-irules");
+        let names: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert!(names.contains(&"HTTP::uri"), "got {names:?}");
     }
 
     #[test]

@@ -429,24 +429,28 @@ def _merge_rust_with_python_supplement(
     # — alias-of-alias is intentionally *not* resolved on either
     # side).  Retired the merge in the ``alias-chains`` chunk.
     # ``command_invocations``: Rust now records nested ``[cmd]``
-    # substitution heads via ``scan_nested_command_heads``, but
-    # Python's pass also catches:
-    # (a) document-break recovery splits (partial-command head
-    #     invocations Python's virtual-insertion recovery
-    #     surfaces but Rust's segmenter recovery skips), and
-    # (b) deeper body walks (some ``ArgRole::Body`` arms still
-    #     reach commands the Rust loop hasn't ported recursion
-    #     into — e.g. iRule ``when`` bodies with embedded
-    #     conditional structures).
-    # Merge the two by ``(name, span)`` key.  Python comes
-    # first because its ``CommandInvocation`` records carry
-    # ``resolved_qualified_name`` (resolved via the analyser's
-    # scope-aware proc lookup) that downstream features
-    # (references / rename / call-hierarchy) consult to
-    # disambiguate qualified calls across namespaces — Rust's
-    # nested-cmd scanner only records the bare name.  After
-    # Python's records land, Rust's contribute the
-    # nested-substitution heads + recovery splits Python misses.
+    # substitution heads (C41-default-on, including the inner
+    # ``Str`` token unwrap so braced expr args like
+    # ``if { [HTTP::uri] eq "/foo" }`` surface ``HTTP::uri``),
+    # recovered partial-command heads via
+    # ``segment_commands_with_recovery``, and iRules ``call PROC``
+    # indirection.  Python's pass remains the source of truth for
+    # **scope-aware** ``resolved_qualified_name`` resolution: a bare
+    # ``helper`` call inside ``namespace eval a`` resolves to
+    # ``::a::helper`` on Python's side via the analyser's full scope
+    # walk, while the materialiser's post-hoc fallback only does a
+    # global proc-name lookup.  Without Python's records, references
+    # / rename / call-hierarchy on namespaced procs miss the
+    # in-namespace call sites — verified by
+    # ``tests/test_references.py::test_qualified_calls_do_not_cross_namespace``
+    # and the ``test_call_*`` family in ``tests/test_irules_call.py``.
+    #
+    # Merge by ``(name, span)`` key — Python first so its
+    # scope-resolved ``resolved_qualified_name`` survives, Rust
+    # second to contribute the recovery / nested-cmd heads Python
+    # may miss.  The merge retires when Rust gains scope-aware
+    # resolution (closes naturally with the ``S*`` LSP-server port
+    # / ``structural`` chunk).
     seen_invs: set[tuple[str, int, int]] = set()
     merged_invs: list[CommandInvocation] = []
     for inv in list(python.command_invocations) + list(rust.command_invocations):
