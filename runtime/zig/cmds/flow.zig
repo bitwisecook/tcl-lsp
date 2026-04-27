@@ -86,8 +86,17 @@ fn eval_catch(words: []const i32) i32 {
         const body_s = obj_ensure_string(words[1]);
         const body_result = interp.eval_script(body_s.ptr, body_s.len);
         rt.catch_set_ok_result(body_result);
-        const catch_val = rt.catch_result();
+        // ``catch_leave`` *must* run before ``catch_result`` because the
+        // result accessor reads ``last_catch_had_error``, which is only
+        // populated inside ``catch_leave``.  Reading the result first
+        // would surface the *previous* catch's outcome — making
+        // ``catch {llength {return}} msg`` set ``msg`` to whatever
+        // the prior catch had latched (``""`` on the first call) and
+        // breaking tcltest's ``SubstArguments`` "is this a valid 1-elem
+        // list?" probe (``[catch {llength $token} length] == 0 &&
+        // $length == 1``) on every malformed token.
         const code = rt.catch_leave();
+        const catch_val = rt.catch_result();
         if (words.len >= 3) _ = frames.var_set(words[2], catch_val);
         return code;
     }
@@ -115,8 +124,10 @@ fn eval_try(words: []const i32) i32 {
     const body_s    = obj_ensure_string(words[1]);
     const body_res  = interp.eval_script(body_s.ptr, body_s.len);
     rt.catch_set_ok_result(body_res);
-    const catch_val = rt.catch_result();
+    // Order matters: ``catch_leave`` snapshots ``last_catch_had_error``
+    // that ``catch_result`` reads.  See ``eval_catch`` above.
     const code_obj  = rt.catch_leave();
+    const catch_val = rt.catch_result();
     const had_error: bool = rt.obj_get_int(code_obj) != 0;
 
     var final_result: i32 = if (had_error) catch_val else body_res;
@@ -221,8 +232,9 @@ fn eval_try(words: []const i32) i32 {
         const fb_s = obj_ensure_string(finally_body);
         const fb_result = interp.eval_script(fb_s.ptr, fb_s.len);
         rt.catch_set_ok_result(fb_result);
-        const fb_val      = rt.catch_result();
+        // ``catch_leave`` before ``catch_result`` — see ``eval_catch``.
         const finally_code = rt.catch_leave();
+        const fb_val      = rt.catch_result();
         if (rt.obj_get_int(finally_code) != 0) {
             // Finally raised an error — propagate it, overriding handler result.
             catch_mod.tcl_cmd_error(fb_val);
