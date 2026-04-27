@@ -776,8 +776,23 @@ class _WasmEmitterStmtMixin(_Base):
         # hooks, but the hook is still on an earlier spec.
         hook = _REGISTRY.get_wasm_hook(command)
         if hook is not None:
-            if hook(self, args, defs, EmitContext.STATEMENT):
-                return
+            # Stash the current call's tokens on self so a hook that
+            # routes to ``_emit_eval_fallback`` can recover the
+            # original brace / substitution information without us
+            # having to widen the public ``CodegenHook`` signature.
+            # Critical for regex / regsub patterns: a braced word
+            # ``{[abc]+}`` lowers to IR value ``[abc]+`` which the
+            # fallback's ``a.startswith("[")`` heuristic would
+            # otherwise mistake for a Tcl ``[cmd]`` substitution and
+            # pass through unquoted — making the interpreter try to
+            # execute ``abc`` as a command.
+            prev_tokens = getattr(self, "_current_call_tokens", None)
+            self._current_call_tokens = tokens
+            try:
+                if hook(self, args, defs, EmitContext.STATEMENT):
+                    return
+            finally:
+                self._current_call_tokens = prev_tokens
 
         # Unknown command — fall back to interpreter.
         # Pre-intern defs so _emit_frame_readback (inside the fallback)
@@ -890,6 +905,17 @@ class _WasmEmitterStmtMixin(_Base):
             if script_override is not None:
                 script = script_override
             else:
+                # Hook-driven callers (regsub / regexp / apply / …)
+                # don't get a *tokens* parameter through the
+                # ``CodegenHook`` signature — pull them from the
+                # ``_current_call_tokens`` stash that
+                # ``_emit_call_stmt`` set up before invoking the hook.
+                # Without this, a braced regex pattern lowered to
+                # IR ``[abc]+`` would be reassembled unquoted and
+                # the interpreter would try to execute ``abc``.
+                if tokens is None:
+                    tokens = getattr(self, "_current_call_tokens", None)
+
                 # Build command string: "command arg1 arg2 ..."
                 # For literal args, concatenate them. For $var refs,
                 # include the dollar sign so the interpreter can resolve them.
