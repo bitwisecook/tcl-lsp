@@ -80,9 +80,7 @@ def run_wasm(bundle_src: str, label: str, source_dir: Path | None = None):
     def _compile():
         return _compile_tcl_with_diag(bundle_src, label, source_dir=source_dir)
 
-    pool = concurrent.futures.ThreadPoolExecutor(
-        max_workers=1, thread_name_prefix="tcl9-compile"
-    )
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="tcl9-compile")
     future = pool.submit(_compile)
     try:
         wasm, diag = future.result(timeout=COMPILE_TIMEOUT_S)
