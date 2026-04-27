@@ -184,6 +184,76 @@ impl Analyser {
             }
         }
 
+        // Walk each argument's source text for ``[cmd ...]``
+        // substitutions and record each nested command's head as
+        // its own ``CommandInvocation``.  Mirrors the
+        // ``_iter_nested_invocations`` walk in
+        // ``_AnalyserCommandsMixin._record_command_invocation``
+        // (Python).  Without this, calls embedded inside argument
+        // expressions (``set x [helper $foo]``,
+        // ``puts "got [count $items]"`` …) aren't tracked, which
+        // breaks workspace usage counts, find-references, rename,
+        // and call-hierarchy.
+        for arg_tok in arg_tokens_in.iter().skip(1) {
+            let arg_start = arg_tok.span.start();
+            let arg_end = arg_tok.span.end() as usize;
+            let src_bytes = self.source.as_bytes();
+            if arg_start as usize >= src_bytes.len() || arg_end > src_bytes.len() {
+                continue;
+            }
+            let arg_src = &self.source[arg_start as usize..arg_end];
+            if matches!(arg_tok.kind, TokenType::Cmd) {
+                // ``Cmd`` tokens cover the inner text (no
+                // surrounding ``[`` / ``]``) when ``content_offset
+                // = 1`` — but the segmenter's ``Cmd`` span starts
+                // at the ``[`` and ends one past the inner text,
+                // *without* the closing ``]``.  Strip the leading
+                // ``[`` (skip ``content_offset`` bytes) and pass
+                // the inner content directly to
+                // ``first_command_head``; then recurse into the
+                // inner text for nested substitutions.
+                let inner_off = arg_tok.content_offset as usize;
+                if inner_off <= arg_src.len() {
+                    let inner = &arg_src[inner_off..];
+                    if let Some((head, head_off)) = first_command_head(inner) {
+                        let abs_start = arg_start + (inner_off + head_off) as u32;
+                        let abs_end = abs_start + head.len() as u32;
+                        self.result.command_invocations.push(
+                            crate::signature_scan::types::SignatureCommandInvocation {
+                                name: head.to_string(),
+                                range: tcl_lexer::Span::new(abs_start, abs_end),
+                            },
+                        );
+                    }
+                    for (name, off) in scan_nested_command_heads(inner) {
+                        let abs_start = arg_start + (inner_off + off as usize) as u32;
+                        let abs_end = abs_start + name.len() as u32;
+                        self.result.command_invocations.push(
+                            crate::signature_scan::types::SignatureCommandInvocation {
+                                name,
+                                range: tcl_lexer::Span::new(abs_start, abs_end),
+                            },
+                        );
+                    }
+                }
+            } else {
+                // For ``Esc`` (bareword / quoted) and ``Str``
+                // (braced) tokens the span covers the full token
+                // including any quotes / braces; ``scan_nested_*``
+                // walks ``[…]`` substitutions inside.
+                for (name, off) in scan_nested_command_heads(arg_src) {
+                    let abs_start = arg_start + off;
+                    let abs_end = abs_start + name.len() as u32;
+                    self.result.command_invocations.push(
+                        crate::signature_scan::types::SignatureCommandInvocation {
+                            name,
+                            range: tcl_lexer::Span::new(abs_start, abs_end),
+                        },
+                    );
+                }
+            }
+        }
+
         // **C41d3.** Record variable-as-command and command-sub-as-
         // command sites so the post-walk W307 / W308 emitters can
         // resolve them.  Mirrors the inline recording in
@@ -327,10 +397,198 @@ impl Analyser {
     }
 }
 
+/// Walk `text` looking for ``[cmd args...]`` command
+/// substitutions and return the head name + the offset of the
+/// head's first byte within `text` for each substitution found.
+/// Nested substitutions are reported in depth-first order
+/// (outer first, then inner).  Braced regions are skipped
+/// opaquely; backslash-escaped ``\\[`` / ``\\]`` are skipped.
+///
+/// Mirrors the ``_iter_nested_invocations`` walk in
+/// ``_AnalyserCommandsMixin._record_command_invocation``.
+/// Returns ``(name, byte_offset_in_text)`` pairs.  The caller
+/// adds the enclosing token's source-span start to obtain an
+/// absolute offset.
+pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => {
+                // Skip braced region opaquely.
+                let mut depth = 1i32;
+                i += 1;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\\' if i + 1 < bytes.len() => i += 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+            }
+            b'[' => {
+                // Find the matching closing ``]`` honouring
+                // nesting + backslash escapes.
+                let inner_start = i + 1;
+                let mut depth = 1i32;
+                let mut j = inner_start;
+                while j < bytes.len() && depth > 0 {
+                    match bytes[j] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        b'\\' if j + 1 < bytes.len() => j += 1,
+                        _ => {}
+                    }
+                    if depth == 0 {
+                        break;
+                    }
+                    j += 1;
+                }
+                if depth == 0 && j < bytes.len() {
+                    let inner = &text[inner_start..j];
+                    if let Some((name, head_offset_in_inner)) = first_command_head(inner) {
+                        let abs_offset = inner_start + head_offset_in_inner;
+                        out.push((name.to_string(), abs_offset as u32));
+                    }
+                    // Recurse into the inner text — nested ``[...]``
+                    // substitutions inside this one also produce
+                    // invocations.
+                    for (name, off_in_inner) in scan_nested_command_heads(inner) {
+                        out.push((name, inner_start as u32 + off_in_inner));
+                    }
+                    i = j + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            _ => i += 1,
+        }
+    }
+    out
+}
+
+/// Find the first command-head token in `text` (skipping
+/// leading whitespace and comments) and return its ``(name,
+/// offset)`` pair.  Conservative — any non-bareword leading
+/// token returns ``None``.
+fn first_command_head(text: &str) -> Option<(&str, usize)> {
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b';' {
+            i += 1;
+            continue;
+        }
+        // Skip comment lines if at the start of a logical command.
+        if c == b'#' {
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
+    let start = i;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b' '
+            || c == b'\t'
+            || c == b'\n'
+            || c == b'\r'
+            || c == b';'
+            || c == b'['
+            || c == b']'
+        {
+            break;
+        }
+        i += 1;
+    }
+    if i == start {
+        return None;
+    }
+    let head = &text[start..i];
+    // Reject heads that look like substitution / quoting markers
+    // (``$foo``, ``"abc"``, ``{...}``) — these aren't command
+    // names.
+    if head.starts_with('$') || head.starts_with('"') || head.starts_with('{') {
+        return None;
+    }
+    Some((head, start))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tcl_lexer::{Span, TokenType};
+
+    #[test]
+    fn scan_nested_command_heads_simple() {
+        let out = scan_nested_command_heads("[helper $x]");
+        assert_eq!(out, vec![("helper".to_string(), 1)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_nested() {
+        // [outer [inner $x]]
+        let out = scan_nested_command_heads("[outer [inner $x]]");
+        assert_eq!(
+            out,
+            vec![("outer".to_string(), 1), ("inner".to_string(), 8)]
+        );
+    }
+
+    #[test]
+    fn scan_nested_command_heads_inside_quoted_string() {
+        // "got [count $items]" — quotes don't interfere with [
+        // ``count`` starts at byte 6 (after ``"got [``).
+        let out = scan_nested_command_heads("\"got [count $items]\"");
+        assert_eq!(out, vec![("count".to_string(), 6)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_skips_braced_regions() {
+        // Braced regions are opaque — `[` inside `{...}` doesn't count.
+        // ``real`` starts at byte 15 (after ``{[not_a_cmd]} [``).
+        let out = scan_nested_command_heads("{[not_a_cmd]} [real]");
+        assert_eq!(out, vec![("real".to_string(), 15)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_skips_backslash_escape() {
+        // \[foo\] is a literal pair, not a substitution.
+        // ``bar`` starts at byte 9 (after ``\\[foo\\] [``).
+        let out = scan_nested_command_heads("\\[foo\\] [bar]");
+        assert_eq!(out, vec![("bar".to_string(), 9)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_no_match_for_pure_var_head() {
+        // [$cmd args] — head is a variable substitution, not a name
+        let out = scan_nested_command_heads("[$cmd args]");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn scan_nested_command_heads_no_match_for_unclosed() {
+        // Unclosed [ — returns nothing (recovery is segmenter's job)
+        let out = scan_nested_command_heads("[lindex $x 0");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn scan_nested_command_heads_two_independent_substs() {
+        // [a $x] [b $y]
+        let out = scan_nested_command_heads("[a $x] [b $y]");
+        assert_eq!(out, vec![("a".to_string(), 1), ("b".to_string(), 8)]);
+    }
 
     fn esc_tok(span: Span) -> Token {
         Token::new(TokenType::Esc, span)

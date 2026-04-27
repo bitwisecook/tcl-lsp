@@ -413,12 +413,34 @@ def _merge_rust_with_python_supplement(
         rust.source_targets = python.source_targets
     if not rust.command_aliases:
         rust.command_aliases = python.command_aliases
-    # ``command_invocations``: Python's pass walks deeper (recovery
-    # splits, control-flow body recursion, ``call`` indirection,
-    # IRule event bodies) than the Rust ``ArgRole::Body`` loop
-    # reaches today.  Take Python's list to keep workspace usage
-    # counts, references / rename, and call-hierarchy correct.
-    rust.command_invocations = python.command_invocations
+    # ``command_invocations``: Rust now records nested ``[cmd]``
+    # substitution heads via ``scan_nested_command_heads``, but
+    # Python's pass also catches:
+    # (a) document-break recovery splits (partial-command head
+    #     invocations Python's virtual-insertion recovery
+    #     surfaces but Rust's segmenter recovery skips), and
+    # (b) deeper body walks (some ``ArgRole::Body`` arms still
+    #     reach commands the Rust loop hasn't ported recursion
+    #     into — e.g. iRule ``when`` bodies with embedded
+    #     conditional structures).
+    # Merge the two by ``(name, span)`` key.  Python comes
+    # first because its ``CommandInvocation`` records carry
+    # ``resolved_qualified_name`` (resolved via the analyser's
+    # scope-aware proc lookup) that downstream features
+    # (references / rename / call-hierarchy) consult to
+    # disambiguate qualified calls across namespaces — Rust's
+    # nested-cmd scanner only records the bare name.  After
+    # Python's records land, Rust's contribute the
+    # nested-substitution heads + recovery splits Python misses.
+    seen_invs: set[tuple[str, int, int]] = set()
+    merged_invs: list[CommandInvocation] = []
+    for inv in list(python.command_invocations) + list(rust.command_invocations):
+        key = (inv.name, inv.range.start.offset, inv.range.end.offset)
+        if key in seen_invs:
+            continue
+        seen_invs.add(key)
+        merged_invs.append(inv)
+    rust.command_invocations = merged_invs
     # Python's diagnostics list is a strict superset (it integrates
     # ``run_compiler_checks`` for W110 / W220 / W304).  Take Python's.
     rust.diagnostics = python.diagnostics
