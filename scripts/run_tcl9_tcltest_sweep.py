@@ -21,7 +21,6 @@ sweep.
 
 from __future__ import annotations
 
-import concurrent.futures
 import json
 import re
 import subprocess
@@ -36,7 +35,6 @@ sys.path.insert(0, str(REPO))
 
 from tests.external.run_tcl9_tests import _IN_SCOPE, _bundle  # noqa: E402
 from tests.test_wasm_real_tcl import (  # noqa: E402
-    _compile_tcl_with_diag,
     _run_wasm,
 )
 
@@ -68,38 +66,55 @@ def run_wasm(bundle_src: str, label: str, source_dir: Path | None = None):
     out = {"label": label, "compile_error": None, "run_error": None}
     t0 = time.perf_counter_ns()
 
-    # Run the compile step in a worker thread with a hard timeout so
-    # a single hung file can't stall the whole sweep.  We can't
-    # safely kill the worker if it's wedged in a CPU loop, so we
-    # accept that the daemon worker stays running until the process
-    # exits — but we MUST NOT block the main thread waiting for it.
-    # Avoid ``with ThreadPoolExecutor(...)`` because its ``__exit__``
-    # runs ``shutdown(wait=True)`` unconditionally and would re-block
-    # the parent.  Manage the pool manually and let it get garbage-
-    # collected; daemon threads are fine for a diagnostic harness.
-    def _compile():
-        return _compile_tcl_with_diag(bundle_src, label, source_dir=source_dir)
-
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="tcl9-compile")
-    future = pool.submit(_compile)
+    # Run the compile step in a SUBPROCESS with a hard timeout so a
+    # single hung file can't stall the whole sweep.  Threads were
+    # the original implementation but each abandoned worker keeps
+    # the full module memory live (8 GB across 30+ files in the
+    # tcltest in-scope set), and the garbage collector can't reap
+    # threads whose references are still held by the
+    # ``ThreadPoolExecutor`` internal data structures.  Subprocesses
+    # OS-kill cleanly on timeout via ``proc.kill()``.
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import sys, json, base64, pickle\n"
+            "src, label, sd = json.loads(sys.stdin.read())\n"
+            "sys.path.insert(0, %r)\n"
+            "from tests.test_wasm_real_tcl import _compile_tcl_with_diag\n"
+            "from pathlib import Path\n"
+            "wasm, diag = _compile_tcl_with_diag(src, label, source_dir=Path(sd) if sd else None)\n"
+            "sys.stdout.buffer.write(base64.b64encode(pickle.dumps((wasm, diag))))\n" % str(REPO),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdin_payload = json.dumps([bundle_src, label, str(source_dir) if source_dir else None]).encode(
+        "utf-8"
+    )
     try:
-        wasm, diag = future.result(timeout=COMPILE_TIMEOUT_S)
-    except concurrent.futures.TimeoutError:
+        stdout_b, stderr_b = proc.communicate(input=stdin_payload, timeout=COMPILE_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
         out["compile_error"] = f"compile timeout ({COMPILE_TIMEOUT_S}s)"
         out["compile_ns"] = time.perf_counter_ns() - t0
-        # ``shutdown(wait=False)`` returns immediately; the worker
-        # thread keeps running with the GIL released (or burning a
-        # core) until the process exits.  Acceptable for our
-        # diagnostic harness — finishing the sweep matters more
-        # than a perfectly clean shutdown of one hung worker.
-        pool.shutdown(wait=False, cancel_futures=True)
         return out
-    except BaseException as exc:
-        out["compile_error"] = str(exc)[-400:]
+    if proc.returncode != 0:
+        msg = stderr_b.decode("utf-8", errors="replace")[-400:]
+        out["compile_error"] = msg or f"compile worker exit {proc.returncode}"
         out["compile_ns"] = time.perf_counter_ns() - t0
-        pool.shutdown(wait=False, cancel_futures=True)
         return out
-    pool.shutdown(wait=False, cancel_futures=True)
+    try:
+        import base64 as _b64
+        import pickle as _pickle
+
+        wasm, diag = _pickle.loads(_b64.b64decode(stdout_b))
+    except BaseException as exc:
+        out["compile_error"] = f"compile worker decode: {exc}"
+        out["compile_ns"] = time.perf_counter_ns() - t0
+        return out
     out["compile_ns"] = time.perf_counter_ns() - t0
     out["wasm_bytes"] = len(wasm)
 
