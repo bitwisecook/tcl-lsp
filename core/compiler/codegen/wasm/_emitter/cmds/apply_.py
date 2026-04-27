@@ -26,6 +26,46 @@ from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 
 
+def _is_brace_quoted_lambda(value: str) -> bool:
+    """True when *value* looks like ``{paramList} {body} ?{ns}?`` — the
+    canonical apply-lambda shape with each component as a braced word.
+
+    This is the IR shape the lifter produces when the source word was
+    a single brace-quoted lambda like ``{{x} {puts $x}}`` — the IR
+    strips the outer ``{`` / ``}`` from the word, leaving the inner
+    ``{x} {body}`` (multi-pair braces) intact.  ``_emit_value``'s
+    generic ``startswith('{') and endswith('}')`` check would strip
+    the leading-pair braces incorrectly (``{x} {body}`` becomes
+    ``x} {body``) and the runtime ``list_count_elements`` would see
+    a malformed list, so we bypass ``_emit_value`` and emit the
+    lambda verbatim through ``_emit_obj_literal``.
+
+    The check walks the brace nesting from the leading ``{``: if the
+    matching ``}`` is the *last* character we have a single braced
+    word and ``_emit_value`` handles it correctly, but if the closing
+    ``}`` arrives before the end the value carries 2+ braced words
+    glued by whitespace and we must short-circuit.
+    """
+    if not value or value[0] != "{":
+        return False
+    depth = 1
+    i = 1
+    n = len(value)
+    while i < n:
+        ch = value[i]
+        if ch == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i < n - 1  # closing brace before the last char
+        i += 1
+    return False
+
+
 def _emit_apply(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
@@ -36,7 +76,13 @@ def _emit_apply(
     if func_idx is None:
         return False
     # First arg is the lambda; remaining are positional args.
-    emitter._emit_value(args[0])
+    # When the IR captured a brace-quoted lambda (``{paramList}
+    # {body}``) as a single word, ``_emit_value``'s generic
+    # brace-strip would mangle it — emit the bytes verbatim instead.
+    if _is_brace_quoted_lambda(args[0]):
+        emitter._emit_obj_literal(args[0])
+    else:
+        emitter._emit_value(args[0])
     emitter._emit_args_list(tuple(args[1:]))
     emitter._emit_call(func_idx)
     if context is EmitContext.VALUE:
