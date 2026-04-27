@@ -650,8 +650,15 @@ pub(super) fn compute_line_offsets(source: &str) -> Vec<usize> {
 pub(super) fn line_at_offset(line_offsets: &[usize], offset: usize) -> i32 {
     // Each offset in ``line_offsets`` is the byte position of a
     // ``\n``.  The line number containing byte `offset` is the
-    // count of newlines strictly before ``offset``.
-    line_offsets.partition_point(|&p| p < offset) as i32
+    // count of newlines strictly before ``offset``.  The map
+    // value type is ``i32`` because the ``-1`` sentinel encodes
+    // file-wide ``# tcl-lsp: disable=`` directives — see the
+    // dispatch in ``Analyser::analyse``.  Realistic source files
+    // have far fewer than ``i32::MAX`` lines, so saturate
+    // gracefully rather than panic on the unrealistic overflow
+    // case (a 2-billion-line file would have already exceeded
+    // every other in-memory limit).
+    i32::try_from(line_offsets.partition_point(|&p| p < offset)).unwrap_or(i32::MAX)
 }
 
 impl Default for Analyser {

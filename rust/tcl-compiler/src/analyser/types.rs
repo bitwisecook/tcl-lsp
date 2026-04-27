@@ -502,6 +502,30 @@ pub struct StubArgDef {
     pub optional: bool,
 }
 
+bitflags::bitflags! {
+    /// Trailing ``?-flag…?`` flags on a ``# tcl-lsp: stub`` line.
+    /// Mirrors the ``barrier`` / ``loop`` / ``pure`` / ``mutator``
+    /// / ``unsafe`` / ``scope_alias`` boolean fields on Python's
+    /// ``StubCommandDef`` dataclass — packed into a single byte
+    /// here because they're an enum-set of orthogonal flags.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct StubFlags: u8 {
+        /// ``-barrier`` — command creates a dynamic barrier.
+        const BARRIER     = 1 << 0;
+        /// ``-loop`` — command has a loop body.
+        const LOOP        = 1 << 1;
+        /// ``-pure`` — command is side-effect-free.
+        const PURE        = 1 << 2;
+        /// ``-mutator`` — command mutates state.
+        const MUTATOR     = 1 << 3;
+        /// ``-unsafe`` — command is unsafe.
+        const UNSAFE      = 1 << 4;
+        /// ``-scope_alias`` — command creates a scope alias
+        /// (``upvar``-like).
+        const SCOPE_ALIAS = 1 << 5;
+    }
+}
+
 /// Inline `# stub: NAME ARGS BODY` directive capture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StubCommandDef {
@@ -512,19 +536,9 @@ pub struct StubCommandDef {
     pub args: Vec<StubArgDef>,
     /// Span of the comment line carrying the directive.
     pub range: Span,
-    /// ``-barrier`` flag — command creates a dynamic barrier.
-    pub barrier: bool,
-    /// ``-loop`` flag — command has a loop body.
-    pub r#loop: bool,
-    /// ``-pure`` flag — command is side-effect-free.
-    pub pure: bool,
-    /// ``-mutator`` flag — command mutates state.
-    pub mutator: bool,
-    /// ``-unsafe`` flag — command is unsafe.
-    pub r#unsafe: bool,
-    /// ``-scope_alias`` flag — command creates a scope alias
-    /// (``upvar``-like).
-    pub scope_alias: bool,
+    /// Trailing flag set (``-barrier`` / ``-loop`` / ``-pure``
+    /// / ``-mutator`` / ``-unsafe`` / ``-scope_alias``).
+    pub flags: StubFlags,
 }
 
 /// Inline `# stub-expr: NAME ARGS` directive capture.

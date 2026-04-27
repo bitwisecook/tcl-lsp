@@ -196,9 +196,12 @@ pub fn scan_source_for_stubs(
     let mut offset: u32 = 0;
     for line in source.split_inclusive('\n') {
         let trimmed_line: &str = line.trim_end_matches('\n');
-        let line_byte_len = line.len() as u32;
+        let line_byte_len =
+            u32::try_from(line.len()).expect("line length fits in u32 for in-memory source");
         let stripped = trimmed_line.trim();
-        let span = tcl_lexer::Span::new(offset, offset + trimmed_line.len() as u32);
+        let trimmed_len = u32::try_from(trimmed_line.len())
+            .expect("line length fits in u32 for in-memory source");
+        let span = tcl_lexer::Span::new(offset, offset + trimmed_len);
         offset += line_byte_len;
         if !stripped.starts_with('#') {
             continue;
@@ -257,17 +260,6 @@ const VALID_STUB_ROLES: &[&str] = &[
     "body", "expr", "var", "var_read", "name", "pattern", "channel", "value",
 ];
 
-/// Recognised ``-flag`` tokens in a stub trailing-flag run.
-/// Mirrors ``_VALID_FLAGS`` in ``core/analysis/stub_comments.py``.
-const VALID_STUB_FLAGS: &[&str] = &[
-    "-barrier",
-    "-loop",
-    "-pure",
-    "-mutator",
-    "-unsafe",
-    "-scope_alias",
-];
-
 /// Parse a ``stub NAME {ARGS} ?FLAGS?`` line (case-insensitive on
 /// the ``stub`` keyword).  Returns a fully-populated
 /// `StubCommandDef` (name, args, flags, range) on match, or
@@ -311,12 +303,7 @@ fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types
         name: name.to_string(),
         args,
         range,
-        barrier: flags.contains("-barrier"),
-        r#loop: flags.contains("-loop"),
-        pure: flags.contains("-pure"),
-        mutator: flags.contains("-mutator"),
-        r#unsafe: flags.contains("-unsafe"),
-        scope_alias: flags.contains("-scope_alias"),
+        flags,
     })
 }
 
@@ -341,7 +328,7 @@ fn parse_stub_args(args_str: &str) -> Option<Vec<super::types::StubArgDef>> {
             let arg_name = &name[..idx];
             let role = &name[idx + 1..];
             let role_lower = role.to_ascii_lowercase();
-            if !VALID_STUB_ROLES.iter().any(|r| *r == role_lower.as_str()) {
+            if !VALID_STUB_ROLES.contains(&role_lower.as_str()) {
                 return None;
             }
             (arg_name, role_lower)
@@ -363,14 +350,20 @@ fn parse_stub_args(args_str: &str) -> Option<Vec<super::types::StubArgDef>> {
 /// Parse the trailing ``?-flag…?`` run after the ``{ARGS}`` block.
 /// Unrecognised tokens are ignored (matches Python's
 /// ``_parse_flags`` filtering on ``_VALID_FLAGS``).
-fn parse_stub_flags(flags_str: &str) -> std::collections::HashSet<&'static str> {
-    let mut set = std::collections::HashSet::new();
+fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
+    let mut flags = super::types::StubFlags::empty();
     for token in flags_str.split_whitespace() {
-        if let Some(canonical) = VALID_STUB_FLAGS.iter().find(|f| **f == token) {
-            set.insert(*canonical);
+        match token {
+            "-barrier" => flags |= super::types::StubFlags::BARRIER,
+            "-loop" => flags |= super::types::StubFlags::LOOP,
+            "-pure" => flags |= super::types::StubFlags::PURE,
+            "-mutator" => flags |= super::types::StubFlags::MUTATOR,
+            "-unsafe" => flags |= super::types::StubFlags::UNSAFE,
+            "-scope_alias" => flags |= super::types::StubFlags::SCOPE_ALIAS,
+            _ => {}
         }
     }
-    set
+    flags
 }
 
 /// Parse a ``stub expr-func NAME ?ARITY?`` / ``stub expr-op NAME
@@ -488,11 +481,14 @@ pub fn extract_body_docstring(body: &str) -> String {
 /// text only.  Bare ``# noqa`` (no ``: CODE`` list) suppresses
 /// every code (`"*"` sentinel); ``# noqa: A, B`` suppresses
 /// the named codes.
-pub fn apply_preceding_noqa(
+pub fn apply_preceding_noqa<S, T>(
     cmd: &crate::segmenter::SegmentedCommand,
     line_offsets: &[usize],
-    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
-) {
+    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String, T>, S>,
+) where
+    S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher + Default,
+{
     let Some(comment) = cmd.preceding_comment.as_deref() else {
         return;
     };
@@ -897,7 +893,8 @@ proc foo {} {}
     fn cmd_stub(line: &str) -> Option<super::super::types::StubCommandDef> {
         let body = line.trim_start_matches('#').trim_start();
         let after_prefix = strip_tcl_lsp_prefix(body);
-        parse_command_stub(after_prefix, Span::new(0, line.len() as u32))
+        let line_len = u32::try_from(line.len()).expect("test fixture fits in u32");
+        parse_command_stub(after_prefix, Span::new(0, line_len))
     }
 
     fn expr_stub(line: &str) -> Option<(&'static str, String, u32)> {
@@ -926,8 +923,8 @@ proc foo {} {}
         assert_eq!(stub.args[0].role, "var");
         assert_eq!(stub.args[1].role, "value");
         assert_eq!(stub.args[2].role, "body");
-        assert!(stub.r#loop);
-        assert!(!stub.barrier);
+        assert!(stub.flags.contains(super::super::types::StubFlags::LOOP));
+        assert!(!stub.flags.contains(super::super::types::StubFlags::BARRIER));
     }
 
     #[test]
@@ -936,12 +933,14 @@ proc foo {} {}
             "# tcl-lsp: stub dangerous {script:body} -barrier -unsafe -mutator -scope_alias",
         )
         .unwrap();
-        assert!(stub.barrier);
-        assert!(stub.r#unsafe);
-        assert!(stub.mutator);
-        assert!(stub.scope_alias);
-        assert!(!stub.pure);
-        assert!(!stub.r#loop);
+        assert!(stub.flags.contains(super::super::types::StubFlags::BARRIER));
+        assert!(stub.flags.contains(super::super::types::StubFlags::UNSAFE));
+        assert!(stub.flags.contains(super::super::types::StubFlags::MUTATOR));
+        assert!(stub
+            .flags
+            .contains(super::super::types::StubFlags::SCOPE_ALIAS));
+        assert!(!stub.flags.contains(super::super::types::StubFlags::PURE));
+        assert!(!stub.flags.contains(super::super::types::StubFlags::LOOP));
     }
 
     #[test]
@@ -956,7 +955,7 @@ proc foo {} {}
     fn parse_command_stub_bare_format() {
         let stub = cmd_stub("stub get_cells {pattern:pattern} -pure").unwrap();
         assert_eq!(stub.name, "get_cells");
-        assert!(stub.pure);
+        assert!(stub.flags.contains(super::super::types::StubFlags::PURE));
     }
 
     #[test]
@@ -973,7 +972,7 @@ proc foo {} {}
     fn parse_command_stub_empty_args() {
         let stub = cmd_stub("# tcl-lsp: stub no_args {} -pure").unwrap();
         assert!(stub.args.is_empty());
-        assert!(stub.pure);
+        assert!(stub.flags.contains(super::super::types::StubFlags::PURE));
     }
 
     #[test]
@@ -1045,13 +1044,15 @@ proc foo {} {}
             .iter()
             .find(|c| c.name == "foreach_in_collection")
             .unwrap();
-        assert!(foreach.r#loop);
+        assert!(foreach.flags.contains(super::super::types::StubFlags::LOOP));
         assert_eq!(foreach.args.len(), 3);
         assert_eq!(foreach.args[0].role, "var");
         assert_eq!(foreach.args[2].role, "body");
         let myeval = cmds.iter().find(|c| c.name == "my_eval").unwrap();
-        assert!(myeval.barrier);
-        assert!(!myeval.r#loop);
+        assert!(myeval
+            .flags
+            .contains(super::super::types::StubFlags::BARRIER));
+        assert!(!myeval.flags.contains(super::super::types::StubFlags::LOOP));
     }
 
     #[test]

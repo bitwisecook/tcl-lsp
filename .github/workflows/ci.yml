@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, rust]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [main, rust]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -117,6 +117,34 @@ jobs:
 
       - name: Run extension tests
         run: make test-ext
+
+  # Test: Rust workspace (cargo test + cargo fmt + cargo clippy)
+  test-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Lint Rust workspace (fmt + clippy)
+        run: make rust-lint
+
+      - name: Test Rust workspace
+        run: make rust-test
 
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing

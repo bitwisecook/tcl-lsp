@@ -303,6 +303,57 @@ where
     None
 }
 
+/// Flush the in-flight command on `Eol` / `Eof`, or — when no
+/// command is in flight — clear the accumulated
+/// preceding-comment state when the EOL spans a blank line.
+/// Mirrors the Python ``command_segmenter`` blank-line and
+/// EOL-flush behaviour and the corresponding doc-comment
+/// detachment heuristic for class definitions.
+#[allow(clippy::too_many_arguments)]
+fn handle_eol_or_eof(
+    tok: Token,
+    sm: &SourceMap<'_>,
+    commands: &mut Vec<SegmentedCommand>,
+    argv: &mut Vec<Token>,
+    texts: &mut Vec<String>,
+    single: &mut Vec<bool>,
+    expand: &mut Vec<bool>,
+    all_tokens: &mut Vec<Token>,
+    has_expand: &mut bool,
+    last_comment: &mut Option<String>,
+) {
+    if !argv.is_empty() {
+        commands.push(SegmentedCommand {
+            span: span_from_tokens(all_tokens),
+            argv: std::mem::take(argv),
+            texts: std::mem::take(texts),
+            single_token_word: std::mem::take(single),
+            all_tokens: std::mem::take(all_tokens),
+            is_partial: false,
+            expand_word: if *has_expand {
+                Some(std::mem::take(expand))
+            } else {
+                expand.clear();
+                None
+            },
+            preceding_comment: last_comment.take(),
+        });
+    } else if matches!(tok.kind, TokenType::Eol) {
+        // Blank-line EOL: clear any accumulated preceding-comment
+        // state so a comment block separated from its following
+        // declaration by a blank line doesn't get attached to
+        // that declaration.  Mirrors Python's
+        // ``command_segmenter.py`` lines 257-261 — an EOL token
+        // whose text contains more than one ``\n`` is the lexer's
+        // encoding of a run-of-empty-lines.
+        let eol_text = sm.token_text(tok);
+        if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
+            *last_comment = None;
+        }
+    }
+    *has_expand = false;
+}
+
 fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
     // word_piece only needs token_text (source indexing), no base offset.
     let sm = SourceMap::new(source);
@@ -364,42 +415,18 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             }
 
             TokenType::Eol | TokenType::Eof => {
-                if !argv.is_empty() {
-                    commands.push(SegmentedCommand {
-                        span: span_from_tokens(&all_tokens),
-                        argv: std::mem::take(&mut argv),
-                        texts: std::mem::take(&mut texts),
-                        single_token_word: std::mem::take(&mut single),
-                        all_tokens: std::mem::take(&mut all_tokens),
-                        is_partial: false,
-                        expand_word: if has_expand {
-                            Some(std::mem::take(&mut expand))
-                        } else {
-                            expand.clear();
-                            None
-                        },
-                        preceding_comment: last_comment.take(),
-                    });
-                } else if matches!(tok.kind, TokenType::Eol) {
-                    // Blank-line EOL: clear any accumulated
-                    // preceding-comment state so a comment block
-                    // separated from its following declaration
-                    // by a blank line doesn't get attached to
-                    // that declaration.  Mirrors Python's
-                    // ``command_segmenter.py`` lines 257-261:
-                    // ``elif tok.text.count("\n") > 1:
-                    //         last_comment = None``.  An EOL
-                    // token whose text contains more than one
-                    // ``\n`` is the lexer's encoding of a
-                    // run-of-empty-lines.  Class docs (now
-                    // sourced from Rust on the merged result)
-                    // are the most visible affected case.
-                    let eol_text = sm.token_text(tok);
-                    if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
-                        last_comment = None;
-                    }
-                }
-                has_expand = false;
+                handle_eol_or_eof(
+                    tok,
+                    &sm,
+                    &mut commands,
+                    &mut argv,
+                    &mut texts,
+                    &mut single,
+                    &mut expand,
+                    &mut all_tokens,
+                    &mut has_expand,
+                    &mut last_comment,
+                );
                 next_expand = false;
                 prev_type = tok.kind;
                 continue;

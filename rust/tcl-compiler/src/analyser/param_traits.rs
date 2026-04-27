@@ -150,7 +150,6 @@ fn resolve_arg_roles(
     roles
 }
 
-#[allow(clippy::too_many_arguments)]
 fn scan_command<'a>(
     cmd_name: &str,
     cmd_args: &'a [String],
@@ -159,78 +158,15 @@ fn scan_command<'a>(
     upvar_aliases: &mut HashMap<String, &'a str>,
     registry: &CommandRegistry,
 ) {
-    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, registry);
-
-    // Per-arg role-driven trait recording.
-    for (idx, arg) in cmd_args.iter().enumerate() {
-        let Some(var_name) = extract_var_name(arg) else {
-            continue;
-        };
-        let source_param = if let Some(p) = param_set.get(var_name) {
-            *p
-        } else if let Some(alias) = upvar_aliases.get(var_name) {
-            *alias
-        } else {
-            continue;
-        };
-        let Ok(idx_u8) = u8::try_from(idx) else {
-            continue;
-        };
-        match arg_roles.get(&idx_u8) {
-            Some(ArgRole::Body) => {
-                traits
-                    .get_mut(source_param)
-                    .map(|s| s.insert(ProcArgTrait::Body));
-            }
-            Some(ArgRole::Expr) => {
-                traits
-                    .get_mut(source_param)
-                    .map(|s| s.insert(ProcArgTrait::Expr));
-            }
-            Some(ArgRole::VarWrite) => {
-                traits
-                    .get_mut(source_param)
-                    .map(|s| s.insert(ProcArgTrait::VarWrite));
-            }
-            Some(ArgRole::VarRead) => {
-                traits
-                    .get_mut(source_param)
-                    .map(|s| s.insert(ProcArgTrait::VarRead));
-            }
-            _ => {}
-        }
-    }
-
-    // Code-evaluating commands — eval / uplevel / subst.
-    // Mirrors Python's ``spec.evaluates_code`` /
-    // ``spec.performs_substitution`` branch.  Done by name to
-    // avoid a registry-traits round-trip for the common cases.
-    match cmd_name {
-        "eval" | "subst" => {
-            for arg in cmd_args {
-                if let Some(vn) = extract_var_name(arg) {
-                    if param_set.contains(vn) {
-                        if let Some(set) = traits.get_mut(vn) {
-                            set.insert(ProcArgTrait::Eval);
-                        }
-                    }
-                }
-            }
-        }
-        "uplevel" => {
-            // ``uplevel ?level? script`` — last arg is the script.
-            if let Some(last) = cmd_args.last() {
-                if let Some(vn) = extract_var_name(last) {
-                    if param_set.contains(vn) {
-                        if let Some(set) = traits.get_mut(vn) {
-                            set.insert(ProcArgTrait::Eval);
-                        }
-                    }
-                }
-            }
-        }
-        _ => {}
-    }
+    apply_arg_role_traits(
+        cmd_name,
+        cmd_args,
+        param_set,
+        traits,
+        upvar_aliases,
+        registry,
+    );
+    apply_eval_traits(cmd_name, cmd_args, param_set, traits);
 
     // Per-command structural handlers — mirror the Python
     // ``_handle_*`` functions.
@@ -289,6 +225,83 @@ fn scan_command<'a>(
     }
 }
 
+/// Per-arg role-driven trait recording — apply
+/// ``ArgRole::Body`` / ``Expr`` / ``VarWrite`` / ``VarRead`` to
+/// the matching parameter trait set when an arg is a simple
+/// ``$param`` reference (or aliases an upvar'd one).
+fn apply_arg_role_traits<'a>(
+    cmd_name: &str,
+    cmd_args: &'a [String],
+    param_set: &HashSet<&'a str>,
+    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
+    upvar_aliases: &HashMap<String, &'a str>,
+    registry: &CommandRegistry,
+) {
+    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, registry);
+    for (idx, arg) in cmd_args.iter().enumerate() {
+        let Some(var_name) = extract_var_name(arg) else {
+            continue;
+        };
+        let source_param = if let Some(p) = param_set.get(var_name) {
+            *p
+        } else if let Some(alias) = upvar_aliases.get(var_name) {
+            *alias
+        } else {
+            continue;
+        };
+        let Ok(idx_u8) = u8::try_from(idx) else {
+            continue;
+        };
+        let trait_to_add = match arg_roles.get(&idx_u8) {
+            Some(ArgRole::Body) => ProcArgTrait::Body,
+            Some(ArgRole::Expr) => ProcArgTrait::Expr,
+            Some(ArgRole::VarWrite) => ProcArgTrait::VarWrite,
+            Some(ArgRole::VarRead) => ProcArgTrait::VarRead,
+            _ => continue,
+        };
+        if let Some(set) = traits.get_mut(source_param) {
+            set.insert(trait_to_add);
+        }
+    }
+}
+
+/// Code-evaluating commands — ``eval`` / ``subst`` mark every
+/// ``$param`` arg as ``Eval``; ``uplevel ?level? script`` marks
+/// only the last arg.  Mirrors Python's ``spec.evaluates_code``
+/// / ``spec.performs_substitution`` branch.
+fn apply_eval_traits<'a>(
+    cmd_name: &str,
+    cmd_args: &[String],
+    param_set: &HashSet<&'a str>,
+    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
+) {
+    let mark_as_eval = |vn: &str, traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>| {
+        if let Some(p) = param_set.get(vn) {
+            if let Some(set) = traits.get_mut(p) {
+                set.insert(ProcArgTrait::Eval);
+            }
+        }
+    };
+    match cmd_name {
+        "eval" | "subst" => {
+            for arg in cmd_args {
+                if let Some(vn) = extract_var_name(arg) {
+                    mark_as_eval(vn, traits);
+                }
+            }
+        }
+        "uplevel" => {
+            // ``uplevel ?level? script`` — last arg is the script.
+            if let Some(last) = cmd_args.last() {
+                if let Some(vn) = extract_var_name(last) {
+                    mark_as_eval(vn, traits);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Return the var-write argument index for the canonical
 /// variable-writing commands tracked by Python's
 /// ``variable_writing_commands`` helper.  Skipping commands with
@@ -297,9 +310,7 @@ fn scan_command<'a>(
 /// the per-arg loop above.
 fn var_write_index(cmd_name: &str) -> Option<usize> {
     match cmd_name {
-        "set" | "incr" | "append" | "lappend" => Some(0),
-        "global" => Some(0),
-        "variable" => Some(0),
+        "set" | "incr" | "append" | "lappend" | "global" | "variable" => Some(0),
         _ => None,
     }
 }

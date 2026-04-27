@@ -51,5 +51,5 @@ pub use snapshot::AnalyserSnapshot;
 pub use state::Analyser;
 pub use types::{
     AnalysisResult, ClassDef, CodeFix, Diagnostic, MethodDef, ProcArgTrait, ProcDef, PropertyDef,
-    Scope, ScopeKind, Severity, UnknownProcInfo, VarDef,
+    Scope, ScopeKind, Severity, StubFlags, UnknownProcInfo, VarDef,
 };
