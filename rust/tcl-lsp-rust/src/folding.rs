@@ -151,6 +151,124 @@ fn push_unique(
     }
 }
 
+/// Collect BODY indices for ``property`` / ``oo::define …
+/// property`` flag pairs (``-set BODY`` / ``-get BODY``).
+/// `start` is the index of the first option flag — `0` for the inner
+/// ``property`` command, `2` for the ``oo::define Target property``
+/// shape.
+fn collect_property_body_indices(args: &[&str], start: usize) -> Vec<usize> {
+    let n = args.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    args.iter()
+        .enumerate()
+        .skip(start)
+        .take(n.saturating_sub(start + 1))
+        .filter_map(|(i, &a)| ((a == "-set" || a == "-get") && i + 1 < n).then_some(i + 1))
+        .collect()
+}
+
+/// Subcommands recognised by ``oo::define`` / ``oo::objdefine``.
+/// Used to disambiguate the script-form (``oo::define Target {body}``)
+/// from a subcommand call where ``args[1]`` is one of these words.
+const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
+    "constructor",
+    "destructor",
+    "method",
+    "classmethod",
+    "initialise",
+    "initialize",
+    "private",
+    "self",
+    "property",
+    "filter",
+    "export",
+    "unexport",
+    "deletemethod",
+    "renamemethod",
+    "forward",
+    "mixin",
+    "superclass",
+    "variable",
+];
+
+/// Return BODY argument indices for `TclOO` commands.
+///
+/// Mirrors three Python helpers that the Rust command registry
+/// hasn't yet absorbed: ``_oo_definition_body_indices``
+/// (inner-script commands — ``method``, ``constructor``, ``destructor``,
+/// ``self constructor``, ``property -set/-get``, …) in
+/// ``core/commands/registry/runtime.py``, plus the
+/// ``arg_role_resolver`` callbacks on ``oo::class`` (the
+/// ``create``/``new``/``createWithNamespace`` metaclass shapes) and
+/// ``oo::define`` / ``oo::objdefine`` (both the script form and the
+/// subcommand-driven shape) in
+/// ``core/commands/registry/tcl/oo_class.py`` and
+/// ``oo_define.py``.  These commands are context-sensitive — a user
+/// proc named ``method`` outside an OO block must not be
+/// misidentified — so they aren't regular registry entries; the
+/// body walker checks them as a priority before falling back to the
+/// registry.
+//
+// `match_same_arms`: keeping each command word on its own arm
+// mirrors the Python helpers' shape and reads as a lookup table,
+// which is the point of the function — collapsing the
+// ``-> vec![0]`` arms together loses that reading.
+#[allow(clippy::match_same_arms)]
+fn oo_definition_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
+    let n = args.len();
+    match command {
+        // Inner OO definition-script commands.
+        "constructor" if n >= 2 => vec![1],
+        "destructor" if n >= 1 => vec![0],
+        "method" | "classmethod" if n >= 3 => vec![n - 1],
+        "initialise" | "initialize" if n >= 1 => vec![0],
+        "private" if n >= 1 => vec![0],
+        "self" if n >= 1 => match args[0] {
+            "constructor" if n >= 3 => vec![2],
+            "destructor" if n >= 2 => vec![1],
+            "method" | "classmethod" if n >= 4 => vec![n - 1],
+            _ => Vec::new(),
+        },
+        "property" => collect_property_body_indices(args, 0),
+        // Outer OO metaclass commands — ``oo::class create Foo
+        // {body}`` etc.  Mirrors ``_oo_metaclass_arg_roles``.
+        "oo::class" if n >= 2 => match args[0] {
+            "create" if n >= 3 => vec![2],
+            "new" if n >= 2 => vec![1],
+            "createWithNamespace" if n >= 4 => vec![3],
+            _ => Vec::new(),
+        },
+        // ``oo::define Target {body}`` script form, plus the
+        // subcommand-driven shape.  Mirrors ``_oo_define_arg_roles``.
+        "oo::define" | "oo::objdefine" => {
+            if n == 2 && !OO_DEFINE_SUBCOMMANDS.contains(&args[1]) {
+                return vec![1];
+            }
+            if n < 2 {
+                return Vec::new();
+            }
+            match args[1] {
+                "constructor" if n >= 4 => vec![3],
+                "destructor" if n >= 3 => vec![2],
+                "method" | "classmethod" if n >= 5 => vec![n - 1],
+                "initialise" | "initialize" if n >= 3 => vec![2],
+                "private" if n >= 3 => vec![2],
+                "self" if n >= 3 => match args[2] {
+                    "constructor" if n >= 5 => vec![4],
+                    "destructor" if n >= 4 => vec![3],
+                    "method" | "classmethod" if n >= 6 => vec![n - 1],
+                    _ => Vec::new(),
+                },
+                "property" => collect_property_body_indices(args, 2),
+                _ => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
 fn emit_body_span_fold(
     span: tcl_lexer::Span,
     source: &str,
@@ -267,7 +385,20 @@ fn collect_body_folds(
             continue;
         }
         let args_borrow: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        let body_indices = registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body);
+        // TclOO definition-script commands (`method`, `constructor`,
+        // `destructor`, `self constructor`, `property -set/-get`, …)
+        // are context-sensitive — a user proc named ``method`` outside
+        // an OO block must not be misidentified — so they aren't
+        // regular registry entries.  Mirror Python's
+        // ``_oo_definition_body_indices`` priority in
+        // ``core/commands/registry/runtime.py`` so braced bodies in
+        // ``oo::define`` blocks still fold.
+        let oo_body = oo_definition_body_indices(cmd.name(), &args_borrow);
+        let body_indices: Vec<usize> = if oo_body.is_empty() {
+            registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body)
+        } else {
+            oo_body
+        };
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();
             if idx >= arg_tokens.len() {
@@ -527,6 +658,115 @@ mod tests {
                 assert!(!overlaps, "non-nested overlap between {a:?} and {b:?}",);
             }
         }
+    }
+
+    #[test]
+    fn tcloo_method_body_inside_define_emits_a_fold() {
+        // Regression: ``method``/``constructor``/``destructor`` inside
+        // ``oo::define`` are context-sensitive and not in the registry.
+        // Python's ``_oo_definition_body_indices`` carried that special
+        // case; the Rust port must mirror it.
+        let source = concat!(
+            "oo::class create Foo {\n",
+            "    method greet {name} {\n",
+            "        puts \"hello $name\"\n",
+            "        puts \"goodbye $name\"\n",
+            "    }\n",
+            "    constructor {} {\n",
+            "        set count 0\n",
+            "        set total 0\n",
+            "    }\n",
+            "}\n",
+        );
+        let ranges = folding_ranges(source, "tcl8.6");
+        let regions = fold_lines(&ranges, FoldKind::Region);
+        // Method body (``method greet … { … }``): start line 1, body
+        // spans through line 3 — the closing ``}`` sits on line 4.
+        assert!(
+            regions.iter().any(|&(s, e)| s == 1 && e >= 3),
+            "expected method-body fold starting at line 1, got {regions:?}",
+        );
+        // Constructor body: start line 5, body spans through line 7.
+        assert!(
+            regions.iter().any(|&(s, e)| s == 5 && e >= 7),
+            "expected constructor-body fold starting at line 5, got {regions:?}",
+        );
+    }
+
+    #[test]
+    fn oo_definition_body_indices_table() {
+        assert_eq!(
+            oo_definition_body_indices("constructor", &["{}", "body"]),
+            vec![1]
+        );
+        assert_eq!(oo_definition_body_indices("destructor", &["body"]), vec![0]);
+        assert_eq!(
+            oo_definition_body_indices("method", &["name", "{}", "body"]),
+            vec![2],
+        );
+        assert_eq!(
+            oo_definition_body_indices("classmethod", &["name", "{args}", "body"]),
+            vec![2],
+        );
+        assert_eq!(
+            oo_definition_body_indices("self", &["constructor", "{}", "body"]),
+            vec![2],
+        );
+        assert_eq!(
+            oo_definition_body_indices("self", &["destructor", "body"]),
+            vec![1],
+        );
+        assert_eq!(
+            oo_definition_body_indices("self", &["method", "name", "{}", "body"]),
+            vec![3],
+        );
+        assert_eq!(
+            oo_definition_body_indices("property", &["name", "-set", "setter", "-get", "getter"]),
+            vec![2, 4],
+        );
+        // Non-OO command: empty.
+        assert!(oo_definition_body_indices("set", &["x", "1"]).is_empty());
+        // Too few args: empty.
+        assert!(oo_definition_body_indices("method", &["name"]).is_empty());
+        // ``oo::class create Foo {body}`` — body at index 2.
+        assert_eq!(
+            oo_definition_body_indices("oo::class", &["create", "Foo", "body"]),
+            vec![2],
+        );
+        assert_eq!(
+            oo_definition_body_indices("oo::class", &["new", "body"]),
+            vec![1],
+        );
+        assert_eq!(
+            oo_definition_body_indices(
+                "oo::class",
+                &["createWithNamespace", "Foo", "::Foo::ns", "body"],
+            ),
+            vec![3],
+        );
+        // ``oo::define Target {body}`` script form — body at 1 only
+        // when arg 1 is not a recognised subcommand.
+        assert_eq!(
+            oo_definition_body_indices("oo::define", &["Foo", "body"]),
+            vec![1],
+        );
+        // ``oo::define Foo method ...`` — body resolution falls
+        // through to the subcommand shape.
+        assert_eq!(
+            oo_definition_body_indices("oo::define", &["Foo", "method", "name", "{}", "body"]),
+            vec![4],
+        );
+        assert_eq!(
+            oo_definition_body_indices("oo::define", &["Foo", "constructor", "{}", "body"]),
+            vec![3],
+        );
+        assert_eq!(
+            oo_definition_body_indices(
+                "oo::define",
+                &["Foo", "self", "method", "name", "{}", "body"],
+            ),
+            vec![5],
+        );
     }
 
     #[test]
