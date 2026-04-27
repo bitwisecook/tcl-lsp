@@ -506,7 +506,7 @@ class _WasmEmitterStmtMixin(_Base):
             return False
         return all(not a.startswith("$") and not a.startswith("[") for a in args[:3])
 
-    def _emit_re_register_proc(self, name: str, params: str) -> None:
+    def _emit_re_register_proc(self, name: str, params: str, body: str | None = None) -> None:
         """Emit ``tcl_proc_register_compiled`` for a previously-lifted proc.
 
         Called from the runtime ``proc NAME PARAMS BODY`` site (in
@@ -520,6 +520,11 @@ class _WasmEmitterStmtMixin(_Base):
         the source-level ``params`` text rather than the proc-index,
         so the hook works at top level (``::top``) where the index is
         empty — same as ``_compute_n_required``'s logic.
+
+        ``body`` — when supplied, the literal source-text body is
+        re-stashed via ``proc_set_body_source`` so ``info body`` keeps
+        returning the original string after the re-register clears
+        the body slot.
         """
         reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
         if reg_idx is None:
@@ -543,13 +548,21 @@ class _WasmEmitterStmtMixin(_Base):
             # so we re-split it.
             if " " in p.strip() or p.strip().startswith("{"):
                 n_required -= 1
-        self._emit_obj_literal(name if name.startswith("::") else f"::{name}")
+        qname = name if name.startswith("::") else f"::{name}"
+        self._emit_obj_literal(qname)
         self._emit_i32_const(n_params)
         self._emit_i32_const(1)  # func_idx marker
         self._emit_i32_const(1 if has_args_tail else 0)
         self._emit_i32_const(n_required)
         self._emit_call(reg_idx)
         self._emit(WasmOp.DROP)
+        if body is not None:
+            body_idx = self._shared_imports.get("tcl_proc_set_body_source")
+            if body_idx is not None:
+                self._emit_obj_literal(qname)
+                self._emit_obj_literal(body)
+                self._emit_call(body_idx)
+                self._emit(WasmOp.DROP)
 
     def _resolve_proc_qname(self, command: str) -> str | None:
         """Resolve ``command`` to the qualified proc name if it matches."""
@@ -753,7 +766,8 @@ class _WasmEmitterStmtMixin(_Base):
                     self._proc_index.pop(args[0], None)
                 else:
                     seen.add(qname)
-                    self._emit_re_register_proc(args[0], args[1])
+                    body_arg = args[2] if len(args) >= 3 else None
+                    self._emit_re_register_proc(args[0], args[1], body_arg)
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.

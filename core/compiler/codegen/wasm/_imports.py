@@ -283,6 +283,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32, ValType.I32, ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # Source-text body stash for compiled procs.  Called from the
+    # registration prologue right after ``proc_register_compiled`` so
+    # ``info body`` can return the original ``proc`` body rather than
+    # the empty string the AOT path otherwise leaves behind.
+    "tcl_proc_set_body_source": (
+        "tcl",
+        "proc_set_body_source",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Info dispatch helpers (info exists / info <sub>).  The ``info``
     # command itself is a registry spec, but these two helpers are
     # invoked by the emitter directly rather than via a subcommand

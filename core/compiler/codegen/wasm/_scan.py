@@ -845,6 +845,12 @@ def _scan_needed_imports(
     # ``var_resolve``).  Only needed when the module has any procs.
     if ir_module.procedures:
         needed.add("tcl_proc_register_compiled")
+        # Stash the source-text body on every compiled proc whose
+        # body source survived lowering so ``info body`` returns the
+        # original ``proc`` body verbatim rather than the empty string
+        # the AOT path would otherwise leave behind.  The codegen
+        # prologue skips the call when ``body_source is None``.
+        needed.add("tcl_proc_set_body_source")
         needed.add("tcl_frame_push")
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")

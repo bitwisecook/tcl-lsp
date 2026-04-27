@@ -416,6 +416,32 @@ pub export fn proc_register_compiled(
     return obj_new_int(0);
 }
 
+/// Stash the source-text body string for a compiled proc so
+/// ``info body`` returns the original ``proc`` body rather than the
+/// empty string the AOT path otherwise leaves behind.  Called by the
+/// WASM codegen prologue right after ``proc_register_compiled`` for
+/// every proc whose body source is statically known (the common
+/// case — the inliner only has to drop body_source for synthetic
+/// procs like ``when`` that have no Tcl-source equivalent).
+///
+/// Lifetime contract: ``body_obj`` is the result of an
+/// ``obj_new_string`` call against the compiled module's data segment
+/// — the bytes live in immutable WASM memory that outlives every
+/// runtime allocation, so we don't need ``ensure_owned``'s
+/// promote-to-heap-copy step (which would multiply RAM by O(total
+/// proc-body bytes) for large bundles like ``tcltest.test``).  We
+/// just retain the TclObj header so refcounting can't reclaim the
+/// slab while the proc table still references it.
+pub export fn proc_set_body_source(name: i32, body_obj: i32) i32 {
+    if (body_obj == 0) return obj_new_int(0);
+    const bucket = proc_lookup(name);
+    if (bucket == 0) return obj_new_int(0);
+    const cmd: u32 = @bitCast(bucket);
+    obj.tcl_obj_retain(body_obj);
+    write_i32(cmd + OFF_BODY_OBJ, body_obj);
+    return obj_new_int(0);
+}
+
 /// Return the sidecar export-name pointer stashed at
 /// ``OFF_EXPORT_NAME_BUCKET``, or 0 if the Command wasn't registered
 /// as a compiled proc.  Read by ``tcl_dispatch.dispatch`` so the
