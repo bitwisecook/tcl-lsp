@@ -1156,6 +1156,69 @@ impl Analyser {
         }
     }
 
+    /// Recognise the tcllib ``<NS>::import <ALIAS>`` wrapper idiom
+    /// and record a conjectured `NamespaceImport`.
+    ///
+    /// A common tcllib convention is a proc ``some::ns::import`` that
+    /// ``uplevel``s ``namespace eval <alias> {namespace import some::ns::*}``.
+    /// Statically detecting the wrapper bodies is out of scope, but
+    /// the call shape is unambiguous — its qualified name ends in
+    /// ``::import`` and its single argument is a static namespace
+    /// identifier.  Mirrors the ``elif cmd_name.endswith("::import")``
+    /// branch in
+    /// ``core/analysis/_analyser/_commands.py::_record_command_invocation``
+    /// (and `_maybe_handle_import_wrapper` in `signature_scan.py`).
+    pub fn handle_tcllib_import_wrapper(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        // Wrapper shape: ``X::import <alias>`` with exactly one
+        // static argument.  Tcl's own ``namespace import`` is
+        // handled separately and never falls into this branch
+        // because ``cmd_name`` is ``namespace``, not ``…::import``.
+        if !cmd_name.ends_with("::import") {
+            return;
+        }
+        if args.len() != 1 {
+            return;
+        }
+        let alias = &args[0];
+        if alias.is_empty() || alias.contains('$') || alias.contains('[') {
+            return;
+        }
+        // Strip the trailing ``::import`` to get the source
+        // namespace; absolute-prefix it if missing the leading
+        // ``::``.
+        let stripped = &cmd_name[..cmd_name.len() - "::import".len()];
+        let source_ns = if stripped.starts_with("::") {
+            stripped.to_string()
+        } else {
+            format!("::{stripped}")
+        };
+        // Relative aliases live under the current namespace —
+        // ``namespace eval outer { some::ns::import vt }``
+        // creates ``::outer::vt``, not ``::vt``.
+        let current_ns = self.namespace_from_scope_path(scope_path);
+        let alias_ns = if alias.starts_with("::") {
+            alias.clone()
+        } else if current_ns == "::" {
+            format!("::{alias}")
+        } else {
+            format!("{current_ns}::{alias}")
+        };
+        self.result.namespace_imports.push(
+            crate::signature_scan::types::SignatureNamespaceImport {
+                ns: alias_ns,
+                pattern: format!("{source_ns}::*"),
+                range: cmd_tok.span,
+                conjectured: true,
+            },
+        );
+    }
+
     /// Record `lappend auto_path PATH...` and `set auto_path PATH`
     /// mutations.
     ///

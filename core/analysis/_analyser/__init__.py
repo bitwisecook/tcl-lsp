@@ -408,9 +408,9 @@ def _merge_rust_with_python_supplement(
     #   deep-recursion patterns aren't ported.
     # - ``auto_path_entries``: ``[info script]`` resolution and
     #   substitution evaluation are Python-only.
-    # - ``namespace_imports`` / ``source_targets``: tcllib-style
-    #   wrapper-call detection (``X::import`` / dynamic source
-    #   targets) is Python-only.
+    # - ``source_targets``: dynamic source targets (``source $foo``
+    #   that Python can resolve via const-string propagation)
+    #   are Python-only.
     # - ``command_aliases``: ``interp alias`` chains across
     #   namespace boundaries are Python-only.
     #
@@ -422,8 +422,6 @@ def _merge_rust_with_python_supplement(
     rust.regex_patterns = python.regex_patterns
     if not rust.auto_path_entries:
         rust.auto_path_entries = python.auto_path_entries
-    if not rust.namespace_imports:
-        rust.namespace_imports = python.namespace_imports
     if not rust.source_targets:
         rust.source_targets = python.source_targets
     # ``command_aliases``: merge instead of guard.  Rust records

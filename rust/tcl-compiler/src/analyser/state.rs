@@ -879,4 +879,110 @@ mod tests {
         assert_eq!(a.current_scope_path.len(), 0);
         assert_eq!(a.body_depth, 0);
     }
+
+    // -- tcllib `<NS>::import <ALIAS>` wrapper detection
+    //
+    // Mirror the relevant cases in
+    // ``tests/test_namespace_imports.py``
+    // (``test_tcllib_import_wrapper_is_conjectured`` +
+    // ``test_import_wrapper_alias_relative_to_current_namespace``)
+    // against the Rust port so the ``namespace_imports`` supplement
+    // guard can retire.
+
+    #[test]
+    fn analyse_records_tcllib_import_wrapper_as_conjectured() {
+        let mut a = Analyser::new();
+        let r = a.analyse("term::ansi::send::import vt\n", "tcl");
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].ns, "::vt");
+        assert_eq!(conjectured[0].pattern, "::term::ansi::send::*");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_alias_relative_to_current_namespace() {
+        // ``some::ns::import alias`` inside ``namespace eval outer``
+        // creates ``::outer::alias``, not ``::alias``.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval outer { term::ansi::send::import vt }\n",
+            "tcl",
+        );
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].ns, "::outer::vt");
+        assert_eq!(conjectured[0].pattern, "::term::ansi::send::*");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_absolute_alias_keeps_leading_colons() {
+        // ``::alias`` argument is taken as an absolute namespace —
+        // current-namespace prefixing is skipped.
+        let mut a = Analyser::new();
+        let r = a.analyse("term::ansi::send::import ::abs::vt\n", "tcl");
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].ns, "::abs::vt");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_skips_substituted_alias() {
+        // ``$var`` / ``[cmd]`` aliases can't be statically resolved —
+        // matches Python's ``"$" not in alias and "[" not in alias``
+        // guard.
+        let mut a = Analyser::new();
+        let r1 = a.analyse("term::ansi::send::import $alias\n", "tcl");
+        assert!(r1.namespace_imports.iter().all(|i| !i.conjectured));
+        let mut a = Analyser::new();
+        let r2 = a.analyse("term::ansi::send::import [build]\n", "tcl");
+        assert!(r2.namespace_imports.iter().all(|i| !i.conjectured));
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_requires_single_argument() {
+        // ``X::import alias extras`` is a non-wrapper call — the
+        // wrapper idiom takes exactly one alias word.
+        let mut a = Analyser::new();
+        let r = a.analyse("term::ansi::send::import vt extra\n", "tcl");
+        assert!(r.namespace_imports.iter().all(|i| !i.conjectured));
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_qualifies_unprefixed_source_ns() {
+        // Wrapper command names without a leading ``::`` still
+        // resolve to absolute source namespaces — the helper
+        // prepends the missing ``::``.
+        let mut a = Analyser::new();
+        let r = a.analyse("foo::import vt\n", "tcl");
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].pattern, "::foo::*");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_does_not_fire_on_namespace_import() {
+        // The wrapper detector must not trip on Tcl's own
+        // ``namespace import`` — that's handled by
+        // ``handle_namespace_import_command`` and is never
+        // conjectured.
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace import ::foo::bar\n", "tcl");
+        assert!(r.namespace_imports.iter().all(|i| !i.conjectured));
+    }
 }
