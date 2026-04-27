@@ -798,15 +798,22 @@ class _WasmEmitterValuesMixin(_Base):
 
         try:
             int_val = int(value)
-            self._emit_i64_const(int_val)
-            self._emit_call(new_int_idx)
+            # Tcl 9 BigInt literal — fall through to the string path
+            # so the runtime preserves the source bytes.  ``i64.const``
+            # would saturate (or be rejected by wasmtime entirely) and
+            # silently lose precision on every BigInt arithmetic step.
+            if -(1 << 63) <= int_val <= (1 << 63) - 1:
+                self._emit_i64_const(int_val)
+                self._emit_call(new_int_idx)
+                return
         except ValueError:
-            offset = self._intern_string(value)
-            encoded = value.encode("utf-8", errors="surrogatepass")
-            # data_ptr = segment offset + 4 (skip length prefix)
-            self._emit_i32_const(offset + 4)
-            self._emit_i32_const(len(encoded))
-            self._emit_call(new_str_idx)
+            pass
+        offset = self._intern_string(value)
+        encoded = value.encode("utf-8", errors="surrogatepass")
+        # data_ptr = segment offset + 4 (skip length prefix)
+        self._emit_i32_const(offset + 4)
+        self._emit_i32_const(len(encoded))
+        self._emit_call(new_str_idx)
 
     def _emit_box_int(self) -> None:
         """Convert i64 on stack to i32 TclObj pointer via tcl_obj_new_int."""
