@@ -113,7 +113,7 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
         obj.free_sized(buf, cap);
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @intCast(cap));
+    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
     return out;
 }
 
