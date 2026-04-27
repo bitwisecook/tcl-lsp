@@ -17,7 +17,7 @@ use crate::lowering_hooks::{try_lower_hook, ArgTokenKind, LoweringCommand};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::segmenter::{segment_commands, segment_commands_with_offset, SegmentedCommand};
 
-pub mod hooks;
+pub(crate) mod hooks;
 mod structured;
 
 /// Map token kind to the simplified `ArgTokenKind` used by lowering hooks.

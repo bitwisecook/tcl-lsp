@@ -17,7 +17,7 @@
 //! the unmodified word vector.
 
 use crate::ir::Statement;
-use crate::lowering_hooks::LoweringCommand;
+use crate::lowering_hooks::{make_call, LoweringCommand};
 
 /// Lower `incr` to [`Statement::Incr`] or fall back to
 /// [`Statement::Call`] when the call shape is not the
@@ -26,16 +26,7 @@ use crate::lowering_hooks::LoweringCommand;
 pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
     let has_expansion = cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e));
     if has_expansion || cmd.args.is_empty() || cmd.args.len() > 2 {
-        return Statement::Call {
-            span: cmd.span,
-            command: cmd.name.into(),
-            args: cmd.args.to_vec(),
-            defs: vec![],
-            reads: vec![],
-            reads_own_defs: false,
-            safe_on_uninit: false,
-            tokens: cmd.tokens.clone(),
-        };
+        return make_call(cmd);
     }
     Statement::Incr {
         span: cmd.span,

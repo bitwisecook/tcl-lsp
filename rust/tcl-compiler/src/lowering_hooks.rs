@@ -354,7 +354,12 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
 // ── Helpers ───────────────────────────────────────────────────────
 
 /// Build a generic `Statement::Call` from a lowering command.
-fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
+///
+/// Shared with the per-command hook modules under
+/// [`crate::lowering::hooks`] so every fallback site produces the
+/// same `Call` shape and stays in sync if `Statement::Call` grows
+/// new fields.
+pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
     Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
