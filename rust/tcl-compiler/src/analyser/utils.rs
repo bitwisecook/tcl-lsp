@@ -372,49 +372,72 @@ pub fn extract_body_docstring(body: &str) -> String {
 /// `core/analysis/_analyser/_utils.py::parse_per_line_suppression`.
 /// Walks every line; for each ``# noqa`` (with or without
 /// ``: CODE`` list), records the codes against the 0-based
-/// line number.  Bare ``# noqa`` (no codes) records the
-/// ``"*"`` sentinel meaning "suppress every code on this line".
+/// line range (read from the ``preceding_comment`` field of the
+/// segmented command).  Mirrors
+/// ``core/analysis/_analyser/_core.py`` lines 285-303 — the
+/// segmented-command dispatch loop calls this on each command
+/// to attach the noqa codes to the *following* command's line
+/// range.
 ///
-/// Returns a ``HashMap<line, HashSet<code>>``; callers merge it
-/// into ``AnalysisResult.suppressed_lines``.
-#[must_use]
-pub fn parse_per_line_suppression(source: &str) -> std::collections::HashMap<i32, HashSet<String>> {
-    let mut by_line: std::collections::HashMap<i32, HashSet<String>> =
-        std::collections::HashMap::new();
-    for (idx, line) in source.lines().enumerate() {
-        // Find ``# noqa`` anywhere on the line (case-insensitive
-        // on the keyword); Python uses ``re.search``.
-        let Some(hash_at) = line.find('#') else {
-            continue;
-        };
-        let after_hash = &line[hash_at + 1..];
-        let trimmed = after_hash.trim_start();
-        let lower = "noqa";
-        if trimmed.len() < lower.len() {
-            continue;
-        }
-        if !trimmed[..lower.len()].eq_ignore_ascii_case(lower) {
-            continue;
-        }
-        let rest = trimmed[lower.len()..].trim_start();
-        let mut codes: HashSet<String> = HashSet::new();
-        if let Some(after_colon) = rest.strip_prefix(':') {
-            for tok in after_colon.split([',', ' ', '\t', '\r']) {
-                let tok = tok.trim();
-                if !tok.is_empty() {
-                    codes.insert(tok.to_string());
-                }
-            }
-            if codes.is_empty() {
-                codes.insert("*".to_string());
-            }
+/// The Python helper uses ``str.lower().find("noqa")`` which is
+/// substring-matching against the comment body alone; a comment
+/// is only ever the source of a noqa directive, so there's no
+/// risk of false-positiving on a ``#`` inside a Tcl string —
+/// the segmenter's ``preceding_comment`` field carries comment
+/// text only.  Bare ``# noqa`` (no ``: CODE`` list) suppresses
+/// every code (`"*"` sentinel); ``# noqa: A, B`` suppresses
+/// the named codes.
+pub fn apply_preceding_noqa(
+    cmd: &crate::segmenter::SegmentedCommand,
+    source: &str,
+    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
+) {
+    let Some(comment) = cmd.preceding_comment.as_deref() else {
+        return;
+    };
+    let lower = comment.to_ascii_lowercase();
+    let Some(noqa_pos) = lower.find("noqa") else {
+        return;
+    };
+    let rest = comment[noqa_pos + 4..].trim_start();
+    let codes: std::collections::HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':')
+    {
+        let parsed: std::collections::HashSet<String> = after_colon
+            .split([',', ' ', '\t', '\r', '\n'])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect();
+        if parsed.is_empty() {
+            std::iter::once("*".to_string()).collect()
         } else {
-            // Bare ``# noqa`` — apply to every code on this line.
-            codes.insert("*".to_string());
+            parsed
         }
-        by_line.entry(idx as i32).or_default().extend(codes);
+    } else {
+        std::iter::once("*".to_string()).collect()
+    };
+    // Attribute to every line spanned by the command (matches
+    // Python's ``range(cmd.range.start.line, cmd.range.end.line +
+    // 1)``).  ``SegmentedCommand.span`` is byte offsets; derive
+    // 0-based line numbers by counting newlines in ``source``
+    // up to ``span.start`` / ``span.end``.
+    let bytes = source.as_bytes();
+    let span_start = cmd.span.start() as usize;
+    let span_end = cmd.span.end() as usize;
+    if span_start > bytes.len() || span_end > bytes.len() {
+        return;
     }
-    by_line
+    let start_line = bytes[..span_start].iter().filter(|&&b| b == b'\n').count() as i32;
+    let end_line = bytes[..span_end.min(bytes.len())]
+        .iter()
+        .filter(|&&b| b == b'\n')
+        .count() as i32;
+    for line in start_line..=end_line {
+        suppressed_lines
+            .entry(line)
+            .or_default()
+            .extend(codes.iter().cloned());
+    }
 }
 
 /// Match `# tcl-lsp: disable=…` (case-insensitive on the keyword),

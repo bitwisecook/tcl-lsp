@@ -263,15 +263,15 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // Per-line ``# noqa: CODE`` directives — recorded under
-        // their 0-based line number.
-        for (line, codes) in super::utils::parse_per_line_suppression(source) {
-            self.result
-                .suppressed_lines
-                .entry(line)
-                .or_default()
-                .extend(codes);
-        }
+        // ``# noqa[: CODE,...]`` directives are attached to the
+        // *command following* the comment (matching Python's
+        // ``_core.py`` lines 285-303).  The dispatch loop below
+        // reads ``cmd.preceding_comment`` and attributes the
+        // codes to the command's line range; no top-level
+        // line-based scan here, because a comment line on its
+        // own doesn't carry a target line range — the line-based
+        // shape would mis-attribute to the comment's own line
+        // and miss the actual command being suppressed.
         // Inline ``# tcl-lsp: stub …`` block scan.
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.result.stub_commands = stub_cmds;
@@ -322,6 +322,15 @@ impl Analyser {
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
+            // ``# noqa[: CODE,...]`` directives in
+            // ``cmd.preceding_comment`` suppress diagnostics on
+            // the *following* command's line range.  Mirrors
+            // ``core/analysis/_analyser/_core.py:285-303``.
+            super::utils::apply_preceding_noqa(
+                &cmd,
+                &self.source,
+                &mut self.result.suppressed_lines,
+            );
             // Mirrors ``self._last_comment = cmd.preceding_comment``
             // in ``core/analysis/_analyser/_core.py``: handlers
             // that consume a preceding comment (proc, oo::class)
@@ -509,6 +518,11 @@ impl Analyser {
             let mut cmd = cmd_ref.clone();
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
+            super::utils::apply_preceding_noqa(
+                &cmd,
+                &self.source,
+                &mut self.result.suppressed_lines,
+            );
             self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
             cmd_idx += 1 + consumed;

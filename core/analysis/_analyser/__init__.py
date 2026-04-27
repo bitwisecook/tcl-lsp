@@ -411,8 +411,20 @@ def _merge_rust_with_python_supplement(
         rust.namespace_imports = python.namespace_imports
     if not rust.source_targets:
         rust.source_targets = python.source_targets
-    if not rust.command_aliases:
-        rust.command_aliases = python.command_aliases
+    # ``command_aliases``: merge instead of guard.  Rust records
+    # direct ``interp alias`` declarations; Python's pass also
+    # follows multi-step alias chains across namespace boundaries
+    # (``A`` aliases to ``B``, ``B`` aliases to ``C``) and records
+    # the resolved chain endpoints.  Guarding on Rust emptiness
+    # would drop Python-only chained / namespace-sensitive aliases
+    # when Rust emits even one entry, which silently breaks
+    # alias-driven command resolution used by references / rename
+    # / call analysis.  Python wins on collision so the
+    # resolved-chain target survives over Rust's direct-only
+    # record (the ``followups-alias-chains`` chunk closes the
+    # remaining Python-only set).
+    for qname, alias in python.command_aliases.items():
+        rust.command_aliases[qname] = alias
     # ``command_invocations``: Rust now records nested ``[cmd]``
     # substitution heads via ``scan_nested_command_heads``, but
     # Python's pass also catches:
@@ -469,19 +481,25 @@ def _merge_rust_with_python_supplement(
 def analyse(source: str, cu=None) -> AnalysisResult:
     """Analyse `source` for the active dialect.
 
-    Dispatches to the Rust port when ``TCL_LSP_RUST_ANALYSER`` is
-    set to a truthy value (or unset, after the C41-default-on flip)
-    AND no caller-provided :class:`CompilationUnit` is supplied
-    (the Rust path builds its own CU internally; reusing a
-    pre-built one isn't supported yet).  Default polarity is
-    **OFF** — set ``TCL_LSP_RUST_ANALYSER=1`` to opt in.
+    Dispatches to the Rust port by default (default polarity is
+    **ON** post the C41-default-on flip).  Set
+    ``TCL_LSP_RUST_ANALYSER=0`` (or any recognised falsy value:
+    ``false`` / ``no`` / ``off`` / ``n`` / ``f``) to opt out and
+    use the Python implementation alone.  Any explicit truthy
+    value is also honoured but redundant.
 
-    Under the env var the Rust binding is consulted for the
-    structural payload; a Python supplementary pass fills in the
-    side-channel fields the Rust port doesn't emit yet
-    (see :func:`_merge_rust_with_python_supplement`).  Any
-    exception raised by the Rust path is logged at DEBUG and the
-    Python path runs alone as a safety net.
+    The Rust path is gated on (a) the ``tcl_lsp_rust`` binding
+    being importable and (b) no caller-provided
+    :class:`CompilationUnit` (the Rust path builds its own CU
+    internally; reusing a pre-built one isn't supported yet).
+
+    When the Rust path runs, the Rust binding produces the
+    structural payload and a Python supplementary pass fills in
+    the side-channel fields the Rust port doesn't emit yet (see
+    :func:`_merge_rust_with_python_supplement`).  The two are
+    merged into a single :class:`AnalysisResult`.  Any exception
+    raised by the Rust path is logged at DEBUG and the Python
+    path runs alone as a safety net.
     """
     from core.common.dialect import active_dialect
     from core.compiler.rust_spans import rust_shim_enabled

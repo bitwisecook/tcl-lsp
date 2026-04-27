@@ -91,6 +91,14 @@ impl Analyser {
             // added to ``cmd_idx`` so we skip past the consumed
             // orphans.
             let consumed = self.recover_missing_open_brace(&mut cmd, &body_commands, cmd_idx);
+            // ``# noqa`` directives in the preceding-comment
+            // attribute to this command's line range — same
+            // shape as the top-level loop.
+            super::utils::apply_preceding_noqa(
+                &cmd,
+                &self.source,
+                &mut self.result.suppressed_lines,
+            );
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
             cmd_idx += 1 + consumed;
         }

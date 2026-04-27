@@ -380,6 +380,24 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
                         },
                         preceding_comment: last_comment.take(),
                     });
+                } else if matches!(tok.kind, TokenType::Eol) {
+                    // Blank-line EOL: clear any accumulated
+                    // preceding-comment state so a comment block
+                    // separated from its following declaration
+                    // by a blank line doesn't get attached to
+                    // that declaration.  Mirrors Python's
+                    // ``command_segmenter.py`` lines 257-261:
+                    // ``elif tok.text.count("\n") > 1:
+                    //         last_comment = None``.  An EOL
+                    // token whose text contains more than one
+                    // ``\n`` is the lexer's encoding of a
+                    // run-of-empty-lines.  Class docs (now
+                    // sourced from Rust on the merged result)
+                    // are the most visible affected case.
+                    let eol_text = sm.token_text(tok);
+                    if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
+                        last_comment = None;
+                    }
                 }
                 has_expand = false;
                 next_expand = false;

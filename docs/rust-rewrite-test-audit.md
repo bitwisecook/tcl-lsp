@@ -732,13 +732,14 @@ purpose-built corpus instead.
     / W304 …) while Rust's `analyser_analyse` is analyser-only;
     layering alignment is its own follow-up.
 - **Dispatcher gating**: 4 cases in the same file assert the
-  env-var-gated dispatcher in `core/analysis/_analyser/__init__.py`:
-  unset → Python (default-OFF), `=1` → Rust, `=0` → Python,
-  Rust raising → Python fallback.  The Rust binding is patched
-  in via `monkeypatch.setattr(analyser_module, "_rust_analyse",
-  …)` so the gating tests run in Python-only CI environments
-  too.
-- **Cargo unit tests**: 1,765 across the workspace.  The
+  env-var-gated dispatcher in `core/analysis/_analyser/__init__.py`
+  after the C41-default-on flip:
+  unset → Rust (default-ON), `=1` → Rust (explicit opt-in),
+  `=0` → Python (opt-out), Rust raising → Python fallback.
+  The Rust binding is patched in via
+  `monkeypatch.setattr(analyser_module, "_rust_analyse", …)`
+  so the gating tests run in Python-only CI environments too.
+- **Cargo unit tests**: 1,789 across the workspace.  The
   per-strip files (`analyser/oo.rs`, `analyser/recovery.rs`,
   `analyser/diagnostics.rs`, `analyser/handlers.rs`) carry
   in-module `mod tests` blocks for each handler, recovery
