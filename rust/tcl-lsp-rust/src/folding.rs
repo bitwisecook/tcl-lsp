@@ -267,8 +267,7 @@ fn collect_body_folds(
             continue;
         }
         let args_borrow: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        let body_indices =
-            registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body);
+        let body_indices = registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body);
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();
             if idx >= arg_tokens.len() {
@@ -431,7 +430,11 @@ mod tests {
             .map(|r| (r.start_line, r.end_line))
             .collect();
         bodies.sort_unstable();
-        assert_eq!(bodies.len(), 2, "expected two sibling folds, got {bodies:?}");
+        assert_eq!(
+            bodies.len(),
+            2,
+            "expected two sibling folds, got {bodies:?}"
+        );
         let (first, second) = (bodies[0], bodies[1]);
         assert!(
             first.1 < second.0,
@@ -521,10 +524,7 @@ mod tests {
                     continue;
                 }
                 let overlaps = a.end_line >= b.start_line && a.start_line <= b.end_line;
-                assert!(
-                    !overlaps,
-                    "non-nested overlap between {a:?} and {b:?}",
-                );
+                assert!(!overlaps, "non-nested overlap between {a:?} and {b:?}",);
             }
         }
     }
