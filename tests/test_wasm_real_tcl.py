@@ -111,22 +111,46 @@ def _get_rt_module_with_timeout() -> wasmtime.Module:
     return _rt_module_with_timeout
 
 
-def _compile_tcl(source: str) -> bytes:
-    """Compile Tcl source to WASM bytes."""
+def _compile_tcl(source: str, *, source_dir: Path | None = None) -> bytes:
+    """Compile Tcl source to WASM bytes.
+
+    *source_dir* enables compile-time inlining of ``source LITERAL``
+    calls — the inliner reads the target off the host filesystem and
+    splices its IR into the caller's module so the WASM runs without
+    needing a WASI preopen of the test fixtures.  Leave ``None`` to
+    disable inlining (compatible with the historic behaviour).
+    """
+    from core.compiler.source_inliner import inline_static_sources
+
     ir_module = lower_to_ir(source)
+    if source_dir is not None:
+        ir_module = inline_static_sources(ir_module, source_dir=source_dir)
     cfg_module = build_cfg(ir_module)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=False)
     return wasm_module.to_bytes()
 
 
-def _compile_tcl_with_diag(source: str, filename: str = "<inline>") -> tuple[bytes, DiagMap]:
+def _compile_tcl_with_diag(
+    source: str,
+    filename: str = "<inline>",
+    *,
+    source_dir: Path | None = None,
+) -> tuple[bytes, DiagMap]:
     """Compile Tcl source and return the bytes + populated diag map.
 
     The map resolves ``site=<id>`` prefixes the runtime writes on trap
     back to ``(file, line, col, command)``.  Used by the external
     runner to decode trap output inline.
+
+    *source_dir* enables compile-time ``source`` inlining — see
+    :func:`_compile_tcl` for details.  When omitted the runtime
+    handles ``source`` calls via the WASI preopen as before.
     """
+    from core.compiler.source_inliner import inline_static_sources
+
     ir_module = lower_to_ir(source)
+    if source_dir is not None:
+        ir_module = inline_static_sources(ir_module, source_dir=source_dir)
     cfg_module = build_cfg(ir_module)
     diag_map = DiagMap(filename=filename)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=False, diag_map=diag_map)
