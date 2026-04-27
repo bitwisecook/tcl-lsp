@@ -83,10 +83,8 @@ pub(super) fn build_successors(cfg: &CfgFunction) -> HashMap<String, Vec<String>
     for (bn, block) in &cfg.blocks {
         let mut s: Vec<String> = Vec::new();
         match &block.terminator {
-            Some(Terminator::Goto { target, .. }) => {
-                if cfg.blocks.contains_key(target) {
-                    s.push(target.clone());
-                }
+            Some(Terminator::Goto { target, .. }) if cfg.blocks.contains_key(target) => {
+                s.push(target.clone());
             }
             Some(Terminator::Branch {
                 true_target,

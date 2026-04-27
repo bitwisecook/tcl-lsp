@@ -176,13 +176,13 @@ fn parse_stub_name(body: &str) -> Option<&str> {
 /// declarations bounded by the ``stubs-begin`` / ``stubs-end``
 /// markers, returning ``(commands, expr_defs)``.
 ///
-/// Mirrors the LSP-relevant subset of
-/// `core/analysis/stub_comments.py::scan_source_for_stubs`.
+/// Mirrors `core/analysis/stub_comments.py::scan_source_for_stubs`,
+/// including ``_parse_args`` and ``_parse_flags`` parity for the
+/// command form and arity extraction for the expression form.
 /// Command stubs *require* the ``{ARGS}`` brace block (Python's
-/// `_STUB_RE` rejects bare ``stub NAME``); we keep the same
-/// shape so the W123 candidate set agrees.  Arg-role parsing
-/// (the inside of ``{ARGS}``) is still Python-only — the Rust
-/// scanner only carries ``name + range`` for now.
+/// `_STUB_RE` rejects bare ``stub NAME``).  Stubs whose ``:role``
+/// annotation is unrecognised are silently dropped to match
+/// Python's ``_parse_args`` returning ``None``.
 #[must_use]
 pub fn scan_source_for_stubs(
     source: &str,
@@ -196,9 +196,12 @@ pub fn scan_source_for_stubs(
     let mut offset: u32 = 0;
     for line in source.split_inclusive('\n') {
         let trimmed_line: &str = line.trim_end_matches('\n');
-        let line_byte_len = line.len() as u32;
+        let line_byte_len =
+            u32::try_from(line.len()).expect("line length fits in u32 for in-memory source");
         let stripped = trimmed_line.trim();
-        let span = tcl_lexer::Span::new(offset, offset + trimmed_line.len() as u32);
+        let trimmed_len = u32::try_from(trimmed_line.len())
+            .expect("line length fits in u32 for in-memory source");
+        let span = tcl_lexer::Span::new(offset, offset + trimmed_len);
         offset += line_byte_len;
         if !stripped.starts_with('#') {
             continue;
@@ -221,19 +224,17 @@ pub fn scan_source_for_stubs(
         // Try the expr-func / expr-op shape first because ``stub
         // expr-func NAME`` would otherwise match the command shape
         // with NAME == "expr-func".
-        if let Some((kind, name)) = parse_expr_stub(after_prefix) {
+        if let Some((kind, name, arity)) = parse_expr_stub(after_prefix) {
             exprs.push(super::types::StubExprDef {
                 name: name.to_string(),
                 kind: kind.to_string(),
+                arity,
                 range: span,
             });
             continue;
         }
-        if let Some(name) = parse_command_stub_name(after_prefix) {
-            cmds.push(super::types::StubCommandDef {
-                name: name.to_string(),
-                range: span,
-            });
+        if let Some(stub) = parse_command_stub(after_prefix, span) {
+            cmds.push(stub);
         }
     }
     (cmds, exprs)
@@ -252,11 +253,20 @@ fn strip_tcl_lsp_prefix(body: &str) -> &str {
     rest.strip_prefix(':').map_or(s, str::trim_start)
 }
 
+/// Valid argument-role annotations recognised after the ``:``
+/// separator in a stub argument token.  Mirrors
+/// ``_VALID_ROLES`` in ``core/analysis/stub_comments.py``.
+const VALID_STUB_ROLES: &[&str] = &[
+    "body", "expr", "var", "var_read", "name", "pattern", "channel", "value",
+];
+
 /// Parse a ``stub NAME {ARGS} ?FLAGS?`` line (case-insensitive on
-/// the ``stub`` keyword).  Returns the bare command name when the
-/// line matches; ``None`` when the brace block is missing.
-/// Mirrors Python's ``_STUB_RE``.
-fn parse_command_stub_name(line: &str) -> Option<&str> {
+/// the ``stub`` keyword).  Returns a fully-populated
+/// `StubCommandDef` (name, args, flags, range) on match, or
+/// ``None`` when the brace block is missing or an argument's
+/// ``:role`` annotation is unrecognised.  Mirrors Python's
+/// ``_STUB_RE`` + ``_parse_args`` + ``_parse_flags``.
+fn parse_command_stub(line: &str, range: tcl_lexer::Span) -> Option<super::types::StubCommandDef> {
     let s = line.trim_start();
     let stub_kw = "stub";
     if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
@@ -280,18 +290,88 @@ fn parse_command_stub_name(line: &str) -> Option<&str> {
         return None;
     }
     let after_name = after[name_end..].trim_start();
-    // Python requires the ``{ARGS}`` brace block; we reject
-    // anything else so the two scanners agree on what's a stub.
-    if !after_name.starts_with('{') {
-        return None;
+    // Python's ``_STUB_RE`` matches ``stub NAME {ARGS}`` with a
+    // closing ``}``.  We mirror that — find the matching close,
+    // capture the args body, then parse the trailing flag run.
+    let after_open = after_name.strip_prefix('{')?;
+    let close_rel = after_open.find('}')?;
+    let args_body = &after_open[..close_rel];
+    let after_close = after_open[close_rel + 1..].trim_start();
+    let args = parse_stub_args(args_body)?;
+    let flags = parse_stub_flags(after_close);
+    Some(super::types::StubCommandDef {
+        name: name.to_string(),
+        args,
+        range,
+        flags,
+    })
+}
+
+/// Parse the inside of ``stub NAME { … }``.  Returns the
+/// argument list, or `None` if any token uses an unrecognised
+/// ``:role`` annotation or has an empty name (matches Python's
+/// ``_parse_args`` returning ``None`` to drop the whole stub).
+/// Empty input yields an empty list.
+fn parse_stub_args(args_str: &str) -> Option<Vec<super::types::StubArgDef>> {
+    let trimmed = args_str.trim();
+    if trimmed.is_empty() {
+        return Some(Vec::new());
     }
-    Some(name)
+    let mut result = Vec::new();
+    for token in trimmed.split_whitespace() {
+        let mut name = token;
+        let optional = name.len() >= 2 && name.starts_with('?') && name.ends_with('?');
+        if optional {
+            name = &name[1..name.len() - 1];
+        }
+        let (arg_name, role) = if let Some(idx) = name.find(':') {
+            let arg_name = &name[..idx];
+            let role = &name[idx + 1..];
+            let role_lower = role.to_ascii_lowercase();
+            if !VALID_STUB_ROLES.contains(&role_lower.as_str()) {
+                return None;
+            }
+            (arg_name, role_lower)
+        } else {
+            (name, "value".to_string())
+        };
+        if arg_name.is_empty() {
+            return None;
+        }
+        result.push(super::types::StubArgDef {
+            name: arg_name.to_string(),
+            role,
+            optional,
+        });
+    }
+    Some(result)
+}
+
+/// Parse the trailing ``?-flag…?`` run after the ``{ARGS}`` block.
+/// Unrecognised tokens are ignored (matches Python's
+/// ``_parse_flags`` filtering on ``_VALID_FLAGS``).
+fn parse_stub_flags(flags_str: &str) -> super::types::StubFlags {
+    let mut flags = super::types::StubFlags::empty();
+    for token in flags_str.split_whitespace() {
+        match token {
+            "-barrier" => flags |= super::types::StubFlags::BARRIER,
+            "-loop" => flags |= super::types::StubFlags::LOOP,
+            "-pure" => flags |= super::types::StubFlags::PURE,
+            "-mutator" => flags |= super::types::StubFlags::MUTATOR,
+            "-unsafe" => flags |= super::types::StubFlags::UNSAFE,
+            "-scope_alias" => flags |= super::types::StubFlags::SCOPE_ALIAS,
+            _ => {}
+        }
+    }
+    flags
 }
 
 /// Parse a ``stub expr-func NAME ?ARITY?`` / ``stub expr-op NAME
-/// ?ARITY?`` line.  Returns ``(kind, name)`` on match.  Mirrors
-/// Python's ``_EXPR_STUB_RE``.
-fn parse_expr_stub(line: &str) -> Option<(&'static str, &str)> {
+/// ?ARITY?`` line.  Returns ``(kind, name, arity)`` on match.
+/// ``arity`` defaults to 1 for functions and 2 for operators when
+/// the trailing arity word is absent.  Mirrors Python's
+/// ``_EXPR_STUB_RE`` + ``parse_expr_stub_line``.
+fn parse_expr_stub(line: &str) -> Option<(&'static str, &str, u32)> {
     let s = line.trim_start();
     let stub_kw = "stub";
     if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
@@ -299,16 +379,19 @@ fn parse_expr_stub(line: &str) -> Option<(&'static str, &str)> {
     }
     let after = s[stub_kw.len()..].trim_start();
     let kind: &'static str;
+    let default_arity: u32;
     let rest;
     if after.len() >= "expr-func".len()
         && after[.."expr-func".len()].eq_ignore_ascii_case("expr-func")
     {
         kind = "function";
+        default_arity = 1;
         rest = after["expr-func".len()..].trim_start();
     } else if after.len() >= "expr-op".len()
         && after[.."expr-op".len()].eq_ignore_ascii_case("expr-op")
     {
         kind = "operator";
+        default_arity = 2;
         rest = after["expr-op".len()..].trim_start();
     } else {
         return None;
@@ -318,10 +401,21 @@ fn parse_expr_stub(line: &str) -> Option<(&'static str, &str)> {
     }
     let name_end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
     if name_end == 0 {
-        None
-    } else {
-        Some((kind, &rest[..name_end]))
+        return None;
     }
+    let name = &rest[..name_end];
+    let after_name = rest[name_end..].trim_start();
+    let arity = if after_name.is_empty() {
+        default_arity
+    } else {
+        let arity_end = after_name
+            .find(|c: char| c.is_whitespace())
+            .unwrap_or(after_name.len());
+        after_name[..arity_end]
+            .parse::<u32>()
+            .unwrap_or(default_arity)
+    };
+    Some((kind, name, arity))
 }
 
 /// Decoration-character set for the body-docstring scanner.
@@ -387,11 +481,14 @@ pub fn extract_body_docstring(body: &str) -> String {
 /// text only.  Bare ``# noqa`` (no ``: CODE`` list) suppresses
 /// every code (`"*"` sentinel); ``# noqa: A, B`` suppresses
 /// the named codes.
-pub fn apply_preceding_noqa(
+pub fn apply_preceding_noqa<S, T>(
     cmd: &crate::segmenter::SegmentedCommand,
     line_offsets: &[usize],
-    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
-) {
+    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String, T>, S>,
+) where
+    S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher + Default,
+{
     let Some(comment) = cmd.preceding_comment.as_deref() else {
         return;
     };
@@ -783,5 +880,212 @@ proc foo {} {}
     fn scan_stub_command_names_empty_source() {
         let names = scan_stub_command_names("");
         assert!(names.is_empty());
+    }
+
+    // -- ``parse_command_stub`` + ``parse_expr_stub`` parity tests
+    //
+    // Mirror ``tests/test_stub_comments.py``'s ``TestParseStubLine``
+    // and ``TestParseExprStubLine`` against the Rust port so the
+    // ``stub_commands`` / ``stub_expr_defs`` supplement guards can
+    // retire (the materialiser now consumes the new ``args`` /
+    // flag bools / ``arity`` fields).
+
+    fn cmd_stub(line: &str) -> Option<super::super::types::StubCommandDef> {
+        let body = line.trim_start_matches('#').trim_start();
+        let after_prefix = strip_tcl_lsp_prefix(body);
+        let line_len = u32::try_from(line.len()).expect("test fixture fits in u32");
+        parse_command_stub(after_prefix, Span::new(0, line_len))
+    }
+
+    fn expr_stub(line: &str) -> Option<(&'static str, String, u32)> {
+        let body = line.trim_start_matches('#').trim_start();
+        let after_prefix = strip_tcl_lsp_prefix(body);
+        parse_expr_stub(after_prefix).map(|(k, n, a)| (k, n.to_string(), a))
+    }
+
+    #[test]
+    fn parse_command_stub_simple_command() {
+        let stub = cmd_stub("# tcl-lsp: stub my_cmd {arg1 arg2}").unwrap();
+        assert_eq!(stub.name, "my_cmd");
+        assert_eq!(stub.args.len(), 2);
+        assert_eq!(stub.args[0].name, "arg1");
+        assert_eq!(stub.args[0].role, "value");
+        assert_eq!(stub.args[1].name, "arg2");
+    }
+
+    #[test]
+    fn parse_command_stub_with_roles() {
+        let stub = cmd_stub(
+            "# tcl-lsp: stub foreach_in_collection {varName:var collection body:body} -loop",
+        )
+        .unwrap();
+        assert_eq!(stub.name, "foreach_in_collection");
+        assert_eq!(stub.args[0].role, "var");
+        assert_eq!(stub.args[1].role, "value");
+        assert_eq!(stub.args[2].role, "body");
+        assert!(stub.flags.contains(super::super::types::StubFlags::LOOP));
+        assert!(!stub.flags.contains(super::super::types::StubFlags::BARRIER));
+    }
+
+    #[test]
+    fn parse_command_stub_all_flags() {
+        let stub = cmd_stub(
+            "# tcl-lsp: stub dangerous {script:body} -barrier -unsafe -mutator -scope_alias",
+        )
+        .unwrap();
+        assert!(stub.flags.contains(super::super::types::StubFlags::BARRIER));
+        assert!(stub.flags.contains(super::super::types::StubFlags::UNSAFE));
+        assert!(stub.flags.contains(super::super::types::StubFlags::MUTATOR));
+        assert!(stub
+            .flags
+            .contains(super::super::types::StubFlags::SCOPE_ALIAS));
+        assert!(!stub.flags.contains(super::super::types::StubFlags::PURE));
+        assert!(!stub.flags.contains(super::super::types::StubFlags::LOOP));
+    }
+
+    #[test]
+    fn parse_command_stub_optional_args() {
+        let stub = cmd_stub("# tcl-lsp: stub redirect {?-file? target body:body}").unwrap();
+        assert!(stub.args[0].optional);
+        assert_eq!(stub.args[0].name, "-file");
+        assert!(!stub.args[1].optional);
+    }
+
+    #[test]
+    fn parse_command_stub_bare_format() {
+        let stub = cmd_stub("stub get_cells {pattern:pattern} -pure").unwrap();
+        assert_eq!(stub.name, "get_cells");
+        assert!(stub.flags.contains(super::super::types::StubFlags::PURE));
+    }
+
+    #[test]
+    fn parse_command_stub_invalid_role_returns_none() {
+        assert!(cmd_stub("# tcl-lsp: stub bad {arg:invalid_role}").is_none());
+    }
+
+    #[test]
+    fn parse_command_stub_not_a_stub_returns_none() {
+        assert!(cmd_stub("# just a regular comment").is_none());
+    }
+
+    #[test]
+    fn parse_command_stub_empty_args() {
+        let stub = cmd_stub("# tcl-lsp: stub no_args {} -pure").unwrap();
+        assert!(stub.args.is_empty());
+        assert!(stub.flags.contains(super::super::types::StubFlags::PURE));
+    }
+
+    #[test]
+    fn parse_command_stub_no_command_name_returns_none() {
+        assert!(cmd_stub("# tcl-lsp: stub").is_none());
+    }
+
+    #[test]
+    fn parse_command_stub_unclosed_optional_marker() {
+        // A ``?arg`` without closing ``?`` is treated as a
+        // regular argument name (matches Python).
+        let stub = cmd_stub("# tcl-lsp: stub cmd {?arg}").unwrap();
+        assert!(!stub.args[0].optional);
+        assert_eq!(stub.args[0].name, "?arg");
+    }
+
+    #[test]
+    fn parse_command_stub_missing_brace_block_rejected() {
+        // Python's ``_STUB_RE`` requires the ``{ARGS}`` block.
+        assert!(cmd_stub("# tcl-lsp: stub bare_name").is_none());
+    }
+
+    #[test]
+    fn parse_expr_stub_func() {
+        let (kind, name, arity) = expr_stub("# tcl-lsp: stub expr-func sizeof 1").unwrap();
+        assert_eq!(kind, "function");
+        assert_eq!(name, "sizeof");
+        assert_eq!(arity, 1);
+    }
+
+    #[test]
+    fn parse_expr_stub_op() {
+        let (kind, name, arity) = expr_stub("# tcl-lsp: stub expr-op contains 2").unwrap();
+        assert_eq!(kind, "operator");
+        assert_eq!(name, "contains");
+        assert_eq!(arity, 2);
+    }
+
+    #[test]
+    fn parse_expr_stub_default_func_arity() {
+        let (_, _, arity) = expr_stub("stub expr-func myfunc").unwrap();
+        assert_eq!(arity, 1);
+    }
+
+    #[test]
+    fn parse_expr_stub_default_op_arity() {
+        let (_, _, arity) = expr_stub("stub expr-op myop").unwrap();
+        assert_eq!(arity, 2);
+    }
+
+    #[test]
+    fn parse_expr_stub_not_expr_returns_none() {
+        assert!(expr_stub("stub get_cells {pattern:pattern}").is_none());
+    }
+
+    #[test]
+    fn scan_source_for_stubs_populates_args_and_flags() {
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub foreach_in_collection {varName:var collection body:body} -loop
+# tcl-lsp: stub my_eval {script:body} -barrier
+# tcl-lsp: stubs-end
+proc foo {} {}
+";
+        let (cmds, exprs) = scan_source_for_stubs(src);
+        assert!(exprs.is_empty());
+        assert_eq!(cmds.len(), 2);
+        let foreach = cmds
+            .iter()
+            .find(|c| c.name == "foreach_in_collection")
+            .unwrap();
+        assert!(foreach.flags.contains(super::super::types::StubFlags::LOOP));
+        assert_eq!(foreach.args.len(), 3);
+        assert_eq!(foreach.args[0].role, "var");
+        assert_eq!(foreach.args[2].role, "body");
+        let myeval = cmds.iter().find(|c| c.name == "my_eval").unwrap();
+        assert!(myeval
+            .flags
+            .contains(super::super::types::StubFlags::BARRIER));
+        assert!(!myeval.flags.contains(super::super::types::StubFlags::LOOP));
+    }
+
+    #[test]
+    fn scan_source_for_stubs_carries_expr_arity() {
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub expr-func sizeof 3
+# tcl-lsp: stub expr-op contains
+# tcl-lsp: stubs-end
+";
+        let (_, exprs) = scan_source_for_stubs(src);
+        assert_eq!(exprs.len(), 2);
+        let sizeof = exprs.iter().find(|e| e.name == "sizeof").unwrap();
+        assert_eq!(sizeof.kind, "function");
+        assert_eq!(sizeof.arity, 3);
+        let contains = exprs.iter().find(|e| e.name == "contains").unwrap();
+        assert_eq!(contains.kind, "operator");
+        assert_eq!(contains.arity, 2);
+    }
+
+    #[test]
+    fn scan_source_for_stubs_drops_invalid_role() {
+        // Matches Python's ``_parse_args`` returning ``None`` —
+        // the whole stub is dropped when any token uses an
+        // unrecognised role.
+        let src = "\
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub good {arg:var}
+# tcl-lsp: stub bad {arg:bogus}
+# tcl-lsp: stubs-end
+";
+        let (cmds, _) = scan_source_for_stubs(src);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].name, "good");
     }
 }

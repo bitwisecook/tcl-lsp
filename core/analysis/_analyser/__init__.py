@@ -14,12 +14,14 @@ from ..semantic_model import (
     PackageProvide,
     PackageRequire,
     ParamDef,
+    ProcArgTrait,
     ProcDef,
     PropertyDef,
     RegexPattern,
     Scope,
     Severity,
     SourceTarget,
+    StubArgDef,
     StubCommandDef,
     StubExprDef,
     UnknownProcInfo,
@@ -111,6 +113,16 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
         ]
 
     def _proc(p: dict) -> ProcDef:
+        traits_raw = p.get("param_traits") or {}
+        param_traits: dict[str, frozenset[ProcArgTrait]] = {}
+        for param_name, names in traits_raw.items():
+            mapped: set[ProcArgTrait] = set()
+            for n in names:
+                key = n.upper() if isinstance(n, str) else n
+                if key in ProcArgTrait.__members__:
+                    mapped.add(ProcArgTrait[key])
+            if mapped:
+                param_traits[param_name] = frozenset(mapped)
         return ProcDef(
             name=p["name"],
             qualified_name=p["qualified_name"],
@@ -118,6 +130,7 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             name_range=range_at(*p["name_range"]),
             body_range=range_at(*p["body_range"]),
             doc=p.get("doc") or "",
+            param_traits=param_traits,
         )
 
     def _method(m: dict) -> MethodDef:
@@ -311,22 +324,41 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
                 range=range_at(*ap["range"]),
             )
         )
-    # The Rust stub scanner only carries names + ranges today;
-    # arg-roles / flags (``-loop`` / ``-barrier`` / ``-pure`` …)
-    # remain on the Python supplement until a richer port lands.
+    # The Rust stub scanner now carries the full Python parity:
+    # ``args`` (from the ``{ARGS}`` brace block) and the six flag
+    # bools (``-barrier`` / ``-loop`` / ``-pure`` / ``-mutator`` /
+    # ``-unsafe`` / ``-scope_alias``) per
+    # ``stub_comments.py::_parse_args`` / ``_parse_flags``, plus the
+    # arity word on ``stub expr-func`` / ``stub expr-op``.
     for sc in raw.get("stub_commands", []):
+        args = tuple(
+            StubArgDef(
+                name=a["name"],
+                role=a.get("role") or "value",
+                optional=a.get("optional", False),
+            )
+            for a in sc.get("args", ())
+        )
         result.stub_commands.append(
             StubCommandDef(
                 name=sc["name"],
-                args=(),
+                args=args,
                 range=range_at(*sc["range"]),
+                barrier=sc.get("barrier", False),
+                loop=sc.get("loop", False),
+                pure=sc.get("pure", False),
+                mutator=sc.get("mutator", False),
+                unsafe=sc.get("unsafe", False),
+                scope_alias=sc.get("scope_alias", False),
             )
         )
     for se in raw.get("stub_expr_defs", []):
+        kind = se.get("kind") or "function"
         result.stub_expr_defs.append(
             StubExprDef(
                 name=se["name"],
-                kind=se.get("kind") or "function",
+                kind=kind,
+                arity=se.get("arity", 1 if kind == "function" else 2),
                 range=range_at(*se["range"]),
             )
         )
@@ -378,72 +410,43 @@ def _merge_rust_with_python_supplement(
     first); the merger then becomes a thin shim that future chunks
     can delete.
     """
-    # Rust ports many of these fields now (see
-    # ``_materialise_rust_analysis``) but Python's pass remains the
-    # source of truth for several scenarios where Rust's scanners
-    # are still partial:
-    #
-    # - ``regex_patterns``: variable-driven pattern propagation
-    #   (``set p "..."; switch -regexp -- $p { ... }``) and
-    #   deep-recursion patterns aren't ported.
-    # - ``stub_commands`` / ``stub_expr_defs``: arg-roles, flags
-    #   (``-loop`` / ``-barrier`` / ``-pure``), and the per-arg
-    #   ``StubArgDef`` machinery are Python-only.
-    # - ``auto_path_entries``: ``[info script]`` resolution and
-    #   substitution evaluation are Python-only.
-    # - ``namespace_imports`` / ``source_targets``: tcllib-style
-    #   wrapper-call detection (``X::import`` / dynamic source
-    #   targets) is Python-only.
-    # - ``command_aliases``: ``interp alias`` chains across
-    #   namespace boundaries are Python-only.
-    #
-    # Each "Python over Rust" line is a future Rust-port
-    # follow-up; trimming this block is the way to slim the
-    # supplement.
-    rust.regex_patterns = python.regex_patterns
-    if not rust.stub_commands:
-        rust.stub_commands = python.stub_commands
-    if not rust.stub_expr_defs:
-        rust.stub_expr_defs = python.stub_expr_defs
-    if not rust.auto_path_entries:
-        rust.auto_path_entries = python.auto_path_entries
-    if not rust.namespace_imports:
-        rust.namespace_imports = python.namespace_imports
-    if not rust.source_targets:
-        rust.source_targets = python.source_targets
-    # ``command_aliases``: merge instead of guard.  Rust records
-    # direct ``interp alias`` declarations; Python's pass also
-    # follows multi-step alias chains across namespace boundaries
-    # (``A`` aliases to ``B``, ``B`` aliases to ``C``) and records
-    # the resolved chain endpoints.  Guarding on Rust emptiness
-    # would drop Python-only chained / namespace-sensitive aliases
-    # when Rust emits even one entry, which silently breaks
-    # alias-driven command resolution used by references / rename
-    # / call analysis.  Python wins on collision so the
-    # resolved-chain target survives over Rust's direct-only
-    # record (the ``followups-alias-chains`` chunk closes the
-    # remaining Python-only set).
-    for qname, alias in python.command_aliases.items():
-        rust.command_aliases[qname] = alias
+    # All conservative-fallback supplement guards are retired:
+    # ``stub_commands`` / ``stub_expr_defs`` (stub-args),
+    # ``namespace_imports`` (tcllib-imports),
+    # ``command_aliases`` merge (alias-chains),
+    # ``regex_patterns`` (switch-regexp + regex-vars), and
+    # ``auto_path_entries`` / ``source_targets`` (noop-guards —
+    # the audit confirmed the guards never fired across the
+    # 12,519-test pytest corpus, so they were dead code).
+    # ``command_aliases``: Rust and Python now record the same set
+    # of ``interp alias {} NAME {} TARGET ?ARGS?`` declarations
+    # without transitive chaining (verified by
+    # ``test_alias_chain_not_resolved`` in tests/test_analyser.py
+    # — alias-of-alias is intentionally *not* resolved on either
+    # side).  Retired the merge in the ``alias-chains`` chunk.
     # ``command_invocations``: Rust now records nested ``[cmd]``
-    # substitution heads via ``scan_nested_command_heads``, but
-    # Python's pass also catches:
-    # (a) document-break recovery splits (partial-command head
-    #     invocations Python's virtual-insertion recovery
-    #     surfaces but Rust's segmenter recovery skips), and
-    # (b) deeper body walks (some ``ArgRole::Body`` arms still
-    #     reach commands the Rust loop hasn't ported recursion
-    #     into — e.g. iRule ``when`` bodies with embedded
-    #     conditional structures).
-    # Merge the two by ``(name, span)`` key.  Python comes
-    # first because its ``CommandInvocation`` records carry
-    # ``resolved_qualified_name`` (resolved via the analyser's
-    # scope-aware proc lookup) that downstream features
-    # (references / rename / call-hierarchy) consult to
-    # disambiguate qualified calls across namespaces — Rust's
-    # nested-cmd scanner only records the bare name.  After
-    # Python's records land, Rust's contribute the
-    # nested-substitution heads + recovery splits Python misses.
+    # substitution heads (C41-default-on, including the inner
+    # ``Str`` token unwrap so braced expr args like
+    # ``if { [HTTP::uri] eq "/foo" }`` surface ``HTTP::uri``),
+    # recovered partial-command heads via
+    # ``segment_commands_with_recovery``, and iRules ``call PROC``
+    # indirection.  Python's pass remains the source of truth for
+    # **scope-aware** ``resolved_qualified_name`` resolution: a bare
+    # ``helper`` call inside ``namespace eval a`` resolves to
+    # ``::a::helper`` on Python's side via the analyser's full scope
+    # walk, while the materialiser's post-hoc fallback only does a
+    # global proc-name lookup.  Without Python's records, references
+    # / rename / call-hierarchy on namespaced procs miss the
+    # in-namespace call sites — verified by
+    # ``tests/test_references.py::test_qualified_calls_do_not_cross_namespace``
+    # and the ``test_call_*`` family in ``tests/test_irules_call.py``.
+    #
+    # Merge by ``(name, span)`` key — Python first so its
+    # scope-resolved ``resolved_qualified_name`` survives, Rust
+    # second to contribute the recovery / nested-cmd heads Python
+    # may miss.  The merge retires when Rust gains scope-aware
+    # resolution (closes naturally with the ``S*`` LSP-server port
+    # / ``structural`` chunk).
     seen_invs: set[tuple[str, int, int]] = set()
     merged_invs: list[CommandInvocation] = []
     for inv in list(python.command_invocations) + list(rust.command_invocations):
@@ -453,8 +456,17 @@ def _merge_rust_with_python_supplement(
         seen_invs.add(key)
         merged_invs.append(inv)
     rust.command_invocations = merged_invs
-    # Python's diagnostics list is a strict superset (it integrates
-    # ``run_compiler_checks`` for W110 / W220 / W304).  Take Python's.
+    # ``diagnostics``: Python's pass remains the source of truth.
+    # Rust now emits an analyser-side subset (W123 / W210 / W211 /
+    # W214 / W220 / W105 — postpass ported W105 as the first pure
+    # post-pass-style emitter) but Python's
+    # ``run_compiler_checks`` integration owns the IR-coupled
+    # codes (W110 / W101 / W304 / E004 / W302 / W001) plus
+    # post-emission suppression (some Rust emissions Python
+    # later suppresses based on context the Rust path doesn't
+    # see yet).  A naive dedup-merge re-surfaces those
+    # suppressed records.  Keeping wholesale-replace until the
+    # full ``postpass`` chunk lands suppression-context parity.
     rust.diagnostics = python.diagnostics
     # Structural Rust gaps the differential corpus tracks:
     # ``ProcDef.doc`` ``extract_body_docstring`` fallback;

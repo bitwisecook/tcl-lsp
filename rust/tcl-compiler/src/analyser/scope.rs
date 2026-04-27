@@ -112,10 +112,30 @@ impl Analyser {
     /// isn't tracked anywhere on the chain.
     #[must_use]
     pub fn lookup_const_string(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
+        self.lookup_const_string_with_span(var_name, scope_path)
+            .map(|(value, _)| value)
+    }
+
+    /// Look up the constant string value for `var_name` along
+    /// with the source span recorded for the defining ``set``.
+    /// Used by the regex-pattern emitters to also tag the
+    /// defining ``set var "..."`` value as a `RegexPattern` so
+    /// semantic-token highlighting fires on the literal.
+    ///
+    /// Mirrors the inner walk of `_record_defining_set_as_regex`
+    /// in `core/analysis/_analyser/_scope.py:58-79` together
+    /// with the ``Optional[span]`` field returned by
+    /// `_lookup_const_string`.
+    #[must_use]
+    pub fn lookup_const_string_with_span(
+        &self,
+        var_name: &str,
+        scope_path: &[usize],
+    ) -> Option<(&str, Span)> {
         for ancestor in ancestor_paths(scope_path) {
             if let Some(map) = self.const_strings.get(&ancestor) {
-                if let Some((value, _)) = map.get(var_name) {
-                    return Some(value.as_str());
+                if let Some((value, span)) = map.get(var_name) {
+                    return Some((value.as_str(), *span));
                 }
             }
         }

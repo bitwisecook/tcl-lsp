@@ -111,6 +111,49 @@ pub struct VarDef {
     pub warn_if_unused: bool,
 }
 
+/// How a proc parameter is used inside the proc body.
+///
+/// Mirrors ``ProcArgTrait`` in
+/// ``core/analysis/semantic_model.py``.  Drives optimisation,
+/// shimmer analysis, taint propagation, and diagnostics — tells
+/// downstream passes how a parameter value flows through the
+/// proc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProcArgTrait {
+    /// Argument is eval'd as a script (``eval`` / ``uplevel`` /
+    /// ``subst``).
+    Eval,
+    /// Argument is used as a loop / control body.
+    Body,
+    /// Argument names a variable that the proc writes (upvar +
+    /// set, or a registry-marked write site).
+    VarWrite,
+    /// Argument names a variable that the proc reads via
+    /// ``upvar`` (read-only alias).
+    VarRead,
+    /// Argument is evaluated as an expression.
+    Expr,
+    /// Argument is used as the list in a ``foreach`` / ``lmap``.
+    LoopList,
+}
+
+impl ProcArgTrait {
+    /// Stable lower-case name suitable for serialisation.
+    /// Mirrors the Python enum's ``.name`` (uppercase) for the
+    /// API but lowercases for nicer dict keys.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ProcArgTrait::Eval => "eval",
+            ProcArgTrait::Body => "body",
+            ProcArgTrait::VarWrite => "var_write",
+            ProcArgTrait::VarRead => "var_read",
+            ProcArgTrait::Expr => "expr",
+            ProcArgTrait::LoopList => "loop_list",
+        }
+    }
+}
+
 /// Proc definition record.
 ///
 /// Mirrors ``ProcDef`` in ``core/analysis/semantic_model.py``.
@@ -131,6 +174,11 @@ pub struct ProcDef {
     /// Doc-comment text harvested from the line(s) above the
     /// ``proc`` statement, or empty when none was found.
     pub doc: String,
+    /// Inferred parameter usage traits, keyed by parameter
+    /// name.  Populated by ``infer_param_traits`` after the
+    /// body walk.  Empty when no traits inferred (parameter
+    /// unused, or proc body wasn't statically scannable).
+    pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
 }
 
 /// Method definition inside a `TclOO` class.
@@ -437,13 +485,60 @@ pub struct AutoPathEntry {
     pub range: Span,
 }
 
+/// One parameter declared inside a ``# tcl-lsp: stub NAME {ARGS}``
+/// brace block.  Mirrors Python's ``StubArgDef`` in
+/// ``core/analysis/semantic_model.py``.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StubArgDef {
+    /// Argument name as written.  Optional markers (``?…?``) are
+    /// stripped before storage.
+    pub name: String,
+    /// Argument role — one of ``body`` / ``expr`` / ``var`` /
+    /// ``var_read`` / ``name`` / ``pattern`` / ``channel`` /
+    /// ``value`` (the default when no ``:role`` annotation is
+    /// supplied).
+    pub role: String,
+    /// ``true`` when the source token is wrapped in ``?…?``.
+    pub optional: bool,
+}
+
+bitflags::bitflags! {
+    /// Trailing ``?-flag…?`` flags on a ``# tcl-lsp: stub`` line.
+    /// Mirrors the ``barrier`` / ``loop`` / ``pure`` / ``mutator``
+    /// / ``unsafe`` / ``scope_alias`` boolean fields on Python's
+    /// ``StubCommandDef`` dataclass — packed into a single byte
+    /// here because they're an enum-set of orthogonal flags.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct StubFlags: u8 {
+        /// ``-barrier`` — command creates a dynamic barrier.
+        const BARRIER     = 1 << 0;
+        /// ``-loop`` — command has a loop body.
+        const LOOP        = 1 << 1;
+        /// ``-pure`` — command is side-effect-free.
+        const PURE        = 1 << 2;
+        /// ``-mutator`` — command mutates state.
+        const MUTATOR     = 1 << 3;
+        /// ``-unsafe`` — command is unsafe.
+        const UNSAFE      = 1 << 4;
+        /// ``-scope_alias`` — command creates a scope alias
+        /// (``upvar``-like).
+        const SCOPE_ALIAS = 1 << 5;
+    }
+}
+
 /// Inline `# stub: NAME ARGS BODY` directive capture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StubCommandDef {
     /// Stub command name.
     pub name: String,
+    /// Parsed parameter list from the ``{ARGS}`` brace block
+    /// (empty when the block is ``{}``).
+    pub args: Vec<StubArgDef>,
     /// Span of the comment line carrying the directive.
     pub range: Span,
+    /// Trailing flag set (``-barrier`` / ``-loop`` / ``-pure``
+    /// / ``-mutator`` / ``-unsafe`` / ``-scope_alias``).
+    pub flags: StubFlags,
 }
 
 /// Inline `# stub-expr: NAME ARGS` directive capture.
@@ -454,6 +549,10 @@ pub struct StubExprDef {
     /// Either ``"function"`` (``stub expr-func``) or
     /// ``"operator"`` (``stub expr-op``).
     pub kind: String,
+    /// Number of arguments (functions) or operands (operators).
+    /// Defaults to 1 for functions and 2 for operators when the
+    /// trailing arity word is absent.
+    pub arity: u32,
     /// Span of the comment line carrying the directive.
     pub range: Span,
 }

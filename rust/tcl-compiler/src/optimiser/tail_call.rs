@@ -209,10 +209,8 @@ fn count_self_calls_in_stmt(stmt: &Statement, self_names: &HashSet<String>, coun
             value: Some(v),
             braced,
             ..
-        } => {
-            if !*braced {
-                *count += count_bracket_self_calls(v, self_names);
-            }
+        } if !*braced => {
+            *count += count_bracket_self_calls(v, self_names);
         }
         Statement::AssignValue { value, .. } => {
             *count += count_bracket_self_calls(value, self_names);
@@ -432,7 +430,7 @@ fn collect_tail_sites(
             let rewrite_span = full_rewrite_span(ctx.source, *span);
             ctx.report(Optimisation::new(
                 "O121",
-                format!("Use tailcall for self-recursion in proc '{}'", proc.name,),
+                format!("Use tailcall for self-recursion in proc '{}'", proc.name),
                 rewrite_span,
                 format!("tailcall {command}"),
             ));
@@ -465,7 +463,7 @@ fn collect_tail_sites(
                     let rewrite_span = full_rewrite_span(ctx.source, *span);
                     ctx.report(Optimisation::new(
                         "O121",
-                        format!("Use tailcall for self-recursion in proc '{}'", proc.name,),
+                        format!("Use tailcall for self-recursion in proc '{}'", proc.name),
                         rewrite_span,
                         replacement,
                     ));

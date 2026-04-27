@@ -293,6 +293,25 @@ impl Analyser {
             self.result.unknown_proc_info = Some(info);
         }
 
+        // Infer per-parameter traits from a shallow body scan.
+        // Mirrors ``infer_param_traits`` in
+        // ``core/analysis/proc_arg_traits.py:212-232`` — top-level
+        // command walk only (deep recursion deferred).  Threads
+        // the analyser's pre-built dialect-aware registry through
+        // so iRules-only ``arg_role_resolver`` callbacks (e.g.
+        // ``when``) fire on body args.  When ``self.registry`` is
+        // ``None`` (outside an active ``analyse`` run, e.g. a
+        // unit-test harness) we skip the inference rather than
+        // pay the cost of a fresh ``build_default`` on every
+        // proc.
+        let body_text = &args[2];
+        let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        let param_traits = if let Some(registry) = self.registry.as_ref() {
+            super::param_traits::infer_param_traits(&param_names, body_text, registry)
+        } else {
+            std::collections::HashMap::new()
+        };
+
         let proc = ProcDef {
             name: simple,
             qualified_name: qualified.clone(),
@@ -300,6 +319,7 @@ impl Analyser {
             name_span,
             body_span,
             doc,
+            param_traits,
         };
 
         // Register globally and in the current scope. Mirrors
@@ -550,12 +570,15 @@ impl Analyser {
     /// (the next arm's body fires) and are skipped — recursing
     /// into the literal ``-`` would produce a useless command.
     ///
-    /// **Deferred.** ``-regexp`` pattern recording (Python
-    /// ``_proc.py:233-252``) emits ``RegexPattern`` records into
-    /// ``result.regex_patterns``; the Rust analyser doesn't yet
-    /// carry that field (lands alongside the diagnostic emitters
-    /// in **C41d**).  The flag is detected here as a marker for
-    /// the future hook but no records are emitted yet.
+    /// `-regexp` pattern recording mirrors Python's
+    /// ``_proc.py::_handle_switch`` lines 233-252 — each non-`default`
+    /// pattern arm is recorded as a `RegexPattern` with
+    /// ``command = "switch"`` when its token is a literal
+    /// (`Esc` / `Str`) or a `Var` token whose name resolves via
+    /// `lookup_const_string_with_span` to a constant string set
+    /// earlier in the same scope.  Command-substitution patterns
+    /// are skipped (runtime-computed values can't be statically
+    /// resolved).
     pub fn handle_switch_command(
         &mut self,
         cmd_name: &str,
@@ -568,14 +591,12 @@ impl Analyser {
         }
 
         // Scan and skip option flags. ``--`` ends the option
-        // section explicitly (and is consumed). ``-regexp``
-        // would gate regex-pattern recording in C41d; tracked
-        // here so the future hook only needs to consult the flag.
+        // section explicitly (and is consumed).
         let mut i = 0;
-        let mut _is_regexp = false;
+        let mut is_regexp = false;
         while i < args.len() && args[i].starts_with('-') {
             if args[i] == "-regexp" {
-                _is_regexp = true;
+                is_regexp = true;
             }
             if args[i] == "--" {
                 i += 1;
@@ -599,9 +620,11 @@ impl Analyser {
             let elements = parse_switch_body_elements(&body_text, body_tok);
             let mut j = 0;
             while j + 1 < elements.len() {
-                // Pattern at j, body at j+1. Regex-pattern recording
-                // for ``-regexp`` lands in C41d.
+                let (pat_text, pat_tok) = &elements[j];
                 let (body_text, body_tok) = &elements[j + 1];
+                if is_regexp {
+                    self.record_switch_regexp_pattern(pat_text, *pat_tok, scope_path);
+                }
                 if body_text != "-" {
                     self.analyse_body(body_text, *body_tok, scope_path);
                 }
@@ -610,6 +633,11 @@ impl Analyser {
         } else {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
             while i + 1 < args.len() {
+                if is_regexp {
+                    if let Some(pat_tok) = arg_tokens.get(i).copied() {
+                        self.record_switch_regexp_pattern(&args[i], pat_tok, scope_path);
+                    }
+                }
                 let body_text = &args[i + 1];
                 if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
                     if body_text != "-" {
@@ -620,6 +648,19 @@ impl Analyser {
             }
         }
         true
+    }
+
+    /// Record one ``switch -regexp`` arm's pattern.  Skipped for
+    /// the ``default`` keyword (Tcl's catch-all).  Literal tokens
+    /// are recorded verbatim; `Var` tokens are resolved via the
+    /// `const_strings` map (the ``regex-vars`` propagation);
+    /// `Cmd` substitutions are skipped (can't statically
+    /// resolve).
+    fn record_switch_regexp_pattern(&mut self, pattern: &str, tok: Token, scope_path: &[usize]) {
+        if pattern == "default" {
+            return;
+        }
+        self.record_regex_pattern_token(pattern, tok, "switch", scope_path);
     }
 
     /// Handle `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?`.
@@ -1156,6 +1197,69 @@ impl Analyser {
         }
     }
 
+    /// Recognise the tcllib ``<NS>::import <ALIAS>`` wrapper idiom
+    /// and record a conjectured `NamespaceImport`.
+    ///
+    /// A common tcllib convention is a proc ``some::ns::import`` that
+    /// ``uplevel``s ``namespace eval <alias> {namespace import some::ns::*}``.
+    /// Statically detecting the wrapper bodies is out of scope, but
+    /// the call shape is unambiguous — its qualified name ends in
+    /// ``::import`` and its single argument is a static namespace
+    /// identifier.  Mirrors the ``elif cmd_name.endswith("::import")``
+    /// branch in
+    /// ``core/analysis/_analyser/_commands.py::_record_command_invocation``
+    /// (and `_maybe_handle_import_wrapper` in `signature_scan.py`).
+    pub fn handle_tcllib_import_wrapper(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        // Wrapper shape: ``X::import <alias>`` with exactly one
+        // static argument.  Tcl's own ``namespace import`` is
+        // handled separately and never falls into this branch
+        // because ``cmd_name`` is ``namespace``, not ``…::import``.
+        if !cmd_name.ends_with("::import") {
+            return;
+        }
+        if args.len() != 1 {
+            return;
+        }
+        let alias = &args[0];
+        if alias.is_empty() || alias.contains('$') || alias.contains('[') {
+            return;
+        }
+        // Strip the trailing ``::import`` to get the source
+        // namespace; absolute-prefix it if missing the leading
+        // ``::``.
+        let stripped = &cmd_name[..cmd_name.len() - "::import".len()];
+        let source_ns = if stripped.starts_with("::") {
+            stripped.to_string()
+        } else {
+            format!("::{stripped}")
+        };
+        // Relative aliases live under the current namespace —
+        // ``namespace eval outer { some::ns::import vt }``
+        // creates ``::outer::vt``, not ``::vt``.
+        let current_ns = self.namespace_from_scope_path(scope_path);
+        let alias_ns = if alias.starts_with("::") {
+            alias.clone()
+        } else if current_ns == "::" {
+            format!("::{alias}")
+        } else {
+            format!("{current_ns}::{alias}")
+        };
+        self.result.namespace_imports.push(
+            crate::signature_scan::types::SignatureNamespaceImport {
+                ns: alias_ns,
+                pattern: format!("{source_ns}::*"),
+                range: cmd_tok.span,
+                conjectured: true,
+            },
+        );
+    }
+
     /// Record `lappend auto_path PATH...` and `set auto_path PATH`
     /// mutations.
     ///
@@ -1212,25 +1316,38 @@ impl Analyser {
         }
     }
 
-    /// Record `regexp` / `regsub` literal patterns + `switch -regexp`
-    /// pattern arguments for syntax highlighting.  Mirrors the
-    /// regex-capture path in
-    /// `core/analysis/_analyser/_proc.py::_handle_switch` and the
-    /// dispatch site in `_commands.py`.
+    /// Record `regexp` / `regsub` pattern arguments for syntax
+    /// highlighting.  Mirrors the regex-capture path in
+    /// `core/analysis/_analyser/_commands.py:511-541`.
+    ///
+    /// Literal patterns (`Esc` / `Str` tokens) are recorded
+    /// verbatim; `Var` tokens are resolved via the
+    /// `const_strings` map (populated by `set var "..."`) so
+    /// `regexp $p $line` records the literal stored in `p`.
+    /// `Cmd`-substitution patterns are skipped — runtime-computed
+    /// patterns can't be statically resolved.
     pub fn handle_regex_pattern_capture(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        scope_path: &[usize],
     ) {
         if !matches!(cmd_name, "regexp" | "regsub") || args.is_empty() {
             return;
         }
         // Skip leading ``-`` flags (``-nocase``, ``-line``, ``-all``,
         // ``-indices``, …) until we hit the pattern arg.
+        // ``-start INDEX`` consumes a value word; the others are
+        // boolean.  Mirrors Tcl's ``regexp(n)`` / ``regsub(n)`` flag
+        // surface.
         let mut idx = 0;
         while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
-            idx += 1;
+            if args[idx] == "-start" && idx + 1 < args.len() {
+                idx += 2;
+            } else {
+                idx += 1;
+            }
         }
         if idx < args.len() && args[idx] == "--" {
             idx += 1;
@@ -1239,15 +1356,63 @@ impl Analyser {
             return;
         }
         let tok = arg_tokens[idx];
-        // Skip variable / command-substitution patterns — only literals.
-        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
-            return;
+        self.record_regex_pattern_token(&args[idx], tok, cmd_name, scope_path);
+    }
+
+    /// Record one regex-pattern token for `regexp` / `regsub` /
+    /// `switch -regexp`.  Var tokens are resolved against
+    /// `const_strings`; `Cmd` substitutions are skipped (no
+    /// static resolution); literals are recorded verbatim.
+    /// Mirrors the per-token branch shared by `_commands.py` and
+    /// `_proc.py`'s switch handlers in Python.
+    fn record_regex_pattern_token(
+        &mut self,
+        text: &str,
+        tok: Token,
+        command: &str,
+        scope_path: &[usize],
+    ) {
+        match tok.kind {
+            TokenType::Cmd => {
+                // Runtime-computed patterns can't be statically
+                // resolved — skip.  Matches Python's behaviour
+                // where ``pat_tok.type is TokenType.VAR`` is the
+                // only substitution branch exercised.
+            }
+            TokenType::Var => {
+                let sm = tcl_lexer::SourceMap::new(&self.source);
+                let var_name = sm.token_text(tok).to_string();
+                if let Some((const_val, def_span)) =
+                    self.lookup_const_string_with_span(&var_name, scope_path)
+                {
+                    let pattern = const_val.to_string();
+                    // Record the use site (the `$var` token).
+                    self.result.regex_patterns.push(super::types::RegexPattern {
+                        range: tok.span,
+                        pattern: pattern.clone(),
+                        command: command.to_string(),
+                    });
+                    // Also record the defining ``set`` value's
+                    // range so the semantic-token provider can
+                    // highlight the literal.  Mirrors
+                    // ``_record_defining_set_as_regex`` in
+                    // ``core/analysis/_analyser/_scope.py:58-79``.
+                    self.result.regex_patterns.push(super::types::RegexPattern {
+                        range: def_span,
+                        pattern,
+                        command: command.to_string(),
+                    });
+                    self.regex_vars.insert((scope_path.to_vec(), var_name));
+                }
+            }
+            _ => {
+                self.result.regex_patterns.push(super::types::RegexPattern {
+                    range: tok.span,
+                    pattern: text.to_string(),
+                    command: command.to_string(),
+                });
+            }
         }
-        self.result.regex_patterns.push(super::types::RegexPattern {
-            range: tok.span,
-            pattern: args[idx].clone(),
-            command: cmd_name.to_string(),
-        });
     }
 
     /// Handle the `incr` command: `incr var ?amount?`.
@@ -2678,6 +2843,7 @@ mod tests {
                 name_span: span(0, 0),
                 body_span: span(0, 0),
                 doc: String::new(),
+                param_traits: std::collections::HashMap::new(),
             },
         );
         let resolved = a.resolve_proc_call("a::b", &[]);

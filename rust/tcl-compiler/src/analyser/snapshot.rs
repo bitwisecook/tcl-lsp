@@ -152,6 +152,7 @@ mod tests {
             name_span: Span::new(0, 0),
             body_span: Span::new(0, 0),
             doc: String::new(),
+            param_traits: std::collections::HashMap::new(),
         }
     }
 

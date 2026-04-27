@@ -41,7 +41,7 @@ use pyo3::types::{PyDict, PyList};
 
 use tcl_compiler::analyser::{
     Analyser, AnalysisResult, ClassDef, CodeFix, Diagnostic, ProcDef, PropertyDef, Scope,
-    ScopeKind, Severity, UnknownProcInfo, VarDef,
+    ScopeKind, Severity, StubFlags, UnknownProcInfo, VarDef,
 };
 use tcl_compiler::signature_scan::types::{
     SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceImport,
@@ -146,24 +146,8 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     }
     out.set_item("auto_path_entries", auto_paths)?;
 
-    let stub_cmds = PyList::empty_bound(py);
-    for sc in &r.stub_commands {
-        let d = PyDict::new_bound(py);
-        d.set_item("name", &sc.name)?;
-        d.set_item("range", span_tuple(sc.range))?;
-        stub_cmds.append(d)?;
-    }
-    out.set_item("stub_commands", stub_cmds)?;
-
-    let stub_exprs = PyList::empty_bound(py);
-    for se in &r.stub_expr_defs {
-        let d = PyDict::new_bound(py);
-        d.set_item("name", &se.name)?;
-        d.set_item("kind", &se.kind)?;
-        d.set_item("range", span_tuple(se.range))?;
-        stub_exprs.append(d)?;
-    }
-    out.set_item("stub_expr_defs", stub_exprs)?;
+    out.set_item("stub_commands", stub_commands_to_list(py, r)?)?;
+    out.set_item("stub_expr_defs", stub_expr_defs_to_list(py, r)?)?;
 
     let regex = PyList::empty_bound(py);
     for rp in &r.regex_patterns {
@@ -194,6 +178,57 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     }
 
     Ok(out)
+}
+
+/// Build the ``stub_commands`` list payload — one dict per
+/// inline ``# tcl-lsp: stub`` directive with name, args, range,
+/// and the six trailing flag bools the Python materialiser
+/// expects.  The Rust side stores the flags as a single
+/// ``StubFlags`` bitfield; this decomposes it back to the
+/// per-flag boolean dict shape Python consumes.
+fn stub_commands_to_list<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'py, PyList>> {
+    let stub_cmds = PyList::empty_bound(py);
+    for sc in &r.stub_commands {
+        let d = PyDict::new_bound(py);
+        d.set_item("name", &sc.name)?;
+        let args = PyList::empty_bound(py);
+        for a in &sc.args {
+            let ad = PyDict::new_bound(py);
+            ad.set_item("name", &a.name)?;
+            ad.set_item("role", &a.role)?;
+            ad.set_item("optional", a.optional)?;
+            args.append(ad)?;
+        }
+        d.set_item("args", args)?;
+        d.set_item("range", span_tuple(sc.range))?;
+        d.set_item("barrier", sc.flags.contains(StubFlags::BARRIER))?;
+        d.set_item("loop", sc.flags.contains(StubFlags::LOOP))?;
+        d.set_item("pure", sc.flags.contains(StubFlags::PURE))?;
+        d.set_item("mutator", sc.flags.contains(StubFlags::MUTATOR))?;
+        d.set_item("unsafe", sc.flags.contains(StubFlags::UNSAFE))?;
+        d.set_item("scope_alias", sc.flags.contains(StubFlags::SCOPE_ALIAS))?;
+        stub_cmds.append(d)?;
+    }
+    Ok(stub_cmds)
+}
+
+/// Build the ``stub_expr_defs`` list payload — one dict per
+/// ``# tcl-lsp: stub expr-func`` / ``stub expr-op`` directive
+/// with name, kind, arity, and range.
+fn stub_expr_defs_to_list<'py>(
+    py: Python<'py>,
+    r: &AnalysisResult,
+) -> PyResult<Bound<'py, PyList>> {
+    let stub_exprs = PyList::empty_bound(py);
+    for se in &r.stub_expr_defs {
+        let d = PyDict::new_bound(py);
+        d.set_item("name", &se.name)?;
+        d.set_item("kind", &se.kind)?;
+        d.set_item("arity", se.arity)?;
+        d.set_item("range", span_tuple(se.range))?;
+        stub_exprs.append(d)?;
+    }
+    Ok(stub_exprs)
 }
 
 fn scope_to_dict<'py>(py: Python<'py>, s: &Scope) -> PyResult<Bound<'py, PyDict>> {
@@ -252,6 +287,20 @@ fn proc_to_dict<'py>(py: Python<'py>, p: &ProcDef) -> PyResult<Bound<'py, PyDict
     d.set_item("name_range", span_tuple(p.name_span))?;
     d.set_item("body_range", span_tuple(p.body_span))?;
     d.set_item("doc", &p.doc)?;
+    // Per-parameter inferred traits — keys are parameter names,
+    // values are lists of stable lower-case trait names
+    // (``"eval"`` / ``"body"`` / ``"var_write"`` / ``"var_read"``
+    // / ``"expr"`` / ``"loop_list"``).  Empty entries are
+    // omitted.
+    let traits_dict = PyDict::new_bound(py);
+    for (param_name, set) in &p.param_traits {
+        let trait_list = PyList::empty_bound(py);
+        for t in set {
+            trait_list.append(t.as_str())?;
+        }
+        traits_dict.set_item(param_name, trait_list)?;
+    }
+    d.set_item("param_traits", traits_dict)?;
     Ok(d)
 }
 

@@ -650,8 +650,15 @@ pub(super) fn compute_line_offsets(source: &str) -> Vec<usize> {
 pub(super) fn line_at_offset(line_offsets: &[usize], offset: usize) -> i32 {
     // Each offset in ``line_offsets`` is the byte position of a
     // ``\n``.  The line number containing byte `offset` is the
-    // count of newlines strictly before ``offset``.
-    line_offsets.partition_point(|&p| p < offset) as i32
+    // count of newlines strictly before ``offset``.  The map
+    // value type is ``i32`` because the ``-1`` sentinel encodes
+    // file-wide ``# tcl-lsp: disable=`` directives — see the
+    // dispatch in ``Analyser::analyse``.  Realistic source files
+    // have far fewer than ``i32::MAX`` lines, so saturate
+    // gracefully rather than panic on the unrealistic overflow
+    // case (a 2-billion-line file would have already exceeded
+    // every other in-memory limit).
+    i32::try_from(line_offsets.partition_point(|&p| p < offset)).unwrap_or(i32::MAX)
 }
 
 impl Default for Analyser {
@@ -878,5 +885,441 @@ mod tests {
         let a = Analyser::default();
         assert_eq!(a.current_scope_path.len(), 0);
         assert_eq!(a.body_depth, 0);
+    }
+
+    // -- tcllib `<NS>::import <ALIAS>` wrapper detection
+    //
+    // Mirror the relevant cases in
+    // ``tests/test_namespace_imports.py``
+    // (``test_tcllib_import_wrapper_is_conjectured`` +
+    // ``test_import_wrapper_alias_relative_to_current_namespace``)
+    // against the Rust port so the ``namespace_imports`` supplement
+    // guard can retire.
+
+    #[test]
+    fn analyse_records_tcllib_import_wrapper_as_conjectured() {
+        let mut a = Analyser::new();
+        let r = a.analyse("term::ansi::send::import vt\n", "tcl");
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].ns, "::vt");
+        assert_eq!(conjectured[0].pattern, "::term::ansi::send::*");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_alias_relative_to_current_namespace() {
+        // ``some::ns::import alias`` inside ``namespace eval outer``
+        // creates ``::outer::alias``, not ``::alias``.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval outer { term::ansi::send::import vt }\n",
+            "tcl",
+        );
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].ns, "::outer::vt");
+        assert_eq!(conjectured[0].pattern, "::term::ansi::send::*");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_absolute_alias_keeps_leading_colons() {
+        // ``::alias`` argument is taken as an absolute namespace —
+        // current-namespace prefixing is skipped.
+        let mut a = Analyser::new();
+        let r = a.analyse("term::ansi::send::import ::abs::vt\n", "tcl");
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].ns, "::abs::vt");
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_skips_substituted_alias() {
+        // ``$var`` / ``[cmd]`` aliases can't be statically resolved —
+        // matches Python's ``"$" not in alias and "[" not in alias``
+        // guard.
+        let mut a = Analyser::new();
+        let r1 = a.analyse("term::ansi::send::import $alias\n", "tcl");
+        assert!(r1.namespace_imports.iter().all(|i| !i.conjectured));
+        let mut a = Analyser::new();
+        let r2 = a.analyse("term::ansi::send::import [build]\n", "tcl");
+        assert!(r2.namespace_imports.iter().all(|i| !i.conjectured));
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_requires_single_argument() {
+        // ``X::import alias extras`` is a non-wrapper call — the
+        // wrapper idiom takes exactly one alias word.
+        let mut a = Analyser::new();
+        let r = a.analyse("term::ansi::send::import vt extra\n", "tcl");
+        assert!(r.namespace_imports.iter().all(|i| !i.conjectured));
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_qualifies_unprefixed_source_ns() {
+        // Wrapper command names without a leading ``::`` still
+        // resolve to absolute source namespaces — the helper
+        // prepends the missing ``::``.
+        let mut a = Analyser::new();
+        let r = a.analyse("foo::import vt\n", "tcl");
+        let conjectured: Vec<_> = r
+            .namespace_imports
+            .iter()
+            .filter(|i| i.conjectured)
+            .collect();
+        assert_eq!(conjectured.len(), 1);
+        assert_eq!(conjectured[0].pattern, "::foo::*");
+    }
+
+    // -- ``command_aliases`` parity tests
+    //
+    // Mirror the relevant cases in tests/test_analyser.py
+    // (``test_alias_chain_not_resolved``, ``test_alias_redefinition_overwrites``)
+    // to pin the no-transitive-chain behaviour the
+    // ``alias-chains`` chunk relies on when retiring the
+    // ``rust.command_aliases`` Python supplement merge.
+
+    #[test]
+    fn analyse_alias_chain_records_each_step_independently() {
+        // Mirrors ``test_alias_chain_not_resolved``:
+        // ``a -> b`` and ``b -> expr`` are recorded as two
+        // independent entries — neither side resolves
+        // transitively to ``expr``.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp alias {} a {} b\ninterp alias {} b {} expr\n", "tcl");
+        let alias_a = r.command_aliases.get("::a").expect("::a recorded");
+        assert_eq!(alias_a.target, "b");
+        assert!(alias_a.extras.is_empty());
+        let alias_b = r.command_aliases.get("::b").expect("::b recorded");
+        assert_eq!(alias_b.target, "expr");
+        assert!(alias_b.extras.is_empty());
+    }
+
+    #[test]
+    fn analyse_alias_redefinition_overwrites_target() {
+        // Mirrors ``test_alias_redefinition_overwrites``: the
+        // second declaration wins.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp alias {} myop {} expr\ninterp alias {} myop {} puts\n",
+            "tcl",
+        );
+        let alias = r.command_aliases.get("::myop").expect("::myop recorded");
+        assert_eq!(alias.target, "puts");
+        assert!(alias.extras.is_empty());
+    }
+
+    #[test]
+    fn analyse_alias_qualified_name_recorded() {
+        // ``interp alias {} ::ns::myop {} expr`` records under the
+        // fully-qualified key.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp alias {} ::math::= {} expr\n", "tcl");
+        let alias = r
+            .command_aliases
+            .get("::math::=")
+            .expect("::math::= recorded");
+        assert_eq!(alias.target, "expr");
+    }
+
+    #[test]
+    fn analyse_alias_dynamic_name_not_recorded() {
+        // ``$n`` in the alias name field doesn't resolve statically
+        // — ``::=`` must not appear in ``command_aliases``.
+        let mut a = Analyser::new();
+        let r = a.analyse("set n \"=\"\ninterp alias {} $n {} expr\n", "tcl");
+        assert!(!r.command_aliases.contains_key("::="));
+    }
+
+    // -- ``switch -regexp`` literal-pattern recording
+    //
+    // Mirror the relevant cases in
+    // ``tests/test_analyser.py``'s switch / regex tests.  The
+    // pattern arms whose token is a literal are recorded as
+    // ``RegexPattern { command = "switch" }``; ``default`` and
+    // var / cmd-sub patterns are skipped (variable patterns are
+    // the regex-vars chunk's territory).
+
+    #[test]
+    fn analyse_switch_regexp_form1_records_literal_patterns() {
+        // Form 1: pattern/body pairs inline.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val \"^foo\" { puts foo } \"^bar\" { puts bar }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 2);
+        assert_eq!(switch_pats[0].pattern, "^foo");
+        assert_eq!(switch_pats[1].pattern, "^bar");
+    }
+
+    #[test]
+    fn analyse_switch_regexp_form2_records_literal_patterns() {
+        // Form 2: braced body with pattern/body pairs.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val { ^foo { puts foo } ^bar { puts bar } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 2);
+        assert_eq!(switch_pats[0].pattern, "^foo");
+        assert_eq!(switch_pats[1].pattern, "^bar");
+    }
+
+    #[test]
+    fn analyse_switch_regexp_skips_default_arm() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val { ^foo { puts foo } default { puts none } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 1);
+        assert_eq!(switch_pats[0].pattern, "^foo");
+    }
+
+    #[test]
+    fn analyse_switch_without_regexp_records_nothing() {
+        // No ``-regexp`` flag — patterns are glob, not regex.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -- $val { foo { puts foo } bar { puts bar } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert!(switch_pats.is_empty());
+    }
+
+    #[test]
+    fn analyse_switch_regexp_skips_unresolved_var_pattern() {
+        // ``$pat`` arm with no defining ``set`` — no const value
+        // available, so the arm is dropped (matches Python's
+        // ``const_val is not None`` guard in
+        // ``_proc.py:325-335``).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "switch -regexp -- $val { $pat { puts hit } ^lit { puts lit } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        assert_eq!(switch_pats.len(), 1);
+        assert_eq!(switch_pats[0].pattern, "^lit");
+    }
+
+    // -- ``regex-vars`` const-string propagation
+    //
+    // Verify that ``$var`` regex pattern arguments resolve to the
+    // literal stored by a preceding ``set var "..."``.  Mirrors
+    // Python's ``_lookup_const_string`` branch in
+    // ``_commands.py:511-541`` (regexp / regsub) and
+    // ``_proc.py:319-348`` (switch -regexp Form 2).
+
+    #[test]
+    fn analyse_regexp_resolves_var_pattern_to_const_string() {
+        let mut a = Analyser::new();
+        let r = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
+        // Two records: the use site (the ``$p`` token) and the
+        // defining ``set`` value (mirrors
+        // ``_record_defining_set_as_regex``).
+        let regexp_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "regexp")
+            .collect();
+        assert_eq!(regexp_pats.len(), 2);
+        assert!(regexp_pats.iter().all(|p| p.pattern == "^foo"));
+    }
+
+    #[test]
+    fn analyse_regsub_resolves_var_pattern_to_const_string() {
+        let mut a = Analyser::new();
+        let r = a.analyse("set p {a+}\nregsub -all $p $line - out\n", "tcl");
+        let regsub_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "regsub")
+            .collect();
+        assert_eq!(regsub_pats.len(), 2);
+        assert!(regsub_pats.iter().all(|p| p.pattern == "a+"));
+    }
+
+    #[test]
+    fn analyse_switch_regexp_resolves_var_pattern_to_const_string() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "set p {^foo}\nswitch -regexp -- $val { $p { puts foo } ^bar { puts bar } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        let pats: Vec<&str> = switch_pats.iter().map(|p| p.pattern.as_str()).collect();
+        assert!(pats.contains(&"^foo"), "got {pats:?}");
+        assert!(pats.contains(&"^bar"), "got {pats:?}");
+    }
+
+    #[test]
+    fn analyse_regex_var_unresolved_records_nothing() {
+        // No defining ``set`` — Var has no const value.  The
+        // pattern arg is dropped (matches Python).
+        let mut a = Analyser::new();
+        let r = a.analyse("regexp $p $line\n", "tcl");
+        assert!(r.regex_patterns.is_empty());
+    }
+
+    // -- ``postpass`` chunk: W105 unbraced-body emitter
+    //
+    // Mirror the relevant cases from
+    // ``tests/test_analyser.py`` / ``tests/test_w105*.py`` against
+    // the Rust port so the W105 path retires from the Python
+    // ``run_compiler_checks`` post-pass.
+
+    #[test]
+    fn analyse_emits_w105_for_unbraced_if_body_with_substitution() {
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$cond} \"puts $x\"\n", "tcl");
+        let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
+        assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
+        // Substitution-bearing bodies are flagged at error severity.
+        assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
+    }
+
+    #[test]
+    fn analyse_skips_w105_for_braced_if_body() {
+        // Braced ``{ ... }`` body — no W105.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$cond} { puts $x }\n", "tcl");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W105"));
+    }
+
+    #[test]
+    fn analyse_emits_w105_for_unbraced_while_body_var() {
+        // ``while {$cond} $body`` — Var-token body is still an
+        // unbraced body with substitution.  Mirrors Python's
+        // ``_has_substitution(..., tok)`` which treats VAR / CMD
+        // tokens as substitutions for the W105 check, so the
+        // diagnostic fires at ERROR severity.
+        let mut a = Analyser::new();
+        let r = a.analyse("while {$cond} $body\n", "tcl");
+        let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
+        assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
+        assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
+    }
+
+    // -- ``recovery`` chunk: body-walk and nested-cmd improvements
+    //
+    // Verify ``when EVENT { body }`` recurses (registry
+    // ``arg_role_resolver`` now records BODY at the last index)
+    // and that braced expr args (``Str`` tokens) have their
+    // outer braces unwrapped before the nested-``[cmd]`` scan
+    // (otherwise the scanner skips the entire braced region
+    // opaquely).
+
+    #[test]
+    fn analyse_when_body_records_inner_command_invocations() {
+        // ``when HTTP_REQUEST { body }`` — ``call`` and the
+        // target ``myhelper`` should appear in
+        // ``command_invocations`` from the body recursion.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc myhelper {} {}\nwhen HTTP_REQUEST { call myhelper }\n",
+            "f5-irules",
+        );
+        let names: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert!(names.contains(&"call"), "got {names:?}");
+        assert!(names.contains(&"myhelper"), "got {names:?}");
+    }
+
+    #[test]
+    fn analyse_braced_expr_arg_records_inner_substitution() {
+        // ``if { [HTTP::uri] eq "/foo" } { ... }`` — the
+        // ``[HTTP::uri]`` substitution inside the braced expr
+        // arg must surface in ``command_invocations``.  Without
+        // the ``Str`` unwrap, the nested-cmd scanner sees the
+        // outer ``{`` and skips the entire braced region
+        // opaquely.
+        let mut a = Analyser::new();
+        let r = a.analyse("if { [HTTP::uri] eq \"/foo\" } { puts ok }\n", "f5-irules");
+        let names: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert!(names.contains(&"HTTP::uri"), "got {names:?}");
+    }
+
+    #[test]
+    fn analyse_regexp_var_added_to_regex_vars_set() {
+        // Side effect: the var name is recorded in
+        // ``regex_vars`` so downstream consumers (var-as-regex
+        // hint, future W*-codes) can find the defining set.
+        let mut a = Analyser::new();
+        let _ = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
+        // The const-string scope is the global scope (path = []).
+        assert!(a.regex_vars.contains(&(Vec::new(), "p".to_string())));
+    }
+
+    #[test]
+    fn analyse_alias_with_prepended_args_recorded() {
+        // Prepended args after the target are stored on
+        // ``extras``.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp alias {} logerr {} puts stderr\n", "tcl");
+        let alias = r
+            .command_aliases
+            .get("::logerr")
+            .expect("::logerr recorded");
+        assert_eq!(alias.target, "puts");
+        assert_eq!(alias.extras.as_slice(), &["stderr"]);
+    }
+
+    #[test]
+    fn analyse_tcllib_import_wrapper_does_not_fire_on_namespace_import() {
+        // The wrapper detector must not trip on Tcl's own
+        // ``namespace import`` — that's handled by
+        // ``handle_namespace_import_command`` and is never
+        // conjectured.
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace import ::foo::bar\n", "tcl");
+        assert!(r.namespace_imports.iter().all(|i| !i.conjectured));
     }
 }

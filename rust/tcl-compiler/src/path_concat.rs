@@ -400,7 +400,7 @@ mod tests {
     #[test]
     fn literal_path_without_interp_does_not_flag() {
         let ws = warnings_for("set p /etc/hosts");
-        assert!(ws.is_empty(), "literal path should not flag W201: {ws:?}",);
+        assert!(ws.is_empty(), "literal path should not flag W201: {ws:?}");
     }
 
     /// Interpolation without a path separator does not flag W201.
