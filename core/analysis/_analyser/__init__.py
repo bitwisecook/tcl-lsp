@@ -424,20 +424,12 @@ def _merge_rust_with_python_supplement(
         rust.auto_path_entries = python.auto_path_entries
     if not rust.source_targets:
         rust.source_targets = python.source_targets
-    # ``command_aliases``: merge instead of guard.  Rust records
-    # direct ``interp alias`` declarations; Python's pass also
-    # follows multi-step alias chains across namespace boundaries
-    # (``A`` aliases to ``B``, ``B`` aliases to ``C``) and records
-    # the resolved chain endpoints.  Guarding on Rust emptiness
-    # would drop Python-only chained / namespace-sensitive aliases
-    # when Rust emits even one entry, which silently breaks
-    # alias-driven command resolution used by references / rename
-    # / call analysis.  Python wins on collision so the
-    # resolved-chain target survives over Rust's direct-only
-    # record (the ``followups-alias-chains`` chunk closes the
-    # remaining Python-only set).
-    for qname, alias in python.command_aliases.items():
-        rust.command_aliases[qname] = alias
+    # ``command_aliases``: Rust and Python now record the same set
+    # of ``interp alias {} NAME {} TARGET ?ARGS?`` declarations
+    # without transitive chaining (verified by
+    # ``test_alias_chain_not_resolved`` in tests/test_analyser.py
+    # — alias-of-alias is intentionally *not* resolved on either
+    # side).  Retired the merge in the ``alias-chains`` chunk.
     # ``command_invocations``: Rust now records nested ``[cmd]``
     # substitution heads via ``scan_nested_command_heads``, but
     # Python's pass also catches:

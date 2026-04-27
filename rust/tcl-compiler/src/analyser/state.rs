@@ -975,6 +975,80 @@ mod tests {
         assert_eq!(conjectured[0].pattern, "::foo::*");
     }
 
+    // -- ``command_aliases`` parity tests
+    //
+    // Mirror the relevant cases in tests/test_analyser.py
+    // (``test_alias_chain_not_resolved``, ``test_alias_redefinition_overwrites``)
+    // to pin the no-transitive-chain behaviour the
+    // ``alias-chains`` chunk relies on when retiring the
+    // ``rust.command_aliases`` Python supplement merge.
+
+    #[test]
+    fn analyse_alias_chain_records_each_step_independently() {
+        // Mirrors ``test_alias_chain_not_resolved``:
+        // ``a -> b`` and ``b -> expr`` are recorded as two
+        // independent entries — neither side resolves
+        // transitively to ``expr``.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp alias {} a {} b\ninterp alias {} b {} expr\n", "tcl");
+        let alias_a = r.command_aliases.get("::a").expect("::a recorded");
+        assert_eq!(alias_a.target, "b");
+        assert!(alias_a.extras.is_empty());
+        let alias_b = r.command_aliases.get("::b").expect("::b recorded");
+        assert_eq!(alias_b.target, "expr");
+        assert!(alias_b.extras.is_empty());
+    }
+
+    #[test]
+    fn analyse_alias_redefinition_overwrites_target() {
+        // Mirrors ``test_alias_redefinition_overwrites``: the
+        // second declaration wins.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp alias {} myop {} expr\ninterp alias {} myop {} puts\n",
+            "tcl",
+        );
+        let alias = r.command_aliases.get("::myop").expect("::myop recorded");
+        assert_eq!(alias.target, "puts");
+        assert!(alias.extras.is_empty());
+    }
+
+    #[test]
+    fn analyse_alias_qualified_name_recorded() {
+        // ``interp alias {} ::ns::myop {} expr`` records under the
+        // fully-qualified key.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp alias {} ::math::= {} expr\n", "tcl");
+        let alias = r
+            .command_aliases
+            .get("::math::=")
+            .expect("::math::= recorded");
+        assert_eq!(alias.target, "expr");
+    }
+
+    #[test]
+    fn analyse_alias_dynamic_name_not_recorded() {
+        // ``$n`` in the alias name field doesn't resolve statically
+        // — ``::=`` must not appear in ``command_aliases``.
+        let mut a = Analyser::new();
+        let r = a.analyse("set n \"=\"\ninterp alias {} $n {} expr\n", "tcl");
+        assert!(!r.command_aliases.contains_key("::="));
+    }
+
+    #[test]
+    fn analyse_alias_with_prepended_args_recorded() {
+        // Prepended args after the target are stored on
+        // ``extras``.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp alias {} logerr {} puts stderr\n", "tcl");
+        let alias = r
+            .command_aliases
+            .get("::logerr")
+            .expect("::logerr recorded");
+        assert_eq!(alias.target, "puts");
+        assert_eq!(alias.extras.as_slice(), &["stderr"]);
+    }
+
     #[test]
     fn analyse_tcllib_import_wrapper_does_not_fire_on_namespace_import() {
         // The wrapper detector must not trip on Tcl's own
