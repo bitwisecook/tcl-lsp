@@ -74,6 +74,14 @@ ownership matrices.
   table, the `enter` / `leave` swap pair for nested eval, and the
   compiler's conservative proc-index flush on `interp create` /
   `eval` / `delete`.
+- [runtime/memory-management.md](runtime/memory-management.md) —
+  TclObj refcount discipline, `OBJ_STR_CAP` ownership, the
+  deferred-free queue, parse-cache invalidation, and the
+  bump-allocator → libc-malloc routing rationale.
+- [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
+  phased plan for the Zig runtime: allocator hygiene, frame
+  management, string append capacity, tcltest correctness
+  unblockers, and per-phase acceptance gates.
 
 ## Contracts and interfaces
 

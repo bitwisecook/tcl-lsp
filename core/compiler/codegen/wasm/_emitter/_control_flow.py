@@ -130,9 +130,40 @@ class _WasmEmitterCtrlMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
+        # Propagate ``break`` / ``continue`` from interpreter-side
+        # bodies that ran through eval-fallback.  Compiled ``break``
+        # already emits a wasm ``br`` directly, so these consume calls
+        # only fire after a runtime-side flow-control signal (e.g.
+        # ``while 1 { dict update d k v { break } }`` — the dict-
+        # update body's ``break`` flips ``break_flag`` and we need to
+        # see it here to exit the wasm loop).
+        self._emit_flow_consume_after_loop_body(break_label_depth=1)
+
         self._emit_br(0)
         self._emit(WasmOp.END)
         self._emit(WasmOp.END)
+
+    def _emit_flow_consume_after_loop_body(self, *, break_label_depth: int) -> None:
+        """Emit the ``flow_consume_break`` / ``_continue`` probes.
+
+        ``break_label_depth`` is the relative depth of the outer
+        BLOCK that ``break`` should jump to (1 inside ``LOOP{}`` for
+        ``while``; 2 inside ``LOOP{ BLOCK{} }`` for ``foreach``).
+        ``continue`` is satisfied by simply not skipping the
+        loop-restart ``br`` that follows, so we just consume the
+        flag without branching.
+        """
+        bbreak = self._shared_imports.get("tcl_flow_consume_break")
+        bcont = self._shared_imports.get("tcl_flow_consume_continue")
+        if bbreak is not None:
+            self._emit_call(bbreak)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(break_label_depth)
+            self._emit(WasmOp.END)
+        if bcont is not None:
+            # Drain the flag so the next iteration starts clean.
+            self._emit_call(bcont)
+            self._emit(WasmOp.DROP)
 
     def _emit_foreach(
         self,
@@ -412,6 +443,16 @@ class _WasmEmitterCtrlMixin(_Base):
             rv_idx = self._intern_local(result_var)
             self._emit_call(result_idx)
             self._emit_local_set(rv_idx)
+            # At top level, also mirror to the global table so reads
+            # of ``$result_var`` — which under the Phase 4.5 fix go
+            # through ``tcl_global_get`` — return the catch result.
+            # Inside procs, the local mirror is the canonical location.
+            if not self._is_proc and "tcl_global_set" in self._shared_imports:
+                gset_idx = self._shared_imports["tcl_global_set"]
+                self._emit_obj_literal(result_var)
+                self._emit_local_get(rv_idx)
+                self._emit_call(gset_idx)
+                self._emit(WasmOp.DROP)
 
     def _emit_stmt_keep_result(self, stmt: "IRStatement") -> None:
         """Emit a statement leaving its i32 TclObj result on the WASM stack.

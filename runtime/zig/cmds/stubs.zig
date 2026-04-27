@@ -107,8 +107,29 @@ fn eval_clock(words: []const i32) i32 {
     if (std.mem.eql(u8, sp, "seconds")) return clock.clock_seconds();
     if (std.mem.eql(u8, sp, "clicks")) return clock.clock_clicks();
     if (std.mem.eql(u8, sp, "milliseconds")) return clock.clock_milliseconds();
+    if (std.mem.eql(u8, sp, "microseconds")) {
+        // micro = clicks (already microseconds from the fast clock)
+        return clock.clock_clicks();
+    }
     if (std.mem.eql(u8, sp, "scan")) return rt.obj_new_int(0);
-    if (std.mem.eql(u8, sp, "format") or std.mem.eql(u8, sp, "add")) {
+    if (std.mem.eql(u8, sp, "format")) {
+        // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1?
+        if (words.len < 3) return rt.obj_new_string(0, 0);
+        var fmt_obj: i32 = 0;
+        var ai: usize = 3;
+        while (ai + 1 < words.len) : (ai += 2) {
+            const optn = rt.obj_ensure_string(words[ai]);
+            const op: []const u8 = if (optn.ptr == 0) "" else
+                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            if (std.mem.eql(u8, op, "-format")) {
+                fmt_obj = words[ai + 1];
+            }
+            // ``-gmt`` and ``-timezone`` ignored — we always use UTC
+            // (sample 4 in particular doesn't care).
+        }
+        return clock.clock_format(words[2], fmt_obj);
+    }
+    if (std.mem.eql(u8, sp, "add")) {
         // Return the string "0" so callers can parse it as an integer.
         const buf = rt.alloc(1);
         const p: [*]u8 = @ptrFromInt(buf);

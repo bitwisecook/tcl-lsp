@@ -3411,7 +3411,19 @@ set ::result [info commands a*]
 """,
             "::result",
         )
-        assert result.decode("utf-8").split() == ["::alpha"]
+        # ``info commands a*`` in real Tcl returns every command —
+        # user procs AND builtins — whose name matches the glob.  Our
+        # runtime walks the builtin ``cmd_table`` after the namespace
+        # tree, so callers see ``array``, ``append``, ``auto_reset``,
+        # … alongside ``::alpha``.  The user-proc presence is the
+        # property under test; the builtin tail confirms the walker
+        # didn't accidentally exclude one of the two contributors.
+        names = result.decode("utf-8").split()
+        assert "::alpha" in names
+        assert "::beta" not in names
+        for name in names:
+            stripped = name.removeprefix("::")
+            assert stripped.startswith("a"), f"{name!r} does not match glob 'a*'"
 
     def test_info_commands_qualified_pattern(self):
         """``info commands ::ns::*`` — qualified pattern walks the

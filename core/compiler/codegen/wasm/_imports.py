@@ -216,6 +216,14 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_catch_result": ("tcl", "catch_result", [], [ValType.I32]),
     "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
     "tcl_catch_set_ok_result": ("tcl", "catch_set_ok_result", [ValType.I32], []),
+    # Flow-control consumers — read+clear ``break_flag`` /
+    # ``continue_flag`` set by interpreter-side ``break`` / ``continue``
+    # inside an eval-fallback body.  Compiled loops need these to
+    # propagate signals out of fallback regions; without the consume,
+    # ``while 1 { dict update d k v { break } }`` would loop forever
+    # because the wasm-side ``br`` only fires for compiled ``break``.
+    "tcl_flow_consume_break": ("tcl", "flow_consume_break", [], [ValType.I32]),
+    "tcl_flow_consume_continue": ("tcl", "flow_consume_continue", [], [ValType.I32]),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
     # Namespace context for eval-fallback calls — compiled procs set the

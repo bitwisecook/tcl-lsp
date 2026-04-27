@@ -57,6 +57,7 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_unbox_int(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_prepare_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_args_list(self, *a: Any, **kw: Any) -> Any: ...
         def _intern_string(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
@@ -161,13 +162,34 @@ class _WasmEmitterStmtMixin(_Base):
                     # ``{*}`` argument expansion — reconstruct the
                     # original command text with ``{*}`` prefixes in
                     # front of each expanded word so the runtime can
-                    # handle the expansion.  Using argv_texts directly
-                    # without the prefix would miss the expansion.
+                    # handle the expansion.  ``argv_texts`` carries
+                    # the BRACE-STRIPPED contents for ``{a b c}``-
+                    # style words (``_word_piece`` returns
+                    # ``tok.text`` which excludes the outer braces),
+                    # so the reconstruction has to re-wrap any STR-
+                    # type expanded word — without the wrap, a
+                    # multi-line ``{*}{ a b c }`` table flattens to
+                    # ``{*} a b c`` and the parser sees ``{*}`` as a
+                    # literal three-byte word, dispatching the
+                    # callee with ``{*}`` and unexpanded contents.
                     ew = tokens.expand_word
-                    parts = [
-                        (f"{{*}}{t}" if (i < len(ew) and ew[i]) else t)
-                        for i, t in enumerate(tokens.argv_texts)
-                    ]
+                    argv = tokens.argv if tokens.argv is not None else ()
+                    parts = []
+                    for i, t in enumerate(tokens.argv_texts):
+                        expand = i < len(ew) and ew[i]
+                        prefix = "{*}" if expand else ""
+                        # Source-faithful wrap for braced words —
+                        # ``_word_piece`` already wraps VAR / CMD
+                        # tokens in ``${...}`` / ``[...]``, but STR
+                        # tokens (brace-quoted literals) are returned
+                        # bare.  Add the braces back so the
+                        # reconstructed script re-parses to the same
+                        # word shape the user wrote.
+                        from .....parsing.tokens import TokenType
+
+                        if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
+                            t = "{" + t + "}"
+                        parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(command, args, script_override=script)
                     self._emit(WasmOp.DROP)
@@ -233,7 +255,52 @@ class _WasmEmitterStmtMixin(_Base):
                     if hook is None or not hook(self, barrier_args, (), EmitContext.STATEMENT):
                         self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
-                    self._emit_eval_fallback(barrier_cmd, barrier_args)
+                    # ``while`` / ``for`` / ``if`` barriers carry their
+                    # condition / scripts as plain ``args`` strings
+                    # rather than tokens.  The default eval-fallback
+                    # quoting heuristic treats a leading ``[`` as a
+                    # command-substitution word, which gets evaluated
+                    # ONCE by the runtime parser instead of staying as
+                    # the cond expression — turning
+                    # ``while [string length $s] { ... }`` into
+                    # ``while CONST_LEN { ... }`` that loops forever.
+                    # Build a script with the cond/scripts always
+                    # brace-wrapped so the runtime sees the literal
+                    # expression / body.
+                    if barrier_cmd == "while" and len(barrier_args) >= 2:
+                        cond, body = barrier_args[0], barrier_args[1]
+                        script = (
+                            "while "
+                            + (
+                                "{" + cond + "}"
+                                if not (cond.startswith("{") and cond.endswith("}"))
+                                else cond
+                            )
+                            + " "
+                            + (
+                                "{" + body + "}"
+                                if not (body.startswith("{") and body.endswith("}"))
+                                else body
+                            )
+                        )
+                        self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
+                    elif barrier_cmd == "for" and len(barrier_args) >= 4:
+                        init, cond, nxt, body = (
+                            barrier_args[0],
+                            barrier_args[1],
+                            barrier_args[2],
+                            barrier_args[3],
+                        )
+
+                        def _br(s):
+                            return s if (s.startswith("{") and s.endswith("}")) else "{" + s + "}"
+
+                        script = (
+                            "for " + _br(init) + " " + _br(cond) + " " + _br(nxt) + " " + _br(body)
+                        )
+                        self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
+                    else:
+                        self._emit_eval_fallback(barrier_cmd, barrier_args)
                     self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
@@ -412,6 +479,78 @@ class _WasmEmitterStmtMixin(_Base):
                 return qn
         return None
 
+    @staticmethod
+    def _proc_param_name(spec: str) -> str:
+        """Extract the formal name from a ``proc`` param spec.
+
+        ``foo`` → ``foo`` (required).
+        ``{foo bar}`` → ``foo`` (optional with default ``bar``).
+        Used to detect the trailing ``args`` formal so the runtime
+        knows to pack surplus call-site args into a list.
+        """
+        s = spec.strip()
+        if s.startswith("{") and s.endswith("}"):
+            inner = s[1:-1].strip()
+            sp = inner.split(None, 1)
+            return sp[0] if sp else ""
+        return s
+
+    def _is_static_proc_args(self, args: tuple[str, ...]) -> bool:
+        """Return True if ``proc NAME PARAMS BODY`` is fully static.
+
+        Static means none of NAME/PARAMS/BODY contain ``$`` / ``[``
+        substitutions — the dynamic paths are handled earlier by the
+        eval-fallback branch.
+        """
+        if len(args) < 3:
+            return False
+        return all(not a.startswith("$") and not a.startswith("[") for a in args[:3])
+
+    def _emit_re_register_proc(self, name: str, params: str) -> None:
+        """Emit ``tcl_proc_register_compiled`` for a previously-lifted proc.
+
+        Called from the runtime ``proc NAME PARAMS BODY`` site (in
+        addition to the prologue) so a re-define after ``rename
+        NAME {}`` (or any other path that clears the cmd_table)
+        re-installs the bucket.  Without this hook the prologue
+        registration is one-shot: post-rename re-defines silently
+        no-op and a later call traps with ``unknown command``.
+
+        Derives the (n_params, has_args_tail, n_required) shape from
+        the source-level ``params`` text rather than the proc-index,
+        so the hook works at top level (``::top``) where the index is
+        empty — same as ``_compute_n_required``'s logic.
+        """
+        reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
+        if reg_idx is None:
+            return
+        # Parse PARAMS as a Tcl list.  Each element is either a bare
+        # name (required positional) or a ``{name default}`` 2-elem
+        # list (optional with default).  The trailing ``args`` formal
+        # is variadic.
+        from ....codegen._helpers import _split_list_simple
+
+        try:
+            param_list = _split_list_simple(params)
+        except Exception:
+            param_list = []
+        n_params = len(param_list)
+        has_args_tail = bool(param_list and self._proc_param_name(param_list[-1]) == "args")
+        n_required = n_params - (1 if has_args_tail else 0)
+        for p in param_list[: n_params - (1 if has_args_tail else 0)]:
+            # ``{name default}`` form — has whitespace and balanced
+            # braces.  ``_split_list_simple`` returns the raw element
+            # so we re-split it.
+            if " " in p.strip() or p.strip().startswith("{"):
+                n_required -= 1
+        self._emit_obj_literal(name if name.startswith("::") else f"::{name}")
+        self._emit_i32_const(n_params)
+        self._emit_i32_const(1)  # func_idx marker
+        self._emit_i32_const(1 if has_args_tail else 0)
+        self._emit_i32_const(n_required)
+        self._emit_call(reg_idx)
+        self._emit(WasmOp.DROP)
+
     def _resolve_proc_qname(self, command: str) -> str | None:
         """Resolve ``command`` to the qualified proc name if it matches."""
         if command.startswith("::"):
@@ -520,7 +659,27 @@ class _WasmEmitterStmtMixin(_Base):
         # the eval fallback so the interpreter's ``proc`` handler
         # registers under the current namespace.
         if command_emits_nothing(command):
-            if command == "proc" and args and (args[0].startswith("$") or args[0].startswith("[")):
+            if (
+                command == "proc"
+                and args
+                and (
+                    # Dynamic name (``proc $varName body``)
+                    args[0].startswith("$")
+                    or args[0].startswith("[")
+                    # OR dynamic body (``proc inner {} $body``).  Without
+                    # this branch the prologue would register ``inner``
+                    # with the literal ``${body}`` source text as the body
+                    # — when invoked, eval_script then parses ``${body}``
+                    # → one word → ``unknown command: return 7`` (or
+                    # whatever ``$body`` substitutes to at the moment of
+                    # the proc call).  Routing through the eval-fallback
+                    # makes the interpreter perform the substitution
+                    # before storing.
+                    or (len(args) >= 3 and (args[2].startswith("$") or args[2].startswith("[")))
+                    # OR dynamic params (rare but possible: ``proc f $params body``)
+                    or (len(args) >= 2 and (args[1].startswith("$") or args[1].startswith("[")))
+                )
+            ):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
@@ -532,7 +691,7 @@ class _WasmEmitterStmtMixin(_Base):
                 # Bridge drops the result since we're in statement context.
                 # If imports are missing the bridge returns False and we
                 # silently skip (statement context has no stack commitments).
-                self._emit_namespace_eval_bridge(args[2:], drop_result=True)
+                self._emit_namespace_eval_bridge(args[2:], drop_result=True, ns_name=args[1])
                 return
             # ``namespace import`` / ``namespace export`` / ``namespace
             # forget`` — record the side effect at runtime so the
@@ -553,6 +712,48 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
+            # Static ``proc NAME PARAMS BODY`` at runtime: re-emit
+            # ``tcl_proc_register_compiled`` so a previously-renamed
+            # away or unset proc gets re-registered.  Without this,
+            # the prologue-only registration is one-shot — after
+            # ``rename foo {}`` clears the cmd_table, a later
+            # ``proc foo {} {body}`` becomes a no-op and the proc
+            # stays absent.  (dict.test 23.X+ uses
+            # define→rename-delete→re-define→rename-delete on
+            # ``linenumber``.)
+            if command == "proc" and self._is_static_proc_args(args):
+                # First static def with this name at top level: re-emit
+                # ``proc_register_compiled`` so a previous
+                # ``rename NAME {}`` followed by ``proc NAME`` re-
+                # installs the bucket (the prologue's one-shot
+                # registration won't fire twice).
+                #
+                # Second-or-later static def with the same name:
+                # the lifter only kept the FIRST def's body in
+                # ``ir_module.procedures``, so the compile-time
+                # direct-call resolution path would always invoke
+                # the stale body.  Route through eval-fallback (the
+                # interpreter's ``proc`` registers a fresh
+                # interpreted body and clears ``func_idx``), and
+                # remove the entry from ``_proc_index`` so any
+                # SUBSEQUENT compile-time call-site resolution
+                # misses and falls through to the bucket dispatch
+                # — which then reads the new body.
+                qname = args[0] if args[0].startswith("::") else f"::{args[0]}"
+                seen = getattr(self, "_seen_top_level_procs", None)
+                if seen is None:
+                    seen = set()
+                    self._seen_top_level_procs = seen
+                if qname in seen:
+                    self._emit_eval_fallback(command, args)
+                    self._emit(WasmOp.DROP)
+                    # Drop both the qualified and bare entries so
+                    # ``_resolve_proc`` (which probes both) misses.
+                    self._proc_index.pop(qname, None)
+                    self._proc_index.pop(args[0], None)
+                else:
+                    seen.add(qname)
+                    self._emit_re_register_proc(args[0], args[1])
             return
 
         # break/continue — emit WASM br to exit/restart the enclosing loop.
@@ -596,8 +797,23 @@ class _WasmEmitterStmtMixin(_Base):
         # hooks, but the hook is still on an earlier spec.
         hook = _REGISTRY.get_wasm_hook(command)
         if hook is not None:
-            if hook(self, args, defs, EmitContext.STATEMENT):
-                return
+            # Stash the current call's tokens on self so a hook that
+            # routes to ``_emit_eval_fallback`` can recover the
+            # original brace / substitution information without us
+            # having to widen the public ``CodegenHook`` signature.
+            # Critical for regex / regsub patterns: a braced word
+            # ``{[abc]+}`` lowers to IR value ``[abc]+`` which the
+            # fallback's ``a.startswith("[")`` heuristic would
+            # otherwise mistake for a Tcl ``[cmd]`` substitution and
+            # pass through unquoted — making the interpreter try to
+            # execute ``abc`` as a command.
+            prev_tokens = getattr(self, "_current_call_tokens", None)
+            self._current_call_tokens = tokens
+            try:
+                if hook(self, args, defs, EmitContext.STATEMENT):
+                    return
+            finally:
+                self._current_call_tokens = prev_tokens
 
         # Unknown command — fall back to interpreter.
         # Pre-intern defs so _emit_frame_readback (inside the fallback)
@@ -710,6 +926,17 @@ class _WasmEmitterStmtMixin(_Base):
             if script_override is not None:
                 script = script_override
             else:
+                # Hook-driven callers (regsub / regexp / apply / …)
+                # don't get a *tokens* parameter through the
+                # ``CodegenHook`` signature — pull them from the
+                # ``_current_call_tokens`` stash that
+                # ``_emit_call_stmt`` set up before invoking the hook.
+                # Without this, a braced regex pattern lowered to
+                # IR ``[abc]+`` would be reassembled unquoted and
+                # the interpreter would try to execute ``abc``.
+                if tokens is None:
+                    tokens = getattr(self, "_current_call_tokens", None)
+
                 # Build command string: "command arg1 arg2 ..."
                 # For literal args, concatenate them. For $var refs,
                 # include the dollar sign so the interpreter can resolve them.
@@ -869,7 +1096,7 @@ class _WasmEmitterStmtMixin(_Base):
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
             if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
-                if self._emit_namespace_eval_bridge(args[2:], drop_result=False):
+                if self._emit_namespace_eval_bridge(args[2:], drop_result=False, ns_name=args[1]):
                     return
                 # Runtime imports missing — push null TclObj as fallback.
                 self._emit_i32_const(0)
@@ -888,15 +1115,33 @@ class _WasmEmitterStmtMixin(_Base):
         proc_info = self._resolve_proc(command)
         if proc_info is not None:
             func_idx, n_params = proc_info
+            qname = self._resolve_proc_qname(command)
+            has_args_tail = qname is not None and qname in self._proc_args_tail
             # Stash the invoked word for the callee's
             # ``info level 0`` argv0 — see
             # :meth:`_emit_prepare_pending_argv0`.
             argv0_local = self._emit_prepare_pending_argv0(command)
-            # Push exactly n_params args (truncate surplus, pad missing)
-            for i in range(min(n_params, len(args))):
-                self._emit_value(args[i])
-            for _ in range(n_params - len(args)):
-                self._emit_i32_const(0)
+            if has_args_tail and n_params > 0:
+                # Variadic proc — pack call-site args past the fixed
+                # positionals into a single list TclObj for the
+                # trailing ``args`` slot.  Without this branch, a
+                # tail-position call to ``proc f {x args}`` from
+                # inside another proc body silently truncates to
+                # ``f a`` (dropping ``b c d``) — same fix-shape as
+                # ``_emit_cmd_proc_call`` (statement context) and
+                # ``_emit_command_subst_value`` (value context).
+                fixed = n_params - 1
+                for i in range(min(fixed, len(args))):
+                    self._emit_value(args[i])
+                for _slot in range(len(args), fixed):
+                    self._emit_i32_const(0)
+                self._emit_args_list(tuple(args[fixed:]))
+            else:
+                # Push exactly n_params args (truncate surplus, pad missing)
+                for i in range(min(n_params, len(args))):
+                    self._emit_value(args[i])
+                for _ in range(n_params - len(args)):
+                    self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
             self._emit_call(func_idx)
             # i32 result stays on the stack

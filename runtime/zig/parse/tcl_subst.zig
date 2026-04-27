@@ -46,11 +46,35 @@ pub fn subst_flagged(
     if (!has_dollar and !has_bracket and (!do_bs or !has_backslash)) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
-    const pieces_buf = alloc(wlen * 8);
+    const pieces_cap: u32 = wlen * 8;
+    const pieces_buf = alloc(pieces_cap);
+    if (pieces_buf == 0) {
+        // OOM on the per-piece scratch.  Without it the rest of
+        // this function would write through address 0 — surface as
+        // a benign empty TclObj instead and let the caller see the
+        // raw bytes via a future retry.
+        return obj_new_string(0, 0);
+    }
     var n_pieces: u32 = 0;
     var total_out: u32 = 0;
     var lit_start: u32 = 0;
     var lit_run: u32 = 0;
+
+    // MM-B.6: retain every TclObj whose bytes we push into the
+    // pieces buffer.  push_piece records (ptr, len) borrowed from
+    // the source obj; if the source gets released between
+    // push_piece and the final concat, the borrowed bytes go
+    // stale.  The retained_objs scratch holds those refs until
+    // we're done concatenating, then releases them.  Bound is
+    // wlen $-substs / [bracket] subs, so wlen u32s of scratch
+    // is the worst case.  Both buffers are freed before return.
+    const retained_cap: u32 = wlen * 4;
+    const retained_objs = alloc(retained_cap);
+    if (retained_objs == 0) {
+        obj_mod.free_sized(pieces_buf, pieces_cap);
+        return obj_new_string(0, 0);
+    }
+    var n_retained: u32 = 0;
     const flush_lit = struct {
         fn go(pb: u32, np: *u32, to: *u32, start: u32, run: *u32, base: u32) void {
             if (run.* == 0) return;
@@ -89,6 +113,9 @@ pub fn subst_flagged(
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                    obj_mod.tcl_obj_retain(val);
+                    write_i32(retained_objs + n_retained * 4, val);
+                    n_retained += 1;
                 }
             } else {
                 while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
@@ -102,6 +129,9 @@ pub fn subst_flagged(
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                    obj_mod.tcl_obj_retain(val);
+                    write_i32(retained_objs + n_retained * 4, val);
+                    n_retained += 1;
                 }
             }
             lit_start = i;
@@ -120,6 +150,9 @@ pub fn subst_flagged(
             if (result != 0) {
                 const sv = obj_ensure_string(result);
                 push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                obj_mod.tcl_obj_retain(result);
+                write_i32(retained_objs + n_retained * 4, result);
+                n_retained += 1;
             }
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
@@ -136,7 +169,22 @@ pub fn subst_flagged(
     }
     flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
 
-    const buf = alloc(total_out + 1);
+    const out_cap: u32 = total_out + 1;
+    const buf = alloc(out_cap);
+    if (buf == 0) {
+        // Final concat buffer OOM.  Release any sources we've
+        // retained so we don't compound an OOM with a refcount
+        // leak, free the scratch buffers, then surface as an empty
+        // TclObj.
+        var rj: u32 = 0;
+        while (rj < n_retained) : (rj += 1) {
+            const r = read_i32(retained_objs + rj * 4);
+            if (r != 0) obj_mod.tcl_obj_release(r);
+        }
+        obj_mod.free_sized(retained_objs, retained_cap);
+        obj_mod.free_sized(pieces_buf, pieces_cap);
+        return obj_new_string(0, 0);
+    }
     var out: u32 = 0;
     var pi: u32 = 0;
     while (pi < n_pieces) : (pi += 1) {
@@ -148,5 +196,26 @@ pub fn subst_flagged(
             out += l;
         }
     }
+    // MM-B.6: now that the bytes are copied, release the retained
+    // sources and free the per-call scratch buffers.  Without this
+    // free, every ``subst_flagged`` call would leak ``wlen * 12``
+    // bytes (pieces_buf + retained_objs).
+    var ri: u32 = 0;
+    while (ri < n_retained) : (ri += 1) {
+        const r = read_i32(retained_objs + ri * 4);
+        if (r != 0) obj_mod.tcl_obj_release(r);
+    }
+    obj_mod.free_sized(retained_objs, retained_cap);
+    obj_mod.free_sized(pieces_buf, pieces_cap);
+    // NOTE: deliberately NOT claiming ownership of ``buf`` via
+    // OBJ_STR_CAP.  Callers (e.g. ``array set arr [subst …]``)
+    // borrow ``(ptr, len)`` slices out of the returned TclObj's
+    // bytes and stash them elsewhere without retaining the source.
+    // Setting OBJ_STR_CAP would make a later release of the source
+    // free the buffer mid-flight and expose those borrowers to a
+    // use-after-free.  Until the array/list set helpers either
+    // retain the source or copy bytes, subst_flagged keeps the
+    // bytes alive (treated as a literal buffer) — same contract
+    // the implementation had before this OOM-hardening pass.
     return obj_new_string(@intCast(buf), @intCast(out));
 }

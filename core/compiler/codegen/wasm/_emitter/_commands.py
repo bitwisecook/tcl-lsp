@@ -137,10 +137,16 @@ class _WasmEmitterCmdMixin(_Base):
 
         param_count = len(rimp.params)
 
-        for i in range(min(param_count, len(args))):
-            self._emit_value(args[i])
-        for _ in range(param_count - len(args)):
-            self._emit_i32_const(0)
+        if command == "apply":
+            # ``apply LAMBDA ?arg ...?`` — pack tail args into a Tcl
+            # list (see ``cmds/apply_.py`` for the rationale).
+            self._emit_value(args[0] if args else "")
+            self._emit_args_list(tuple(args[1:]))
+        else:
+            for i in range(min(param_count, len(args))):
+                self._emit_value(args[i])
+            for _ in range(param_count - len(args)):
+                self._emit_i32_const(0)
 
         self._emit_call(func_idx)
         self._runtime_call_end(rimp, defs, context)

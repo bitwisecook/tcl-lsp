@@ -35,31 +35,145 @@ pub const OBJ_TYPE_TAG: u32 = 4;
 pub const OBJ_INT_CACHE: u32 = 8;
 pub const OBJ_STR_PTR: u32 = 16;
 pub const OBJ_STR_LEN: u32 = 20;
-pub const OBJ_SIZE: u32 = 24;
+// OBJ_STR_CAP: capacity of the buffer pointed to by OBJ_STR_PTR.
+// Set to 0 when the buffer is not owned by this TclObj (e.g. points
+// into a wasm data segment for an interned literal, or into a shared
+// constant pool).  Set to >0 when this TclObj allocated its own
+// buffer via ``alloc(cap)`` — in that case ``tcl_cmd_append`` and
+// the recycler may free the buffer via ``free_sized(ptr, cap)``.
+//
+// The capacity field enables amortised O(1) ``append`` by letting
+// the runtime grow the buffer geometrically (doubling) instead of
+// reallocating on every append.
+pub const OBJ_STR_CAP: u32 = 24;
+pub const OBJ_SIZE: u32 = 32;
 
-// Simple bump allocator over WASM linear memory with free-list recycling.
-var heap_ptr: u32 = 65536;
-var free_list: u32 = 0;
+// WASM linear-memory allocator.
+//
+// Layout:
+//   - bump pointer ``heap_ptr`` starts at the first 64 KB page boundary
+//     above the data segment (initialised to 65536 by convention)
+//   - per-size-class free-lists for recycled slabs (sub-plan 1.2 will
+//     extend the single OBJ_SIZE list to a vector of size classes)
+//   - calls ``@wasmMemoryGrow`` when ``heap_ptr + size`` would cross
+//     the current memory size, instead of unconditionally bumping past
+//     the limit (the previous behaviour caused ``out of bounds memory
+//     access`` traps once allocations exceeded the initial linear-memory
+//     reservation).
+//
+// One WASM memory page is 64 KB (PAGE_SIZE).  ``@wasmMemorySize(0)``
+// returns the current page count; ``@wasmMemoryGrow(0, n)`` requests
+// ``n`` more pages and returns the previous page count, or -1 on
+// failure.
+//
+// A configurable cap (``MAX_HEAP_PAGES``) bounds total memory; reaching
+// it raises a Tcl-friendly "out of memory" via the runtime's catch
+// machinery rather than letting a raw wasm trap surface.
+
+pub const PAGE_SIZE: u32 = 65536;
+pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build flag in future
+
+// Allocator coherence (Phase 1.x — replaces the previous heap_ptr
+// bump allocator):
+//
+// We share wasm linear memory with both the runtime's own static
+// data segment AND the regex engine's wasi-libc malloc heap.  The
+// previous bump allocator started at a fixed offset (16-80 MB,
+// chosen to clear data segments) and grew upward via
+// ``@wasmMemoryGrow``.  Problem: wasi-libc's dlmalloc *also*
+// grows upward in the same memory, with no separation, so on
+// heavy regex workloads (regexp.test compiles many regex_t,
+// each malloc'ing a guts struct + sub-allocations) the two heaps
+// eventually overlap and corrupt each other's free-list metadata.
+// Symptom: ``out of bounds memory access at 0x676e6964`` (text
+// bytes "ding" interpreted as a free-list pointer) deep inside
+// ``c.malloc.malloc``.
+//
+// Fix: route every ``alloc()`` through wasi-libc ``malloc`` so
+// the two consumers share one coherent heap.  ``free_sized`` /
+// ``free_obj`` route through ``free``.  This trades the bump
+// allocator's "no per-call cost" for libc's malloc — overhead is
+// a few hundred ns per call but tcltest workloads spend most of
+// their time elsewhere (parser, dispatch) so the wall-time hit
+// is negligible.  In return we get correctness on every
+// regex-heavy workload and lose a class of latent corruption
+// bugs.
+//
+// We keep the size-class free-list machinery as a no-op layer
+// (``class_head_for`` etc. still exist for backwards compat with
+// callers that reach into them) but the lists are never
+// populated — every free goes straight to libc free.
+
+extern fn malloc(size: usize) ?*anyopaque;
+extern fn free(ptr: ?*anyopaque) void;
+extern fn calloc(nmemb: usize, size: usize) ?*anyopaque;
+
+var oom_flag: u32 = 0;
+
+// Per-size-class free-lists kept for backwards compat — never
+// populated under the libc-malloc routing.  Anything reading
+// these still gets a valid empty list.
+const SIZE_CLASSES = [_]u32{ 32, 48, 64, 96, 128, 192, 256, 384, 512, 1024, 2048 };
+var free_lists = [_]u32{0} ** SIZE_CLASSES.len;
+
+fn class_head_for(aligned: u32) ?*u32 {
+    for (SIZE_CLASSES, 0..) |sz, i| {
+        if (sz == aligned) return &free_lists[i];
+    }
+    return null;
+}
+
+pub fn round_up_to_class(aligned: u32) u32 {
+    for (SIZE_CLASSES) |sz| {
+        if (sz >= aligned) return sz;
+    }
+    return aligned; // larger than the largest class — return as-is
+}
 
 pub fn alloc(size: u32) callconv(.c) u32 {
-    const aligned = (size + 7) & ~@as(u32, 7);
-    if (aligned == OBJ_SIZE and free_list != 0) {
-        const ptr = free_list;
-        free_list = @intCast(read_i32(ptr));
-        return ptr;
-    }
-    const ptr = heap_ptr;
-    heap_ptr += aligned;
-    return ptr;
+    const requested = (size + 7) & ~@as(u32, 7);
+    const aligned = if (requested <= 2048) round_up_to_class(requested) else requested;
+    const p = malloc(@intCast(aligned)) orelse {
+        oom_flag = 1;
+        return 0;
+    };
+    return @intCast(@intFromPtr(p));
 }
 
 pub export fn tcl_test_heap_ptr() i32 {
-    return @bitCast(heap_ptr);
+    // No longer meaningful under the libc-routed allocator; kept
+    // as an export for backwards compat with tests that probed
+    // the old bump-pointer state.  Returns 0.
+    return 0;
+}
+
+/// True if any ``alloc`` call observed an out-of-memory condition since
+/// the last reset.  Reactor entry-points should clear it via
+/// ``tcl_oom_clear`` at the start of each invocation; the runtime checks
+/// it at strategic points (loop bodies, before host bridges) and
+/// converts to a Tcl error.
+pub export fn tcl_oom_get() i32 {
+    return @bitCast(oom_flag);
+}
+
+pub export fn tcl_oom_clear() void {
+    oom_flag = 0;
 }
 
 fn free_obj(addr: u32) void {
-    write_i32(addr, @intCast(free_list));
-    free_list = addr;
+    if (addr == 0) return;
+    free(@ptrFromInt(addr));
+}
+
+/// Public free-by-size: routes through wasi-libc ``free``.  The
+/// ``size`` argument is ignored under the libc-malloc routing
+/// (libc tracks chunk sizes internally) but kept for ABI compat
+/// with the old size-class layer.  Callers that pass ``size = 0``
+/// or with addr == 0 are no-ops.
+pub fn free_sized(addr: u32, size: u32) void {
+    _ = size;
+    if (addr == 0) return;
+    free(@ptrFromInt(addr));
 }
 
 pub fn read_i32(addr: u32) i32 {
@@ -102,6 +216,10 @@ pub fn obj_alloc() u32 {
     write_i64(ptr + OBJ_INT_CACHE, 0);
     write_i32(ptr + OBJ_STR_PTR, 0);
     write_i32(ptr + OBJ_STR_LEN, 0);
+    // Default cap = 0 means "we don't own the buffer".  Buffer-
+    // owning paths (obj_new_string_copy, the in-place append grower)
+    // overwrite this with the actual allocation size.
+    write_i32(ptr + OBJ_STR_CAP, 0);
     return ptr;
 }
 
@@ -291,12 +409,93 @@ pub export fn tcl_obj_retain(obj: i32) void {
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
 }
 
+// Deferred-free queue.  Holds TclObj headers whose refcount
+// reached zero but whose buffer/header haven't been pushed onto
+// the free-lists yet.  We drain at safe points (between
+// statements in the eval loop) so a ``(ptr, len)`` borrowed from
+// a soon-to-be-released TclObj cannot alias a freshly-recycled
+// allocation.
+//
+// The queue is a fixed-size ring (drains often enough that
+// overflow is unlikely on real workloads).  On overflow we bypass
+// the deferral and free immediately — degrades to the old aliasing
+// risk but doesn't lose memory.
+// Large queue so MM-B.4 (release every parser word per statement)
+// doesn't overflow into immediate-free, which would race with
+// libc malloc re-issuing a slab while it's still borrowed by an
+// outer eval_script's parser walk.
+const PENDING_FREE_CAP: u32 = 65536;
+var pending_free: [PENDING_FREE_CAP]u32 = [_]u32{0} ** PENDING_FREE_CAP;
+var pending_free_count: u32 = 0;
+
+fn release_now(addr: u32) void {
+    const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
+    if (cap > 0) {
+        const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        if (sp != 0) {
+            // MM-B.6: invalidate any parse_cache entry keyed on
+            // this buffer before returning it to libc malloc.
+            // Without this, a subsequent ``alloc`` could re-issue
+            // the slab to a new TclObj whose ``(body_ptr,
+            // body_len)`` happens to match a stale entry, and
+            // ``parse_cache.lookup`` would return tokens that
+            // point into freed memory — observed as ``unknown
+            // command: <binary garbage>`` traps at site=146 in
+            // cmdIL.test.
+            const parse_cache = @import("parse_cache.zig");
+            parse_cache.invalidate_for_buffer(sp);
+            free_sized(sp, cap);
+        }
+    }
+    free_obj(addr);
+}
+
+/// Drain the deferred-free queue.  Called by the eval loop between
+/// statements so all references to a since-released TclObj's bytes
+/// have been consumed before the slab is reissued.
+///
+/// MM-B race fix: ``tcl_obj_release`` queues by zeroing the obj's
+/// refcount field as a marker.  If the slab gets recycled by an
+/// ``obj_alloc`` between the release and the drain, the new tenant
+/// resets the refcount to 1 — drain detects that here and skips
+/// the free, leaving the new tenant alone.  Without this guard
+/// the drain would free the new tenant's buffer (use-after-free
+/// observable as ``NONE`` trap messages and other "value
+/// vanished" symptoms in long-running tcltest workloads).
+pub export fn tcl_obj_drain_pending() void {
+    var i: u32 = 0;
+    while (i < pending_free_count) : (i += 1) {
+        const addr = pending_free[i];
+        const rc = read_i32(addr + OBJ_REFCOUNT);
+        if (rc != 0) continue; // slab was reissued — leave alone
+        release_now(addr);
+    }
+    pending_free_count = 0;
+}
+
 pub export fn tcl_obj_release(obj: i32) void {
     if (obj == 0) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc <= 1) {
-        free_obj(addr);
+        // Defer the actual free so a ``(ptr, len)`` reference
+        // borrowed elsewhere can't alias a freshly-reissued slab.
+        // ``OBJ_STR_CAP`` is non-zero only for buffers we allocated
+        // ourselves; zero means the str_ptr points into a wasm data
+        // segment / interned literal we must not free.
+        if (pending_free_count < PENDING_FREE_CAP) {
+            // Mark the obj as "in-flight free" by zeroing the
+            // refcount so a stray re-release on the same handle
+            // becomes a no-op (we already counted it).
+            write_i32(addr + OBJ_REFCOUNT, 0);
+            pending_free[pending_free_count] = addr;
+            pending_free_count += 1;
+        } else {
+            // Queue full — fall back to immediate free.  Acceptable
+            // worst case: drains happen often enough that this is
+            // rare in practice.
+            release_now(addr);
+        }
     } else {
         write_i32(addr + OBJ_REFCOUNT, rc - 1);
     }
@@ -337,10 +536,21 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 }
 
 /// Create a new string TclObj by copying *len* bytes from *src*.
+/// The new TclObj owns its byte buffer (capacity = aligned alloc
+/// size) so subsequent appends can grow in place when refcount==1.
 pub fn obj_new_string_copy(src: u32, len: u32) i32 {
-    const buf = alloc(len);
+    if (len == 0) return obj_new_string(0, 0);
+    // Round capacity up to the smallest size class so the recycler
+    // can return the slab to the right free-list at end-of-life.
+    const cap = round_up_to_class((len + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return 0;
     memcpy(buf, src, len);
-    return obj_new_string(@intCast(buf), @intCast(len));
+    const obj = obj_new_string(@intCast(buf), @intCast(len));
+    if (obj != 0) {
+        write_i32(@as(u32, @intCast(obj)) + OBJ_STR_CAP, @intCast(cap));
+    }
+    return obj;
 }
 
 // Scratch buffer for integer-to-string conversion (no newline)

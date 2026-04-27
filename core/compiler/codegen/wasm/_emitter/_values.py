@@ -25,6 +25,53 @@ from .._ir import (
 from ._ops import _is_end_relative_index
 
 
+def _contains_expand_prefix(text: str) -> bool:
+    """True when *text* contains a Tcl ``{*}`` argument-expansion prefix.
+
+    The Tcl 8.5+ syntax requires ``{*}`` to sit at a word boundary
+    (the byte before is whitespace, ``;``, or the start of the script)
+    and the byte after must be non-whitespace — that's what tells the
+    parser ``{*}`` is the magic prefix and not a literal three-char
+    brace word.  Mirrors the lexer's check in
+    :meth:`core.parsing.lexer.TclLexer._parse_string`.
+    """
+    n = len(text)
+    i = 0
+    while True:
+        idx = text.find("{*}", i)
+        if idx < 0:
+            return False
+        # Boundary check on the LEFT — start of script, or after
+        # whitespace / ``;``.
+        if idx > 0 and text[idx - 1] not in " \t\n\r\x0b\x0c;":
+            i = idx + 1
+            continue
+        # Boundary check on the RIGHT — the next char must exist
+        # (so the word can be expanded) and be non-whitespace.
+        right = idx + 3
+        if right < n and text[right] not in " \t\n\r\x0b\x0c;":
+            return True
+        i = idx + 1
+        if i >= n:
+            return False
+
+
+def _looks_like_string_option(arg: str) -> bool:
+    """Detect a leading ``-flag`` argument on a ``string`` sub-command.
+
+    Used to bypass the fixed-param-count fast path for forms like
+    ``string map -nocase``, ``string match -nocase``, and
+    ``string compare -nocase`` which would otherwise pass ``-nocase``
+    as the first positional argument and silently corrupt the result.
+    """
+    if not arg or len(arg) < 2 or arg[0] != "-":
+        return False
+    if arg in ("-", "--"):
+        return False
+    second = arg[1]
+    return not (second.isdigit() or second == ".")
+
+
 class _WasmEmitterValuesMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterVarMixin
@@ -296,6 +343,19 @@ class _WasmEmitterValuesMixin(_Base):
         Falls back to a null TclObj for unknown commands.
         """
         cmd_text = text[1:-1].strip()
+        # ``{*}`` argument expansion — compile-time splitting can't
+        # cope with run-time list shape (``{*}$args`` length /
+        # contents only known at run time) and naive splitting
+        # mistakes ``{*}`` for a brace-quoted literal token,
+        # dispatching the callee with ``{*}`` and the unexpanded
+        # word as two separate args.  Route every expansion-bearing
+        # form through the eval-fallback so the runtime parser
+        # handles ``{*}WORD`` uniformly: literal lists split into
+        # elements, ``$var`` / ``[cmd]`` produce list values the
+        # dispatcher expands at run time.
+        if _contains_expand_prefix(cmd_text):
+            self._emit_eval_fallback("", (), script_override=cmd_text)
+            return
         if not cmd_text:
             self._emit_i32_const(0)
             return
@@ -523,9 +583,23 @@ class _WasmEmitterValuesMixin(_Base):
                 return
             sri = subcommand_runtime_import_for("string", subcmd)
             if sri is not None and sri.import_key in self._shared_imports:
+                sub_args = cmd_args[1:]
+                # ``string map -nocase ...`` / ``string match -nocase ...``
+                # / ``string compare -nocase ...`` — the fixed-param
+                # runtime import would silently take ``-nocase`` as the
+                # first positional argument and corrupt the result.
+                # Fall through to eval so the runtime dispatcher
+                # parses the option correctly.  Use ``script_override``
+                # with the raw bracket body so braced args like
+                # ``{HELLO WORLD}`` keep their original quoting (the
+                # default eval-fallback path re-list-quotes them which
+                # would double-brace and the runtime would treat them
+                # as single-element lists).
+                if sub_args and _looks_like_string_option(sub_args[0]):
+                    self._emit_eval_fallback("string", cmd_args, script_override=cmd_text)
+                    return
                 func_idx = self._shared_imports[sri.import_key]
                 param_count = len(sri.params)
-                sub_args = cmd_args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     self._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
@@ -583,6 +657,43 @@ class _WasmEmitterValuesMixin(_Base):
                     for a in cmd_args[1:]:
                         self._emit_value(a)
                         self._emit_call(concat_idx)
+                return
+
+        # ``regexp`` / ``regsub`` with options or capture vars — the
+        # 2-arg runtime fast path can't represent them, so fall through
+        # to the eval path which dispatches to ``eval_regexp_cmd`` /
+        # the regsub interpreter handler with full Tcl 9 option +
+        # capture semantics.  Bare ``regexp PAT STR`` keeps the inline
+        # fast path.  See cmds/regexp_.py for the matching statement-
+        # context hook + the known compiled-top-level capture-var
+        # readback caveat.
+        if cmd_name in ("regexp", "regsub") and cmd_args:
+            n_pos = 0
+            uses_options = False
+            for a in cmd_args:
+                if a.startswith("-") and len(a) > 1:
+                    uses_options = True
+                    break
+                n_pos += 1
+            min_positional = 2 if cmd_name == "regexp" else 3
+            if uses_options or n_pos > min_positional:
+                # Pre-intern capture-var names so the proc's frame
+                # readback after eval-fallback reloads them into
+                # the wasm-local cache.  Without this, ``regexp
+                # PAT STR a b c`` inside a compiled proc body
+                # leaves ``$a`` / ``$b`` / ``$c`` reading stale
+                # (empty) wasm-locals — see cmds/regexp_.py.
+                from .cmds.regexp_ import _capture_vars_for as _cap_vars
+
+                for vname in _cap_vars(cmd_name, tuple(cmd_args)):
+                    self._intern_local(vname)
+                # Use ``script_override`` with the original source text
+                # so braced patterns like ``{a+}`` survive verbatim
+                # rather than being re-list-quoted to ``{{a+}}`` (which
+                # the runtime parser would unwrap once back to the
+                # literal ``{a+}`` and pass to the regex engine —
+                # matching nothing).
+                self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                 return
 
         # Runtime command in value context (llength, lindex, etc.)
@@ -651,6 +762,28 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_value(cmd_args[-1])
                     for _ in range(param_count - 1):
                         self._emit_i32_const(0)
+                elif cmd_name == "apply":
+                    # ``apply lambda ?arg ...?`` — the runtime export's
+                    # second param is a Tcl *list* of every positional
+                    # arg (it list-parses to recover individual words).
+                    # The default ``param_count=2`` fast path passes the
+                    # raw arg verbatim, which mis-fires when the arg
+                    # contains whitespace (``apply LAM {a 1 c 2}`` →
+                    # the lambda's first param sees only ``a``).  Pack
+                    # the args into a single list TclObj.
+                    #
+                    # ``_split_command_subst`` keeps outer ``{…}`` on
+                    # braced words; strip them before re-list-quoting
+                    # so we don't double-brace.
+                    def _strip_braces(s: str) -> str:
+                        return (
+                            s[1:-1]
+                            if (len(s) >= 2 and s.startswith("{") and s.endswith("}"))
+                            else s
+                        )
+
+                    self._emit_value(cmd_args[0] if cmd_args else "")
+                    self._emit_args_list(tuple(_strip_braces(a) for a in cmd_args[1:]))
                 else:
                     for i in range(min(param_count, len(cmd_args))):
                         self._emit_value(cmd_args[i])
@@ -673,7 +806,9 @@ class _WasmEmitterValuesMixin(_Base):
         # them with spaces at runtime, then pass the assembled script to
         # ``tcl_eval``.
         if cmd_name == "namespace" and cmd_args and cmd_args[0] == "eval" and len(cmd_args) > 2:
-            if self._emit_namespace_eval_bridge(cmd_args[2:], drop_result=False):
+            if self._emit_namespace_eval_bridge(
+                cmd_args[2:], drop_result=False, ns_name=cmd_args[1]
+            ):
                 return
             # Required runtime imports missing — fall through to the
             # generic eval fallback below so we still produce something.
@@ -707,15 +842,22 @@ class _WasmEmitterValuesMixin(_Base):
 
         try:
             int_val = int(value)
-            self._emit_i64_const(int_val)
-            self._emit_call(new_int_idx)
+            # Tcl 9 BigInt literal — fall through to the string path
+            # so the runtime preserves the source bytes.  ``i64.const``
+            # would saturate (or be rejected by wasmtime entirely) and
+            # silently lose precision on every BigInt arithmetic step.
+            if -(1 << 63) <= int_val <= (1 << 63) - 1:
+                self._emit_i64_const(int_val)
+                self._emit_call(new_int_idx)
+                return
         except ValueError:
-            offset = self._intern_string(value)
-            encoded = value.encode("utf-8", errors="surrogatepass")
-            # data_ptr = segment offset + 4 (skip length prefix)
-            self._emit_i32_const(offset + 4)
-            self._emit_i32_const(len(encoded))
-            self._emit_call(new_str_idx)
+            pass
+        offset = self._intern_string(value)
+        encoded = value.encode("utf-8", errors="surrogatepass")
+        # data_ptr = segment offset + 4 (skip length prefix)
+        self._emit_i32_const(offset + 4)
+        self._emit_i32_const(len(encoded))
+        self._emit_call(new_str_idx)
 
     def _emit_box_int(self) -> None:
         """Convert i64 on stack to i32 TclObj pointer via tcl_obj_new_int."""

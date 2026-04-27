@@ -43,6 +43,19 @@ pub fn fnv1a(ptr: u32, len: u32) u32 {
 /// hash (u32)``.  Caller's value payload starts at ``HEADER_SIZE``.
 pub const HEADER_SIZE: u32 = 12;
 
+/// Sentinel ``name_ptr`` value marking a deleted bucket.  Picked
+/// as ``1`` because the WASM heap base is far above 1 (the data
+/// segment occupies the low addresses and ``alloc`` returns
+/// pointers above it), so a real key buffer can never have this
+/// address.  ``find`` skips tombstones (continues probing rather
+/// than returning null), and ``try_insert_header`` reuses the
+/// first tombstone encountered.  This lets ``delete``-style
+/// callers (currently only ``parse_cache.invalidate_for_buffer``)
+/// remove individual entries without breaking probe chains —
+/// without tombstones, zeroing a bucket would terminate every
+/// probe walk that hashed past it, hiding still-live entries.
+pub const TOMBSTONE: u32 = 1;
+
 /// Open-addressed string-keyed table with a comptime-fixed bucket
 /// size.  Storage lives in WASM linear memory (``alloc``-backed)
 /// and is never freed — buckets are reused on grow.
@@ -93,6 +106,10 @@ pub fn Table(comptime bucket_size: u32) type {
         /// Look up a name; returns the bucket's base address (not just
         /// the value) so the caller can read its payload at fixed
         /// offsets without re-hashing.  ``null`` means "not present".
+        ///
+        /// Tombstones (``name_ptr == TOMBSTONE``) are skipped — probing
+        /// continues past them so deletes don't sever the probe chain
+        /// for entries that hashed earlier in the chain.
         pub fn find(self: *const Self, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
             if (self.buf == 0) return null;
             const mask = self.cap - 1;
@@ -102,19 +119,21 @@ pub fn Table(comptime bucket_size: u32) type {
                 const base = self.buf + idx * bucket_size;
                 const ep: u32 = @bitCast(read_i32(base));
                 if (ep == 0) return null;
-                const el: u32 = @bitCast(read_i32(base + 4));
-                const eh: u32 = @bitCast(read_i32(base + 8));
-                if (eh == hash and el == name_len) {
-                    const sp: [*]const u8 = @ptrFromInt(ep);
-                    const np: [*]const u8 = @ptrFromInt(name_ptr);
-                    var match = true;
-                    for (0..el) |k| {
-                        if (sp[k] != np[k]) {
-                            match = false;
-                            break;
+                if (ep != TOMBSTONE) {
+                    const el: u32 = @bitCast(read_i32(base + 4));
+                    const eh: u32 = @bitCast(read_i32(base + 8));
+                    if (eh == hash and el == name_len) {
+                        const sp: [*]const u8 = @ptrFromInt(ep);
+                        const np: [*]const u8 = @ptrFromInt(name_ptr);
+                        var match = true;
+                        for (0..el) |k| {
+                            if (sp[k] != np[k]) {
+                                match = false;
+                                break;
+                            }
                         }
+                        if (match) return base;
                     }
-                    if (match) return base;
                 }
                 idx = (idx + 1) & mask;
             }
@@ -138,29 +157,73 @@ pub fn Table(comptime bucket_size: u32) type {
         /// fixed-capacity tables (e.g. per-frame local tables) that
         /// trap rather than grow when they overflow — they need to
         /// detect "full" cleanly instead of looping forever.
+        ///
+        /// Reuses the first tombstone (``name_ptr == TOMBSTONE``) seen
+        /// in the probe chain, BUT only after confirming the key isn't
+        /// already present further down the chain — otherwise a
+        /// re-insert of a still-live key would land in the tombstone
+        /// slot while the live entry stays intact, leading to two
+        /// buckets for the same key.
         pub fn try_insert_header(self: *Self, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
             const mask = self.cap - 1;
             var idx = hash & mask;
             var probes: u32 = 0;
+            var first_tombstone: u32 = 0; // 0 = none seen
             while (probes < self.cap) : (probes += 1) {
                 const base = self.buf + idx * bucket_size;
-                if (@as(u32, @bitCast(read_i32(base))) == 0) {
+                const ep: u32 = @bitCast(read_i32(base));
+                if (ep == 0) {
+                    // End of probe chain — fall through to insert.
+                    const target = if (first_tombstone != 0) first_tombstone else base;
                     const nbuf = alloc(name_len);
                     memcpy(nbuf, name_ptr, name_len);
-                    write_i32(base, @bitCast(nbuf));
-                    write_i32(base + 4, @bitCast(name_len));
-                    write_i32(base + 8, @bitCast(hash));
-                    // Zero the value payload so callers start from a
-                    // clean slate.  Cheap because ``bucket_size`` is
-                    // small (≤ 32 bytes today).
+                    write_i32(target, @bitCast(nbuf));
+                    write_i32(target + 4, @bitCast(name_len));
+                    write_i32(target + 8, @bitCast(hash));
                     var k: u32 = HEADER_SIZE;
                     while (k < bucket_size) : (k += 4) {
-                        write_i32(base + k, 0);
+                        write_i32(target + k, 0);
                     }
                     self.count += 1;
-                    return base;
+                    return target;
+                }
+                if (ep == TOMBSTONE) {
+                    if (first_tombstone == 0) first_tombstone = base;
+                } else {
+                    // Live entry — check if it's our key (would be a
+                    // logic error since callers should call ``find``
+                    // first, but be defensive).
+                    const el: u32 = @bitCast(read_i32(base + 4));
+                    const eh: u32 = @bitCast(read_i32(base + 8));
+                    if (eh == hash and el == name_len) {
+                        const sp: [*]const u8 = @ptrFromInt(ep);
+                        const np: [*]const u8 = @ptrFromInt(name_ptr);
+                        var match = true;
+                        for (0..el) |k| {
+                            if (sp[k] != np[k]) {
+                                match = false;
+                                break;
+                            }
+                        }
+                        if (match) return base;
+                    }
                 }
                 idx = (idx + 1) & mask;
+            }
+            // Probe chain full of live + tombstones; reuse a tombstone
+            // if one was seen.
+            if (first_tombstone != 0) {
+                const nbuf = alloc(name_len);
+                memcpy(nbuf, name_ptr, name_len);
+                write_i32(first_tombstone, @bitCast(nbuf));
+                write_i32(first_tombstone + 4, @bitCast(name_len));
+                write_i32(first_tombstone + 8, @bitCast(hash));
+                var k: u32 = HEADER_SIZE;
+                while (k < bucket_size) : (k += 4) {
+                    write_i32(first_tombstone + k, 0);
+                }
+                self.count += 1;
+                return first_tombstone;
             }
             return null;
         }
@@ -188,7 +251,7 @@ pub fn Table(comptime bucket_size: u32) type {
             while (i < old_cap) : (i += 1) {
                 const base = old_buf + i * bucket_size;
                 const ep: u32 = @bitCast(read_i32(base));
-                if (ep == 0) continue;
+                if (ep == 0 or ep == TOMBSTONE) continue;
                 const eh: u32 = @bitCast(read_i32(base + 8));
                 const mask = self.cap - 1;
                 var idx = eh & mask;
@@ -224,8 +287,27 @@ pub fn Table(comptime bucket_size: u32) type {
             while (i < self.cap) : (i += 1) {
                 const base = self.buf + i * bucket_size;
                 const ep: u32 = @bitCast(read_i32(base));
-                if (ep != 0) visit(ctx, base);
+                if (ep != 0 and ep != TOMBSTONE) visit(ctx, base);
             }
+        }
+
+        /// Mark the bucket at ``base`` as a tombstone.  ``base`` must
+        /// be a return value from ``find`` (i.e. point at a live
+        /// bucket header).  Decrements ``count`` so load-factor checks
+        /// stay accurate; the underlying slot stays reserved against
+        /// the probe chain until a re-insert reuses it.
+        ///
+        /// Lookups on the deleted key now miss; any external pointer
+        /// into the bucket's value payload becomes invalid.
+        pub fn delete_at(self: *Self, base: u32) void {
+            const ep: u32 = @bitCast(read_i32(base));
+            if (ep == 0 or ep == TOMBSTONE) return;
+            write_i32(base, @bitCast(TOMBSTONE));
+            // Optional: zero name_len + hash so a stale read sees
+            // self-consistent zero rather than partial old data.
+            write_i32(base + 4, 0);
+            write_i32(base + 8, 0);
+            if (self.count > 0) self.count -= 1;
         }
     };
 }

@@ -298,30 +298,109 @@ fn eval_lmap(words: []const i32) i32 {
     return result;
 }
 
+/// Match a separator word (``to`` / ``..``) at index ``i``.  Returns
+/// true iff the i-th word is exactly that separator.
+fn lseq_match_word(words: []const i32, i: u32, expected: []const u8) bool {
+    if (i >= words.len) return false;
+    const s = obj_ensure_string(words[i]);
+    if (s.len != expected.len) return false;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    for (expected, 0..) |c, k| {
+        if (sp[k] != c) return false;
+    }
+    return true;
+}
+
+/// Tcl 9 ``lseq``.  Forms supported (matching tcl9.0.3 builtin):
+///
+///   lseq N                    -> 0 .. N-1
+///   lseq START END            -> START .. END (step inferred)
+///   lseq START to END         -> same
+///   lseq START .. END         -> same
+///   lseq START END by STEP    -> step explicit
+///   lseq START to END by STEP -> same
+///   lseq START .. END by STEP -> same
+///   lseq START by STEP        -> N=START items, step from 0
+///
+/// Step direction is inferred from end-vs-start when no explicit
+/// step is given.  Floats are NOT supported yet — this impl is
+/// integer-only; tests that need ``arithSeriesDouble`` are SKIPPED
+/// by tcltest's constraint table because ``arithSeriesDouble``
+/// isn't set.
 fn eval_lseq(words: []const i32) i32 {
     if (words.len < 2) return obj_new_string(0, 0);
     var start_val: i64 = 0;
     var end_val: i64 = 0;
     var step_val: i64 = 1;
+    var have_step = false;
+
     if (words.len == 2) {
+        // ``lseq N`` -> 0 .. N-1
         const count = rt.obj_get_int(words[1]);
         if (count <= 0) return obj_new_string(0, 0);
         end_val = count - 1;
     } else {
+        // Two-or-more forms.  After ``words[1] = START``, scan for an
+        // optional ``to``/``..`` separator (or its absence) and an
+        // optional ``by STEP`` suffix.
         start_val = rt.obj_get_int(words[1]);
-        end_val   = rt.obj_get_int(words[2]);
-        if (end_val < start_val) step_val = -1;
-        if (words.len >= 5) {
-            const by_s = obj_ensure_string(words[3]);
-            if (by_s.len == 2) {
-                const bp: [*]const u8 = @ptrFromInt(by_s.ptr);
-                if (bp[0] == 'b' and bp[1] == 'y') {
-                    step_val = rt.obj_get_int(words[4]);
-                }
+        var idx: u32 = 2;
+        if (lseq_match_word(words, idx, "to") or lseq_match_word(words, idx, "..")) {
+            idx += 1;
+        }
+        if (idx >= words.len) return obj_new_string(0, 0);
+        // ``lseq START by STEP`` (no end) means N=START items; the
+        // separator-less ``words[2]`` could be ``by`` instead of an
+        // end value.
+        if (lseq_match_word(words, idx, "by")) {
+            // ``lseq START by STEP`` — start=0, count=START, step
+            const cnt = start_val;
+            start_val = 0;
+            if (cnt <= 0) return obj_new_string(0, 0);
+            if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
+            if (step_val == 0) return obj_new_string(0, 0);
+            end_val = start_val + (cnt - 1) * step_val;
+            have_step = true;
+        } else {
+            end_val = rt.obj_get_int(words[idx]);
+            idx += 1;
+            if (lseq_match_word(words, idx, "by")) {
+                if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
+                have_step = true;
+            } else if (idx < words.len) {
+                // ``lseq START END STEP`` (or ``lseq START to END STEP``)
+                // — Tcl 9 accepts the trailing positional as the step
+                // without an explicit ``by`` keyword.  Without this
+                // branch, ``lseq 1000000 2000000 100000`` falls through
+                // with step=1 and tries to enumerate a million-element
+                // sequence with O(N²) tcl_list appends — that's the
+                // lseq.test hang at lseq-1.16.
+                step_val = rt.obj_get_int(words[idx]);
+                have_step = true;
             }
+        }
+
+        if (!have_step) {
+            // Infer direction from start..end.
+            if (end_val < start_val) step_val = -1 else step_val = 1;
         }
     }
     if (step_val == 0) return obj_new_string(0, 0);
+
+    // Sanity bound: ``lseq 1e50 1e50+1`` and similar large-double
+    // forms convert to out-of-range i64 via ``@intFromFloat`` and
+    // can otherwise loop for billions of iterations before tripping
+    // the wasmtime watchdog.  Cap the absolute span so a poorly
+    // formed call returns an empty list (or partial result) instead
+    // of hanging the test runner.  The cap is conservative — well
+    // above any realistic production lseq — but small enough that
+    // a runaway terminates in <100ms.
+    const max_count: i64 = 16 * 1024 * 1024; // 16 M elements
+    const span: i64 = if (step_val > 0) end_val - start_val else start_val - end_val;
+    if (span < 0 or @divTrunc(span, if (step_val > 0) step_val else -step_val) > max_count) {
+        return obj_new_string(0, 0);
+    }
+
     var acc: i32 = obj_new_string(0, 0);
     var i: i64 = start_val;
     if (step_val > 0) {

@@ -37,6 +37,23 @@ _EXTERNAL_DIR = Path(__file__).resolve().parent / "external"
 
 _engine: wasmtime.Engine | None = None
 _rt_module: wasmtime.Module | None = None
+_engine_with_timeout: wasmtime.Engine | None = None
+_rt_module_with_timeout: wasmtime.Module | None = None
+# Tracks how many times we've called ``increment_epoch`` on the
+# timeout engine.  ``set_epoch_deadline`` takes an *absolute* counter
+# value: each watchdog fire bumps ``engine.epoch`` permanently, so
+# subsequent stores that set deadline=1 trap immediately because the
+# engine's counter has already passed that value from previous
+# invocations.  Compute the per-call deadline as ``_epoch_count + 1``
+# and update ``_epoch_count`` after the watchdog fires (or after the
+# call returns clean) so we stay one step ahead.
+_epoch_count: int = 0
+
+
+def _epoch_count_set(v: int) -> None:
+    """Update the cached counter; only used on watchdog fire."""
+    global _epoch_count
+    _epoch_count = max(_epoch_count, v)
 
 
 def _get_engine() -> wasmtime.Engine:
@@ -44,6 +61,27 @@ def _get_engine() -> wasmtime.Engine:
     if _engine is None:
         _engine = wasmtime.Engine()
     return _engine
+
+
+def _get_engine_with_timeout() -> wasmtime.Engine:
+    """Engine variant with epoch-interruption enabled.
+
+    Used by long-running sweeps (``scripts/run_tcl9_tcltest_sweep.py``)
+    that need to bound per-test execution against runaway loops.  A
+    watchdog ``threading.Timer`` bumps the engine's epoch after the
+    deadline; the next wasm op then traps with an epoch-deadline
+    error that propagates to Python as ``wasmtime.Trap``.
+
+    Kept separate from the default engine so the pytest suite (which
+    doesn't need timeouts and shouldn't pay the epoch-check overhead)
+    keeps using the lean engine.
+    """
+    global _engine_with_timeout
+    if _engine_with_timeout is None:
+        cfg = wasmtime.Config()
+        cfg.epoch_interruption = True
+        _engine_with_timeout = wasmtime.Engine(cfg)
+    return _engine_with_timeout
 
 
 def _get_rt_module() -> wasmtime.Module:
@@ -55,22 +93,64 @@ def _get_rt_module() -> wasmtime.Module:
     return _rt_module
 
 
-def _compile_tcl(source: str) -> bytes:
-    """Compile Tcl source to WASM bytes."""
+def _get_rt_module_with_timeout() -> wasmtime.Module:
+    """Re-compile the runtime module against the timeout-enabled engine.
+
+    wasmtime modules are bound to the engine they were compiled
+    against, so the timeout variant needs its own pre-compiled copy.
+    Cached after the first call.
+    """
+    global _rt_module_with_timeout
+    if _rt_module_with_timeout is None:
+        if not _ZIG_RUNTIME_PATH.exists():
+            raise RuntimeError(f"Zig WASM runtime not built: {_ZIG_RUNTIME_PATH}")
+        _rt_module_with_timeout = wasmtime.Module.from_file(
+            _get_engine_with_timeout(),
+            str(_ZIG_RUNTIME_PATH),
+        )
+    return _rt_module_with_timeout
+
+
+def _compile_tcl(source: str, *, source_dir: Path | None = None) -> bytes:
+    """Compile Tcl source to WASM bytes.
+
+    *source_dir* enables compile-time inlining of ``source LITERAL``
+    calls — the inliner reads the target off the host filesystem and
+    splices its IR into the caller's module so the WASM runs without
+    needing a WASI preopen of the test fixtures.  Leave ``None`` to
+    disable inlining (compatible with the historic behaviour).
+    """
+    from core.compiler.source_inliner import inline_static_sources
+
     ir_module = lower_to_ir(source)
+    if source_dir is not None:
+        ir_module = inline_static_sources(ir_module, source_dir=source_dir)
     cfg_module = build_cfg(ir_module)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=False)
     return wasm_module.to_bytes()
 
 
-def _compile_tcl_with_diag(source: str, filename: str = "<inline>") -> tuple[bytes, DiagMap]:
+def _compile_tcl_with_diag(
+    source: str,
+    filename: str = "<inline>",
+    *,
+    source_dir: Path | None = None,
+) -> tuple[bytes, DiagMap]:
     """Compile Tcl source and return the bytes + populated diag map.
 
     The map resolves ``site=<id>`` prefixes the runtime writes on trap
     back to ``(file, line, col, command)``.  Used by the external
     runner to decode trap output inline.
+
+    *source_dir* enables compile-time ``source`` inlining — see
+    :func:`_compile_tcl` for details.  When omitted the runtime
+    handles ``source`` calls via the WASI preopen as before.
     """
+    from core.compiler.source_inliner import inline_static_sources
+
     ir_module = lower_to_ir(source)
+    if source_dir is not None:
+        ir_module = inline_static_sources(ir_module, source_dir=source_dir)
     cfg_module = build_cfg(ir_module)
     diag_map = DiagMap(filename=filename)
     wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=False, diag_map=diag_map)
@@ -93,6 +173,7 @@ def _run_wasm(
     args: tuple[int, ...] = (),
     capture_stderr: bool = False,
     preopen_tmpdir: str | None = None,
+    timeout_s: float | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -112,8 +193,20 @@ def _run_wasm(
     ``TestFile`` suite passes a fresh ``pytest tmp_path`` to
     exercise the real filesystem paths.
     """
-    engine = _get_engine()
+    engine = _get_engine_with_timeout() if timeout_s is not None else _get_engine()
     store = wasmtime.Store(engine)
+    deadline_value = 0
+    if timeout_s is not None:
+        # ``set_epoch_deadline`` takes an absolute counter value.  We
+        # track how many ``increment_epoch`` calls we've made (across
+        # all prior watchdog fires + setup increments below); the
+        # next trap point is one tick beyond that.  Without the
+        # tracking, a stale ``set_epoch_deadline(1)`` after the engine
+        # has already advanced past 1 traps immediately and produces
+        # zero output — which looked like an instantiation hang.
+        global _epoch_count
+        deadline_value = _epoch_count + 1
+        store.set_epoch_deadline(deadline_value)
     wasi_config = wasmtime.WasiConfig()
 
     stdout_path = None
@@ -139,8 +232,9 @@ def _run_wasm(
 
     store.set_wasi(wasi_config)
 
-    # Instantiate Zig runtime
-    rt_module = _get_rt_module()
+    # Instantiate Zig runtime — modules are engine-bound, so the
+    # timeout variant needs its own pre-compiled copy.
+    rt_module = _get_rt_module_with_timeout() if timeout_s is not None else _get_rt_module()
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
 
@@ -184,29 +278,58 @@ def _run_wasm(
         raise RuntimeError(f"function {func_name} not found in WASM exports")
 
     boxed_args = tuple(obj_new_int(store, a) for a in args)
+    watchdog = None
+    watchdog_fired = [False]
+    if timeout_s is not None:
+        import threading
+
+        def _bump_epoch():
+            engine.increment_epoch()
+            watchdog_fired[0] = True
+
+        watchdog = threading.Timer(timeout_s, _bump_epoch)
+        watchdog.daemon = True
+        watchdog.start()
     try:
         result_obj = func(store, *boxed_args)
         result_val = obj_get_int(store, result_obj) if result_obj else 0
     except BaseException:
         # Drain captured stderr/stdout before re-raising so the trap
         # site message written by the runtime is visible to the
-        # caller.  ``_TrapWithCaptures`` is an exception subclass that
-        # wraps the original trap and exposes the captures.
+        # caller.  Attach unconditionally — earlier the attach was
+        # gated on ``stderr_text`` being non-empty, which silently
+        # discarded captures whenever a test trapped while writing
+        # only to stdout (e.g. tcltest's per-test FAILED markers go
+        # to stdout, but a watchdog-driven epoch trap leaves stderr
+        # empty).  Result: callers got back ``""`` and thought the
+        # bundle had hung from instantiation, when in fact it had
+        # produced hundreds of lines of stdout before the trap.
         stdout_text = _maybe_read(stdout_path)
         stderr_text = _maybe_read(stderr_path)
         import sys
 
         exc = sys.exc_info()[1]
-        if exc is not None and stderr_text:
-            # Attach as attribute so the caller can grab it without
-            # catching an unrelated exception type.  wasmtime.Trap is
-            # a plain exception and allows attribute assignment.
+        if exc is not None:
             try:
                 exc.tcl_stdout = stdout_text  # type: ignore[attr-defined]
                 exc.tcl_stderr = stderr_text  # type: ignore[attr-defined]
             except (AttributeError, TypeError):
                 pass
         raise
+    finally:
+        if watchdog is not None:
+            watchdog.cancel()
+            # ``_epoch_count`` mirrors the engine's epoch counter so
+            # subsequent ``set_epoch_deadline`` values are always
+            # strictly ahead of the live counter.  Only the watchdog
+            # path advances the engine via ``increment_epoch``; a
+            # clean wasm return leaves the engine's counter where it
+            # was, so we do nothing here in that case.  Bumping on a
+            # clean return would fabricate ticks the engine never
+            # observed and eventually push deadlines past what a
+            # single ``increment_epoch`` can reach.
+            if watchdog_fired[0]:
+                _epoch_count_set(deadline_value)
 
     stdout_text = _maybe_read(stdout_path)
     stderr_text = _maybe_read(stderr_path)
@@ -1621,7 +1744,11 @@ class TestDiagMap:
             # see TestFormat.  ``scan`` now has a minimal real impl
             # in tcl_fmt_stubs.zig covering %c / %d / %i / %x / %o /
             # %s; unknown specifiers still trap.
-            ("source foo.tcl\n", "source"),
+            # ``source`` has a real WASI-fd-resolution impl in
+            # tcl_fs.zig — invoking it with a non-existent path
+            # raises ``source: file not found`` rather than the old
+            # ``unsupported command: source``.  See TestSource for
+            # the positive assertion.
             # ``after`` is now a no-op (silently succeeds) so that
             # counter::init -timehist can schedule without erroring in
             # our WASM event-loop-less sandbox.  See stubs_.zig.
@@ -2104,15 +2231,15 @@ class TestRegexp:
         _, stdout, _ = _run_wasm(wasm, capture_stdout=True, capture_stderr=True)
         assert "CAUGHT" in stdout, stdout
 
-    def test_regexp_unknown_switch_raises(self):
-        """Unsupported switches (e.g. ``-indices``) must raise an
-        error rather than being treated as the pattern.  The
-        previous silent-fallthrough behaviour caused
-        ``regexp -indices {a+} aa`` to try matching literal
-        ``-indices`` against ``{a+}`` and return a wrong boolean.
+    def test_regexp_options_accepted(self):
+        """Phase 4.5 accepts the Tcl 9 regexp option set without
+        raising "unknown option" — even when the result-shaping
+        for -indices/-inline/-all is still partial.  Truly-bogus
+        switches still raise so callers see typos clearly.
         """
+        # Truly-unknown still raises.
         source = (
-            "if {[catch {regexp -indices {a+} aa} msg]} {\n"
+            "if {[catch {regexp -bogus {a+} aa} msg]} {\n"
             "    puts CAUGHT\n"
             "} else {\n"
             "    puts MISSED\n"
