@@ -103,14 +103,16 @@ class TestNamespaceQualifiedProcs:
     """Procs defined with namespace qualifiers or inside namespace eval."""
 
     def test_qualified_proc_name(self):
-        """Fully-qualified proc name appears in all_procs.
-
-        When the proc name is already absolute (starts with '::'), the
-        analyser normalises by prepending the current namespace prefix,
-        yielding '::::math::add' as the all_procs key.
+        """A proc declared with an absolute name (``proc ::ns::foo``)
+        registers under its already-qualified key — no stray ``::``
+        prefix.  This is the post-C41-default-on shape; the historical
+        ``::::math::add`` double-prefix was a Python-side bug fixed
+        alongside the analyser default-on flip.
         """
         result = analyse("proc ::math::add {a b} { expr {$a + $b} }")
-        assert "::::math::add" in result.all_procs
+        assert "::math::add" in result.all_procs
+        assert "::::math::add" not in result.all_procs
+        assert result.all_procs["::math::add"].name == "add"
 
     def test_proc_qualified_name_field(self):
         """A global proc's qualified_name is prefixed with '::'."""

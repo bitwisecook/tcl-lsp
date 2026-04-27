@@ -148,6 +148,22 @@ pub struct Analyser {
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
     pub unresolved_commands_emitted: bool,
+    /// Command registry for the active dialect.  Populated at the
+    /// top of [`Self::analyse`] so per-command handlers
+    /// (especially the registry-driven body iteration in
+    /// `process_command` for `if` / `while` / `when` / OO method
+    /// bodies) don't have to rebuild it on every command.  `None`
+    /// outside an active analysis run; handlers that need the
+    /// registry must check `self.registry.is_some()`.
+    pub registry: Option<tcl_registry::CommandRegistry>,
+    /// Sorted byte offsets of every ``\n`` in [`Self::source`],
+    /// precomputed at the top of [`Self::analyse`] /
+    /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
+    /// per-command line-number lookups (notably
+    /// [`super::utils::apply_preceding_noqa`] which runs once
+    /// per command) cost ``O(log N)`` instead of ``O(N)`` per
+    /// call.  ``None`` outside an active analysis run.
+    pub line_offsets: Option<Vec<usize>>,
 }
 
 impl Analyser {
@@ -187,6 +203,8 @@ impl Analyser {
             ensemble_namespaces: HashSet::new(),
             objdefined_vars: HashSet::new(),
             unresolved_commands_emitted: false,
+            registry: None,
+            line_offsets: None,
         }
     }
 
@@ -241,15 +259,56 @@ impl Analyser {
         // ``disabled_diagnostics``" route gives directives the
         // intended effect at the analyser-internal level. C41d
         // can revisit if a per-line distinction becomes load-bearing.
-        for code in super::utils::parse_file_suppression(source) {
-            self.disabled_diagnostics.insert(code);
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
         }
+        if !file_codes.is_empty() {
+            // Mirror Python's ``result.suppressed_lines[-1]``
+            // sentinel so downstream consumers (the LSP
+            // suppression filter, code-action UX) see the
+            // file-wide directive set in one place.
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
+        }
+        // ``# noqa[: CODE,...]`` directives are attached to the
+        // *command following* the comment (matching Python's
+        // ``_core.py`` lines 285-303).  The dispatch loop below
+        // reads ``cmd.preceding_comment`` and attributes the
+        // codes to the command's line range; no top-level
+        // line-based scan here, because a comment line on its
+        // own doesn't carry a target line range — the line-based
+        // shape would mis-attribute to the comment's own line
+        // and miss the actual command being suppressed.
+        // Inline ``# tcl-lsp: stub …`` block scan.
+        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.result.stub_commands = stub_cmds;
+        self.result.stub_expr_defs = stub_exprs;
 
         // Segment with Seg2 recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
-        let registry = CommandRegistry::build_default();
-        let known_commands: HashSet<&str> = registry.command_names().collect();
+        // Build the dialect-aware registry once and stash on
+        // ``self`` so per-command handlers (registry-driven body
+        // iteration in ``process_command``) reuse it.
+        let mut registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            registry.load_dialect(d);
+        }
+        self.registry = Some(registry);
+        // Precompute newline offsets once for ``O(log N)``
+        // byte-offset → line-number lookup in
+        // ``apply_preceding_noqa`` (which runs per command and
+        // would otherwise be ``O(N)`` per call).
+        self.line_offsets = Some(compute_line_offsets(source));
+        let known_commands: HashSet<&str> = self
+            .registry
+            .as_ref()
+            .expect("registry just stashed")
+            .command_names()
+            .collect();
         let commands = crate::segmenter::segment_commands_with_recovery(source, &known_commands);
+        drop(known_commands);
 
         // Walk each command through the dispatcher. Body recursion
         // (proc bodies, namespace bodies, control-flow arms) is
@@ -277,6 +336,23 @@ impl Analyser {
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
+            // ``# noqa[: CODE,...]`` directives in
+            // ``cmd.preceding_comment`` suppress diagnostics on
+            // the *following* command's line range.  Mirrors
+            // ``core/analysis/_analyser/_core.py:285-303``.
+            if let Some(line_offsets) = self.line_offsets.as_deref() {
+                super::utils::apply_preceding_noqa(
+                    &cmd,
+                    line_offsets,
+                    &mut self.result.suppressed_lines,
+                );
+            }
+            // Mirrors ``self._last_comment = cmd.preceding_comment``
+            // in ``core/analysis/_analyser/_core.py``: handlers
+            // that consume a preceding comment (proc, oo::class)
+            // ``std::mem::take`` it; everything else clears it on
+            // the next command.
+            self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
             cmd_idx += 1 + consumed;
         }
@@ -308,7 +384,9 @@ impl Analyser {
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
 
-        std::mem::take(&mut self.result)
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        result
     }
 
     /// **C41f2** — Analyse pre-segmented commands chunk-by-chunk
@@ -349,6 +427,20 @@ impl Analyser {
             self.disabled_diagnostics.insert(code);
         }
 
+        // Build + stash the dialect-aware registry so
+        // ``process_command`` 's body-iteration loop has access
+        // to it on every chunked / incremental call (the entry
+        // point used by the LSP's incremental update path).
+        // Without this, body recursion silently no-ops.  Same
+        // for the ``line_offsets`` index used by
+        // ``apply_preceding_noqa``.
+        let mut registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            registry.load_dialect(d);
+        }
+        self.registry = Some(registry);
+        self.line_offsets = Some(compute_line_offsets(source));
+
         let mut snapshots: Vec<super::snapshot::AnalyserSnapshot> =
             Vec::with_capacity(chunk_commands.len());
         for cmds in chunk_commands {
@@ -367,7 +459,9 @@ impl Analyser {
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
 
-        (std::mem::take(&mut self.result), snapshots)
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        (result, snapshots)
     }
 
     /// **C41f2** — Analyse pre-segmented commands without
@@ -401,6 +495,18 @@ impl Analyser {
             self.disabled_diagnostics.insert(code);
         }
 
+        // Same registry + line-index prelude as
+        // ``analyse_chunked`` — see that doc-comment.  Without
+        // these the registry-driven body loop in
+        // ``process_command`` silently skips body recursion on
+        // the incremental path.
+        let mut registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            registry.load_dialect(d);
+        }
+        self.registry = Some(registry);
+        self.line_offsets = Some(compute_line_offsets(source));
+
         self.analyse_commands_inner(commands);
 
         if finalise {
@@ -415,7 +521,9 @@ impl Analyser {
             self.dedupe_diagnostics();
         }
 
-        std::mem::take(&mut self.result)
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        result
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
@@ -458,6 +566,14 @@ impl Analyser {
             let mut cmd = cmd_ref.clone();
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
+            if let Some(line_offsets) = self.line_offsets.as_deref() {
+                super::utils::apply_preceding_noqa(
+                    &cmd,
+                    line_offsets,
+                    &mut self.result.suppressed_lines,
+                );
+            }
+            self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
             cmd_idx += 1 + consumed;
         }
@@ -501,6 +617,41 @@ impl Analyser {
             .as_ref()
             .expect("builtin_names populated above")
     }
+
+    /// Reset transient run state so the next ``analyse`` call
+    /// starts from a clean slate.  Called at the end of every
+    /// public entry point (``analyse`` / ``analyse_chunked`` /
+    /// ``analyse_commands``).
+    fn clear_run_state(&mut self) {
+        self.registry = None;
+        self.line_offsets = None;
+    }
+}
+
+/// Precompute newline byte offsets for ``source``.  The returned
+/// vector is sorted ascending — the byte offset of each ``\n``
+/// in source order.  Callers (notably
+/// ``apply_preceding_noqa``) use ``slice::partition_point`` /
+/// ``binary_search`` on this vector to convert a byte offset to
+/// a 0-based line number in ``O(log N)`` instead of a per-call
+/// linear scan.
+pub(super) fn compute_line_offsets(source: &str) -> Vec<usize> {
+    source
+        .as_bytes()
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &b)| (b == b'\n').then_some(i))
+        .collect()
+}
+
+/// Convert a byte offset to a 0-based line number using a
+/// precomputed sorted ``line_offsets`` vector (see
+/// [`compute_line_offsets`]).
+pub(super) fn line_at_offset(line_offsets: &[usize], offset: usize) -> i32 {
+    // Each offset in ``line_offsets`` is the byte position of a
+    // ``\n``.  The line number containing byte `offset` is the
+    // count of newlines strictly before ``offset``.
+    line_offsets.partition_point(|&p| p < offset) as i32
 }
 
 impl Default for Analyser {

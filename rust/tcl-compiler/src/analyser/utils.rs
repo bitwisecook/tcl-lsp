@@ -171,6 +171,269 @@ fn parse_stub_name(body: &str) -> Option<&str> {
     }
 }
 
+/// Scan `source` for inline ``# tcl-lsp: stub NAME {ARGS} ?FLAGS?`` and
+/// ``# tcl-lsp: stub expr-func NAME ?ARITY?`` (also ``expr-op``)
+/// declarations bounded by the ``stubs-begin`` / ``stubs-end``
+/// markers, returning ``(commands, expr_defs)``.
+///
+/// Mirrors the LSP-relevant subset of
+/// `core/analysis/stub_comments.py::scan_source_for_stubs`.
+/// Command stubs *require* the ``{ARGS}`` brace block (Python's
+/// `_STUB_RE` rejects bare ``stub NAME``); we keep the same
+/// shape so the W123 candidate set agrees.  Arg-role parsing
+/// (the inside of ``{ARGS}``) is still Python-only — the Rust
+/// scanner only carries ``name + range`` for now.
+#[must_use]
+pub fn scan_source_for_stubs(
+    source: &str,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+) {
+    let mut cmds = Vec::new();
+    let mut exprs = Vec::new();
+    let mut in_block = false;
+    let mut offset: u32 = 0;
+    for line in source.split_inclusive('\n') {
+        let trimmed_line: &str = line.trim_end_matches('\n');
+        let line_byte_len = line.len() as u32;
+        let stripped = trimmed_line.trim();
+        let span = tcl_lexer::Span::new(offset, offset + trimmed_line.len() as u32);
+        offset += line_byte_len;
+        if !stripped.starts_with('#') {
+            continue;
+        }
+        let body = stripped.trim_start_matches('#').trim_start();
+        if matches_marker(body, "stubs-begin") {
+            in_block = true;
+            continue;
+        }
+        if matches_marker(body, "stubs-end") {
+            in_block = false;
+            continue;
+        }
+        if !in_block {
+            continue;
+        }
+        // ``# tcl-lsp:`` prefix is optional inside a stubs block —
+        // strip it once if present.
+        let after_prefix = strip_tcl_lsp_prefix(body);
+        // Try the expr-func / expr-op shape first because ``stub
+        // expr-func NAME`` would otherwise match the command shape
+        // with NAME == "expr-func".
+        if let Some((kind, name)) = parse_expr_stub(after_prefix) {
+            exprs.push(super::types::StubExprDef {
+                name: name.to_string(),
+                kind: kind.to_string(),
+                range: span,
+            });
+            continue;
+        }
+        if let Some(name) = parse_command_stub_name(after_prefix) {
+            cmds.push(super::types::StubCommandDef {
+                name: name.to_string(),
+                range: span,
+            });
+        }
+    }
+    (cmds, exprs)
+}
+
+/// Strip a leading ``tcl-lsp:`` keyword (case-insensitive) from
+/// the comment body, if present.  Whitespace flexible.
+fn strip_tcl_lsp_prefix(body: &str) -> &str {
+    let s = body.trim_start();
+    let lower_prefix = "tcl-lsp";
+    let kw_end = lower_prefix.len();
+    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+        return s;
+    }
+    let rest = s[kw_end..].trim_start();
+    rest.strip_prefix(':').map_or(s, str::trim_start)
+}
+
+/// Parse a ``stub NAME {ARGS} ?FLAGS?`` line (case-insensitive on
+/// the ``stub`` keyword).  Returns the bare command name when the
+/// line matches; ``None`` when the brace block is missing.
+/// Mirrors Python's ``_STUB_RE``.
+fn parse_command_stub_name(line: &str) -> Option<&str> {
+    let s = line.trim_start();
+    let stub_kw = "stub";
+    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+        return None;
+    }
+    let after = s[stub_kw.len()..].trim_start();
+    if after.is_empty() {
+        return None;
+    }
+    // First whitespace-delimited token is the command name.
+    let name_end = after
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(after.len());
+    if name_end == 0 {
+        return None;
+    }
+    let name = &after[..name_end];
+    // Reject ``expr-func`` / ``expr-op`` here — those are handled
+    // by ``parse_expr_stub``.
+    if name.eq_ignore_ascii_case("expr-func") || name.eq_ignore_ascii_case("expr-op") {
+        return None;
+    }
+    let after_name = after[name_end..].trim_start();
+    // Python requires the ``{ARGS}`` brace block; we reject
+    // anything else so the two scanners agree on what's a stub.
+    if !after_name.starts_with('{') {
+        return None;
+    }
+    Some(name)
+}
+
+/// Parse a ``stub expr-func NAME ?ARITY?`` / ``stub expr-op NAME
+/// ?ARITY?`` line.  Returns ``(kind, name)`` on match.  Mirrors
+/// Python's ``_EXPR_STUB_RE``.
+fn parse_expr_stub(line: &str) -> Option<(&'static str, &str)> {
+    let s = line.trim_start();
+    let stub_kw = "stub";
+    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+        return None;
+    }
+    let after = s[stub_kw.len()..].trim_start();
+    let kind: &'static str;
+    let rest;
+    if after.len() >= "expr-func".len()
+        && after[.."expr-func".len()].eq_ignore_ascii_case("expr-func")
+    {
+        kind = "function";
+        rest = after["expr-func".len()..].trim_start();
+    } else if after.len() >= "expr-op".len()
+        && after[.."expr-op".len()].eq_ignore_ascii_case("expr-op")
+    {
+        kind = "operator";
+        rest = after["expr-op".len()..].trim_start();
+    } else {
+        return None;
+    }
+    if rest.is_empty() {
+        return None;
+    }
+    let name_end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
+    if name_end == 0 {
+        None
+    } else {
+        Some((kind, &rest[..name_end]))
+    }
+}
+
+/// Decoration-character set for the body-docstring scanner.
+/// Mirrors ``_DECORATION_CHARS = frozenset(".-=*~#")`` in
+/// ``core/formatting/docstring.py``.
+const DECORATION_CHARS: &[char] = &['.', '-', '=', '*', '~', '#'];
+
+/// Extract a leading comment block from a proc body — the
+/// fallback that fires when there's no preceding-comment harvest
+/// from the segmenter.  Mirrors
+/// ``core/formatting/docstring.py::extract_body_docstring``.
+///
+/// Lines containing only decoration characters
+/// (``.-=*~#``) are skipped; remaining ``#``-prefixed lines have
+/// the leading hash + whitespace stripped, then accumulated.
+/// The first non-comment / non-blank line ends the block.
+#[must_use]
+pub fn extract_body_docstring(body: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for raw in body.lines() {
+        let stripped = raw.trim();
+        if stripped.is_empty() {
+            if !lines.is_empty() {
+                break;
+            }
+            continue;
+        }
+        if !stripped.starts_with('#') {
+            break;
+        }
+        let text = stripped.trim_start_matches('#').trim().to_string();
+        // Skip pure-hash decoration lines (``####`` etc.).
+        if text.is_empty() && stripped.chars().all(|c| c == '#') {
+            continue;
+        }
+        // Skip lines made entirely of decoration characters.
+        if !text.is_empty() && text.chars().all(|c| DECORATION_CHARS.contains(&c)) {
+            continue;
+        }
+        lines.push(text);
+    }
+    lines.join("\n")
+}
+
+/// Per-line ``# noqa: CODE`` suppression scanner.
+///
+/// Mirrors the inline-noqa half of
+/// `core/analysis/_analyser/_utils.py::parse_per_line_suppression`.
+/// Walks every line; for each ``# noqa`` (with or without
+/// ``: CODE`` list), records the codes against the 0-based
+/// line range (read from the ``preceding_comment`` field of the
+/// segmented command).  Mirrors
+/// ``core/analysis/_analyser/_core.py`` lines 285-303 — the
+/// segmented-command dispatch loop calls this on each command
+/// to attach the noqa codes to the *following* command's line
+/// range.
+///
+/// The Python helper uses ``str.lower().find("noqa")`` which is
+/// substring-matching against the comment body alone; a comment
+/// is only ever the source of a noqa directive, so there's no
+/// risk of false-positiving on a ``#`` inside a Tcl string —
+/// the segmenter's ``preceding_comment`` field carries comment
+/// text only.  Bare ``# noqa`` (no ``: CODE`` list) suppresses
+/// every code (`"*"` sentinel); ``# noqa: A, B`` suppresses
+/// the named codes.
+pub fn apply_preceding_noqa(
+    cmd: &crate::segmenter::SegmentedCommand,
+    line_offsets: &[usize],
+    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
+) {
+    let Some(comment) = cmd.preceding_comment.as_deref() else {
+        return;
+    };
+    let lower = comment.to_ascii_lowercase();
+    let Some(noqa_pos) = lower.find("noqa") else {
+        return;
+    };
+    let rest = comment[noqa_pos + 4..].trim_start();
+    let codes: std::collections::HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':')
+    {
+        let parsed: std::collections::HashSet<String> = after_colon
+            .split([',', ' ', '\t', '\r', '\n'])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect();
+        if parsed.is_empty() {
+            std::iter::once("*".to_string()).collect()
+        } else {
+            parsed
+        }
+    } else {
+        std::iter::once("*".to_string()).collect()
+    };
+    // Attribute to every line spanned by the command (matches
+    // Python's ``range(cmd.range.start.line, cmd.range.end.line +
+    // 1)``).  ``SegmentedCommand.span`` is byte offsets; convert
+    // each via the precomputed ``line_offsets`` index in
+    // ``O(log N)`` instead of a linear scan per call (the helper
+    // runs once per segmented command).
+    let span_start = cmd.span.start() as usize;
+    let span_end = cmd.span.end() as usize;
+    let start_line = super::state::line_at_offset(line_offsets, span_start);
+    let end_line = super::state::line_at_offset(line_offsets, span_end);
+    for line in start_line..=end_line {
+        suppressed_lines
+            .entry(line)
+            .or_default()
+            .extend(codes.iter().cloned());
+    }
+}
+
 /// Match `# tcl-lsp: disable=…` (case-insensitive on the keyword),
 /// returning the trailing CODE list as a borrowed slice. Returns
 /// `None` if the line doesn't match the directive shape.

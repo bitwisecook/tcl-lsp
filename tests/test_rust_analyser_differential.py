@@ -119,6 +119,126 @@ def _compare_shapes(py: AnalysisResult, rust: AnalysisResult) -> None:
     )
 
 
+def _fmt_range(r) -> tuple | None:
+    """Compact tuple representation of a :class:`Range`, suitable
+    for direct equality comparison."""
+    if r is None:
+        return None
+    return (
+        (r.start.line, r.start.character, r.start.offset),
+        (r.end.line, r.end.character, r.end.offset),
+    )
+
+
+def _params_tuple(params) -> tuple:
+    """Comparable tuple of :class:`ParamDef` fields."""
+    return tuple((p.name, p.has_default, p.default_value) for p in params)
+
+
+def _compare_fields(py: AnalysisResult, rust: AnalysisResult) -> None:
+    """Strict per-field parity for the structural payload of
+    :class:`AnalysisResult`.
+
+    Compared:
+
+    - ``all_procs`` keys (with the ``::::``/``::`` normalisation),
+      and for each common qualified name the proc's bare ``name``,
+      ``params`` tuple, ``name_range``, and ``body_range``.
+    - ``all_classes`` keys, and for each common class the bare
+      ``name``, ``name_range``, ``body_range``, ``methods`` /
+      ``class_methods`` key sets, ``superclasses``, and ``mixins``.
+    - The recursive scope-tree shape: ``kind``, ``name``, child
+      variable / proc / class name sets at every level.
+
+    Diagnostics are intentionally **not** compared field-by-field
+    here. Python's ``Analyser().analyse`` integrates
+    ``run_compiler_checks`` (which adds style + SSA-based dead-store
+    diagnostics — W110, W220, W304, …); the Rust
+    ``analyser_analyse`` is analyser-only. Mismatched diagnostic
+    sets would fire on every fixture for an architectural reason
+    rather than a regression. A future strip can layer a
+    diagnostic-by-diagnostic comparison once the layering is
+    aligned.
+    """
+    py_procs = {_normalise_qname(k): v for k, v in py.all_procs.items()}
+    rust_procs = {_normalise_qname(k): v for k, v in rust.all_procs.items()}
+    assert set(py_procs) == set(rust_procs), (
+        f"all_procs keys: py={sorted(py_procs)} rust={sorted(rust_procs)}"
+    )
+    for qn in sorted(set(py_procs) & set(rust_procs)):
+        p, r = py_procs[qn], rust_procs[qn]
+        assert p.name == r.name, f"proc {qn} name: py={p.name!r} rust={r.name!r}"
+        assert _params_tuple(p.params) == _params_tuple(r.params), (
+            f"proc {qn} params: py={_params_tuple(p.params)} rust={_params_tuple(r.params)}"
+        )
+        assert _fmt_range(p.name_range) == _fmt_range(r.name_range), (
+            f"proc {qn} name_range: py={_fmt_range(p.name_range)} rust={_fmt_range(r.name_range)}"
+        )
+        assert _fmt_range(p.body_range) == _fmt_range(r.body_range), (
+            f"proc {qn} body_range: py={_fmt_range(p.body_range)} rust={_fmt_range(r.body_range)}"
+        )
+
+    py_classes = {_normalise_qname(k): v for k, v in py.all_classes.items()}
+    rust_classes = {_normalise_qname(k): v for k, v in rust.all_classes.items()}
+    assert set(py_classes) == set(rust_classes), (
+        f"all_classes keys: py={sorted(py_classes)} rust={sorted(rust_classes)}"
+    )
+    for qn in sorted(set(py_classes) & set(rust_classes)):
+        p, r = py_classes[qn], rust_classes[qn]
+        assert p.name == r.name, f"class {qn} name: py={p.name!r} rust={r.name!r}"
+        assert _fmt_range(p.name_range) == _fmt_range(r.name_range), (
+            f"class {qn} name_range: py={_fmt_range(p.name_range)} rust={_fmt_range(r.name_range)}"
+        )
+        assert _fmt_range(p.body_range) == _fmt_range(r.body_range), (
+            f"class {qn} body_range: py={_fmt_range(p.body_range)} rust={_fmt_range(r.body_range)}"
+        )
+        assert sorted(p.methods) == sorted(r.methods), (
+            f"class {qn} methods: py={sorted(p.methods)} rust={sorted(r.methods)}"
+        )
+        assert sorted(p.class_methods) == sorted(r.class_methods), (
+            f"class {qn} class_methods: py={sorted(p.class_methods)} rust={sorted(r.class_methods)}"
+        )
+        assert list(p.superclasses) == list(r.superclasses), (
+            f"class {qn} superclasses: py={p.superclasses} rust={r.superclasses}"
+        )
+        assert list(p.mixins) == list(r.mixins), f"class {qn} mixins: py={p.mixins} rust={r.mixins}"
+
+    _compare_scope_tree(py.global_scope, rust.global_scope, path="<global>")
+
+
+def _compare_scope_tree(py_scope, rust_scope, *, path: str) -> None:
+    """Recursive scope-shape parity: kind, name, var / proc /
+    class names at every level. Child scopes are matched by
+    ``(kind, name)`` so insertion order doesn't matter."""
+    assert py_scope.kind == rust_scope.kind, (
+        f"scope {path} kind: py={py_scope.kind!r} rust={rust_scope.kind!r}"
+    )
+    assert py_scope.name == rust_scope.name, (
+        f"scope {path} name: py={py_scope.name!r} rust={rust_scope.name!r}"
+    )
+    assert sorted(py_scope.variables) == sorted(rust_scope.variables), (
+        f"scope {path} variables: py={sorted(py_scope.variables)} "
+        f"rust={sorted(rust_scope.variables)}"
+    )
+    assert sorted(py_scope.procs) == sorted(rust_scope.procs), (
+        f"scope {path} procs: py={sorted(py_scope.procs)} rust={sorted(rust_scope.procs)}"
+    )
+    assert sorted(py_scope.classes) == sorted(rust_scope.classes), (
+        f"scope {path} classes: py={sorted(py_scope.classes)} rust={sorted(rust_scope.classes)}"
+    )
+    py_children = {(c.kind, c.name): c for c in py_scope.children}
+    rust_children = {(c.kind, c.name): c for c in rust_scope.children}
+    assert set(py_children) == set(rust_children), (
+        f"scope {path} child set: py={sorted(py_children)} rust={sorted(rust_children)}"
+    )
+    for key in sorted(py_children.keys() & rust_children.keys()):
+        _compare_scope_tree(
+            py_children[key],
+            rust_children[key],
+            path=f"{path}/{key[0]}:{key[1]}",
+        )
+
+
 def _assert_same(source: str) -> None:
     """Run both implementations on ``source`` and assert shape parity.
 
@@ -226,13 +346,19 @@ CORPUS: list[tuple[str, str]] = [
         "namespace_eval_with_proc",
         "namespace eval pkg { proc helper {} {} }",
     ),
-    # ``nested_namespace_eval`` (``namespace eval outer { namespace
-    # eval inner { proc deep {} {} } }``) is intentionally absent —
-    # Python's analyser records the proc as ``::inner::deep`` (it
-    # drops the outer namespace), while the Rust port records it
-    # correctly as ``::outer::inner::deep``.  The Rust shape is the
-    # one that downstream consumers expect; the Python rebase bug
-    # is tracked separately and out-of-scope for the C41 chunk.
+    # The two fixtures below pin the Python parity bugs fixed
+    # alongside the C41-default-on flip: ``proc ::ns::foo`` no
+    # longer yields a stray ``::::ns::foo`` qualified-name key, and
+    # ``namespace eval outer { namespace eval inner { ... } }`` no
+    # longer drops the outer namespace.
+    (
+        "nested_namespace_eval_proc",
+        "namespace eval outer { namespace eval inner { proc deep {} {} } }",
+    ),
+    (
+        "nested_namespace_eval_class",
+        "namespace eval outer { namespace eval inner { oo::class create C {} } }",
+    ),
     # -- control flow --
     (
         "for_loop_with_inner_set",
@@ -246,6 +372,151 @@ CORPUS: list[tuple[str, str]] = [
         "switch_form_2",
         "switch $x { a { puts a } b { puts b } default { puts other } }",
     ),
+    # -- W124 (IP literal compare in expr) --
+    (
+        "w124_ip_literal_compare",
+        'proc f {} { set ip "10.0.0.1"; if {$ip eq "192.168.1.1"} { puts yes } }',
+    ),
+    # -- W214 (unused proc parameter) --
+    ("w214_unused_first_param", "proc f {a b} { puts $b }"),
+    ("w214_unused_only_param", "proc f {x} {}"),
+    # -- H300 (case-mismatch hint) --
+    (
+        "h300_case_mismatch_both_used",
+        "proc f {} { set Foo 1; puts $foo; puts $Foo }",
+    ),
+    (
+        "h300_case_mismatch_proc_param",
+        "proc render {Total} { return $total }",
+    ),
+    # -- E101 (recovery: unclosed proc body) --
+    ("e101_unclosed_proc_body", "proc foo {} {\nset x 1\n"),
+    ("e101_unclosed_proc_body_short", "proc foo {} { puts hi\n"),
+    # -- OO class hierarchies (lifted from test_class_hierarchy.py
+    # scenarios) --
+    (
+        "oo_single_inheritance",
+        "oo::class create Animal {}\noo::class create Dog { superclass ::Animal }",
+    ),
+    (
+        "oo_diamond_inheritance",
+        """\
+oo::class create A {}
+oo::class create B { superclass ::A }
+oo::class create C { superclass ::A }
+oo::class create D { superclass ::B ::C }
+""",
+    ),
+    (
+        "oo_transitive_chain",
+        """\
+oo::class create A {}
+oo::class create B { superclass ::A }
+oo::class create C { superclass ::B }
+""",
+    ),
+    (
+        "oo_class_with_mixin_chain",
+        """\
+oo::class create Serializable {}
+oo::class create Animal {}
+oo::class create Dog {
+    superclass ::Animal
+    mixin ::Serializable
+}
+""",
+    ),
+    (
+        "oo_class_with_class_method",
+        "oo::class create C { method m {} {}; classmethod cm {} {} }",
+    ),
+    (
+        "oo_define_after_create",
+        """\
+oo::class create C {}
+oo::define C method greet {name} { puts hi }
+""",
+    ),
+    (
+        "oo_method_with_args",
+        "oo::class create C { method add {a b} { return [expr {$a + $b}] } }",
+    ),
+    # -- namespace import (lifted from test_namespace_imports.py) --
+    (
+        "ns_direct_import",
+        "namespace eval my { namespace import ::foo::bar::* }",
+    ),
+    (
+        "ns_specific_import",
+        "namespace import ::baz::*",
+    ),
+    (
+        "ns_force_import",
+        "namespace import -force ::lib::do_thing",
+    ),
+    (
+        "ns_multi_import",
+        "namespace import ::a::* ::b::* ::c::specific",
+    ),
+    # -- interp alias (test_interp_alias scenarios) --
+    (
+        "alias_simple",
+        "interp alias {} mycmd {} target",
+    ),
+    (
+        "alias_with_args",
+        "interp alias {} mycmd {} target arg1 arg2",
+    ),
+    # -- proc arg traits (lifted from test_proc_arg_traits.py) --
+    (
+        "proc_param_in_expr",
+        "proc f {x} { return [expr {$x + 1}] }",
+    ),
+    (
+        "proc_param_eval",
+        "proc f {body} { eval $body }",
+    ),
+    (
+        "proc_param_uplevel",
+        "proc f {script} { uplevel 1 $script }",
+    ),
+    (
+        "proc_param_foreach_list",
+        "proc f {items} { foreach x $items { puts $x } }",
+    ),
+    (
+        "proc_param_for_body",
+        "proc f {body} { for {set i 0} {$i < 10} {incr i} { eval $body } }",
+    ),
+    (
+        "proc_param_upvar_alias",
+        "proc f {var} { upvar 1 $var local; set local 1 }",
+    ),
+    (
+        "proc_param_underscore_unused_no_w214",
+        "proc f {_ a} { puts $a }",
+    ),
+    # -- variable scoping (test_var_scoping scenarios) --
+    (
+        "var_global_decl",
+        "proc f {} { global counter; set counter 1 }",
+    ),
+    (
+        "var_namespace_decl",
+        "proc f {} { variable shared; set shared 1 }",
+    ),
+    (
+        "var_upvar_local",
+        "proc f {} { upvar 1 outer local; set local 1 }",
+    ),
+    (
+        "var_upvar_hash_level",
+        "proc f {} { upvar #0 globalvar local; puts $local }",
+    ),
+    (
+        "var_namespace_upvar",
+        "namespace eval ns { variable x }\nproc f {} { namespace upvar ::ns x local; puts $local }",
+    ),
     # -- combined --
     (
         "package_plus_proc_plus_class",
@@ -256,6 +527,36 @@ namespace eval my::ns {
     oo::class create Widget {
         method draw {} { puts drawing }
     }
+}
+""",
+    ),
+    # -- nested OO + namespace --
+    (
+        "nested_ns_with_oo_chain",
+        """\
+namespace eval app {
+    oo::class create Base {}
+    oo::class create Derived {
+        superclass ::app::Base
+        method run {} { puts running }
+    }
+}
+""",
+    ),
+    # -- multi-proc cross-references --
+    (
+        "two_procs_one_calls_other",
+        """\
+proc helper {x} { return [expr {$x * 2}] }
+proc caller {} { puts [helper 5] }
+""",
+    ),
+    (
+        "namespace_with_internal_call",
+        """\
+namespace eval util {
+    proc square {n} { return [expr {$n * $n}] }
+    proc cube {n} { return [expr {$n * [square $n]}] }
 }
 """,
     ),
@@ -280,6 +581,187 @@ def test_analyser_shape_matches_python(label: str, source: str) -> None:
     _assert_same(source)
 
 
+# Field-by-field corpus — strict per-fixture parity on the
+# structural payload of :class:`AnalysisResult` (proc / class
+# fields, scope tree). The set is intentionally a subset of
+# ``CORPUS``: each fixture here is one we've audited as passing
+# the strict comparator. New fixtures graduate from
+# ``CORPUS`` (shape-only) to this list as parity gaps close.
+#
+# Diagnostic-by-diagnostic parity is **not** included — Python's
+# ``Analyser().analyse`` integrates ``run_compiler_checks``
+# (style + SSA dead-store diagnostics) while the Rust
+# ``analyser_analyse`` is analyser-only; layering alignment is a
+# follow-up chunk.
+FIELD_PARITY_LABELS: frozenset[str] = frozenset(
+    {
+        "bare_proc",
+        "proc_with_params",
+        "proc_with_default",
+        "proc_qualified_name",
+        "proc_inside_namespace_eval",
+        "set_global",
+        "set_qualified",
+        "incr_init",
+        "set_then_read",
+        "multiple_globals",
+        "w113_proc_shadows_set",
+        "w113_proc_shadows_puts",
+        "w123_unknown_command",
+        "w123_user_proc_resolves",
+        "w210_read_before_set_proc",
+        "w210_read_before_set_top_level",
+        "w210_suppressed_when_proc_writes_global",
+        "w211_unused_var",
+        "unknown_proc_with_switch",
+        "unknown_proc_empty_stub",
+        "unknown_proc_with_exec",
+        "package_require_with_version",
+        "package_require_exact",
+        "namespace_eval_with_proc",
+        "nested_namespace_eval_proc",
+        "foreach_loop",
+        "switch_form_2",
+        "w124_ip_literal_compare",
+        "w214_unused_first_param",
+        "w214_unused_only_param",
+        "h300_case_mismatch_both_used",
+        "h300_case_mismatch_proc_param",
+        "e101_unclosed_proc_body",
+        "e101_unclosed_proc_body_short",
+        # OO class hierarchy + transitive/diamond + mixin
+        "oo_single_inheritance",
+        "oo_diamond_inheritance",
+        "oo_transitive_chain",
+        "oo_class_with_mixin_chain",
+        # namespace import family
+        "ns_direct_import",
+        "ns_specific_import",
+        "ns_force_import",
+        "ns_multi_import",
+        # interp alias forms
+        "alias_simple",
+        "alias_with_args",
+        # proc-arg trait scenarios (W214 over-emit cases now that
+        # body_references_param fallback is in place)
+        "proc_param_in_expr",
+        "proc_param_eval",
+        "proc_param_uplevel",
+        "proc_param_foreach_list",
+        "proc_param_for_body",
+        "proc_param_upvar_alias",
+        "proc_param_underscore_unused_no_w214",
+        # variable-scoping primitives (global / variable / upvar
+        # / namespace upvar)
+        "var_global_decl",
+        "var_namespace_decl",
+        "var_upvar_local",
+        "var_upvar_hash_level",
+        "var_namespace_upvar",
+        # multi-proc cross-references
+        "two_procs_one_calls_other",
+        "namespace_with_internal_call",
+    }
+)
+
+# Fixtures excluded from :data:`FIELD_PARITY_LABELS` and the gap
+# they currently exercise:
+#
+# - **OO fixtures** (``oo_class_*``, ``oo_define_*``,
+#   ``nested_namespace_eval_class``, ``package_plus_proc_plus_class``).
+#   The Rust analyser populates ``result.all_classes`` (so the
+#   qualified-name + scope-tree top-level comparison succeeds) but
+#   does not yet thread class definitions back into the per-scope
+#   ``Scope.classes`` map.
+# - ``w213_unset_no_complain`` — the Rust port doesn't record an
+#   ``unset xs`` argument as a per-scope variable, so the proc
+#   scope's variable set diverges.
+# - ``for_loop_with_inner_set`` — the Rust port doesn't surface
+#   the ``set i 0`` from the for-loop init body in the enclosing
+#   scope's variable set.
+#
+# Each gap is a Rust-side follow-up; fixtures graduate to
+# :data:`FIELD_PARITY_LABELS` as the gaps close.
+
+
+@pytest.mark.parametrize(
+    ("label", "source"),
+    [(label, source) for label, source in CORPUS if label in FIELD_PARITY_LABELS],
+    ids=[label for label, _ in CORPUS if label in FIELD_PARITY_LABELS],
+)
+def test_analyser_field_matches_python(label: str, source: str) -> None:
+    """Strict field-by-field parity for the audited subset
+    (:data:`FIELD_PARITY_LABELS`) of fixtures."""
+    del label  # only used as the pytest id
+    tcl_lsp_rust = _require_rust_binding()
+    py = Analyser().analyse(source)
+    rust_raw = tcl_lsp_rust.analyser_analyse(source, "tcl")
+    rust = _materialise_rust_analysis(source, rust_raw)
+    _compare_fields(py, rust)
+
+
+# Inline iRules-dialect corpus.  Each fixture is run with the
+# active signature profile switched to ``f5-irules`` (so Python's
+# ``Analyser`` sees the iRules command set) and the Rust binding
+# is invoked with the same dialect string so command-resolution
+# and W113 dialect-label wording line up.
+IRULES_CORPUS: list[tuple[str, str]] = [
+    ("irules_when_client_accepted", "when CLIENT_ACCEPTED {\n    log local0. hi\n}"),
+    (
+        "irules_when_http_request",
+        "when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}",
+    ),
+    ("irules_pool_select", "when HTTP_REQUEST {\n    pool myPool\n}"),
+    (
+        "irules_switch_uri",
+        'when HTTP_REQUEST {\n    switch -glob [HTTP::uri] {\n        "/api/*" { pool apiPool }\n        default { pool webPool }\n    }\n}',
+    ),
+    (
+        "irules_two_when_blocks",
+        "when CLIENT_ACCEPTED {\n    log local0. accepted\n}\n"
+        "when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}",
+    ),
+]
+# Note: ``set tmm_id [TMM::cmp_unit]`` inside a ``when`` block
+# surfaces a Rust-side gap (variables defined inside when bodies
+# are not threaded back to the enclosing scope's variable set).
+# Track separately; once that closes the fixture can graduate.
+
+
+@pytest.fixture
+def _irules_profile():
+    """Activate the ``f5-irules`` signature profile for the
+    duration of the test, restoring the prior profile on exit."""
+    from core.commands.registry.runtime import (
+        active_signature_profile,
+        configure_signatures,
+    )
+
+    prev = active_signature_profile()
+    prev_dialect = prev.get("dialect")
+    configure_signatures(dialect="f5-irules")
+    try:
+        yield
+    finally:
+        if isinstance(prev_dialect, str):
+            configure_signatures(dialect=prev_dialect)
+
+
+@pytest.mark.parametrize(
+    ("label", "source"),
+    IRULES_CORPUS,
+    ids=[label for label, _ in IRULES_CORPUS],
+)
+def test_analyser_irules_field_matches_python(label: str, source: str, _irules_profile) -> None:
+    """Strict field-by-field parity for iRules-dialect fixtures."""
+    del label  # only used as the pytest id
+    tcl_lsp_rust = _require_rust_binding()
+    py = Analyser().analyse(source)
+    rust_raw = tcl_lsp_rust.analyser_analyse(source, "f5-irules")
+    rust = _materialise_rust_analysis(source, rust_raw)
+    _compare_fields(py, rust)
+
+
 # Dispatcher gating tests. The corpus tests above call the Rust
 # path directly; these assert the env-var-gated dispatcher in
 # ``core/analysis/_analyser/__init__.py::analyse`` behaves
@@ -288,45 +770,45 @@ def test_analyser_shape_matches_python(label: str, source: str) -> None:
 import core.analysis._analyser as analyser_module  # noqa: E402
 from core.analysis._analyser import analyse  # noqa: E402
 
+_SENTINEL_PACKAGE = "C41DefaultOnSentinelPackage"
+
 
 def _sentinel_raw() -> dict:
     """A skeletal ``analyser_analyse`` return value with a
-    well-known proc name.  Patched in via monkeypatch so the
-    dispatcher gating tests don't need the real Rust binding."""
+    well-known package-require entry.  Patched in via
+    ``monkeypatch`` so the dispatcher gating tests don't need
+    the real Rust binding.
+
+    The sentinel is placed in ``package_requires`` (rather than
+    ``all_procs``) because the C41-default-on hybrid materialiser
+    replaces ``all_procs`` with the Python pass's value;
+    ``package_requires`` is one of the few side channels kept
+    verbatim from the Rust dict, so a sentinel package name
+    survives the merger and proves the Rust path ran.
+    """
     return {
         "global_scope": {
             "kind": "global",
             "name": "::",
             "body_range": None,
             "variables": {},
-            "procs": {
-                "sentinel": {
-                    "name": "sentinel",
-                    "qualified_name": "::sentinel",
-                    "params": [],
-                    "name_range": (0, 8),
-                    "body_range": (10, 20),
-                    "doc": "",
-                },
-            },
+            "procs": {},
             "classes": {},
             "children": [],
         },
-        "all_procs": {
-            "::sentinel": {
-                "name": "sentinel",
-                "qualified_name": "::sentinel",
-                "params": [],
-                "name_range": (0, 8),
-                "body_range": (10, 20),
-                "doc": "",
-            },
-        },
+        "all_procs": {},
         "all_classes": {},
         "all_variables": {},
         "diagnostics": [],
         "command_invocations": [],
-        "package_requires": [],
+        "package_requires": [
+            {
+                "name": _SENTINEL_PACKAGE,
+                "version": None,
+                "range": (0, 8),
+                "conditional": False,
+            },
+        ],
         "source_targets": [],
         "command_aliases": {},
         "namespace_imports": [],
@@ -334,40 +816,45 @@ def _sentinel_raw() -> dict:
     }
 
 
-def test_dispatcher_default_off_uses_python(monkeypatch) -> None:
-    """With the env var unset, ``analyse`` must dispatch to the
-    Python path (default-OFF polarity at C41f6).  Asserted by
-    patching ``_rust_analyse`` with a sentinel and confirming the
-    real Python proc name (``::foo``) — not the sentinel — is
-    populated."""
+def _has_sentinel(result) -> bool:
+    return any(pr.name == _SENTINEL_PACKAGE for pr in result.package_requires)
+
+
+def test_dispatcher_default_on_uses_rust(monkeypatch) -> None:
+    """With the env var unset, ``analyse`` dispatches through
+    the Rust path by default (default-ON polarity, post
+    C41-default-on flip).  The Rust ``package_requires`` entry
+    survives the hybrid merger (the supplement reads it from
+    Rust); a sentinel package name proves the Rust path ran.
+    The Python supplement still runs alongside, so ``::foo``
+    lands in ``all_procs``."""
     monkeypatch.delenv("TCL_LSP_RUST_ANALYSER", raising=False)
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("proc foo {} {}")
-    # Python path produces ::foo; sentinel absent proves Python ran.
     assert "::foo" in result.all_procs
-    assert "::sentinel" not in result.all_procs
+    assert _has_sentinel(result)
 
 
 def test_dispatcher_env_var_on_uses_rust(monkeypatch) -> None:
-    """``TCL_LSP_RUST_ANALYSER=1`` (explicit opt-in) flips to the
-    Rust dispatch — sentinel proves the binding ran instead of
-    the Python implementation."""
+    """``TCL_LSP_RUST_ANALYSER=1`` (explicit opt-in, redundant
+    after the polarity flip but still respected) routes through
+    the Rust dispatch.  Same hybrid behaviour as default-ON."""
     monkeypatch.setenv("TCL_LSP_RUST_ANALYSER", "1")
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("source ignored — patched rust returns sentinel")
-    assert "::sentinel" in result.all_procs
-    assert "::foo" not in result.all_procs
+    assert _has_sentinel(result)
 
 
 def test_dispatcher_env_var_zero_keeps_python(monkeypatch) -> None:
-    """``TCL_LSP_RUST_ANALYSER=0`` is explicit opt-out — must
-    keep the Python path even when patched ``_rust_analyse`` is
-    available."""
+    """``TCL_LSP_RUST_ANALYSER=0`` is explicit opt-out — the
+    Rust path is skipped even when the binding is patched in.
+    Sentinel absence proves Rust never ran; ``::foo`` from the
+    Python pass is the result."""
     monkeypatch.setenv("TCL_LSP_RUST_ANALYSER", "0")
     monkeypatch.setattr(analyser_module, "_rust_analyse", lambda _src, _dia: _sentinel_raw())
     result = analyse("proc foo {} {}")
     assert "::foo" in result.all_procs
-    assert "::sentinel" not in result.all_procs
+    assert not _has_sentinel(result)
 
 
 def test_dispatcher_falls_back_when_rust_raises(monkeypatch) -> None:
@@ -384,3 +871,4 @@ def test_dispatcher_falls_back_when_rust_raises(monkeypatch) -> None:
     result = analyse("proc foo {} {}")
     # Python fallback ran ⇒ ::foo present.
     assert "::foo" in result.all_procs
+    assert not _has_sentinel(result)

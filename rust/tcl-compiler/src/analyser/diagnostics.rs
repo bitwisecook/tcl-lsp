@@ -226,6 +226,66 @@ fn extract_quoted_word(message: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
+/// Return ``true`` when ``body`` contains a ``$param`` /
+/// ``${param}`` substitution.  Used as a fallback by the W214
+/// (unused-parameter) emitter to suppress the warning when the
+/// parameter is read inside a ``[expr {...}]`` / ``[cmd ...]``
+/// substitution that the IR lowerer doesn't track as a use.
+///
+/// Conservative — false negatives are fine (W214 still fires
+/// when the param genuinely isn't referenced), but false
+/// positives would cause the over-emit this guard exists to
+/// prevent.  The bare-name match enforces a non-identifier
+/// boundary on each side so ``$abc`` doesn't match ``$ab``,
+/// and skips the variable when it follows a ``\\`` escape.
+fn body_references_param(body: &str, param: &str) -> bool {
+    if param.is_empty() {
+        return false;
+    }
+    let bytes = body.as_bytes();
+    let plen = param.len();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c != b'$' {
+            i += 1;
+            continue;
+        }
+        // Skip backslash-escaped ``\$``.
+        if i > 0 && bytes[i - 1] == b'\\' {
+            i += 1;
+            continue;
+        }
+        // ``${name}`` form.
+        if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+            let start = i + 2;
+            if start + plen <= bytes.len()
+                && &bytes[start..start + plen] == param.as_bytes()
+                && start + plen < bytes.len()
+                && bytes[start + plen] == b'}'
+            {
+                return true;
+            }
+        } else {
+            // ``$name`` form — bare identifier match.
+            let start = i + 1;
+            if start + plen <= bytes.len() && &bytes[start..start + plen] == param.as_bytes() {
+                let after = start + plen;
+                let next_ok = after >= bytes.len() || !is_ident_continue(bytes[after]);
+                if next_ok {
+                    return true;
+                }
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+fn is_ident_continue(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b':'
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -665,6 +725,22 @@ impl Analyser {
                 .any(|(k, c)| k.0 == *param && !c.is_dead());
             if any_live {
                 continue;
+            }
+            // Fallback: the def-use builder doesn't track variable
+            // references inside ``[expr {...}]`` command
+            // substitutions or arbitrary nested ``[cmd ...]``
+            // bodies that don't lower into a structured IR.
+            // Mirror the Python ``infer_param_traits`` shallow
+            // pass's ``$param`` text scan: if the body source
+            // contains a ``$param`` / ``${param}`` reference
+            // anywhere, treat the parameter as used and skip
+            // W214.  Saves the W214 over-emit on ``proc f {x}
+            // { return [expr {$x + 1}] }``-style bodies until
+            // the full ``infer_param_traits`` port lands.
+            if let Some(body_source) = ir_proc.body_source.as_deref() {
+                if body_references_param(body_source, param) {
+                    continue;
+                }
             }
             let message = format!(
                 "Parameter '{param}' of proc '{name}' is unused",
@@ -2096,6 +2172,61 @@ mod tests {
     use super::*;
     use crate::analyser::types::Diagnostic;
     use tcl_lexer::Span;
+
+    #[test]
+    fn body_references_param_bare_dollar() {
+        assert!(body_references_param("set y $x", "x"));
+        assert!(body_references_param("return [expr {$a + $b}]", "a"));
+        assert!(body_references_param("return [expr {$a + $b}]", "b"));
+        assert!(body_references_param("puts [list $val 1]", "val"));
+    }
+
+    #[test]
+    fn body_references_param_braced_dollar() {
+        assert!(body_references_param("set y ${x}", "x"));
+        assert!(body_references_param("puts \"got ${val}!\"", "val"));
+    }
+
+    #[test]
+    fn body_references_param_no_match_for_substring_only() {
+        // ``$abc`` must not match ``ab`` (boundary check).
+        assert!(!body_references_param("set y $abc", "ab"));
+        assert!(!body_references_param("puts $foobar", "foo"));
+    }
+
+    #[test]
+    fn body_references_param_skips_backslash_escape() {
+        // ``\$x`` is a literal dollar — not a substitution.
+        assert!(!body_references_param("puts \\$x", "x"));
+    }
+
+    #[test]
+    fn body_references_param_handles_multiple_uses() {
+        assert!(body_references_param("set y $x; set z $x", "x"));
+    }
+
+    #[test]
+    fn body_references_param_misses_when_unused() {
+        assert!(!body_references_param("puts hello", "x"));
+        assert!(!body_references_param("return 42", "y"));
+    }
+
+    #[test]
+    fn body_references_param_braced_with_punct_after() {
+        // ``${x}foo`` is a valid substitution — boundary not
+        // required inside braces.
+        assert!(body_references_param("set y ${x}foo", "x"));
+    }
+
+    #[test]
+    fn body_references_param_namespace_qualified() {
+        // ``$ns::var`` is a qualified variable; the param name
+        // is the leading identifier.  Boundary on ``::`` is
+        // OK — both are part of the qualified name; the W214
+        // emitter passes the bare param so this is a non-issue
+        // in practice.  Test pins the boundary semantics.
+        assert!(!body_references_param("set y $ns::var", "ns"));
+    }
 
     fn diag(code: &str, span: Span, msg: &str) -> Diagnostic {
         Diagnostic {

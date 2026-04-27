@@ -276,6 +276,7 @@ mod tests {
                 (*m).to_string(),
                 MethodDef {
                     name: (*m).to_string(),
+                    params: Vec::new(),
                     name_span: span(),
                     body_span: span(),
                     kind: "method".to_string(),

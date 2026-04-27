@@ -91,6 +91,16 @@ impl Analyser {
             // added to ``cmd_idx`` so we skip past the consumed
             // orphans.
             let consumed = self.recover_missing_open_brace(&mut cmd, &body_commands, cmd_idx);
+            // ``# noqa`` directives in the preceding-comment
+            // attribute to this command's line range — same
+            // shape as the top-level loop.
+            if let Some(line_offsets) = self.line_offsets.as_deref() {
+                super::utils::apply_preceding_noqa(
+                    &cmd,
+                    line_offsets,
+                    &mut self.result.suppressed_lines,
+                );
+            }
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
             cmd_idx += 1 + consumed;
         }
@@ -164,6 +174,95 @@ impl Analyser {
                 range: cmd_tok.span,
             },
         );
+
+        // iRules ``call PROC ARG...`` — record an additional
+        // ``CommandInvocation`` for the target proc so that
+        // references, rename, and call-hierarchy see through the
+        // indirection.  Mirrors
+        // ``_AnalyserCommandsMixin._process_command`` line 231 in
+        // ``core/analysis/_analyser/_commands.py``.
+        if cmd_name == "call" && self.dialect == "f5-irules" {
+            if let (Some(target_name), Some(target_tok)) =
+                (args.first(), arg_tokens_in.get(1).copied())
+            {
+                self.result.command_invocations.push(
+                    crate::signature_scan::types::SignatureCommandInvocation {
+                        name: target_name.clone(),
+                        range: target_tok.span,
+                    },
+                );
+            }
+        }
+
+        // Walk each argument's source text for ``[cmd ...]``
+        // substitutions and record each nested command's head as
+        // its own ``CommandInvocation``.  Mirrors the
+        // ``_iter_nested_invocations`` walk in
+        // ``_AnalyserCommandsMixin._record_command_invocation``
+        // (Python).  Without this, calls embedded inside argument
+        // expressions (``set x [helper $foo]``,
+        // ``puts "got [count $items]"`` …) aren't tracked, which
+        // breaks workspace usage counts, find-references, rename,
+        // and call-hierarchy.
+        for arg_tok in arg_tokens_in.iter().skip(1) {
+            let arg_start = arg_tok.span.start();
+            let arg_end = arg_tok.span.end() as usize;
+            let src_bytes = self.source.as_bytes();
+            if arg_start as usize >= src_bytes.len() || arg_end > src_bytes.len() {
+                continue;
+            }
+            let arg_src = &self.source[arg_start as usize..arg_end];
+            if matches!(arg_tok.kind, TokenType::Cmd) {
+                // ``Cmd`` tokens cover the inner text (no
+                // surrounding ``[`` / ``]``) when ``content_offset
+                // = 1`` — but the segmenter's ``Cmd`` span starts
+                // at the ``[`` and ends one past the inner text,
+                // *without* the closing ``]``.  Strip the leading
+                // ``[`` (skip ``content_offset`` bytes) and pass
+                // the inner content directly to
+                // ``first_command_head``; then recurse into the
+                // inner text for nested substitutions.
+                let inner_off = arg_tok.content_offset as usize;
+                if inner_off <= arg_src.len() {
+                    let inner = &arg_src[inner_off..];
+                    if let Some((head, head_off)) = first_command_head(inner) {
+                        let abs_start = arg_start + (inner_off + head_off) as u32;
+                        let abs_end = abs_start + head.len() as u32;
+                        self.result.command_invocations.push(
+                            crate::signature_scan::types::SignatureCommandInvocation {
+                                name: head.to_string(),
+                                range: tcl_lexer::Span::new(abs_start, abs_end),
+                            },
+                        );
+                    }
+                    for (name, off) in scan_nested_command_heads(inner) {
+                        let abs_start = arg_start + (inner_off + off as usize) as u32;
+                        let abs_end = abs_start + name.len() as u32;
+                        self.result.command_invocations.push(
+                            crate::signature_scan::types::SignatureCommandInvocation {
+                                name,
+                                range: tcl_lexer::Span::new(abs_start, abs_end),
+                            },
+                        );
+                    }
+                }
+            } else {
+                // For ``Esc`` (bareword / quoted) and ``Str``
+                // (braced) tokens the span covers the full token
+                // including any quotes / braces; ``scan_nested_*``
+                // walks ``[…]`` substitutions inside.
+                for (name, off) in scan_nested_command_heads(arg_src) {
+                    let abs_start = arg_start + off;
+                    let abs_end = abs_start + name.len() as u32;
+                    self.result.command_invocations.push(
+                        crate::signature_scan::types::SignatureCommandInvocation {
+                            name,
+                            range: tcl_lexer::Span::new(abs_start, abs_end),
+                        },
+                    );
+                }
+            }
+        }
 
         // **C41d3.** Record variable-as-command and command-sub-as-
         // command sites so the post-walk W307 / W308 emitters can
@@ -254,13 +353,263 @@ impl Analyser {
         self.handle_interp_alias(cmd_name, args);
         self.handle_oo_objdefine(cmd_name, args);
         self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
+        self.handle_source_command(cmd_name, args, arg_tokens);
+        self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_auto_path_command(cmd_name, args, arg_tokens);
+        self.handle_regex_pattern_capture(cmd_name, args, arg_tokens);
+
+        // ``load`` / ``rename`` flip ``has_dynamic_providers``.
+        // ``load`` brings a shared library's commands into the
+        // interpreter at runtime; ``rename`` can introduce new
+        // command names dynamically.  Both make static W123
+        // unknown-command analysis unreliable, so the flag
+        // suppresses those diagnostics on the document.  Mirrors
+        // Python's ``_commands.py`` behaviour.
+        if matches!(cmd_name, "load" | "rename") {
+            self.result.has_dynamic_providers = true;
+        }
+
+        // Generic body recursion via the command registry's
+        // `ArgRole::Body`.  Mirrors the `iter_body_arguments` loop
+        // in `_AnalyserCommandsMixin._process_command` (Python).
+        // Picks up `if` / `while` / `when` / `eval` / `uplevel`
+        // / `subst` / etc. — every command whose registry spec
+        // marks an argument index as `BODY`.  The dedicated
+        // `handle_*_command` calls above already returned early
+        // for the commands they own (proc, oo::class, oo::define,
+        // namespace eval, foreach, for, switch, catch, try), so
+        // this loop only fires for the rest.
+        //
+        // For `when EVENT { body }` the iRules dialect spec
+        // marks arg 1 as BODY; set `current_event` for the body
+        // walk so race-detection diagnostics see the event
+        // name, mirroring the Python behaviour.
+        if let Some(registry) = self.registry.as_ref() {
+            let body_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            let body_indices = registry.arg_indices_for_role(
+                cmd_name,
+                &body_args,
+                tcl_registry::arg_role::ArgRole::Body,
+            );
+            if !body_indices.is_empty() {
+                let prev_event = self.current_event.clone();
+                if cmd_name == "when" && !args.is_empty() {
+                    self.current_event = Some(args[0].clone());
+                }
+                let is_conditional = matches!(cmd_name, "if" | "try");
+                if is_conditional {
+                    self.conditional_depth += 1;
+                }
+                for idx in body_indices {
+                    if let (Some(body_text), Some(body_tok)) =
+                        (args.get(idx), arg_tokens.get(idx).copied())
+                    {
+                        self.analyse_body(body_text, body_tok, scope_path);
+                    }
+                }
+                if is_conditional {
+                    self.conditional_depth -= 1;
+                }
+                if cmd_name == "when" {
+                    self.current_event = prev_event;
+                }
+            }
+        }
     }
+}
+
+/// Walk `text` looking for ``[cmd args...]`` command
+/// substitutions and return the head name + the offset of the
+/// head's first byte within `text` for each substitution found.
+/// Nested substitutions are reported in depth-first order
+/// (outer first, then inner).  Braced regions are skipped
+/// opaquely; backslash-escaped ``\\[`` / ``\\]`` are skipped.
+///
+/// Mirrors the ``_iter_nested_invocations`` walk in
+/// ``_AnalyserCommandsMixin._record_command_invocation``.
+/// Returns ``(name, byte_offset_in_text)`` pairs.  The caller
+/// adds the enclosing token's source-span start to obtain an
+/// absolute offset.
+pub(crate) fn scan_nested_command_heads(text: &str) -> Vec<(String, u32)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => {
+                // Skip braced region opaquely.
+                let mut depth = 1i32;
+                i += 1;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\\' if i + 1 < bytes.len() => i += 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+            }
+            b'[' => {
+                // Find the matching closing ``]`` honouring
+                // nesting + backslash escapes.
+                let inner_start = i + 1;
+                let mut depth = 1i32;
+                let mut j = inner_start;
+                while j < bytes.len() && depth > 0 {
+                    match bytes[j] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        b'\\' if j + 1 < bytes.len() => j += 1,
+                        _ => {}
+                    }
+                    if depth == 0 {
+                        break;
+                    }
+                    j += 1;
+                }
+                if depth == 0 && j < bytes.len() {
+                    let inner = &text[inner_start..j];
+                    if let Some((name, head_offset_in_inner)) = first_command_head(inner) {
+                        let abs_offset = inner_start + head_offset_in_inner;
+                        out.push((name.to_string(), abs_offset as u32));
+                    }
+                    // Recurse into the inner text — nested ``[...]``
+                    // substitutions inside this one also produce
+                    // invocations.
+                    for (name, off_in_inner) in scan_nested_command_heads(inner) {
+                        out.push((name, inner_start as u32 + off_in_inner));
+                    }
+                    i = j + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            _ => i += 1,
+        }
+    }
+    out
+}
+
+/// Find the first command-head token in `text` (skipping
+/// leading whitespace and comments) and return its ``(name,
+/// offset)`` pair.  Conservative — any non-bareword leading
+/// token returns ``None``.
+fn first_command_head(text: &str) -> Option<(&str, usize)> {
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b';' {
+            i += 1;
+            continue;
+        }
+        // Skip comment lines if at the start of a logical command.
+        if c == b'#' {
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    if i >= bytes.len() {
+        return None;
+    }
+    let start = i;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b' '
+            || c == b'\t'
+            || c == b'\n'
+            || c == b'\r'
+            || c == b';'
+            || c == b'['
+            || c == b']'
+        {
+            break;
+        }
+        i += 1;
+    }
+    if i == start {
+        return None;
+    }
+    let head = &text[start..i];
+    // Reject heads that look like substitution / quoting markers
+    // (``$foo``, ``"abc"``, ``{...}``) — these aren't command
+    // names.
+    if head.starts_with('$') || head.starts_with('"') || head.starts_with('{') {
+        return None;
+    }
+    Some((head, start))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tcl_lexer::{Span, TokenType};
+
+    #[test]
+    fn scan_nested_command_heads_simple() {
+        let out = scan_nested_command_heads("[helper $x]");
+        assert_eq!(out, vec![("helper".to_string(), 1)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_nested() {
+        // [outer [inner $x]]
+        let out = scan_nested_command_heads("[outer [inner $x]]");
+        assert_eq!(
+            out,
+            vec![("outer".to_string(), 1), ("inner".to_string(), 8)]
+        );
+    }
+
+    #[test]
+    fn scan_nested_command_heads_inside_quoted_string() {
+        // "got [count $items]" — quotes don't interfere with [
+        // ``count`` starts at byte 6 (after ``"got [``).
+        let out = scan_nested_command_heads("\"got [count $items]\"");
+        assert_eq!(out, vec![("count".to_string(), 6)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_skips_braced_regions() {
+        // Braced regions are opaque — `[` inside `{...}` doesn't count.
+        // ``real`` starts at byte 15 (after ``{[not_a_cmd]} [``).
+        let out = scan_nested_command_heads("{[not_a_cmd]} [real]");
+        assert_eq!(out, vec![("real".to_string(), 15)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_skips_backslash_escape() {
+        // \[foo\] is a literal pair, not a substitution.
+        // ``bar`` starts at byte 9 (after ``\\[foo\\] [``).
+        let out = scan_nested_command_heads("\\[foo\\] [bar]");
+        assert_eq!(out, vec![("bar".to_string(), 9)]);
+    }
+
+    #[test]
+    fn scan_nested_command_heads_no_match_for_pure_var_head() {
+        // [$cmd args] — head is a variable substitution, not a name
+        let out = scan_nested_command_heads("[$cmd args]");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn scan_nested_command_heads_no_match_for_unclosed() {
+        // Unclosed [ — returns nothing (recovery is segmenter's job)
+        let out = scan_nested_command_heads("[lindex $x 0");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn scan_nested_command_heads_two_independent_substs() {
+        // [a $x] [b $y]
+        let out = scan_nested_command_heads("[a $x] [b $y]");
+        assert_eq!(out, vec![("a".to_string(), 1), ("b".to_string(), 8)]);
+    }
 
     fn esc_tok(span: Span) -> Token {
         Token::new(TokenType::Esc, span)

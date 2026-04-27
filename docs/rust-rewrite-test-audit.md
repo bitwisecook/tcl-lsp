@@ -707,46 +707,110 @@ to the Rust port — the bar is differential parity on a
 purpose-built corpus instead.
 
 - **Differential corpus**
-  (`tests/test_rust_analyser_differential.py`): 40 parametrised
-  fixtures × the `_compare_shapes` helper.  Each fixture runs
-  the Python `Analyser().analyse(source)` and the Rust
-  `tcl_lsp_rust.analyser_analyse(source, "tcl")` →
-  `_materialise_rust_analysis` paths, then asserts the
-  proc-qualified-name set and class-qualified-name set match
-  (modulo a `::::`→`::` normalisation for Python's known
-  double-prefix quirk).  The comparison is intentionally coarse
-  — finer-grained equality (per-proc params, per-class methods,
-  scope-tree shape, `all_variables` membership, diagnostic-code
-  parity) is the bar **after** C41-default-on bakes; landing it
-  now would force xfail markers, and the chunk-log policy
-  forbids shipping xfails.
+  (`tests/test_rust_analyser_differential.py`): 92 parametrised
+  fixtures across two comparators after the
+  `C41-default-on-1` … `C41-default-on-6` strips.
+  Each fixture runs the Python `Analyser().analyse(source)` and
+  the Rust `tcl_lsp_rust.analyser_analyse(source, dialect)` →
+  `_materialise_rust_analysis` paths.
+  - The 53-fixture **shape-only** subset uses `_compare_shapes`
+    and asserts the proc-qualified-name set and class-qualified-name
+    set match (with the `::::`→`::` normalisation kept for
+    backwards-compat against any pre-fix output).
+  - The 34-fixture **field-by-field** subset
+    (`FIELD_PARITY_LABELS`) plus 5 iRules-dialect fixtures
+    (`IRULES_CORPUS` activated under the `_irules_profile`
+    fixture) use the strict `_compare_fields` helper —
+    `all_procs` keys, the bare `name` / `params` / `name_range`
+    / `body_range`, the `all_classes` keys + per-class
+    `methods` / `class_methods` / `superclasses` / `mixins`,
+    and the recursive scope-tree shape (`kind`, `name`, child
+    var/proc/class name sets at every level).
+  - Diagnostics are intentionally **not** compared
+    field-by-field — Python's `Analyser.analyse` integrates
+    `run_compiler_checks` (style + SSA dead-store W110 / W220
+    / W304 …) while Rust's `analyser_analyse` is analyser-only;
+    layering alignment is its own follow-up.
 - **Dispatcher gating**: 4 cases in the same file assert the
-  env-var-gated dispatcher in `core/analysis/_analyser/__init__.py`:
-  unset → Python (default-OFF), `=1` → Rust, `=0` → Python,
-  Rust raising → Python fallback.  The Rust binding is patched
-  in via `monkeypatch.setattr(analyser_module, "_rust_analyse",
-  …)` so the gating tests run in Python-only CI environments
-  too.
-- **Cargo unit tests**: 1,724 across the workspace.  The
+  env-var-gated dispatcher in `core/analysis/_analyser/__init__.py`
+  after the C41-default-on flip:
+  unset → Rust (default-ON), `=1` → Rust (explicit opt-in),
+  `=0` → Python (opt-out), Rust raising → Python fallback.
+  The Rust binding is patched in via
+  `monkeypatch.setattr(analyser_module, "_rust_analyse", …)`
+  so the gating tests run in Python-only CI environments too.
+- **Cargo unit tests**: 1,789 across the workspace.  The
   per-strip files (`analyser/oo.rs`, `analyser/recovery.rs`,
   `analyser/diagnostics.rs`, `analyser/handlers.rs`) carry
   in-module `mod tests` blocks for each handler, recovery
   helper, and diagnostic emitter.  These tests cover the *Rust
   side only* — they don't compare against Python.
 
-**Known parity gaps surfaced by the differential** (deferred
-until the C41-default-on flip is in scope):
+**Known parity gaps surfaced by the differential** (each
+tracked as its own Rust-side follow-up; see the
+`C41-default-on` chunk-log row):
 
-- `nested_namespace_eval` (`namespace eval outer { namespace
-  eval inner { proc deep {} {} } }`) — Python records
-  `::inner::deep` (drops outer); Rust records
-  `::outer::inner::deep`.  Python-side rebase bug; fixture
-  intentionally absent from the corpus.
-- Diagnostic-code-set differences across `W210` / `W211` /
-  `W213` / `W214` / `W220` between the two emitter sets — the
-  Rust port emits a slightly different subset.  Each gap is
-  tracked as a per-emitter follow-up under the C41d strip
-  family.
+- **Materialiser fields landed**:
+  `_materialise_rust_analysis` now extracts
+  `command_invocations` (with Python-side
+  `resolved_qualified_name` resolution against the
+  materialised `all_procs`), `command_aliases`,
+  `package_requires`, `source_targets`, and
+  `namespace_imports` from the Rust dict.
+- **Hybrid supplement landed**:
+  `_merge_rust_with_python_supplement` runs the Python
+  `Analyser` alongside the Rust pass and copies in the
+  fields the Rust port doesn't emit yet
+  (`source_targets`, `regex_patterns`, `stub_commands`,
+  `stub_expr_defs`, `auto_path_entries`,
+  `package_provides`, `has_dynamic_providers`,
+  `suppressed_lines`, `namespace_imports` /
+  `command_aliases` when Rust returns empty,
+  `unknown_proc_info`, `all_procs`, `all_classes`,
+  `global_scope`, `all_variables`,
+  `command_invocations`, `diagnostics`).  Verified
+  performance-neutral: `make prep-pr` runs in 67s at
+  default-on (vs 70s baseline default-off).
+- **Rust-side body iteration landed**:
+  `Analyser` gained a `registry: Option<CommandRegistry>`
+  field populated once at the top of `analyse()`;
+  `process_command` runs a registry-driven
+  `ArgRole::Body` loop after the per-command handlers
+  return, walking `if` / `while` / `when` / `eval` /
+  `uplevel` / `subst` / etc. body arguments.  The loop
+  sets `current_event` for `when EVENT { body }` and
+  bumps `conditional_depth` for `if` / `try`, mirroring
+  the Python `iter_body_arguments` block in
+  `_AnalyserCommandsMixin._process_command`.  `for` /
+  `foreach` got dedicated body recursion in their
+  handlers as well.
+- **Rust-side gaps still absorbed by the hybrid
+  supplement** (each is its own future port chunk that
+  shrinks the supplement list):
+  - **Class body parsing**: `oo::abstract` /
+    `oo::singleton` / `oo::configurable` metaclasses
+    unrecognised; `class_def.variables` + per-method
+    `params` not extracted.
+  - **Proc doc**: `ProcDef.doc` not extracted from a
+    preceding comment.
+  - **Per-scope `Scope.classes`** not threaded back
+    (`result.all_classes` is populated; the per-scope
+    map is empty).
+  - `unset xs` argument not recorded as a per-scope
+    variable.
+  - The post-pass equivalent of `run_compiler_checks`
+    (W110 / W220 / W304 emission) is not ported.
+  - `unknown_proc_info` extraction lowers the user-defined
+    `unknown` proc body to IR; tests patch
+    `lower_to_ir` to assert the failure-suppression
+    path, so Python's value is taken to honour those
+    patches.
+- Diagnostic-code-set deltas (`W113` dialect-label
+  wording, `W214` over-emit on `[expr {$param}]`
+  patterns) — exposed by the audit but absorbed by the
+  hybrid (Python's diagnostics list is the superset);
+  the field-by-field comparator does not assert on
+  diagnostics.
 
 ## C41-default-on — flip the C41 dispatcher to Rust by default
 
