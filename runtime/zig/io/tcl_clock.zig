@@ -248,6 +248,6 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
         obj.free_sized(buf, cap);
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(out_obj)) + obj.OBJ_STR_CAP, @intCast(cap));
+    obj.write_i32(@as(u32, @intCast(out_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
     return out_obj;
 }

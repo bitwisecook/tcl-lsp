@@ -324,7 +324,7 @@ pub export fn tcl_cmd_source(path: i32) i32 {
         stubs.raise("source: out of memory");
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(script_obj)) + obj.OBJ_STR_CAP, @intCast(size));
+    obj.write_i32(@as(u32, @intCast(script_obj)) + obj.OBJ_STR_CAP, @bitCast(size));
     const interp = @import("../interp/tcl_interp.zig");
     const result = interp.tcl_eval(script_obj);
     obj.tcl_obj_release(script_obj);
