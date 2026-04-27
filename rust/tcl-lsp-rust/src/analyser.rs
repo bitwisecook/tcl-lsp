@@ -159,6 +159,7 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     for se in &r.stub_expr_defs {
         let d = PyDict::new_bound(py);
         d.set_item("name", &se.name)?;
+        d.set_item("kind", &se.kind)?;
         d.set_item("range", span_tuple(se.range))?;
         stub_exprs.append(d)?;
     }

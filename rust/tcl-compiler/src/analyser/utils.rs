@@ -171,16 +171,18 @@ fn parse_stub_name(body: &str) -> Option<&str> {
     }
 }
 
-/// Scan `source` for inline ``# tcl-lsp: stub NAME ...`` and
-/// ``# tcl-lsp: stub expr-func NAME ...`` declarations bounded by
-/// the ``stubs-begin`` / ``stubs-end`` markers, returning
-/// ``(commands, expr_defs)``.
+/// Scan `source` for inline ``# tcl-lsp: stub NAME {ARGS} ?FLAGS?`` and
+/// ``# tcl-lsp: stub expr-func NAME ?ARITY?`` (also ``expr-op``)
+/// declarations bounded by the ``stubs-begin`` / ``stubs-end``
+/// markers, returning ``(commands, expr_defs)``.
 ///
 /// Mirrors the LSP-relevant subset of
-/// `core/analysis/stub_comments.py::scan_source_for_stubs`.  We
-/// only carry name + line span here; the richer metadata
-/// (arg-roles, ``-loop`` / ``-barrier`` flags, …) is materialised
-/// from Python until a future port closes the gap.
+/// `core/analysis/stub_comments.py::scan_source_for_stubs`.
+/// Command stubs *require* the ``{ARGS}`` brace block (Python's
+/// `_STUB_RE` rejects bare ``stub NAME``); we keep the same
+/// shape so the W123 candidate set agrees.  Arg-role parsing
+/// (the inside of ``{ARGS}``) is still Python-only — the Rust
+/// scanner only carries ``name + range`` for now.
 #[must_use]
 pub fn scan_source_for_stubs(
     source: &str,
@@ -213,15 +215,21 @@ pub fn scan_source_for_stubs(
         if !in_block {
             continue;
         }
-        let Some(name) = parse_stub_name(body) else {
-            continue;
-        };
-        if let Some(expr_name) = name.strip_prefix("expr-") {
+        // ``# tcl-lsp:`` prefix is optional inside a stubs block —
+        // strip it once if present.
+        let after_prefix = strip_tcl_lsp_prefix(body);
+        // Try the expr-func / expr-op shape first because ``stub
+        // expr-func NAME`` would otherwise match the command shape
+        // with NAME == "expr-func".
+        if let Some((kind, name)) = parse_expr_stub(after_prefix) {
             exprs.push(super::types::StubExprDef {
-                name: expr_name.to_string(),
+                name: name.to_string(),
+                kind: kind.to_string(),
                 range: span,
             });
-        } else {
+            continue;
+        }
+        if let Some(name) = parse_command_stub_name(after_prefix) {
             cmds.push(super::types::StubCommandDef {
                 name: name.to_string(),
                 range: span,
@@ -229,6 +237,91 @@ pub fn scan_source_for_stubs(
         }
     }
     (cmds, exprs)
+}
+
+/// Strip a leading ``tcl-lsp:`` keyword (case-insensitive) from
+/// the comment body, if present.  Whitespace flexible.
+fn strip_tcl_lsp_prefix(body: &str) -> &str {
+    let s = body.trim_start();
+    let lower_prefix = "tcl-lsp";
+    let kw_end = lower_prefix.len();
+    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+        return s;
+    }
+    let rest = s[kw_end..].trim_start();
+    rest.strip_prefix(':').map_or(s, str::trim_start)
+}
+
+/// Parse a ``stub NAME {ARGS} ?FLAGS?`` line (case-insensitive on
+/// the ``stub`` keyword).  Returns the bare command name when the
+/// line matches; ``None`` when the brace block is missing.
+/// Mirrors Python's ``_STUB_RE``.
+fn parse_command_stub_name(line: &str) -> Option<&str> {
+    let s = line.trim_start();
+    let stub_kw = "stub";
+    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+        return None;
+    }
+    let after = s[stub_kw.len()..].trim_start();
+    if after.is_empty() {
+        return None;
+    }
+    // First whitespace-delimited token is the command name.
+    let name_end = after
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(after.len());
+    if name_end == 0 {
+        return None;
+    }
+    let name = &after[..name_end];
+    // Reject ``expr-func`` / ``expr-op`` here — those are handled
+    // by ``parse_expr_stub``.
+    if name.eq_ignore_ascii_case("expr-func") || name.eq_ignore_ascii_case("expr-op") {
+        return None;
+    }
+    let after_name = after[name_end..].trim_start();
+    // Python requires the ``{ARGS}`` brace block; we reject
+    // anything else so the two scanners agree on what's a stub.
+    if !after_name.starts_with('{') {
+        return None;
+    }
+    Some(name)
+}
+
+/// Parse a ``stub expr-func NAME ?ARITY?`` / ``stub expr-op NAME
+/// ?ARITY?`` line.  Returns ``(kind, name)`` on match.  Mirrors
+/// Python's ``_EXPR_STUB_RE``.
+fn parse_expr_stub(line: &str) -> Option<(&'static str, &str)> {
+    let s = line.trim_start();
+    let stub_kw = "stub";
+    if s.len() < stub_kw.len() || !s[..stub_kw.len()].eq_ignore_ascii_case(stub_kw) {
+        return None;
+    }
+    let after = s[stub_kw.len()..].trim_start();
+    let kind: &'static str;
+    let rest;
+    if after.len() >= "expr-func".len()
+        && after[.."expr-func".len()].eq_ignore_ascii_case("expr-func")
+    {
+        kind = "function";
+        rest = after["expr-func".len()..].trim_start();
+    } else if after.len() >= "expr-op".len()
+        && after[.."expr-op".len()].eq_ignore_ascii_case("expr-op")
+    {
+        kind = "operator";
+        rest = after["expr-op".len()..].trim_start();
+    } else {
+        return None;
+    }
+    if rest.is_empty() {
+        return None;
+    }
+    let name_end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
+    if name_end == 0 {
+        None
+    } else {
+        Some((kind, &rest[..name_end]))
+    }
 }
 
 /// Per-line ``# noqa: CODE`` suppression scanner.

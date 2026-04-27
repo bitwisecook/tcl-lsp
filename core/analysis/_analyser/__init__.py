@@ -326,7 +326,7 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
         result.stub_expr_defs.append(
             StubExprDef(
                 name=se["name"],
-                kind="function",
+                kind=se.get("kind") or "function",
                 range=range_at(*se["range"]),
             )
         )
@@ -401,9 +401,12 @@ def _merge_rust_with_python_supplement(
     # follow-up; trimming this block is the way to slim the
     # supplement.
     rust.regex_patterns = python.regex_patterns
-    rust.stub_commands = python.stub_commands
-    rust.stub_expr_defs = python.stub_expr_defs
-    rust.auto_path_entries = python.auto_path_entries
+    if not rust.stub_commands:
+        rust.stub_commands = python.stub_commands
+    if not rust.stub_expr_defs:
+        rust.stub_expr_defs = python.stub_expr_defs
+    if not rust.auto_path_entries:
+        rust.auto_path_entries = python.auto_path_entries
     if not rust.namespace_imports:
         rust.namespace_imports = python.namespace_imports
     if not rust.source_targets:

@@ -451,6 +451,9 @@ pub struct StubCommandDef {
 pub struct StubExprDef {
     /// Stub expression-function name.
     pub name: String,
+    /// Either ``"function"`` (``stub expr-func``) or
+    /// ``"operator"`` (``stub expr-op``).
+    pub kind: String,
     /// Span of the comment line carrying the directive.
     pub range: Span,
 }
