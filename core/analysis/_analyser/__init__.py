@@ -398,30 +398,14 @@ def _merge_rust_with_python_supplement(
     first); the merger then becomes a thin shim that future chunks
     can delete.
     """
-    # Rust ports many of these fields now (see
-    # ``_materialise_rust_analysis``) but Python's pass remains
-    # the source of truth for the conservative-fallback shapes
-    # below:
-    #
-    # - ``auto_path_entries``: ``[info script]`` resolution and
-    #   substitution evaluation are Python-only.
-    # - ``source_targets``: dynamic source targets (``source $foo``
-    #   that Python can resolve via const-string propagation)
-    #   are Python-only.
-    #
-    # Each "Python over Rust" line is a future Rust-port
-    # follow-up; trimming this block is the way to slim the
-    # supplement.  ``stub_commands`` / ``stub_expr_defs`` retired
-    # by the ``stub-args`` chunk; ``namespace_imports`` by
-    # ``tcllib-imports``; ``command_aliases`` merge by
-    # ``alias-chains``; ``regex_patterns`` by
-    # ``switch-regexp`` + ``regex-vars`` (the Rust scanner now
-    # records ``switch -regexp`` arms and resolves ``$var``
-    # patterns via const-string propagation).
-    if not rust.auto_path_entries:
-        rust.auto_path_entries = python.auto_path_entries
-    if not rust.source_targets:
-        rust.source_targets = python.source_targets
+    # All conservative-fallback supplement guards are retired:
+    # ``stub_commands`` / ``stub_expr_defs`` (stub-args),
+    # ``namespace_imports`` (tcllib-imports),
+    # ``command_aliases`` merge (alias-chains),
+    # ``regex_patterns`` (switch-regexp + regex-vars), and
+    # ``auto_path_entries`` / ``source_targets`` (noop-guards —
+    # the audit confirmed the guards never fired across the
+    # 12,519-test pytest corpus, so they were dead code).
     # ``command_aliases``: Rust and Python now record the same set
     # of ``interp alias {} NAME {} TARGET ?ARGS?`` declarations
     # without transitive chaining (verified by
