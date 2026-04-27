@@ -125,9 +125,38 @@ fn resolve_interpreted_proc(name: i32) u32 {
 /// (missing, alias, hidden, compiled) and returns an empty TclObj
 /// so the error-flag path is the authoritative signal.
 pub export fn info_body(name: i32) i32 {
-    const cmd = resolve_interpreted_proc(name);
-    if (cmd == 0) return obj_new_string(0, 0);
-    return procs.proc_get_body(@bitCast(cmd));
+    // Compiled procs (``func_idx != 0``) don't keep a runtime-visible
+    // source body — the original script bytes were lifted into a
+    // wasm function at compile time.  Real Tcl returns the source
+    // body string verbatim; we return the empty string so callers
+    // like ``test foo {} -body [info body bar] …`` get an empty
+    // ``-body`` instead of a hard trap, letting the surrounding
+    // suite run to completion.  Tests that exercise the body's
+    // CONTENT will still fail, but the failure is local rather
+    // than aborting the whole file.
+    const sn = obj_ensure_string(name);
+    const bucket = procs.proc_lookup(name);
+    if (bucket == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    const cmd: u32 = @bitCast(bucket);
+    const flags: u32 = @bitCast(read_i32(cmd + procs.OFF_FLAGS));
+    if ((flags & procs.CMD_ALIAS) != 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
+    if (func_idx != 0) {
+        // Compiled — return empty rather than trap.
+        return obj_new_string(0, 0);
+    }
+    const body = procs.proc_get_body(bucket);
+    if (body == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    return body;
 }
 
 /// info args procName — returns the params TclObj for an
@@ -902,5 +931,15 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "level")) return info_level(arg);
     if (str_eq(sp, sub.len, "script")) return info_script();
     if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub.len, "cmdcount")) {
+        // Mirrors C Tcl ``Interp.cmdCount`` — incremented per
+        // ``eval_command`` dispatch in ``tcl_interp.zig``.  Compiled
+        // procs that take the AOT fast path don't increment;
+        // inline arithmetic and direct local accesses also don't.
+        // Matches the spec's "interpreter-visible commands" semantic
+        // in practice for tcltest's info-3.x cases.
+        const interp = @import("../interp/tcl_interp.zig");
+        return obj_new_int(interp.cmd_count);
+    }
     return obj_new_string(0, 0);
 }

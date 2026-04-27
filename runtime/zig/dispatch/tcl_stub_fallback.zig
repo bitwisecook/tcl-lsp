@@ -56,10 +56,11 @@ const STUB_TRAP: []const []const u8 = &.{
     // (cmds/stubs.zig); ``trace`` / ``namespace`` / ``subst`` /
     // ``auto_*`` are in BUILTINS with real implementations.
     "interp", "rename",
-    // Object system (TclOO, 8.6+).
-    "oo::class", "oo::define", "oo::object", "oo::copy",
-    "oo::abstract", "oo::configurable", "oo::objdefine", "oo::singleton",
-    "self", "my", "next", "nextto", "classvariable",
+    // TclOO commands moved to a no-op scaffold in cmds/oo.zig
+    // (Step 3 of the trap-cluster sweep) so oo.test reaches a
+    // tcltest summary line instead of trapping at init.  When a
+    // real implementation lands, the registrations there
+    // override; nothing here.
     // Misc that tcltest specifically references.
     "zlib", "registry",
     // Core commands without WASM impl yet.

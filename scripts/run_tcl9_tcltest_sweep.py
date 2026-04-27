@@ -21,6 +21,7 @@ sweep.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import re
 import subprocess
@@ -44,6 +45,13 @@ TESTS_DIR = REPO / "tmp" / "tcl9.0.3" / "tests"
 OUTPUT = REPO / "tmp" / "perf-output"
 
 TIMEOUT_S = 15
+# Hard cap on the Python-side compile step (lower_to_ir → source-inliner →
+# build_cfg → wasm_codegen_module).  Without this the sweep can hang
+# indefinitely on a single file when any compile stage spins (no
+# wasmtime-side epoch deadline reaches Python code).  Keep it well above
+# the per-file ``TIMEOUT_S`` budget so legitimate large bundles still
+# finish — obj.test compiles in a few seconds normally.
+COMPILE_TIMEOUT_S = 60
 
 _SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)")
 
@@ -59,12 +67,41 @@ def run_wasm(bundle_src: str, label: str, source_dir: Path | None = None):
     """Compile + run, return dict with timing + tcltest summary."""
     out = {"label": label, "compile_error": None, "run_error": None}
     t0 = time.perf_counter_ns()
+
+    # Run the compile step in a worker thread with a hard timeout so
+    # a single hung file can't stall the whole sweep.  We can't
+    # safely kill the worker if it's wedged in a CPU loop, so we
+    # accept that the daemon worker stays running until the process
+    # exits — but we MUST NOT block the main thread waiting for it.
+    # Avoid ``with ThreadPoolExecutor(...)`` because its ``__exit__``
+    # runs ``shutdown(wait=True)`` unconditionally and would re-block
+    # the parent.  Manage the pool manually and let it get garbage-
+    # collected; daemon threads are fine for a diagnostic harness.
+    def _compile():
+        return _compile_tcl_with_diag(bundle_src, label, source_dir=source_dir)
+
+    pool = concurrent.futures.ThreadPoolExecutor(
+        max_workers=1, thread_name_prefix="tcl9-compile"
+    )
+    future = pool.submit(_compile)
     try:
-        wasm, diag = _compile_tcl_with_diag(bundle_src, label, source_dir=source_dir)
+        wasm, diag = future.result(timeout=COMPILE_TIMEOUT_S)
+    except concurrent.futures.TimeoutError:
+        out["compile_error"] = f"compile timeout ({COMPILE_TIMEOUT_S}s)"
+        out["compile_ns"] = time.perf_counter_ns() - t0
+        # ``shutdown(wait=False)`` returns immediately; the worker
+        # thread keeps running with the GIL released (or burning a
+        # core) until the process exits.  Acceptable for our
+        # diagnostic harness — finishing the sweep matters more
+        # than a perfectly clean shutdown of one hung worker.
+        pool.shutdown(wait=False, cancel_futures=True)
+        return out
     except BaseException as exc:
         out["compile_error"] = str(exc)[-400:]
         out["compile_ns"] = time.perf_counter_ns() - t0
+        pool.shutdown(wait=False, cancel_futures=True)
         return out
+    pool.shutdown(wait=False, cancel_futures=True)
     out["compile_ns"] = time.perf_counter_ns() - t0
     out["wasm_bytes"] = len(wasm)
 
