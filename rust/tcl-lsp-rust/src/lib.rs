@@ -27,6 +27,7 @@ mod compilation_unit;
 mod compiler_checks;
 mod expr_lexer;
 mod expr_parser;
+pub mod folding;
 mod gvn;
 mod interprocedural;
 mod lexer;
