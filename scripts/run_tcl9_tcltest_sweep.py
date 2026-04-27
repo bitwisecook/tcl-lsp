@@ -55,12 +55,12 @@ def _parse_summary(text: str):
     return tuple(int(x) if x else 0 for x in m.groups())
 
 
-def run_wasm(bundle_src: str, label: str):
+def run_wasm(bundle_src: str, label: str, source_dir: Path | None = None):
     """Compile + run, return dict with timing + tcltest summary."""
     out = {"label": label, "compile_error": None, "run_error": None}
     t0 = time.perf_counter_ns()
     try:
-        wasm, diag = _compile_tcl_with_diag(bundle_src, label)
+        wasm, diag = _compile_tcl_with_diag(bundle_src, label, source_dir=source_dir)
     except BaseException as exc:
         out["compile_error"] = str(exc)[-400:]
         out["compile_ns"] = time.perf_counter_ns() - t0
@@ -151,7 +151,7 @@ def main():
         except UnicodeDecodeError:
             test_size = test_path.stat().st_size
 
-        wasm = run_wasm(bundle_src, f"tcl9_{stem}.test")
+        wasm = run_wasm(bundle_src, f"tcl9_{stem}.test", source_dir=test_path.parent)
         tclsh = run_tclsh(test_path, f"tcl9_{stem}.test")
 
         row = {
