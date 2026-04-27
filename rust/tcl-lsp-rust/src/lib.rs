@@ -28,6 +28,7 @@ mod compiler_checks;
 mod expr_lexer;
 mod expr_parser;
 pub mod folding;
+mod folding_binding;
 mod gvn;
 mod interprocedural;
 mod lexer;
@@ -94,5 +95,6 @@ fn tcl_lsp_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     compilation_unit::register_with(m)?;
     signature_scan::register_with(m)?;
     analyser::register_with(m)?;
+    folding_binding::register_with(m)?;
     Ok(())
 }
