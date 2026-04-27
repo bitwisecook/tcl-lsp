@@ -458,6 +458,9 @@ def _merge_rust_with_python_supplement(
     rust.command_invocations = merged_invs
     # Python's diagnostics list is a strict superset (it integrates
     # ``run_compiler_checks`` for W110 / W220 / W304).  Take Python's.
+    # The override retires when ``run_compiler_checks`` lands in
+    # Rust as part of the ``postpass`` (= C42) chunk — see
+    # ``docs/rust-rewrite.md`` for the strategy.
     rust.diagnostics = python.diagnostics
     # Structural Rust gaps the differential corpus tracks:
     # ``ProcDef.doc`` ``extract_body_docstring`` fallback;
