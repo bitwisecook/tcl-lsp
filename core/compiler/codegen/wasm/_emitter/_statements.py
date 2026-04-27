@@ -162,13 +162,34 @@ class _WasmEmitterStmtMixin(_Base):
                     # ``{*}`` argument expansion — reconstruct the
                     # original command text with ``{*}`` prefixes in
                     # front of each expanded word so the runtime can
-                    # handle the expansion.  Using argv_texts directly
-                    # without the prefix would miss the expansion.
+                    # handle the expansion.  ``argv_texts`` carries
+                    # the BRACE-STRIPPED contents for ``{a b c}``-
+                    # style words (``_word_piece`` returns
+                    # ``tok.text`` which excludes the outer braces),
+                    # so the reconstruction has to re-wrap any STR-
+                    # type expanded word — without the wrap, a
+                    # multi-line ``{*}{ a b c }`` table flattens to
+                    # ``{*} a b c`` and the parser sees ``{*}`` as a
+                    # literal three-byte word, dispatching the
+                    # callee with ``{*}`` and unexpanded contents.
                     ew = tokens.expand_word
-                    parts = [
-                        (f"{{*}}{t}" if (i < len(ew) and ew[i]) else t)
-                        for i, t in enumerate(tokens.argv_texts)
-                    ]
+                    argv = tokens.argv if tokens.argv is not None else ()
+                    parts = []
+                    for i, t in enumerate(tokens.argv_texts):
+                        expand = i < len(ew) and ew[i]
+                        prefix = "{*}" if expand else ""
+                        # Source-faithful wrap for braced words —
+                        # ``_word_piece`` already wraps VAR / CMD
+                        # tokens in ``${...}`` / ``[...]``, but STR
+                        # tokens (brace-quoted literals) are returned
+                        # bare.  Add the braces back so the
+                        # reconstructed script re-parses to the same
+                        # word shape the user wrote.
+                        from .....parsing.tokens import TokenType
+
+                        if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
+                            t = "{" + t + "}"
+                        parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(command, args, script_override=script)
                     self._emit(WasmOp.DROP)

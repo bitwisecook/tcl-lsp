@@ -25,6 +25,37 @@ from .._ir import (
 from ._ops import _is_end_relative_index
 
 
+def _contains_expand_prefix(text: str) -> bool:
+    """True when *text* contains a Tcl ``{*}`` argument-expansion prefix.
+
+    The Tcl 8.5+ syntax requires ``{*}`` to sit at a word boundary
+    (the byte before is whitespace, ``;``, or the start of the script)
+    and the byte after must be non-whitespace — that's what tells the
+    parser ``{*}`` is the magic prefix and not a literal three-char
+    brace word.  Mirrors the lexer's check in
+    :meth:`core.parsing.lexer.TclLexer._parse_string`.
+    """
+    n = len(text)
+    i = 0
+    while True:
+        idx = text.find("{*}", i)
+        if idx < 0:
+            return False
+        # Boundary check on the LEFT — start of script, or after
+        # whitespace / ``;``.
+        if idx > 0 and text[idx - 1] not in " \t\n\r\x0b\x0c;":
+            i = idx + 1
+            continue
+        # Boundary check on the RIGHT — the next char must exist
+        # (so the word can be expanded) and be non-whitespace.
+        right = idx + 3
+        if right < n and text[right] not in " \t\n\r\x0b\x0c;":
+            return True
+        i = idx + 1
+        if i >= n:
+            return False
+
+
 def _looks_like_string_option(arg: str) -> bool:
     """Detect a leading ``-flag`` argument on a ``string`` sub-command.
 
@@ -312,6 +343,19 @@ class _WasmEmitterValuesMixin(_Base):
         Falls back to a null TclObj for unknown commands.
         """
         cmd_text = text[1:-1].strip()
+        # ``{*}`` argument expansion — compile-time splitting can't
+        # cope with run-time list shape (``{*}$args`` length /
+        # contents only known at run time) and naive splitting
+        # mistakes ``{*}`` for a brace-quoted literal token,
+        # dispatching the callee with ``{*}`` and the unexpanded
+        # word as two separate args.  Route every expansion-bearing
+        # form through the eval-fallback so the runtime parser
+        # handles ``{*}WORD`` uniformly: literal lists split into
+        # elements, ``$var`` / ``[cmd]`` produce list values the
+        # dispatcher expands at run time.
+        if _contains_expand_prefix(cmd_text):
+            self._emit_eval_fallback("", (), script_override=cmd_text)
+            return
         if not cmd_text:
             self._emit_i32_const(0)
             return
