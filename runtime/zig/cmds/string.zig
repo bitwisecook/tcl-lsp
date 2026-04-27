@@ -61,7 +61,28 @@ pub fn eval(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "compare") and words.len >= 4) return rt.string_compare(words[2], words[3]);
     if (str_eq(sp, sub.len, "equal") and words.len >= 4) return rt.string_equal(words[2], words[3]);
     if (str_eq(sp, sub.len, "match") and words.len >= 4) return rt.string_match(words[2], words[3]);
-    if (str_eq(sp, sub.len, "map") and words.len >= 4) return rt.string_map(words[2], words[3]);
+    if (str_eq(sp, sub.len, "map") and words.len >= 4) {
+        // ``string map ?-nocase? CHARMAP STRING`` — accept the
+        // optional ``-nocase`` flag.  Without this branch, the
+        // flag was passed as the CHARMAP argument and the actual
+        // CHARMAP was treated as the STRING, which silently
+        // mangled tcltest's return-code translation
+        // (``string map -nocase {ok 0 ...} {0 2}`` returned the
+        // MAP itself).
+        var map_idx: u32 = 2;
+        var nocase = false;
+        if (words.len >= 5) {
+            const ws = obj_ensure_string(words[2]);
+            const wp: [*]const u8 = @ptrFromInt(ws.ptr);
+            if (str_eq(wp, ws.len, "-nocase")) {
+                nocase = true;
+                map_idx = 3;
+            }
+        }
+        if (map_idx + 1 >= words.len) return obj_new_string(0, 0);
+        if (nocase) return rt.string_map_nocase(words[map_idx], words[map_idx + 1]);
+        return rt.string_map(words[map_idx], words[map_idx + 1]);
+    }
     if (str_eq(sp, sub.len, "trim")) {
         const chars = if (words.len >= 4) words[3] else 0;
         return rt.string_trim(words[2], chars);

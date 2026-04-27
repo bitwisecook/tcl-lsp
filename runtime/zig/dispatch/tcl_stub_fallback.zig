@@ -37,12 +37,15 @@ const stubs = @import("../stubs/tcl_stubs.zig");
 /// new stub is one line.  Order doesn't matter — the lookup is a
 /// linear scan.
 const STUB_TRAP: []const []const u8 = &.{
-    // I/O + channel — fconfigure has a real impl dispatched by BUILTINS.
-    "open", "close", "read",     "gets",      "eof",     "flush",
+    // I/O + channel — fconfigure / flush have real impls dispatched
+    // by BUILTINS.  The codegen fast path calls them directly; the
+    // interpreter's stub-fallback table is only consulted for
+    // commands without a runtime impl OR a builtin entry.
+    "open", "close", "read",     "gets",      "eof",
     "fblocked", "tell", "seek",  "chan",      "fcopy",   "fileevent",
     "socket",
     // Filesystem / process — file/pwd/cd have real impls in BUILTINS.
-    "glob", "exec", "source", "load", "unload",
+    "glob", "exec", "load", "unload",
     // Format / pattern matching — scan/binary are in BUILTINS.
     "regexp",
     // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``
@@ -53,10 +56,11 @@ const STUB_TRAP: []const []const u8 = &.{
     // (cmds/stubs.zig); ``trace`` / ``namespace`` / ``subst`` /
     // ``auto_*`` are in BUILTINS with real implementations.
     "interp", "rename",
-    // Object system (TclOO, 8.6+).
-    "oo::class", "oo::define", "oo::object", "oo::copy",
-    "oo::abstract", "oo::configurable", "oo::objdefine", "oo::singleton",
-    "self", "my", "next", "nextto", "classvariable",
+    // TclOO commands moved to a no-op scaffold in cmds/oo.zig
+    // (Step 3 of the trap-cluster sweep) so oo.test reaches a
+    // tcltest summary line instead of trapping at init.  When a
+    // real implementation lands, the registrations there
+    // override; nothing here.
     // Misc that tcltest specifically references.
     "zlib", "registry",
     // Core commands without WASM impl yet.

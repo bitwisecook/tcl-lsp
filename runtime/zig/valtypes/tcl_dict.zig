@@ -51,6 +51,72 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
     return dict_append_pair(sd.ptr, sd.len, sk.ptr, sk.len, sv.ptr, sv.len);
 }
 
+/// ``dict unset DICT KEY`` — drop the matching key/value pair.
+/// If the key is absent the dict is returned unchanged.  Used by
+/// ``dict unset`` and by ``dict update`` when the bound local var
+/// is unset inside the body.
+pub export fn dict_unset(dict: i32, key: i32) i32 {
+    const sd = obj_ensure_string(dict);
+    const sk = obj_ensure_string(key);
+    if (sd.len == 0) return dict;
+    const n = list_count_elements(sd.ptr, sd.len);
+    var idx: i64 = 0;
+    while (idx + 1 < n) : (idx += 2) {
+        const k = list_element_at(sd.ptr, sd.len, idx);
+        if (str_cmp(sd.ptr + k.start, k.len, sk.ptr, sk.len) == 0) {
+            return dict_rebuild_without_pair(sd.ptr, sd.len, n, idx);
+        }
+    }
+    return dict;
+}
+
+fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) i32 {
+    const cap: u32 = sd_len * 2 + 16;
+    const buf = alloc(cap);
+    // OOM: under the libc-malloc routing alloc() returns 0 on
+    // failure.  Without this guard the @ptrFromInt(buf + off)
+    // writes below would deref address 0 and trap; instead, return
+    // an empty TclObj string so the caller's ``dict unset`` becomes
+    // a benign no-op rather than an unrecoverable trap.
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        if (idx == target_idx or idx == target_idx + 1) continue;
+        if (off > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const elem = list_element_at(sd_ptr, sd_len, idx);
+        if (elem.braced) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = '{';
+            off += 1;
+            memcpy(buf + off, sd_ptr + elem.start, elem.len);
+            off += elem.len;
+            const d2: [*]u8 = @ptrFromInt(buf + off);
+            d2[0] = '}';
+            off += 1;
+        } else {
+            memcpy(buf + off, sd_ptr + elem.start, elem.len);
+            off += elem.len;
+        }
+    }
+    // Claim ownership of ``buf`` via OBJ_STR_CAP so eventual
+    // ``tcl_obj_release`` reclaims the bytes through ``free_sized``.
+    // Without this the rebuilt-dict buffer would leak on every
+    // ``dict unset`` (or any caller that releases the returned
+    // dict TclObj).
+    const out = obj_new_string(@intCast(buf), @intCast(off));
+    if (out == 0) {
+        obj.free_sized(buf, cap);
+        return 0;
+    }
+    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    return out;
+}
+
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
     // Worst-case: each existing byte could double (backslash-escape) plus
     // braces, plus the new value doubled, plus separator spaces.

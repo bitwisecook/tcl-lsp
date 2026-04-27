@@ -46,6 +46,7 @@ class _WasmEmitterExprMixin(_Base):
         def _emit_box_int(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_obj_literal(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_args_list(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_prepare_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_push_pending_argv0(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
@@ -230,13 +231,21 @@ class _WasmEmitterExprMixin(_Base):
         new_str_idx = self._shared_imports.get("tcl_obj_new_string")
         try:
             int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
-            if new_int_idx is not None:
-                self._emit_i64_const(int_val)
-                self._emit_call(new_int_idx)
-            else:
-                self._emit_i64_const(int_val)
-                self._emit_box_int()
-            return
+            # Tcl 9 BigInt literals: ``expr {0x8000000000000000}`` or
+            # ``expr {-9223372036854775808}`` (parsed as unary-minus
+            # of 2^63) produce values outside signed i64.  Falling
+            # through to the string path lets the runtime parse the
+            # source bytes lazily and preserve precision; emitting
+            # ``i64.const`` here would saturate to the i64 boundary
+            # and silently miscompute every BigInt expression.
+            if -(1 << 63) <= int_val <= (1 << 63) - 1:
+                if new_int_idx is not None:
+                    self._emit_i64_const(int_val)
+                    self._emit_call(new_int_idx)
+                else:
+                    self._emit_i64_const(int_val)
+                    self._emit_box_int()
+                return
         except ValueError:
             pass
         try:
@@ -460,16 +469,56 @@ class _WasmEmitterExprMixin(_Base):
             self._emit_unbox_int()
             return
 
+        # ``regexp`` / ``regsub`` with options or capture vars — same
+        # rationale as the value-context branch in ``_values.py`` and
+        # the statement-context hook in ``cmds/regexp_.py``: the
+        # fixed-argc runtime import would silently take ``-indices``
+        # as the pattern arg.  Route through eval-fallback (with
+        # ``script_override``) so the dispatcher in ``cmds/regexp.zig``
+        # → ``eval_regexp_cmd`` parses options correctly.
+        if cmd_name in ("regexp", "regsub") and cmd_args:
+            n_pos = 0
+            uses_options = False
+            for a in cmd_args:
+                if a.startswith("-") and len(a) > 1:
+                    uses_options = True
+                    break
+                n_pos += 1
+            min_positional = 2 if cmd_name == "regexp" else 3
+            if uses_options or n_pos > min_positional:
+                from .cmds.regexp_ import _capture_vars_for as _cap_vars
+
+                for vname in _cap_vars(cmd_name, tuple(cmd_args)):
+                    self._intern_local(vname)
+                self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                self._emit_unbox_int()
+                return
+
         # Runtime command — returns i32 TclObj, unbox to i64
         rimp = runtime_import_for(cmd_name)
         if rimp is not None:
             func_idx = self._shared_imports.get(rimp.import_key)
             if func_idx is not None:
                 param_count = len(rimp.params)
-                for i in range(min(param_count, len(cmd_args))):
-                    self._emit_value(cmd_args[i])
-                for _ in range(param_count - len(cmd_args)):
-                    self._emit_i32_const(0)
+                if cmd_name == "apply":
+                    # ``apply LAMBDA ?arg ...?`` — pack tail into a Tcl
+                    # list (see _values.py for the rationale).  Strip
+                    # outer braces from braced args first so we don't
+                    # double-brace inside ``_emit_args_list``.
+                    def _strip_braces(s: str) -> str:
+                        return (
+                            s[1:-1]
+                            if (len(s) >= 2 and s.startswith("{") and s.endswith("}"))
+                            else s
+                        )
+
+                    self._emit_value(cmd_args[0] if cmd_args else "")
+                    self._emit_args_list(tuple(_strip_braces(a) for a in cmd_args[1:]))
+                else:
+                    for i in range(min(param_count, len(cmd_args))):
+                        self._emit_value(cmd_args[i])
+                    for _ in range(param_count - len(cmd_args)):
+                        self._emit_i32_const(0)
                 self._emit_call(func_idx)
                 if rimp.results:
                     self._emit_unbox_int()

@@ -41,6 +41,33 @@ pub export fn catch_enter() void {
     catch_ok_result = 0;
 }
 
+/// Read-and-clear the pending break flag.  Returns 1 if a break was
+/// pending (and clears the flag) so a compiled loop body can br out
+/// after an eval-fallback that ran ``break`` inside an interpreter
+/// script (e.g. a body passed to ``dict update`` / ``foreach`` /
+/// ``catch`` that lives behind an eval-fallback).  Without this hook,
+/// the wasm-side loop never noticed the break and kept iterating.
+pub export fn flow_consume_break() i32 {
+    if (break_flag != 0) {
+        break_flag = 0;
+        return 1;
+    }
+    return 0;
+}
+
+/// Read-and-clear the pending continue flag — same shape as
+/// :func:`flow_consume_break`.  ``continue`` from inside an
+/// eval-fallback still leaves the loop body before the
+/// continue-block end label, so the compiled loop can simply
+/// fall through to the loop-restart ``br`` that follows.
+pub export fn flow_consume_continue() i32 {
+    if (continue_flag != 0) {
+        continue_flag = 0;
+        return 1;
+    }
+    return 0;
+}
+
 // Exported: record the success result of the catch body's last statement.
 // Called by compiled catch bodies after their last statement when a
 // result variable is needed.  Ignored if an error already occurred.

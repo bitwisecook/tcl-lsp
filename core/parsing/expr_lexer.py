@@ -140,11 +140,26 @@ class ExprLexer:
         while self._pos < len(self._src):
             ch = self._src[self._pos]
 
-            # Whitespace
-            if ch in " \t\n\r":
+            # Whitespace (including backslash-newline line-continuation,
+            # which Tcl 9 specifies as collapsing to a single space —
+            # matters for ``if {(![info exists arr($k)]) \<NL><tabs>
+            # || (!$arr($k))}``-style multi-line conditions in tcltest).
+            if ch in " \t\n\r" or (
+                ch == "\\" and self._pos + 1 < len(self._src) and self._src[self._pos + 1] == "\n"
+            ):
                 start = self._pos
-                while self._pos < len(self._src) and self._src[self._pos] in " \t\n\r":
-                    self._pos += 1
+                while self._pos < len(self._src):
+                    c = self._src[self._pos]
+                    if c in " \t\n\r":
+                        self._pos += 1
+                    elif (
+                        c == "\\"
+                        and self._pos + 1 < len(self._src)
+                        and self._src[self._pos + 1] == "\n"
+                    ):
+                        self._pos += 2
+                    else:
+                        break
                 tokens.append(
                     ExprToken(
                         ExprTokenType.WHITESPACE, self._src[start : self._pos], start, self._pos - 1

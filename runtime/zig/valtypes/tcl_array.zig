@@ -196,6 +196,17 @@ fn ar_find(table: u32, key_ptr: u32, key_len: u32, hash: u32) ?u32 {
     return null;
 }
 
+/// MM-B.5 helper: store *value* into the value slot at ``bucket+12``,
+/// retaining the new value and releasing the prior occupant.  The
+/// array bucket owns one reference; without this helper, parser-side
+/// release (MM-B.4) would free values still held only by the bucket.
+fn bucket_set_value(bucket: u32, value: i32) void {
+    const old: i32 = read_i32(bucket + 12);
+    if (value != 0) obj.tcl_obj_retain(value);
+    write_i32(bucket + 12, value);
+    if (old != 0 and old != value) obj.tcl_obj_release(old);
+}
+
 fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 {
     var t = table;
     if (ar_count(t) * 4 >= ar_cap(t) * 3) {
@@ -219,6 +230,8 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
             write_i32(target, @bitCast(kbuf));
             write_i32(target + 4, @bitCast(key_len));
             write_i32(target + 8, @bitCast(hash));
+            // Fresh slot — no old value to release.  Just retain.
+            if (value != 0) obj.tcl_obj_retain(value);
             write_i32(target + 12, value);
             ar_set_count(t, ar_count(t) + 1);
             return t;
@@ -243,7 +256,7 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
                 }
             }
             if (match) {
-                write_i32(bucket + 12, value);
+                bucket_set_value(bucket, value);
                 return t;
             }
         }
@@ -256,6 +269,7 @@ fn ar_insert(table: u32, key_ptr: u32, key_len: u32, hash: u32, value: i32) u32 
         write_i32(target, @bitCast(kbuf));
         write_i32(target + 4, @bitCast(key_len));
         write_i32(target + 8, @bitCast(hash));
+        if (value != 0) obj.tcl_obj_retain(value);
         write_i32(target + 12, value);
         ar_set_count(t, ar_count(t) + 1);
     }
@@ -365,7 +379,7 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
     const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
-        write_i32(bucket + 12, value);
+        bucket_set_value(bucket, value);
         return value;
     }
     _ = ar_insert(t, sk.ptr, sk.len, hash, value);
@@ -486,11 +500,14 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
     const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
+        // MM-B.5: release the value slot's reference before tombstoning.
+        const old: i32 = read_i32(bucket + 12);
         write_i32(bucket, AR_TOMBSTONE);
         write_i32(bucket + 4, 0);
         write_i32(bucket + 8, 0);
         write_i32(bucket + 12, 0);
         ar_set_count(t, ar_count(t) - 1);
+        if (old != 0) obj.tcl_obj_release(old);
     }
     return obj_new_int(0);
 }

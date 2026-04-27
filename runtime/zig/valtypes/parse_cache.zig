@@ -142,6 +142,35 @@ pub fn insert(body_ptr: u32, body_len: u32, slab_addr: u32) void {
     write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));
 }
 
+/// Invalidate any cache entry whose body_ptr equals ``buf_ptr``.
+/// Called from :func:`tcl_obj.release_now` immediately before
+/// ``free_sized`` releases a string buffer back to libc malloc —
+/// otherwise a subsequent ``alloc`` could re-issue the slab to a
+/// new TclObj whose ``(body_ptr, body_len)`` happens to match a
+/// stale entry, returning tokens that point into freed memory.
+///
+/// Walk is O(cache.cap), but the cap is small (≤ MAX_ENTRIES *
+/// load factor) and free is itself a relatively rare event.
+/// Marks matched buckets as tombstones so probe chains for other
+/// keys stay intact (see ``hash_table.TOMBSTONE``).
+pub fn invalidate_for_buffer(buf_ptr: u32) void {
+    if (cache.buf == 0) return;
+    if (buf_ptr == 0 or buf_ptr == ht.TOMBSTONE) return;
+    var i: u32 = 0;
+    while (i < cache.cap) : (i += 1) {
+        const bucket = cache.buf + i * BUCKET_SIZE;
+        const np: u32 = @bitCast(read_i32(bucket));
+        if (np == 0 or np == ht.TOMBSTONE) continue;
+        const cached_body_ptr: u32 = @bitCast(read_i32(np));
+        if (cached_body_ptr == buf_ptr) {
+            // Zero the slab pointer too so a stale read of the
+            // value payload can't be mistaken for a valid slab.
+            write_i32(bucket + OFF_SLAB_ADDR, 0);
+            cache.delete_at(bucket);
+        }
+    }
+}
+
 /// Wipe every cached entry.  Called from
 /// :func:`tcl_procs.proc_register` (via P9.3) because a
 /// redefinition may make old entries semantically stale for

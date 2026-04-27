@@ -30,17 +30,9 @@
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("tcl_stubs.zig");
 
-pub export fn clock_format(seconds: i32, opts: i32) i32 {
-    _ = seconds;
-    _ = opts;
-    // Return the string "0" — a fixed placeholder that clock_scan can
-    // parse as integer 0 without erroring.  See module header for the
-    // deliberate semantic divergence from real Tcl here.
-    const buf = obj.alloc(1);
-    const p: [*]u8 = @ptrFromInt(buf);
-    p[0] = '0';
-    return obj.obj_new_string(@intCast(buf), 1);
-}
+// ``clock_format`` is now implemented in ``io/tcl_clock.zig`` with
+// a real (UTC-only, no timezone DB) strftime-style formatter.
+// Removed from this stubs file to avoid a duplicate symbol export.
 
 pub export fn clock_scan(text: i32, opts: i32) i32 {
     _ = text;

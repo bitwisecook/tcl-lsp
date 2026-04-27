@@ -11,6 +11,24 @@ from ..._imports import (
 from ..._ir import WasmOp
 
 
+def _looks_like_option(arg: str) -> bool:
+    """Return True if *arg* looks like a sub-command option (``-foo``).
+
+    Used to detect when ``string map -nocase MAP STR`` /
+    ``string match -nocase PAT STR`` / ``string compare -nocase A B``
+    needs to bypass the fixed-param-count fast path (which would
+    silently pass ``-nocase`` as the first positional argument).
+    """
+    if not arg or len(arg) < 2 or arg[0] != "-":
+        return False
+    # ``-`` alone or ``--`` is not an option flag in our fast path.
+    if arg in ("-", "--"):
+        return False
+    # ``-1`` / ``-0.5`` etc. are negative numbers, not options.
+    second = arg[1]
+    return not (second.isdigit() or second == ".")
+
+
 def _emit_string(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
@@ -34,9 +52,20 @@ def _emit_string(
                     return True
             sri = subcommand_runtime_import_for("string", subcmd)
             if sri is not None and sri.import_key in emitter._shared_imports:
+                sub_args = args[1:]
+                # Option-bearing forms (``string map -nocase``,
+                # ``string match -nocase``, ``string compare -nocase``)
+                # have more sub-args than the fixed-param runtime import
+                # accepts; fall through to eval so the runtime
+                # dispatcher in ``cmds/string.zig`` parses options
+                # correctly.  Without this, the leading ``-nocase``
+                # was passed as the first positional argument and
+                # silently corrupted the result.
+                if sub_args and _looks_like_option(sub_args[0]):
+                    emitter._emit_eval_fallback("string", args)
+                    return True
                 func_idx = emitter._shared_imports[sri.import_key]
                 param_count = len(sri.params)
-                sub_args = args[1:]
                 for i in range(min(param_count, len(sub_args))):
                     emitter._emit_value(sub_args[i])
                 for _ in range(param_count - len(sub_args)):
@@ -108,9 +137,20 @@ def _emit_string(
 
     sri = subcommand_runtime_import_for("string", subcmd)
     if sri is not None and sri.import_key in emitter._shared_imports:
+        sub_args = args[1:]
+        # Same option detection as the value-context path above —
+        # ``string map -nocase ...`` etc. need eval-fallback so the
+        # runtime dispatcher parses the option bytes correctly.
+        if sub_args and _looks_like_option(sub_args[0]):
+            emitter._emit_eval_fallback("string", args)
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit(WasmOp.DROP)
+            return True
         func_idx = emitter._shared_imports[sri.import_key]
         param_count = len(sri.params)
-        sub_args = args[1:]
         for i in range(min(param_count, len(sub_args))):
             emitter._emit_value(sub_args[i])
         for _ in range(param_count - len(sub_args)):

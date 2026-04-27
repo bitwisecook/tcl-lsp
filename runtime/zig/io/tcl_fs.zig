@@ -235,6 +235,102 @@ pub export fn tcl_cmd_cd(dir: i32) i32 {
     return obj_new_string(0, 0);
 }
 
+// --- source ---
+
+/// ``source FILE`` — read FILE's contents and evaluate as Tcl.
+///
+/// Resolves *path* against the WASI preopen tree via the existing
+/// ``open(2)`` extern, reads the contents into a heap buffer, and
+/// hands them to ``tcl_eval``.  Returns the result of the
+/// evaluation; missing files, read errors, and out-of-memory
+/// conditions all surface through ``tcl_stubs.raise`` rather than
+/// being silently swallowed (a partial read or directory read that
+/// returns -1 must not be treated like EOF + empty script).
+///
+/// Buffer ownership: we allocate the read buffer via the size-class
+/// allocator and stash it in the wrapping TclObj's ``OBJ_STR_CAP``
+/// slot so a subsequent ``tcl_obj_release`` frees the bytes via
+/// ``free_sized`` along with the header.  The release is queued
+/// onto the deferred-free list inside ``tcl_obj_release`` so
+/// any words that borrow from the script bytes stay valid until
+/// the next drain at the eval-loop boundary.
+pub export fn tcl_cmd_source(path: i32) i32 {
+    if (path == 0) {
+        stubs.raise("source: no path given");
+        return 0;
+    }
+    const stat_buf = stat_path(path);
+    if (stat_buf == 0) {
+        stubs.raise("source: file not found");
+        return 0;
+    }
+    const size_i64 = stat_size(stat_buf);
+    // Free the stat scratch buffer immediately — repeated sources of
+    // a missing file used to leak STAT_SIZE bytes per call.  After
+    // this point ``stat_buf`` must not be dereferenced.
+    obj.free_sized(stat_buf, STAT_SIZE);
+    if (size_i64 < 0 or size_i64 > 64 * 1024 * 1024) {
+        stubs.raise("source: file size out of range");
+        return 0;
+    }
+    const size: u32 = @intCast(size_i64);
+    if (size == 0) return obj_new_string(0, 0);
+    const fd = open(path_cstr(path), O_RDONLY, 0);
+    if (fd < 0) {
+        stubs.raise("source: open failed");
+        return 0;
+    }
+    const buf = obj.alloc(size);
+    if (buf == 0) {
+        _ = close(fd);
+        stubs.raise("source: out of memory");
+        return 0;
+    }
+    var off: u32 = 0;
+    var read_failed = false;
+    while (off < size) {
+        const got = read(fd, @ptrFromInt(buf + off), size - off);
+        if (got == 0) break; // genuine EOF
+        if (got < 0) {
+            // I/O error or sourcing a directory — must not fall
+            // through and execute an empty / truncated script.
+            read_failed = true;
+            break;
+        }
+        off += @intCast(got);
+    }
+    _ = close(fd);
+    if (read_failed) {
+        obj.free_sized(buf, size);
+        stubs.raise("source: read failed");
+        return 0;
+    }
+    if (off == 0) {
+        obj.free_sized(buf, size);
+        return obj_new_string(0, 0);
+    }
+    // Wrap as a TclObj string, claim ownership of the read buffer
+    // via OBJ_STR_CAP so eventual release frees both header and
+    // bytes, then delegate to tcl_eval.  After eval returns, drop
+    // our caller-owned reference; the deferred-free queue keeps
+    // the buffer alive across any words still borrowing from it.
+    const script_obj = obj_new_string(@intCast(buf), @intCast(off));
+    if (script_obj == 0) {
+        // Header alloc OOM — free the read buffer ourselves (without
+        // a TclObj header to attach it to, ``tcl_obj_release`` would
+        // never see it) and surface as a clean Tcl error rather than
+        // a write-through-zero trap.
+        obj.free_sized(buf, size);
+        stubs.raise("source: out of memory");
+        return 0;
+    }
+    obj.write_i32(@as(u32, @intCast(script_obj)) + obj.OBJ_STR_CAP, @bitCast(size));
+    const interp = @import("../interp/tcl_interp.zig");
+    const result = interp.tcl_eval(script_obj);
+    obj.tcl_obj_release(script_obj);
+    return result;
+}
+
 fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
     if (alen != literal.len) return false;
     for (0..literal.len) |i| if (a[i] != literal[i]) return false;

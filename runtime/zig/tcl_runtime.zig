@@ -76,6 +76,7 @@ pub const tcl_expr_order_cmp = tcl_string.tcl_expr_order_cmp;
 pub const string_equal = tcl_string.string_equal;
 pub const string_match = tcl_string.string_match;
 pub const string_map = tcl_string.string_map;
+pub const string_map_nocase = tcl_string.string_map_nocase;
 pub const string_trim = tcl_string.string_trim;
 pub const string_trimleft = tcl_string.string_trimleft;
 pub const string_trimright = tcl_string.string_trimright;
@@ -108,6 +109,7 @@ pub const tcl_cmd_list_search = tcl_list_mod.tcl_cmd_list_search;
 pub const dict_create = tcl_dict.dict_create;
 pub const dict_get = tcl_dict.dict_get;
 pub const dict_set = tcl_dict.dict_set;
+pub const dict_unset = tcl_dict.dict_unset;
 pub const dict_exists = tcl_dict.dict_exists;
 pub const dict_keys = tcl_dict.dict_keys;
 pub const dict_values = tcl_dict.dict_values;
@@ -125,6 +127,8 @@ pub const return_flag = &tcl_catch.return_flag;
 pub const return_val = &tcl_catch.return_val;
 pub const break_flag = &tcl_catch.break_flag;
 pub const continue_flag = &tcl_catch.continue_flag;
+pub const flow_consume_break = tcl_catch.flow_consume_break;
+pub const flow_consume_continue = tcl_catch.flow_consume_continue;
 
 // Frames
 pub const frame_push = tcl_frames.frame_push;
@@ -230,6 +234,7 @@ comptime {
     _ = &tcl_string.string_index;
     _ = &tcl_string.string_range;
     _ = &tcl_string.string_map;
+    _ = &tcl_string.string_map_nocase;
     _ = &tcl_string.string_match;
     _ = &tcl_string.string_trim;
     _ = &tcl_string.string_trimleft;
@@ -267,6 +272,7 @@ comptime {
     _ = &tcl_dict.dict_create;
     _ = &tcl_dict.dict_get;
     _ = &tcl_dict.dict_set;
+    _ = &tcl_dict.dict_unset;
     _ = &tcl_dict.dict_merge_pair;
     _ = &tcl_dict.dict_exists;
     _ = &tcl_dict.dict_keys;
@@ -278,6 +284,8 @@ comptime {
     _ = &tcl_catch.catch_result;
     _ = &tcl_catch.catch_has_error;
     _ = &tcl_catch.catch_set_ok_result;
+    _ = &tcl_catch.flow_consume_break;
+    _ = &tcl_catch.flow_consume_continue;
     _ = &tcl_catch.tcl_cmd_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than
@@ -304,7 +312,7 @@ comptime {
     _ = &tcl_fs.tcl_cmd_pwd;
     _ = &tcl_fs.tcl_cmd_cd;
     _ = &tcl_fs_stubs.tcl_cmd_exec;
-    _ = &tcl_fs_stubs.tcl_cmd_source;
+    _ = &tcl_fs.tcl_cmd_source;
     _ = &tcl_fs_stubs.tcl_cmd_load;
     _ = &tcl_fs_stubs.tcl_cmd_unload;
     // format lives in tcl_format.zig (real impl).
@@ -320,7 +328,7 @@ comptime {
     _ = &tcl_encoding.tcl_cmd_encoding;
     // fconfigure lives in tcl_chan.zig (NOP).
     _ = &tcl_chan.tcl_cmd_fconfigure;
-    _ = &tcl_time_stubs.clock_format;
+    _ = &tcl_clock.clock_format;
     _ = &tcl_time_stubs.clock_scan;
     _ = &tcl_time_stubs.clock_add;
     _ = &tcl_time_stubs.tcl_cmd_after;

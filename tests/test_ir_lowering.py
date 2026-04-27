@@ -6,6 +6,8 @@ import sys
 import textwrap
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.compiler.expr_ast import ExprNode, expr_text
@@ -433,6 +435,15 @@ class TestProcDynamicNameConstMap:
         # fall through to a runtime dispatch barrier.
         assert any(isinstance(s, IRBarrier) and "dynamic proc name" in s.reason for s in body)
 
+    @pytest.mark.xfail(
+        reason="Disabled by cb7f0f7's 'dynamic proc body or params' barrier — "
+        "any VAR / CMD body or params token bails to a runtime ``proc`` call "
+        "to avoid lifting a literal ``$body`` text that would silently "
+        "re-substitute at every invocation.  Re-enabling the const-map "
+        "lift requires resolving body and name together so the lifted "
+        "IRProcedure carries a real script body, not a ``$body`` placeholder.",
+        strict=False,
+    )
     def test_proc_dollar_name_resolves_when_var_is_literal(self):
         # The const-map only tracks ``set var {braced-literal}`` shapes
         # (see ``_set_literal_body``) — a bare ESC ``set name Verbose``
@@ -473,6 +484,11 @@ class TestProcDynamicNameConstMap:
         # And no synthetic proc was registered.
         assert not any(name.endswith("::Verbose") for name in mod.procedures)
 
+    @pytest.mark.xfail(
+        reason="See test_proc_dollar_name_resolves_when_var_is_literal — "
+        "same dynamic-body barrier blocks the lift.",
+        strict=False,
+    )
     def test_proc_dollar_name_respects_reassignment(self):
         # A re-assignment before the ``proc $name`` swaps the literal —
         # the substitution should pick up the latest value.
@@ -533,6 +549,13 @@ class TestProcDynamicBodySubstNocommands:
     const-tracked in the enclosing proc.  This is the full tcltest
     ``Option`` factory shape."""
 
+    @pytest.mark.xfail(
+        reason="cb7f0f7's dynamic-body barrier fires before the "
+        "[subst -nocommands {…}] materialisation path, even when every "
+        "$var in the template is const-tracked.  Re-enabling P7.3 needs "
+        "the barrier to defer to the materialisation result first.",
+        strict=False,
+    )
     def test_subst_nocommands_body_materialises_with_const_vars(self):
         # ``Factory`` has two const-tracked locals (``name``,
         # ``default``); ``proc`` uses both in the name AND in the

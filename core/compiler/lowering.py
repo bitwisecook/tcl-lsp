@@ -1732,6 +1732,34 @@ class _Lowerer:
                             tokens=cmd.cmd_tokens,
                         )
                     proc_name = substituted
+                # Dynamic body (``proc inner {} $body``): the body
+                # SOURCE TOKEN is a ``$var`` / ``[cmd]`` reference,
+                # not braced literal bytes.  Lifting it as a static
+                # proc would compile the LITERAL ``${body}`` text as
+                # the proc body, which then re-substitutes at every
+                # call — surfaces as ``unknown command: <substituted-
+                # value>``.  Bail to a runtime ``proc`` call so the
+                # interpreter substitutes once at registration time.
+                # Same treatment for dynamic params (rare in
+                # practice but symmetric).
+                #
+                # We check the TOKEN TYPE rather than scanning the
+                # source string because braced bodies legitimately
+                # contain ``$`` and ``[`` (every ``puts $x`` etc.).
+                # Only VAR / CMD / ESC-with-subst tokens are truly
+                # dynamic at this position.
+                body_tok_type = arg_tokens[2].type
+                params_tok_type = arg_tokens[1].type
+                if body_tok_type in (TokenType.VAR, TokenType.CMD) or (
+                    params_tok_type in (TokenType.VAR, TokenType.CMD)
+                ):
+                    return IRBarrier(
+                        range=cmd.range,
+                        reason="dynamic proc body or params",
+                        command=cmd_name,
+                        args=tuple(args),
+                        tokens=cmd.cmd_tokens,
+                    )
                 try:
                     params = _parse_param_names(args[1])
                 except Exception:

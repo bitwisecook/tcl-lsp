@@ -29,12 +29,21 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
                 param_count = len(sri.params)
                 sub_args = args[1:]
                 if subcmd == "set" and len(sub_args) >= 3:
-                    var_idx = emitter._intern_local(sub_args[0])
-                    emitter._emit_local_get(var_idx)
-                    emitter._emit_value(sub_args[1])
-                    emitter._emit_value(sub_args[2])
-                    emitter._emit_call(func_idx)
-                    emitter._emit_local_tee(var_idx)
+                    # Top-level vars must use the var path to keep the
+                    # global table mirror in sync (see lappend_.py).
+                    if not emitter._is_proc:
+                        emitter._emit_var_read_obj(sub_args[0])
+                        emitter._emit_value(sub_args[1])
+                        emitter._emit_value(sub_args[2])
+                        emitter._emit_call(func_idx)
+                        emitter._emit_var_write_obj_keep(sub_args[0])
+                    else:
+                        var_idx = emitter._intern_local(sub_args[0])
+                        emitter._emit_local_get(var_idx)
+                        emitter._emit_value(sub_args[1])
+                        emitter._emit_value(sub_args[2])
+                        emitter._emit_call(func_idx)
+                        emitter._emit_local_tee(var_idx)
                 else:
                     for i in range(min(param_count, len(sub_args))):
                         emitter._emit_value(sub_args[i])

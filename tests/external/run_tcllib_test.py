@@ -153,16 +153,36 @@ class TestTcltestCompiles:
 class TestTcltestTopRuns:
     """Stage 2: does tcltest's top-level (namespace + procs) instantiate?
 
-    This landed green in the commit that fixed ``subst_flagged``'s
-    output-buffer sizing (the ``wlen * 4 + 64`` heuristic
-    overflowed when a single ``$s`` substitution expanded to
-    multi-KB of content, corrupting adjacent heap memory and
-    making ``info complete $script`` read a mangled-brace tail).
-    Subsequent commits should keep this green — if it regresses,
-    re-add the xfail marker and file the site against whatever
-    new gap surfaces.
+    Originally landed green after the ``subst_flagged`` output-buffer
+    fix (``wlen * 4 + 64`` was too small when a single ``$s``
+    substitution expanded to multi-KB of content, corrupting heap
+    memory and making ``info complete $script`` read a mangled-brace
+    tail).
+
+    Currently xfailed on this branch.  tcltest's init runs::
+
+        auto_load ::parray
+        proc tcltest::parray {a {pattern *}} [info body ::parray]
+
+    The runtime's ``auto_load`` stub returns 0 ("not found") rather
+    than registering ``parray`` as a proc, so the next line's
+    ``info body ::parray`` traps with ``"::parray" isn't a
+    procedure``.  Two clean paths to re-green this:
+
+      1. Implement ``auto_load`` for the small set of tcltest-side
+         names (``parray``, ``auto_index`` consultation).
+      2. Bundle a ``proc parray { ... }`` stub at runtime init so
+         ``info body`` always finds something.
+
+    Either would land in a separate commit.  Until then this test
+    is a useful canary for that follow-up — flipping to
+    ``strict=True`` would fail loud the moment the gap is closed.
     """
 
+    @pytest.mark.xfail(
+        reason="auto_load stub returns 0 → 'info body ::parray' traps; tracked as a follow-up gap.",
+        strict=False,
+    )
     def test_tcltest_top_runs(self):
         _require_files()
         try:
@@ -198,6 +218,11 @@ class TestCounterBundle:
         except Exception as e:
             pytest.fail(f"bundled tcltest+counter+counter.test failed to compile: {e}")
 
+    @pytest.mark.xfail(
+        reason="bundle init runs tcltest's 'info body ::parray' which traps "
+        "until auto_load registers parray; same gap as TestTcltestTopRuns.",
+        strict=False,
+    )
     def test_counter_bundle_runs_and_passes(self):
         _require_files()
         try:

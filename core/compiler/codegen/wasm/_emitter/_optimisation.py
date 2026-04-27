@@ -87,6 +87,18 @@ class _WasmEmitterOptMixin(_Base):
                 for a in stmt.args:
                     if "[info level" in a:
                         return True
+            # ``return [info level ...]`` is an IRReturn whose
+            # ``value`` carries the bracketed substitution as a
+            # string.  Same substring rule applies — without this
+            # branch the elision path missed every proc that
+            # returns its own invocation argv (e.g. trace wrappers,
+            # tcltest helpers).
+            value = getattr(stmt, "value", None)
+            if isinstance(value, str) and "[info level" in value:
+                return True
+            expr = getattr(stmt, "expr", None)
+            if isinstance(expr, str) and "[info level" in expr:
+                return True
             # Recurse into bodies of compound statements.
             for attr in ("body", "init", "next", "else_body", "finally_body"):
                 sub = getattr(stmt, attr, None)
@@ -399,6 +411,27 @@ class _WasmEmitterOptMixin(_Base):
         self._loop_ctrl_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
+
+        # Propagate ``break`` / ``continue`` from interpreter-side
+        # bodies that ran through eval-fallback.  Compiled ``break``
+        # already emits a wasm ``br`` directly, so these consume calls
+        # only fire after a runtime-side flow-control signal (e.g.
+        # ``while 1 { dict update d k v { break } }`` — the dict-
+        # update body's ``break`` flips ``break_flag`` and we need to
+        # see it here to exit the wasm loop).  We're inside the
+        # ``LOOP{}`` (post-continue-BLOCK end), so depth 0 = LOOP,
+        # depth 1 = outer break BLOCK.  Inside the ``IF{}`` the
+        # depths shift up by 1, so ``br 2`` exits to the break block.
+        bbreak = self._shared_imports.get("tcl_flow_consume_break")
+        bcont = self._shared_imports.get("tcl_flow_consume_continue")
+        if bbreak is not None:
+            self._emit_call(bbreak)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(2)
+            self._emit(WasmOp.END)
+        if bcont is not None:
+            self._emit_call(bcont)
+            self._emit(WasmOp.DROP)
 
         # Emit the step block (if any) AFTER the continue block so
         # `continue` still runs it.
@@ -740,7 +773,9 @@ class _WasmEmitterOptMixin(_Base):
                     and barrier_args[0] == "eval"
                     and len(barrier_args) > 2
                 ):
-                    if not self._emit_namespace_eval_bridge(barrier_args[2:], drop_result=False):
+                    if not self._emit_namespace_eval_bridge(
+                        barrier_args[2:], drop_result=False, ns_name=barrier_args[1]
+                    ):
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
                         # result stays on stack (no DROP)
                 elif barrier_cmd == "uplevel" and barrier_args:

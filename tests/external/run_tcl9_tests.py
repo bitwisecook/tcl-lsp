@@ -29,6 +29,7 @@ Known accepted limitations
 from __future__ import annotations
 
 import re
+import shutil
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -76,6 +77,79 @@ def _tcl9_test_file(name: str) -> Path:
 # Bundle construction
 # ---------------------------------------------------------------------------
 
+_PRE_TCLTEST = r"""
+# ----- run_tcl9_tests.py pre-tcltest stubs -----
+# tcltest.tcl line 919 calls ``auto_load ::parray`` followed by
+# ``proc tcltest::parray {a {pattern *}} [info body ::parray]``.
+# Tcl's auto-loading machinery is not implemented here, so we
+# pre-define a minimal ``::parray`` stub up-front.  When tcltest's
+# auto_load no-ops, the subsequent ``info body ::parray`` returns
+# this body and the ``tcltest::parray`` definition succeeds.
+#
+# Wrapped in ``eval {…}`` so the compiler doesn't AOT-lift the
+# proc — ``info body`` only works on interpreted procs, so the
+# stub must register through the interpreter's ``proc`` handler.
+eval {
+    proc ::parray {a {pattern *}} {
+        upvar 1 $a array
+        if {![array exists array]} {
+            return -code error "\"$a\" isn't an array"
+        }
+        set names [lsort [array names array $pattern]]
+        set max 0
+        foreach n $names {
+            if {[string length $n] > $max} { set max [string length $n] }
+        }
+        foreach n $names {
+            puts [format "%s(%-*s) = %s" $a $max $n $array($n)]
+        }
+    }
+}
+
+# auto_load: stub that always succeeds (no actual loading; ::parray
+# is provided by the pre-tcltest stub above).  Returning 1 mirrors
+# Tcl's "command auto-loaded successfully" return.
+proc auto_load {cmd args} { return 1 }
+
+# ::tcl::tm::path stub — Tcl Modules path-list ensemble.  Real Tcl
+# implements this in tmp/tcl9.0.3/library/tm.tcl as a 150-line
+# command with ``add`` / ``remove`` / ``list`` subcommands plus
+# ancestor-conflict validation.  safe.test (lines 1729 / 1735 /
+# 2215 / 2241) calls ``$i eval ::tcl::tm::path list`` on safe
+# child interpreters; without the command the test traps with
+# ``unknown command: ::tcl::tm::path`` and the whole file aborts.
+# This stub is a minimal namespace ensemble that mimics the
+# upstream shape closely enough that the four directly-affected
+# tests reach a tcltest summary line.  Other safe.test gaps
+# (filesystem, package machinery) remain out of scope.
+namespace eval ::tcl::tm {
+    variable paths {}
+    proc path {sub args} {
+        variable paths
+        switch -- $sub {
+            list { return $paths }
+            add {
+                foreach p $args {
+                    if {[lsearch -exact $paths $p] < 0} { lappend paths $p }
+                }
+                return
+            }
+            remove {
+                foreach p $args {
+                    set i [lsearch -exact $paths $p]
+                    if {$i >= 0} { set paths [lreplace $paths $i $i] }
+                }
+                return
+            }
+            default {
+                return -code error "unknown ::tcl::tm::path subcommand \"$sub\""
+            }
+        }
+    }
+    namespace export path
+}
+"""
+
 _PREAMBLE = r"""
 # ----- run_tcl9_tests.py preamble -----
 # Import tcltest commands into the global namespace.  Test files that detect
@@ -95,6 +169,8 @@ def _bundle(test_file_path: Path) -> str:
 
     return "\n".join(
         [
+            "# ===== run_tcl9_tests pre-tcltest stubs =====",
+            _PRE_TCLTEST,
             "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
             tcltest_src,
             "# ===== run_tcl9_tests preamble =====",
@@ -219,6 +295,20 @@ def _run_bundle(bundle_src: str, label: str) -> tuple[str, str]:
         pytest.fail(f"{label}: compilation failed: {exc}")
 
     with tempfile.TemporaryDirectory(prefix="tcl9test-") as host_tmp:
+        # Stage common tcltest helper files (tcltests.tcl, internals.tcl,
+        # encodingVectors.tcl, pkgIndex.tcl) into the preopened tmpdir so
+        # tests that ``source [file join [file dirname [info script]] X]``
+        # can find them.  ``info script`` returns "" inside our bundles, so
+        # ``[file dirname [info script]]`` returns ".", which the WASI
+        # preopen resolves against the tmpdir root — staging them at the
+        # root is exactly what those tests expect.
+        # tcltest.tcl lives at <root>/library/tcltest/tcltest.tcl,
+        # helper files like ``tcltests.tcl`` live at <root>/tests/.
+        helpers_dir = _tcl9_tcltest().parent.parent.parent / "tests"
+        for helper in ("tcltests.tcl", "internals.tcl", "encodingVectors.tcl", "pkgIndex.tcl"):
+            src_path = helpers_dir / helper
+            if src_path.exists():
+                shutil.copyfile(src_path, Path(host_tmp) / helper)
         try:
             result = _run_wasm(
                 wasm,

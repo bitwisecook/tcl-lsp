@@ -40,10 +40,43 @@ fn eval_pid(words: []const i32) i32 {
     return rt.obj_new_int(12345);
 }
 
+/// Stub for ``tcl::build-info`` — returns a hard-coded string for the
+/// queries Tcl test suites actually use (``patchlevel``, ``version``,
+/// ``commit``).  The real C Tcl reads these from compile-time defines
+/// in ``tclConfig.sh``; for our WASM runtime, returning sensible
+/// strings is enough to keep tests like ``format.test`` running.
+fn eval_tcl_build_info(words: []const i32) i32 {
+    if (words.len < 2) {
+        return obj_new_string_lit("9.0.3");
+    }
+    const sub = obj_ensure_string(words[1]);
+    const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+    if (str_eq(sp, sub.len, "patchlevel")) return obj_new_string_lit("9.0.3");
+    if (str_eq(sp, sub.len, "version")) return obj_new_string_lit("9.0");
+    if (str_eq(sp, sub.len, "commit")) return obj_new_string_lit("0000000000000000000000000000000000000000");
+    if (str_eq(sp, sub.len, "branch")) return obj_new_string_lit("core-9-0-3");
+    if (str_eq(sp, sub.len, "compiler")) return obj_new_string_lit("zig-wasm32");
+    // Unknown sub-key — return empty rather than trapping; matches
+    // reference Tcl which returns "" for unknown build-info keys.
+    return obj_new_string(0, 0);
+}
+
+/// Helper: allocate a TclObj wrapping a Zig string literal.  The
+/// literal lives in the wasm data segment, so its bytes are stable
+/// for the lifetime of the module — we point ``OBJ_STR_PTR`` at
+/// them with ``OBJ_STR_CAP == 0`` (not owned, not freeable).
+fn obj_new_string_lit(comptime s: []const u8) i32 {
+    return obj_new_string(@intCast(@intFromPtr(s.ptr)), @intCast(s.len));
+}
+
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "info", .arity_min = 1, .arity_max = null, .handler = &eval_info },
     .{ .name = "trace", .arity_min = 1, .arity_max = null, .handler = &eval_trace },
     .{ .name = "pid", .arity_min = 0, .arity_max = 1, .handler = &eval_pid },
+    .{ .name = "tcl::build-info", .arity_min = 0, .arity_max = 1, .handler = &eval_tcl_build_info },
+    // Also register without the leading ``tcl::`` — some callers
+    // import it bare.
+    .{ .name = "::tcl::build-info", .arity_min = 0, .arity_max = 1, .handler = &eval_tcl_build_info },
 };
 
 // ``info <sub>`` sub-commands — mirrors

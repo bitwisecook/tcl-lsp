@@ -52,11 +52,10 @@ pub export fn tcl_cmd_exec(cmd: i32) i32 {
     return 0;
 }
 
-pub export fn tcl_cmd_source(path: i32) i32 {
-    _ = path;
-    stubs.unsupported("source");
-    return 0;
-}
+// ``tcl_cmd_source`` moved to io/tcl_fs.zig with a real WASI-fd
+// resolution + read + tcl_eval implementation.  Kept this comment
+// stub so a grep for ``tcl_cmd_source`` still lands somewhere
+// useful when reading the stubs file.
 
 pub export fn tcl_cmd_load(path: i32) i32 {
     _ = path;

@@ -31,10 +31,23 @@ const std = @import("std");
 const rt = @import("../tcl_runtime.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const frames = @import("../interp/tcl_frames.zig");
+const obj = @import("tcl_obj.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int = rt.obj_new_int;
 const obj_new_string = rt.obj_new_string;
 const alloc = rt.alloc;
+
+/// Compare a (ptr, len) byte span against an ASCII literal.  Used
+/// by the option parser to recognise switch keywords without
+/// allocating temporary buffers.
+fn str_eq(span: anytype, literal: []const u8) bool {
+    if (span.len != literal.len) return false;
+    const sp: [*]const u8 = @ptrFromInt(span.ptr);
+    for (literal, 0..) |b, i| {
+        if (sp[i] != b) return false;
+    }
+    return true;
+}
 
 // ``regex_t`` layout (32-bit WASM, from regex.h):
 //
@@ -89,6 +102,60 @@ extern fn TclReExec(
     flags: c_int,
 ) c_int;
 extern fn TclReFree(re: *anyopaque) void;
+
+/// ``regex_t`` field offsets on wasm32 (must mirror regex.h's
+/// ``typedef struct { int re_magic; long re_info; size_t re_nsub;
+/// char *re_endp; void *re_guts; void *re_fns; }``).  All ints/longs/
+/// pointers are 4 bytes on wasm32; no padding.
+const REGEX_OFF_GUTS: usize = 16; // 4 (magic) + 4 (info) + 4 (nsub) + 4 (endp)
+
+extern fn free(ptr: ?*anyopaque) void;
+
+/// Cleanup wrapper for a compiled ``regex_t`` that avoids the
+/// Spencer engine's own ``regfree`` (mapped to ``TclReFree`` by
+/// ``regcustom.h``).  ``regfree`` dereferences ``re->re_fns->free``
+/// via ``call_indirect`` to dispatch to the engine's ``rfree``
+/// cleanup routine.  Under our wasm-wasi build the linker does not
+/// add ``rfree`` (a file-scoped ``static`` in regcomp.c) to the
+/// ``__indirect_function_table`` even though the static
+/// ``functions`` table takes its address — the address arrives in
+/// data via a relocation the wasm linker doesn't always honour,
+/// so the call_indirect resolves to an out-of-range slot and
+/// traps with ``out of bounds table access`` /
+/// ``indirect call type mismatch``.
+///
+/// Concrete repro before this fix: ``regexp.test`` case 1.12
+/// (``regexp -- "***=y" "aeiou"``) triggers a regsub-side cleanup
+/// path that dereferences a freshly-built re's ``re_fns`` and
+/// faults inside ``TclReFree``.
+///
+/// Workaround: free the engine's primary heap allocation
+/// (``re->re_guts``, malloc'd by ``regcomp`` via the wasi-libc
+/// MALLOC binding) directly via libc ``free`` and skip the
+/// call_indirect.  This leaks the inner sub-allocations
+/// (``g->tree``, ``g->lacons``, ``g->cmap``'s extension tables) —
+/// usually a few hundred bytes per compiled regex — but keeps
+/// the cumulative leak bounded for tcltest-sized workloads
+/// (the dominant ``guts`` slab is freed) and avoids the trap.
+/// ``re_addr`` itself (the bump-allocated 64-byte ``regex_t``)
+/// is unaffected — that lives in our size-class allocator.
+fn regfree_safe(re: *anyopaque) void {
+    // Now that ``alloc()`` is routed through wasi-libc ``malloc``
+    // (and so are the engine's own MALLOC bindings), the heap is
+    // coherent across both consumers.  Calling the real engine
+    // cleanup is safe again: ``re_fns`` was set by a successful
+    // ``TclReComp`` (its caller checked ``REG_OKAY`` before
+    // invoking us) and ``rfree`` lives in the indirect function
+    // table at a known slot, so the call_indirect resolves
+    // cleanly.
+    //
+    // Callers MUST check that ``TclReComp`` returned ``REG_OKAY``
+    // before invoking this — on a failed compile the regex_t may
+    // have ``re_fns`` uninitialised (per regcomp.c's "on failure,
+    // no resources remain allocated, so regfree() need not be
+    // applied to re." note), which would still trap.
+    TclReFree(re);
+}
 
 /// Decode UTF-8 bytes into a fresh UniChar (i32 codepoint) array
 /// on the bump allocator.  Invalid sequences are replaced with
@@ -194,7 +261,17 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
         0,
     );
 
-    TclReFree(re_ptr);
+    regfree_safe(re_ptr);
+    // Release per-call scratch alloc'd via wasi-libc malloc.
+    // Without this, every regex invocation leaks ``pat_len*4 +
+    // sub_len*4 + 64`` bytes; on a tcltest-sized run with hundreds
+    // of regex calls (constraint matching, SubstArguments, etc.)
+    // the leak compounds enough to OOM the wasi-libc heap mid-
+    // suite — observed as a malloc trap in newnfa during
+    // lseq.test.
+    obj.free_sized(pat_u.ptr, @intCast(pat_s.len * 4));
+    obj.free_sized(sub_u.ptr, @intCast(sub_s.len * 4));
+    obj.free_sized(re_addr, REGEX_T_SIZE);
     return exec_rc == REG_OKAY;
 }
 
@@ -365,7 +442,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
         if (!all or pos_byte >= str_s.len) break;
     }
 
-    TclReFree(re_ptr);
+    regfree_safe(re_ptr);
 
     // Append remaining unmatched tail.
     const tail_len = str_s.len - pos_byte;
@@ -390,6 +467,10 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         return obj_new_int(0);
     }
     var flags: c_int = 0;
+    var indices_mode = false;
+    var all_mode = false;
+    var inline_mode = false;
+    var start_offset_cp: u32 = 0;
     var i: usize = 1;
     while (i < words.len) : (i += 1) {
         const w = obj_ensure_string(words[i]);
@@ -401,34 +482,254 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             i += 1;
             break;
         }
-        if (w.len == 7 and p[1] == 'n' and p[2] == 'o' and p[3] == 'c' and
-            p[4] == 'a' and p[5] == 's' and p[6] == 'e')
-        {
-            flags |= REG_ICASE;
+        if (str_eq(w, "-nocase")) { flags |= REG_ICASE; continue; }
+        if (str_eq(w, "-line")) { flags |= REG_NLSTOP | REG_NLANCH; continue; }
+        if (str_eq(w, "-linestop")) { flags |= REG_NLSTOP; continue; }
+        if (str_eq(w, "-lineanchor")) { flags |= REG_NLANCH; continue; }
+        if (str_eq(w, "-expanded")) { continue; }
+        if (str_eq(w, "-indices")) { indices_mode = true; continue; }
+        if (str_eq(w, "-all")) { all_mode = true; continue; }
+        if (str_eq(w, "-inline")) { inline_mode = true; continue; }
+        if (str_eq(w, "-about")) {
+            // Not implemented — return empty list-as-info.
+            i += 1;
+            break;
+        }
+        if (str_eq(w, "-start")) {
+            i += 1;
+            if (i < words.len) {
+                start_offset_cp = @intCast(obj.obj_get_int(words[i]));
+            }
             continue;
         }
-        // Unknown option — raise a real error rather than treating
-        // the switch token as the pattern.  Silently falling
-        // through would make ``regexp -indices {a+} aa`` match the
-        // literal ``-indices`` against ``{a+}`` and return a
-        // wrong boolean, giving callers no indication that a
-        // valid-but-unimplemented switch was ignored.  Raising
-        // here pushes the caller toward either supplying ``--``
-        // before a literal ``-``-prefixed pattern or updating
-        // this handler to support the switch.
         stubs.raise("regexp: unsupported or unknown option");
         return obj_new_int(0);
     }
-    if (i + 1 >= words.len) {
-        return obj_new_int(0);
-    }
+    if (i + 1 >= words.len) return obj_new_int(0);
     const pattern = words[i];
     const subject = words[i + 1];
-    // Ignore trailing matchVar / subMatchVar args — we don't
-    // support capture yet.  They'll just not be set, which is
-    // observable but closer to correct than trapping.
-    const matched = run_match(pattern, subject, flags);
-    return obj_new_int(if (matched) 1 else 0);
+    const var_words: []const i32 = words[i + 2 ..];
+
+    // Compile pattern once.
+    const pat_s = obj_ensure_string(pattern);
+    const sub_s = obj_ensure_string(subject);
+    const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
+    const sub_u = decode_utf8(sub_s.ptr, sub_s.len);
+    const re_addr = alloc(REGEX_T_SIZE);
+    const re_ptr: *anyopaque = @ptrFromInt(re_addr);
+    const comp_rc = TclReComp(
+        re_ptr,
+        @ptrFromInt(pat_u.ptr),
+        pat_u.len,
+        REG_ADVANCED | flags,
+    );
+    if (comp_rc != REG_OKAY) {
+        stubs.raise("regexp: couldn't compile regular expression pattern");
+        return obj_new_int(0);
+    }
+
+    // Pre-allocate a scratch / result buffer BEFORE pmatch_buf so the
+    // pmatch slab lands at a higher heap address than re_addr — mirrors
+    // do_regsub's ordering, which is the reference for correct
+    // run_match_cap usage.  Always alloc (even outside -inline) so the
+    // bump-allocator state matches do_regsub regardless of the option
+    // mix.
+    var inline_buf: u32 = 0;
+    var inline_off: u32 = 0;
+    var inline_cap: u32 = 0;
+    inline_cap = 256;
+    inline_buf = alloc(inline_cap);
+
+    // nmatch shape mirrors do_regsub's working pattern.  Without
+    // captures we only need slot 0 (whole match start/end) — request
+    // 1, identical to do_regsub.  Capture-bearing forms (-inline,
+    // -indices, matchVar / subMatchVar) need up to 10 slots.
+    const wants_captures = inline_mode or indices_mode or var_words.len > 0;
+    const nmatch: usize = if (wants_captures) 10 else 1;
+    const pmatch_buf = alloc(@intCast(nmatch * REGMATCH_T_SIZE));
+    // Zero-init so the Spencer engine doesn't read stale bump-allocator
+    // bytes during DFA cache lookup with nmatch > 1.  do_regsub gets
+    // away with skipping this because its hot loop uses nmatch=1; here
+    // we always request 10 capture slots, which exposes paths in the
+    // engine that read pmatch entries before writing them.
+    {
+        const pmbytes: [*]u8 = @ptrFromInt(pmatch_buf);
+        var k: usize = 0;
+        while (k < nmatch * REGMATCH_T_SIZE) : (k += 1) pmbytes[k] = 0;
+    }
+
+    var match_count: i32 = 0;
+    var pos_cp: u32 = start_offset_cp;
+    while (true) {
+        if (pos_cp > sub_u.len) break;
+        const remaining_cp: usize = sub_u.len - pos_cp;
+        const sub_u_start: u32 = sub_u.ptr + pos_cp * 4;
+        const matched = run_match_cap(re_ptr, sub_u_start, remaining_cp, nmatch, pmatch_buf);
+        if (!matched) break;
+        match_count += 1;
+
+        const pm: [*]const i32 = @ptrFromInt(pmatch_buf);
+        const match_start_cp = pos_cp + @as(u32, @intCast(pm[0]));
+        const match_end_cp = pos_cp + @as(u32, @intCast(pm[1]));
+
+        if (inline_mode) {
+            // Append each capture (whole + groups) to the inline list
+            // in canonical Tcl-list form.  Stop at the first capture
+            // whose rm_so == -1 (group not matched).
+            var g: usize = 0;
+            while (g < nmatch) : (g += 1) {
+                const so = pm[g * 2];
+                const eo = pm[g * 2 + 1];
+                if (so < 0 or eo < 0) break;
+                inline_off = append_inline_capture(
+                    &inline_buf, &inline_cap, inline_off,
+                    indices_mode, sub_s, sub_u,
+                    pos_cp, @intCast(so), @intCast(eo),
+                );
+            }
+        } else if (var_words.len > 0) {
+            // Assign each variable from the corresponding capture.
+            // Stop at first var beyond available captures.
+            var v: usize = 0;
+            while (v < var_words.len and v < nmatch) : (v += 1) {
+                const so = pm[v * 2];
+                const eo = pm[v * 2 + 1];
+                const value = build_capture_value(
+                    indices_mode, sub_s, sub_u,
+                    pos_cp,
+                    so, eo,
+                );
+                obj.tcl_obj_retain(value);
+                _ = frames.var_set(var_words[v], value);
+            }
+            // Remaining unset vars get empty (Tcl matches set "").
+            while (v < var_words.len) : (v += 1) {
+                _ = frames.var_set(var_words[v], obj_new_string(0, 0));
+            }
+        }
+
+        if (!all_mode) break;
+        // Advance past the match.  Empty match → advance one cp to
+        // avoid infinite loop.
+        if (match_end_cp == match_start_cp) {
+            pos_cp = match_start_cp + 1;
+        } else {
+            pos_cp = match_end_cp;
+        }
+    }
+
+    regfree_safe(re_ptr);
+    // Release scratch allocs (see run_match's matching free for
+    // rationale).  pmatch_buf is freed too.  Caller-owned obj
+    // results — already heap-allocated separately — survive.
+    obj.free_sized(pat_u.ptr, @intCast(pat_s.len * 4));
+    obj.free_sized(sub_u.ptr, @intCast(sub_s.len * 4));
+    obj.free_sized(re_addr, REGEX_T_SIZE);
+    if (pmatch_buf != 0) obj.free_sized(pmatch_buf, @intCast(nmatch * REGMATCH_T_SIZE));
+    if (!inline_mode and inline_buf != 0) obj.free_sized(inline_buf, inline_cap);
+
+    if (inline_mode) {
+        return obj_new_string(@intCast(inline_buf), @intCast(inline_off));
+    }
+    if (all_mode) {
+        return obj_new_int(match_count);
+    }
+    return obj_new_int(if (match_count > 0) 1 else 0);
+}
+
+/// Build the value an individual ``regexp`` capture produces.  When
+/// ``indices_mode`` is true, returns ``{start end}`` (codepoint
+/// offsets); otherwise the captured substring.  Empty/unmatched
+/// groups (rm_so == -1) become ``-1 -1`` (indices) / empty string.
+fn build_capture_value(
+    indices_mode: bool,
+    sub_s: anytype,
+    sub_u: anytype,
+    pos_cp: u32,
+    rm_so_i: i32,
+    rm_eo_i: i32,
+) i32 {
+    _ = sub_u;
+    if (rm_so_i < 0 or rm_eo_i < 0) {
+        if (indices_mode) {
+            // Tcl 9 returns "-1 -1" for unmatched groups.
+            return obj_new_string_lit("-1 -1");
+        }
+        return obj_new_string(0, 0);
+    }
+    const start_cp = pos_cp + @as(u32, @intCast(rm_so_i));
+    const end_cp = pos_cp + @as(u32, @intCast(rm_eo_i));
+    if (indices_mode) {
+        // Format "<start> <end-1>" — Tcl returns inclusive end indices
+        // (codepoint of last char in match).  Match-end-cp is exclusive
+        // upper bound, so subtract 1.  Empty match: end == start,
+        // result is "<start> <start-1>".
+        const start_str = obj.itoa(@intCast(start_cp));
+        const end_inclusive: i32 = @as(i32, @intCast(end_cp)) - 1;
+        const end_str = obj.itoa(@intCast(end_inclusive));
+        const total: u32 = @as(u32, @intCast(start_str.len)) + 1 + @as(u32, @intCast(end_str.len));
+        const buf = alloc(total);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        for (0..start_str.len) |k| dst[k] = start_str.ptr[k];
+        dst[start_str.len] = ' ';
+        for (0..end_str.len) |k| dst[start_str.len + 1 + k] = end_str.ptr[k];
+        return obj_new_string(@intCast(buf), @intCast(total));
+    }
+    // Substring mode: extract the bytes covering [start_cp, end_cp).
+    const sb_start = codepoint_to_byte(sub_s.ptr, sub_s.len, start_cp);
+    const sb_end = codepoint_to_byte(sub_s.ptr, sub_s.len, end_cp);
+    if (sb_end <= sb_start) return obj_new_string(0, 0);
+    const len = sb_end - sb_start;
+    const buf = alloc(len);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const src: [*]const u8 = @ptrFromInt(sub_s.ptr + sb_start);
+    for (0..len) |k| dst[k] = src[k];
+    return obj_new_string(@intCast(buf), @intCast(len));
+}
+
+/// Append one capture (already decoded into start/end codepoints) to
+/// the inline result list.  Grows the buffer on overflow.
+fn append_inline_capture(
+    buf_ref: *u32,
+    cap_ref: *u32,
+    off_in: u32,
+    indices_mode: bool,
+    sub_s: anytype,
+    sub_u: anytype,
+    pos_cp: u32,
+    rm_so: i32,
+    rm_eo: i32,
+) u32 {
+    const value = build_capture_value(indices_mode, sub_s, sub_u, pos_cp, rm_so, rm_eo);
+    const vs = obj_ensure_string(value);
+    // Worst case: ' ' + braces + content
+    const need: u32 = off_in + vs.len + 4;
+    if (need > cap_ref.*) {
+        var new_cap: u32 = cap_ref.* * 2;
+        while (new_cap < need) new_cap *= 2;
+        const new_buf = alloc(new_cap);
+        if (off_in > 0) {
+            const src: [*]const u8 = @ptrFromInt(buf_ref.*);
+            const dst: [*]u8 = @ptrFromInt(new_buf);
+            for (0..off_in) |k| dst[k] = src[k];
+        }
+        buf_ref.* = new_buf;
+        cap_ref.* = new_cap;
+    }
+    var off = off_in;
+    if (off > 0) {
+        const dst: [*]u8 = @ptrFromInt(buf_ref.* + off);
+        dst[0] = ' ';
+        off += 1;
+    }
+    // Quote-as-list-element: trivial path — wrap empty in {}, raw
+    // bytes need a re-quote.  For now we use list_elem_quote.
+    off = obj.list_elem_quote_nth(buf_ref.*, off, vs.ptr, vs.len);
+    return off;
+}
+
+fn obj_new_string_lit(comptime s: []const u8) i32 {
+    return obj_new_string(@intCast(@intFromPtr(s.ptr)), @intCast(s.len));
 }
 
 // ---------------------------------------------------------------------------
@@ -573,7 +874,13 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         REG_ADVANCED | flags,
     );
     if (comp_rc != REG_OKAY) {
-        TclReFree(re_ptr);
+        // Per regcomp.c's contract: "on failure, no resources remain
+        // allocated, so regfree() need not be applied to re."  Calling
+        // TclReFree on a failed compile dereferences ``re->re_fns``,
+        // which is uninitialised bump-allocator garbage — observed as
+        // ``wasm trap: indirect call type mismatch`` in regexp.test
+        // when tcltest probes the engine with deliberately-malformed
+        // patterns.
         stubs.raise("regsub: couldn't compile regular expression pattern");
         return obj_new_int(0);
     }
@@ -622,42 +929,42 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     }
     const size_err = "regsub: replacement output too large";
     const worst_from_matches = std.math.mul(usize, repl_match_expansions, sub_s.len) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     const worst_repl_bytes = std.math.add(usize, repl_literal_bytes, worst_from_matches) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     const per_match_bytes = std.math.add(usize, worst_repl_bytes, 4) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     const match_slots = std.math.add(usize, sub_u.len, 1) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     const all_replacements_bytes = std.math.mul(usize, match_slots, per_match_bytes) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     const with_subject_bytes = std.math.add(usize, sub_s.len, all_replacements_bytes) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     const max_out_usize = std.math.add(usize, with_subject_bytes, 64) catch {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     };
     if (max_out_usize > std.math.maxInt(u32)) {
-        TclReFree(re_ptr);
+        regfree_safe(re_ptr);
         stubs.raise(size_err);
         return obj_new_int(0);
     }
@@ -726,7 +1033,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     // Append any remaining unmatched suffix.
     out_len += append_ucs_range(out, out_len, ustr, pos, sub_u.len);
 
-    TclReFree(re_ptr);
+    regfree_safe(re_ptr);
 
     const result = obj_new_string(@intCast(out_addr), @intCast(out_len));
 

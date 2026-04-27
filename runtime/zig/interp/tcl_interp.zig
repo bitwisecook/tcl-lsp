@@ -268,8 +268,19 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
 
 // -- Command dispatch --
 
+/// Per-interp counter of commands dispatched.  Mirrors C Tcl's
+/// ``Interp.cmdCount`` (see ``tclCmdIL.c``).  Read by
+/// ``info cmdcount``; incremented for every dispatched command —
+/// builtin, proc, alias, or stub-trap path.  Compiled procs that
+/// bypass the dispatcher entirely (the AOT fast path) are NOT
+/// counted, matching the historical contract that ``info cmdcount``
+/// reports interpreter-visible commands; if a future test exposes
+/// the discrepancy, increment in the compiled-proc prologue too.
+pub var cmd_count: i64 = 0;
+
 fn eval_command(words: []const i32) i32 {
     if (words.len == 0) return 0;
+    cmd_count +%= 1;
     const cmd_s = obj_ensure_string(words[0]);
     if (cmd_s.len == 0) return 0;
 
@@ -291,6 +302,20 @@ fn eval_command(words: []const i32) i32 {
     // Registered builtin dispatch — all builtin commands are in per-module
     // files under cmds/ and assembled in tcl_cmd_table.zig.
     if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words);
+
+    // ``::concat``, ``::expr``, etc. — fully-qualified names for
+    // root-namespace builtins.  Strip the leading ``::`` and retry
+    // the builtin table.  tcltest's ``Eval`` uses this form
+    // (``uplevel 1 ::concat $body``) and without the strip it
+    // surfaces as ``unknown command: ::concat`` mid-test.
+    if (cmd_s.len >= 2) {
+        const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+        if (cmd_p[0] == ':' and cmd_p[1] == ':') {
+            if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
+                return handler(words);
+            }
+        }
+    }
 
     // -- Proc dispatch: check registry before erroring --
     return eval_proc_call(words);
@@ -923,16 +948,44 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
         .prev_current_ns = tcl_ns.current_ns,
     };
     tcl_ns.current_ns = tcl_ns.ns_root();
+    // Try the user-proc registry first — same priority as
+    // ``eval_command``.  On miss, fall through to the builtin cmd_table
+    // so an alias target like ``try`` / ``puts`` / ``string`` (Tcl
+    // commands implemented in the runtime, not as procs) dispatches
+    // correctly.  Without this, the proc-lookup-only path above
+    // surfaced ``unknown command: try`` for ``interp alias {} run
+    // {} try`` callers — string.test relied on this to alias ``run``
+    // onto ``try`` for its compiled / non-compiled variants.
     const target_bucket = procs.proc_lookup(new_words[0]);
-    if (target_bucket == 0) {
+    if (target_bucket != 0) {
+        const result = eval_proc_call_bucket(new_words[0..total], target_bucket);
         interp_reg.leave(save);
-        const catch_mod = @import("tcl_catch.zig");
-        catch_mod.error_unknown_command(new_words[0]);
-        return 0;
+        return result;
     }
-    const result = eval_proc_call_bucket(new_words[0..total], target_bucket);
+    const target_s = obj_ensure_string(new_words[0]);
+    if (target_s.len > 0) {
+        if (cmd_table.lookup(target_s.ptr, target_s.len)) |handler| {
+            const result = handler(new_words[0..total]);
+            interp_reg.leave(save);
+            return result;
+        }
+        // ``::cmd`` qualified — strip and retry, mirrors eval_command's
+        // builtin lookup branch.
+        if (target_s.len >= 2) {
+            const tp: [*]const u8 = @ptrFromInt(target_s.ptr);
+            if (tp[0] == ':' and tp[1] == ':') {
+                if (cmd_table.lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
+                    const result = handler(new_words[0..total]);
+                    interp_reg.leave(save);
+                    return result;
+                }
+            }
+        }
+    }
     interp_reg.leave(save);
-    return result;
+    const catch_mod = @import("tcl_catch.zig");
+    catch_mod.error_unknown_command(new_words[0]);
+    return 0;
 }
 
 fn eval_proc_call(words: []const i32) i32 {
@@ -1055,6 +1108,23 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Tcl semantics: ``break`` / ``continue`` inside a proc body
+    // are local to that body's enclosing loop, NOT the caller's
+    // loop.  Save and clear any pending caller-scope flow signal
+    // before running the body, restore on the way out only when
+    // the body itself didn't raise a flow signal of its own.
+    // Without this, a caller that has just set ``break_flag``
+    // (e.g. tcltest's test #N+1 picking up a leftover from #N's
+    // body=``break``) sees the post-body cleanup at the bottom
+    // of this function fire unconditionally with ``words[0]`` as
+    // the error message, blaming the wrong proc — surfaces as
+    // ``tcl trap: site=N <inner-proc-name>`` traps deep inside
+    // tcltest's ``[preserveCore]`` / ``[temporaryDirectory]``
+    // checks and aborts entire test files.
+    const saved_break_flag = rt.break_flag.*;
+    const saved_continue_flag = rt.continue_flag.*;
+    rt.break_flag.* = 0;
+    rt.continue_flag.* = 0;
     // Stash the invocation argv (proc name + all call args) so
     // ``info level 0`` inside the body returns the real list
     // rather than the placeholder emitted by legacy callers.
@@ -1172,18 +1242,32 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Absorb return signal (like picol: PICOL_RETURN → PICOL_OK)
     if (rt.return_flag.* != 0) {
         rt.return_flag.* = 0;
-        return rt.return_val.*;
+        // MM-B.5: ``return_val`` was retained by ``eval_return``.
+        // Hand its reference to the caller (no transfer-side
+        // retain needed) and clear the slot so a recursive
+        // ``return`` doesn't see a stale pointer in its release
+        // path.  Caller's standard "holds 1" contract is met.
+        const rv = rt.return_val.*;
+        rt.return_val.* = 0;
+        return rv;
     }
-    // A break/continue that survived to the proc boundary is a Tcl error
-    // ("invoked \"break\" outside of a loop"); clear the flags and raise
-    // an error so the signal cannot short-circuit outer eval_script
-    // frames in the caller.  The error message uses words[0] (the proc
-    // name) because synthesising a fresh string object from a static
-    // literal is awkward in the WASM heap model.
-    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
-        rt.break_flag.* = 0;
-        rt.continue_flag.* = 0;
-        rt.tcl_cmd_error(words[0]);
+    // Body-raised break/continue without an enclosing loop is a Tcl
+    // error per the docs (``invoked "break"/"continue" outside of a
+    // loop``).  Convert it here.  The opposite case — caller leaked
+    // its own pending break/continue into us — restores the caller's
+    // signal so an outer compiled loop still observes it.
+    const body_break = rt.break_flag.* != 0;
+    const body_continue = rt.continue_flag.* != 0;
+    rt.break_flag.* = saved_break_flag;
+    rt.continue_flag.* = saved_continue_flag;
+    if (body_break) {
+        const msg_text = "invoked \"break\" outside of a loop";
+        const msg = rt.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
+        rt.tcl_cmd_error(msg);
+    } else if (body_continue) {
+        const msg_text = "invoked \"continue\" outside of a loop";
+        const msg = rt.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
+        rt.tcl_cmd_error(msg);
     }
     return result;
 }
@@ -1608,7 +1692,10 @@ pub fn eval_apply(words: []const i32) i32 {
 
     if (rt.return_flag.* != 0) {
         rt.return_flag.* = 0;
-        return rt.return_val.*;
+        // MM-B.5: same as eval_proc_call_bucket.
+        const rv = rt.return_val.*;
+        rt.return_val.* = 0;
+        return rv;
     }
     if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
         rt.break_flag.* = 0;
@@ -1732,13 +1819,49 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             if (tok.kind == .EXPAND_WORD) continue;
             const wptr_abs: u32 = body_ptr + tok.start;
             if (tok.braced) {
-                word_objs[wi] = obj_new_string(@intCast(wptr_abs), @intCast(tok.len));
+                // Phase 1.3 fix: copy braced-word bytes into an owned
+                // buffer instead of borrowing from the source script.
+                // See ``proc_register::ensure_owned`` for the matching
+                // proc-table-side promotion.
+                word_objs[wi] = obj_mod.obj_new_string_copy(wptr_abs, tok.len);
             } else {
                 word_objs[wi] = subst_word(wptr_abs, tok.len);
             }
             wi += 1;
         }
-        return eval_command(word_objs[0..wi]);
+        // MM-B.4: release the per-word TclObjs after dispatch.
+        // The dispatch result's refcount semantics are "+1 for the
+        // caller" (caller releases when done).  But if dispatch
+        // returned one of the words verbatim (e.g. ``return $x``,
+        // or a builtin that promotes a word to its result), the
+        // word-release loop below would decrement that refcount
+        // alongside the others — leaving the returned handle with
+        // rc=0 and queued for free.  Detect that case and retain
+        // the result first so the word-release loop's decrement
+        // exactly cancels the retain, leaving the caller with the
+        // expected +1 ownership.  Without this scan, parseOld.test
+        // tripped a use-after-free at site=146 with the obj's own
+        // refcount field showing through as the trap message
+        // bytes.  Buffer recycling under MM-B.4 is safe for
+        // parse_cache thanks to the ``invalidate_for_buffer`` hook
+        // in ``tcl_obj.release_now``.
+        const result = eval_command(word_objs[0..wi]);
+        var result_is_word = false;
+        if (result != 0) {
+            var sc: u32 = 0;
+            while (sc < wi) : (sc += 1) {
+                if (word_objs[sc] == result) {
+                    result_is_word = true;
+                    break;
+                }
+            }
+        }
+        if (result_is_word) obj_mod.tcl_obj_retain(result);
+        var ri: u32 = 0;
+        while (ri < wi) : (ri += 1) {
+            if (word_objs[ri] != 0) obj_mod.tcl_obj_release(word_objs[ri]);
+        }
+        return result;
     }
 
     // Slow path: at least one {*} expansion.
@@ -1753,8 +1876,10 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             continue;
         }
         const wptr_abs: u32 = body_ptr + tok.start;
+        // Phase 1.3 fix: see the matching site above for the
+        // borrow-vs-copy rationale.
         const word_obj: i32 = if (tok.braced)
-            obj_new_string(@intCast(wptr_abs), @intCast(tok.len))
+            obj_mod.obj_new_string_copy(wptr_abs, tok.len)
         else
             subst_word(wptr_abs, tok.len);
 
@@ -1782,12 +1907,58 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
             }
         }
     }
-    return eval_command(expanded[0..ecount]);
+    // MM-B.4 (slow path): release expanded[] elements after
+    // dispatch, with the same alias-aware retain pattern as the
+    // fast path.  Each ``{*}$args`` expansion element is a fresh
+    // TclObj — for braced elements, ``obj_new_string_copy``
+    // (cap > 0, owns its own bytes); for unbraced,
+    // ``obj_new_string`` borrowing into a freshly-alloced ``buf``
+    // (cap == 0, leaks the buf safely).  In both cases an element's
+    // release is independent of any peer; releasing one doesn't
+    // free a buffer another element borrows.
+    const result = eval_command(expanded[0..ecount]);
+    var result_is_word = false;
+    if (result != 0) {
+        var sc: u32 = 0;
+        while (sc < ecount) : (sc += 1) {
+            if (expanded[sc] == result) {
+                result_is_word = true;
+                break;
+            }
+        }
+    }
+    if (result_is_word) obj_mod.tcl_obj_retain(result);
+    var ri: u32 = 0;
+    while (ri < ecount) : (ri += 1) {
+        if (expanded[ri] != 0) obj_mod.tcl_obj_release(expanded[ri]);
+    }
+    return result;
 }
 
 // Exported: evaluate a Tcl script string.
+//
+// Drains the deferred-free queue at the outermost call boundary
+// so a ``(ptr, len)`` borrowed across an ``alloc`` doesn't alias
+// a freshly-recycled slab while the script body is still walking
+// the bytes.  Nested calls (command substitution, ``eval``,
+// ``[expr]`` bodies) skip the drain — the outer call cleans up
+// for everyone when it unwinds.
+var tcl_eval_depth: u32 = 0;
 pub export fn tcl_eval(script: i32) i32 {
     const s = obj_ensure_string(script);
     if (s.len == 0) return 0;
-    return eval_script(s.ptr, s.len);
+    // Retain the script TclObj for the duration of eval_script so
+    // parser-produced word TclObjs that BORROW from the script's
+    // buffer (the common case for braced/quoted words) stay valid
+    // through the eval — even when an intermediate site releases
+    // its handle on the script.  Phase 1.3 fix.
+    obj_mod.tcl_obj_retain(script);
+    tcl_eval_depth += 1;
+    const r = eval_script(s.ptr, s.len);
+    tcl_eval_depth -= 1;
+    obj_mod.tcl_obj_release(script);
+    if (tcl_eval_depth == 0) {
+        obj_mod.tcl_obj_drain_pending();
+    }
+    return r;
 }

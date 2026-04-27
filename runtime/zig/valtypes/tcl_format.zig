@@ -84,6 +84,25 @@ pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
             i += 1;
             continue;
         }
+        // Optional positional spec: ``%N$...`` selects the Nth (1-indexed)
+        // argument instead of the next sequential one.  ``N`` is parsed
+        // greedily as decimal digits; the trailing ``$`` confirms the
+        // form (without it we restart and treat the digits as a width).
+        var explicit_arg: ?u32 = null;
+        if (i < fs.len and fp[i] >= '1' and fp[i] <= '9') {
+            // Look ahead for a trailing ``$``.  If absent, this is a
+            // width spec — back-track and let the width parser below
+            // pick it up.
+            var k: u32 = i;
+            var idx: u32 = 0;
+            while (k < fs.len and fp[k] >= '0' and fp[k] <= '9') : (k += 1) {
+                idx = idx * 10 + @as(u32, fp[k] - '0');
+            }
+            if (k < fs.len and fp[k] == '$' and idx >= 1) {
+                explicit_arg = idx - 1;
+                i = k + 1; // step past ``$``
+            }
+        }
         // Parse flags, width, precision.
         var left_align = false;
         var zero_pad = false;
@@ -114,9 +133,14 @@ pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
         const conv = fp[i];
         i += 1;
 
-        // Pull the next arg.
-        const a = if (arg_idx < args.len) args[arg_idx] else 0;
-        arg_idx += 1;
+        // Pull the arg: explicit positional if requested, else the next
+        // sequential.  Out-of-range positionals fall through to 0 (empty
+        // string / zero), matching the fallthrough we already do for
+        // missing sequential args.
+        var pick: u32 = arg_idx;
+        if (explicit_arg) |idx| pick = idx;
+        const a = if (pick < args.len) args[pick] else 0;
+        if (explicit_arg == null) arg_idx += 1;
 
         off = emit_conversion(
             out,
