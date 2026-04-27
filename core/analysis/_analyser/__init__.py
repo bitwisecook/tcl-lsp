@@ -429,8 +429,16 @@ def _merge_rust_with_python_supplement(
     # structural data wholesale until each gap closes.
     rust.global_scope = python.global_scope
     rust.all_variables = python.all_variables
+    # ``all_procs`` keeps Python's insertion order — Rust uses
+    # ``HashMap`` which iterates in arbitrary order; downstream
+    # consumers (references / rename / call-hierarchy) use
+    # first-match-by-name lookup that relies on the
+    # source-declaration order.  Switching the Rust map to
+    # something order-preserving (``IndexMap`` / ``BTreeMap``)
+    # would unblock removing this copy.
     rust.all_procs = python.all_procs
-    rust.all_classes = python.all_classes
+    # ``all_classes`` is left to Rust — class-name lookups are
+    # less order-sensitive (qualified-name lookups dominate).
     rust.unknown_proc_info = python.unknown_proc_info
     return rust
 

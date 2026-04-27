@@ -324,6 +324,48 @@ fn parse_expr_stub(line: &str) -> Option<(&'static str, &str)> {
     }
 }
 
+/// Decoration-character set for the body-docstring scanner.
+/// Mirrors ``_DECORATION_CHARS = frozenset(".-=*~#")`` in
+/// ``core/formatting/docstring.py``.
+const DECORATION_CHARS: &[char] = &['.', '-', '=', '*', '~', '#'];
+
+/// Extract a leading comment block from a proc body — the
+/// fallback that fires when there's no preceding-comment harvest
+/// from the segmenter.  Mirrors
+/// ``core/formatting/docstring.py::extract_body_docstring``.
+///
+/// Lines containing only decoration characters
+/// (``.-=*~#``) are skipped; remaining ``#``-prefixed lines have
+/// the leading hash + whitespace stripped, then accumulated.
+/// The first non-comment / non-blank line ends the block.
+#[must_use]
+pub fn extract_body_docstring(body: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for raw in body.lines() {
+        let stripped = raw.trim();
+        if stripped.is_empty() {
+            if !lines.is_empty() {
+                break;
+            }
+            continue;
+        }
+        if !stripped.starts_with('#') {
+            break;
+        }
+        let text = stripped.trim_start_matches('#').trim().to_string();
+        // Skip pure-hash decoration lines (``####`` etc.).
+        if text.is_empty() && stripped.chars().all(|c| c == '#') {
+            continue;
+        }
+        // Skip lines made entirely of decoration characters.
+        if !text.is_empty() && text.chars().all(|c| DECORATION_CHARS.contains(&c)) {
+            continue;
+        }
+        lines.push(text);
+    }
+    lines.join("\n")
+}
+
 /// Per-line ``# noqa: CODE`` suppression scanner.
 ///
 /// Mirrors the inline-noqa half of

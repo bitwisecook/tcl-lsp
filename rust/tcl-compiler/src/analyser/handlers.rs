@@ -272,7 +272,13 @@ impl Analyser {
         }
 
         let params = parse_param_list(&args[1]);
-        let doc = std::mem::take(&mut self.last_comment);
+        // Doc string: prefer the preceding-comment harvest from
+        // the segmenter; fall back to ``extract_body_docstring``
+        // (leading comment block at the top of the body).
+        let mut doc = std::mem::take(&mut self.last_comment);
+        if doc.is_empty() && args.len() >= 3 {
+            doc = super::utils::extract_body_docstring(&args[2]);
+        }
 
         // **C41e3.** When a user defines ``proc unknown ...`` (or
         // ``::tcl::unknown``), inspect the body to determine which
