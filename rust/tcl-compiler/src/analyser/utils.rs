@@ -389,7 +389,7 @@ pub fn extract_body_docstring(body: &str) -> String {
 /// the named codes.
 pub fn apply_preceding_noqa(
     cmd: &crate::segmenter::SegmentedCommand,
-    source: &str,
+    line_offsets: &[usize],
     suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
 ) {
     let Some(comment) = cmd.preceding_comment.as_deref() else {
@@ -418,20 +418,14 @@ pub fn apply_preceding_noqa(
     };
     // Attribute to every line spanned by the command (matches
     // Python's ``range(cmd.range.start.line, cmd.range.end.line +
-    // 1)``).  ``SegmentedCommand.span`` is byte offsets; derive
-    // 0-based line numbers by counting newlines in ``source``
-    // up to ``span.start`` / ``span.end``.
-    let bytes = source.as_bytes();
+    // 1)``).  ``SegmentedCommand.span`` is byte offsets; convert
+    // each via the precomputed ``line_offsets`` index in
+    // ``O(log N)`` instead of a linear scan per call (the helper
+    // runs once per segmented command).
     let span_start = cmd.span.start() as usize;
     let span_end = cmd.span.end() as usize;
-    if span_start > bytes.len() || span_end > bytes.len() {
-        return;
-    }
-    let start_line = bytes[..span_start].iter().filter(|&&b| b == b'\n').count() as i32;
-    let end_line = bytes[..span_end.min(bytes.len())]
-        .iter()
-        .filter(|&&b| b == b'\n')
-        .count() as i32;
+    let start_line = super::state::line_at_offset(line_offsets, span_start);
+    let end_line = super::state::line_at_offset(line_offsets, span_end);
     for line in start_line..=end_line {
         suppressed_lines
             .entry(line)

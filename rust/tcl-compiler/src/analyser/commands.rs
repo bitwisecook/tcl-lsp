@@ -94,11 +94,13 @@ impl Analyser {
             // ``# noqa`` directives in the preceding-comment
             // attribute to this command's line range — same
             // shape as the top-level loop.
-            super::utils::apply_preceding_noqa(
-                &cmd,
-                &self.source,
-                &mut self.result.suppressed_lines,
-            );
+            if let Some(line_offsets) = self.line_offsets.as_deref() {
+                super::utils::apply_preceding_noqa(
+                    &cmd,
+                    line_offsets,
+                    &mut self.result.suppressed_lines,
+                );
+            }
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, scope_path);
             cmd_idx += 1 + consumed;
         }
@@ -355,6 +357,17 @@ impl Analyser {
         self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
         self.handle_auto_path_command(cmd_name, args, arg_tokens);
         self.handle_regex_pattern_capture(cmd_name, args, arg_tokens);
+
+        // ``load`` / ``rename`` flip ``has_dynamic_providers``.
+        // ``load`` brings a shared library's commands into the
+        // interpreter at runtime; ``rename`` can introduce new
+        // command names dynamically.  Both make static W123
+        // unknown-command analysis unreliable, so the flag
+        // suppresses those diagnostics on the document.  Mirrors
+        // Python's ``_commands.py`` behaviour.
+        if matches!(cmd_name, "load" | "rename") {
+            self.result.has_dynamic_providers = true;
+        }
 
         // Generic body recursion via the command registry's
         // `ArgRole::Body`.  Mirrors the `iter_body_arguments` loop

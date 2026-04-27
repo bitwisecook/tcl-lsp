@@ -1110,32 +1110,48 @@ impl Analyser {
         if args[0] != "import" {
             return;
         }
+        // Any ``namespace import`` flips ``has_dynamic_providers``
+        // because the imported namespace can register commands at
+        // runtime — matches Python's behaviour (suppresses W123
+        // unknown-command on the imported names).
+        self.result.has_dynamic_providers = true;
         // Skip the subcommand word + an optional ``-force`` flag.
         let mut idx = 1;
         if idx < args.len() && args[idx] == "-force" {
             idx += 1;
         }
-        // The importing namespace is the analyser's *current*
-        // namespace — derived from the scope-path chain.  At the
-        // top level this is ``::``; inside ``namespace eval my
-        // { namespace import ... }`` it's ``::my``.
         let importing_ns = self.namespace_from_scope_path(scope_path);
         while idx < args.len() && idx < arg_tokens.len() {
-            let pat = args[idx].clone();
-            // The Python pass requires patterns to be fully
-            // qualified (start with ``::``).  Skip anything else;
-            // the optimiser / runtime will handle relative
-            // imports separately.
-            if pat.starts_with("::") {
-                self.result.namespace_imports.push(
-                    crate::signature_scan::types::SignatureNamespaceImport {
-                        ns: importing_ns.clone(),
-                        pattern: pat,
-                        range: arg_tokens[idx].span,
-                        conjectured: false,
-                    },
-                );
+            let pat_raw = args[idx].clone();
+            // Skip patterns containing ``$`` / ``[`` substitutions —
+            // we can't statically qualify a runtime-computed
+            // name.  Mirrors the Python guard in
+            // ``_commands.py::_record_command_invocation``.
+            if pat_raw.contains('$') || pat_raw.contains('[') {
+                idx += 1;
+                continue;
             }
+            // Patterns that already start with ``::`` are
+            // absolute; relative patterns (``bar::*`` or
+            // ``foo``) qualify against the *current* namespace
+            // — inside ``namespace eval my { namespace import
+            // bar::* }`` this becomes ``::my::bar::*``.
+            // Mirrors Python's ``_qualify_relative_pattern``.
+            let pat = if pat_raw.starts_with("::") {
+                pat_raw
+            } else if importing_ns == "::" {
+                format!("::{pat_raw}")
+            } else {
+                format!("{importing_ns}::{pat_raw}")
+            };
+            self.result.namespace_imports.push(
+                crate::signature_scan::types::SignatureNamespaceImport {
+                    ns: importing_ns.clone(),
+                    pattern: pat,
+                    range: arg_tokens[idx].span,
+                    conjectured: false,
+                },
+            );
             idx += 1;
         }
     }
@@ -1154,7 +1170,7 @@ impl Analyser {
         if args.is_empty() {
             return;
         }
-        match cmd_name {
+        let recorded = match cmd_name {
             "lappend" if args[0] == "auto_path" => {
                 for (i, path) in args.iter().enumerate().skip(1) {
                     let Some(tok) = arg_tokens.get(i) else {
@@ -1167,17 +1183,32 @@ impl Analyser {
                             range: tok.span,
                         });
                 }
+                true
             }
             "set" if args[0] == "auto_path" && args.len() >= 2 => {
-                let Some(tok) = arg_tokens.get(1) else { return };
-                self.result
-                    .auto_path_entries
-                    .push(super::types::AutoPathEntry {
-                        raw_path: args[1].clone(),
-                        range: tok.span,
-                    });
+                if let Some(tok) = arg_tokens.get(1) {
+                    self.result
+                        .auto_path_entries
+                        .push(super::types::AutoPathEntry {
+                            raw_path: args[1].clone(),
+                            range: tok.span,
+                        });
+                    true
+                } else {
+                    false
+                }
             }
-            _ => {}
+            _ => false,
+        };
+        // Any ``auto_path`` mutation flips
+        // ``has_dynamic_providers``.  Mutating ``auto_path``
+        // makes command resolution unreliable — packages
+        // discovered at runtime can register commands the
+        // static analyser can't see, so W123 unknown-command
+        // diagnostics suppress on the document.  Mirrors
+        // Python's behaviour in ``_commands.py``.
+        if recorded {
+            self.result.has_dynamic_providers = true;
         }
     }
 
