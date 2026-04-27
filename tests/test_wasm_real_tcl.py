@@ -174,6 +174,7 @@ def _run_wasm(
     capture_stderr: bool = False,
     preopen_tmpdir: str | None = None,
     timeout_s: float | None = None,
+    memory_size: int | None = None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -195,6 +196,14 @@ def _run_wasm(
     """
     engine = _get_engine_with_timeout() if timeout_s is not None else _get_engine()
     store = wasmtime.Store(engine)
+    if memory_size is not None and memory_size > 0:
+        # Cap linear-memory growth so a runaway test (e.g. an
+        # ``obj.test``-style allocation loop) traps via ``memory.grow``
+        # returning -1 instead of consuming the whole host's RAM.  The
+        # sweep harness sizes this at a multiple of the matching
+        # tclsh run's peak RSS so a "WASM is allowed to be a bit
+        # bigger than the C VM" envelope is enforced.
+        store.set_limits(memory_size=memory_size)
     deadline_value = 0
     if timeout_s is not None:
         # ``set_epoch_deadline`` takes an absolute counter value.  We
