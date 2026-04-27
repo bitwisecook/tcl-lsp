@@ -392,6 +392,131 @@ CORPUS: list[tuple[str, str]] = [
     # -- E101 (recovery: unclosed proc body) --
     ("e101_unclosed_proc_body", "proc foo {} {\nset x 1\n"),
     ("e101_unclosed_proc_body_short", "proc foo {} { puts hi\n"),
+    # -- OO class hierarchies (lifted from test_class_hierarchy.py
+    # scenarios) --
+    (
+        "oo_single_inheritance",
+        "oo::class create Animal {}\noo::class create Dog { superclass ::Animal }",
+    ),
+    (
+        "oo_diamond_inheritance",
+        """\
+oo::class create A {}
+oo::class create B { superclass ::A }
+oo::class create C { superclass ::A }
+oo::class create D { superclass ::B ::C }
+""",
+    ),
+    (
+        "oo_transitive_chain",
+        """\
+oo::class create A {}
+oo::class create B { superclass ::A }
+oo::class create C { superclass ::B }
+""",
+    ),
+    (
+        "oo_class_with_mixin_chain",
+        """\
+oo::class create Serializable {}
+oo::class create Animal {}
+oo::class create Dog {
+    superclass ::Animal
+    mixin ::Serializable
+}
+""",
+    ),
+    (
+        "oo_class_with_class_method",
+        "oo::class create C { method m {} {}; classmethod cm {} {} }",
+    ),
+    (
+        "oo_define_after_create",
+        """\
+oo::class create C {}
+oo::define C method greet {name} { puts hi }
+""",
+    ),
+    (
+        "oo_method_with_args",
+        "oo::class create C { method add {a b} { return [expr {$a + $b}] } }",
+    ),
+    # -- namespace import (lifted from test_namespace_imports.py) --
+    (
+        "ns_direct_import",
+        "namespace eval my { namespace import ::foo::bar::* }",
+    ),
+    (
+        "ns_specific_import",
+        "namespace import ::baz::*",
+    ),
+    (
+        "ns_force_import",
+        "namespace import -force ::lib::do_thing",
+    ),
+    (
+        "ns_multi_import",
+        "namespace import ::a::* ::b::* ::c::specific",
+    ),
+    # -- interp alias (test_interp_alias scenarios) --
+    (
+        "alias_simple",
+        "interp alias {} mycmd {} target",
+    ),
+    (
+        "alias_with_args",
+        "interp alias {} mycmd {} target arg1 arg2",
+    ),
+    # -- proc arg traits (lifted from test_proc_arg_traits.py) --
+    (
+        "proc_param_in_expr",
+        "proc f {x} { return [expr {$x + 1}] }",
+    ),
+    (
+        "proc_param_eval",
+        "proc f {body} { eval $body }",
+    ),
+    (
+        "proc_param_uplevel",
+        "proc f {script} { uplevel 1 $script }",
+    ),
+    (
+        "proc_param_foreach_list",
+        "proc f {items} { foreach x $items { puts $x } }",
+    ),
+    (
+        "proc_param_for_body",
+        "proc f {body} { for {set i 0} {$i < 10} {incr i} { eval $body } }",
+    ),
+    (
+        "proc_param_upvar_alias",
+        "proc f {var} { upvar 1 $var local; set local 1 }",
+    ),
+    (
+        "proc_param_underscore_unused_no_w214",
+        "proc f {_ a} { puts $a }",
+    ),
+    # -- variable scoping (test_var_scoping scenarios) --
+    (
+        "var_global_decl",
+        "proc f {} { global counter; set counter 1 }",
+    ),
+    (
+        "var_namespace_decl",
+        "proc f {} { variable shared; set shared 1 }",
+    ),
+    (
+        "var_upvar_local",
+        "proc f {} { upvar 1 outer local; set local 1 }",
+    ),
+    (
+        "var_upvar_hash_level",
+        "proc f {} { upvar #0 globalvar local; puts $local }",
+    ),
+    (
+        "var_namespace_upvar",
+        "namespace eval ns { variable x }\nproc f {} { namespace upvar ::ns x local; puts $local }",
+    ),
     # -- combined --
     (
         "package_plus_proc_plus_class",
@@ -402,6 +527,36 @@ namespace eval my::ns {
     oo::class create Widget {
         method draw {} { puts drawing }
     }
+}
+""",
+    ),
+    # -- nested OO + namespace --
+    (
+        "nested_ns_with_oo_chain",
+        """\
+namespace eval app {
+    oo::class create Base {}
+    oo::class create Derived {
+        superclass ::app::Base
+        method run {} { puts running }
+    }
+}
+""",
+    ),
+    # -- multi-proc cross-references --
+    (
+        "two_procs_one_calls_other",
+        """\
+proc helper {x} { return [expr {$x * 2}] }
+proc caller {} { puts [helper 5] }
+""",
+    ),
+    (
+        "namespace_with_internal_call",
+        """\
+namespace eval util {
+    proc square {n} { return [expr {$n * $n}] }
+    proc cube {n} { return [expr {$n * [square $n]}] }
 }
 """,
     ),
@@ -474,6 +629,38 @@ FIELD_PARITY_LABELS: frozenset[str] = frozenset(
         "h300_case_mismatch_proc_param",
         "e101_unclosed_proc_body",
         "e101_unclosed_proc_body_short",
+        # OO class hierarchy + transitive/diamond + mixin
+        "oo_single_inheritance",
+        "oo_diamond_inheritance",
+        "oo_transitive_chain",
+        "oo_class_with_mixin_chain",
+        # namespace import family
+        "ns_direct_import",
+        "ns_specific_import",
+        "ns_force_import",
+        "ns_multi_import",
+        # interp alias forms
+        "alias_simple",
+        "alias_with_args",
+        # proc-arg trait scenarios (W214 over-emit cases now that
+        # body_references_param fallback is in place)
+        "proc_param_in_expr",
+        "proc_param_eval",
+        "proc_param_uplevel",
+        "proc_param_foreach_list",
+        "proc_param_for_body",
+        "proc_param_upvar_alias",
+        "proc_param_underscore_unused_no_w214",
+        # variable-scoping primitives (global / variable / upvar
+        # / namespace upvar)
+        "var_global_decl",
+        "var_namespace_decl",
+        "var_upvar_local",
+        "var_upvar_hash_level",
+        "var_namespace_upvar",
+        # multi-proc cross-references
+        "two_procs_one_calls_other",
+        "namespace_with_internal_call",
     }
 )
 
