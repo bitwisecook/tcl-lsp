@@ -299,6 +299,76 @@ impl Analyser {
         // Intentionally empty — see module docstring.
     }
 
+    /// **W105.** Emit "unbraced code block" warnings for body
+    /// arguments that aren't braced.  Mirrors
+    /// ``check_unbraced_body`` in
+    /// ``core/analysis/checks/_style.py:238-302``.
+    ///
+    /// Severity is ERROR when the unbraced body contains
+    /// substitutions (``$var`` / ``[cmd]``) — those risk double
+    /// substitution.  Severity is WARNING otherwise.  Single
+    /// barewords without substitution are silently allowed
+    /// (some commands accept a proc name as a body alternative).
+    pub(super) fn emit_w105_unbraced_body(
+        &mut self,
+        cmd_name: &str,
+        body_text: &str,
+        body_tok: tcl_lexer::Token,
+    ) {
+        // Already braced — `Str` token kind means the source
+        // started with ``{``.  Mirrors ``_first_token_is_braced``
+        // in Python.
+        if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
+            return;
+        }
+        // VAR / CMD substitution tokens are interpolations like
+        // ``$body`` or ``[gen]`` — those are dynamic bodies, not
+        // unbraced literals.  Don't fire on them.
+        if matches!(
+            body_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            return;
+        }
+        let trimmed = body_text.trim();
+        let has_substitution = trimmed.contains('$') || trimmed.contains('[');
+        // Single bareword + no substitution is the alternative
+        // form (e.g. body = a proc name).  Skip.
+        if !trimmed.contains(char::is_whitespace) && !has_substitution {
+            return;
+        }
+        let severity = if has_substitution {
+            super::types::Severity::Error
+        } else {
+            super::types::Severity::Warning
+        };
+        let message = if has_substitution {
+            format!(
+                "Code block argument to '{cmd_name}' is not braced and \
+contains substitutions \u{2014} risk of double substitution. \
+Use braces: {{ \u{2026} }}"
+            )
+        } else {
+            format!(
+                "Code block argument to '{cmd_name}' should be braced \
+for clarity and to prevent accidental substitution. \
+Use braces: {{ \u{2026} }}"
+            )
+        };
+        let new_text = format!("{{{body_text}}}");
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W105".to_string(),
+            span: body_tok.span,
+            message,
+            severity,
+            fixes: vec![super::types::CodeFix {
+                span: body_tok.span,
+                new_text,
+                description: "Wrap code block in braces".to_string(),
+            }],
+        });
+    }
+
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in

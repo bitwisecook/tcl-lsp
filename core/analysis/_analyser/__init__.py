@@ -456,11 +456,17 @@ def _merge_rust_with_python_supplement(
         seen_invs.add(key)
         merged_invs.append(inv)
     rust.command_invocations = merged_invs
-    # Python's diagnostics list is a strict superset (it integrates
-    # ``run_compiler_checks`` for W110 / W220 / W304).  Take Python's.
-    # The override retires when ``run_compiler_checks`` lands in
-    # Rust as part of the ``postpass`` (= C42) chunk — see
-    # ``docs/rust-rewrite.md`` for the strategy.
+    # ``diagnostics``: Python's pass remains the source of truth.
+    # Rust now emits an analyser-side subset (W123 / W210 / W211 /
+    # W214 / W220 / W105 — postpass ported W105 as the first pure
+    # post-pass-style emitter) but Python's
+    # ``run_compiler_checks`` integration owns the IR-coupled
+    # codes (W110 / W101 / W304 / E004 / W302 / W001) plus
+    # post-emission suppression (some Rust emissions Python
+    # later suppresses based on context the Rust path doesn't
+    # see yet).  A naive dedup-merge re-surfaces those
+    # suppressed records.  Keeping wholesale-replace until the
+    # full ``postpass`` chunk lands suppression-context parity.
     rust.diagnostics = python.diagnostics
     # Structural Rust gaps the differential corpus tracks:
     # ``ProcDef.doc`` ``extract_body_docstring`` fallback;

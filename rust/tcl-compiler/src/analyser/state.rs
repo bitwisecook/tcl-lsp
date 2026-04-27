@@ -1195,6 +1195,40 @@ mod tests {
         assert!(r.regex_patterns.is_empty());
     }
 
+    // -- ``postpass`` chunk: W105 unbraced-body emitter
+    //
+    // Mirror the relevant cases from
+    // ``tests/test_analyser.py`` / ``tests/test_w105*.py`` against
+    // the Rust port so the W105 path retires from the Python
+    // ``run_compiler_checks`` post-pass.
+
+    #[test]
+    fn analyse_emits_w105_for_unbraced_if_body_with_substitution() {
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$cond} \"puts $x\"\n", "tcl");
+        let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
+        assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
+        // Substitution-bearing bodies are flagged at error severity.
+        assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
+    }
+
+    #[test]
+    fn analyse_skips_w105_for_braced_if_body() {
+        // Braced ``{ ... }`` body — no W105.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$cond} { puts $x }\n", "tcl");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W105"));
+    }
+
+    #[test]
+    fn analyse_skips_w105_for_dynamic_body_var() {
+        // ``while $cond $body`` — Var-token body is dynamic, not
+        // an unbraced literal.  Don't emit W105.
+        let mut a = Analyser::new();
+        let r = a.analyse("while {$cond} $body\n", "tcl");
+        assert!(!r.diagnostics.iter().any(|d| d.code == "W105"));
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry

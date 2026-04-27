@@ -424,6 +424,7 @@ impl Analyser {
                     if let (Some(body_text), Some(body_tok)) =
                         (args.get(idx), arg_tokens.get(idx).copied())
                     {
+                        self.emit_w105_unbraced_body(cmd_name, body_text, body_tok);
                         self.analyse_body(body_text, body_tok, scope_path);
                     }
                 }
