@@ -1,34 +1,58 @@
 # Python → Rust rewrite
 
-tcl-lsp is ~360K lines of Python across `core/`, `lsp/`, `vm/`, `debugger/`,
-`fuzzing/`, `explorer/`, `ai/`, `scripts/`, and `tests/`. We're incrementally
-rewriting all of it in Rust, from the bottom of the stack upward, without
-ever breaking the shipping extension. A thin Python interface is kept on
-top of the Rust crates for Claude skills, the MCP server, and other
-integrations where a small Python surface is genuinely useful.
+tcl-lsp is ~360K lines of Python across `core/`, `lsp/`, `vm/`,
+`debugger/`, `fuzzing/`, `explorer/`, `ai/`, `scripts/`, and `tests/`.
+We're rewriting **all of it** in Rust. The end goal is a repo whose
+runtime, LSP server, bytecode VM, formatter, minifier, debugger,
+refactoring engine, code-action surface, compiler explorer, iRule test
+framework, BigIP / APL config parsers, and even the build/release
+scripts run as Rust code, with **zero** Python in the shipping product.
 
-This is a multi-year project. Every step is a PR-sized change that leaves
-`make prep-pr` green and every editor extension working. There is no "big
-bang" branch, no pauses for rewrites, and no points at which the Python
-build is intentionally broken.
+A small, deliberately-scoped PyO3 surface survives the transition — but
+not for the repo's own internals. Once everything ports across, the
+PyO3 bindings exist purely as a **public API for downstream users**:
+plugin authors who want to write custom analyses, embed the analyser
+in their own pipeline, build alternative VMs, or extend the diagnostic
+catalogue. That public surface is a separate, designed product — not a
+catch-all for whatever the in-tree Python layer happened to call.
 
-This document explains what we're doing, how we're doing it, and — most
-importantly — what a good port looks like. Read it before touching
-anything under `rust/`, the PyO3 bindings, or the native-extension bits of
-the zipapp builder.
+This is a multi-year project. Every step is a PR-sized change that
+leaves `make prep-pr` green and every editor extension working. There
+is no "big bang" branch, no pauses for rewrites, and no points at
+which the Python build is intentionally broken.
+
+This document explains what we're doing, how we're doing it, and —
+most importantly — what a good port looks like. Read it before
+touching anything under `rust/`, the PyO3 bindings, or the
+native-extension bits of the zipapp builder.
 
 ## What we're doing
 
 The eventual end state is:
 
-- All runtime logic lives in a Rust workspace under `rust/`.
+- **All** runtime logic lives in the Rust workspace under `rust/`. No
+  Python is shipped or executed by the LSP server, the editor
+  extensions, the zipapp, the compiler explorer, the MCP server, the
+  debugger CLI, or any other entry point in this repository.
 - The LSP server is a standalone Rust binary.
-- The zipapp build shrinks to a thin Python launcher, or goes away
-  entirely once editors can invoke the binary directly.
-- A small PyO3 surface survives for Python-first integrations (Claude
-  skills, the MCP server, ad-hoc scripts).
-- Python tests that exercise observable behaviour stay where they are and
-  continue to pass through the PyO3 bridge.
+- The bytecode VM is a Rust crate. The Zig WASM runtime stays as the
+  out-of-process runtime for compiled scripts; the VM is the in-process
+  interpreter the analyser, debugger, and iRule test framework drive.
+- The compiler explorer ships as a Rust → WASM web app (no Pyodide,
+  no Python at runtime).
+- The formatter, minifier, refactoring engine, code-action surface,
+  iRule test framework, and BigIP / APL parsers are all Rust crates.
+- Build / release scripts under `scripts/` are rewritten as
+  `cargo xtask` subcommands or shell scripts, eliminating the Python
+  toolchain dependency entirely.
+- The **only** Python that lives on after the transition is the
+  `pyo3-public-api` crate's surface: a documented, semver-stable
+  binding intended for downstream users to embed the analyser /
+  compiler / VM in their own Python tooling. This API is **not** a
+  shim for in-tree code; the in-tree code is Rust.
+- All Python test suites get ported to Rust as cargo unit + integration
+  tests. The legacy `tests/` directory shrinks to zero by the final
+  retirement chunk.
 
 We get there by porting the codebase bottom-up, in dependency order:
 
@@ -737,6 +761,26 @@ tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
 | C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-on; `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out) |
+| **C42** | **`run_compiler_checks` post-pass integration.** Largest of the C41-default-on followups.  Either (a) port `core/compiler/compiler_checks.py::run_compiler_checks` to a Rust-side `compiler_checks::run_all_checks(cu, registry, dialect)` and call it from `analyser::state::analyse` after the main walk, or (b) keep `run_compiler_checks` Python-side but make it consume a Rust-built `CompilationUnit` so the dispatch shim only runs the post-pass instead of the full Python `Analyser.analyse`.  Either approach lets `rust.diagnostics = python.diagnostics` retire.  Diagnostics involved: W110 (style — `==` / `!=` vs `eq` / `ne`), W220 (SSA-based dead-store), W304 (unused-global declaration), plus W101 / W105 / W116 / W117 from the param-trait + stub-shadow paths. | planned |
+| **C43** | **Codegen + lowering hooks port** (`core/compiler/lowering_hooks/`, `core/compiler/codegen/_helpers.py`).  Rust workspace already has `lowering/` and `codegen/` directories carrying the bulk of the pipeline (C7-C21).  This chunk closes the remaining gaps: every `core/compiler/lowering_hooks/*.py` (~131 files / 50K LOC including the codegen sub-tree) gets a corresponding `lowering_hooks/*.rs` with a `try_lower_*` entry point + cargo unit tests covering the Python test corpus for that hook.  Each command's hook is its own commit. | planned (per-hook chunks) |
+| **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
+| **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
+| **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  Three independent Rust crates: `tcl-formatter`, `tcl-minifier`, `tcl-help-kcs` (KCS DB).  Test parity via the matching `test_formatter.py` / `test_minifier.py` / `test_docstring.py` / `test_kcs_db.py` (~470 cases) ported to cargo. | planned |
+| **REF\*** | **Refactoring engine** (`core/refactoring/` — 8 files / 1.9K LOC).  Rust `tcl-refactoring` crate exposing the rename-symbol / extract-variable / extract-proc / inline-variable / inline-proc / convert-if-to-switch transformations.  Tests port from `test_refactoring.py` / `test_refactoring_consumers.py` / `test_refactoring_skills.py`. | planned |
+| **IT\*** | **iRule test framework** (`core/irule_test/` — 5 files / 1.6K LOC).  Rust `irule-test` crate that simulates the F5 TMM event orchestrator for testing iRules without hardware.  Includes the `Event Orchestrator` test-script generator (currently a Claude skill).  Tests port from `test_irule_test_framework.py` (~161 cases) + `test_irule_test_codegen_mock_stubs.py`. | planned |
+| **DBG\*** | **Debugger** (`debugger/` — 10 files / 1.7K LOC).  Rust `tcl-debugger` binary with VM / tclsh / tkinter (over X protocol or DAP) backends.  Tests port from `test_debugger_*.py` (~24 cases). | planned |
+| **EXP\*** | **Compiler explorer rewrite** (`explorer/` — 23 files / 7.4K LOC).  Replace the Pyodide-based GUI with a Rust → WebAssembly web app (using `wasm-bindgen` + the existing `tcl-compiler` / `tcl-vm` crates compiled to `wasm32-unknown-unknown`).  No Python at runtime.  Tests port from `test_compiler_explorer*.py` (~68 cases). | planned |
+| **AI\*** | **AI / MCP integrations** (`ai/` — 12 files / 4.8K LOC).  Rewrite the MCP server, claude-skill scaffolds, and editor-adapter surfaces as Rust binaries (or Rust libraries with a thin shell wrapper).  These were the original "small Python surface" reasons; once the analyser / compiler are in Rust they can call the public PyO3 API directly OR be rewritten as native Rust applications.  Goal: zero Python in the shipping product. | planned |
+| **BIG\*** | **BigIP config parsers** (`core/bigip/` — 767 files / 41K LOC, mostly grammar / spec data + a small pure-Python parser).  Rust `bigip-config` crate.  Most of the bulk is data tables that can be auto-generated from the Python sources during the port.  Tests port from `test_bigip_*.py` + `test_xc_translator.py` (~310 cases). | planned |
+| **APL\*** | **APL parser** (F5 BIG-IP Application Policy Language; sub-tree under `core/apl/`).  Rust `bigip-apl` crate.  Tests port from `test_apl_*.py` (~47 cases). | planned |
+| **TK\***  | **Tk integration** (`core/tk/` — 5 files / 0.5K LOC).  Rust `tcl-tk-extract` crate for Tcl/Tk widget / event extraction (used by the diagnostic + GUI-detection paths).  Tests port from `test_tk_*.py` (~51 cases). | planned |
+| **DIAG\*** | **Diagram extraction** (`core/diagram/` — 2 files / 329 LOC).  Rust `tcl-diagram` crate for the call-graph / event-flow diagram output.  Tests port from `test_diagram_extract.py`. | planned |
+| **PKG\*** | **Package loading + auto-path resolution** (`core/packages/` + `core/analysis/auto_path_eval.py` + `core/analysis/source_resolver.py` + `core/analysis/tcllib.py` + `core/analysis/stub_comments.py`).  Rust `tcl-packages` crate.  Tests port from `test_package_*.py` / `test_auto_*.py` / `test_source_resolver.py` / `test_tcllib.py` / `test_stub_comments.py` (~286 cases). | planned |
+| **XC\*** | **BigIP XC translator** (`core/xc/` — 7 files / 2.5K LOC).  Rust `bigip-xc` crate.  Tests port from `test_xc_translator.py`. | planned |
+| **SCR\*** | **Build / release scripts** (`scripts/` — 31 files / 10K LOC).  Migrate to `cargo xtask` subcommands or POSIX shell scripts.  Eliminates the Python toolchain dependency from CI / release tooling.  Includes the registry codegen (`gen-editor-settings`, `snapshot-wasm-parity`, `check-wasm-parity`), zipapp builders, version bumping, marketplace publishing. | planned |
+| **PYO3-API** | **Public PyO3 surface design + freeze.**  Define the **single** documented PyO3 binding crate (`tcl-lsp-py`) intended for downstream users.  Surface scope: `Analyser` (analyse a source string, get diagnostics + symbol table), `Compiler` (lower / build CFG / SSA / codegen on demand), `VM` (run bytecode in-process), `Registry` (look up command specs), `Diagnostic` / `CodeFix` types.  Versioned (semver-stable from 1.0).  All in-tree consumers (Claude skills, MCP server, ad-hoc scripts) **either** rewrite as Rust (preferred) **or** dogfood this public API.  Documented in `docs/python-public-api.md`.  CI gates that no in-tree code outside the public-API crate imports `tcl_lsp_rust` private modules. | planned |
+| **TEST-MIGRATE** | **Python test migration sweep.**  Port every `tests/test_*.py` to a cargo integration / unit test under `rust/*/tests/` or the per-crate `mod tests` blocks.  Each commit migrates one file; the matching Python file gets deleted in the same commit (no parallel Python+Rust test for the same scenario).  When `tests/` is empty, the legacy harness retires.  Tests for the public PyO3 API stay as `tests/integration/` Rust tests using `pyo3` from the host. | planned (per-file chunks; ~9,400 test functions across 231 files) |
+| **PYTHON-RETIRE** | **Final retirement.**  After every chunk above lands, delete `core/`, `lsp/`, `vm/`, `debugger/`, `explorer/`, `ai/`, `scripts/` (Python source).  Keep the public PyO3 binding crate.  Update `pyproject.toml` so the wheel only ships the binding + Rust-native zipapp launcher.  Update editor extensions to invoke the Rust binary directly.  `make` retires; `cargo` becomes the only build entry point.  README / AGENTS / docs all reflect the Rust-only state.  This is the last chunk before the project's "v2.0" release. | planned |
 
 Keep this table current. Mark a row as `landed` in the same commit that
 lands the chunk.
