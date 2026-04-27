@@ -1221,12 +1221,17 @@ mod tests {
     }
 
     #[test]
-    fn analyse_skips_w105_for_dynamic_body_var() {
-        // ``while $cond $body`` — Var-token body is dynamic, not
-        // an unbraced literal.  Don't emit W105.
+    fn analyse_emits_w105_for_unbraced_while_body_var() {
+        // ``while {$cond} $body`` — Var-token body is still an
+        // unbraced body with substitution.  Mirrors Python's
+        // ``_has_substitution(..., tok)`` which treats VAR / CMD
+        // tokens as substitutions for the W105 check, so the
+        // diagnostic fires at ERROR severity.
         let mut a = Analyser::new();
         let r = a.analyse("while {$cond} $body\n", "tcl");
-        assert!(!r.diagnostics.iter().any(|d| d.code == "W105"));
+        let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
+        assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
+        assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
     }
 
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements

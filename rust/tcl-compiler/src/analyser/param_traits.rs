@@ -30,10 +30,18 @@ use crate::segmenter::segment_commands;
 /// parameter name to a set of inferred traits.  Empty entries
 /// (parameters with no detected trait) are dropped from the
 /// returned map.
+///
+/// `registry` is the **dialect-aware** command registry the
+/// caller already built (typically `Analyser::registry`).
+/// Building a fresh `CommandRegistry::build_default()` on every
+/// proc would both be expensive and miss dialect-specific
+/// `arg_role_resolver` / `arg_roles` (e.g. iRules `when` body
+/// detection) that the caller's registry already loaded.
 #[must_use]
 pub fn infer_param_traits(
     params: &[&str],
     body_source: &str,
+    registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
     if params.is_empty() || body_source.trim().is_empty() {
         return HashMap::new();
@@ -42,7 +50,6 @@ pub fn infer_param_traits(
     let mut traits: HashMap<&str, HashSet<ProcArgTrait>> =
         params.iter().map(|p| (*p, HashSet::new())).collect();
     let mut upvar_aliases: HashMap<String, &str> = HashMap::new();
-    let registry = CommandRegistry::build_default();
 
     let commands = extract_commands(body_source);
     for (cmd_name, cmd_args) in &commands {
@@ -52,7 +59,7 @@ pub fn infer_param_traits(
             &param_set,
             &mut traits,
             &mut upvar_aliases,
-            &registry,
+            registry,
         );
     }
 
@@ -531,6 +538,13 @@ mod tests {
         );
     }
 
+    /// Test helper — builds the registry once, since the public
+    /// API now requires the caller to thread one through.
+    fn infer(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
+        let registry = CommandRegistry::build_default();
+        infer_param_traits(params, body, &registry)
+    }
+
     #[test]
     fn extract_var_name_simple() {
         assert_eq!(extract_var_name("$foo"), Some("foo"));
@@ -542,13 +556,13 @@ mod tests {
 
     #[test]
     fn eval_param_records_eval_trait() {
-        let traits = infer_param_traits(&["body"], "eval $body");
+        let traits = infer(&["body"], "eval $body");
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 
     #[test]
     fn uplevel_records_eval_on_last_arg_only() {
-        let traits = infer_param_traits(&["lvl", "script"], "uplevel $lvl $script");
+        let traits = infer(&["lvl", "script"], "uplevel $lvl $script");
         assert_trait(&traits, "script", ProcArgTrait::Eval);
         assert!(!traits
             .get("lvl")
@@ -557,21 +571,21 @@ mod tests {
 
     #[test]
     fn foreach_records_loop_list_and_body() {
-        let traits = infer_param_traits(&["items", "body"], "foreach x $items $body");
+        let traits = infer(&["items", "body"], "foreach x $items $body");
         assert_trait(&traits, "items", ProcArgTrait::LoopList);
         assert_trait(&traits, "body", ProcArgTrait::Body);
     }
 
     #[test]
     fn while_records_expr_and_body() {
-        let traits = infer_param_traits(&["cond", "body"], "while $cond $body");
+        let traits = infer(&["cond", "body"], "while $cond $body");
         assert_trait(&traits, "cond", ProcArgTrait::Expr);
         assert_trait(&traits, "body", ProcArgTrait::Body);
     }
 
     #[test]
     fn for_records_init_cond_next_body() {
-        let traits = infer_param_traits(&["i", "c", "n", "b"], "for $i $c $n $b");
+        let traits = infer(&["i", "c", "n", "b"], "for $i $c $n $b");
         assert_trait(&traits, "i", ProcArgTrait::Body);
         assert_trait(&traits, "c", ProcArgTrait::Expr);
         assert_trait(&traits, "n", ProcArgTrait::Body);
@@ -580,7 +594,7 @@ mod tests {
 
     #[test]
     fn upvar_records_var_read_and_aliases_writes() {
-        let traits = infer_param_traits(&["var"], "upvar 1 $var local\nset local 1");
+        let traits = infer(&["var"], "upvar 1 $var local\nset local 1");
         assert_trait(&traits, "var", ProcArgTrait::VarRead);
         // Write through the alias upgrades to VarWrite.
         assert_trait(&traits, "var", ProcArgTrait::VarWrite);
@@ -588,16 +602,16 @@ mod tests {
 
     #[test]
     fn lassign_records_var_writes() {
-        let traits = infer_param_traits(&["a", "b"], "lassign {1 2} $a $b");
+        let traits = infer(&["a", "b"], "lassign {1 2} $a $b");
         assert_trait(&traits, "a", ProcArgTrait::VarWrite);
         assert_trait(&traits, "b", ProcArgTrait::VarWrite);
     }
 
     #[test]
     fn after_records_eval_skipping_cancel_info() {
-        let traits = infer_param_traits(&["body"], "after 100 $body");
+        let traits = infer(&["body"], "after 100 $body");
         assert_trait(&traits, "body", ProcArgTrait::Eval);
-        let traits = infer_param_traits(&["x"], "after cancel $x");
+        let traits = infer(&["x"], "after cancel $x");
         // ``after cancel`` doesn't take a script, so $x is not eval.
         assert!(traits
             .get("x")
@@ -606,13 +620,13 @@ mod tests {
 
     #[test]
     fn regsub_records_var_write() {
-        let traits = infer_param_traits(&["out"], "regsub -all foo $line bar $out");
+        let traits = infer(&["out"], "regsub -all foo $line bar $out");
         assert_trait(&traits, "out", ProcArgTrait::VarWrite);
     }
 
     #[test]
     fn empty_body_returns_empty_map() {
-        let traits = infer_param_traits(&["a"], "");
+        let traits = infer(&["a"], "");
         assert!(traits.is_empty());
     }
 }

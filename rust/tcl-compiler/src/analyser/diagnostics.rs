@@ -321,17 +321,19 @@ impl Analyser {
         if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
             return;
         }
-        // VAR / CMD substitution tokens are interpolations like
-        // ``$body`` or ``[gen]`` — those are dynamic bodies, not
-        // unbraced literals.  Don't fire on them.
-        if matches!(
-            body_tok.kind,
-            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-        ) {
-            return;
-        }
         let trimmed = body_text.trim();
-        let has_substitution = trimmed.contains('$') || trimmed.contains('[');
+        // Mirror Python's ``_has_substitution``: textual ``$`` /
+        // ``[`` count as substitutions, and so do ``Var`` / ``Cmd``
+        // tokens — even when the entire body is a direct
+        // substitution (``while {$cond} $body``).  Those still
+        // emit W105 at ERROR severity because an unbraced
+        // substituted body double-evaluates at runtime.
+        let has_substitution = trimmed.contains('$')
+            || trimmed.contains('[')
+            || matches!(
+                body_tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            );
         // Single bareword + no substitution is the alternative
         // form (e.g. body = a proc name).  Skip.
         if !trimmed.contains(char::is_whitespace) && !has_substitution {

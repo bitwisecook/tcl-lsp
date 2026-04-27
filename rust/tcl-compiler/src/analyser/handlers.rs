@@ -296,10 +296,21 @@ impl Analyser {
         // Infer per-parameter traits from a shallow body scan.
         // Mirrors ``infer_param_traits`` in
         // ``core/analysis/proc_arg_traits.py:212-232`` — top-level
-        // command walk only (deep recursion deferred).
+        // command walk only (deep recursion deferred).  Threads
+        // the analyser's pre-built dialect-aware registry through
+        // so iRules-only ``arg_role_resolver`` callbacks (e.g.
+        // ``when``) fire on body args.  When ``self.registry`` is
+        // ``None`` (outside an active ``analyse`` run, e.g. a
+        // unit-test harness) we skip the inference rather than
+        // pay the cost of a fresh ``build_default`` on every
+        // proc.
         let body_text = &args[2];
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
-        let param_traits = super::param_traits::infer_param_traits(&param_names, body_text);
+        let param_traits = if let Some(registry) = self.registry.as_ref() {
+            super::param_traits::infer_param_traits(&param_names, body_text, registry)
+        } else {
+            std::collections::HashMap::new()
+        };
 
         let proc = ProcDef {
             name: simple,
@@ -559,14 +570,15 @@ impl Analyser {
     /// (the next arm's body fires) and are skipped — recursing
     /// into the literal ``-`` would produce a useless command.
     ///
-    /// `-regexp` literal-pattern recording mirrors Python's
+    /// `-regexp` pattern recording mirrors Python's
     /// ``_proc.py::_handle_switch`` lines 233-252 — each non-`default`
-    /// pattern arm whose token is a literal (`Esc` / `Str`) is
-    /// pushed as a `RegexPattern` with ``command = "switch"``.
-    /// Variable / command-substitution patterns (the
-    /// ``set p "..."; switch -regexp -- $p { ... }`` shape) are
-    /// deferred to the ``regex-vars`` chunk where the const-string
-    /// map gets threaded through this handler.
+    /// pattern arm is recorded as a `RegexPattern` with
+    /// ``command = "switch"`` when its token is a literal
+    /// (`Esc` / `Str`) or a `Var` token whose name resolves via
+    /// `lookup_const_string_with_span` to a constant string set
+    /// earlier in the same scope.  Command-substitution patterns
+    /// are skipped (runtime-computed values can't be statically
+    /// resolved).
     pub fn handle_switch_command(
         &mut self,
         cmd_name: &str,
