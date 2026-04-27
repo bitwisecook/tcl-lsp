@@ -1747,7 +1747,7 @@ Use braces: {{ \u{2026} }}"
                         classes_sorted.sort_unstable();
                         let cls_display = classes_sorted.join(", ");
                         let message =
-                            format!("Unknown method '{method_name}' on class '{cls_display}'",);
+                            format!("Unknown method '{method_name}' on class '{cls_display}'");
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: "W308".to_string(),
                             span: site.cmd_span,

@@ -156,7 +156,7 @@ fn reachable_procs(
 /// Comment every non-empty line of `text` (preserving empties as
 /// `#`) and prepend an explanatory banner.
 fn comment_out(text: &str, proc_name: &str) -> String {
-    let mut out = format!("# [O124] Unused proc — '{proc_name}' is not called from any event\n",);
+    let mut out = format!("# [O124] Unused proc — '{proc_name}' is not called from any event\n");
     let line_count = text.split('\n').count();
     for (i, line) in text.split('\n').enumerate() {
         if line.trim().is_empty() {

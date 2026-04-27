@@ -792,14 +792,12 @@ fn note_params_in_expr(
 ) {
     use crate::expr_ast::ExprNode;
     match node {
-        ExprNode::Var { name, .. } => {
-            if params.contains(name) {
-                facts
-                    .param_trait_flags
-                    .entry(name.clone())
-                    .or_default()
-                    .insert(ProcArgTrait::UsedInCondition);
-            }
+        ExprNode::Var { name, .. } if params.contains(name) => {
+            facts
+                .param_trait_flags
+                .entry(name.clone())
+                .or_default()
+                .insert(ProcArgTrait::UsedInCondition);
         }
         ExprNode::Binary { left, right, .. } => {
             note_params_in_expr(left, params, facts);
@@ -932,10 +930,8 @@ fn walk_collect_param_refs(
 ) {
     use crate::expr_ast::ExprNode;
     match node {
-        ExprNode::Var { name, .. } => {
-            if params.contains(name) {
-                out.push(name.clone());
-            }
+        ExprNode::Var { name, .. } if params.contains(name) => {
+            out.push(name.clone());
         }
         ExprNode::Binary { left, right, .. } => {
             walk_collect_param_refs(left, params, out);

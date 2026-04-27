@@ -111,15 +111,13 @@ pub fn find_unnormalised_getter_warnings(
                         args,
                         span,
                         ..
-                    } => {
-                        if is_unnormalised_getter(command, args) {
-                            out.push(IrulesCheckWarning {
-                                span: *span,
-                                code: "IRULE3102".to_owned(),
-                                message: format_message(command),
-                                replacement: None,
-                            });
-                        }
+                    } if is_unnormalised_getter(command, args) => {
+                        out.push(IrulesCheckWarning {
+                            span: *span,
+                            code: "IRULE3102".to_owned(),
+                            message: format_message(command),
+                            replacement: None,
+                        });
                     }
                     Statement::AssignValue { value, span, .. } => {
                         let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) else {

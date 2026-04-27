@@ -36,10 +36,10 @@ fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            if !name.is_empty() {
-                names.insert(name.clone());
-            }
+        | Statement::Incr { name, .. }
+            if !name.is_empty() =>
+        {
+            names.insert(name.clone());
         }
         Statement::Call { defs, reads, .. } => {
             for n in defs.iter().chain(reads.iter()) {
