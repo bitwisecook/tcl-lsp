@@ -14,6 +14,7 @@ from ..semantic_model import (
     PackageProvide,
     PackageRequire,
     ParamDef,
+    ProcArgTrait,
     ProcDef,
     PropertyDef,
     RegexPattern,
@@ -112,6 +113,16 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
         ]
 
     def _proc(p: dict) -> ProcDef:
+        traits_raw = p.get("param_traits") or {}
+        param_traits: dict[str, frozenset[ProcArgTrait]] = {}
+        for param_name, names in traits_raw.items():
+            mapped: set[ProcArgTrait] = set()
+            for n in names:
+                key = n.upper() if isinstance(n, str) else n
+                if key in ProcArgTrait.__members__:
+                    mapped.add(ProcArgTrait[key])
+            if mapped:
+                param_traits[param_name] = frozenset(mapped)
         return ProcDef(
             name=p["name"],
             qualified_name=p["qualified_name"],
@@ -119,6 +130,7 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             name_range=range_at(*p["name_range"]),
             body_range=range_at(*p["body_range"]),
             doc=p.get("doc") or "",
+            param_traits=param_traits,
         )
 
     def _method(m: dict) -> MethodDef:

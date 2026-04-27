@@ -293,6 +293,14 @@ impl Analyser {
             self.result.unknown_proc_info = Some(info);
         }
 
+        // Infer per-parameter traits from a shallow body scan.
+        // Mirrors ``infer_param_traits`` in
+        // ``core/analysis/proc_arg_traits.py:212-232`` — top-level
+        // command walk only (deep recursion deferred).
+        let body_text = &args[2];
+        let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        let param_traits = super::param_traits::infer_param_traits(&param_names, body_text);
+
         let proc = ProcDef {
             name: simple,
             qualified_name: qualified.clone(),
@@ -300,6 +308,7 @@ impl Analyser {
             name_span,
             body_span,
             doc,
+            param_traits,
         };
 
         // Register globally and in the current scope. Mirrors
@@ -2822,6 +2831,7 @@ mod tests {
                 name_span: span(0, 0),
                 body_span: span(0, 0),
                 doc: String::new(),
+                param_traits: std::collections::HashMap::new(),
             },
         );
         let resolved = a.resolve_proc_call("a::b", &[]);

@@ -268,6 +268,20 @@ fn proc_to_dict<'py>(py: Python<'py>, p: &ProcDef) -> PyResult<Bound<'py, PyDict
     d.set_item("name_range", span_tuple(p.name_span))?;
     d.set_item("body_range", span_tuple(p.body_span))?;
     d.set_item("doc", &p.doc)?;
+    // Per-parameter inferred traits — keys are parameter names,
+    // values are lists of stable lower-case trait names
+    // (``"eval"`` / ``"body"`` / ``"var_write"`` / ``"var_read"``
+    // / ``"expr"`` / ``"loop_list"``).  Empty entries are
+    // omitted.
+    let traits_dict = PyDict::new_bound(py);
+    for (param_name, set) in &p.param_traits {
+        let trait_list = PyList::empty_bound(py);
+        for t in set {
+            trait_list.append(t.as_str())?;
+        }
+        traits_dict.set_item(param_name, trait_list)?;
+    }
+    d.set_item("param_traits", traits_dict)?;
     Ok(d)
 }
 

@@ -111,6 +111,49 @@ pub struct VarDef {
     pub warn_if_unused: bool,
 }
 
+/// How a proc parameter is used inside the proc body.
+///
+/// Mirrors ``ProcArgTrait`` in
+/// ``core/analysis/semantic_model.py``.  Drives optimisation,
+/// shimmer analysis, taint propagation, and diagnostics — tells
+/// downstream passes how a parameter value flows through the
+/// proc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProcArgTrait {
+    /// Argument is eval'd as a script (``eval`` / ``uplevel`` /
+    /// ``subst``).
+    Eval,
+    /// Argument is used as a loop / control body.
+    Body,
+    /// Argument names a variable that the proc writes (upvar +
+    /// set, or a registry-marked write site).
+    VarWrite,
+    /// Argument names a variable that the proc reads via
+    /// ``upvar`` (read-only alias).
+    VarRead,
+    /// Argument is evaluated as an expression.
+    Expr,
+    /// Argument is used as the list in a ``foreach`` / ``lmap``.
+    LoopList,
+}
+
+impl ProcArgTrait {
+    /// Stable lower-case name suitable for serialisation.
+    /// Mirrors the Python enum's ``.name`` (uppercase) for the
+    /// API but lowercases for nicer dict keys.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ProcArgTrait::Eval => "eval",
+            ProcArgTrait::Body => "body",
+            ProcArgTrait::VarWrite => "var_write",
+            ProcArgTrait::VarRead => "var_read",
+            ProcArgTrait::Expr => "expr",
+            ProcArgTrait::LoopList => "loop_list",
+        }
+    }
+}
+
 /// Proc definition record.
 ///
 /// Mirrors ``ProcDef`` in ``core/analysis/semantic_model.py``.
@@ -131,6 +174,11 @@ pub struct ProcDef {
     /// Doc-comment text harvested from the line(s) above the
     /// ``proc`` statement, or empty when none was found.
     pub doc: String,
+    /// Inferred parameter usage traits, keyed by parameter
+    /// name.  Populated by ``infer_param_traits`` after the
+    /// body walk.  Empty when no traits inferred (parameter
+    /// unused, or proc body wasn't statically scannable).
+    pub param_traits: HashMap<String, std::collections::HashSet<ProcArgTrait>>,
 }
 
 /// Method definition inside a `TclOO` class.

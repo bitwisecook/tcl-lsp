@@ -37,6 +37,7 @@ pub mod dispatch;
 pub mod handlers;
 pub mod mro;
 pub mod oo;
+pub mod param_traits;
 pub mod recovery;
 pub mod scope;
 pub mod snapshot;
@@ -49,6 +50,6 @@ pub use mro::{build_mro_map, tcloo_linearise, MroError};
 pub use snapshot::AnalyserSnapshot;
 pub use state::Analyser;
 pub use types::{
-    AnalysisResult, ClassDef, CodeFix, Diagnostic, MethodDef, ProcDef, PropertyDef, Scope,
-    ScopeKind, Severity, UnknownProcInfo, VarDef,
+    AnalysisResult, ClassDef, CodeFix, Diagnostic, MethodDef, ProcArgTrait, ProcDef, PropertyDef,
+    Scope, ScopeKind, Severity, UnknownProcInfo, VarDef,
 };
