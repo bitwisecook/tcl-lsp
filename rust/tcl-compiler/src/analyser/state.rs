@@ -1113,9 +1113,11 @@ mod tests {
     }
 
     #[test]
-    fn analyse_switch_regexp_skips_var_pattern() {
-        // ``$pat`` arm — deferred to the regex-vars chunk where
-        // const-string propagation will resolve the literal.
+    fn analyse_switch_regexp_skips_unresolved_var_pattern() {
+        // ``$pat`` arm with no defining ``set`` — no const value
+        // available, so the arm is dropped (matches Python's
+        // ``const_val is not None`` guard in
+        // ``_proc.py:325-335``).
         let mut a = Analyser::new();
         let r = a.analyse(
             "switch -regexp -- $val { $pat { puts hit } ^lit { puts lit } }\n",
@@ -1128,6 +1130,77 @@ mod tests {
             .collect();
         assert_eq!(switch_pats.len(), 1);
         assert_eq!(switch_pats[0].pattern, "^lit");
+    }
+
+    // -- ``regex-vars`` const-string propagation
+    //
+    // Verify that ``$var`` regex pattern arguments resolve to the
+    // literal stored by a preceding ``set var "..."``.  Mirrors
+    // Python's ``_lookup_const_string`` branch in
+    // ``_commands.py:511-541`` (regexp / regsub) and
+    // ``_proc.py:319-348`` (switch -regexp Form 2).
+
+    #[test]
+    fn analyse_regexp_resolves_var_pattern_to_const_string() {
+        let mut a = Analyser::new();
+        let r = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
+        let regexp_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "regexp")
+            .collect();
+        assert_eq!(regexp_pats.len(), 1);
+        assert_eq!(regexp_pats[0].pattern, "^foo");
+    }
+
+    #[test]
+    fn analyse_regsub_resolves_var_pattern_to_const_string() {
+        let mut a = Analyser::new();
+        let r = a.analyse("set p {a+}\nregsub -all $p $line - out\n", "tcl");
+        let regsub_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "regsub")
+            .collect();
+        assert_eq!(regsub_pats.len(), 1);
+        assert_eq!(regsub_pats[0].pattern, "a+");
+    }
+
+    #[test]
+    fn analyse_switch_regexp_resolves_var_pattern_to_const_string() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "set p {^foo}\nswitch -regexp -- $val { $p { puts foo } ^bar { puts bar } }\n",
+            "tcl",
+        );
+        let switch_pats: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "switch")
+            .collect();
+        let pats: Vec<&str> = switch_pats.iter().map(|p| p.pattern.as_str()).collect();
+        assert!(pats.contains(&"^foo"), "got {pats:?}");
+        assert!(pats.contains(&"^bar"), "got {pats:?}");
+    }
+
+    #[test]
+    fn analyse_regex_var_unresolved_records_nothing() {
+        // No defining ``set`` — Var has no const value.  The
+        // pattern arg is dropped (matches Python).
+        let mut a = Analyser::new();
+        let r = a.analyse("regexp $p $line\n", "tcl");
+        assert!(r.regex_patterns.is_empty());
+    }
+
+    #[test]
+    fn analyse_regexp_var_added_to_regex_vars_set() {
+        // Side effect: the var name is recorded in
+        // ``regex_vars`` so downstream consumers (var-as-regex
+        // hint, future W*-codes) can find the defining set.
+        let mut a = Analyser::new();
+        let _ = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
+        // The const-string scope is the global scope (path = []).
+        assert!(a.regex_vars.contains(&(Vec::new(), "p".to_string())));
     }
 
     #[test]

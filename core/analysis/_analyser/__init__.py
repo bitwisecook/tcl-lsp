@@ -399,27 +399,25 @@ def _merge_rust_with_python_supplement(
     can delete.
     """
     # Rust ports many of these fields now (see
-    # ``_materialise_rust_analysis``) but Python's pass remains the
-    # source of truth for several scenarios where Rust's scanners
-    # are still partial:
+    # ``_materialise_rust_analysis``) but Python's pass remains
+    # the source of truth for the conservative-fallback shapes
+    # below:
     #
-    # - ``regex_patterns``: variable-driven pattern propagation
-    #   (``set p "..."; switch -regexp -- $p { ... }``) and
-    #   deep-recursion patterns aren't ported.
     # - ``auto_path_entries``: ``[info script]`` resolution and
     #   substitution evaluation are Python-only.
     # - ``source_targets``: dynamic source targets (``source $foo``
     #   that Python can resolve via const-string propagation)
     #   are Python-only.
-    # - ``command_aliases``: ``interp alias`` chains across
-    #   namespace boundaries are Python-only.
     #
     # Each "Python over Rust" line is a future Rust-port
     # follow-up; trimming this block is the way to slim the
     # supplement.  ``stub_commands`` / ``stub_expr_defs`` retired
-    # by the ``stub-args`` chunk — the Rust scanner now carries
-    # arg-roles, flags, and arity at parity with Python.
-    rust.regex_patterns = python.regex_patterns
+    # by the ``stub-args`` chunk; ``namespace_imports`` by
+    # ``tcllib-imports``; ``command_aliases`` merge by
+    # ``alias-chains``; ``regex_patterns`` by
+    # ``switch-regexp`` + ``regex-vars`` (the Rust scanner now
+    # records ``switch -regexp`` arms and resolves ``$var``
+    # patterns via const-string propagation).
     if not rust.auto_path_entries:
         rust.auto_path_entries = python.auto_path_entries
     if not rust.source_targets:
