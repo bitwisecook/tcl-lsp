@@ -143,6 +143,9 @@ pub struct ProcDef {
 pub struct MethodDef {
     /// Method name as written.
     pub name: String,
+    /// Parameters parsed from the method's parameter list.
+    /// Empty for ``destructor`` (no parameter slot in the syntax).
+    pub params: Vec<ParamDef>,
     /// Source span of the name token.
     pub name_span: Span,
     /// Source span of the method body (braces excluded).
@@ -382,16 +385,86 @@ pub struct AnalysisResult {
     pub command_invocations: Vec<SignatureCommandInvocation>,
     /// Package require records.
     pub package_requires: Vec<SignaturePackageRequire>,
+    /// Package provide records (``package provide NAME ?VERSION?``).
+    pub package_provides: Vec<PackageProvide>,
+    /// True when a non-literal ``package require`` / ``load`` /
+    /// ``auto_path`` mutation has been seen — downstream W123
+    /// emission suppresses unknown-command diagnostics under this
+    /// flag because the dynamic provider may register the missing
+    /// command at runtime.
+    pub has_dynamic_providers: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
+    /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
+    pub auto_path_entries: Vec<AutoPathEntry>,
+    /// Inline ``# stub: NAME ARGS BODY`` directive captures.
+    pub stub_commands: Vec<StubCommandDef>,
+    /// Inline ``# stub-expr: NAME ARGS`` directive captures.
+    pub stub_expr_defs: Vec<StubExprDef>,
+    /// `regexp` / `regsub` / `switch -regexp` literal patterns.
+    pub regex_patterns: Vec<RegexPattern>,
+    /// Per-line ``# noqa: CODE`` suppression map; the ``-1``
+    /// sentinel carries top-of-file ``# tcl-lsp: disable=CODE``
+    /// directives applying file-wide.
+    pub suppressed_lines: HashMap<i32, std::collections::HashSet<String>>,
     /// Analysis result from a user-defined ``unknown`` proc, when
     /// one was seen.  ``None`` when the document didn't define
     /// one (the W123 emitter then runs unconditionally).
     pub unknown_proc_info: Option<UnknownProcInfo>,
+}
+
+/// `package provide NAME ?VERSION?` record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageProvide {
+    /// Provided package name.
+    pub name: String,
+    /// Version string when present.
+    pub version: Option<String>,
+    /// Span of the originating ``package`` token.
+    pub range: Span,
+}
+
+/// `auto_path` mutation record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutoPathEntry {
+    /// Raw path text as written.
+    pub raw_path: String,
+    /// Span of the path argument.
+    pub range: Span,
+}
+
+/// Inline `# stub: NAME ARGS BODY` directive capture.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StubCommandDef {
+    /// Stub command name.
+    pub name: String,
+    /// Span of the comment line carrying the directive.
+    pub range: Span,
+}
+
+/// Inline `# stub-expr: NAME ARGS` directive capture.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StubExprDef {
+    /// Stub expression-function name.
+    pub name: String,
+    /// Span of the comment line carrying the directive.
+    pub range: Span,
+}
+
+/// `regexp` / `regsub` / `switch -regexp` literal-pattern record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegexPattern {
+    /// Span of the literal pattern token in source.
+    pub range: Span,
+    /// Raw pattern text.
+    pub pattern: String,
+    /// Originating command name (``"regexp"`` / ``"regsub"`` /
+    /// ``"switch"``).
+    pub command: String,
 }
 
 impl Default for Scope {

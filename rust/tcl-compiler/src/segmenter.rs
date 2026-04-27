@@ -25,6 +25,12 @@ pub struct SegmentedCommand {
     pub is_partial: bool,
     /// `{*}` expansion markers per word, if any word uses expansion.
     pub expand_word: Option<Vec<bool>>,
+    /// Concatenated text of comment line(s) immediately preceding
+    /// the command (without the leading ``#`` and trim-leading-
+    /// whitespace per Python's `command_segmenter.py`); ``None``
+    /// when no comment precedes.  Used by `_handle_proc` /
+    /// `_handle_oo_class_command` for `ProcDef.doc` / `ClassDef.doc`.
+    pub preceding_comment: Option<String>,
 }
 
 impl SegmentedCommand {
@@ -316,10 +322,27 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
     let mut prev_type = TokenType::Eol;
     let mut next_expand = false;
     let mut has_expand = false;
+    // Accumulator for ``# ...`` lines preceding the next command.
+    // Mirrors `last_comment` in
+    // ``core/parsing/command_segmenter.py``: each new comment line
+    // is appended (joined by ``\n``); the leading ``#`` and a
+    // single space are stripped per Python's
+    // ``line.lstrip('#').strip()`` shape.  Reset to ``None`` once a
+    // command consumes it, or whenever a non-comment / non-EOL
+    // token interrupts the run.
+    let mut last_comment: Option<String> = None;
 
     for &tok in &tokens {
         match tok.kind {
-            TokenType::Comment => continue,
+            TokenType::Comment => {
+                let raw = sm.token_text(tok);
+                let line = raw.trim_start_matches('#').trim().to_string();
+                last_comment = Some(match last_comment.take() {
+                    Some(prev) => format!("{prev}\n{line}"),
+                    None => line,
+                });
+                continue;
+            }
 
             TokenType::Sep => {
                 prev_type = tok.kind;
@@ -355,6 +378,7 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
                             expand.clear();
                             None
                         },
+                        preceding_comment: last_comment.take(),
                     });
                 }
                 has_expand = false;
@@ -408,6 +432,7 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             all_tokens,
             is_partial: false,
             expand_word: if has_expand { Some(expand) } else { None },
+            preceding_comment: last_comment.take(),
         });
     }
 

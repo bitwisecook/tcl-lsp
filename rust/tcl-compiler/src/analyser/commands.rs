@@ -254,6 +254,10 @@ impl Analyser {
         self.handle_interp_alias(cmd_name, args);
         self.handle_oo_objdefine(cmd_name, args);
         self.handle_package_command(cmd_name, cmd_tok, args, arg_tokens);
+        self.handle_source_command(cmd_name, args, arg_tokens);
+        self.handle_namespace_import_command(cmd_name, args, arg_tokens, scope_path);
+        self.handle_auto_path_command(cmd_name, args, arg_tokens);
+        self.handle_regex_pattern_capture(cmd_name, args, arg_tokens);
 
         // Generic body recursion via the command registry's
         // `ArgRole::Body`.  Mirrors the `iter_body_arguments` loop

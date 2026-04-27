@@ -126,6 +126,64 @@ fn result_to_dict<'py>(py: Python<'py>, r: &AnalysisResult) -> PyResult<Bound<'p
     }
     out.set_item("namespace_imports", imports)?;
 
+    let provides = PyList::empty_bound(py);
+    for pp in &r.package_provides {
+        let d = PyDict::new_bound(py);
+        d.set_item("name", &pp.name)?;
+        d.set_item("version", pp.version.clone())?;
+        d.set_item("range", span_tuple(pp.range))?;
+        provides.append(d)?;
+    }
+    out.set_item("package_provides", provides)?;
+    out.set_item("has_dynamic_providers", r.has_dynamic_providers)?;
+
+    let auto_paths = PyList::empty_bound(py);
+    for ap in &r.auto_path_entries {
+        let d = PyDict::new_bound(py);
+        d.set_item("raw_path", &ap.raw_path)?;
+        d.set_item("range", span_tuple(ap.range))?;
+        auto_paths.append(d)?;
+    }
+    out.set_item("auto_path_entries", auto_paths)?;
+
+    let stub_cmds = PyList::empty_bound(py);
+    for sc in &r.stub_commands {
+        let d = PyDict::new_bound(py);
+        d.set_item("name", &sc.name)?;
+        d.set_item("range", span_tuple(sc.range))?;
+        stub_cmds.append(d)?;
+    }
+    out.set_item("stub_commands", stub_cmds)?;
+
+    let stub_exprs = PyList::empty_bound(py);
+    for se in &r.stub_expr_defs {
+        let d = PyDict::new_bound(py);
+        d.set_item("name", &se.name)?;
+        d.set_item("range", span_tuple(se.range))?;
+        stub_exprs.append(d)?;
+    }
+    out.set_item("stub_expr_defs", stub_exprs)?;
+
+    let regex = PyList::empty_bound(py);
+    for rp in &r.regex_patterns {
+        let d = PyDict::new_bound(py);
+        d.set_item("range", span_tuple(rp.range))?;
+        d.set_item("pattern", &rp.pattern)?;
+        d.set_item("command", &rp.command)?;
+        regex.append(d)?;
+    }
+    out.set_item("regex_patterns", regex)?;
+
+    let suppressed = PyDict::new_bound(py);
+    for (line, codes) in &r.suppressed_lines {
+        let code_list = PyList::empty_bound(py);
+        for c in codes {
+            code_list.append(c.as_str())?;
+        }
+        suppressed.set_item(line, code_list)?;
+    }
+    out.set_item("suppressed_lines", suppressed)?;
+
     // **C41e3.** Optional unknown-proc-info dict; ``None`` when
     // the document didn't define a ``proc unknown`` (the W123
     // emitter then runs unconditionally).
@@ -276,6 +334,15 @@ fn method_to_dict<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new_bound(py);
     d.set_item("name", &m.name)?;
+    let params = PyList::empty_bound(py);
+    for param in &m.params {
+        let pd = PyDict::new_bound(py);
+        pd.set_item("name", &param.name)?;
+        pd.set_item("has_default", param.has_default)?;
+        pd.set_item("default_value", param.default_value.clone())?;
+        params.append(pd)?;
+    }
+    d.set_item("params", params)?;
     d.set_item("name_range", span_tuple(m.name_span))?;
     d.set_item("body_range", span_tuple(m.body_span))?;
     d.set_item("kind", &m.kind)?;

@@ -382,6 +382,7 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
                     .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span);
                 let md = MethodDef {
                     name: name.clone(),
+                    params: Vec::new(),
                     name_span: span,
                     body_span: span,
                     kind: "forward".to_string(),
@@ -529,11 +530,12 @@ fn extract_method_def(
             if args.len() < 2 {
                 return None;
             }
-            let _params = parse_param_list(&args[0]);
+            let params = parse_param_list(&args[0]);
             let name_span = zero;
             let body_span = arg_tokens.get(1).map_or(zero, |t| t.span);
             Some(MethodDef {
                 name: synthetic_name.to_string(),
+                params,
                 name_span,
                 body_span,
                 kind: kind.to_string(),
@@ -550,6 +552,7 @@ fn extract_method_def(
             let body_span = arg_tokens.first().map_or(zero, |t| t.span);
             Some(MethodDef {
                 name: synthetic_name.to_string(),
+                params: Vec::new(),
                 name_span,
                 body_span,
                 kind: kind.to_string(),
@@ -563,11 +566,12 @@ fn extract_method_def(
                 return None;
             }
             let name = args[0].clone();
-            let _params = parse_param_list(&args[1]);
+            let params = parse_param_list(&args[1]);
             let name_span = arg_tokens.first().map_or(zero, |t| t.span);
             let body_span = arg_tokens.get(2).map_or(zero, |t| t.span);
             Some(MethodDef {
                 name,
+                params,
                 name_span,
                 body_span,
                 kind: kind.to_string(),

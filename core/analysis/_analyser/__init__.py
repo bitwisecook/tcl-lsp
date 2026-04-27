@@ -4,19 +4,24 @@ import logging
 
 from ..semantic_model import (
     AnalysisResult,
+    AutoPathEntry,
     ClassDef,
     CodeFix,
     CommandInvocation,
     Diagnostic,
     MethodDef,
     NamespaceImport,
+    PackageProvide,
     PackageRequire,
     ParamDef,
     ProcDef,
     PropertyDef,
+    RegexPattern,
     Scope,
     Severity,
     SourceTarget,
+    StubCommandDef,
+    StubExprDef,
     UnknownProcInfo,
     VarDef,
 )
@@ -288,6 +293,53 @@ def _materialise_rust_analysis(source: str, raw: dict) -> AnalysisResult:
             alias["target"],
             tuple(alias.get("extras") or ()),
         )
+    for pp in raw.get("package_provides", []):
+        result.package_provides.append(
+            PackageProvide(
+                name=pp["name"],
+                version=pp.get("version"),
+                range=range_at(*pp["range"]),
+            )
+        )
+    if raw.get("has_dynamic_providers"):
+        result.has_dynamic_providers = True
+    for ap in raw.get("auto_path_entries", []):
+        result.auto_path_entries.append(
+            AutoPathEntry(
+                resolved_path=None,
+                raw=ap["raw_path"],
+                range=range_at(*ap["range"]),
+            )
+        )
+    # The Rust stub scanner only carries names + ranges today;
+    # arg-roles / flags (``-loop`` / ``-barrier`` / ``-pure`` …)
+    # remain on the Python supplement until a richer port lands.
+    for sc in raw.get("stub_commands", []):
+        result.stub_commands.append(
+            StubCommandDef(
+                name=sc["name"],
+                args=(),
+                range=range_at(*sc["range"]),
+            )
+        )
+    for se in raw.get("stub_expr_defs", []):
+        result.stub_expr_defs.append(
+            StubExprDef(
+                name=se["name"],
+                kind="function",
+                range=range_at(*se["range"]),
+            )
+        )
+    for rp in raw.get("regex_patterns", []):
+        result.regex_patterns.append(
+            RegexPattern(
+                range=range_at(*rp["range"]),
+                pattern=rp["pattern"],
+                command=rp["command"],
+            )
+        )
+    for line, codes in (raw.get("suppressed_lines") or {}).items():
+        result.suppressed_lines[int(line)] = frozenset(codes)
 
     # C41e3 — UnknownProcInfo from a user-defined ``unknown`` proc.
     upi = raw.get("unknown_proc_info")
@@ -326,6 +378,31 @@ def _merge_rust_with_python_supplement(
     first); the merger then becomes a thin shim that future chunks
     can delete.
     """
+    # Rust ports many of these fields now (see
+    # ``_materialise_rust_analysis``) but Python's pass remains the
+    # source of truth for several scenarios where Rust's scanners
+    # are still partial:
+    #
+    # - ``regex_patterns``: variable-driven pattern propagation
+    #   (``set p "..."; switch -regexp -- $p { ... }``) and
+    #   deep-recursion patterns aren't ported.
+    # - ``stub_commands`` / ``stub_expr_defs``: arg-roles, flags
+    #   (``-loop`` / ``-barrier`` / ``-pure``), and the per-arg
+    #   ``StubArgDef`` machinery are Python-only.
+    # - ``auto_path_entries``: ``[info script]`` resolution and
+    #   substitution evaluation are Python-only.
+    # - ``namespace_imports`` / ``source_targets``: tcllib-style
+    #   wrapper-call detection (``X::import`` / dynamic source
+    #   targets) is Python-only.
+    # - ``command_aliases``: ``interp alias`` chains across
+    #   namespace boundaries are Python-only.
+    # - ``command_invocations``: invocations inside method /
+    #   when bodies are Python-walked deeper than the Rust
+    #   ``ArgRole::Body`` loop reaches today.
+    #
+    # Each "Python over Rust" line is a future Rust-port
+    # follow-up; trimming this block is the way to slim the
+    # supplement.
     rust.source_targets = python.source_targets
     rust.regex_patterns = python.regex_patterns
     rust.stub_commands = python.stub_commands
@@ -338,29 +415,22 @@ def _merge_rust_with_python_supplement(
         rust.namespace_imports = python.namespace_imports
     if not rust.command_aliases:
         rust.command_aliases = python.command_aliases
+    rust.command_invocations = python.command_invocations
     # Python's diagnostics list is a strict superset (it integrates
     # ``run_compiler_checks`` for W110 / W220 / W304).  Take Python's.
     rust.diagnostics = python.diagnostics
-    # The Rust port is incomplete on several structural fields —
-    # ``ProcDef.doc`` (preceding-comment extraction),
-    # ``ProcDef.param_traits``, per-scope ``Scope.classes``
-    # threading, class-body-parsing gaps (``oo::abstract`` /
-    # ``oo::singleton`` / ``oo::configurable``,
-    # ``class_def.variables``, per-method ``params``), and
-    # additional W123-suppression machinery
-    # (``unknown_proc_info`` extraction patched by tests, the
-    # ``rename`` / ``lappend auto_path`` / ``namespace import``
-    # post-passes that suppress unknown-command diagnostics).
-    # Take Python's structural data wholesale — the differential
-    # corpus parity-checks the qualified-name sets, so we know
-    # Rust would produce identical structure where it's
-    # implemented.
+    # Structural Rust gaps the differential corpus tracks:
+    # ``ProcDef.doc`` (preceding-comment extraction works for
+    # most cases now but extract_body_docstring fallback is
+    # Python-only); ``ProcDef.param_traits``;
+    # ``unknown_proc_info`` patched-``lower_to_ir`` test path.
+    # Take Python's structural data wholesale until each gap
+    # closes.
     rust.global_scope = python.global_scope
     rust.all_variables = python.all_variables
     rust.all_procs = python.all_procs
     rust.all_classes = python.all_classes
     rust.unknown_proc_info = python.unknown_proc_info
-    rust.command_invocations = python.command_invocations
     return rust
 
 

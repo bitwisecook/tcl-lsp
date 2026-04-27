@@ -780,52 +780,68 @@ impl Analyser {
             return;
         }
         let sub = args[0].as_str();
-        if sub != "require" {
-            // ``package provide`` and other subcommands aren't
-            // recorded yet (no ``package_provides`` field in
-            // the Rust ``AnalysisResult``); silently consume.
-            return;
-        }
         if args.len() < 2 {
             return;
         }
+        match sub {
+            "require" => {
+                // ``package require -exact NAME ?VERSION?`` —
+                // strip the flag and shift the name index.
+                let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
+                    (2usize, args[2].clone())
+                } else {
+                    (1usize, args[1].clone())
+                };
+                let version_idx = name_idx + 1;
+                let version = if version_idx < args.len() {
+                    Some(args[version_idx].clone())
+                } else {
+                    None
+                };
 
-        // ``package require -exact NAME ?VERSION?`` — strip the
-        // flag and shift the name index.
-        let (name_idx, name_text) = if args[1] == "-exact" && args.len() >= 3 {
-            (2usize, args[2].clone())
-        } else {
-            (1usize, args[1].clone())
-        };
-        let version_idx = name_idx + 1;
-        let version = if version_idx < args.len() {
-            Some(args[version_idx].clone())
-        } else {
-            None
-        };
+                // Dynamic-provider detection — non-literal package
+                // name suppresses W123 unknown-command emission
+                // because the dynamic provider may register the
+                // missing command at runtime.
+                if let Some(name_tok) = arg_tokens.get(name_idx) {
+                    if matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
+                        || name_text.contains('$')
+                        || name_text.contains('[')
+                    {
+                        self.result.has_dynamic_providers = true;
+                    }
+                }
 
-        // Dynamic-provider detection — non-literal name flips the
-        // flag.  ``arg_tokens`` is parallel to ``args`` so the
-        // token at the name index is what we inspect.
-        if let Some(name_tok) = arg_tokens.get(name_idx) {
-            if matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
-                || name_text.contains('$')
-                || name_text.contains('[')
-            {
-                // No ``has_dynamic_providers`` field on Rust
-                // AnalysisResult yet — track via package_requires
-                // alone.  When the field lands, flip it here.
+                self.result.package_requires.push(
+                    crate::signature_scan::types::SignaturePackageRequire {
+                        name: name_text,
+                        version,
+                        range: cmd_tok.span,
+                        conditional: self.conditional_depth > 0,
+                    },
+                );
+            }
+            "provide" => {
+                // ``package provide NAME ?VERSION?``.
+                let name = args[1].clone();
+                let version = if args.len() >= 3 {
+                    Some(args[2].clone())
+                } else {
+                    None
+                };
+                self.result
+                    .package_provides
+                    .push(super::types::PackageProvide {
+                        name,
+                        version,
+                        range: cmd_tok.span,
+                    });
+            }
+            _ => {
+                // Other ``package`` subcommands (``ifneeded``,
+                // ``forget``, ``vsatisfies`` …) aren't recorded.
             }
         }
-
-        self.result
-            .package_requires
-            .push(crate::signature_scan::types::SignaturePackageRequire {
-                name: name_text,
-                version,
-                range: cmd_tok.span,
-                conditional: self.conditional_depth > 0,
-            });
     }
 
     /// Resolve a command alias to `(target_cmd, effective_args)`.
@@ -871,7 +887,18 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if cmd_name != "oo::class" || args.len() < 2 || arg_tokens.len() < 2 {
+        // Mirrors ``_OO_METACLASSES`` in
+        // ``core/analysis/_analyser/_proc.py``.  Every metaclass
+        // name behaves the same shape — ``cmd_name create Name
+        // ?body?`` — so the cmd-name guard widens to the full set
+        // and the recorded ``metaclass`` field still distinguishes
+        // them downstream (hover / outline / class-hierarchy).
+        if !matches!(
+            cmd_name,
+            "oo::class" | "oo::configurable" | "oo::abstract" | "oo::singleton"
+        ) || args.len() < 2
+            || arg_tokens.len() < 2
+        {
             return false;
         }
         if args[0] != "create" {
@@ -901,7 +928,17 @@ impl Analyser {
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
             self.parse_oo_definition_body(body_text, body_tok, &mut class);
         }
-        self.result.all_classes.insert(qualified, class);
+        // Register globally and in the current scope. Mirrors the
+        // proc registration path: ``result.all_classes`` is keyed
+        // by the fully-qualified name; the per-scope
+        // ``scope.classes`` map is keyed by the bare (unqualified)
+        // name so per-scope lookups and shadowing rules work.
+        let simple_key = class.name.clone();
+        self.result.all_classes.insert(qualified, class.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.classes.insert(simple_key, class);
+        }
         true
     }
 
@@ -1007,8 +1044,173 @@ impl Analyser {
             self.parse_oo_definition_body(&args[1], body_tok, &mut class_def);
         }
 
-        self.result.all_classes.insert(qualified, class_def);
+        // Same dual-registration as ``oo::class create`` — keep
+        // ``all_classes`` and the per-scope ``scope.classes`` in
+        // sync.  ``oo::define`` may be redefining an existing
+        // class; the ``insert`` overwrites the prior entry.
+        let simple_key = class_def.name.clone();
+        self.result.all_classes.insert(qualified, class_def.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.classes.insert(simple_key, class_def);
+        }
         true
+    }
+
+    /// Record `source ?-encoding ENC? FILE` invocations.
+    ///
+    /// Mirrors the ``cmd_name == "source"`` branch in
+    /// `core/analysis/_analyser/_commands.py::_record_command_invocation`.
+    pub fn handle_source_command(&mut self, cmd_name: &str, args: &[String], arg_tokens: &[Token]) {
+        if cmd_name != "source" || args.is_empty() {
+            return;
+        }
+        let file_idx = if args[0] == "-encoding" && args.len() >= 3 {
+            2
+        } else {
+            0
+        };
+        if file_idx >= args.len() || file_idx >= arg_tokens.len() {
+            return;
+        }
+        let st = arg_tokens[file_idx];
+        let path = &args[file_idx];
+        let is_lit = !matches!(st.kind, TokenType::Var | TokenType::Cmd)
+            && !path.contains('$')
+            && !path.contains('[');
+        self.result
+            .source_targets
+            .push(crate::signature_scan::types::SignatureSource {
+                raw_path: path.clone(),
+                range: st.span,
+                is_literal: is_lit,
+            });
+    }
+
+    /// Record `namespace import ?-force? PATTERN ...` declarations.
+    ///
+    /// Mirrors the namespace-import branch in
+    /// `core/analysis/_analyser/_commands.py::_record_command_invocation`.
+    pub fn handle_namespace_import_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if cmd_name != "namespace" || args.is_empty() {
+            return;
+        }
+        if args[0] != "import" {
+            return;
+        }
+        // Skip the subcommand word + an optional ``-force`` flag.
+        let mut idx = 1;
+        if idx < args.len() && args[idx] == "-force" {
+            idx += 1;
+        }
+        // The importing namespace is the analyser's *current*
+        // namespace — derived from the scope-path chain.  At the
+        // top level this is ``::``; inside ``namespace eval my
+        // { namespace import ... }`` it's ``::my``.
+        let importing_ns = self.namespace_from_scope_path(scope_path);
+        while idx < args.len() && idx < arg_tokens.len() {
+            let pat = args[idx].clone();
+            // The Python pass requires patterns to be fully
+            // qualified (start with ``::``).  Skip anything else;
+            // the optimiser / runtime will handle relative
+            // imports separately.
+            if pat.starts_with("::") {
+                self.result.namespace_imports.push(
+                    crate::signature_scan::types::SignatureNamespaceImport {
+                        ns: importing_ns.clone(),
+                        pattern: pat,
+                        range: arg_tokens[idx].span,
+                        conjectured: false,
+                    },
+                );
+            }
+            idx += 1;
+        }
+    }
+
+    /// Record `lappend auto_path PATH...` and `set auto_path PATH`
+    /// mutations.
+    ///
+    /// Mirrors `_record_auto_path_entries` in
+    /// `core/analysis/_analyser/_commands.py`.
+    pub fn handle_auto_path_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        match cmd_name {
+            "lappend" if args[0] == "auto_path" => {
+                for (i, path) in args.iter().enumerate().skip(1) {
+                    let Some(tok) = arg_tokens.get(i) else {
+                        continue;
+                    };
+                    self.result
+                        .auto_path_entries
+                        .push(super::types::AutoPathEntry {
+                            raw_path: path.clone(),
+                            range: tok.span,
+                        });
+                }
+            }
+            "set" if args[0] == "auto_path" && args.len() >= 2 => {
+                let Some(tok) = arg_tokens.get(1) else { return };
+                self.result
+                    .auto_path_entries
+                    .push(super::types::AutoPathEntry {
+                        raw_path: args[1].clone(),
+                        range: tok.span,
+                    });
+            }
+            _ => {}
+        }
+    }
+
+    /// Record `regexp` / `regsub` literal patterns + `switch -regexp`
+    /// pattern arguments for syntax highlighting.  Mirrors the
+    /// regex-capture path in
+    /// `core/analysis/_analyser/_proc.py::_handle_switch` and the
+    /// dispatch site in `_commands.py`.
+    pub fn handle_regex_pattern_capture(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if !matches!(cmd_name, "regexp" | "regsub") || args.is_empty() {
+            return;
+        }
+        // Skip leading ``-`` flags (``-nocase``, ``-line``, ``-all``,
+        // ``-indices``, …) until we hit the pattern arg.
+        let mut idx = 0;
+        while idx < args.len() && args[idx].starts_with('-') && args[idx] != "--" {
+            idx += 1;
+        }
+        if idx < args.len() && args[idx] == "--" {
+            idx += 1;
+        }
+        if idx >= args.len() || idx >= arg_tokens.len() {
+            return;
+        }
+        let tok = arg_tokens[idx];
+        // Skip variable / command-substitution patterns — only literals.
+        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            return;
+        }
+        self.result.regex_patterns.push(super::types::RegexPattern {
+            range: tok.span,
+            pattern: args[idx].clone(),
+            command: cmd_name.to_string(),
+        });
     }
 
     /// Handle the `incr` command: `incr var ?amount?`.

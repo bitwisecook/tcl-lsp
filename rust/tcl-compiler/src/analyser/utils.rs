@@ -171,6 +171,117 @@ fn parse_stub_name(body: &str) -> Option<&str> {
     }
 }
 
+/// Scan `source` for inline ``# tcl-lsp: stub NAME ...`` and
+/// ``# tcl-lsp: stub expr-func NAME ...`` declarations bounded by
+/// the ``stubs-begin`` / ``stubs-end`` markers, returning
+/// ``(commands, expr_defs)``.
+///
+/// Mirrors the LSP-relevant subset of
+/// `core/analysis/stub_comments.py::scan_source_for_stubs`.  We
+/// only carry name + line span here; the richer metadata
+/// (arg-roles, ``-loop`` / ``-barrier`` flags, …) is materialised
+/// from Python until a future port closes the gap.
+#[must_use]
+pub fn scan_source_for_stubs(
+    source: &str,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+) {
+    let mut cmds = Vec::new();
+    let mut exprs = Vec::new();
+    let mut in_block = false;
+    let mut offset: u32 = 0;
+    for line in source.split_inclusive('\n') {
+        let trimmed_line: &str = line.trim_end_matches('\n');
+        let line_byte_len = line.len() as u32;
+        let stripped = trimmed_line.trim();
+        let span = tcl_lexer::Span::new(offset, offset + trimmed_line.len() as u32);
+        offset += line_byte_len;
+        if !stripped.starts_with('#') {
+            continue;
+        }
+        let body = stripped.trim_start_matches('#').trim_start();
+        if matches_marker(body, "stubs-begin") {
+            in_block = true;
+            continue;
+        }
+        if matches_marker(body, "stubs-end") {
+            in_block = false;
+            continue;
+        }
+        if !in_block {
+            continue;
+        }
+        let Some(name) = parse_stub_name(body) else {
+            continue;
+        };
+        if let Some(expr_name) = name.strip_prefix("expr-") {
+            exprs.push(super::types::StubExprDef {
+                name: expr_name.to_string(),
+                range: span,
+            });
+        } else {
+            cmds.push(super::types::StubCommandDef {
+                name: name.to_string(),
+                range: span,
+            });
+        }
+    }
+    (cmds, exprs)
+}
+
+/// Per-line ``# noqa: CODE`` suppression scanner.
+///
+/// Mirrors the inline-noqa half of
+/// `core/analysis/_analyser/_utils.py::parse_per_line_suppression`.
+/// Walks every line; for each ``# noqa`` (with or without
+/// ``: CODE`` list), records the codes against the 0-based
+/// line number.  Bare ``# noqa`` (no codes) records the
+/// ``"*"`` sentinel meaning "suppress every code on this line".
+///
+/// Returns a ``HashMap<line, HashSet<code>>``; callers merge it
+/// into ``AnalysisResult.suppressed_lines``.
+#[must_use]
+pub fn parse_per_line_suppression(source: &str) -> std::collections::HashMap<i32, HashSet<String>> {
+    let mut by_line: std::collections::HashMap<i32, HashSet<String>> =
+        std::collections::HashMap::new();
+    for (idx, line) in source.lines().enumerate() {
+        // Find ``# noqa`` anywhere on the line (case-insensitive
+        // on the keyword); Python uses ``re.search``.
+        let Some(hash_at) = line.find('#') else {
+            continue;
+        };
+        let after_hash = &line[hash_at + 1..];
+        let trimmed = after_hash.trim_start();
+        let lower = "noqa";
+        if trimmed.len() < lower.len() {
+            continue;
+        }
+        if !trimmed[..lower.len()].eq_ignore_ascii_case(lower) {
+            continue;
+        }
+        let rest = trimmed[lower.len()..].trim_start();
+        let mut codes: HashSet<String> = HashSet::new();
+        if let Some(after_colon) = rest.strip_prefix(':') {
+            for tok in after_colon.split([',', ' ', '\t', '\r']) {
+                let tok = tok.trim();
+                if !tok.is_empty() {
+                    codes.insert(tok.to_string());
+                }
+            }
+            if codes.is_empty() {
+                codes.insert("*".to_string());
+            }
+        } else {
+            // Bare ``# noqa`` — apply to every code on this line.
+            codes.insert("*".to_string());
+        }
+        by_line.entry(idx as i32).or_default().extend(codes);
+    }
+    by_line
+}
+
 /// Match `# tcl-lsp: disable=…` (case-insensitive on the keyword),
 /// returning the trailing CODE list as a borrowed slice. Returns
 /// `None` if the line doesn't match the directive shape.

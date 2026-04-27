@@ -250,9 +250,32 @@ impl Analyser {
         // ``disabled_diagnostics``" route gives directives the
         // intended effect at the analyser-internal level. C41d
         // can revisit if a per-line distinction becomes load-bearing.
-        for code in super::utils::parse_file_suppression(source) {
-            self.disabled_diagnostics.insert(code);
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
         }
+        if !file_codes.is_empty() {
+            // Mirror Python's ``result.suppressed_lines[-1]``
+            // sentinel so downstream consumers (the LSP
+            // suppression filter, code-action UX) see the
+            // file-wide directive set in one place.
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
+        }
+        // Per-line ``# noqa: CODE`` directives — recorded under
+        // their 0-based line number.
+        for (line, codes) in super::utils::parse_per_line_suppression(source) {
+            self.result
+                .suppressed_lines
+                .entry(line)
+                .or_default()
+                .extend(codes);
+        }
+        // Inline ``# tcl-lsp: stub …`` block scan.
+        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.result.stub_commands = stub_cmds;
+        self.result.stub_expr_defs = stub_exprs;
 
         // Segment with Seg2 recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
@@ -299,6 +322,12 @@ impl Analyser {
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
             let single = cmd.single_token_word.clone();
+            // Mirrors ``self._last_comment = cmd.preceding_comment``
+            // in ``core/analysis/_analyser/_core.py``: handlers
+            // that consume a preceding comment (proc, oo::class)
+            // ``std::mem::take`` it; everything else clears it on
+            // the next command.
+            self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &single, &[]);
             cmd_idx += 1 + consumed;
         }
@@ -480,6 +509,7 @@ impl Analyser {
             let mut cmd = cmd_ref.clone();
             self.recover_stray_close_bracket(&mut cmd);
             let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
+            self.last_comment = cmd.preceding_comment.clone().unwrap_or_default();
             self.process_command(&cmd.texts, &cmd.argv, &cmd.single_token_word, &scope_path);
             cmd_idx += 1 + consumed;
         }
