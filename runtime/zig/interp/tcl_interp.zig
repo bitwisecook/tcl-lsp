@@ -1097,6 +1097,23 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Tcl semantics: ``break`` / ``continue`` inside a proc body
+    // are local to that body's enclosing loop, NOT the caller's
+    // loop.  Save and clear any pending caller-scope flow signal
+    // before running the body, restore on the way out only when
+    // the body itself didn't raise a flow signal of its own.
+    // Without this, a caller that has just set ``break_flag``
+    // (e.g. tcltest's test #N+1 picking up a leftover from #N's
+    // body=``break``) sees the post-body cleanup at the bottom
+    // of this function fire unconditionally with ``words[0]`` as
+    // the error message, blaming the wrong proc — surfaces as
+    // ``tcl trap: site=N <inner-proc-name>`` traps deep inside
+    // tcltest's ``[preserveCore]`` / ``[temporaryDirectory]``
+    // checks and aborts entire test files.
+    const saved_break_flag = rt.break_flag.*;
+    const saved_continue_flag = rt.continue_flag.*;
+    rt.break_flag.* = 0;
+    rt.continue_flag.* = 0;
     // Stash the invocation argv (proc name + all call args) so
     // ``info level 0`` inside the body returns the real list
     // rather than the placeholder emitted by legacy callers.
@@ -1223,16 +1240,23 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         rt.return_val.* = 0;
         return rv;
     }
-    // A break/continue that survived to the proc boundary is a Tcl error
-    // ("invoked \"break\" outside of a loop"); clear the flags and raise
-    // an error so the signal cannot short-circuit outer eval_script
-    // frames in the caller.  The error message uses words[0] (the proc
-    // name) because synthesising a fresh string object from a static
-    // literal is awkward in the WASM heap model.
-    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
-        rt.break_flag.* = 0;
-        rt.continue_flag.* = 0;
-        rt.tcl_cmd_error(words[0]);
+    // Body-raised break/continue without an enclosing loop is a Tcl
+    // error per the docs (``invoked "break"/"continue" outside of a
+    // loop``).  Convert it here.  The opposite case — caller leaked
+    // its own pending break/continue into us — restores the caller's
+    // signal so an outer compiled loop still observes it.
+    const body_break = rt.break_flag.* != 0;
+    const body_continue = rt.continue_flag.* != 0;
+    rt.break_flag.* = saved_break_flag;
+    rt.continue_flag.* = saved_continue_flag;
+    if (body_break) {
+        const msg_text = "invoked \"break\" outside of a loop";
+        const msg = rt.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
+        rt.tcl_cmd_error(msg);
+    } else if (body_continue) {
+        const msg_text = "invoked \"continue\" outside of a loop";
+        const msg = rt.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
+        rt.tcl_cmd_error(msg);
     }
     return result;
 }
