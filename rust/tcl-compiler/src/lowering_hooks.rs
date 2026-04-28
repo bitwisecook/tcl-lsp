@@ -82,7 +82,12 @@ pub fn try_lower_hook(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> O
 }
 
 /// Whether this command has `{*}` expansion on any argument.
-fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
+///
+/// `pub(crate)` so per-command hook modules under
+/// [`crate::lowering::hooks`] can share the single canonical
+/// expansion check rather than re-implementing it inline (which
+/// would drift over time as the `LoweringCommand` shape evolves).
+pub(crate) fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
     cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e))
 }
 

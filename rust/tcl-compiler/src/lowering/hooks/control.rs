@@ -21,14 +21,15 @@
 use crate::alias::{expr_alias_names, CommandAliasMap};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
-use crate::lowering_hooks::{extract_single_expr_arg, ArgTokenKind, LoweringCommand};
+use crate::lowering_hooks::{
+    extract_single_expr_arg, has_expansion, ArgTokenKind, LoweringCommand,
+};
 
 /// Lower `expr` to [`Statement::ExprEval`] when the call is the
 /// single-arg form, or `None` to fall back to [`Statement::Call`].
 #[must_use]
 pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
-    let has_expansion = cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e));
-    if has_expansion {
+    if has_expansion(cmd) {
         return None;
     }
     if cmd.args.len() != 1 {
@@ -49,8 +50,7 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
 /// `return ?value?` shape (option-bearing or `{*}`-expanded).
 #[must_use]
 pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
-    let has_expansion = cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e));
-    if has_expansion {
+    if has_expansion(cmd) {
         return Statement::Barrier {
             span: cmd.span,
             reason: "return with expansion".into(),
