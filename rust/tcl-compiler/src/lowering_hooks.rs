@@ -64,7 +64,7 @@ pub fn try_lower_hook(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> O
         "expr" => lower_expr(cmd),
         "return" => Some(lower_return(cmd, aliases)),
         "set" => Some(lower_set(cmd, aliases)),
-        "incr" => Some(lower_incr(cmd)),
+        "incr" => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
         "append" | "lappend" => lower_append_lappend(cmd),
         "unset" => Some(lower_unset(cmd)),
         "global" => lower_global(cmd),
@@ -222,18 +222,10 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
 }
 
 // ── incr ──────────────────────────────────────────────────────────
-
-fn lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
-    if has_expansion(cmd) || cmd.args.is_empty() || cmd.args.len() > 2 {
-        return make_call(cmd);
-    }
-    Statement::Incr {
-        span: cmd.span,
-        name: cmd.args[0].clone(),
-        amount: cmd.args.get(1).cloned(),
-        safe_on_uninit: false,
-    }
-}
+//
+// Moved to `crate::lowering::hooks::incr::try_lower_incr` (chunk
+// **C43**). The dispatcher above delegates the `"incr"` case to
+// the per-hook module.
 
 // ── append / lappend ──────────────────────────────────────────────
 
@@ -362,7 +354,12 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
 // ── Helpers ───────────────────────────────────────────────────────
 
 /// Build a generic `Statement::Call` from a lowering command.
-fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
+///
+/// Shared with the per-command hook modules under
+/// [`crate::lowering::hooks`] so every fallback site produces the
+/// same `Call` shape and stays in sync if `Statement::Call` grows
+/// new fields.
+pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
     Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
@@ -559,24 +556,6 @@ mod tests {
             matches!(result, Statement::AssignConst { .. }),
             "expected AssignConst for integer; got {result:?}"
         );
-    }
-
-    #[test]
-    fn lower_incr_basic() {
-        let args = vec!["i".to_string()];
-        let single = vec![true, true];
-        let kinds = vec![ArgTokenKind::Esc];
-        let cmd = LoweringCommand {
-            span: Span::new(0, 6),
-            name: "incr",
-            args: &args,
-            single_token_word: &single,
-            expand_word: None,
-            tokens: None,
-            arg_kinds: &kinds,
-        };
-        let result = lower_incr(&cmd);
-        assert!(matches!(result, Statement::Incr { .. }));
     }
 
     #[test]
