@@ -46,7 +46,7 @@ The eventual end state is:
   `cargo xtask` subcommands or shell scripts, eliminating the Python
   toolchain dependency entirely.
 - The **only** Python that lives on after the transition is the
-  `pyo3-public-api` crate's surface: a documented, semver-stable
+  `tcl-lsp-py` crate's surface: a documented, semver-stable
   binding intended for downstream users to embed the analyser /
   compiler / VM in their own Python tooling. This API is **not** a
   shim for in-tree code; the in-tree code is Rust.
@@ -366,27 +366,45 @@ kick in for specific configurations.
 
 ## How we're doing it
 
-### Two crates per domain
+### Layered crates, not shim-owned features
 
-For each migrated domain we create a **pure Rust crate** and, if Python
-still needs to call into it, a sibling **PyO3 binding crate** that wraps
-it. The first pair are `rust/tcl-lexer/` and `rust/tcl-lsp-rust/`.
+The Rust workspace has three kinds of crates:
 
-- **`rust/tcl-lexer/` — pure Rust**. No `pyo3` dependency. Uses borrowed
-  `&str`, `thiserror`, iterators, enums, `Result`. Clippy-pedantic.
-  Future Rust consumers (the compiler crate, the LSP server binary, a
-  standalone CLI) link against this crate directly.
+- **Pure library crates** own product behaviour. They do not depend on
+  `pyo3`, do not mimic Python object shapes, and are the crates the
+  eventual Rust LSP server and CLI binaries link against directly.
+- **Binding crates** expose Rust behaviour to Python. They contain
+  `#[pyclass]`, `#[pyfunction]`, `PyErr` conversion, tuple/dict
+  materialisation, env-var compatibility, and back-compat shims only.
+- **Binary crates** provide entry points such as the native LSP server,
+  debugger, compiler explorer helpers, and release tooling. They depend
+  on pure crates, not on PyO3 bindings.
 
-- **`rust/tcl-lsp-rust/` — PyO3 bindings**. This is the **only** crate
-  that knows about Python. It owns every `#[pyclass]` wrapper, every
-  `PyErr` translation, and any back-compat shim needed to mimic the
-  current Python API surface. The underlying Rust crates stay Python-
-  agnostic.
+The current transitional binding crate is `rust/tcl-lsp-rust/` because
+the Python shims already import the `tcl_lsp_rust` extension module. Treat
+that crate as a compatibility wrapper. It must not own compiler, analyser,
+registry, or LSP feature logic. When the public Python API is designed,
+the stable binding crate becomes `rust/tcl-lsp-py/` and
+`tcl-lsp-rust` either disappears or stays as a one-release import alias.
 
-Each new domain gets a new pure crate (e.g. `rust/tcl-compiler/`,
-`rust/tcl-lsp-server/`) under the same workspace. The PyO3 binding crate
-is shared: it aggregates re-exports from whichever pure crates currently
-need a Python surface.
+Target dependency direction:
+
+1. `tcl-lexer` owns source text, spans, line indexes, and tokenisation.
+2. `tcl-registry` owns command, dialect, argument, taint, effect,
+   documentation, and hook metadata.
+3. `tcl-compiler` owns parsing above the lexer, IR, CFG, SSA, analysis,
+   lowering, optimisation, and codegen algorithms.
+4. `tcl-lsp-core` owns pure LSP feature providers: folding, document
+   symbols, hover, completion, references, rename, semantic tokens,
+   diagnostics projection, and code actions.
+5. `tcl-lsp-server` owns the `tower-lsp` binary, async document store,
+   request routing, cancellation, progress, and editor-facing protocol
+   plumbing.
+6. `tcl-lsp-py` owns the public PyO3 API for downstream users.
+
+No LSP feature provider lands directly in a PyO3 crate. If Python needs
+to call a new Rust feature during the migration, put the implementation
+in `tcl-lsp-core` first and expose it through a small binding wrapper.
 
 ### Python compatibility lives only in the binding layer
 
@@ -399,6 +417,59 @@ returns `Result<T, Error>`, and never has to apologise for Python.
 This rule is non-negotiable. A pure crate that imports `pyo3` "just for
 this one function" is a sign that the binding crate needs another wrapper
 type, not that the rule should bend.
+
+### Command facts live in the registry
+
+The command registry is the source of truth for command facts. The
+compiler, analyser, LSP feature providers, and diagnostics may own
+algorithms, but they must not own independent command tables.
+
+Registry-owned facts include:
+
+- command names, aliases, dialects, arity, subcommands, option forms,
+  and command forms;
+- argument roles, including dynamic role resolvers for count-dependent
+  and subcommand-dependent calls;
+- lowering and codegen hook identifiers;
+- taint sources, taint sinks, sanitiser roles, setter constraints, and
+  protocol-specific sink shapes;
+- side-effect summaries, variable read/write summaries, and storage
+  effects;
+- help snippets, hover text, examples, KCS links, and editor setting
+  catalogue facts.
+
+Compiler and analyser code should ask the registry a precise question:
+"what command form is this call?", "which argument indices are bodies?",
+"does this call write a variable?", "which lowering hook applies?",
+"which taint sink shape applies?". A hardcoded `HashSet` of command names
+or a `match cmd.name` dispatcher outside registry-owned routing is a
+design debt item, not a pattern to copy.
+
+Hook identifiers are part of the registry contract. They should be typed
+enums or strongly-typed generated constants, not public bare `u16`
+values. The compiler maps hook identifiers to algorithms; the registry
+decides which identifier applies to a command form.
+
+### Restructure before new surface area
+
+Before adding more migrated feature surface, pay down the architectural
+debt exposed by the review. Land the restructure in small, shippable
+chunks:
+
+1. Create `tcl-lsp-core` and move pure LSP provider logic out of
+   `tcl-lsp-rust`. Start with folding because it is already isolated.
+2. Rename the PyO3 boundary in documentation and code ownership terms:
+   `tcl-lsp-rust` is transitional compatibility; `tcl-lsp-py` is the
+   intended public binding crate.
+3. Expand `tcl-registry` so command forms, hook IDs, taint metadata,
+   side effects, and option/form knowledge are registry data.
+4. Replace compiler/analyser name dispatch with registry-driven
+   resolution. The first consumer should be lowering/codegen hooks, then
+   structured command lowering, then taint/iRules diagnostics, then
+   side-effect classification.
+5. Add a current-state architecture doc once the split starts. It should
+   say which Rust paths are authoritative, which Python supplements still
+   exist, and which fallbacks are planned for removal.
 
 ### Always shippable, small chunks
 
@@ -442,8 +513,10 @@ removed outright in a follow-up chunk. Do not let fallbacks accumulate.
 ### Packaging and CI
 
 - The main `pyproject.toml` stays on `hatchling`. The Rust wheel is built
-  by `maturin` from its own `rust/tcl-lsp-rust/pyproject.toml` and is a
-  **separate** distribution. No mixed hatchling/maturin hybrid.
+  by `maturin` from its own binding-crate `pyproject.toml` and is a
+  **separate** distribution. During the transition that crate is
+  `rust/tcl-lsp-rust/`; after the public API split it is
+  `rust/tcl-lsp-py/`. No mixed hatchling/maturin hybrid.
 - Rust wheels ship as GitHub release artifacts on tagged releases, not
   PyPI. `scripts/build_zipapp.py` fetches them at packaging time and
   bundles them alongside the zipapp.
@@ -593,6 +666,10 @@ If your port has any of these, reshape it before asking for review:
 - An `unwrap()` anywhere in a hot path.
 - A panic in a pure parser crate for malformed input. Malformed input is
   a `Result`, not a crash.
+- Pure LSP provider logic in a PyO3 crate. Bindings wrap providers; they
+  do not implement them.
+- A command-name table in the compiler, analyser, LSP layer, or
+  diagnostics layer when the same fact belongs in `tcl-registry`.
 - A comment that says "TODO: make this idiomatic later". Do it now.
 
 ## Reference file layout
@@ -656,14 +733,35 @@ rust/
       registry.rs                        CommandRegistry facade
       hover.rs                           HoverSnippet, OptionSpec, FormSpec
       side_effects.rs                    SideEffect, StorageType
-      hooks.rs                           LoweringHookId, CodegenHookId, ArgTypeHint
+      hooks.rs                           typed LoweringHookId / CodegenHookId, ArgTypeHint
+      forms.rs                           command / subcommand form descriptors
+      taint.rs                           taint source/sink/sanitiser metadata
       commands/tcl/*.rs                  one file per Tcl command (114 ported)
       commands/irules/*.rs               one file per iRules command (1015 ported)
-  tcl-lsp-rust/                          PyO3 binding crate
+  tcl-lsp-core/                          pure Rust LSP feature providers
+    Cargo.toml
+    src/
+      lib.rs                             feature module exports
+      folding.rs                         folding range provider
+      diagnostics.rs                     diagnostic projection helpers
+      symbols.rs                         document/workspace symbol providers
+  tcl-lsp-rust/                          transitional PyO3 binding crate
     Cargo.toml
     pyproject.toml                       maturin build backend
     src/
       lib.rs                             #[pymodule] tcl_lsp_rust
+      folding_binding.rs                 wrapper around tcl-lsp-core::folding
+  tcl-lsp-py/                            final public PyO3 API crate
+    Cargo.toml
+    pyproject.toml                       maturin build backend
+    src/
+      lib.rs                             #[pymodule] tcl_lsp_py
+  tcl-lsp-server/                        tower-lsp binary
+    Cargo.toml
+    src/
+      main.rs                            Tokio runtime + stdio transport
+      server.rs                          Backend implementation
+      document_store.rs                  ropey-backed async document state
 scripts/
   build_zipapp.py                        _RUST_NATIVE_PACKAGES strip rule
 .github/workflows/ci.yml                 rust job + release wheel matrix
@@ -680,19 +778,23 @@ to the chunk-log entry that has the full spec.
 
 | Priority | Chunk | Why now |
 |---|---|---|
-| 1 | `C41-default-on-followups-postpass` (= ``C42``) | Largest analyser-followup chunk.  Port ``run_compiler_checks`` integration (W110 / W220 / W304 / W101 / W105 / W116 / W117) so ``rust.diagnostics = python.diagnostics`` retires.  Depends on the IR / CFG / SSA pipeline being reachable from the Rust analyser — already true via ``compilation_unit::CompilationUnit``. |
-| 2 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question. |
-| — | `C43` (per-hook lowering) | Per-hook ports against ``core/compiler/lowering_hooks/*.py``.  Each hook is its own commit. |
+| 1 | `ARCH0` | Create `tcl-lsp-core` and move pure folding logic out of the PyO3 crate. This fixes the most visible crate-boundary violation and gives every later LSP provider a home. |
+| 2 | `ARCH1` | Make registry hook IDs and command forms real typed registry data. This lets later compiler and analyser chunks remove string dispatch instead of adding more of it. |
+| 3 | `ARCH2` | Route lowering/codegen hooks through registry metadata. This is the highest-value centralisation pass because it touches hot compiler behaviour and removes duplicated command dispatch. |
+| 4 | `ARCH3` | Move taint/iRules sink/source/option facts into the registry and make diagnostics consume the registry API. |
+| 5 | `C41-default-on-followups-postpass` (= ``C42``) | Largest analyser-followup chunk.  Port ``run_compiler_checks`` integration (W110 / W220 / W304 / W101 / W105 / W116 / W117) so ``rust.diagnostics = python.diagnostics`` retires.  Depends on the IR / CFG / SSA pipeline being reachable from the Rust analyser — already true via ``compilation_unit::CompilationUnit``. |
+| 6 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question. |
 | — | `S*` (LSP server) | Per-feature ports.  Pick the smallest provider first (typically ``folding`` or ``document_symbols``) and work outward. |
 | — | `VM*`, `F*`, `REF*`, `IT*`, `DBG*`, `EXP*`, `AI*`, `BIG*`, `APL*`, `TK*`, `DIAG*`, `PKG*`, `XK*`, `SCR*` | The other top-level Python-retirement chunks.  See the chunk-log rows for scope. |
 | — | `PYO3-API` | After every consumer above ports.  Defines the public binding surface. |
 | — | `TEST-MIGRATE` | Per-file commits — port test, delete the matching ``test_*.py`` in the same commit.  Picks up incrementally as each port lands. |
 | — | `PYTHON-RETIRE` | Final chunk; deletes ``core/`` / ``lsp/`` / ``vm/`` / ``debugger/`` / ``explorer/`` / ``ai/`` / ``scripts/``.  v2.0 release. |
 
-The first five rows are the remaining C41 followup work and
-should land before the wider Python-retirement chunks
-(`S*`, `VM*`, …) so the analyser hybrid retires first.  Items
-1-5 are PR-sized.
+The first four rows are the cleanup sequence that keeps the Rust rewrite
+idiomatic before more feature surface moves across. Land them before
+expanding the LSP server port beyond the first provider and before adding
+new compiler hooks that would otherwise copy the old string-dispatch
+shape.
 
 ## Chunk log
 
@@ -787,7 +889,12 @@ should land before the wider Python-retirement chunks
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
 | C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-on; `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out) |
 | **C42** | **Reserved alias for `C41-default-on-followups-postpass`.** The `run_compiler_checks` post-pass integration is tracked under that row to keep the C41 followups co-located.  Stays in this list as a discoverable cross-reference. | see `C41-default-on-followups-postpass` |
-| **C43** | **Codegen + lowering hooks port** (`core/compiler/lowering_hooks/`, `core/compiler/codegen/_helpers.py`).  Rust workspace already has `lowering/` and `codegen/` directories carrying the bulk of the pipeline (C7-C21).  This chunk closes the remaining gaps: every `core/compiler/lowering_hooks/*.py` (~131 files / 50K LOC including the codegen sub-tree) gets a corresponding `lowering_hooks/*.rs` with a `try_lower_*` entry point + cargo unit tests covering the Python test corpus for that hook.  Each command's hook is its own commit. | planned (per-hook chunks) |
+| **C43** | **Codegen + lowering hooks port** (`core/compiler/lowering_hooks/`, `core/compiler/codegen/_helpers.py`).  Rust workspace already has `lowering/` and `codegen/` directories carrying the bulk of the pipeline (C7-C21).  This chunk closes the remaining gaps by using registry-declared hook IDs, not command-name dispatch.  Each command form's hook is its own commit. | planned (after `ARCH1` / `ARCH2`) |
+| **ARCH0** | **LSP core crate split.** Create `rust/tcl-lsp-core/` as the pure LSP feature crate and move folding-range logic out of `rust/tcl-lsp-rust/`. The PyO3 crate keeps only the wrapper and Python materialisation. | planned |
+| **ARCH1** | **Registry command-form and typed-hook model.** Replace bare hook IDs with typed registry identifiers, add command/subcommand form descriptors, and expose resolved-call query APIs that compiler/analyser consumers can use without matching command strings. | planned |
+| **ARCH2** | **Registry-driven compiler hooks.** Move lowering/codegen hook selection to registry metadata. Remove ad-hoc `match cmd.name` routing for hooks and make the compiler map typed hook IDs to algorithms. | planned |
+| **ARCH3** | **Registry-owned diagnostics command facts.** Move taint sources/sinks/sanitisers, iRules normalised-option facts, setter constraints, and side-effect summaries into `tcl-registry`; make taint, iRules checks, and side-effect classification consume registry APIs. | planned |
+| **ARCH4** | **Current architecture documentation.** Add a short current-state Rust architecture document covering crate ownership, authoritative Rust paths, Python supplements, default-on/default-off shims, and planned fallback removals. Update KCS shim-env-var documentation to match reality. | planned |
 | **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
 | **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
 | **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  Three independent Rust crates: `tcl-formatter`, `tcl-minifier`, `tcl-help-kcs` (KCS DB).  Test parity via the matching `test_formatter.py` / `test_minifier.py` / `test_docstring.py` / `test_kcs_db.py` (~470 cases) ported to cargo. | planned |
@@ -813,9 +920,102 @@ lands the chunk.
 ## Pending chunks — detailed sub-plans
 
 The chunks below are scoped follow-ups to the `Sync` rebase. Each
-table row above maps to one of the sections here. The order
-matches the planned execution order: smaller / lower-risk chunks
-first to bank confidence, larger restructuring chunks last.
+table row above maps to one of the sections here. The order now starts
+with the crate-boundary and registry cleanup because those chunks prevent
+new Rust surface area from copying the old Python-era dispatch shape.
+
+### ARCH0-ARCH4 — crate and registry cleanup
+
+These chunks turn the review findings into executable work. They should
+land before new Rust LSP features and before more command-specific hooks
+are added to the compiler.
+
+**ARCH0 — LSP core crate split.**
+
+Create `rust/tcl-lsp-core/` with `#![deny(missing_docs)]` and
+`#![forbid(unsafe_code)]`. Move the pure folding types and algorithm out
+of `rust/tcl-lsp-rust/src/folding.rs` into `tcl-lsp-core::folding`. Keep
+`rust/tcl-lsp-rust/src/folding_binding.rs` as the only Python-facing
+layer: it imports the core function, converts Python inputs to Rust
+types, and materialises Python outputs.
+
+Acceptance criteria:
+
+- `tcl-lsp-core` has no `pyo3` dependency.
+- `tcl-lsp-rust` contains no folding decision logic beyond conversion.
+- Existing folding PyO3 smoke tests still pass.
+- The reference layout in this document matches the new workspace.
+
+**ARCH1 — registry command-form and typed-hook model.**
+
+Replace public bare hook IDs with typed identifiers. Add registry data
+for command forms and subcommand forms, including form-specific arity,
+argument roles, lowering hook, codegen hook, options, and dialect
+applicability. Add a resolved-call API that accepts a command head and
+argument words and returns the matched command form plus derived roles.
+
+Acceptance criteria:
+
+- Hook identifiers cannot be arbitrary `u16` values at public call sites.
+- Existing command specs compile with explicit typed hook values or an
+  explicit "no hook" value.
+- The registry exposes one API for resolving top-level command forms and
+  subcommand forms.
+- The registry docs no longer claim O(1) trait indexes unless the
+  indexes exist.
+
+**ARCH2 — registry-driven compiler hooks.**
+
+Change lowering and codegen to ask the registry which hook applies to a
+call. The compiler still owns hook algorithms, but hook selection comes
+from `CommandSpec` / form metadata. Remove direct command-name dispatch
+from `lowering_hooks.rs` and bytecoded command-substitution emission as
+each hook moves across.
+
+Acceptance criteria:
+
+- Adding a lowering/codegen hook for a command requires changing the
+  command spec and the compiler hook implementation, not a separate
+  compiler dispatch table.
+- Direct `match cmd.name` routing is limited to registry-owned generated
+  routing or temporary code marked with the owning `ARCH2` follow-up.
+- Cargo tests pin at least `expr`, `set`, `incr`, `llength`, one `dict`
+  subcommand, and one iRules command form.
+
+**ARCH3 — registry-owned diagnostics command facts.**
+
+Move command facts used by taint, iRules checks, and side-effect
+classification into `tcl-registry`. This includes taint sources, taint
+sinks, sanitiser roles, setter constraints, normalised-option facts,
+getter/setter command forms, and side-effect summaries. Compiler
+diagnostic passes consume registry queries instead of local command-name
+sets.
+
+Acceptance criteria:
+
+- `taint.rs`, `irules_checks.rs`, and `side_effects.rs` no longer own
+  independent command fact tables.
+- iRules normalised-option and getter/setter checks are derived from
+  registry form/option metadata.
+- Security diagnostics have tests that prove the registry metadata drives
+  at least one Tcl core source, one iRules sink, and one setter
+  constraint.
+
+**ARCH4 — current architecture documentation.**
+
+Add `docs/design/rust/current-architecture.md` with the current crate
+graph, ownership rules, and migration status. It must distinguish:
+
+- authoritative Rust paths;
+- Rust paths that are default-on but still Python-supplemented;
+- default-off Rust shims;
+- Python fallbacks that are planned for deletion;
+- the intended `tcl-lsp-core`, `tcl-lsp-server`, and `tcl-lsp-py`
+  boundaries.
+
+Update the KCS note for Rust shim environment variables in the same
+chunk so user-facing docs do not describe default-on shims as opt-in
+experiments.
 
 ### C40 — `signature_scan.py` Rust port
 
@@ -1669,4 +1869,3 @@ under `make prep-pr`. Wire the analysis into
 `compiler_checks::run_all_checks` only after C33e lands so
 intermediate strips don't leak into Python diagnostics. The
 public-API `_api.py` module ports as part of C33e.
-
