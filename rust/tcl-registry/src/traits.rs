@@ -112,5 +112,12 @@ bitflags! {
         // Taint
         /// Command is a taint sink (absorbs tainted data).
         const TAINT_SINK                = 1 << 37;
+        /// Command returns attacker-controlled data
+        /// (`gets`, `read`, `exec`, `socket`, …).
+        const TAINT_SOURCE              = 1 << 38;
+        /// Command operates on attacker-controlled iRules data
+        /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
+        /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
+        const IRULES_DATA_GETTER        = 1 << 39;
     }
 }

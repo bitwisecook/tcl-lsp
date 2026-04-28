@@ -21,12 +21,18 @@ use crate::sccp::cfg_order;
 use crate::taint::is_irules_dialect;
 use crate::value_shapes::parse_command_substitution;
 
-/// Commands that support the `-normalized` flag in iRules. Mirrors the
-/// dynamically-computed `normalized_flag_commands()` in Python (which
-/// walks every `OptionSpec`). Hardcoded here pending a Rust-side
-/// `CommandSpec` option-spec port — the canonical three cover the
-/// actionable surface for IRULE3102.
-const NORMALISED_FLAG_COMMANDS: &[&str] = &["HTTP::uri", "HTTP::path", "HTTP::query"];
+/// Whether `cmd` is a registered iRules getter that carries the
+/// `-normalized` option in its [`tcl_registry::CommandSpec`].
+///
+/// Replaces the previous hardcoded `NORMALISED_FLAG_COMMANDS` table:
+/// the registry's own option list is the single source of truth, so
+/// adding `-normalized` to a new command's spec automatically
+/// extends the IRULE3102 surface.
+fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
+    registry
+        .get(cmd)
+        .is_some_and(|spec| spec.options.iter().any(|opt| opt.name == "-normalized"))
+}
 
 /// An IRULE3102 / iRules-check diagnostic emitted by
 /// [`find_unnormalised_getter_warnings`].
@@ -62,8 +68,8 @@ fn format_message(cmd: &str) -> String {
 
 /// Return `true` when `cmd` is one of the commands that carry the
 /// `-normalized` option and `args` misses it in a getter form.
-fn is_unnormalised_getter(cmd: &str, args: &[String]) -> bool {
-    if !NORMALISED_FLAG_COMMANDS.contains(&cmd) {
+fn is_unnormalised_getter(registry: &CommandRegistry, cmd: &str, args: &[String]) -> bool {
+    if !supports_normalized_flag(registry, cmd) {
         return false;
     }
     if args.iter().any(|a| a == "-normalized") {
@@ -88,7 +94,7 @@ fn is_unnormalised_getter(cmd: &str, args: &[String]) -> bool {
 #[must_use]
 pub fn find_unnormalised_getter_warnings(
     cu: &CompilationUnit,
-    _registry: &CommandRegistry,
+    registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
@@ -111,7 +117,7 @@ pub fn find_unnormalised_getter_warnings(
                         args,
                         span,
                         ..
-                    } if is_unnormalised_getter(command, args) => {
+                    } if is_unnormalised_getter(registry, command, args) => {
                         out.push(IrulesCheckWarning {
                             span: *span,
                             code: "IRULE3102".to_owned(),
@@ -123,7 +129,7 @@ pub fn find_unnormalised_getter_warnings(
                         let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) else {
                             continue;
                         };
-                        if is_unnormalised_getter(&cmd, &sub_args) {
+                        if is_unnormalised_getter(registry, &cmd, &sub_args) {
                             out.push(IrulesCheckWarning {
                                 span: *span,
                                 code: "IRULE3102".to_owned(),
@@ -150,7 +156,9 @@ mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        let mut r = CommandRegistry::build_default();
+        r.load_irules();
+        r
     }
 
     fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
@@ -210,5 +218,43 @@ mod tests {
             "foo".to_owned(),
             "-normalized".to_owned()
         ]));
+    }
+
+    /// ARCH3 — IRULE3102 must derive its command set from the
+    /// registry's `OptionSpec` table (not a hardcoded list). When
+    /// the registry-side option is present, the check fires; when
+    /// the registered command does not declare `-normalized`, no
+    /// diagnostic is produced.
+    #[test]
+    fn arch3_normalised_option_is_registry_driven() {
+        let registry = registry();
+        // Registry-side: HTTP::uri / HTTP::path / HTTP::query carry
+        // the `-normalized` option in their command spec.
+        for name in ["HTTP::uri", "HTTP::path", "HTTP::query"] {
+            assert!(
+                supports_normalized_flag(&registry, name),
+                "{name} should declare -normalized in its registry OptionSpec",
+            );
+        }
+        // A registered iRules command without `-normalized` is not a
+        // candidate (e.g. `HTTP::header`, which has no
+        // `-normalized` option).
+        assert!(
+            !supports_normalized_flag(&registry, "HTTP::header"),
+            "HTTP::header has no -normalized option in the registry",
+        );
+
+        // End-to-end proof: HTTP::uri without -normalized fires
+        // IRULE3102; HTTP::header (no -normalized in registry) does not.
+        let with_uri = warnings_for_irules("set u [HTTP::uri]");
+        assert!(
+            with_uri.iter().any(|w| w.code == "IRULE3102"),
+            "expected IRULE3102 on HTTP::uri, got {with_uri:?}",
+        );
+        let with_header = warnings_for_irules("set u [HTTP::header Content-Type]");
+        assert!(
+            with_header.is_empty(),
+            "no IRULE3102 expected on HTTP::header (no -normalized), got {with_header:?}",
+        );
     }
 }

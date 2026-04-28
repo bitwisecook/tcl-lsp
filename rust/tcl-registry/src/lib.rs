@@ -42,6 +42,7 @@ pub mod profiles;
 pub mod registry;
 pub mod side_effects;
 pub mod spec;
+pub mod taint;
 pub mod traits;
 pub mod types;
 

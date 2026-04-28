@@ -254,7 +254,9 @@ mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        let mut r = CommandRegistry::build_default();
+        r.load_irules();
+        r
     }
 
     #[test]
