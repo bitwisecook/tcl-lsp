@@ -1,4 +1,5 @@
 //! `lset` — change an element in a list variable.
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -14,6 +15,7 @@ pub fn spec() -> CommandSpec {
             &["lset varName ?index ...? newValue"],
             "Tcl lset(1)",
         )),
+        codegen_hook: Some(CodegenHookId::Lset),
         ..CommandSpec::DEFAULT
     }
 }

@@ -12,9 +12,10 @@
 /// The compiler keeps the implementations; the registry keeps the
 /// catalogue of which command form picks which implementation.
 /// Variants are stable enum members rather than bare integers so a
-/// `match` on this type is exhaustively checked at every dispatcher.
+/// `match` on this type is exhaustively checked at every dispatcher
+/// — adding a new hook here gives the compiler a deliberate
+/// compile-time error until the new arm is implemented.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum LoweringHookId {
     /// `expr <single-arg>` → typed expression IR.
     Expr,
@@ -40,9 +41,10 @@ pub enum LoweringHookId {
 ///
 /// The compiler's codegen layer holds the per-variant emitter. Keep
 /// this enum in sync with the dispatch table in
-/// [`tcl_compiler::codegen::emitter::bytecoded`].
+/// [`tcl_compiler::codegen::emitter::bytecoded`]; a new variant here
+/// gives the compiler a compile-time match-exhaustion error until
+/// the new arm is wired up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum CodegenHookId {
     /// `lassign list var1 ?var2 ...?`.
     Lassign,

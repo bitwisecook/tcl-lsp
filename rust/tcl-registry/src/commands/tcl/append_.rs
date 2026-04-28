@@ -1,5 +1,6 @@
 //! `append` — append to variable.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `append`.
@@ -30,6 +31,7 @@ pub fn spec() -> CommandSpec {
             &["append varName ?value value value ...?"],
             "Tcl append(1)",
         )),
+        lowering_hook: Some(LoweringHookId::AppendOrLappend),
         ..CommandSpec::DEFAULT
     }
 }

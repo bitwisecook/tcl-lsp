@@ -1,5 +1,6 @@
 //! `expr` — evaluate a mathematical expression.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `expr`.
@@ -22,6 +23,7 @@ pub fn spec() -> CommandSpec {
             &["expr arg ?arg ...?"],
             "Tcl expr(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Expr),
         ..CommandSpec::DEFAULT
     }
 }

@@ -1,5 +1,6 @@
 //! `incr` — increment a variable.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `incr`.
@@ -33,6 +34,7 @@ pub fn spec() -> CommandSpec {
             &["incr varName ?increment?"],
             "Tcl incr(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Incr),
         ..CommandSpec::DEFAULT
     }
 }

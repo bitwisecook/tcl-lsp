@@ -2,19 +2,32 @@
 //!
 //! Commands with compiled bytecode forms (beyond what
 //! `cmd_subst::emit_inline_cmd_subst` already handles) are routed
-//! through this dispatcher. For the initial C21 landing we match on
-//! command name directly — mirroring the Rust lowering-hook
-//! dispatch pattern in `lowering_hooks::try_lower_hook`. A future
-//! chunk may migrate this to an ID-based table that reads
-//! `CommandSpec::codegen_hook` from the registry.
+//! through this dispatcher. ARCH2 made hook selection
+//! registry-driven: [`try_bytecoded`] consults the default
+//! [`tcl_registry::CommandRegistry`] for the
+//! [`tcl_registry::CommandSpec::codegen_hook`] of the call's command
+//! and dispatches on the typed [`CodegenHookId`]. The compiler still
+//! owns the per-variant emitter; the registry decides which variant
+//! applies.
 //!
 //! Ported from `core/compiler/codegen/_bytecoded.py` (C21).
+
+use std::sync::OnceLock;
+
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::hooks::CodegenHookId;
+use tcl_registry::CommandRegistry;
 
 use super::super::values::is_qualified;
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
 use super::super::{bytecode_imm, parse_tcl_index, INDEX_END};
+
+fn default_registry() -> &'static CommandRegistry {
+    static REGISTRY: OnceLock<CommandRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(CommandRegistry::build_default)
+}
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
 /// command hook. Returns `true` if the hook handled the command;
@@ -30,15 +43,36 @@ pub fn try_bytecoded(
     args: &[String],
     used_generic_invoke: &mut bool,
 ) -> bool {
-    match cmd {
-        "lassign" => lassign(ctx, args),
-        "llength" => llength(ctx, args),
-        "lrange" => lrange(ctx, args),
-        "linsert" => linsert(ctx, args),
-        "lset" => lset(ctx, args),
-        "dict" => dict(ctx, args),
-        "array" => array(ctx, args, used_generic_invoke),
-        _ => false,
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(resolved) = default_registry().resolve_call(cmd, &arg_refs, DialectSet::empty())
+    else {
+        return false;
+    };
+    let Some(hook) = resolved.codegen_hook else {
+        return false;
+    };
+    dispatch_codegen_hook(hook, ctx, args, used_generic_invoke)
+}
+
+/// Dispatch a typed [`CodegenHookId`] to its emitter.
+///
+/// Public so external pipelines (tests, future LSP feature
+/// providers) can reuse the per-hook implementations without
+/// duplicating the table.
+pub fn dispatch_codegen_hook(
+    hook: CodegenHookId,
+    ctx: &mut CodegenCtx,
+    args: &[String],
+    used_generic_invoke: &mut bool,
+) -> bool {
+    match hook {
+        CodegenHookId::Lassign => lassign(ctx, args),
+        CodegenHookId::Llength => llength(ctx, args),
+        CodegenHookId::Lrange => lrange(ctx, args),
+        CodegenHookId::Linsert => linsert(ctx, args),
+        CodegenHookId::Lset => lset(ctx, args),
+        CodegenHookId::Dict => dict(ctx, args),
+        CodegenHookId::Array => array(ctx, args, used_generic_invoke),
     }
 }
 
@@ -571,5 +605,61 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[]);
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "foobar", &[], &mut used));
+    }
+
+    /// Registry-side hook ID for `llength` is the canonical source
+    /// of truth for codegen routing.
+    #[test]
+    fn registry_llength_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("llength").expect("llength is registered");
+        assert_eq!(spec.codegen_hook, Some(CodegenHookId::Llength));
+    }
+
+    /// Registry-side hook ID for `dict` covers all dict subcommand
+    /// emissions through one hook.
+    #[test]
+    fn registry_dict_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("dict").expect("dict is registered");
+        assert_eq!(spec.codegen_hook, Some(CodegenHookId::Dict));
+    }
+
+    /// Resolving the `dict set` subcommand call yields the parent
+    /// `dict` command's `Dict` codegen hook.
+    #[test]
+    fn resolve_call_routes_dict_set_subcommand_to_dict_hook() {
+        let registry = CommandRegistry::build_default();
+        let resolved = registry
+            .resolve_call(
+                "dict",
+                &["set", "d", "k", "v"],
+                tcl_registry::dialects::DialectSet::TCL86,
+            )
+            .expect("dict set resolves");
+        assert_eq!(resolved.codegen_hook, Some(CodegenHookId::Dict));
+        assert_eq!(
+            resolved.sub.expect("dict set has a subcommand entry").name,
+            "set",
+        );
+    }
+
+    /// Resolving an iRules command form: the `HTTP::header` command
+    /// must come back from the registry (after loading the iRules
+    /// dialect) so the resolved-call API can drive iRules-aware
+    /// pipelines without command-name dispatch tables in the
+    /// compiler.
+    #[test]
+    fn resolve_call_irules_http_header_form() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let resolved = registry
+            .resolve_call(
+                "HTTP::header",
+                &["names"],
+                tcl_registry::dialects::DialectSet::IRULES,
+            )
+            .expect("HTTP::header resolves under iRules");
+        assert_eq!(resolved.spec.name, "HTTP::header");
     }
 }

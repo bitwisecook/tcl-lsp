@@ -9,6 +9,9 @@
 use std::collections::HashSet;
 
 use tcl_lexer::Span;
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::CommandRegistry;
 
 use crate::alias::{expr_alias_names, CommandAliasMap};
 use crate::expr_parser::parse_expr;
@@ -54,23 +57,46 @@ pub enum ArgTokenKind {
     Other,
 }
 
-/// Try to lower a command via a registered hook.
+/// Try to lower a command via a registry-described hook.
 ///
-/// Returns `Some(statement)` if the command was handled, `None` to
-/// fall through to the default `IRCall` path.
+/// Resolves `cmd` against the registry, looks up the lowering hook
+/// identifier on the matched [`tcl_registry::CommandSpec`] /
+/// [`tcl_registry::SubCommand`], and dispatches to the per-hook
+/// algorithm. Returns `Some(statement)` if a hook handled the
+/// command; `None` to fall through to the default `IRCall` path.
 #[must_use]
-pub fn try_lower_hook(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Option<Statement> {
-    match cmd.name {
-        "expr" => lower_expr(cmd),
-        "return" => Some(lower_return(cmd, aliases)),
-        "set" => Some(lower_set(cmd, aliases)),
-        "incr" => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
-        "append" | "lappend" => lower_append_lappend(cmd),
-        "unset" => Some(lower_unset(cmd)),
-        "global" => lower_global(cmd),
-        "variable" => Some(lower_variable(cmd)),
-        "upvar" => lower_upvar(cmd),
-        _ => None,
+pub fn try_lower_hook(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+) -> Option<Statement> {
+    let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
+    let resolved = registry.resolve_call(cmd.name, &arg_refs, DialectSet::empty())?;
+    let hook = resolved.lowering_hook?;
+    dispatch_lowering_hook(hook, cmd, aliases)
+}
+
+/// Dispatch a typed [`LoweringHookId`] to its implementation.
+///
+/// Public so external dispatchers (tests, future LSP feature
+/// providers, peephole experiments) can reuse the same per-hook
+/// implementations without duplicating the table.
+#[must_use]
+pub fn dispatch_lowering_hook(
+    hook: LoweringHookId,
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+) -> Option<Statement> {
+    match hook {
+        LoweringHookId::Expr => lower_expr(cmd),
+        LoweringHookId::Return => Some(lower_return(cmd, aliases)),
+        LoweringHookId::Set => Some(lower_set(cmd, aliases)),
+        LoweringHookId::Incr => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
+        LoweringHookId::AppendOrLappend => lower_append_lappend(cmd),
+        LoweringHookId::Unset => Some(lower_unset(cmd)),
+        LoweringHookId::Global => lower_global(cmd),
+        LoweringHookId::Variable => Some(lower_variable(cmd)),
+        LoweringHookId::Upvar => lower_upvar(cmd),
     }
 }
 
@@ -596,5 +622,79 @@ mod tests {
         };
         let result = lower_return(&cmd, &aliases);
         assert!(matches!(result, Statement::Return { value: Some(_), .. }));
+    }
+
+    /// Registry must drive the lowering-hook dispatch — `set`'s
+    /// hook ID must come from [`tcl_registry::CommandSpec`], not a
+    /// compiler-side name table.
+    #[test]
+    fn registry_set_spec_carries_lowering_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("set").expect("set is registered");
+        assert_eq!(spec.lowering_hook, Some(LoweringHookId::Set));
+    }
+
+    /// Same check for `expr` — the registry-side hook ID must be
+    /// the canonical source of truth, not a compiler dispatch table.
+    #[test]
+    fn registry_expr_spec_carries_lowering_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("expr").expect("expr is registered");
+        assert_eq!(spec.lowering_hook, Some(LoweringHookId::Expr));
+    }
+
+    /// `incr`'s hook is also stamped on the registry side.
+    #[test]
+    fn registry_incr_spec_carries_lowering_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("incr").expect("incr is registered");
+        assert_eq!(spec.lowering_hook, Some(LoweringHookId::Incr));
+    }
+
+    /// End-to-end: routing `set` through `try_lower_hook` returns
+    /// the typed `AssignConst` form via the registry-resolved hook.
+    #[test]
+    fn try_lower_hook_routes_set_via_registry() {
+        let registry = CommandRegistry::build_default();
+        let aliases = CommandAliasMap::new();
+        let args = vec!["x".to_string(), "hello".to_string()];
+        let single = vec![true, true, true];
+        let kinds = vec![ArgTokenKind::Esc, ArgTokenKind::Str];
+        let cmd = LoweringCommand {
+            span: Span::new(0, 13),
+            name: "set",
+            args: &args,
+            single_token_word: &single,
+            expand_word: None,
+            tokens: None,
+            arg_kinds: &kinds,
+        };
+        let result = try_lower_hook(&cmd, &aliases, &registry);
+        assert!(
+            matches!(result, Some(Statement::AssignConst { .. })),
+            "expected AssignConst from registry-driven dispatch; got {result:?}",
+        );
+    }
+
+    /// A command with no `lowering_hook` must return `None` from
+    /// `try_lower_hook` so the caller falls through to the generic
+    /// `IRCall` path.
+    #[test]
+    fn try_lower_hook_returns_none_for_uncovered_command() {
+        let registry = CommandRegistry::build_default();
+        let aliases = CommandAliasMap::new();
+        let args = vec!["greetings".to_string()];
+        let single = vec![true, true];
+        let kinds = vec![ArgTokenKind::Esc];
+        let cmd = LoweringCommand {
+            span: Span::new(0, 4),
+            name: "puts",
+            args: &args,
+            single_token_word: &single,
+            expand_word: None,
+            tokens: None,
+            arg_kinds: &kinds,
+        };
+        assert!(try_lower_hook(&cmd, &aliases, &registry).is_none());
     }
 }
