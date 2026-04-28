@@ -771,6 +771,13 @@ class TestCommandDispatch:
             "global_set",
             "global_get",
             "proc_register_compiled",
+            # ``proc_set_body_source`` is pulled in by the prologue
+            # right after ``proc_register_compiled`` so ``info body``
+            # on a compiled proc returns the original Tcl source text
+            # rather than an empty string.  The codegen emits one set
+            # call per proc with a statically-known body (every proc
+            # except the synthetic ``when`` shims).
+            "proc_set_body_source",
             "frame_push",
             "frame_pop",
             # ``frame_set_argv`` / ``frame_get_argv`` / ``tcl_list``

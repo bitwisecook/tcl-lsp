@@ -365,6 +365,7 @@ comptime {
     // tcl_procs exports
     _ = &tcl_procs.proc_register;
     _ = &tcl_procs.proc_register_compiled;
+    _ = &tcl_procs.proc_set_body_source;
     _ = &tcl_procs.proc_lookup;
     _ = &tcl_procs.proc_get_func_idx;
     _ = &tcl_procs.proc_get_n_params;

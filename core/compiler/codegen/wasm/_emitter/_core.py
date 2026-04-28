@@ -396,7 +396,9 @@ class _WasmEmitterBase:
                 continue
             has_args_tail = bool(proc.params and proc.params[-1] == "args")
             n_required = self._compute_n_required(qname, proc.params)
-            self._compiled_proc_queue.append((qname, len(proc.params), has_args_tail, n_required))
+            self._compiled_proc_queue.append(
+                (qname, len(proc.params), has_args_tail, n_required, proc.body_source)
+            )
 
     def _compute_n_required(self, qname: str, params: tuple[str, ...]) -> int:
         """Count required (no-default) positional params, excluding ``args`` tail."""
@@ -445,8 +447,9 @@ class _WasmEmitterBase:
         queue = getattr(self, "_compiled_proc_queue", None)
         if queue:
             reg_idx = self._shared_imports.get("tcl_proc_register_compiled")
+            body_idx = self._shared_imports.get("tcl_proc_set_body_source")
             if reg_idx is not None:
-                for qname, n_params, has_args_tail, n_required in queue:
+                for qname, n_params, has_args_tail, n_required, body_source in queue:
                     self._emit_obj_literal(qname)
                     self._emit_i32_const(n_params)
                     self._emit_i32_const(1)  # func_idx marker (any non-zero)
@@ -454,6 +457,17 @@ class _WasmEmitterBase:
                     self._emit_i32_const(n_required)
                     self._emit_call(reg_idx)
                     self._emit(WasmOp.DROP)
+                    # Stash the source-text body so ``info body`` can
+                    # return the original ``proc`` body rather than the
+                    # empty string the AOT path otherwise leaves
+                    # behind.  Skipped when the import wasn't pulled
+                    # in (older bundles) or the proc lacks a
+                    # body_source (synthetic ``when`` handlers).
+                    if body_idx is not None and body_source is not None:
+                        self._emit_obj_literal(qname)
+                        self._emit_obj_literal(body_source)
+                        self._emit_call(body_idx)
+                        self._emit(WasmOp.DROP)
 
         # Compiled-proc entry prologue: push a frame and bind each
         # param into the frame's local-variable table.  This lets

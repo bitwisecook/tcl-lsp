@@ -664,15 +664,28 @@ fn build_capture_value(
         // (codepoint of last char in match).  Match-end-cp is exclusive
         // upper bound, so subtract 1.  Empty match: end == start,
         // result is "<start> <start-1>".
-        const start_str = obj.itoa(@intCast(start_cp));
+        //
+        // ``obj.itoa`` writes into a single shared static buffer and
+        // returns a pointer into it; the second call here would
+        // otherwise clobber the first call's bytes (the symptom is
+        // ``regexp -indices`` producing "<end> <end>" instead of
+        // "<start> <end>", which surfaces as tcltest's
+        // ``SubstArguments`` mis-tokenising "eval $script" into
+        // "eva{l} $script{}").  Snapshot ``start_str`` into a fresh
+        // 12-byte stack scratch before calling ``itoa`` again so both
+        // halves of the output are stable.
+        const start_src = obj.itoa(@intCast(start_cp));
+        var start_buf: [12]u8 = undefined;
+        const start_len: u32 = @intCast(start_src.len);
+        for (0..start_len) |k| start_buf[k] = start_src.ptr[k];
         const end_inclusive: i32 = @as(i32, @intCast(end_cp)) - 1;
         const end_str = obj.itoa(@intCast(end_inclusive));
-        const total: u32 = @as(u32, @intCast(start_str.len)) + 1 + @as(u32, @intCast(end_str.len));
+        const total: u32 = start_len + 1 + @as(u32, @intCast(end_str.len));
         const buf = alloc(total);
         const dst: [*]u8 = @ptrFromInt(buf);
-        for (0..start_str.len) |k| dst[k] = start_str.ptr[k];
-        dst[start_str.len] = ' ';
-        for (0..end_str.len) |k| dst[start_str.len + 1 + k] = end_str.ptr[k];
+        for (0..start_len) |k| dst[k] = start_buf[k];
+        dst[start_len] = ' ';
+        for (0..end_str.len) |k| dst[start_len + 1 + k] = end_str.ptr[k];
         return obj_new_string(@intCast(buf), @intCast(total));
     }
     // Substring mode: extract the bytes covering [start_cp, end_cp).
