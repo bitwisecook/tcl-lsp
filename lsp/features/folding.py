@@ -1,13 +1,44 @@
-"""Folding range provider -- proc bodies, namespaces, comment blocks, control structures."""
+"""Folding range provider — proc bodies, namespaces, comment blocks, control structures.
+
+The Rust binding ``tcl_lsp_rust.folding_ranges`` is the fast path: it
+runs the analyser, the comment-line walker, and the registry-driven
+body-argument walker entirely in native code.  When the binding is
+unavailable — typecheck environments uninstall the wheel
+(``make typecheck-py``), zipapp builds may ship without it, fresh
+checkouts before ``make rust-build`` lands — this module falls back
+to a Python implementation with identical behaviour.
+
+Both paths feed into :func:`_normalise_overlaps`, the
+belt-and-suspenders pass that protects VS Code's folding
+tree-builder from any partial-overlap escape hatch.
+"""
 
 from __future__ import annotations
 
 from lsprotocol import types
 
 from core.analysis.semantic_model import AnalysisResult, Scope
-from core.commands.registry.runtime import iter_body_arguments
+from core.commands.registry.runtime import (
+    active_signature_profile,
+    iter_body_arguments,
+)
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token, TokenType
+
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        folding_ranges as _rust_folding_ranges,
+    )
+except ImportError:  # pragma: no cover - rust binding is optional at typecheck time
+    _rust_folding_ranges = None
+
+
+# Wire forms emitted by the Rust binding (lower-case to mirror the
+# `lsprotocol.types.FoldingRangeKind` enum's string values).
+_KIND_TO_LSP: dict[str, types.FoldingRangeKind] = {
+    "region": types.FoldingRangeKind.Region,
+    "comment": types.FoldingRangeKind.Comment,
+}
 
 
 def _adjust_body_end_line(source: str, end_offset: int, end_line: int) -> int:
@@ -272,22 +303,13 @@ def _normalise_overlaps(
     return result
 
 
-def get_folding_ranges(
+def _python_folding_ranges(
     source: str,
-    analysis: AnalysisResult | None = None,
+    analysis: AnalysisResult | None,
     *,
-    lines: list[str] | None = None,
+    lines: list[str] | None,
 ) -> list[types.FoldingRange]:
-    """Return folding ranges for a Tcl source file.
-
-    When ``analysis`` is ``None`` the scope-based collector is skipped.
-    It's redundant with the syntactic body-argument walker for the
-    common proc/namespace/control-structure cases, so omitting it
-    lets the LSP handler serve fold ranges immediately after
-    ``didOpen`` — before the background analyse() task populates
-    ``state.analysis`` — without blocking the event loop on a
-    synchronous full analysis pass.
-    """
+    """Pure-Python collection path used when the Rust binding is absent."""
     ranges: list[types.FoldingRange] = []
     seen: set[tuple[int, int]] = set()
 
@@ -296,4 +318,42 @@ def get_folding_ranges(
     _collect_comment_folds(source, seen, ranges, lines=lines)
     _collect_body_folds(source, seen, ranges, original_source=source)
 
-    return _normalise_overlaps(ranges)
+    return ranges
+
+
+def get_folding_ranges(
+    source: str,
+    analysis: AnalysisResult | None = None,
+    *,
+    lines: list[str] | None = None,
+) -> list[types.FoldingRange]:
+    """Return folding ranges for a Tcl source file.
+
+    Prefers the Rust collector via ``tcl_lsp_rust.folding_ranges``;
+    falls back to the Python collectors when the binding isn't
+    available.  Both paths run through :func:`_normalise_overlaps`
+    before returning.
+
+    When the Rust path runs the ``analysis`` and ``lines`` keyword
+    arguments are unused — the Rust collector takes its own analyser
+    pass internally and reads lines from the source string.  The
+    Python fallback honours both arguments for the same behaviour
+    the prior implementation had: ``analysis=None`` skips the
+    scope-tree walk, and ``lines`` lets callers pass a pre-split
+    line list to avoid one ``str.split`` per request.
+    """
+    if not source:
+        return []
+    if _rust_folding_ranges is not None:
+        dialect = str(active_signature_profile().get("dialect") or "tcl8.6")
+        raw = _rust_folding_ranges(source, dialect)
+        materialised = [
+            types.FoldingRange(
+                start_line=item["start_line"],
+                end_line=item["end_line"],
+                kind=_KIND_TO_LSP.get(item["kind"], item["kind"]),
+            )
+            for item in raw
+        ]
+        return _normalise_overlaps(materialised)
+    return _normalise_overlaps(_python_folding_ranges(source, analysis, lines=lines))
