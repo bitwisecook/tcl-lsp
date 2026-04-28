@@ -5,6 +5,11 @@
 //! fall through to the default `IRCall` path.
 //!
 //! Ports `core/compiler/lowering_hooks/_control.py` and `_var.py`.
+//! As of chunk **C43** the per-command logic is being split out into
+//! [`crate::lowering::hooks`] (one file per command); this module
+//! retains the dispatcher, the [`LoweringCommand`] context type, and
+//! the shared helpers (`make_call`, `extract_single_expr_arg`,
+//! `parse_decimal_int`).
 
 use std::collections::HashSet;
 
@@ -61,8 +66,10 @@ pub enum ArgTokenKind {
 #[must_use]
 pub fn try_lower_hook(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Option<Statement> {
     match cmd.name {
-        "expr" => lower_expr(cmd),
-        "return" => Some(lower_return(cmd, aliases)),
+        "expr" => crate::lowering::hooks::control::try_lower_expr(cmd),
+        "return" => Some(crate::lowering::hooks::control::try_lower_return(
+            cmd, aliases,
+        )),
         "set" => Some(lower_set(cmd, aliases)),
         "incr" => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
         "append" | "lappend" => lower_append_lappend(cmd),
@@ -75,84 +82,26 @@ pub fn try_lower_hook(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> O
 }
 
 /// Whether this command has `{*}` expansion on any argument.
-fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
+///
+/// `pub(crate)` so per-command hook modules under
+/// [`crate::lowering::hooks`] can share the single canonical
+/// expansion check rather than re-implementing it inline (which
+/// would drift over time as the `LoweringCommand` shape evolves).
+pub(crate) fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
     cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e))
 }
 
 // ── expr ──────────────────────────────────────────────────────────
-
-fn lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
-    if has_expansion(cmd) {
-        return None;
-    }
-    if cmd.args.len() != 1 {
-        return None;
-    }
-    // Only specialise when the arg is a single token.
-    if cmd.single_token_word.len() < 2 || !cmd.single_token_word[1] {
-        return None;
-    }
-    let expr = parse_expr(&cmd.args[0], None);
-    Some(Statement::ExprEval {
-        span: cmd.span,
-        expr,
-    })
-}
+//
+// Moved to `crate::lowering::hooks::control::try_lower_expr` (chunk
+// **C43**). The dispatcher above delegates the `"expr"` case to
+// the per-hook module.
 
 // ── return ────────────────────────────────────────────────────────
-
-fn lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
-    if has_expansion(cmd) {
-        return Statement::Barrier {
-            span: cmd.span,
-            reason: "return with expansion".into(),
-            command: cmd.name.into(),
-            args: cmd.args.to_vec(),
-            tokens: cmd.tokens.clone(),
-        };
-    }
-    if !cmd.args.is_empty() && cmd.args[0].starts_with('-') {
-        return Statement::Barrier {
-            span: cmd.span,
-            reason: "return with options".into(),
-            command: cmd.name.into(),
-            args: cmd.args.to_vec(),
-            tokens: cmd.tokens.clone(),
-        };
-    }
-
-    let value = cmd.args.first().cloned();
-    let mut expr = None;
-    let mut braced = false;
-
-    if value.is_some()
-        && !cmd.arg_kinds.is_empty()
-        && cmd.single_token_word.len() >= 2
-        && cmd.single_token_word[1]
-    {
-        match cmd.arg_kinds[0] {
-            ArgTokenKind::Str => braced = true,
-            ArgTokenKind::Cmd => {
-                let inner = cmd.args[0]
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .unwrap_or(&cmd.args[0]);
-                let alias_names = expr_alias_names(aliases);
-                if let Some(expr_arg) = extract_single_expr_arg(inner, &alias_names) {
-                    expr = Some(parse_expr(&expr_arg, None));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    Statement::Return {
-        span: cmd.span,
-        value,
-        expr,
-        braced,
-    }
-}
+//
+// Moved to `crate::lowering::hooks::control::try_lower_return`
+// (chunk **C43**). The dispatcher above delegates the `"return"`
+// case to the per-hook module.
 
 // ── set ───────────────────────────────────────────────────────────
 
@@ -376,7 +325,14 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 ///
 /// Returns `Some(expr_text)` if the text is `expr <one-word>` (or an
 /// expr alias), `None` otherwise.
-fn extract_single_expr_arg(text: &str, expr_aliases: &HashSet<String>) -> Option<String> {
+///
+/// `pub(crate)` so per-command hook modules under
+/// [`crate::lowering::hooks`] (e.g. `control::try_lower_return`) can
+/// share the same single-arg-extraction logic as `lower_set` here.
+pub(crate) fn extract_single_expr_arg(
+    text: &str,
+    expr_aliases: &HashSet<String>,
+) -> Option<String> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);
@@ -494,27 +450,6 @@ mod tests {
     }
 
     #[test]
-    fn lower_expr_single_arg() {
-        let args = vec!["{1 + 2}".to_string()];
-        let single = vec![true, true];
-        let kinds = vec![ArgTokenKind::Str];
-        let cmd = LoweringCommand {
-            span: Span::new(0, 15),
-            name: "expr",
-            args: &args,
-            single_token_word: &single,
-            expand_word: None,
-            tokens: None,
-            arg_kinds: &kinds,
-        };
-        let result = lower_expr(&cmd);
-        assert!(
-            matches!(result, Some(Statement::ExprEval { .. })),
-            "expected ExprEval; got {result:?}"
-        );
-    }
-
-    #[test]
     fn lower_set_const() {
         let args = vec!["x".to_string(), "hello".to_string()];
         let single = vec![true, true, true];
@@ -577,24 +512,5 @@ mod tests {
         if let Some(Statement::Call { defs, .. }) = result {
             assert_eq!(defs, vec!["local"]);
         }
-    }
-
-    #[test]
-    fn lower_return_simple() {
-        let args = vec!["$result".to_string()];
-        let single = vec![true, true];
-        let kinds = vec![ArgTokenKind::Var];
-        let aliases = CommandAliasMap::new();
-        let cmd = LoweringCommand {
-            span: Span::new(0, 15),
-            name: "return",
-            args: &args,
-            single_token_word: &single,
-            expand_word: None,
-            tokens: None,
-            arg_kinds: &kinds,
-        };
-        let result = lower_return(&cmd, &aliases);
-        assert!(matches!(result, Statement::Return { value: Some(_), .. }));
     }
 }
