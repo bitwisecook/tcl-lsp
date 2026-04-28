@@ -7,9 +7,9 @@
 //! Exposes ``folding_ranges(source, dialect)`` to Python.  Returns
 //! a list of `{"start_line", "end_line", "kind"}` dicts where
 //! `start_line` / `end_line` are 0-based inclusive line numbers and
-//! `kind` is the lower-case wire form of [`crate::folding::FoldKind`]
-//! (`"region"` / `"comment"`) — the same string `lsprotocol`'s
-//! `FoldingRangeKind` enum uses.
+//! `kind` is the lower-case wire form of
+//! [`tcl_lsp_core::folding::FoldKind`] (`"region"` / `"comment"`) —
+//! the same string `lsprotocol`'s `FoldingRangeKind` enum uses.
 //!
 //! Folding ranges are line-based, not byte-based, so the dict shape
 //! omits the `(start, end)` `u32` byte tuple that other Rust→Python
@@ -21,7 +21,7 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use crate::folding::{folding_ranges as compute_folding_ranges, FoldingRange};
+use tcl_lsp_core::folding::{folding_ranges as compute_folding_ranges, FoldingRange};
 
 /// Compute folding ranges for a Tcl source document, returning a
 /// list of dicts.
