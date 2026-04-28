@@ -23,6 +23,7 @@ namespace eval ::tmm {
         +
         -
         /
+        ::tcl::build-info
         <
         <<
         <=
@@ -71,10 +72,12 @@ namespace eval ::tmm {
         regex::quote
         regex_quote
         regexp::quote
+        registry
         rename
         seek
         socket
         source
+        tcl::build-info
         tcl_findLibrary
         tell
         time
@@ -97,6 +100,7 @@ namespace eval ::tmm {
         lassign
         lmap
         lremove
+        lseq
         my
         next
         nextto
@@ -114,6 +118,7 @@ namespace eval ::tmm {
         try
         yield
         yieldto
+        zlib
     }
 
 }
