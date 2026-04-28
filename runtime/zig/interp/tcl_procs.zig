@@ -437,8 +437,17 @@ pub export fn proc_set_body_source(name: i32, body_obj: i32) i32 {
     const bucket = proc_lookup(name);
     if (bucket == 0) return obj_new_int(0);
     const cmd: u32 = @bitCast(bucket);
+    // Redefining the same proc (``proc foo …`` inside a loop, or the
+    // tcltest re-define dance) re-enters this hook each time.  Without
+    // dropping the prior body's retain, every redefinition leaks one
+    // TclObj header and the slab it owns.  Retain the new body first
+    // (so a self-set with the same handle stays alive), then release
+    // the old slot — the order makes a same-obj rebind a net no-op
+    // refcount change rather than a transient drop-to-zero.
+    const prev: i32 = read_i32(cmd + OFF_BODY_OBJ);
     obj.tcl_obj_retain(body_obj);
     write_i32(cmd + OFF_BODY_OBJ, body_obj);
+    if (prev != 0) obj.tcl_obj_release(prev);
     return obj_new_int(0);
 }
 
