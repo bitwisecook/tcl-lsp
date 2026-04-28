@@ -81,13 +81,15 @@ impl SymbolKind {
 /// matching the LSP `Range` contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LineRange {
-    /// First line of the range (0-based).
+    /// Line of the start position (0-based).
     pub start_line: u32,
-    /// Byte column on `start_line`.
+    /// Byte column of the start position on `start_line` (0-based).
     pub start_character: u32,
-    /// Last line of the range (0-based, exclusive).
+    /// Line of the end position (0-based).
     pub end_line: u32,
-    /// Byte column on `end_line` (exclusive).
+    /// Byte column of the end position on `end_line` (0-based, with
+    /// the overall end position exclusive — `(end_line,
+    /// end_character)` is the first position *after* the range).
     pub end_character: u32,
 }
 

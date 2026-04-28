@@ -58,10 +58,15 @@ def _materialise_rust_symbols(raw: list[dict]) -> list[types.DocumentSymbol]:
     out: list[types.DocumentSymbol] = []
     for item in raw:
         children = _materialise_rust_symbols(item.get("children") or [])
+        kind_name = item["kind"]
+        if kind_name not in _KIND_TO_LSP:
+            raise ValueError(
+                f"Unknown SymbolKind {kind_name!r} from tcl_lsp_rust.document_symbols",
+            )
         out.append(
             types.DocumentSymbol(
                 name=item["name"],
-                kind=_KIND_TO_LSP.get(item["kind"], types.SymbolKind.Function),
+                kind=_KIND_TO_LSP[kind_name],
                 range=_materialise_rust_range(item["range"]),
                 selection_range=_materialise_rust_range(item["selection_range"]),
                 detail=item.get("detail"),
@@ -348,19 +353,15 @@ def get_document_symbols(
     rule stanza becomes a top-level Module symbol containing the
     per-body scope symbols.
 
-    The analysis-driven path prefers the Rust binding
-    (``tcl_lsp_rust.document_symbols``) when available and no
-    *embedded_rules* records are present; the conf-wrapped path
-    threads through ``embedded_rules`` shapes that aren't on the
-    Rust analyser-result and stays Python-only.
+    The Rust binding (``tcl_lsp_rust.document_symbols``) is used as a
+    fallback only when the caller has *no* cached analysis, so the
+    common ``on_document_symbol`` flow (which passes ``state.analysis``)
+    still walks the precomputed scope tree in pure Python and avoids a
+    synchronous reanalysis on every outline request.
     """
     if analysis is not None:
         if embedded_rules:
             return _conf_wrapped_symbols(analysis, embedded_rules)
-        if _rust_document_symbols is not None and source:
-            dialect = str(active_signature_profile().get("dialect") or "tcl8.6")
-            raw = _rust_document_symbols(source, dialect)
-            return _materialise_rust_symbols(raw)
         return _scope_symbols(analysis.global_scope)
 
     # Fast path: build symbols from chunks without running analysis.
