@@ -1,4 +1,18 @@
-"""Document symbol provider -- outline view, breadcrumbs, Cmd+Shift+O."""
+"""Document symbol provider -- outline view, breadcrumbs, Cmd+Shift+O.
+
+The analysis-driven path prefers the Rust binding
+``tcl_lsp_rust.document_symbols``: it runs the analyser and walks
+the scope tree entirely in native code.  When the binding is
+unavailable -- typecheck environments uninstall the wheel
+(``make typecheck-py``), zipapp builds may ship without it, fresh
+checkouts before ``make rust-build`` lands -- this module falls
+back to a Python implementation with identical behaviour.
+
+The chunks fast-path (basic event/proc symbols extracted while a
+full analysis is still running) and the conf-wrapped iRules path
+stay Python-only: both are transient or threading-bound shapes
+that the LSP-server port will reframe wholesale.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +20,55 @@ from lsprotocol import types
 
 from core.analysis import analyse
 from core.analysis.semantic_model import AnalysisResult, ClassDef, MethodDef, ProcDef, Scope
+from core.commands.registry.runtime import active_signature_profile
 from core.common.lsp import to_lsp_range
+
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        document_symbols as _rust_document_symbols,
+    )
+except ImportError:  # pragma: no cover - rust binding is optional at typecheck time
+    _rust_document_symbols = None
+
+
+# Wire forms emitted by the Rust binding map back to
+# `lsprotocol.types.SymbolKind` enum values.  The Rust side emits
+# the identifier name (``"Function"``, ``"Method"`` ...) -- easier
+# to read in dumps than the numeric values, and stable across
+# `lsprotocol` versions that re-number the enum.
+_KIND_TO_LSP: dict[str, types.SymbolKind] = {
+    "Function": types.SymbolKind.Function,
+    "Method": types.SymbolKind.Method,
+    "Class": types.SymbolKind.Class,
+    "Property": types.SymbolKind.Property,
+    "Constructor": types.SymbolKind.Constructor,
+    "Namespace": types.SymbolKind.Namespace,
+    "Variable": types.SymbolKind.Variable,
+}
+
+
+def _materialise_rust_range(d: dict) -> types.Range:
+    return types.Range(
+        start=types.Position(line=d["start_line"], character=d["start_character"]),
+        end=types.Position(line=d["end_line"], character=d["end_character"]),
+    )
+
+
+def _materialise_rust_symbols(raw: list[dict]) -> list[types.DocumentSymbol]:
+    out: list[types.DocumentSymbol] = []
+    for item in raw:
+        children = _materialise_rust_symbols(item.get("children") or [])
+        out.append(
+            types.DocumentSymbol(
+                name=item["name"],
+                kind=_KIND_TO_LSP.get(item["kind"], types.SymbolKind.Function),
+                range=_materialise_rust_range(item["range"]),
+                selection_range=_materialise_rust_range(item["selection_range"]),
+                detail=item.get("detail"),
+                children=children or None,
+            )
+        )
+    return out
 
 
 def _proc_detail(proc_def: ProcDef) -> str:
@@ -285,15 +347,33 @@ def get_document_symbols(
     When *embedded_rules* is provided (conf-wrapped iRules mode), each
     rule stanza becomes a top-level Module symbol containing the
     per-body scope symbols.
+
+    The analysis-driven path prefers the Rust binding
+    (``tcl_lsp_rust.document_symbols``) when available and no
+    *embedded_rules* records are present; the conf-wrapped path
+    threads through ``embedded_rules`` shapes that aren't on the
+    Rust analyser-result and stays Python-only.
     """
     if analysis is not None:
         if embedded_rules:
             return _conf_wrapped_symbols(analysis, embedded_rules)
+        if _rust_document_symbols is not None and source:
+            dialect = str(active_signature_profile().get("dialect") or "tcl8.6")
+            raw = _rust_document_symbols(source, dialect)
+            return _materialise_rust_symbols(raw)
         return _scope_symbols(analysis.global_scope)
 
     # Fast path: build symbols from chunks without running analysis.
     if chunks is not None:
         return _symbols_from_chunks(chunks)
+
+    if not source:
+        return []
+
+    if _rust_document_symbols is not None:
+        dialect = str(active_signature_profile().get("dialect") or "tcl8.6")
+        raw = _rust_document_symbols(source, dialect)
+        return _materialise_rust_symbols(raw)
 
     # Fallback: run analysis synchronously (legacy path).
     analysis = analyse(source)
