@@ -10,8 +10,11 @@ bitflags! {
     /// Declarative behavioural traits for a command.
     ///
     /// Packed into a single `u64` — compact storage, fast intersection
-    /// and containment queries. The registry pre-computes trait indexes
-    /// so consumers can ask "give me all commands with trait X" in O(1).
+    /// and containment queries on a single spec. Whole-registry
+    /// trait-membership queries
+    /// ([`crate::registry::CommandRegistry::commands_with_trait`])
+    /// scan the spec table in O(N) today; a precomputed trait index
+    /// is a future optimisation.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Traits: u64 {
         // Control flow

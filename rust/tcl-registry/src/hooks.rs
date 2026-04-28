@@ -1,20 +1,64 @@
 //! Hook type definitions for compiler integration.
 //!
-//! Hooks allow command-specific specialisation of lowering, codegen,
-//! and constant folding. The registry stores hook **IDs** (indices
-//! into dispatch tables owned by the compiler crate). This avoids
-//! circular dependencies: the registry declares *what* hook, the
-//! compiler implements *how*.
+//! Hooks let command-specific specialisation slot into lowering and
+//! codegen without baking command names into the compiler. The
+//! registry stores a typed identifier on each [`crate::CommandSpec`]
+//! / [`crate::SubCommand`]; the compiler maps that identifier to its
+//! algorithm. Identifiers are exhaustive enums so a new compiler
+//! pass cannot accidentally accept an arbitrary integer.
 
-/// Index into the compiler's lowering hook dispatch table.
+/// Typed identifier for a lowering specialisation.
 ///
-/// The compiler crate maintains `LOWERING_HOOKS: &[fn(...)]` and
-/// uses this ID to dispatch. Commands that don't need special
-/// lowering leave this as `None` on their `CommandSpec`.
-pub type LoweringHookId = u16;
+/// The compiler keeps the implementations; the registry keeps the
+/// catalogue of which command form picks which implementation.
+/// Variants are stable enum members rather than bare integers so a
+/// `match` on this type is exhaustively checked at every dispatcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LoweringHookId {
+    /// `expr <single-arg>` → typed expression IR.
+    Expr,
+    /// `return ?value?` with non-option, non-expanded args.
+    Return,
+    /// `set name value` → typed assignment IR.
+    Set,
+    /// `incr name ?amount?` → typed increment IR.
+    Incr,
+    /// `append` / `lappend name value...` — variable read-write.
+    AppendOrLappend,
+    /// `unset ?-nocomplain? ?--? name...`.
+    Unset,
+    /// `global name...`.
+    Global,
+    /// `variable name ?value?...`.
+    Variable,
+    /// `upvar ?level? otherVar localVar ...`.
+    Upvar,
+}
 
-/// Index into the compiler's codegen hook dispatch table.
-pub type CodegenHookId = u16;
+/// Typed identifier for a bytecoded codegen specialisation.
+///
+/// The compiler's codegen layer holds the per-variant emitter. Keep
+/// this enum in sync with the dispatch table in
+/// [`tcl_compiler::codegen::emitter::bytecoded`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CodegenHookId {
+    /// `lassign list var1 ?var2 ...?`.
+    Lassign,
+    /// `llength list`.
+    Llength,
+    /// `lrange list first last`.
+    Lrange,
+    /// `linsert list index element ?element ...?`.
+    Linsert,
+    /// `lset varname ?index ...? value`.
+    Lset,
+    /// `dict <subcommand> ...`.
+    Dict,
+    /// `array <subcommand> ...`.
+    Array,
+}
 
 /// Compile-time constant folder.
 ///

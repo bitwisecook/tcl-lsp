@@ -7,6 +7,7 @@
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::dialects::DialectSet;
+use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId};
 use crate::hover::{FormSpec, HoverSnippet, OptionSpec};
 use crate::side_effects::{SideEffect, StorageType};
@@ -70,6 +71,17 @@ pub struct CommandSpec {
     /// Invocation forms (for completion and arity-dependent lookup).
     pub forms: &'static [FormSpec],
 
+    /// Structured invocation-form descriptors.
+    ///
+    /// Each entry carries its own arity, argument roles, options,
+    /// dialect filter, and lowering / codegen hook IDs. The
+    /// registry's resolved-call API (see
+    /// [`crate::CommandRegistry::resolve_call`]) picks the matching
+    /// form for a concrete argument list. Empty means "no
+    /// form-specific routing — use the [`CommandSpec`] level
+    /// arity / hooks".
+    pub command_forms: &'static [CommandForm],
+
     /// Which argument index is a variable name assigned by the command.
     /// `None` = command does not assign a variable.
     pub assigns_variable_at: Option<u8>,
@@ -118,6 +130,7 @@ impl CommandSpec {
         allow_unknown_subcommands: false,
         hover: None,
         forms: &[],
+        command_forms: &[],
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
@@ -210,6 +223,13 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
+    /// Structured invocation-form descriptors for the subcommand.
+    ///
+    /// Same shape as [`CommandSpec::command_forms`]; entries are
+    /// matched against the argument list *after* the subcommand
+    /// word.
+    pub subcommand_forms: &'static [SubCommandForm],
+
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
 
@@ -245,6 +265,7 @@ impl SubCommand {
         lowering_hook: None,
         codegen_hook: None,
         options: &[],
+        subcommand_forms: &[],
         dialects: None,
         safe_on_uninit: None,
         loop_list_header: false,
