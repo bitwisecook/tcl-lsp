@@ -12,6 +12,8 @@
 
 use pyo3::prelude::*;
 
+pub mod document_symbols;
+mod document_symbols_binding;
 pub mod folding;
 mod folding_binding;
 
@@ -19,5 +21,6 @@ mod folding_binding;
 /// extension module.
 pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     folding_binding::register_with(m)?;
+    document_symbols_binding::register_with(m)?;
     Ok(())
 }
