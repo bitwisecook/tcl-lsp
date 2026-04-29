@@ -37,10 +37,10 @@ returns to the previous correct baseline.
 
 | Stage | Goal | Detail | Status |
 |---|---|---|---|
-| **S0** | Foundation — observability, contracts, repros | [s0](wasm-aot-staircase-s0.md) | not started |
-| **S1** | "Frames everywhere" baseline — disable elision, prove correctness | [s1](wasm-aot-staircase-s1.md) | not started |
-| **S2** | Per-proc frame elision with refcount discipline | [s2](wasm-aot-staircase-s2.md) | failed attempt reverted; re-attempt as 7 sub-plans |
-| **S3** | Interprocedural escape-analysis tightening | [s3](wasm-aot-staircase-s3.md) | partial (existing pass) |
+| **S0** | Foundation — observability, contracts, repros | [s0](wasm-aot-staircase-s0.md) | landed (1edd39b0…db8188b4) |
+| **S1** | "Frames everywhere" baseline — disable elision, prove correctness | [s1](wasm-aot-staircase-s1.md) | landed (f8d920ea, c6831243) |
+| **S2** | Per-proc frame elision with refcount discipline | [s2](wasm-aot-staircase-s2.md) | landed (99c24c4c…43e8f14f), 0 double-frees |
+| **S3** | Interprocedural escape-analysis tightening | [s3](wasm-aot-staircase-s3.md) | not started |
 | **S4** | Inlining of small leaf procs | [s4](wasm-aot-staircase-s4.md) | not started |
 | **S5** | SSA-driven codegen optimisations | [s5](wasm-aot-staircase-s5.md) | partial (existing optimiser) |
 | **S6** | Allocation + small-value representation | [s6](wasm-aot-staircase-s6.md) | partial (MM-D in runtime doc) |
