@@ -41,7 +41,7 @@ use pyo3::types::{PyDict, PyList};
 
 use tcl_compiler::analyser::{
     Analyser, AnalysisResult, ClassDef, CodeFix, Diagnostic, ProcDef, PropertyDef, Scope,
-    ScopeKind, Severity, StubFlags, UnknownProcInfo, VarDef,
+    StubFlags, UnknownProcInfo, VarDef,
 };
 use tcl_compiler::signature_scan::types::{
     SignatureCommandAlias, SignatureCommandInvocation, SignatureNamespaceImport,
@@ -233,7 +233,7 @@ fn stub_expr_defs_to_list<'py>(
 
 fn scope_to_dict<'py>(py: Python<'py>, s: &Scope) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new_bound(py);
-    d.set_item("kind", scope_kind_str(s.kind))?;
+    d.set_item("kind", s.kind.as_str())?;
     d.set_item("name", &s.name)?;
     d.set_item("body_range", s.body_span.map(span_tuple))?;
 
@@ -261,14 +261,6 @@ fn scope_to_dict<'py>(py: Python<'py>, s: &Scope) -> PyResult<Bound<'py, PyDict>
     }
     d.set_item("children", children)?;
     Ok(d)
-}
-
-fn scope_kind_str(kind: ScopeKind) -> &'static str {
-    match kind {
-        ScopeKind::Global => "global",
-        ScopeKind::Namespace => "namespace",
-        ScopeKind::Proc => "proc",
-    }
 }
 
 fn proc_to_dict<'py>(py: Python<'py>, p: &ProcDef) -> PyResult<Bound<'py, PyDict>> {
@@ -419,7 +411,7 @@ fn diagnostic_to_dict<'py>(py: Python<'py>, d: &Diagnostic) -> PyResult<Bound<'p
     out.set_item("code", &d.code)?;
     out.set_item("range", span_tuple(d.span))?;
     out.set_item("message", &d.message)?;
-    out.set_item("severity", severity_str(d.severity))?;
+    out.set_item("severity", d.severity.as_str())?;
     let fixes = PyList::empty_bound(py);
     for fix in &d.fixes {
         fixes.append(code_fix_to_dict(py, fix)?)?;
@@ -434,15 +426,6 @@ fn code_fix_to_dict<'py>(py: Python<'py>, fix: &CodeFix) -> PyResult<Bound<'py, 
     d.set_item("new_text", &fix.new_text)?;
     d.set_item("description", &fix.description)?;
     Ok(d)
-}
-
-fn severity_str(s: Severity) -> &'static str {
-    match s {
-        Severity::Hint => "hint",
-        Severity::Suggestion => "suggestion",
-        Severity::Warning => "warning",
-        Severity::Error => "error",
-    }
 }
 
 fn invocation_to_dict<'py>(

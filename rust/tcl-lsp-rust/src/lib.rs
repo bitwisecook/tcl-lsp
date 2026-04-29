@@ -6,6 +6,12 @@
 //! (starting with `tcl-lexer`) remain free of `pyo3` and are shaped for
 //! idiomatic Rust use.
 //!
+//! ARCH7 finished the binding-only audit: every non-`lib.rs` file in
+//! this crate is now `#[pyfunction]` / `#[pyclass]` definitions plus
+//! Python-type conversion glue. Algorithm bodies, command tables,
+//! and wire-form mappings all live in pure crates (`tcl-compiler`,
+//! `tcl-lsp-core`, `tcl-registry`).
+//!
 //! Exposed so far:
 //!
 //! - `hello_rust()` / `lexer_version()` — L0 smoke-test bridge.
@@ -17,6 +23,8 @@
 //!   (EOF / SEP / EOL / COMMENT / plain ESC). Inputs containing
 //!   deferred constructs (`$ [ ] {} " \`) raise `ValueError` so the
 //!   differential harness can filter them.
+
+#![deny(missing_docs)]
 
 use std::borrow::Cow;
 
