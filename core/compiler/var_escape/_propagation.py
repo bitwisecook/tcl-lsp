@@ -961,6 +961,20 @@ def analyse_script(
     frame_needed = state.dynamic_barrier or any(
         tag is EscapeTag.FRAME for tag in state.tags.values()
     )
+    # S3.4: tentative pure_leaf — finalised by the interprocedural
+    # pass, which can only downgrade.  Pure means: no escape (no
+    # FRAME tag, no dynamic_barrier), no upvar source out, no
+    # fallback, no unresolved upvar source.  A proc that ticks all
+    # those locally STILL needs every callee to be pure_leaf
+    # before this flag stays True after the IPA fixpoint — that
+    # downgrade happens in ``_interprocedural.py``.
+    pure_leaf = (
+        not frame_needed
+        and not state.has_fallback
+        and not state.has_call_fallback
+        and not state.upvar_source_names
+        and not state.unbounded_upvar_source
+    )
     return ProcEscapeSummary(
         tags=dict(state.tags),
         dynamic_barrier=state.dynamic_barrier,
@@ -976,4 +990,5 @@ def analyse_script(
         # resolves to a compiled proc.
         has_fallback=state.has_fallback,
         has_call_fallback=state.has_call_fallback,
+        pure_leaf=pure_leaf,
     )

@@ -68,6 +68,16 @@ class ProcEscapeSummary:
     unbounded_upvar_source: bool = False
     direct_callees: frozenset[str] = frozenset()
     has_fallback: bool = False
+    # S3.4: True when the proc is "pure leaf" — no dynamic_barrier,
+    # no frame_needed, no has_fallback, no global mutation, no
+    # upvar/uplevel/info, and every direct callee is itself
+    # pure_leaf.  S4 (inlining) reads this flag as the safety
+    # predicate for IR-level inlining: a pure_leaf proc can be
+    # spliced into the caller's IRBlock without changing
+    # observable behaviour.  Default False — any proc that
+    # touches a runtime side-effect or that hasn't been classified
+    # by the analysis stays opaque.
+    pure_leaf: bool = False
     # True if the intraprocedural pass saw a non-frameless ``IRCall``
     # with a statically resolvable command word.  Whether that reaches
     # the eval fallback depends on whether the callee is a compiled
@@ -113,6 +123,9 @@ class ProcEscapeSummary:
         new_frame_needed = new_pessimistic or any(
             tag is EscapeTag.FRAME for tag in new_tags.values()
         )
+        # pure_leaf is invalidated by any added escape — once a var
+        # spills to FRAME the proc is no longer purely-local.
+        new_pure_leaf = self.pure_leaf and not extra_escaped and not new_pessimistic
         return ProcEscapeSummary(
             tags=new_tags,
             dynamic_barrier=new_pessimistic,
@@ -123,4 +136,5 @@ class ProcEscapeSummary:
             has_fallback=self.has_fallback,
             has_call_fallback=self.has_call_fallback,
             ssa_tags=dict(self.ssa_tags),
+            pure_leaf=new_pure_leaf,
         )

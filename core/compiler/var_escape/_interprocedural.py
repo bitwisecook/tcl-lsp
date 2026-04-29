@@ -218,6 +218,26 @@ def solve_interprocedural_escape(
             has_fallback=downgraded_fallback[qname],
         )
         result[qname] = new_summary
+
+    # S3.4: transitive pure_leaf fixpoint.  A proc remains pure_leaf
+    # only if all of its direct callees are themselves pure_leaf.
+    # Iterate until stable.  Bounded by len(summaries) iterations.
+    from dataclasses import replace as _replace
+
+    changed = True
+    while changed:
+        changed = False
+        for qname, summary in result.items():
+            if not summary.pure_leaf:
+                continue
+            # An unresolved callee (not in ``summaries``) is opaque
+            # — not necessarily pure.  Conservatively downgrade.
+            for callee in summary.direct_callees:
+                callee_summary = result.get(callee)
+                if callee_summary is None or not callee_summary.pure_leaf:
+                    result[qname] = _replace(summary, pure_leaf=False)
+                    changed = True
+                    break
     return result
 
 
