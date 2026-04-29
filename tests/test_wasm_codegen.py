@@ -414,6 +414,92 @@ def test_proc_index_consistent():
     assert any("bar" in n for n in names)
 
 
+# S5.2 — alias-skip peephole
+
+
+def _retain_release_call_count(module: WasmModule, fn_name: str) -> tuple[int, int]:
+    """Return (retain_calls, release_calls) emitted in function ``fn_name``."""
+    from core.compiler.codegen.wasm import WasmOp
+
+    fn = next(f for f in module.functions if fn_name in f.name)
+    # Resolve import indices for tcl_obj_retain / tcl_obj_release.
+    retain_target = None
+    release_target = None
+    for i, imp in enumerate(module.imports):
+        if imp.name == "tcl_obj_retain":
+            retain_target = i
+        elif imp.name == "tcl_obj_release":
+            release_target = i
+    retain_calls = 0
+    release_calls = 0
+    for instr in fn.body:
+        if instr.op != WasmOp.CALL:
+            continue
+        # Decode the unsigned LEB128 callee index.
+        idx = 0
+        shift = 0
+        for byte in instr.operands:
+            idx |= (byte & 0x7F) << shift
+            if not (byte & 0x80):
+                break
+            shift += 7
+        if idx == retain_target:
+            retain_calls += 1
+        elif idx == release_target:
+            release_calls += 1
+    return retain_calls, release_calls
+
+
+def test_s52_alias_skip_self_assign():
+    """``set x $x`` in a frame-elided proc emits no body wrap.
+
+    With S5.2 the peephole notices that the value about to be
+    stored aliases the slot's current contents and elides the
+    body's retain + release pair entirely.  Counting WHOLE-function
+    retain/release calls captures the savings: the alias case
+    should emit strictly fewer of each than the non-alias case.
+    """
+    alias_module = _compile("proc f {x} { set x $x; return $x }\n")
+    distinct_module = _compile("proc f {x y} { set x $y; return $x }\n")
+    alias_retain, alias_release = _retain_release_call_count(alias_module, "::f")
+    distinct_retain, distinct_release = _retain_release_call_count(distinct_module, "::f")
+    # The alias body emits zero refcount calls; the distinct body
+    # emits at least one retain + one release.  Every other site
+    # (prologue param-retain, epilogue release-each-owned, return-
+    # value wrap) is the same shape across both, so the deltas
+    # come purely from the body.
+    assert alias_retain < distinct_retain, (
+        f"expected fewer retains in alias body; alias={alias_retain} distinct={distinct_retain}"
+    )
+    assert alias_release < distinct_release, (
+        f"expected fewer releases in alias body; alias={alias_release} distinct={distinct_release}"
+    )
+
+
+def test_s52_counter_increments():
+    """The S5.2 alias-skip counter is bumped each time the peephole fires."""
+    from core.compiler.cfg import build_cfg
+    from core.compiler.codegen.wasm._emitter import _WasmEmitter
+
+    counts: list[int] = []
+    orig = _WasmEmitter.generate
+
+    def spy(self, *a, **kw):
+        result = orig(self, *a, **kw)
+        counts.append(self._s52_alias_skipped)
+        return result
+
+    _WasmEmitter.generate = spy
+    try:
+        ir = lower_to_ir("proc f {x} { set x $x; return $x }\n")
+        cfg = build_cfg(ir)
+        wasm_codegen_module(cfg, ir)
+    finally:
+        _WasmEmitter.generate = orig
+    # At least one elision happened across the per-proc emissions.
+    assert any(c > 0 for c in counts), f"counter never incremented; got {counts}"
+
+
 # Binary size with imports
 
 

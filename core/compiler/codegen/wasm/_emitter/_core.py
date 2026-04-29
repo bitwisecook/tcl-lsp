@@ -150,6 +150,12 @@ class _WasmEmitterBase:
         # though the join may not execute it), so we only use it for
         # the FIRST-WRITE optimisation, not for later writes.
         self._first_writes_seen: set[int] = set()
+        # S5.2 — counter of fully-elided wraps (``set x $x`` / no-op
+        # incr).  Bumped each time ``_emit_owned_local_write``
+        # detects that the value about to be stored aliases the
+        # slot's current contents and therefore the retain + release
+        # pair cancels.  Surfaced via a getter for diagnostics.
+        self._s52_alias_skipped: int = 0
 
         # Register parameters as locals
         for p in params:
@@ -422,6 +428,32 @@ class _WasmEmitterBase:
             and "tcl_obj_release" in self._shared_imports
         )
 
+    def _peek_last_local_get_idx(self) -> int | None:
+        """Return the immediate of the last instruction iff it is a
+        ``local.get`` with no attached label, else ``None``.
+
+        Used by the S5.2 alias-skip peephole.  We deliberately treat a
+        labelled instruction as opaque — labels carry diagnostic
+        intent the optimiser must not erase — and we only inspect the
+        single most-recent entry, so any structural op (block / loop /
+        end / br / br_if / call) intervening between a ``local.get``
+        and the write helper disables the optimisation.
+        """
+        if not self._body:
+            return None
+        last = self._body[-1]
+        if last.op != WasmOp.LOCAL_GET or last.label is not None:
+            return None
+        # Decode the unsigned LEB128 idx from the operands.
+        idx = 0
+        shift = 0
+        for byte in last.operands:
+            idx |= (byte & 0x7F) << shift
+            if not (byte & 0x80):
+                return idx
+            shift += 7
+        return None
+
     def _emit_owned_local_write(
         self,
         idx: int,
@@ -464,6 +496,34 @@ class _WasmEmitterBase:
 
         retain_idx = self._shared_imports["tcl_obj_retain"]
         release_idx = self._shared_imports["tcl_obj_release"]
+
+        # S5.2 — alias-skip peephole.  If the value about to be stored
+        # was just produced by ``local.get idx`` for the same slot,
+        # the slot already holds the value and a BORROWED write is a
+        # no-op: the retain (claim a +1) and the release (drop the
+        # prior +1) cancel because they touch the same handle.  Drop
+        # the trailing ``local.get`` for ``keep_on_stack=False``;
+        # leave it in place when the caller wants the value back on
+        # the stack.  OWNED is intentionally not optimised here — an
+        # OWNED value carrying a fresh +1 must still release that
+        # extra reference, so the wrap is not a pure cancellation.
+        if source is Ownership.BORROWED:
+            last_get = self._peek_last_local_get_idx()
+            if last_get == idx:
+                self._s52_alias_skipped += 1
+                # Mark the slot as written even though we emitted
+                # nothing — subsequent writes need to see this slot
+                # as no-longer-pristine for the S5.1 first-write
+                # gate.  (If this WAS the first write the slot held
+                # 0, we wrote 0, still 0 — equivalent to no-op.)
+                self._first_writes_seen.add(idx)
+                if not keep_on_stack:
+                    # Pop the just-emitted ``local.get idx`` so the
+                    # runtime stack stays balanced.  Safe because
+                    # ``_peek_last_local_get_idx`` already verified
+                    # the instruction has no label.
+                    self._body.pop()
+                return
 
         # S5.1 — first-write optimisation.  The very first write to
         # a slot during emission has provably-0 prior value (WASM
