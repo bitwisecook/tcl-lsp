@@ -96,5 +96,81 @@ remove the default and force every caller to be explicit.
 
 ---
 
-(remaining sub-plans S2.2 … S2.7 + stage exit criteria appended in
-follow-up commits — see git log of this file.)
+### S2.2 — Owned-slot primitives
+
+**Goal**: Add `_emit_local_set_owned(idx, source: Ownership)` and
+`_emit_local_tee_owned(idx, source)` that route through one of two
+emission paths based on `source`:
+
+- `OWNED`: store directly. The slot now owns the +1 the value brought
+  with it. Release the prior slot value.
+- `BORROWED`: retain the new value (slot needs its own +1), then
+  release the prior slot value.
+
+**Why it matters**: The failed attempt always retained — that worked
+for `BORROWED` but doubled-up for `OWNED`, leaking +1 per write. With
+`source` available (from S2.1), the primitive picks the right path
+and ownership is exactly +1 in the slot at all times.
+
+**Tasks**:
+
+- [ ] In `core/compiler/codegen/wasm/_emitter/_core.py` add:
+  ```python
+  def _emit_local_set_owned(self, idx: int, source: Ownership) -> None:
+      if not self._owned_local_wrap_active(idx):
+          self._emit_local_set_raw(idx)
+          return
+      if source is Ownership.OWNED:
+          # Stack: [v]; v has +1 we transfer to the slot.
+          self._emit_local_get(idx)             # push prior
+          self._emit_call(self._release_idx)    # release prior
+          self._emit_local_set_raw(idx)         # transfer +1 to slot
+      else:                                     # BORROWED
+          # Slot must claim its own +1.
+          tmp = self._rc_set_scratch_lazy()
+          self._emit_local_tee_raw(tmp)         # tmp := v, leave on stack
+          self._emit_call(self._retain_idx)     # retain
+          self._emit_local_get(idx)             # push prior
+          self._emit_call(self._release_idx)    # release prior
+          self._emit_local_get(tmp)
+          self._emit_local_set_raw(idx)
+  ```
+- [ ] Same shape for `_emit_local_tee_owned` — leaves the value on
+  stack at the end.
+- [ ] Keep the raw helpers (`_emit_local_set_raw`,
+  `_emit_local_tee_raw`) for scratch slots and for the wrap's
+  internal use (so the wrap does not recurse).
+- [ ] Make `_owned_local_wrap_active(idx)` (already drafted in the
+  failed attempt) the single gate: returns True only when
+  `is_proc and not wants_frame and idx in _owned_locals_set and
+  retain/release imports loaded`.
+- [ ] Cache one `_rc_set_scratch` per emitter — do not allocate a
+  fresh scratch local per write.
+
+**Files**:
+
+- Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
+- Modify: `core/compiler/codegen/wasm/_emitter/_variables.py` (export
+  the helpers via the mixin's TYPE_CHECKING block)
+
+**Test plan**:
+
+- Unit test: compile `set x 1` (`OWNED` source) inside a frame-elided
+  proc and assert the emitted WASM has zero `tcl_obj_retain` calls
+  for the `set x 1` site (only the prior-release; nothing extra).
+- Unit test: compile `set y $x` (`BORROWED` source) and assert one
+  `tcl_obj_retain` plus one `tcl_obj_release`.
+- Sweep: still net-zero — nothing yet calls the new helpers.
+- Leakcheck: still net-zero.
+
+**Rollback**: Helpers are unused at this stage; revert is risk-free.
+
+**Acceptance gate**: Helpers exist, are documented, and the unit
+tests above pass. Sweep + leakcheck both neutral.
+
+**Estimated size**: 1 commit.
+
+---
+
+(remaining sub-plans S2.3 … S2.7 + stage exit criteria appended in
+follow-up commits.)
