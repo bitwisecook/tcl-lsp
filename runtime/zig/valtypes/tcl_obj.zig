@@ -404,6 +404,14 @@ pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
 }
 
 pub export fn tcl_obj_retain(obj: i32) void {
+    // Null-safe to mirror ``tcl_obj_release``.  Compile-side
+    // call sites (frame-elided proc prologues, the future
+    // owned-slot retain wrap from S2.2) emit the retain
+    // unconditionally on every param / value to keep the call
+    // sequence regular; without this guard the very first param
+    // slot (which is 0 at function entry when the caller passed
+    // no argument) would write to address 0 in linear memory.
+    if (obj == 0) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
