@@ -710,6 +710,7 @@ const list_parse = @import("tcl_list_parse.zig");
 pub const encode_utf8 = bs.encode_utf8;
 pub const consume_bs_escape = bs.consume_bs_escape;
 pub const list_count_elements = list_parse.count_elements;
+pub const list_validate_braces = list_parse.validate_list_braces;
 pub const copy_unbraced_elem = list_parse.copy_unbraced_elem;
 
 /// Re-export of :func:`tcl_list_parse.element_at` with the legacy
