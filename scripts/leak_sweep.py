@@ -5,7 +5,7 @@ and emit per-file (alloc, double_free) residual counts.
 S0.4 deliverable.  Usage:
 
     make build-runtime-leakcheck
-    uv run python scripts/leak_sweep.py
+    uv run python scripts/leak_sweep.py [--no-frame-elision] [--out PATH]
     uv run python scripts/diff_leak_sweep.py    # diff vs baseline
 
 The leakcheck binary is the same shape as the production runtime
@@ -97,6 +97,8 @@ def _run_one_with_counters(
     bundle_src: str,
     label: str,
     source_dir: Path,
+    *,
+    frame_elision: bool = True,
 ) -> dict[str, Any]:
     """Compile and run *bundle_src* against the leakcheck runtime,
     returning the residual counter readings.
@@ -112,7 +114,11 @@ def _run_one_with_counters(
         "trap_message": None,
     }
     try:
-        wasm_bytes = _compile_tcl(bundle_src, source_dir=source_dir)
+        wasm_bytes = _compile_tcl(
+            bundle_src,
+            source_dir=source_dir,
+            frame_elision=frame_elision,
+        )
     except BaseException as exc:
         out["compile_error"] = str(exc)[-400:]
         return out
@@ -222,11 +228,33 @@ def _run_one_with_counters(
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--no-frame-elision",
+        dest="frame_elision",
+        action="store_false",
+        default=True,
+        help="compile every proc with wants_frame=True (S1.1 floor)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=OUTPUT,
+        help=f"output JSON path (default: {OUTPUT.relative_to(REPO)})",
+    )
+    args = parser.parse_args()
+
     _verify_leakcheck_binary()
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
 
     rows: list[dict[str, Any]] = []
-    print(f"in-scope: {len(_IN_SCOPE)} test files", file=sys.stderr)
+    elision_label = "ON" if args.frame_elision else "OFF"
+    print(
+        f"in-scope: {len(_IN_SCOPE)} test files  (frame_elision={elision_label})",
+        file=sys.stderr,
+    )
     for stem, subsystem in _IN_SCOPE:
         test_path = REPO / "tmp" / "tcl9.0.3" / "tests" / f"{stem}.test"
         if not test_path.exists():
@@ -249,6 +277,7 @@ def main() -> int:
                 bundle_src,
                 f"tcl9_{stem}.test",
                 source_dir=test_path.parent,
+                frame_elision=args.frame_elision,
             )
         except BaseException:
             row = {"crashed": traceback.format_exc()[-400:]}
@@ -262,9 +291,9 @@ def main() -> int:
             file=sys.stderr,
         )
         # Flush incrementally so a hung file doesn't lose the report.
-        OUTPUT.write_text(json.dumps(rows, indent=2, sort_keys=True))
+        args.out.write_text(json.dumps(rows, indent=2, sort_keys=True))
 
-    print(f"\nWrote {OUTPUT.relative_to(REPO)}", file=sys.stderr)
+    print(f"\nWrote {args.out.relative_to(REPO)}", file=sys.stderr)
     return 0
 
 
