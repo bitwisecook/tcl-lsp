@@ -140,6 +140,16 @@ class _WasmEmitterBase:
         # first use of ``_emit_owned_local_write`` and reused for
         # every wrapped write in this proc.
         self._rc_set_scratch: int | None = None
+        # S5.1 — set of slot indices that have been written at least
+        # once during this emitter's body emission.  At the first
+        # write (slot not yet in the set) the prior value is provably
+        # 0 (WASM locals are zero-initialised at function entry), so
+        # the wrap can skip the ``local.get idx; call release`` pair.
+        # Conservative — the set is approximate across control flow
+        # (a write inside an ``if`` adds the slot to the set even
+        # though the join may not execute it), so we only use it for
+        # the FIRST-WRITE optimisation, not for later writes.
+        self._first_writes_seen: set[int] = set()
 
         # Register parameters as locals
         for p in params:
@@ -455,27 +465,34 @@ class _WasmEmitterBase:
         retain_idx = self._shared_imports["tcl_obj_retain"]
         release_idx = self._shared_imports["tcl_obj_release"]
 
-        # Lazy scratch slot, reused for every wrapped write in this
-        # proc — allocating one per write would bloat the function's
-        # local table by O(writes).
-        if self._rc_set_scratch is None:
-            self._rc_set_scratch = self._add_extra_local(
-                prefix="_rc_set_tmp",
-                val_type=ValType.I32,
-            )
-        tmp = self._rc_set_scratch
+        # S5.1 — first-write optimisation.  The very first write to
+        # a slot during emission has provably-0 prior value (WASM
+        # locals init to 0 at function entry).  Skip the
+        # ``local.get idx; call release`` pair — release(0) is a
+        # null-safe no-op.  Note: param slots are NOT first-writes
+        # at function entry because the WASM ABI seeded them from
+        # caller args; the prologue's param-retain (S2.4) covers
+        # those slots so they enter this emitter pre-set.  Treat
+        # params as "already written" too via a seed at the start
+        # of the body.
+        first_write = idx not in self._first_writes_seen
+        self._first_writes_seen.add(idx)
 
         if source is Ownership.OWNED:
             # Stack: [v]; v owns its +1 we transfer to the slot.
-            # Sequence:
-            #   local.set tmp           # stack: []     ; tmp = v
-            #   local.get idx           # stack: [prior]
-            #   call release            # stack: []
-            #   local.get tmp           # stack: [v]
-            #   local.set idx           # stack: []     ; idx = v
-            # Or for keep_on_stack:
-            #   local.get tmp           # stack: [v]
-            #   local.tee idx           # stack: [v]    ; idx = v
+            if first_write:
+                # No prior to release — direct store transfers +1.
+                if keep_on_stack:
+                    self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(idx))
+                else:
+                    self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(idx))
+                return
+            if self._rc_set_scratch is None:
+                self._rc_set_scratch = self._add_extra_local(
+                    prefix="_rc_set_tmp",
+                    val_type=ValType.I32,
+                )
+            tmp = self._rc_set_scratch
             self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(tmp))
             self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
             self._emit_call(release_idx)
@@ -487,6 +504,30 @@ class _WasmEmitterBase:
             return
 
         # BORROWED: slot needs to claim its own +1.
+        if first_write:
+            # No prior to release.  Just retain the borrowed value
+            # and store.  Stack: [v] -> retain pops v -> empty;
+            # restore v from a scratch slot.
+            if self._rc_set_scratch is None:
+                self._rc_set_scratch = self._add_extra_local(
+                    prefix="_rc_set_tmp",
+                    val_type=ValType.I32,
+                )
+            tmp = self._rc_set_scratch
+            self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(tmp))
+            self._emit_call(retain_idx)
+            self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(tmp))
+            if keep_on_stack:
+                self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(idx))
+            else:
+                self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(idx))
+            return
+        if self._rc_set_scratch is None:
+            self._rc_set_scratch = self._add_extra_local(
+                prefix="_rc_set_tmp",
+                val_type=ValType.I32,
+            )
+        tmp = self._rc_set_scratch
         # Sequence: tee tmp; call retain; local.get idx; release; local.get tmp; (set | tee).
         self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(tmp))
         self._emit_call(retain_idx)
@@ -888,6 +929,15 @@ class _WasmEmitterBase:
         if self._is_proc and not wants_frame:
             retain_idx = self._shared_imports.get("tcl_obj_retain")
             if retain_idx is not None:
+                # S5.1: param slots enter the body pre-populated by
+                # the WASM ABI and already-retained by the prologue
+                # below, so subsequent writes to a param slot have
+                # a non-null prior value that must be released.
+                # Seed the first-write tracker with each param idx
+                # so the first-write fast path doesn't fire on them.
+                for i, pname in enumerate(self._params):
+                    if pname:
+                        self._first_writes_seen.add(i)
                 for i, pname in enumerate(self._params):
                     if not pname:
                         continue
