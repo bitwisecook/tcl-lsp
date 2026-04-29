@@ -899,3 +899,14 @@ build-runtime: ## Build runtime/zig (default debug build) → tcl_runtime.wasm
 
 build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
 	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true
+
+.PHONY: leakcheck leakcheck-diff snapshot-leak-baseline
+
+leakcheck: build-runtime-leakcheck ## Run the in-scope tcltest suite under the leak-check runtime; emit per-file alloc / double-free counts.
+	uv run --with pytest --with wasmtime python scripts/leak_sweep.py
+
+leakcheck-diff: ## Diff the latest leak sweep against tests/baselines/wasm_leak_baseline.json
+	uv run python scripts/diff_leak_sweep.py
+
+snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to the committed baseline
+	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json
