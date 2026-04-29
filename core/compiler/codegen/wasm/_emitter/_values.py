@@ -22,6 +22,7 @@ from .._imports import (
 from .._ir import (
     ValType,
 )
+from .._ownership import Ownership
 from ._ops import _is_end_relative_index
 
 
@@ -96,8 +97,9 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_list_value(self, *a: Any, **kw: Any) -> Any: ...
 
-    def _emit_value(self, value: str, *, was_braced: bool = False) -> None:
-        """Emit an i32 TclObj pointer for *value*.
+    def _emit_value(self, value: str, *, was_braced: bool = False) -> Ownership:
+        """Emit an i32 TclObj pointer for *value* and return its
+        :class:`Ownership` tag.
 
         Resolves ``$x`` and ``${x}`` variable references to local.get
         (already i32), detects ``[cmd ...]`` command substitution and
@@ -107,6 +109,15 @@ class _WasmEmitterValuesMixin(_Base):
         For strings with embedded substitutions (e.g. ``"hello $x"`` or
         ``"fib(10) = [fib 10]"``), parses the string into chunks and
         emits a concat chain using the runtime ``tcl_append`` function.
+
+        Return value (S2.1):
+
+        - :data:`Ownership.BORROWED` when the value came from
+          ``local.get`` of a slot — the caller must retain if it
+          stores the value into another owning slot.
+        - :data:`Ownership.OWNED` for everything else (literals,
+          interpolated strings, command-substitution results) — the
+          stack value carries a +1 the caller can transfer.
 
         *was_braced* is set by callers that know the IR value came from
         a braced ``{…}`` token (the lexer strips the outer braces before
@@ -125,43 +136,44 @@ class _WasmEmitterValuesMixin(_Base):
                 # Aliased variables (upvar/variable) route through the
                 # runtime global table via _emit_var_read_obj.
                 self._emit_var_read_obj(var)
-                return
+                return Ownership.BORROWED
             # Try direct local lookup (for bare names like in IRAssignValue).
             # Alias-aware: checks _aliases before local_index.
             if value in self._aliases:
                 self._emit_var_read_obj(value)
-                return
+                return Ownership.BORROWED
             idx = self._local_index.get(value)
             if idx is not None:
                 self._emit_local_get(idx)
-                return
+                return Ownership.BORROWED
         # Braced literal — outer braces suppress all substitution in Tcl.
         # _split_command_subst preserves {…} so downstream code can
         # distinguish a braced word (literal) from a quoted one (allows
         # substitution).  Strip the braces and emit the content as-is.
         if value.startswith("{") and value.endswith("}"):
             self._emit_obj_literal(value[1:-1])
-            return
+            return Ownership.OWNED
         # Braced token whose outer braces the IR already stripped — emit
         # the raw content verbatim, no ``\\`` / ``$`` / ``[`` processing.
         if was_braced:
             self._emit_obj_literal(value)
-            return
+            return Ownership.OWNED
         # Command substitution: [cmd arg1 arg2 ...]
         if value.startswith("[") and value.endswith("]"):
             self._emit_command_subst_value(value)
-            return
+            return Ownership.OWNED
         # Interpolated string: contains embedded $var/${var}/[cmd]
         # mixed with literal text.  Emit a concat chain.
         if self._has_embedded_subst(value):
             self._emit_interpolated_value(value)
-            return
+            return Ownership.OWNED
         # Apply Tcl backslash substitution for non-braced literals.  Braced
         # words (already handled above) suppress all substitution; plain words
         # and double-quoted words allow ``\\`` → ``\``, ``\n`` → newline, etc.
         if "\\" in value:
             value = _tcl_backslash_subst(value)
         self._emit_obj_literal(value)
+        return Ownership.OWNED
 
     def _has_embedded_subst(self, value: str) -> bool:
         """Check if *value* contains embedded $var, ${var}, or [cmd] substitutions."""
