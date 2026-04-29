@@ -100,10 +100,15 @@ pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build 
 // regex-heavy workload and lose a class of latent corruption
 // bugs.
 //
-// We keep the size-class free-list machinery as a no-op layer
-// (``class_head_for`` etc. still exist for backwards compat with
-// callers that reach into them) but the lists are never
-// populated — every free goes straight to libc free.
+// S6.1: re-enabled the size-class free-lists for the four most-
+// common size classes (32 / 48 / 64 / 96 — TclObj headers + small
+// strings).  ``alloc()`` pops a slab if available before falling
+// through to libc malloc; ``free_obj`` / ``free_sized`` push.
+// Each list is bounded at MAX_FREELIST entries so a regex stress
+// test cannot pin too much memory in the recycler.
+//
+// The four classes cover the bulk of allocs in tcltest workloads;
+// classes above 96 still go straight to libc.
 
 extern fn malloc(size: usize) ?*anyopaque;
 extern fn free(ptr: ?*anyopaque) void;
@@ -111,11 +116,15 @@ extern fn calloc(nmemb: usize, size: usize) ?*anyopaque;
 
 var oom_flag: u32 = 0;
 
-// Per-size-class free-lists kept for backwards compat — never
-// populated under the libc-malloc routing.  Anything reading
-// these still gets a valid empty list.
+// Per-size-class free-list head pointers.  When non-zero, the
+// slab at the head's address contains its successor's address at
+// offset 0 (we re-purpose the first word of a free slab as the
+// next-link).  Only the first four classes are recycled today.
 const SIZE_CLASSES = [_]u32{ 32, 48, 64, 96, 128, 192, 256, 384, 512, 1024, 2048 };
+const FREELIST_REUSE_CLASSES: u32 = 4; // first 4 classes recycle
+const MAX_FREELIST: u32 = 256;
 var free_lists = [_]u32{0} ** SIZE_CLASSES.len;
+var free_list_counts = [_]u32{0} ** SIZE_CLASSES.len;
 
 fn class_head_for(aligned: u32) ?*u32 {
     for (SIZE_CLASSES, 0..) |sz, i| {
@@ -134,11 +143,43 @@ pub fn round_up_to_class(aligned: u32) u32 {
 pub fn alloc(size: u32) callconv(.c) u32 {
     const requested = (size + 7) & ~@as(u32, 7);
     const aligned = if (requested <= 2048) round_up_to_class(requested) else requested;
+    // S6.1: recycle from the per-class free-list if it has a slab
+    // available.  Only the first four classes participate so
+    // larger allocations still go straight to libc.
+    for (SIZE_CLASSES[0..FREELIST_REUSE_CLASSES], 0..) |cls, i| {
+        if (cls == aligned and free_lists[i] != 0) {
+            const head = free_lists[i];
+            // Read the next-link (overlays the slab's first word).
+            const next: u32 = @bitCast(read_i32(head));
+            free_lists[i] = next;
+            free_list_counts[i] -= 1;
+            return head;
+        }
+    }
     const p = malloc(@intCast(aligned)) orelse {
         oom_flag = 1;
         return 0;
     };
     return @intCast(@intFromPtr(p));
+}
+
+/// Push a slab onto the free-list for its size class if there's
+/// room and the size matches one of the recycled classes.  Returns
+/// True if the slab was kept; False if the caller should hand it
+/// to libc free.
+fn try_recycle(addr: u32, size: u32) bool {
+    const aligned = if (size <= 2048) round_up_to_class((size + 7) & ~@as(u32, 7)) else size;
+    for (SIZE_CLASSES[0..FREELIST_REUSE_CLASSES], 0..) |cls, i| {
+        if (cls == aligned and free_list_counts[i] < MAX_FREELIST) {
+            // Push: store current head as next-link in the slab,
+            // then set head to this slab.
+            write_i32(addr, @bitCast(free_lists[i]));
+            free_lists[i] = addr;
+            free_list_counts[i] += 1;
+            return true;
+        }
+    }
+    return false;
 }
 
 pub export fn tcl_test_heap_ptr() i32 {
@@ -163,17 +204,21 @@ pub export fn tcl_oom_clear() void {
 
 fn free_obj(addr: u32) void {
     if (addr == 0) return;
+    // S6.1: TclObj headers are size class 32 (OBJ_SIZE = 32) so
+    // try the recycler first.
+    if (try_recycle(addr, OBJ_SIZE)) return;
     free(@ptrFromInt(addr));
 }
 
 /// Public free-by-size: routes through wasi-libc ``free``.  The
-/// ``size`` argument is ignored under the libc-malloc routing
-/// (libc tracks chunk sizes internally) but kept for ABI compat
-/// with the old size-class layer.  Callers that pass ``size = 0``
-/// or with addr == 0 are no-ops.
+/// ``size`` argument was historically ignored under the libc-only
+/// path; S6.1 uses it to decide whether the slab is small enough
+/// to recycle into the per-class free-list before falling through
+/// to libc.  Callers that pass ``size = 0`` or with addr == 0 are
+/// no-ops.
 pub fn free_sized(addr: u32, size: u32) void {
-    _ = size;
     if (addr == 0) return;
+    if (size > 0 and try_recycle(addr, size)) return;
     free(@ptrFromInt(addr));
 }
 
