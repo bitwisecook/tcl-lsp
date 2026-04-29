@@ -1,9 +1,9 @@
 # Current Rust architecture
 
-> Snapshot of the Rust workspace as of the **ARCH0–ARCH4** crate-and-
-> registry cleanup. Use this page when picking up a new chunk; cross-
-> reference [`docs/rust-rewrite.md`](../../rust-rewrite.md) for the
-> long-form policy and the chunk log.
+> Snapshot of the Rust workspace as of the **ARCH0–ARCH9**
+> crate-and-registry cleanup. Use this page when picking up a new
+> chunk; cross-reference [`docs/rust-rewrite.md`](../../rust-rewrite.md)
+> for the long-form policy and the chunk log.
 
 ## Crate graph
 
@@ -21,20 +21,22 @@
             |                    |             |
    +---------------+   +---------------+   +-----------------+
    | tcl-compiler  |   | tcl-lsp-core  |   | tcl-lsp-server  |
-   |  IR/CFG/SSA   |   | folding,      |   | (planned)       |
-   |  analyses,    |   | symbols,      |   | tower-lsp       |
-   |  codegen      |   | diagnostics   |   | binary          |
+   |  IR/CFG/SSA   |   | folding,      |   | tower-lsp       |
+   |  analyses,    |   | symbols,      |   | binary +        |
+   |  codegen      |   | diagnostics   |   | folding wired   |
    +---------------+   +---------------+   +-----------------+
                           ^
                           |
                   +--------------+
-                  | tcl-lsp-rust |   transitional PyO3 bindings only
-                  +--------------+   (no product behaviour lives here)
+                  |  tcl-lsp-py  |   public PyO3 binding crate
+                  +--------------+   (cdylib + rlib)
                           ^
                           |
                   +--------------+
-                  | tcl-lsp-py   |   (planned) public PyO3 API
-                  +--------------+
+                  | tcl-lsp-rust |   transitional alias — re-exports
+                  +--------------+   tcl-lsp-py under the legacy
+                                     `tcl_lsp_rust` Python module
+                                     name; retires in vNext.
 ```
 
 The arrows are dependency direction (consumer → provider). `tcl-lsp-

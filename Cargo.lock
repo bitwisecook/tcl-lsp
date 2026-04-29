@@ -682,7 +682,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tcl-lsp-rust"
+name = "tcl-lsp-py"
 version = "0.1.0"
 dependencies = [
  "pyo3",
@@ -690,6 +690,14 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+]
+
+[[package]]
+name = "tcl-lsp-rust"
+version = "0.1.0"
+dependencies = [
+ "pyo3",
+ "tcl-lsp-py",
 ]
 
 [[package]]
