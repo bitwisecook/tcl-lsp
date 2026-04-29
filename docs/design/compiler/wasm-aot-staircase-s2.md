@@ -172,5 +172,95 @@ tests above pass. Sweep + leakcheck both neutral.
 
 ---
 
-(remaining sub-plans S2.3 … S2.7 + stage exit criteria appended in
+### S2.3 — Migrate every owned-slot write site, one at a time
+
+**Goal**: Replace every direct `_emit_local_set` / `_emit_local_tee`
+that targets a Tcl-variable slot with the `_owned` variant from
+S2.2, threading the right `Ownership` tag for the value source.
+Each migration is one commit with a sweep + leakcheck delta proving
+no regression and (where relevant) a leak reduction.
+
+**Why it matters**: The failed attempt put the wrap inside
+`_emit_local_set` itself and silently affected every caller. That
+was too wide a net: scratch-local writes got wrapped (no-op due to
+the `_owned_locals_set` filter, but adds noise), some loop-internal
+writes got wrapped at the wrong time, and the wrap fired during
+prologue/epilogue helpers that needed raw semantics. Per-site
+migration keeps the blast radius small and lets the leak counter
+identify exactly which migration introduced any regression.
+
+**Tasks** (each bullet is its own commit):
+
+- [ ] **`_emit_var_write_obj_impl`** (in-proc plain WASM-local
+  branch) — the main `set var x` site. Pass the `Ownership`
+  through from the `_emit_value` call that produced the stack
+  value.
+- [ ] **`IRIncr` codegen** (`_emit_stmt` `case IRIncr`) — the
+  `_emit_box_int()` after `i64.add` returns `OWNED` (fresh int
+  obj). Use `_emit_local_set_owned(idx, OWNED)`.
+- [ ] **`foreach` loop variable** (`_emit_foreach`,
+  `_control_flow.py:248`) — `tcl_list_index` returns `OWNED`.
+- [ ] **`switch` subject local** (line 285, 345) — `OWNED` if the
+  subject came from `_emit_value`, otherwise scratch (use the raw
+  helper).
+- [ ] **`switch` rv local** (line 445) — match-case result. `OWNED`.
+- [ ] **`for` loop init** — typically lowered into individual
+  `IRAssignValue` statements via the IR; the existing
+  `_emit_var_write_obj` covers it. Verify and add a unit test.
+- [ ] **`while` loop body** — same; covered by the variable path.
+- [ ] **default-substitution prologue** (`_core.py:828-833`) — the
+  literal stored is `OWNED`. Use the owned variant.
+- [ ] **lappend in-proc fast path** (`cmds/lappend_.py:60-68`) —
+  `tcl_cmd_lappend` returns `OWNED`. The `keep_last` branch uses
+  tee.
+- [ ] **`dict` mutators** (`cmds/dict_.py`) — every site that
+  stores back into the named variable.
+- [ ] **`array set` initialiser** if it stores via local.set (audit
+  needed).
+- [ ] **`regexp` capture variable assignment** — captures land in
+  named slots; the runtime helper that produces them returns
+  `OWNED` (`obj_new_string_copy`).
+
+For each migration:
+
+1. Identify the source's `Ownership` (most are `OWNED` because they
+   come from a runtime call or a fresh literal; only direct `$var`
+   reads are `BORROWED`).
+2. Replace `_emit_local_set(idx)` with
+   `_emit_local_set_owned(idx, source)`.
+3. Run `make sweep` and `make leakcheck`. Diff vs prior commit.
+4. If the sweep regresses on any file, identify whether the source
+   tag is wrong (most common) or the runtime path has a bug exposed
+   by the new discipline (rare; file an issue and pin the failing
+   site to the framed path via `frame_elision=False` on that proc).
+
+**Files**: many — every emitter file under
+`core/compiler/codegen/wasm/_emitter/`, plus the per-command hooks
+under `cmds/*.py`. Roughly one file per migration commit.
+
+**Test plan**:
+
+- Per-commit: sweep delta is non-negative; leak baseline shrinks or
+  stays equal.
+- Aggregate: by the last migration, leak baseline for previously
+  frame-elided procs is much smaller than today.
+- Add per-pattern unit tests under
+  `tests/test_wasm_owned_slots.py` covering: literal store,
+  var-to-var copy, runtime call result store, lappend in loop,
+  foreach loop variable, default-sub fall-through.
+
+**Rollback**: Per-commit revert if a single migration regresses.
+The other migrations are independent.
+
+**Acceptance gate**: Every direct `_emit_local_set(idx)` /
+`_emit_local_tee(idx)` where `idx in _owned_locals_set` is gone.
+A grep ratchet (`scripts/check_owned_local_writes.py`) blocks new
+direct writes from sneaking in.
+
+**Estimated size**: ~12 commits (one per migration site). Two CI
+runs per commit (sweep + leakcheck).
+
+---
+
+(remaining sub-plans S2.4 … S2.7 + stage exit criteria appended in
 follow-up commits.)
