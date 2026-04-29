@@ -340,6 +340,7 @@ def wasm_codegen_module(
     escape_summaries: dict[str, ProcEscapeSummary] | None = None,
     frame_elision: bool = True,
     inline: bool = True,
+    licm: bool = True,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -418,6 +419,25 @@ def wasm_codegen_module(
         except Exception:  # noqa: BLE001 — inlining is opportunistic
             # Any failure leaves the original module intact; codegen
             # proceeds against pre-inline IR.
+            pass
+
+    # Phase 0.6: S5.3 — hoist loop-invariant literal assignments out
+    # of loop bodies.  The pass operates on the (possibly inlined)
+    # IR and is purely subtractive at the body level (it moves
+    # statements OUT of loops; the parent script grows by the same
+    # count).  We rebuild the CFG and re-run var-escape after
+    # changes so the downstream emitter sees the hoisted shape.
+    if licm:
+        try:
+            from ...passes.licm import licm_module as _licm
+            from ...cfg import build_cfg as _build_cfg2
+
+            hoisted = _licm(ir_module)
+            if hoisted is not ir_module:
+                ir_module = hoisted
+                cfg_module = _build_cfg2(ir_module)
+                escape_summaries = analyse_var_escape(ir_module=ir_module)
+        except Exception:  # noqa: BLE001 — LICM is opportunistic
             pass
 
     module = WasmModule()

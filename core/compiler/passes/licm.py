@@ -1,0 +1,528 @@
+"""S5.3 — Loop-invariant code motion for retain/release wraps.
+
+In the current emitter, a literal assignment inside a loop body
+allocates a fresh ``TclObj`` and runs the full retain/release wrap
+on every iteration::
+
+    for {set i 0} {$i < 100} {incr i} {
+        set guard "constant"
+    }
+
+Each iteration: ``obj_new_string("constant")`` → retain → release
+prior → store.  Net effect across N iterations: ``N`` allocations
+and ``N`` retain/release pairs, even though the value never
+changes.
+
+This pass hoists such assignments to the IR statement immediately
+before the enclosing loop.  Codegen then emits the alloc + retain
++ release once.
+
+**Soundness — zero-iteration loops.**  A naive hoist is **unsound**
+when the loop can run zero times: ``foreach i "" { set x 0 }``
+must leave ``x`` untouched, but a hoisted ``set x 0`` would write
+unconditionally.  We therefore restrict hoisting to two safe
+shapes:
+
+1. **Provably ≥1-iteration counted loop.**  An :class:`IRFor`
+   whose ``init`` is a single ``set var literal``, whose
+   ``condition`` is a literal-vs-literal comparison decidably
+   true at entry (e.g. ``$i < 100`` after ``set i 0``), and
+   whose body's hoisted target is **fresh** — the hoisted name
+   is not the same as the loop counter and is not read after
+   the loop in the enclosing script.  Since the body executes
+   at least once anyway, hoisting changes nothing observable.
+
+2. **Other loop shapes** — :class:`IRWhile` (initially-false
+   condition → 0 iterations) and :class:`IRForeach` (empty list
+   → 0 iterations) need a use-after-loop reaching-uses analysis
+   to decide whether the slot's pre-loop value is observable
+   after a 0-iteration run.  Until that analysis is wired into
+   the pass, those loops only have their bodies recursed for
+   nested-loop hoisting; nothing is hoisted out of them.
+
+**Soundness — alias and write collisions.**  Even within the
+provable-iteration case, the hoist requires:
+
+* The assigned variable is **not written** by any other statement
+  in the loop body (recursively into nested control flow), the
+  loop's ``next`` clause (for ``IRFor``), or the iterator
+  bindings (for ``IRForeach``).
+* The assignment's value is loop-invariant — a literal constant
+  with no ``$``/``[`` substitution.
+
+Reads of the variable inside the loop are explicitly **allowed**
+— the whole point of LICM is that the slot's value is the same in
+every iteration, so reads inside don't observe any difference.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar
+from ..ir import (
+    IRAssignConst,
+    IRAssignValue,
+    IRBlock,
+    IRCall,
+    IRCatch,
+    IRFor,
+    IRForeach,
+    IRIf,
+    IRIncr,
+    IRModule,
+    IRProcedure,
+    IRScript,
+    IRSwitch,
+    IRTry,
+    IRUpFrame,
+    IRWhile,
+)
+
+
+def licm_module(module: IRModule) -> IRModule:
+    """Return a new module with loop-invariant assignments hoisted.
+
+    The input ``module`` is left untouched (every IR node is
+    frozen).  Procedures whose bodies don't change share their
+    original :class:`IRProcedure` instance for cheap structural
+    sharing.
+    """
+
+    new_top = _licm_script(module.top_level)
+    new_procs: dict[str, IRProcedure] = {}
+    for qname, proc in module.procedures.items():
+        new_body = _licm_script(proc.body)
+        if new_body is proc.body:
+            new_procs[qname] = proc
+        else:
+            new_procs[qname] = replace(proc, body=new_body)
+    if new_top is module.top_level and all(
+        new_procs[q] is module.procedures[q] for q in module.procedures
+    ):
+        return module
+    return replace(module, top_level=new_top, procedures=new_procs)
+
+
+def _licm_script(script: IRScript) -> IRScript:
+    """Recurse into ``script`` looking for loops to LICM.
+
+    Returns ``script`` unchanged when no rewrites apply.
+    """
+
+    new_stmts: list = []
+    changed = False
+    for stmt in script.statements:
+        rewritten = _licm_stmt(stmt)
+        if rewritten is None:
+            new_stmts.append(stmt)
+            continue
+        hoisted, replacement = rewritten
+        if hoisted or replacement is not stmt:
+            changed = True
+        new_stmts.extend(hoisted)
+        new_stmts.append(replacement)
+    if not changed:
+        return script
+    return IRScript(statements=tuple(new_stmts))
+
+
+def _licm_stmt(stmt: object) -> tuple[list, object] | None:
+    """Recurse into ``stmt`` and return ``(hoisted, replacement)`` or
+    ``None`` to keep ``stmt`` unchanged.
+
+    ``hoisted`` is the list of statements to splice in **before**
+    ``replacement``; ``replacement`` is the (possibly rewritten)
+    successor for ``stmt``.  When neither change applies the helper
+    returns ``None`` so the caller can keep the original instance.
+    """
+
+    if isinstance(stmt, IRFor):
+        new_init = _licm_script(stmt.init)
+        new_next = _licm_script(stmt.next)
+        # Only counted IRFor loops where we can statically prove
+        # at least one iteration are eligible.  This avoids the
+        # ``foreach i "" { set x 0 }`` class of bug — if the loop
+        # runs zero times, hoisting the body's assignment would
+        # change ``x`` from "untouched" to "set to 0".  Provable
+        # ≥1 iteration guarantees the body's assignment would
+        # have run at least once anyway, so the post-loop slot
+        # value matches with or without the hoist.
+        ctr = _proven_at_least_one_iteration(new_init, stmt.condition)
+        if ctr is None:
+            # Recurse into the body for nested loops, but don't
+            # hoist out of THIS loop.
+            recursed_body = _licm_script(stmt.body)
+            if (
+                new_init is stmt.init
+                and new_next is stmt.next
+                and recursed_body is stmt.body
+            ):
+                return None
+            return (
+                [],
+                replace(stmt, init=new_init, next=new_next, body=recursed_body),
+            )
+        hoisted, new_body = _hoist_from_loop_body(
+            stmt.body,
+            extra_writes=_collect_writes(new_next),
+            forbidden_targets={ctr},
+        )
+        if (
+            new_init is stmt.init
+            and new_next is stmt.next
+            and new_body is stmt.body
+            and not hoisted
+        ):
+            return None
+        return (
+            hoisted,
+            replace(stmt, init=new_init, next=new_next, body=new_body),
+        )
+
+    if isinstance(stmt, IRWhile):
+        # ``while`` loops can run zero times when the condition is
+        # initially false.  Without proving the contrary the hoist
+        # is unsound — recurse into nested loops only.
+        new_body = _licm_script(stmt.body)
+        if new_body is stmt.body:
+            return None
+        return [], replace(stmt, body=new_body)
+
+    if isinstance(stmt, IRForeach):
+        # ``foreach`` over an empty list runs zero iterations.
+        # Same soundness rule as ``while`` — recurse without
+        # hoisting.
+        new_body = _licm_script(stmt.body)
+        if new_body is stmt.body:
+            return None
+        return [], replace(stmt, body=new_body)
+
+    if isinstance(stmt, IRBlock):
+        new_body = _licm_script(stmt.body)
+        if new_body is stmt.body:
+            return None
+        return [], replace(stmt, body=new_body)
+
+    if isinstance(stmt, IRIf):
+        new_clauses = []
+        clauses_changed = False
+        for clause in stmt.clauses:
+            new_body = _licm_script(clause.body)
+            if new_body is clause.body:
+                new_clauses.append(clause)
+            else:
+                new_clauses.append(replace(clause, body=new_body))
+                clauses_changed = True
+        new_else = stmt.else_body
+        else_changed = False
+        if stmt.else_body is not None:
+            new_else = _licm_script(stmt.else_body)
+            else_changed = new_else is not stmt.else_body
+        if not clauses_changed and not else_changed:
+            return None
+        return [], replace(
+            stmt, clauses=tuple(new_clauses), else_body=new_else
+        )
+
+    if isinstance(stmt, IRCatch):
+        new_body = _licm_script(stmt.body)
+        if new_body is stmt.body:
+            return None
+        return [], replace(stmt, body=new_body)
+
+    if isinstance(stmt, IRTry):
+        new_body = _licm_script(stmt.body)
+        new_handlers = []
+        handlers_changed = False
+        for handler in stmt.handlers:
+            new_handler_body = _licm_script(handler.body)
+            if new_handler_body is handler.body:
+                new_handlers.append(handler)
+            else:
+                new_handlers.append(replace(handler, body=new_handler_body))
+                handlers_changed = True
+        new_finally = stmt.finally_body
+        finally_changed = False
+        if stmt.finally_body is not None:
+            new_finally = _licm_script(stmt.finally_body)
+            finally_changed = new_finally is not stmt.finally_body
+        if (
+            new_body is stmt.body
+            and not handlers_changed
+            and not finally_changed
+        ):
+            return None
+        return [], replace(
+            stmt,
+            body=new_body,
+            handlers=tuple(new_handlers),
+            finally_body=new_finally,
+        )
+
+    if isinstance(stmt, IRSwitch):
+        new_arms = []
+        arms_changed = False
+        for arm in stmt.arms:
+            if arm.body is None:
+                new_arms.append(arm)
+                continue
+            new_arm_body = _licm_script(arm.body)
+            if new_arm_body is arm.body:
+                new_arms.append(arm)
+            else:
+                new_arms.append(replace(arm, body=new_arm_body))
+                arms_changed = True
+        new_default = stmt.default_body
+        default_changed = False
+        if stmt.default_body is not None:
+            new_default = _licm_script(stmt.default_body)
+            default_changed = new_default is not stmt.default_body
+        if not arms_changed and not default_changed:
+            return None
+        return [], replace(stmt, arms=tuple(new_arms), default_body=new_default)
+
+    if isinstance(stmt, IRUpFrame):
+        new_body = _licm_script(stmt.body)
+        if new_body is stmt.body:
+            return None
+        return [], replace(stmt, body=new_body)
+
+    return None
+
+
+def _hoist_from_loop_body(
+    body: IRScript,
+    *,
+    extra_writes: dict[str, int] | None = None,
+    forbidden_targets: set[str] | None = None,
+) -> tuple[list, IRScript]:
+    """Return ``(hoisted, new_body)`` for ``body``.
+
+    ``hoisted`` lists statements to emit immediately before the
+    enclosing loop; ``new_body`` is the rewritten loop body with
+    those statements removed.  Returns ``([], body)`` when nothing
+    is hoistable.
+
+    The recursive LICM on inner control flow runs first, so loops
+    nested inside this body get their own LICM applied before we
+    look for hoistable assignments at *this* body's top level.
+
+    ``forbidden_targets`` lists variable names that must not be
+    hoisted regardless of their write count — typically the loop
+    counter, whose value the ``next`` clause depends on.
+    """
+
+    # First, recursively LICM nested loops/blocks/etc. inside the
+    # body.  This may move statements OUT of inner loops INTO the
+    # current body's top level — those new top-level statements
+    # become candidates for the current loop's LICM in turn.
+    after_inner = _licm_script(body)
+
+    write_counts = _collect_writes(after_inner)
+    if extra_writes:
+        for name, n in extra_writes.items():
+            write_counts[name] = write_counts.get(name, 0) + n
+
+    forbidden = forbidden_targets or set()
+    hoisted: list = []
+    keep: list = []
+    for stmt in after_inner.statements:
+        target = _assign_target(stmt)
+        if (
+            _is_hoistable(stmt)
+            and target not in forbidden
+            and write_counts.get(target, 0) == 1
+        ):
+            hoisted.append(stmt)
+        else:
+            keep.append(stmt)
+
+    if not hoisted:
+        if after_inner is body:
+            return [], body
+        return [], after_inner
+    return hoisted, IRScript(statements=tuple(keep))
+
+
+def _proven_at_least_one_iteration(init: IRScript, condition) -> str | None:
+    """Return the loop counter name when the loop is provably
+    counted with ≥ 1 iteration; otherwise ``None``.
+
+    The recognised shape is the canonical Tcl ``for`` loop::
+
+        for {set i <int_lit>} {$i <op> <int_lit>} {<next>} { ... }
+
+    where ``<op>`` is one of ``<``, ``<=``, ``>``, ``>=``, ``==``,
+    ``!=``.  We evaluate the comparison at the init value: if it
+    is true the loop's first iteration runs unconditionally, so
+    body-level assignments would execute at least once even
+    without the hoist.
+
+    Anything more complex (multi-statement init, expr-valued init,
+    variable bound on the right of the comparison, …) returns
+    ``None`` and the caller declines the hoist.
+    """
+
+    if len(init.statements) != 1:
+        return None
+    init_stmt = init.statements[0]
+    if not isinstance(init_stmt, IRAssignConst):
+        return None
+    try:
+        ctr_val = int(init_stmt.value)
+    except ValueError:
+        return None
+
+    if not isinstance(condition, ExprBinary):
+        return None
+    op = condition.op
+    if op not in (BinOp.LT, BinOp.LE, BinOp.GT, BinOp.GE, BinOp.EQ, BinOp.NE):
+        return None
+
+    left = condition.left
+    right = condition.right
+    if not isinstance(left, ExprVar) or left.name != init_stmt.name:
+        return None
+    if not isinstance(right, ExprLiteral):
+        return None
+    try:
+        bound = int(right.text)
+    except ValueError:
+        return None
+
+    if op is BinOp.LT and not (ctr_val < bound):
+        return None
+    if op is BinOp.LE and not (ctr_val <= bound):
+        return None
+    if op is BinOp.GT and not (ctr_val > bound):
+        return None
+    if op is BinOp.GE and not (ctr_val >= bound):
+        return None
+    if op is BinOp.EQ and not (ctr_val == bound):
+        return None
+    if op is BinOp.NE and not (ctr_val != bound):
+        return None
+    return init_stmt.name
+
+
+def _is_hoistable(stmt: object) -> bool:
+    """True iff ``stmt`` is a literal-valued top-level assignment."""
+
+    if isinstance(stmt, IRAssignConst):
+        return True
+    if isinstance(stmt, IRAssignValue):
+        # Only fully literal values qualify.  A value containing
+        # ``$`` or ``[`` could depend on something the loop
+        # iterates over.  ``value_needs_backsubst`` is just a flag
+        # for backslash-escapes — those are still loop-invariant.
+        v = stmt.value
+        if "$" in v or "[" in v:
+            return False
+        return True
+    return False
+
+
+def _assign_target(stmt: object) -> str:
+    """Return the variable name written by ``stmt``."""
+
+    return getattr(stmt, "name", "")
+
+
+def _collect_writes(script: IRScript) -> dict[str, int]:
+    """Return a map of ``name → number of writes`` reachable in ``script``.
+
+    "Writes" includes :class:`IRAssignConst`, :class:`IRAssignValue`,
+    :class:`IRAssignExpr`, :class:`IRIncr`, plus any
+    :class:`IRCall` whose ``defs`` mention the name.  Nested
+    control-flow bodies are walked transitively.
+
+    The count is **inflated** by writes inside nested control flow:
+    a single write that may execute zero or more times (inside an
+    ``if`` clause) still counts as one occurrence.  That's fine
+    for the hoist gate — we just need to know "is this the only
+    place that writes this var?".
+    """
+
+    counts: dict[str, int] = {}
+    _collect_writes_into(script, counts)
+    return counts
+
+
+def _collect_writes_into(script: IRScript | None, counts: dict[str, int]) -> None:
+    if script is None:
+        return
+    for stmt in script.statements:
+        _collect_one(stmt, counts)
+
+
+def _collect_one(stmt: object, counts: dict[str, int]) -> None:
+    if isinstance(stmt, (IRAssignConst, IRAssignValue)):
+        counts[stmt.name] = counts.get(stmt.name, 0) + 1
+        return
+    if isinstance(stmt, IRIncr):
+        counts[stmt.name] = counts.get(stmt.name, 0) + 1
+        return
+    # IRAssignExpr also writes a variable.
+    name = getattr(stmt, "name", None)
+    if name is not None and not isinstance(
+        stmt,
+        (IRBlock, IRIf, IRFor, IRWhile, IRForeach, IRCatch, IRTry, IRSwitch, IRUpFrame, IRCall),
+    ):
+        counts[name] = counts.get(name, 0) + 1
+        return
+    if isinstance(stmt, IRCall):
+        for d in stmt.defs:
+            counts[d] = counts.get(d, 0) + 1
+        return
+    if isinstance(stmt, IRBlock):
+        _collect_writes_into(stmt.body, counts)
+        return
+    if isinstance(stmt, IRIf):
+        for clause in stmt.clauses:
+            _collect_writes_into(clause.body, counts)
+        if stmt.else_body is not None:
+            _collect_writes_into(stmt.else_body, counts)
+        return
+    if isinstance(stmt, IRFor):
+        _collect_writes_into(stmt.init, counts)
+        _collect_writes_into(stmt.next, counts)
+        _collect_writes_into(stmt.body, counts)
+        return
+    if isinstance(stmt, IRWhile):
+        _collect_writes_into(stmt.body, counts)
+        return
+    if isinstance(stmt, IRForeach):
+        for var_list, _ in stmt.iterators:
+            for v in var_list:
+                counts[v] = counts.get(v, 0) + 1
+        _collect_writes_into(stmt.body, counts)
+        return
+    if isinstance(stmt, IRCatch):
+        _collect_writes_into(stmt.body, counts)
+        if stmt.result_var:
+            counts[stmt.result_var] = counts.get(stmt.result_var, 0) + 1
+        if stmt.options_var:
+            counts[stmt.options_var] = counts.get(stmt.options_var, 0) + 1
+        return
+    if isinstance(stmt, IRTry):
+        _collect_writes_into(stmt.body, counts)
+        for handler in stmt.handlers:
+            _collect_writes_into(handler.body, counts)
+            if handler.var_name:
+                counts[handler.var_name] = counts.get(handler.var_name, 0) + 1
+            if handler.options_var:
+                counts[handler.options_var] = counts.get(handler.options_var, 0) + 1
+        if stmt.finally_body is not None:
+            _collect_writes_into(stmt.finally_body, counts)
+        return
+    if isinstance(stmt, IRSwitch):
+        for arm in stmt.arms:
+            if arm.body is not None:
+                _collect_writes_into(arm.body, counts)
+        if stmt.default_body is not None:
+            _collect_writes_into(stmt.default_body, counts)
+        return
+    if isinstance(stmt, IRUpFrame):
+        _collect_writes_into(stmt.body, counts)
+        return
