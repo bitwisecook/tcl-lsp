@@ -15,6 +15,7 @@ from .decision import (
     count_statements,
     count_static_calls,
 )
+from .inline_pass import inline_module
 
 __all__ = [
     "SMALL_BODY_THRESHOLD",
@@ -22,4 +23,5 @@ __all__ = [
     "classify_proc",
     "count_statements",
     "count_static_calls",
+    "inline_module",
 ]
