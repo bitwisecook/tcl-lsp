@@ -339,6 +339,7 @@ def wasm_codegen_module(
     diag_map: DiagMap | None = None,
     escape_summaries: dict[str, ProcEscapeSummary] | None = None,
     frame_elision: bool = True,
+    inline: bool = True,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -387,6 +388,37 @@ def wasm_codegen_module(
             escape_summaries = analyse_var_escape(ir_module=ir_module)
         except Exception:  # noqa: BLE001 — analysis failure falls back
             escape_summaries = None
+
+    # Phase 0.5: S4.2 — inline eligible calls before any other analysis
+    # consumes the IR.  ``inline_module`` (v0) only drops statement-
+    # position calls to ALWAYS-tagged empty-body procs, so the
+    # rewrite is purely subtractive: it removes ``IRCall`` statements
+    # without introducing new shapes.  We rebuild the CFG from the
+    # inlined IR so downstream passes (SSA, dataflow) see the
+    # same module the codegen will emit.  Re-running var-escape is
+    # cheap and ensures the per-proc summaries reflect the post-
+    # inline call graph (procs whose only callees were inlined-away
+    # may newly qualify as pure_leaf).
+    if inline and escape_summaries is not None:
+        try:
+            from ...inlining import apply_inline_catalogue, inline_module as _inline
+            from ...cfg import build_cfg as _build_cfg
+
+            tagged = apply_inline_catalogue(ir_module, escape_summaries)
+            inlined = _inline(tagged, escape_summaries)
+            if inlined is not tagged:
+                ir_module = inlined
+                cfg_module = _build_cfg(ir_module)
+                escape_summaries = analyse_var_escape(ir_module=ir_module)
+            else:
+                # Catalogue still tagged the procs even if no splices
+                # fired this pass — keep the tagged module so any
+                # later inliner generation sees the metadata.
+                ir_module = tagged
+        except Exception:  # noqa: BLE001 — inlining is opportunistic
+            # Any failure leaves the original module intact; codegen
+            # proceeds against pre-inline IR.
+            pass
 
     module = WasmModule()
 

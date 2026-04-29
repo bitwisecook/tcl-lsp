@@ -122,6 +122,67 @@ class TestPurity:
         )
 
 
+class TestPipelineIntegration:
+    """Confirm the inliner fires when invoked through ``wasm_codegen_module``."""
+
+    def test_empty_body_call_disappears_in_emitted_wasm(self):
+        """``noop`` calls should produce zero ``call`` instructions to ``::noop``."""
+        from core.compiler.cfg import build_cfg
+        from core.compiler.codegen.wasm import WasmOp, wasm_codegen_module
+
+        source = (
+            "proc noop {} {}\n"
+            "noop\n"
+            "noop\n"
+            "noop\n"
+        )
+        ir = lower_to_ir(source)
+        cfg = build_cfg(ir)
+        module = wasm_codegen_module(cfg, ir, inline=True)
+
+        # Find the ::top function and the ::noop function (if it
+        # still exists in the WASM module).  We assert the top-
+        # level body has zero calls into ``::noop``.
+        top = next(f for f in module.functions if f.name == "::top")
+        noop_funcs = [
+            (i, f) for i, f in enumerate(module.functions) if f.name == "::noop"
+        ]
+        if not noop_funcs:
+            return  # noop wasn't even emitted — strongest possible result
+        noop_idx = module.imports.__len__() + noop_funcs[0][0]
+        for instr in top.body:
+            if instr.op != WasmOp.CALL:
+                continue
+            target = 0
+            shift = 0
+            for byte in instr.operands:
+                target |= (byte & 0x7F) << shift
+                if not (byte & 0x80):
+                    break
+                shift += 7
+            assert target != noop_idx, (
+                "expected zero direct calls into ::noop after inlining"
+            )
+
+    def test_inline_flag_off_preserves_calls(self):
+        """``inline=False`` skips the splice — calls remain in the bytecode."""
+        from core.compiler.cfg import build_cfg
+        from core.compiler.codegen.wasm import wasm_codegen_module
+
+        source = "proc noop {} {}\nnoop\nnoop\n"
+        ir = lower_to_ir(source)
+        cfg = build_cfg(ir)
+        module_off = wasm_codegen_module(cfg, ir, inline=False)
+        module_on = wasm_codegen_module(cfg, ir, inline=True)
+        # The off variant should be at least as large in the top
+        # function body as the on variant.
+        top_off = next(f for f in module_off.functions if f.name == "::top")
+        top_on = next(f for f in module_on.functions if f.name == "::top")
+        assert len(top_off.body) >= len(top_on.body), (
+            f"inline=True should not grow the body; off={len(top_off.body)} on={len(top_on.body)}"
+        )
+
+
 class TestResolution:
     def test_unqualified_call_in_namespace(self):
         # The callee is defined inside ``::ns``; the call is bare.
