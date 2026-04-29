@@ -27,13 +27,14 @@ pub const IRULES_TAINT_SOURCE_PREFIXES: &[&str] = &[
 ///
 /// Sources are identified by:
 ///
-/// * the [`Traits::TAINT_SOURCE`] flag (pure trait dispatch — `gets`,
-///   `read`, `exec`, `socket`);
+/// * the [`Traits::TAINT_SOURCE`] flag on the matched
+///   [`crate::CommandSpec`] (pure trait dispatch — `gets`, `read`,
+///   `exec`, `socket`);
 /// * the [`Traits::UNNORMALISED_HTTP_GETTER`] flag (registry-driven
 ///   HTTP getter);
-/// * subcommand-shaped sources such as `chan gets` / `chan read` /
-///   `encoding convertfrom`, identified by inspecting the matched
-///   subcommand spec rather than a parallel command-name table; and
+/// * the [`Traits::TAINT_SOURCE`] flag on the matched
+///   [`crate::SubCommand`], for subcommand-shaped sources such as
+///   `chan gets` / `chan read` / `encoding convertfrom`; and
 /// * iRules namespace-prefixed getters (`HTTP::*`, `URI::*`, …)
 ///   when `dialect` is iRules.
 #[must_use]
@@ -54,15 +55,11 @@ pub fn is_taint_source(
         return true;
     }
 
-    // Subcommand-shaped sources: chan gets / chan read / encoding
-    // convertfrom. Match by command + first-arg subcommand so the
-    // analyser does not need to know the table.
     if let Some(sub_name) = args.first().copied() {
-        if matches!(command, "chan") && matches!(sub_name, "gets" | "read") {
-            return true;
-        }
-        if matches!(command, "encoding") && sub_name == "convertfrom" {
-            return true;
+        if let Some(sub) = spec.subcommand(sub_name) {
+            if sub.traits.contains(Traits::TAINT_SOURCE) {
+                return true;
+            }
         }
     }
 
@@ -188,5 +185,39 @@ mod tests {
     fn string_length_is_a_sanitiser() {
         let registry = CommandRegistry::build_default();
         assert!(is_sanitiser(&registry, "string", &["length", "$x"]));
+    }
+
+    /// `encoding convertfrom` is now driven by a `Traits::TAINT_SOURCE`
+    /// flag on the matched `SubCommand` — no command-name pattern.
+    #[test]
+    fn encoding_convertfrom_is_a_taint_source() {
+        let registry = CommandRegistry::build_default();
+        assert!(is_taint_source(
+            &registry,
+            "encoding",
+            &["convertfrom", "utf-8", "$bytes"],
+            DialectSet::empty(),
+        ));
+    }
+
+    /// Other `encoding` subcommands stay clean — proves the new
+    /// dispatch is per-subcommand and does not over-match.
+    #[test]
+    fn encoding_system_is_not_a_taint_source() {
+        let registry = CommandRegistry::build_default();
+        assert!(!is_taint_source(
+            &registry,
+            "encoding",
+            &["system"],
+            DialectSet::empty(),
+        ));
+    }
+
+    /// `SubCommand::DEFAULT` carries no traits; this guards against
+    /// accidental drift if the field grows defaults later.
+    #[test]
+    fn subcommand_default_traits_are_empty() {
+        use crate::spec::SubCommand;
+        assert!(SubCommand::DEFAULT.traits.is_empty());
     }
 }

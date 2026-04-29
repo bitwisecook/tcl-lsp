@@ -178,6 +178,16 @@ pub struct SubCommand {
     /// Subcommand name (e.g. `"create"`, `"for"`, `"length"`).
     pub name: &'static str,
 
+    /// Behavioural trait flags.
+    ///
+    /// Subcommand-shaped facts (taint sources stamped on `chan gets`
+    /// rather than `chan`, side-effect categories specific to one
+    /// subcommand form, …) live here. The matched
+    /// [`crate::CommandRegistry::resolve_call`] consumer reads
+    /// `spec.traits | sub.traits` so subcommand traits compose with
+    /// command-level ones rather than replacing them.
+    pub traits: Traits,
+
     /// Argument count constraint (after the subcommand word).
     pub arity: Arity,
 
@@ -250,6 +260,7 @@ impl SubCommand {
     /// Default value for all fields.
     pub const DEFAULT: Self = Self {
         name: "",
+        traits: Traits::empty(),
         arity: Arity::any(),
         detail: "",
         synopsis: "",
