@@ -859,6 +859,22 @@ class _WasmEmitterValuesMixin(_Base):
             # would saturate (or be rejected by wasmtime entirely) and
             # silently lose precision on every BigInt arithmetic step.
             if -(1 << 63) <= int_val <= (1 << 63) - 1:
+                # S6.4 — small integers fit in a tagged-immediate
+                # handle.  Emit the encoded i32 directly instead of
+                # calling ``tcl_obj_new_int`` — saves a function call
+                # plus the heap allocation that the runtime would
+                # otherwise have to short-circuit on.  The encoding
+                # (``(value << 1) | 1``) matches the runtime's
+                # ``immediate_box`` so readers transparently round-trip.
+                if -(1 << 30) <= int_val <= (1 << 30) - 1:
+                    tagged = ((int_val << 1) | 1) & 0xFFFFFFFF
+                    # _emit_i32_const takes a signed value; reinterpret
+                    # as signed via the standard 32-bit two's-complement
+                    # mapping.
+                    if tagged >= 0x80000000:
+                        tagged -= 0x100000000
+                    self._emit_i32_const(tagged)
+                    return
                 self._emit_i64_const(int_val)
                 self._emit_call(new_int_idx)
                 return

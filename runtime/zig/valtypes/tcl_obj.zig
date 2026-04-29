@@ -49,6 +49,65 @@ pub const OBJ_STR_LEN: u32 = 20;
 pub const OBJ_STR_CAP: u32 = 24;
 pub const OBJ_SIZE: u32 = 32;
 
+// S6.4 — Tagged-immediate small integers.
+//
+// Bit 0 of an i32 handle is the tag bit.  When set, the handle is
+// NOT a pointer to a TclObj header; it encodes a signed integer
+// shifted left by 1 with the tag in bit 0:
+//
+//   handle = (value << 1) | 1
+//   value  = handle >> 1   (arithmetic shift — sign-preserving)
+//
+// Range: ``[-2^30, 2^30 - 1]`` = ``[-1_073_741_824, 1_073_741_823]``.
+// Outside this range we fall back to allocation.
+//
+// Why bit 0 is safe as a tag:
+//
+// 1. The allocator rounds every request up to a multiple of 8
+//    (``alloc`` does ``(size + 7) & ~7`` and the heap starts on a
+//    page boundary), so every valid TclObj pointer has bits 0..2
+//    = 0.  A handle with bit 0 set cannot collide with a valid
+//    object address.
+// 2. ``handle == 0`` (null) is preserved: bit 0 is 0, so it is
+//    treated as a pointer (and null-checked separately by every
+//    accessor).
+// 3. Bit 31 stays free for the frame layer's negative-i32
+//    sentinels (``ALIAS_GLOBAL`` = -1, ``ALIAS_EXT`` descriptor
+//    pointers encoded as negative values).  Tagging on bit 0
+//    means a tagged immediate's *signed* value is unconstrained
+//    in the high bit, so positive and negative immediates do not
+//    accidentally trigger the alias-bucket path.
+//
+// Tagged immediates are immortal — they have no refcount and no
+// header, so :func:`tcl_obj_retain` / :func:`tcl_obj_release` are
+// no-ops on them.  Readers (:func:`obj_get_int`, :func:`obj_type`,
+// :func:`obj_ensure_string`) detect the tag bit via
+// :func:`is_immediate` and short-circuit before dereferencing.
+
+pub const IMMEDIATE_TAG_BIT: u32 = 0x1;
+pub const IMMEDIATE_MIN: i64 = -(1 << 30);
+pub const IMMEDIATE_MAX: i64 = (1 << 30) - 1;
+
+/// True iff *handle* is a tagged immediate (bit 0 set).
+pub fn is_immediate(handle: i32) bool {
+    return (@as(u32, @bitCast(handle)) & IMMEDIATE_TAG_BIT) != 0;
+}
+
+/// Return the boxed signed integer represented by a tagged immediate
+/// handle.  Caller must already have verified ``is_immediate(handle)``.
+pub fn immediate_unbox(handle: i32) i64 {
+    return @as(i64, handle >> 1);
+}
+
+/// Encode *value* as a tagged-immediate handle, or return ``null``
+/// when it doesn't fit the 31-bit signed range.
+pub fn immediate_box(value: i64) ?i32 {
+    if (value < IMMEDIATE_MIN or value > IMMEDIATE_MAX) return null;
+    const v32: i32 = @intCast(value);
+    const u: u32 = @bitCast(v32);
+    return @bitCast((u << 1) | IMMEDIATE_TAG_BIT);
+}
+
 // WASM linear-memory allocator.
 //
 // Layout:
@@ -309,6 +368,10 @@ pub fn obj_alloc() u32 {
 }
 
 pub export fn obj_new_int(value: i64) i32 {
+    // S6.4 — short-circuit small ints to a tagged immediate.
+    // No allocation, no refcount, no header.  Most loop counters
+    // and small literals (0, 1, -1, …) take this path.
+    if (immediate_box(value)) |tagged| return tagged;
     const ptr = obj_alloc();
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_INT);
     write_i64(ptr + OBJ_INT_CACHE, value);
@@ -332,6 +395,8 @@ pub export fn obj_new_float(value: f64) i32 {
 
 pub export fn obj_get_float(obj: i32) f64 {
     if (obj == 0) return 0.0;
+    // S6.4 — tagged immediate: convert int → float directly.
+    if (is_immediate(obj)) return @floatFromInt(immediate_unbox(obj));
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_FLOAT) return @bitCast(read_i64(addr + OBJ_INT_CACHE));
@@ -351,6 +416,8 @@ pub export fn obj_get_int(obj: i32) i64 {
     // ``global_get`` returns 0 for unset variables; callers that pass
     // that result here expect to get the empty-string / zero integer.
     if (obj == 0) return 0;
+    // S6.4 — tagged immediate: extract the value directly.
+    if (is_immediate(obj)) return immediate_unbox(obj);
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
@@ -497,6 +564,8 @@ pub export fn tcl_obj_retain(obj: i32) void {
     // slot (which is 0 at function entry when the caller passed
     // no argument) would write to address 0 in linear memory.
     if (obj == 0) return;
+    // S6.4 — tagged immediates have no refcount header (immortal).
+    if (is_immediate(obj)) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
@@ -569,6 +638,9 @@ pub export fn tcl_obj_drain_pending() void {
 
 pub export fn tcl_obj_release(obj: i32) void {
     if (obj == 0) return;
+    // S6.4 — tagged immediates have no refcount and no buffer
+    // to free; release is a no-op.
+    if (is_immediate(obj)) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc == 0) {
@@ -614,16 +686,22 @@ pub export fn tcl_var_get(value: i32) i32 {
 // -- TclObj string helpers --
 
 pub fn obj_str_ptr(obj: i32) u32 {
+    // S6.4 — tagged immediates have no string buffer; callers
+    // expecting a buffer need ``obj_ensure_string`` first.
+    if (is_immediate(obj)) return 0;
     const addr: u32 = @intCast(obj);
     return @intCast(read_i32(addr + OBJ_STR_PTR));
 }
 
 pub fn obj_str_len(obj: i32) u32 {
+    if (is_immediate(obj)) return 0;
     const addr: u32 = @intCast(obj);
     return @intCast(read_i32(addr + OBJ_STR_LEN));
 }
 
 pub fn obj_type(obj: i32) i32 {
+    // S6.4 — tagged immediates always represent integers.
+    if (is_immediate(obj)) return TYPE_INT;
     const addr: u32 = @intCast(obj);
     return read_i32(addr + OBJ_TYPE_TAG);
 }
@@ -657,6 +735,21 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
 
 // Scratch buffer for integer-to-string conversion (no newline)
 var itoa_buf: [21]u8 = undefined;
+
+// S6.4 — Scratch ring for ``obj_ensure_string`` of tagged
+// immediates.  Tagged immediates have no header to cache the
+// rendered string into, so each call to ``obj_ensure_string``
+// must produce a fresh-looking buffer.  The single ``itoa_buf``
+// would be overwritten by any nested rendering (consider
+// ``format "%d-%d" $a $b`` where both args are immediates), so
+// we rotate through a small ring.  ``IMMEDIATE_RING_SIZE`` is
+// sized to comfortably exceed the deepest nesting any current
+// caller produces — bumping it is cheap if a future caller
+// exposes a deeper chain.
+const IMMEDIATE_RING_SIZE: u32 = 8;
+const IMMEDIATE_BUF_BYTES: u32 = 24;
+var immediate_string_ring: [IMMEDIATE_RING_SIZE][IMMEDIATE_BUF_BYTES]u8 = undefined;
+var immediate_ring_cursor: u32 = 0;
 
 pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     var v = value;
@@ -705,6 +798,18 @@ fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
 /// Render a TclObj to its string representation (integer, float, or string).
 pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     if (obj == 0) return .{ .ptr = 0, .len = 0 };
+    // S6.4 — tagged immediate: render into the next ring buffer.
+    // Rotating buffers means consecutive renders of distinct
+    // immediates (e.g. ``format "%d-%d" $a $b``) keep their
+    // results valid until the ring wraps.
+    if (is_immediate(obj)) {
+        const result = itoa(immediate_unbox(obj));
+        const slot = immediate_ring_cursor;
+        immediate_ring_cursor = (immediate_ring_cursor + 1) % IMMEDIATE_RING_SIZE;
+        const dst_ptr: u32 = @intFromPtr(&immediate_string_ring[slot]);
+        memcpy(dst_ptr, @intFromPtr(result.ptr), result.len);
+        return .{ .ptr = dst_ptr, .len = result.len };
+    }
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_STRING) {

@@ -104,10 +104,30 @@ def test_wat_output_parseable():
 
 
 def test_wat_contains_i64_const():
-    """Literal integers should appear as i64.const in WAT."""
+    """Large literal integers should appear as i64.const in WAT.
+
+    Small integers (S6.4 — fitting in [-2^30, 2^30-1]) are emitted
+    as a tagged-immediate ``i32.const`` directly, bypassing the
+    ``obj_new_int`` runtime call.  Pick a value outside that range
+    so the i64 path still fires.
+    """
+    big = (1 << 31) + 5  # 2_147_483_653 — outside immediate range
+    module = _compile(f"set x {big}\n")
+    wat = module.to_wat()
+    assert f"i64.const {big}" in wat
+
+
+def test_wat_small_int_uses_tagged_immediate():
+    """S6.4 — small literals encode inline; no obj_new_int call."""
     module = _compile("set x 42\n")
     wat = module.to_wat()
-    assert "i64.const 42" in wat
+    # Tagged immediate of 42 = (42 << 1) | 1 = 85.
+    assert "i32.const 85" in wat
+    # The ``set`` for ``x`` should NOT call obj_new_int for this
+    # literal — the call appears only when the value is large.
+    # We can't grep for "call 4" specifically since indices vary,
+    # but we CAN assert the i64 const is absent.
+    assert "i64.const 42" not in wat
 
 
 def test_wat_contains_memory():
