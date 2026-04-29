@@ -1,21 +1,34 @@
-"""S4.2 — IR-level inlining (v0: empty-body splice).
+"""S4.2 — IR-level inlining.
 
 The catalogue stage (:mod:`core.compiler.inlining.decision`) tags
 each :class:`~core.compiler.ir.IRProcedure` with an
-:class:`~core.compiler.ir.InlineDecision`. This module is the
-mechanism that consumes those tags and rewrites the IR module so
-the marked calls disappear before codegen.
+:class:`~core.compiler.ir.InlineDecision`.  This module consumes
+those tags and rewrites the IR module so the marked calls
+disappear before codegen.
 
-**Scope of v0.**  Only the simplest case is handled today: a
-statement-position :class:`~core.compiler.ir.IRCall` whose resolved
-target is an :data:`~core.compiler.ir.InlineDecision.ALWAYS`-tagged
-proc with **zero body statements**.  Such a call has no observable
-effect (the proc is ``pure_leaf`` so no side effects, and an empty
-body returns the empty string which the call site discards), so
-the splice is correct without any α-renaming, return-value
-plumbing, or label support.  Larger-body inlining is a follow-up
-(it needs IRCall result capture for procs whose return value is
-consumed, plus α-renaming for the callee's locals).
+The pass handles two shapes of statement-position
+:class:`~core.compiler.ir.IRCall` whose resolved target is an
+:data:`~core.compiler.ir.InlineDecision.ALWAYS`-tagged proc:
+
+**v0 — empty-body splice.**  A proc with zero body statements;
+the call vanishes entirely.
+
+**v1 — single-call wrapper splice.**  A zero-parameter proc whose
+body is exactly one :class:`IRCall` with no ``defs`` (writes no
+variable in the caller's scope).  The wrapper's wrapped call is
+substituted for the original call site.  The substitution is
+sound only when the wrapped call's command word resolves to the
+same target from the caller's namespace as it did from the
+callee's, so v1 declines unless the wrapped command is
+``::``-qualified or refers to an unknown (i.e. runtime-builtin)
+command — both classes are namespace-invariant.  The call site
+itself must have no arguments (zero params on the callee already
+forbids them in well-formed Tcl) so we never drop arg-evaluation
+side effects.
+
+Larger-body inlining (multiple statements, parameter binding,
+return-value capture, α-renaming) is left for a future revision
+that grows the necessary infrastructure on the IR side.
 
 The pass returns a new :class:`~core.compiler.ir.IRModule`; the
 input module is left untouched (every IR node is frozen, so
@@ -70,7 +83,7 @@ def inline_module(
     of cases that make it material.
     """
 
-    inlinable = _build_inlinable_set(module)
+    inlinable = _build_inlinable_map(module, summaries)
     if not inlinable:
         return module
 
@@ -85,30 +98,83 @@ def inline_module(
     return replace(module, top_level=new_top, procedures=new_procs)
 
 
-def _build_inlinable_set(module: IRModule) -> frozenset[str]:
-    """Return the qualified names eligible for the v0 splice rule.
+def _build_inlinable_map(
+    module: IRModule,
+    summaries: dict[str, ProcEscapeSummary],
+) -> dict[str, tuple]:
+    """Return a map from inlinable qname → tuple of statements to splice.
 
-    Eligibility: catalogue tag is ``ALWAYS`` AND the body has no
-    statements.  ``IF_SINGLE_CALL`` is **not** v0-eligible because
-    its profitability depends on the post-inline proc-pruning that
-    isn't implemented yet — inlining without pruning would leave a
-    redundant copy of the body in the module.
+    An empty tuple means the call vanishes entirely (v0 empty-body
+    case).  A single-element tuple of :class:`IRCall` means the
+    call site is replaced by that wrapped call (v1 wrapper case).
+
+    ``IF_SINGLE_CALL`` is **not** eligible because its profitability
+    depends on the post-inline proc-pruning that isn't implemented
+    yet — inlining without pruning would leave a redundant copy of
+    the body in the module.
     """
 
-    eligible: set[str] = set()
+    eligible: dict[str, tuple] = {}
     for qname, proc in module.procedures.items():
         if proc.inline_decision is not InlineDecision.ALWAYS:
             continue
-        if proc.body.statements:
+
+        # v0 — empty body
+        if not proc.body.statements:
+            eligible[qname] = ()
             continue
-        eligible.add(qname)
-    return frozenset(eligible)
+
+        # v1 — zero-param wrapper around a single IRCall
+        if proc.params:
+            continue
+        if len(proc.body.statements) != 1:
+            continue
+        only = proc.body.statements[0]
+        if not isinstance(only, IRCall):
+            continue
+        if only.defs:
+            # Writing a variable in the splice would mutate the
+            # caller's scope — decline.
+            continue
+        if not _command_is_namespace_invariant(only.command, qname, summaries):
+            continue
+        eligible[qname] = (only,)
+
+    return eligible
+
+
+def _command_is_namespace_invariant(
+    command: str,
+    callee_qname: str,
+    summaries: dict[str, ProcEscapeSummary],
+) -> bool:
+    """Return ``True`` when ``command`` resolves the same way from any
+    caller's namespace as it does from the callee's.
+
+    Two cases qualify:
+
+    1. ``command`` is fully qualified (starts with ``::``).  The
+       resolution is namespace-independent by construction.
+    2. ``command`` is unqualified and does not resolve to any
+       tracked proc from the callee's namespace.  Since the
+       interprocedural pass already walked the namespace chain,
+       a non-resolution means the word is a runtime builtin
+       (``puts``, ``incr``, …) which lives in the global namespace
+       and is reachable from every caller.
+
+    A bare unqualified command that DOES resolve to a tracked
+    proc fails the test — splicing it into a different namespace
+    could re-bind the call.
+    """
+    if command.startswith("::"):
+        return True
+    return _resolve_callee(command, callee_qname, summaries) is None
 
 
 def _rewrite_script(
     script: IRScript,
     caller_qname: str,
-    inlinable: frozenset[str],
+    inlinable: dict[str, tuple],
     summaries: dict[str, ProcEscapeSummary],
 ) -> IRScript:
     """Return ``script`` with eligible top-level calls dropped.
@@ -137,26 +203,40 @@ def _rewrite_script(
 def _rewrite_stmt(
     stmt: object,
     caller_qname: str,
-    inlinable: frozenset[str],
+    inlinable: dict[str, tuple],
     summaries: dict[str, ProcEscapeSummary],
 ) -> list | None:
     """Return a replacement statement list, or ``None`` to keep ``stmt``.
 
-    A return value of ``[]`` drops the statement entirely (the v0
-    empty-body splice).  A non-empty list replaces the statement
-    with multiple successors (reserved for future v1 splicing —
-    today only the empty case is exercised).
+    A return value of ``[]`` drops the statement entirely (v0
+    empty-body case); a non-empty list substitutes the inlined
+    body for the call site (v1 wrapper case).
     """
 
     if isinstance(stmt, IRCall):
         target = _resolve_callee(stmt.command, caller_qname, summaries)
         if target is not None and target in inlinable:
-            # v0: the eligible callee has an empty body, so the
-            # whole call vanishes.  Argument expressions are pure
-            # by definition (the IR doesn't side-effect on
-            # argument evaluation; substitution happens at the
-            # value level), so dropping them is sound.
-            return []
+            # The call site itself must have no arguments to
+            # qualify — otherwise we'd silently drop arg
+            # evaluation side effects.  Zero-param callees match
+            # well-formed call sites with zero args.  Empty-body
+            # callees take the same gate but it's vacuously
+            # satisfied for them.
+            if stmt.args:
+                return None
+            replacement_statements = inlinable[target]
+            if not replacement_statements:
+                return []
+            # v1: substitute the wrapped call, propagating the
+            # call site's range so diagnostic attribution stays
+            # at the user-visible source location.
+            new_stmts = []
+            for inner in replacement_statements:
+                if isinstance(inner, IRCall):
+                    new_stmts.append(replace(inner, range=stmt.range))
+                else:
+                    new_stmts.append(inner)
+            return new_stmts
         return None
 
     if isinstance(stmt, IRBlock):
@@ -244,7 +324,7 @@ def _rewrite_stmt(
 def _rewrite_if_clauses(
     clauses: tuple[IRIfClause, ...],
     caller_qname: str,
-    inlinable: frozenset[str],
+    inlinable: dict[str, tuple],
     summaries: dict[str, ProcEscapeSummary],
 ) -> tuple[tuple[IRIfClause, ...], bool]:
     new_clauses = []
@@ -262,7 +342,7 @@ def _rewrite_if_clauses(
 def _rewrite_try_handlers(
     handlers: tuple[IRTryHandler, ...],
     caller_qname: str,
-    inlinable: frozenset[str],
+    inlinable: dict[str, tuple],
     summaries: dict[str, ProcEscapeSummary],
 ) -> tuple[tuple[IRTryHandler, ...], bool]:
     new_handlers = []
@@ -280,7 +360,7 @@ def _rewrite_try_handlers(
 def _rewrite_switch_arms(
     arms: tuple[IRSwitchArm, ...],
     caller_qname: str,
-    inlinable: frozenset[str],
+    inlinable: dict[str, tuple],
     summaries: dict[str, ProcEscapeSummary],
 ) -> tuple[tuple[IRSwitchArm, ...], bool]:
     new_arms = []

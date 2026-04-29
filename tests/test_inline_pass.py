@@ -122,6 +122,75 @@ class TestPurity:
         )
 
 
+class TestSingleCallWrapperSplice:
+    """v1: zero-param wrapper procs whose body is a single IRCall."""
+
+    def test_wrapper_call_is_replaced_with_inner(self):
+        # ``setup`` wraps a single ``puts`` call.  Calls to
+        # ``setup`` should be replaced by the wrapped ``puts``
+        # call.  Since ``puts`` doesn't resolve to a tracked
+        # proc, the namespace-invariance check passes (it's a
+        # runtime builtin).
+        module, summaries = _prepare(
+            "proc setup {} { puts \"starting\" }\n"
+            "setup\n"
+        )
+        # Pre-inline: top-level has 0 ``puts`` calls, 1 ``setup`` call.
+        assert _calls_to(module.top_level, "setup") == 1
+        assert _calls_to(module.top_level, "puts") == 0
+
+        new_module = inline_module(module, summaries)
+        # Post-inline: 0 ``setup`` calls, 1 ``puts`` call.
+        assert _calls_to(new_module.top_level, "setup") == 0
+        assert _calls_to(new_module.top_level, "puts") == 1
+
+    def test_wrapper_with_args_at_call_site_declined(self):
+        # If the call site passes args (even though the callee
+        # has zero params), inlining would silently discard their
+        # evaluation.  Decline.
+        module, summaries = _prepare(
+            "proc setup {} { puts \"hi\" }\n"
+            "setup [list 1 2]\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "setup") == 1
+        assert _calls_to(new_module.top_level, "puts") == 0
+
+    def test_wrapper_with_unqualified_proc_call_declined(self):
+        # If the wrapped call resolves to a tracked proc from
+        # the callee's namespace, the bare command word might
+        # bind to a different proc from a caller in another
+        # namespace.  Decline.
+        module, summaries = _prepare(
+            "proc helper {} {}\n"
+            "proc setup {} { helper }\n"
+            "setup\n"
+        )
+        # ``helper`` resolves to ``::helper`` from inside
+        # ``::setup``.  v1 declines the splice for safety.
+        new_module = inline_module(module, summaries)
+        # ``::setup`` should still be present, but ``::helper``
+        # (empty body, ALWAYS) inlined into ``setup``'s body —
+        # which leaves setup with an empty body.  Re-running
+        # would then qualify setup itself for v0 splice.
+        # First-pass behaviour: setup body becomes empty after
+        # helper-inlining; a SECOND pass would inline the now-
+        # empty setup.  We only run once here, so setup stays.
+        assert _calls_to(new_module.top_level, "setup") == 1
+
+    def test_qualified_wrapper_call_inlines(self):
+        # ``::puts`` is a fully qualified call to a known frameless
+        # builtin, so the wrapped call is namespace-invariant and
+        # the splice fires.
+        module, summaries = _prepare(
+            "proc setup {} { ::puts \"start\" }\n"
+            "setup\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "setup") == 0
+        assert _calls_to(new_module.top_level, "::puts") == 1
+
+
 class TestPipelineIntegration:
     """Confirm the inliner fires when invoked through ``wasm_codegen_module``."""
 

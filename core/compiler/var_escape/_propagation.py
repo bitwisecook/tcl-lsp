@@ -735,8 +735,11 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
     # keep its runtime frame so the fallback can resolve ``$var``
     # against our locals.  Frameless commands (list / string / expr
     # / etc.) are dispatched to pure runtime helpers and don't need
-    # a frame on the caller side.
-    if cmd not in _FRAMELESS_RUNTIME_COMMANDS:
+    # a frame on the caller side.  Both bare and ``::``-prefixed
+    # forms qualify (``::puts`` and ``puts`` both resolve to the
+    # same global builtin).
+    bare_cmd = cmd[2:] if cmd.startswith("::") else cmd
+    if bare_cmd not in _FRAMELESS_RUNTIME_COMMANDS:
         # A dynamic command word can't be resolved interprocedurally —
         # treat it as a definite fallback.  Static command words
         # (bare names or ``::``-qualified identifiers) go into the
