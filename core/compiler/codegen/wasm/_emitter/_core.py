@@ -123,6 +123,22 @@ class _WasmEmitterBase:
         # by _emit_frame_sync to mirror proc locals into the call frame
         # before handing control to the Zig interpreter.
         self._tcl_var_locals: dict[str, int] = {}
+        # Tcl-variable WASM-local indices, in interning order.
+        # Populated by ``_intern_local`` regardless of whether the
+        # frame is elided — the actual retain/release wiring at the
+        # write site only fires when ``self._wants_frame`` is False
+        # (S2.2's primitive).  Also indexed in a set for O(1)
+        # "is this slot owned?" lookups during emission.
+        self._owned_locals: list[int] = []
+        self._owned_locals_set: set[int] = set()
+        # Set in ``generate()`` once the elision decision has been
+        # made so the body emitters can decide whether to wrap each
+        # write with retain/release.
+        self._wants_frame: bool = False
+        # Lazy scratch slot for the retain/release wrap.  Allocated on
+        # first use of ``_emit_owned_local_write`` and reused for
+        # every wrapped write in this proc.
+        self._rc_set_scratch: int | None = None
 
         # Register parameters as locals
         for p in params:
@@ -238,6 +254,13 @@ class _WasmEmitterBase:
         self._local_index[name] = idx
         if name in self._params or not self._is_frame_only_var(name):
             self._tcl_var_locals[name] = idx
+        # Every Tcl-variable slot is a candidate owned slot.  The
+        # actual retain/release wrapping at the write site is gated
+        # on ``self._wants_frame`` so the per-frame mode (where
+        # ``frame_pop`` already manages the slot's refcount) does
+        # not double-track.
+        self._owned_locals.append(idx)
+        self._owned_locals_set.add(idx)
         return idx
 
     def _add_extra_local(self, prefix: str = "_tmp", val_type: ValType = ValType.I64) -> int:
@@ -359,6 +382,132 @@ class _WasmEmitterBase:
 
     def _emit_call(self, func_idx: int) -> None:
         self._emit(WasmOp.CALL, _leb128_unsigned(func_idx))
+
+    # -- S2.2: refcount-disciplined owned-slot write --------------------
+
+    def _owned_local_wrap_active(self, idx: int) -> bool:
+        """``True`` when a write to slot *idx* should be wrapped with
+        ``tcl_obj_retain`` / ``tcl_obj_release``.
+
+        The wrap fires only inside frame-elided procs whose escape
+        analysis proved no runtime frame is needed.  In that mode
+        the WASM-local mirror is the sole authoritative storage for
+        the Tcl variable and must own a +1 reference to its current
+        value.  When a frame is present ``frame_pop`` already
+        balances the slot's refcount so the wrap stays off.
+        Top-level (``::top``, ``self._is_proc=False``) and scratch
+        slots (created via ``_add_extra_local`` so not in
+        ``_owned_locals_set``) are excluded by virtue of the membership
+        check.
+        """
+        if not self._is_proc:
+            return False
+        if self._wants_frame:
+            return False
+        if idx not in self._owned_locals_set:
+            return False
+        return (
+            "tcl_obj_retain" in self._shared_imports
+            and "tcl_obj_release" in self._shared_imports
+        )
+
+    def _emit_owned_local_write(
+        self,
+        idx: int,
+        source: "Ownership",
+        *,
+        keep_on_stack: bool,
+    ) -> None:
+        """Wrap a write to an owned WASM-local slot with the retain /
+        release dance the S2 discipline requires.
+
+        Stack on entry: ``[new_val]``.  Stack on exit: ``[new_val]``
+        when *keep_on_stack* is True, otherwise empty.
+
+        The emission depends on the value's :class:`Ownership` tag:
+
+        - ``OWNED``: the value already brings a +1.  Just release the
+          slot's prior value (if any) and store; the +1 transfers
+          cleanly.
+        - ``BORROWED``: the value is a borrow from another owning
+          slot.  Retain to claim a separate +1, release the slot's
+          prior, then store.
+
+        Both ``tcl_obj_retain`` and ``tcl_obj_release`` are null-safe,
+        so a self-set (``new_val == current``) and the very first
+        write to a slot (still 0 from function entry) work without
+        special-casing.
+
+        When the wrap is inactive (framed proc, top-level, or scratch
+        slot) the call falls back to a plain ``local.set`` /
+        ``local.tee`` — semantically identical to today's path.  This
+        lets call sites adopt ``_emit_local_set_owned`` without a
+        sweep regression while S2.3 migrates writers one at a time.
+        """
+        # Defer the import to avoid a top-of-file cycle with mixins.
+        from .._ownership import Ownership
+
+        if not self._owned_local_wrap_active(idx):
+            if keep_on_stack:
+                self._emit_local_tee(idx)
+            else:
+                self._emit_local_set(idx)
+            return
+
+        retain_idx = self._shared_imports["tcl_obj_retain"]
+        release_idx = self._shared_imports["tcl_obj_release"]
+
+        # Lazy scratch slot, reused for every wrapped write in this
+        # proc — allocating one per write would bloat the function's
+        # local table by O(writes).
+        if self._rc_set_scratch is None:
+            self._rc_set_scratch = self._add_extra_local(
+                prefix="_rc_set_tmp",
+                val_type=ValType.I32,
+            )
+        tmp = self._rc_set_scratch
+
+        if source is Ownership.OWNED:
+            # Stack: [v]; v owns its +1 we transfer to the slot.
+            # Sequence: tee tmp; local.get idx; release; local.get tmp; (set | tee).
+            self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(tmp))
+            self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
+            self._emit_call(release_idx)
+            self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(tmp))
+            if keep_on_stack:
+                self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(idx))
+            else:
+                self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(idx))
+            return
+
+        # BORROWED: slot needs to claim its own +1.
+        # Sequence: tee tmp; call retain; local.get idx; release; local.get tmp; (set | tee).
+        self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(tmp))
+        self._emit_call(retain_idx)
+        self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
+        self._emit_call(release_idx)
+        self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(tmp))
+        if keep_on_stack:
+            self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(idx))
+        else:
+            self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(idx))
+
+    def _emit_local_set_owned(self, idx: int, source: "Ownership") -> None:
+        """Owned-slot write that consumes the value off the stack.
+
+        Convenience wrapper over :meth:`_emit_owned_local_write` with
+        ``keep_on_stack=False``.  Called from S2.3's per-site
+        migrations.
+        """
+        self._emit_owned_local_write(idx, source, keep_on_stack=False)
+
+    def _emit_local_tee_owned(self, idx: int, source: "Ownership") -> None:
+        """Owned-slot write that leaves the value on the stack.
+
+        Convenience wrapper over :meth:`_emit_owned_local_write` with
+        ``keep_on_stack=True``.
+        """
+        self._emit_owned_local_write(idx, source, keep_on_stack=True)
 
     def _emit_br(self, depth: int) -> None:
         self._emit(WasmOp.BR, _leb128_unsigned(depth))
@@ -514,6 +663,12 @@ class _WasmEmitterBase:
             and not self._body_references_info_level()
         ):
             wants_frame = False
+        # Publish the elision decision so the body emitters
+        # (``_emit_local_set_owned``, S2.3 onwards) know whether to
+        # wrap owned-slot writes with retain/release.  When a frame
+        # is present ``frame_pop`` already balances the slot's
+        # refcount; the wrap stays inactive there.
+        self._wants_frame = wants_frame
         if wants_frame:
             push_idx = self._shared_imports["tcl_frame_push"]
             self._emit_call(push_idx)
