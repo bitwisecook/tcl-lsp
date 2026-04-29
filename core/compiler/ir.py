@@ -7,6 +7,7 @@ Later passes can lower this further to CFG + SSA.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from ..analysis.semantic_model import Range
@@ -14,6 +15,34 @@ from .expr_ast import ExprNode
 
 if TYPE_CHECKING:
     from ..parsing.tokens import Token
+
+
+class InlineDecision(Enum):
+    """S4.1 catalogue of inlining-eligibility decisions.
+
+    Set on ``IRProcedure.inline_decision`` by the
+    ``core.compiler.inlining.decision`` policy after var-escape
+    analysis has populated ``pure_leaf``.
+
+    ``NEVER``  — the proc is too large, has dynamic-barrier
+    constructs (upvar / uplevel / info / tailcall), or any callee is
+    not itself ``pure_leaf``.  The S4.2 inliner skips it.
+
+    ``ALWAYS`` — small (≤ ``SMALL_BODY_THRESHOLD`` IR statements) and
+    fully ``pure_leaf``.  Inline at every static call site.
+
+    ``IF_SINGLE_CALL`` — ``pure_leaf`` and statically referenced
+    exactly once.  Inlining replaces the only call and the original
+    proc becomes garbage.
+
+    ``IF_HOT`` — reserved for S4.3 (profile-guided hot-call
+    inlining); the static catalogue never assigns this.
+    """
+
+    NEVER = "never"
+    ALWAYS = "always"
+    IF_SINGLE_CALL = "if_single_call"
+    IF_HOT = "if_hot"
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,6 +351,16 @@ class IRProcedure:
     body_source: str | None = None  # None for synthetic procs (``when``)
     namespace_scoped: bool = False  # True when defined inside namespace eval
     base_priority: int = 500  # BigIP handler priority (0–2**32-1, default 500)
+    # S4.1: inlining-eligibility tag.  Computed by
+    # ``core.compiler.inlining.decision`` after var-escape analysis.
+    # Default ``NEVER`` so any proc that hasn't been classified is
+    # opaque to the inliner.
+    inline_decision: InlineDecision = InlineDecision.NEVER
+    # S4.1: number of statically resolved call sites for this proc
+    # across the whole module (top-level + every other proc body).
+    # Used as the gate for ``IF_SINGLE_CALL``.  ``0`` means the
+    # catalogue hasn't run.
+    static_call_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
