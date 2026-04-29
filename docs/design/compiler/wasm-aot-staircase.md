@@ -35,18 +35,19 @@ returns to the previous correct baseline.
 
 ## Stage skeleton
 
-| Stage | Goal | Status |
-|---|---|---|
-| **S0** | Foundation — observability, contracts, repros | not started |
-| **S1** | "Frames everywhere" baseline — disable elision, prove correctness | not started |
-| **S2** | Per-proc frame elision with refcount discipline | failed attempt reverted |
-| **S3** | Interprocedural escape-analysis tightening | partial (existing pass) |
-| **S4** | Inlining of small leaf procs | not started |
-| **S5** | SSA-driven codegen optimisations | partial (existing optimiser) |
-| **S6** | Allocation + small-value representation | partial (MM-D in runtime doc) |
+| Stage | Goal | Detail | Status |
+|---|---|---|---|
+| **S0** | Foundation — observability, contracts, repros | [s0](wasm-aot-staircase-s0.md) | not started |
+| **S1** | "Frames everywhere" baseline — disable elision, prove correctness | [s1](wasm-aot-staircase-s1.md) | not started |
+| **S2** | Per-proc frame elision with refcount discipline | [s2](wasm-aot-staircase-s2.md) | failed attempt reverted; re-attempt as 7 sub-plans |
+| **S3** | Interprocedural escape-analysis tightening | [s3](wasm-aot-staircase-s3.md) | partial (existing pass) |
+| **S4** | Inlining of small leaf procs | [s4](wasm-aot-staircase-s4.md) | not started |
+| **S5** | SSA-driven codegen optimisations | [s5](wasm-aot-staircase-s5.md) | partial (existing optimiser) |
+| **S6** | Allocation + small-value representation | [s6](wasm-aot-staircase-s6.md) | partial (MM-D in runtime doc) |
 
 Each stage decomposes into numbered sub-plans (S0.1, S0.2, …). Sub-plans are
-sized to land in 1–3 commits each.
+sized to land in 1–3 commits each. Each per-stage doc lists tasks, file
+paths, test plan, rollback path, and acceptance gate.
 
 ## Sub-plan inventory
 
