@@ -338,6 +338,7 @@ def wasm_codegen_module(
     filename: str | None = None,
     diag_map: DiagMap | None = None,
     escape_summaries: dict[str, ProcEscapeSummary] | None = None,
+    frame_elision: bool = True,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -574,6 +575,7 @@ def wasm_codegen_module(
         diag_map=diag_map,
         escape_summary=top_escape,
         proc_imports=proc_imports,
+        frame_elision=frame_elision,
     )
     # Register every compiled proc in the runtime proc table with a
     # non-zero func_idx marker so the interpreter knows to dispatch
@@ -613,6 +615,7 @@ def wasm_codegen_module(
             diag_map=diag_map,
             escape_summary=proc_escape,
             proc_imports=proc_imports,
+            frame_elision=frame_elision,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname

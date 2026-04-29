@@ -72,12 +72,19 @@ class _WasmEmitterBase:
         diag_map: DiagMap | None = None,
         escape_summary: "ProcEscapeSummary | None" = None,
         proc_imports: dict[str, dict[str, str]] | None = None,
+        frame_elision: bool = True,
     ) -> None:
         self._cfg = cfg
         self._params = params
         self._optimise = optimise
         self._is_proc = is_proc
         self._func_index_base = func_index_base
+        # When False, every proc forces ``wants_frame=True`` regardless
+        # of escape analysis.  S1.1: gives the codegen a kill-switch
+        # so we can A/B the elided vs framed paths on the same source
+        # and prove the framed path is the correctness floor S2 rolls
+        # back to.
+        self._frame_elision = frame_elision
         # Fully qualified proc name (e.g. ``::counter::init``) so the
         # ``variable`` command can resolve ``name`` → ``::counter::name``.
         # None for ``::top`` and other non-proc emitters.
@@ -500,6 +507,7 @@ class _WasmEmitterBase:
         summary = self._escape_summary
         if (
             wants_frame
+            and self._frame_elision
             and summary is not None
             and not summary.frame_needed
             and not summary.has_fallback
