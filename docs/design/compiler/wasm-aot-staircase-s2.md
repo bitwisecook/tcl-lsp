@@ -262,5 +262,120 @@ runs per commit (sweep + leakcheck).
 
 ---
 
-(remaining sub-plans S2.4 … S2.7 + stage exit criteria appended in
+### S2.4 — Prologue: claim ownership of params
+
+**Goal**: At function entry, each param slot holds the caller's
+handle (rc reflects the caller's hold). The slot must claim its own
++1 so subsequent stores to the slot can release the prior value
+without dropping the caller's hold.
+
+**Why it matters**: Without this, the first overwrite of a param
+inside the body releases what the caller still holds → use-after-free
+in the caller. The failed attempt did this but in the wrong order
+relative to default-substitution.
+
+**Tasks**:
+
+- [ ] In `_core.py::generate`, before the default-substitution
+  block, emit for each non-empty param `i`:
+  ```python
+  self._emit_local_get(i)
+  self._emit_call(self._retain_idx)
+  ```
+  Gated on `is_proc and not wants_frame and retain import loaded`.
+- [ ] `tcl_obj_retain` is null-safe (S0 prerequisite — null guard
+  added to the runtime function), so a slot left at 0 (caller
+  passed nothing, no default) is a silent no-op.
+- [ ] After the param-retain pass, run the default-substitution
+  pass. The default literal is `OWNED`; the wrapped store from
+  S2.3 releases the prior caller-retained value (rc--, still ≥1
+  because caller still owns) and transfers the literal's +1 to
+  the slot.
+
+**Files**: `core/compiler/codegen/wasm/_emitter/_core.py`.
+
+**Test plan**:
+
+- Unit test: a one-arg proc `proc f {x} { return $x }`, called
+  with a fresh literal, returns the same handle (rc unchanged
+  net-net through the call).
+- Unit test: a two-arg proc with a default for the second arg,
+  called with one arg, returns the default literal — and the
+  caller-held first arg is unchanged at the call boundary.
+- Sweep: net-zero delta.
+- Leakcheck: marginal increase possible (default literals leak
+  +1 each call) — quantify the regression and ratchet baseline.
+
+**Rollback**: Single-commit revert.
+
+**Acceptance gate**: Unit tests pass; sweep neutral; leak delta
+explained.
+
+**Estimated size**: 1 commit.
+
+---
+
+### S2.5 — Epilogue: release every owned slot before return
+
+**Goal**: At every `RETURN` and the natural fall-through `END`,
+release each owned slot's value. Wrap around the return value so
+the upcoming releases cannot queue the return value for free.
+
+**Why it matters**: Without epilogue release, every owned slot
+leaks its current value (rc=1 forever). The failed attempt did
+this but the wrap-around-return-value got the stack ordering
+slightly wrong on one of the fall-through paths.
+
+**Tasks**:
+
+- [ ] In `_core.py::generate`, build `cleanup_instrs` for the
+  frame-elided case:
+  ```
+  local.tee save_local      # save return value
+  call retain               # protect return value from upcoming releases
+  for slot in self._owned_locals:
+      local.get slot
+      call release
+  local.get save_local      # restore return value to stack
+  ```
+- [ ] `save_local` is allocated lazily via `_add_extra_local`
+  ONCE per emitter (re-used at every RETURN site).
+- [ ] Use the existing cleanup walker (already injects
+  `frame_pop` / `ns_restore` before each RETURN) — append the
+  release sequence ahead of those.
+- [ ] On the implicit fall-through path (where the codegen
+  emits `i32.const 0; END`), the cleanup goes between the
+  `0` and the `END`. The `0` retain/release is null-safe.
+
+**Files**: `core/compiler/codegen/wasm/_emitter/_core.py`.
+
+**Test plan**:
+
+- Unit test: a proc that allocates many literals in a loop and
+  returns the last one. Leak count under `make leakcheck` is
+  bounded (no unbounded growth across iterations).
+- Unit test: a proc with multiple RETURN sites — each path
+  releases all owned slots correctly. Verify by inspecting the
+  WASM disassembly.
+- Sweep: net-zero or net-positive (this is the missing release
+  side; combined with S2.4 the leak baseline drops materially).
+- Leakcheck: leak baseline ratchets DOWN — this is the first
+  sub-plan that should produce a measurable improvement.
+
+**Rollback**: Single-commit revert.
+
+**Acceptance gate**: 
+
+- Sweep neutral or positive.
+- Leakcheck strictly improves (fewer leaked TclObjs per
+  test file).
+- The canonical-bug repro from S0.3 starts passing for
+  frame-elided procs (the original use case).
+
+**Estimated size**: 1 commit, possibly 2 if the cleanup walker
+needs refactoring to support multiple injection groups.
+
+---
+
+(remaining sub-plans S2.6 + S2.7 + stage exit criteria appended in
 follow-up commits.)
