@@ -10,13 +10,17 @@
 #                       Uses borrowed `&str`, `thiserror`, iterators, enums.
 #                       Reusable by any downstream Rust consumer.
 #
-#   rust/tcl-lsp-core/  Pure Rust LSP feature providers (folding, symbols,
-#                       diagnostics projection). No pyo3 dependency.
-#                       The eventual native LSP server links against this.
+#   rust/tcl-lsp-core/   Pure Rust LSP feature providers (folding, symbols,
+#                        diagnostics projection). No pyo3 dependency.
+#                        The eventual native LSP server links against this.
 #
-#   rust/tcl-lsp-rust/  PyO3 binding crate. Owns all `#[pyclass]` wrappers,
-#                       PyErr translations, and Python-compat shims.
-#                       This is the only crate that knows about Python.
+#   rust/tcl-lsp-server/ Native LSP server binary built on tower-lsp.
+#                        Links tcl-lsp-core / tcl-compiler / tcl-registry.
+#                        No pyo3 dependency.
+#
+#   rust/tcl-lsp-rust/   PyO3 binding crate. Owns all `#[pyclass]` wrappers,
+#                        PyErr translations, and Python-compat shims.
+#                        This is the only crate that knows about Python.
 #
 # `editors/zed/` is a pre-existing standalone cdylib targeting wasm32-wasip2;
 # it is intentionally excluded from this workspace so it continues to build
@@ -29,6 +33,7 @@ members = [
     "rust/tcl-registry",
     "rust/tcl-compiler",
     "rust/tcl-lsp-core",
+    "rust/tcl-lsp-server",
     "rust/tcl-lsp-rust",
 ]
 exclude = [
