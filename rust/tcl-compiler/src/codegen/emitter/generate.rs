@@ -622,6 +622,7 @@ mod tests {
     use crate::codegen::CodegenCtx;
     use crate::ir::Statement;
     use tcl_lexer::Span;
+    use tcl_registry::CommandRegistry;
 
     fn sp() -> Span {
         Span::new(0, 0)
@@ -641,7 +642,8 @@ mod tests {
     #[test]
     fn generate_empty_toplevel_terminates() {
         let cfg = trivial_cfg();
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let asm = generate(&mut ctx, &cfg, &[]);
         assert_eq!(asm.name, "::top");
         assert!(!asm.instructions.is_empty());
@@ -671,7 +673,8 @@ mod tests {
             expr: None,
             braced: false,
         });
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let asm = generate(&mut ctx, &cfg, &[]);
         // Should contain push and store (tail pop is folded away)
         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -682,7 +685,8 @@ mod tests {
     #[test]
     fn generate_proc_empty_body() {
         let cfg = CfgFunction::new("::foo", "entry_0");
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         // Give the entry block a return terminator
         let mut cfg = cfg;
         cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
@@ -750,7 +754,9 @@ mod tests {
             braced: false,
         });
 
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let asm = generate(&mut ctx, &cfg, &[]);
         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
         // Should include a conditional jump (maybe shrunk to 1-byte)

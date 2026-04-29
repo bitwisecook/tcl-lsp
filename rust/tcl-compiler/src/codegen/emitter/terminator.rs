@@ -17,7 +17,7 @@ use crate::expr_ast::ExprNode;
 use super::super::{CodegenCtx, Op, Operand};
 use super::ordering::fold_const_branch;
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Emit the bytecode for a CFG terminator.
     ///
     /// `next_block` is the block name that will be emitted immediately
@@ -344,6 +344,7 @@ mod tests {
     use crate::cfg::{Function as CfgFunction, Terminator};
     use crate::codegen::CodegenCtx;
     use crate::expr_ast::ExprNode;
+    use tcl_registry::CommandRegistry;
 
     fn lit(text: &str) -> ExprNode {
         ExprNode::Literal {
@@ -355,7 +356,8 @@ mod tests {
 
     #[test]
     fn emit_goto_with_fallthrough() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let term = Terminator::Goto {
             target: "next_0".into(),
             span: None,
@@ -367,7 +369,8 @@ mod tests {
 
     #[test]
     fn emit_goto_without_fallthrough() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let term = Terminator::Goto {
             target: "far_0".into(),
             span: None,
@@ -379,7 +382,8 @@ mod tests {
 
     #[test]
     fn emit_branch_const_true() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let term = Terminator::Branch {
             condition: lit("1"),
             true_target: "tt".into(),
@@ -397,7 +401,8 @@ mod tests {
 
     #[test]
     fn emit_branch_const_false() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let term = Terminator::Branch {
             condition: lit("0"),
             true_target: "tt".into(),
@@ -414,7 +419,8 @@ mod tests {
 
     #[test]
     fn emit_branch_runtime() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let cond = ExprNode::Var {
             text: "$x".into(),
             name: "x".into(),
@@ -434,7 +440,8 @@ mod tests {
 
     #[test]
     fn emit_return_proc_emits_done() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let term = Terminator::Return {
             value: Some("hello".into()),
             span: None,
@@ -447,7 +454,8 @@ mod tests {
 
     #[test]
     fn emit_return_toplevel_emits_return_imm() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let term = Terminator::Return {
             value: None,
             span: None,
@@ -461,7 +469,8 @@ mod tests {
     #[test]
     fn jump_table_not_for_plain_branch() {
         use crate::cfg::Block;
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let cfg = CfgFunction::new("::top", "entry_0");
         let blk = Block::new("entry_0");
         let mut skip = std::collections::HashSet::new();
@@ -517,7 +526,9 @@ mod tests {
             span: None,
         });
 
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let mut skip = std::collections::HashSet::new();
         let d1_blk = cfg.blocks["d1"].clone();
         let emitted = ctx.try_emit_jump_table(&cfg, &d1_blk, Some("default"), &mut skip);

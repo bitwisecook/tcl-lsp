@@ -9,7 +9,7 @@ use super::{bytecode_imm, CodegenCtx, Op, Operand};
 
 // -- Literal emission --
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
         let idx = self.literals.intern(value);
@@ -101,7 +101,7 @@ pub fn needs_stk_var_ref(name: &str, is_proc: bool) -> bool {
 
 // -- Variable load/store --
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Push an array element key onto the stack.
     ///
     /// Handles `$var` references in the key by loading the variable.
@@ -380,6 +380,7 @@ fn is_integer_literal(s: &str) -> bool {
 mod tests {
     use super::*;
     use crate::codegen::{CodegenCtx, Op};
+    use tcl_registry::CommandRegistry;
 
     // -- split_array_ref --
 
@@ -484,7 +485,8 @@ mod tests {
 
     #[test]
     fn push_lit_dedup() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.push_lit("hello");
         ctx.push_lit("hello"); // dedup
         assert_eq!(ctx.literals.len(), 1);
@@ -502,7 +504,8 @@ mod tests {
 
     #[test]
     fn push_lit_no_dedup_creates_fresh_slot() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.push_lit_no_dedup("x");
         ctx.push_lit_no_dedup("x");
         assert_eq!(ctx.literals.len(), 2); // two distinct slots
@@ -510,7 +513,8 @@ mod tests {
 
     #[test]
     fn load_var_scalar_proc() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.load_var("x");
         assert_eq!(ctx.instructions.len(), 1);
         assert_eq!(ctx.instructions[0].op, Op::LOAD_SCALAR1);
@@ -522,7 +526,8 @@ mod tests {
 
     #[test]
     fn load_var_scalar_toplevel() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.load_var("x");
         assert_eq!(ctx.instructions.len(), 2); // push name + loadStk
         assert_eq!(ctx.instructions[0].op, Op::PUSH1); // push "x"
@@ -531,7 +536,8 @@ mod tests {
 
     #[test]
     fn load_var_array_proc() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.load_var("arr(key)");
         // Should intern "arr", push_lit "key", then LOAD_ARRAY1
         assert_eq!(ctx.instructions.last().unwrap().op, Op::LOAD_ARRAY1);
@@ -539,7 +545,8 @@ mod tests {
 
     #[test]
     fn load_var_array_toplevel() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.load_var("arr(key)");
         // push "arr", push "key", LOAD_ARRAY_STK
         assert_eq!(ctx.instructions.last().unwrap().op, Op::LOAD_ARRAY_STK);
@@ -547,7 +554,8 @@ mod tests {
 
     #[test]
     fn load_var_qualified_in_proc() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.load_var("::global_var");
         // Qualified vars always use stack-based ops
         assert_eq!(ctx.instructions.last().unwrap().op, Op::LOAD_STK);
@@ -555,21 +563,24 @@ mod tests {
 
     #[test]
     fn store_var_proc() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.store_var("x");
         assert_eq!(ctx.instructions[0].op, Op::STORE_SCALAR1);
     }
 
     #[test]
     fn store_var_toplevel() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.store_var("x");
         assert_eq!(ctx.instructions[0].op, Op::STORE_STK);
     }
 
     #[test]
     fn emit_incr_default_proc() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.emit_incr("x", None);
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         // operands: slot 0, imm 1
@@ -581,7 +592,8 @@ mod tests {
 
     #[test]
     fn emit_incr_literal_amount_proc() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.emit_incr("x", Some("5"));
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         assert_eq!(
@@ -592,7 +604,8 @@ mod tests {
 
     #[test]
     fn emit_incr_large_amount_proc() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.emit_incr("x", Some("999"));
         // Large amount → push_lit + INCR_SCALAR1
         assert_eq!(ctx.instructions[0].op, Op::PUSH1); // push "999"
@@ -601,7 +614,8 @@ mod tests {
 
     #[test]
     fn emit_incr_default_toplevel() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_incr("x", None);
         // push "x" then INCR_STK_IMM
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
@@ -610,7 +624,8 @@ mod tests {
 
     #[test]
     fn emit_incr_large_amount_toplevel() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_incr("x", Some("999"));
         // Large → invokeStk fallback
         assert!(ctx.instructions.iter().any(|i| i.op == Op::INVOKE_STK1));
@@ -618,7 +633,8 @@ mod tests {
 
     #[test]
     fn begin_end_command() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         // First command — no startCommand emitted
         ctx.begin_command(1);
         assert!(ctx.start_cmd_end_label.is_none());

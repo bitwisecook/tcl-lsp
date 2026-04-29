@@ -16,7 +16,7 @@ pub(crate) const SC_GENERIC_TAG: &str = "sc:generic";
 /// Tag appended to no-dedup literal comments.
 pub(crate) const NO_DEDUP_TAG: &str = " #nodedup";
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Emit a statement, wrapping with `startCommand` if needed.
     ///
     /// `count_override` overrides the default count of 1 (e.g. 2 when
@@ -374,6 +374,7 @@ mod tests {
     use crate::codegen::CodegenCtx;
     use crate::expr_ast::ExprNode;
     use tcl_lexer::Span;
+    use tcl_registry::CommandRegistry;
 
     fn opcodes(ctx: &CodegenCtx) -> Vec<Op> {
         ctx.instructions.iter().map(|i| i.op).collect()
@@ -385,7 +386,8 @@ mod tests {
 
     #[test]
     fn emit_assign_const_proc() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let stmt = Statement::AssignConst {
             span: sp(),
             name: "x".into(),
@@ -399,7 +401,8 @@ mod tests {
 
     #[test]
     fn emit_assign_const_toplevel() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::AssignConst {
             span: sp(),
             name: "x".into(),
@@ -415,7 +418,8 @@ mod tests {
 
     #[test]
     fn emit_incr_stmt() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         let stmt = Statement::Incr {
             span: sp(),
             name: "x".into(),
@@ -429,7 +433,8 @@ mod tests {
 
     #[test]
     fn emit_call_generic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::Call {
             span: sp(),
             command: "puts".into(),
@@ -448,7 +453,8 @@ mod tests {
 
     #[test]
     fn emit_call_break_in_loop() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.break_target = Some("loop_end_0".into());
         let stmt = Statement::Call {
             span: sp(),
@@ -468,7 +474,8 @@ mod tests {
 
     #[test]
     fn emit_return_empty() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::Return {
             span: sp(),
             value: None,
@@ -482,7 +489,8 @@ mod tests {
 
     #[test]
     fn emit_stmt_with_start_cmd_numbering() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::AssignConst {
             span: sp(),
             name: "x".into(),
@@ -504,7 +512,8 @@ mod tests {
 
     #[test]
     fn emit_empty_clause() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let stmt = Statement::Call {
             span: sp(),
             command: "<empty_clause>".into(),
@@ -522,7 +531,8 @@ mod tests {
 
     #[test]
     fn emit_barrier_with_command() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::Barrier {
             span: sp(),
             reason: "test".into(),
@@ -538,7 +548,8 @@ mod tests {
 
     #[test]
     fn emit_barrier_without_command() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::Barrier {
             span: sp(),
             reason: "side-effect".into(),
@@ -554,7 +565,8 @@ mod tests {
 
     #[test]
     fn emit_assign_expr() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         let stmt = Statement::AssignExpr {
             span: sp(),
             name: "x".into(),
@@ -572,7 +584,8 @@ mod tests {
 
     #[test]
     fn emit_expr_eval() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let stmt = Statement::ExprEval {
             span: sp(),
             expr: ExprNode::Literal {
@@ -588,7 +601,8 @@ mod tests {
 
     #[test]
     fn emit_expanded_call_basic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_expanded_call("puts", &["hello".into()], &[false, true]);
         let ops = opcodes(&ctx);
         assert!(ops.contains(&Op::EXPAND_START));
