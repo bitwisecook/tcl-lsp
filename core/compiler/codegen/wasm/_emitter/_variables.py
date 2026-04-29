@@ -14,6 +14,7 @@ from .._ir import (
     ValType,
     WasmOp,
 )
+from .._ownership import Ownership
 from .._parsing import (
     _parse_array_ref,
 )
@@ -97,25 +98,47 @@ class _WasmEmitterVarMixin(_Base):
         idx = self._intern_local(name)
         self._emit_local_get(idx)
 
-    def _emit_var_write_obj(self, name: str) -> None:
+    def _emit_var_write_obj(
+        self,
+        name: str,
+        *,
+        source: Ownership | None = None,
+    ) -> None:
         """Consume a TclObj value on the stack and write it to local Tcl variable *name*.
 
         For aliased variables, the value is routed to ``tcl_global_set``
         using the stashed target name.  For plain variables, the value is
         stored in the interned WASM local; if the name was declared
         ``global`` it's also written back to the global table.
-        """
-        self._emit_var_write_obj_impl(name, keep_on_stack=False)
 
-    def _emit_var_write_obj_keep(self, name: str) -> None:
+        *source* (S2.3): when set, the plain WASM-local path uses
+        :meth:`_emit_owned_local_write` so the slot's refcount stays
+        correct for frame-elided procs.  When ``None`` the old plain
+        ``local.set`` / ``local.tee`` path is used — the caller hasn't
+        been migrated yet.
+        """
+        self._emit_var_write_obj_impl(name, keep_on_stack=False, source=source)
+
+    def _emit_var_write_obj_keep(
+        self,
+        name: str,
+        *,
+        source: Ownership | None = None,
+    ) -> None:
         """Like _emit_var_write_obj but leaves the written value on the stack.
 
         Used in tail-position ``set``/``incr`` emissions where the command's
         return value is the proc's return value.
         """
-        self._emit_var_write_obj_impl(name, keep_on_stack=True)
+        self._emit_var_write_obj_impl(name, keep_on_stack=True, source=source)
 
-    def _emit_var_write_obj_impl(self, name: str, *, keep_on_stack: bool) -> None:
+    def _emit_var_write_obj_impl(
+        self,
+        name: str,
+        *,
+        keep_on_stack: bool,
+        source: Ownership | None = None,
+    ) -> None:
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             self._emit_array_element_write(array_ref[0], array_ref[1], keep_on_stack=keep_on_stack)
@@ -199,7 +222,14 @@ class _WasmEmitterVarMixin(_Base):
                     self._emit(WasmOp.DROP)  # drop gset return
                 return
         idx = self._intern_local(name)
-        if keep_on_stack:
+        if source is not None:
+            # S2.3: caller passed an explicit ownership tag; route
+            # through the retain/release wrap.  When the proc is
+            # framed or top-level, the wrap is a no-op fallback to
+            # plain local.set / local.tee, so this is safe to call
+            # unconditionally once the caller migrates.
+            self._emit_owned_local_write(idx, source, keep_on_stack=keep_on_stack)
+        elif keep_on_stack:
             self._emit_local_tee(idx)
         else:
             self._emit_local_set(idx)

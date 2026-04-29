@@ -26,6 +26,7 @@ from .._ir import (
     WasmInstruction,
     WasmOp,
 )
+from .._ownership import Ownership
 from .._parsing import (
     _derive_proc_namespace,
 )
@@ -444,9 +445,6 @@ class _WasmEmitterBase:
         lets call sites adopt ``_emit_local_set_owned`` without a
         sweep regression while S2.3 migrates writers one at a time.
         """
-        # Defer the import to avoid a top-of-file cycle with mixins.
-        from .._ownership import Ownership
-
         if not self._owned_local_wrap_active(idx):
             if keep_on_stack:
                 self._emit_local_tee(idx)
@@ -469,8 +467,16 @@ class _WasmEmitterBase:
 
         if source is Ownership.OWNED:
             # Stack: [v]; v owns its +1 we transfer to the slot.
-            # Sequence: tee tmp; local.get idx; release; local.get tmp; (set | tee).
-            self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(tmp))
+            # Sequence:
+            #   local.set tmp           # stack: []     ; tmp = v
+            #   local.get idx           # stack: [prior]
+            #   call release            # stack: []
+            #   local.get tmp           # stack: [v]
+            #   local.set idx           # stack: []     ; idx = v
+            # Or for keep_on_stack:
+            #   local.get tmp           # stack: [v]
+            #   local.tee idx           # stack: [v]    ; idx = v
+            self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(tmp))
             self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
             self._emit_call(release_idx)
             self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(tmp))
@@ -869,6 +875,25 @@ class _WasmEmitterBase:
         # string and dynamic dispatch patterns like
         # ``catch {$verify $v}`` silently produce an empty result.
         # tcltest's ``Option`` proc relies on this shape.
+        # S2.4: claim ownership of caller-passed param values BEFORE
+        # default-substitution so the wrapped default-sub store
+        # below can release the prior slot value safely.  Without
+        # this, the wrap would release the caller's handle on the
+        # first overwrite — sending its rc to 0 → freed → use-
+        # after-free in the caller's slot.
+        #
+        # ``tcl_obj_retain`` is null-safe so absent params (slot
+        # still 0 because no caller arg and no default yet) are a
+        # silent no-op here.
+        if self._is_proc and not wants_frame:
+            retain_idx = self._shared_imports.get("tcl_obj_retain")
+            if retain_idx is not None:
+                for i, pname in enumerate(self._params):
+                    if not pname:
+                        continue
+                    self._emit_local_get(i)
+                    self._emit_call(retain_idx)
+
         own_defaults = self._proc_defaults.get(self._proc_qname, ()) if self._proc_qname else ()
         if self._is_proc and own_defaults:
             for i, pname in enumerate(self._params):
@@ -880,11 +905,17 @@ class _WasmEmitterBase:
                 if default_val is None:
                     continue
                 # if local.get(i) == 0 { local.set(i, obj_literal(default_val)) }
+                # ``_emit_obj_literal`` allocates fresh → OWNED.  In
+                # frame-elided procs the wrap releases the prior slot
+                # value (which is 0 because of the I32_EQZ guard, so
+                # null-safe) and transfers the literal's +1 cleanly.
                 self._emit_local_get(i)
                 self._emit(WasmOp.I32_EQZ)
                 self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="default_sub")
                 self._emit_obj_literal(default_val)
-                self._emit_local_set(i)
+                self._emit_owned_local_write(
+                    i, Ownership.OWNED, keep_on_stack=False
+                )
                 self._emit(WasmOp.END)
 
         if wants_frame:
@@ -935,6 +966,43 @@ class _WasmEmitterBase:
         # ``[return_val] -> (frame_pop drop) -> (local.get saved ->
         # ns_restore) -> END``.
         cleanup_instrs: list[WasmInstruction] = []
+        # S2.5: in frame-elided procs, every owned slot still holds
+        # its +1.  Release each before the proc returns so the
+        # discipline closes.  Wrap around the return value: tee it
+        # into a save slot, retain it (so the upcoming releases
+        # cannot queue it for free), do the releases, then restore
+        # the saved value to the stack so RETURN / END consumes it.
+        # ``tcl_obj_retain`` and ``tcl_obj_release`` are null-safe
+        # so a return of ``0`` and any slot still at 0 are no-ops.
+        if (
+            self._is_proc
+            and not wants_frame
+            and self._owned_locals
+            and "tcl_obj_retain" in self._shared_imports
+            and "tcl_obj_release" in self._shared_imports
+        ):
+            retain_idx = self._shared_imports["tcl_obj_retain"]
+            release_idx = self._shared_imports["tcl_obj_release"]
+            save_local = self._add_extra_local(
+                prefix="_rc_ret_save",
+                val_type=ValType.I32,
+            )
+            cleanup_instrs.append(
+                WasmInstruction(op=WasmOp.LOCAL_TEE, operands=_leb128_unsigned(save_local))
+            )
+            cleanup_instrs.append(
+                WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(retain_idx))
+            )
+            for slot in self._owned_locals:
+                cleanup_instrs.append(
+                    WasmInstruction(op=WasmOp.LOCAL_GET, operands=_leb128_unsigned(slot))
+                )
+                cleanup_instrs.append(
+                    WasmInstruction(op=WasmOp.CALL, operands=_leb128_unsigned(release_idx))
+                )
+            cleanup_instrs.append(
+                WasmInstruction(op=WasmOp.LOCAL_GET, operands=_leb128_unsigned(save_local))
+            )
         if wants_frame:
             pop_idx = self._shared_imports.get("tcl_frame_pop")
             if pop_idx is not None:

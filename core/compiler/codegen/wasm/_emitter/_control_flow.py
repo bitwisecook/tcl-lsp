@@ -22,6 +22,7 @@ from .._ir import (
     ValType,
     WasmOp,
 )
+from .._ownership import Ownership
 
 
 class _WasmEmitterCtrlMixin(_Base):
@@ -245,7 +246,12 @@ class _WasmEmitterCtrlMixin(_Base):
                     self._emit_i64_const(slot)
                     self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-            self._emit_local_set(var_local)
+            # Both branches produce a fresh TclObj (tcl_list_index
+            # returns obj_new_string_copy, the fallback boxes a fresh
+            # int).  S2.3 migration.
+            self._emit_owned_local_write(
+                var_local, Ownership.OWNED, keep_on_stack=False
+            )
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
