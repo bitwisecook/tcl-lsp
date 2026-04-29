@@ -377,5 +377,174 @@ needs refactoring to support multiple injection groups.
 
 ---
 
-(remaining sub-plans S2.6 + S2.7 + stage exit criteria appended in
-follow-up commits.)
+### S2.6 — Re-enable runtime fast paths under the new discipline
+
+**Goal**: Several runtime commands have an `if (rc == 1) { mutate
+in place }` fast path that depends on the caller being the sole
+owner. With S2.1–S2.5 in place, the compile side knows when it is
+the sole owner (the `Ownership` tag plus the slot ownership rule);
+re-enable those paths so the discipline does not silently force
+slow paths everywhere.
+
+**Why it matters**: The failed attempt made every owned-slot value
+sit at `rc >= 2` (slot's hold + my retain), permanently disabling
+fast paths in `tcl_cmd_lappend`, `tcl_cmd_append`, and others.
+That turned every list/string mutation `O(n)` per call instead of
+amortised `O(1)`. Tests like `for.test` ran 5× slower as a result,
+overflowing the wasm-time cap.
+
+**Tasks**:
+
+- [ ] Audit every fast path in the runtime that depends on
+  `rc == 1`. Catalogue from S0.1's contract document.
+- [ ] For each fast path, decide:
+  - **(a)** the rc check is the right predicate and the
+    compile-side discipline preserves it, OR
+  - **(b)** introduce a different "sole owner" predicate (e.g.
+    "buffer is private to this obj AND rc <= small constant").
+- [ ] For commands that read from a slot and write back to the
+  same slot (`lappend`, `append`, `incr`), add a
+  `tcl_obj_release_for_mutation(obj)` runtime helper that drops
+  the slot's reference temporarily so the in-place fast path can
+  see `rc == 1`. The compile side calls release-for-mutation
+  before the runtime call and re-retains after.
+- [ ] Equivalent: introduce a "mutate-in-place" calling
+  convention for these specific commands. The compile side
+  signals "I am about to overwrite this slot anyway" by calling
+  a variant entry point.
+- [ ] Update S2.3's lappend/append/dict migrations to use the
+  mutate-in-place variant where applicable.
+
+**Files**:
+
+- Modify: `runtime/zig/valtypes/tcl_obj.zig` (new helper)
+- Modify: `runtime/zig/valtypes/tcl_list.zig` (mutate-in-place
+  variant of `tcl_cmd_lappend`)
+- Modify: `runtime/zig/valtypes/tcl_string.zig` (similar for
+  `tcl_cmd_append`)
+- Modify: `core/compiler/codegen/wasm/_emitter/cmds/lappend_.py`,
+  `append_.py`, `dict_.py` to use the new variant when the slot
+  is the source AND target.
+
+**Test plan**:
+
+- Microbench: `lappend` in a loop should match or beat today's
+  performance. Today's bump-allocator microbenches are the
+  reference; we should be within 10 %.
+- Sweep: `for.test`, `expr.test`, `expr-old.test` (the files
+  that regressed under the failed attempt) should now pass at
+  the baseline rate.
+- Leakcheck: still net-positive vs S2.5.
+
+**Rollback**: Per-command revert. If the mutate-in-place variant
+introduces a use-after-free in a single command, revert that
+command's variant only.
+
+**Acceptance gate**:
+
+- `for.test` reaches the same pass count as today's baseline.
+- `expr.test` and `expr-old.test` ditto.
+- `lappend` microbench within 10 % of today.
+- Sweep net-positive vs S2.5; leakcheck net-positive vs S2.5.
+
+**Estimated size**: 3–5 commits.
+
+---
+
+### S2.7 — Land the two blocked fixes (llength, namespace)
+
+**Goal**: With S2.1–S2.6 providing a correct refcount foundation,
+land the two trap-cluster fixes that have been blocked because
+they were net-negative under today's broken discipline:
+
+- `llength` unbalanced-brace error path
+  (`runtime/zig/valtypes/tcl_list_parse.zig` +
+  `runtime/zig/valtypes/tcl_list.zig`).
+- Namespace-aware `_emit_re_register_proc` 
+  (`core/compiler/codegen/wasm/_emitter/_statements.py`).
+
+**Why it matters**: These two fixes were measured at +50 / +49
+tests in isolation but −177 / −540 across other suites when
+applied without the refcount discipline. With S2.6 complete,
+their downstream impact is bounded.
+
+**Tasks**:
+
+- [ ] **llength fix**:
+  - Make `count_elements` a permissive function (no change) and
+    add a separate validator `validate_list_braces(ptr, len) ->
+    bool` that reports `false` on unmatched `{`.
+  - In `tcl_cmd_list_length`, call the validator first and raise
+    `unmatched open brace in list` if it fails. Internal callers
+    (linsert/lrepeat/lseq) keep using `count_elements` directly
+    and remain permissive — that is what the user-visible
+    `llength` semantics expects but bulk list operations do not.
+  - Test: `llength {{}` raises the error; `linsert {{} a 0 x`
+    behaves as today.
+- [ ] **Namespace re-register fix**:
+  - Update `_emit_re_register_proc` to qualify the proc name
+    against `self._block_namespace` (or `self._proc_namespace`)
+    instead of always `f"::{name}"`.
+  - Update the matching `seen`-set / `_proc_index.pop` site at
+    the caller (line 766 in `_statements.py`) for consistency.
+  - Verify no `compiled module does not export '::set'` or
+    similar host-bridge errors in basic / compile / interp /
+    safe.
+
+**Files**:
+
+- Modify: `runtime/zig/valtypes/tcl_list_parse.zig`,
+  `runtime/zig/valtypes/tcl_list.zig`
+- Modify: `core/compiler/codegen/wasm/_emitter/_statements.py`
+
+**Test plan**:
+
+- Sweep: net-positive (target ≥ +200 vs today's baseline; +50
+  uplevel + +49 cmdMZ + a few other improvements from the
+  llength fix).
+- Leakcheck: still net-positive.
+- Add direct unit tests for both fixes: `llength {{}` raises;
+  `proc set {x} {…}` inside `namespace eval ::ns { … }`
+  registers under `::ns::set` and dispatches correctly.
+
+**Rollback**: Per-fix. The two are independent.
+
+**Acceptance gate**: Sweep delta ≥ +200, no regressions in any
+subsystem, both unit tests pass.
+
+**Estimated size**: 2 commits (one per fix).
+
+---
+
+## Stage exit criteria
+
+S2 is done when **all** of:
+
+- The `Ownership` enum is threaded through every `_emit_value`
+  call site (S2.1).
+- Every owned-slot write goes through the new primitives with
+  the correct `Ownership` tag (S2.2 + S2.3).
+- Frame-elided procs claim slot ownership in the prologue
+  (S2.4) and release in the epilogue (S2.5).
+- Runtime fast paths are re-enabled where safe (S2.6).
+- The two trap-cluster fixes (S2.7) land net-positive.
+- The canonical-bug repro (S0.3) passes for both elided and
+  framed paths.
+- Sweep is net-positive vs today's baseline.
+- Leakcheck baseline is materially smaller for proc-heavy
+  test files.
+
+After S2, the compile side has a sound refcount foundation that
+S3 (interprocedural escape tightening), S4 (inlining), and
+S5 (SSA-driven optimisations) can build on.
+
+## Why this is small commits, not one branch
+
+The failed attempt did everything in one branch and discovered
+the bug only at the sweep stage. A 7-sub-plan, ~25-commit
+decomposition lets the leak counter and per-file sweep delta
+identify exactly which migration introduced any regression,
+and lets us fall back to the previous correct floor at any
+point. The tradeoff is more PR overhead; the win is that we
+never again have to revert 4000+ regressed tests because of an
+ambiguous over-release in one of twelve sites.
