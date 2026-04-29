@@ -887,3 +887,15 @@ clean: ## Remove build artifacts
 distclean: clean ## Remove build artifacts and node_modules
 	rm -rf $(EXT_DIR)/node_modules
 	rm -f  $(EXT_DIR)/package-lock.json
+
+# Zig runtime (WASM) — built ad-hoc by contributors today; targets
+# below provide a scriptable entry-point and the leak-check variant
+# used by S0.2.
+
+.PHONY: build-runtime build-runtime-leakcheck
+
+build-runtime: ## Build runtime/zig (default debug build) → tcl_runtime.wasm
+	cd runtime/zig && zig build
+
+build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumentation)
+	cd runtime/zig && rm -rf .zig-cache && zig build -Dleak-check=true

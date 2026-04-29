@@ -18,6 +18,7 @@
 
 const chars = @import("tcl_chars.zig");
 const std = @import("std");
+const build_options = @import("build_options");
 
 // Type tags
 pub const TYPE_STRING: i32 = 0;
@@ -208,9 +209,48 @@ pub fn write_i64(addr: u32, val: i64) void {
     }
 }
 
+// -- Leak-check counters (S0.2) ------------------------------------
+//
+// Bumped only when ``-Dleak-check=true`` is set on the zig build
+// command line.  Production builds compile out the bookkeeping
+// entirely (the ``if (build_options.leak_check)`` is folded by the
+// optimiser to a constant ``false``).
+//
+// The harness reads ``tcl_test_alloc_count`` after a workload to
+// assert zero residual.  ``tcl_test_double_free_count`` catches the
+// case where ``tcl_obj_release`` is called on an obj whose refcount
+// is already 0 (already on the deferred-free queue) — that is the
+// over-release pattern S2's failed attempt hit.
+
+var g_alloc_count: i32 = 0;
+var g_double_free_count: i32 = 0;
+
+pub export fn tcl_test_alloc_count() i32 {
+    return g_alloc_count;
+}
+
+pub export fn tcl_test_double_free_count() i32 {
+    return g_double_free_count;
+}
+
+pub export fn tcl_test_reset_counters() void {
+    g_alloc_count = 0;
+    g_double_free_count = 0;
+}
+
+/// Run at the end of a test workload.  Drains the deferred-free
+/// queue first (so any objs queued but not yet freed do not show up
+/// as residual), then returns the residual alloc count.  The
+/// harness compares this to zero and reports the delta.
+pub export fn tcl_test_finalize() i32 {
+    tcl_obj_drain_pending();
+    return g_alloc_count;
+}
+
 // Allocate a new TclObj with refcount 1
 pub fn obj_alloc() u32 {
     const ptr = alloc(OBJ_SIZE);
+    if (build_options.leak_check) g_alloc_count += 1;
     write_i32(ptr + OBJ_REFCOUNT, 1);
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_STRING);
     write_i64(ptr + OBJ_INT_CACHE, 0);
@@ -437,6 +477,7 @@ var pending_free: [PENDING_FREE_CAP]u32 = [_]u32{0} ** PENDING_FREE_CAP;
 var pending_free_count: u32 = 0;
 
 fn release_now(addr: u32) void {
+    if (build_options.leak_check) g_alloc_count -= 1;
     const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
     if (cap > 0) {
         const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
@@ -485,6 +526,14 @@ pub export fn tcl_obj_release(obj: i32) void {
     if (obj == 0) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
+    if (rc == 0) {
+        // Already on the deferred-free queue (rc==0 marker) or
+        // freed.  Any further release is the over-release pattern
+        // S2's failed attempt hit; record it so leakcheck builds
+        // surface it.  Production builds compile this branch out.
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     if (rc <= 1) {
         // Defer the actual free so a ``(ptr, len)`` reference
         // borrowed elsewhere can't alias a freshly-reissued slab.
