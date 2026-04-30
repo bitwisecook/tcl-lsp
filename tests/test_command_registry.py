@@ -714,6 +714,47 @@ class TestMultiRoleArguments:
         assert VAR_READ_WRITE == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
 
 
+class TestResolveArgRoleMap:
+    """``resolve_arg_role_map`` matches ``arg_indices_for_role`` semantics.
+
+    The map shape lets callers see every role on every annotated index
+    without four separate registry lookups, and includes the same
+    special-case logic ``arg_indices_for_role`` applies (TclOO body
+    detection and regexp/regsub PATTERN index).
+    """
+
+    def test_dict_with_returns_multi_role_set(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        roles = resolve_arg_role_map("dict", ["with", "myDict", "body"])
+        assert roles[1] == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
+        assert roles[2] == frozenset({ArgRole.BODY})
+
+    def test_subcommand_offset_is_applied(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        roles = resolve_arg_role_map("dict", ["update", "d", "k", "v", "body"])
+        # arg 0 is "update" (subcommand word); the variable is at arg 1.
+        assert ArgRole.VAR_WRITE in roles[1]
+        assert ArgRole.BODY in roles[4]
+
+    def test_regexp_pattern_index_is_included(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        # ``regexp pat string matchVar`` -- arg 0 is the pattern.
+        roles = resolve_arg_role_map("regexp", ["pat", "string", "m"])
+        assert ArgRole.PATTERN in roles.get(0, frozenset())
+        # Capture variable role from the resolver still applies.
+        assert ArgRole.VAR_WRITE in roles.get(2, frozenset())
+
+    def test_oo_method_body_index_is_included(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        # ``oo::define cls method name args body`` -- body is the last arg.
+        roles = resolve_arg_role_map("oo::define", ["cls", "method", "m", "{}", "{body}"])
+        assert ArgRole.BODY in roles.get(4, frozenset())
+
+
 class TestBodyKind:
     """Issue #246 — :class:`BodyKind` distinguishes structural from inline bodies.
 
