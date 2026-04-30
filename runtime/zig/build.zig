@@ -157,7 +157,21 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path(file),
             .target = test_target,
             .optimize = optimize,
+            // ``tcl_obj.alloc`` falls back to libc ``malloc`` past
+            // the static heap, and the WASI test runner pulls in
+            // ``__main_argc_argv`` / ``write`` from wasi-libc — both
+            // resolve only when libc is linked.  Match the main
+            // runtime's ``.link_libc = true`` so the test wasm
+            // instantiates under wasmtime.
+            .link_libc = true,
         });
+        // ``tcl_obj.zig`` (and a handful of other modules) gates
+        // leak-counter bookkeeping behind ``@import("build_options")
+        // .leak_check``.  Tests need the same options module wired
+        // in or the import resolves to "no module named
+        // build_options" and compilation fails — leak_check stays
+        // false in tests, matching the production default.
+        t_module.addOptions("build_options", build_options);
         const t_exe = b.addTest(.{
             .name = testNameFromPath(b, file),
             .root_module = t_module,
