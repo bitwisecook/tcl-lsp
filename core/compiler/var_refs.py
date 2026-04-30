@@ -13,10 +13,32 @@ from ..parsing.tokens import TokenType
 _DEFAULT_CACHE_SIZE = 512
 
 
+def _strip_outer_braces(text: str) -> str:
+    """Strip one layer of outer ``{…}`` braces from a Tcl word.
+
+    Used when recursing into BODY/EXPR args that are typically passed as a
+    single brace-quoted word — the lexer sees the braces as a STR token and
+    won't tokenise the contents otherwise.
+    """
+    s = text.strip()
+    if len(s) >= 2 and s.startswith("{") and s.endswith("}"):
+        return s[1:-1]
+    return s
+
+
 @dataclass(frozen=True, slots=True)
 class VarScanOptions:
     include_var_read_roles: bool = False
     recurse_cmd_substitutions: bool = True
+    recurse_body_args: bool = False
+    """When True, recurse into ``ArgRole.BODY`` and ``ArgRole.EXPR`` args of
+    each command, scanning their brace-stripped contents as Tcl scripts.
+
+    Without this, ``$var`` and ``var`` references inside braced control-flow
+    bodies (``if {…} {…}``, ``for {…} {…} {…} {…}``, etc.) are hidden from
+    the lexer.  Used when scanning opaque ``IRBarrier`` / ``IRCall`` bodies
+    that are not lowered into the CFG (e.g. ``catch``, ``dict for``,
+    deferred ``foreach``)."""
 
 
 class VarReferenceScanner:
@@ -73,7 +95,7 @@ class VarReferenceScanner:
             elif tok.type is TokenType.CMD and self._options.recurse_cmd_substitutions and tok.text:
                 vars_found |= self.scan_script(tok.text)
 
-        if self._options.include_var_read_roles:
+        if self._options.include_var_read_roles or self._options.recurse_body_args:
             vars_found |= self._scan_var_read_role_names(source)
 
         return frozenset(vars_found)
@@ -94,6 +116,22 @@ class VarReferenceScanner:
                     name = normalise_var_name(args[idx])
                     if name:
                         result.add(name)
+            if self._options.recurse_body_args:
+                # Inside an opaque body, the parameter being referenced via a
+                # write role (e.g. ``incr count``, ``set count 5``) still
+                # counts as a textual use — we err toward suppressing
+                # ``unused parameter`` rather than risking false positives.
+                for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
+                    if idx < len(args):
+                        name = normalise_var_name(args[idx])
+                        if name:
+                            result.add(name)
+                for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
+                    if idx < len(args):
+                        result.update(self.scan_script(_strip_outer_braces(args[idx])))
+                for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.EXPR)):
+                    if idx < len(args):
+                        result.update(self.scan_script(_strip_outer_braces(args[idx])))
 
         for tok in lexer.tokenise_all():
             if tok.type in (TokenType.EOL, TokenType.EOF):

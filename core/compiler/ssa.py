@@ -97,12 +97,63 @@ _VAR_REF_SCANNER = VarReferenceScanner(
 )
 
 
+_VAR_REF_SCANNER_DEEP = VarReferenceScanner(
+    VarScanOptions(
+        include_var_read_roles=True,
+        recurse_cmd_substitutions=True,
+        recurse_body_args=True,
+    )
+)
+
+
 def _vars_in_word(text: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_word(text)
 
 
 def _vars_in_script(source: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_script(source)
+
+
+def _vars_in_body_arg(text: str) -> frozenset[str]:
+    """Scan a body argument as a Tcl script, recursively.
+
+    Body args of opaque calls/barriers (e.g. ``catch``, ``dict for`` body,
+    deferred ``foreach`` body) are typically passed as a single brace-quoted
+    word.  ``_vars_in_word`` would lex the body as a single STR token and
+    miss variable references inside it, so we strip one layer of outer
+    braces and use the deep scanner that recurses into nested ``BODY`` /
+    ``EXPR`` args (``if {$x} {…}``, ``for {…} {$y} {…} {…}``, …) so a
+    parameter referenced inside any nested brace-quoted body is observed.
+    """
+    s = text.strip()
+    if len(s) >= 2 and s.startswith("{") and s.endswith("}"):
+        s = s[1:-1]
+    return _VAR_REF_SCANNER_DEEP.scan_script(s)
+
+
+def _body_arg_indices(
+    command: str, args: tuple[str, ...], tokens: CommandTokens | None
+) -> set[int]:
+    """Return body-arg indices for an opaque call/barrier whose body should
+    be scanned as a script.
+
+    Excludes :func:`_structural_body_indices` (proc/when/test) — those bodies
+    are analysed separately as their own functions.  Includes ``dict for`` /
+    ``dict map`` bodies, which are rewritten to ``::tcl::dict::for`` /
+    ``::tcl::dict::map`` during CFG lowering and lose their registry entry.
+    """
+    structural = _structural_body_indices(command, args, tokens)
+    indices = {
+        idx
+        for idx in arg_indices_for_role(command, list(args), ArgRole.BODY)
+        if idx not in structural and 0 <= idx < len(args)
+    }
+    # ``dict for/map`` is rewritten to a fully-qualified ensemble name during
+    # CFG lowering; the registry only knows the ``dict`` ensemble form, so
+    # supply the body index (after dropping the subcommand).
+    if command.endswith(("::for", "::map")) and len(args) >= 3:
+        indices.add(2)
+    return indices
 
 
 _TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
@@ -201,11 +252,15 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
             tokens=call_tokens,
         ):
             vars_found |= _vars_in_word(command)
-            body_indices = _structural_body_indices(command, args, call_tokens)
+            structural = _structural_body_indices(command, args, call_tokens)
+            scan_as_script = _body_arg_indices(command, args, call_tokens)
             for idx, arg in enumerate(args):
-                if idx in body_indices:
+                if idx in structural:
                     continue
-                vars_found |= _vars_in_word(arg)
+                if idx in scan_as_script:
+                    vars_found |= _vars_in_body_arg(arg)
+                else:
+                    vars_found |= _vars_in_word(arg)
             if call_reads:
                 for name in call_reads:
                     if name:
@@ -221,11 +276,15 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 vars_found |= _vars_in_expr(expr)
         case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
-            body_indices = _structural_body_indices(command, args, barrier_tokens)
+            structural = _structural_body_indices(command, args, barrier_tokens)
+            scan_as_script = _body_arg_indices(command, args, barrier_tokens)
             for idx, arg in enumerate(args):
-                if idx in body_indices:
+                if idx in structural:
                     continue
-                vars_found |= _vars_in_word(arg)
+                if idx in scan_as_script:
+                    vars_found |= _vars_in_body_arg(arg)
+                else:
+                    vars_found |= _vars_in_word(arg)
             # dict with/update: the dict variable name is a plain string,
             # not a $-substitution, so _vars_in_word misses it.
             if command == "dict" and len(args) >= 2 and args[0] in ("with", "update"):
