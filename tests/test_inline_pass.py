@@ -47,15 +47,20 @@ class TestEmptyBodySplice:
         # Both calls vanish; the ``proc`` definition stays put.
         assert _calls_to(new_module.top_level, "noop") == 0
 
-    def test_non_empty_body_is_not_inlined(self):
-        # Even though ``setup`` is pure_leaf and small, its body has
-        # a statement so the v0 splice declines.
+    def test_non_empty_body_v3_inlines(self):
+        # v3 lifts the v0/v1/v2 zero-statement / verbatim-only
+        # restriction.  ``proc setup {} { set x 1 }`` is a v3
+        # candidate: body writes a local, no params, no return.
+        # The set is α-renamed so the caller's ``x`` (if any) is
+        # not mutated.
         module, summaries = _prepare(
             "proc setup {} { set x 1 }\n"
             "setup\n"
         )
         new_module = inline_module(module, summaries)
-        assert _calls_to(new_module.top_level, "setup") == 1
+        # Call vanishes; setup body is dead-proc-eliminated.
+        assert _calls_to(new_module.top_level, "setup") == 0
+        assert "::setup" not in new_module.procedures
 
     def test_non_pure_leaf_is_not_inlined(self):
         # ``upvar`` blocks pure_leaf, so the catalogue tags ``skip_me``
@@ -151,16 +156,163 @@ class TestMultiStatementWrapperSplice:
         assert _calls_to(new_module.top_level, "puts") == 1
         assert _calls_to(new_module.top_level, "::string") == 1
 
-    def test_one_unsafe_call_disables_inline(self):
-        # ``set`` writes a variable (defs) → not splice-eligible →
-        # the whole wrapper stays put, even though ``puts`` would
-        # have been fine on its own.
+    def test_set_in_body_v3_inlines_with_alpha_rename(self):
+        # v3 lifts the v2 "verbatim-only" restriction: a body that
+        # writes a local now inlines via the parameterised path,
+        # which α-renames the local so the caller's slot isn't
+        # touched.
         module, summaries = _prepare(
             'proc setup {} { puts "starting"; set marker 1 }\n'
             "setup\n"
         )
         new_module = inline_module(module, summaries)
-        assert _calls_to(new_module.top_level, "setup") == 1
+        assert _calls_to(new_module.top_level, "setup") == 0
+        # ``puts`` propagated to top level.
+        assert _calls_to(new_module.top_level, "puts") == 1
+        # ``set marker 1`` becomes ``set __inline_<n>__marker 1`` —
+        # the caller's ``marker`` (if any) is untouched.
+        names = [
+            getattr(s, "name", None)
+            for s in new_module.top_level.statements
+        ]
+        assert any(
+            n is not None and n.startswith("__inline_") and n.endswith("__marker")
+            for n in names
+        )
+
+
+class TestParameterisedInline:
+    """v3: procs with parameters and / or local writes."""
+
+    def test_proc_with_one_param_inlines(self):
+        # ``proc inc {x} { puts $x }`` called as ``inc 5``:
+        # inline binds ``__inline_1__x = 5`` then ``puts $__inline_1__x``.
+        module, summaries = _prepare(
+            'proc inc {x} { puts $x }\n'
+            "inc 5\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "inc") == 0
+        # Mangled binding present.
+        assert any(
+            isinstance(s, IRCall) and s.command == "puts"
+            for s in new_module.top_level.statements
+        )
+
+    def test_proc_with_local_write_uses_mangled_name(self):
+        # ``proc f {} { set y 5; puts $y }``: the body's ``y`` is
+        # α-renamed.  After inlining, the call site has the
+        # mangled ``set`` followed by the mangled ``$y`` reference.
+        module, summaries = _prepare(
+            'proc f {} { set y 5; puts $y }\n'
+            "f\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        # The set's ``name`` is mangled; the puts's arg uses the
+        # same mangled name via $-substitution.
+        from core.compiler.ir import IRAssignConst, IRAssignValue
+
+        mangled_name: str | None = None
+        for s in new_module.top_level.statements:
+            if isinstance(s, (IRAssignConst, IRAssignValue)) and s.name.startswith(
+                "__inline_"
+            ):
+                mangled_name = s.name
+                break
+        assert mangled_name is not None
+        # ``puts ${mangled}`` should appear with $-subst rewritten.
+        # The lowering normalises ``$y`` to ``${y}`` in args, so the
+        # rewritten form is the braced ``${mangled}``.
+        assert any(
+            isinstance(s, IRCall)
+            and s.command == "puts"
+            and any(("${" + mangled_name + "}") in a for a in s.args)
+            for s in new_module.top_level.statements
+        )
+
+    def test_proc_with_return_not_inlined(self):
+        # Procs with any IRReturn keep the proc-call boundary —
+        # the inliner doesn't yet have IR labels / break primitives
+        # to safely route the return value.  The whole proc stays
+        # opaque rather than risk mis-routing results.
+        module, summaries = _prepare(
+            'proc f {x} { puts $x; return $x }\n'
+            "f 5\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_arity_mismatch_declines(self):
+        # Caller passes one arg to a two-param proc — defaults
+        # would normally apply, but v3 doesn't synthesise them yet.
+        # Decline rather than mis-inline.
+        module, summaries = _prepare(
+            'proc f {x y} { puts $x }\n'
+            "f 1\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_variadic_args_declines(self):
+        module, summaries = _prepare(
+            'proc f {args} { puts $args }\n'
+            "f 1 2 3\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_two_call_sites_get_distinct_mangling(self):
+        # Each call site gets a unique mangling counter so the two
+        # bound parameter slots don't collide.
+        module, summaries = _prepare(
+            'proc f {x} { puts $x }\n'
+            "f 1\n"
+            "f 2\n"
+        )
+        new_module = inline_module(module, summaries)
+        from core.compiler.ir import IRAssignValue
+
+        param_writes = [
+            s.name
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignValue) and s.name.startswith("__inline_")
+        ]
+        # Two call sites → two distinct mangled-x writes.
+        assert len(param_writes) == 2
+        assert param_writes[0] != param_writes[1]
+
+
+class TestDeadProcElimination:
+    def test_inlinable_proc_dropped_after_inlining(self):
+        # ``noop`` is inlined at every call site → no static refs
+        # remain → drop from module.procedures.
+        module, summaries = _prepare(
+            "proc noop {} {}\n"
+            "noop\n"
+            "noop\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert "::noop" not in new_module.procedures
+
+    def test_unreferenced_inlinable_proc_kept_for_external_callers(self):
+        # No internal call sites — but the proc may be invoked
+        # externally (Python test harness, embedding host).  The
+        # post-inline pruning conservatively keeps procs whose
+        # pre-inline ``static_call_count`` was 0 because we can't
+        # distinguish "truly dead" from "only externally called".
+        module, summaries = _prepare("proc lonely {} {}\n")
+        new_module = inline_module(module, summaries)
+        assert "::lonely" in new_module.procedures
+
+    def test_non_inlinable_proc_kept_even_if_unreferenced(self):
+        # ``upvar`` makes it non-pure_leaf → not in candidates set
+        # → kept regardless of static reference count.
+        module, summaries = _prepare(
+            "proc opaque {name} { upvar 1 $name v }\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert "::opaque" in new_module.procedures
 
 
 class TestSingleCallWrapperSplice:
