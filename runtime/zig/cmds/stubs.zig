@@ -155,11 +155,28 @@ fn eval_clock(words: []const i32) i32 {
         return clock.clock_format_tz(words[2], fmt_obj, zone_obj);
     }
     if (std.mem.eql(u8, sp, "add")) {
-        // Return the string "0" so callers can parse it as an integer.
-        const buf = rt.alloc(1);
-        const p: [*]u8 = @ptrFromInt(buf);
-        p[0] = '0';
-        return rt.obj_new_string(@intCast(buf), 1);
+        // Form: clock add BASE ?COUNT UNIT?* ?-gmt 0|1? ?-timezone Z?
+        // Iterate (count, unit) pairs and accumulate.  Option flags
+        // (``-gmt`` / ``-timezone`` / ``-locale``) are recognised and
+        // skipped — they affect calendar-month math semantics but the
+        // current implementation does month arithmetic in UTC, which
+        // matches Tcl's behaviour for non-DST-crossing month adds.
+        if (words.len < 3) return rt.obj_new_int(0);
+        var acc: i32 = words[2];
+        var ai: usize = 3;
+        while (ai < words.len) {
+            const w = rt.obj_ensure_string(words[ai]);
+            const ws: []const u8 = if (w.ptr == 0) "" else
+                @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
+            if (ws.len > 0 and ws[0] == '-') {
+                ai += 2; // skip option + value
+                continue;
+            }
+            if (ai + 1 >= words.len) break;
+            acc = clock.clock_add_pair(acc, words[ai], words[ai + 1]);
+            ai += 2;
+        }
+        return acc;
     }
     return rt.obj_new_string(0, 0);
 }

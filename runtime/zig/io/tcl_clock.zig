@@ -78,7 +78,6 @@ fn is_leap(year: i32) bool {
 
 fn break_down(epoch_secs: i64) BrokenDown {
     // Day-of-week for 1970-01-01 is Thursday = 4.
-    const SECS_PER_DAY: i64 = 86400;
     const days_since_epoch: i64 = @divFloor(epoch_secs, SECS_PER_DAY);
     const time_of_day_secs: i64 = epoch_secs - days_since_epoch * SECS_PER_DAY;
     const weekday: u32 = @intCast(@mod(days_since_epoch + 4, 7));
@@ -343,6 +342,140 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
     const epoch: i64 = if (seconds_obj == 0) 0 else obj.obj_get_int(seconds_obj);
     const t = break_down(epoch);
     return render_format(f.ptr, f.len, t, 0, "UTC");
+}
+
+// -- clock add ----------------------------------------------------------------
+
+const SECS_PER_MINUTE: i64 = 60;
+const SECS_PER_HOUR: i64 = 3600;
+const SECS_PER_DAY: i64 = 86_400;
+
+/// Days in (year, 1-based month).  Caller is responsible for
+/// passing 1..12 — we don't bounds-check here.
+fn days_in_month(year: i32, month: u32) u32 {
+    return if (is_leap(year)) MONTH_DAYS_LEAP[month - 1] else MONTH_DAYS_NORMAL[month - 1];
+}
+
+/// Re-pack a broken-down (year, month, day, hms…) tuple into Unix
+/// epoch seconds.  Inverse of ``break_down``.  Used by ``clock add``
+/// for the calendar-relative units (``months``, ``years``) where
+/// adding seconds isn't sufficient (a "month" varies in length).
+fn pack_epoch(year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32) i64 {
+    // Accumulate days from 1970-01-01 to target date.
+    var d: i64 = 0;
+    if (year >= 1970) {
+        var y: i32 = 1970;
+        while (y < year) : (y += 1) {
+            d += if (is_leap(y)) 366 else 365;
+        }
+    } else {
+        var y: i32 = year;
+        while (y < 1970) : (y += 1) {
+            d -= if (is_leap(y)) 366 else 365;
+        }
+    }
+    var m: u32 = 1;
+    while (m < month) : (m += 1) {
+        d += days_in_month(year, m);
+    }
+    d += @as(i64, day) - 1;
+    return d * SECS_PER_DAY +
+        @as(i64, hour) * SECS_PER_HOUR +
+        @as(i64, minute) * SECS_PER_MINUTE +
+        @as(i64, second);
+}
+
+/// Compare two byte slices for case-sensitive equality.  Tcl unit
+/// names are lowercase (``weeks`` / ``days`` / …); we don't bother
+/// with case-folding in the hot path.
+fn unit_eq(s: []const u8, lit: []const u8) bool {
+    return std.mem.eql(u8, s, lit);
+}
+
+/// clock_add_pair — add ``count`` of ``unit`` to ``base`` epoch
+/// seconds and return a new TclObj integer.  Unit names match the
+/// Tcl ``clock add`` reference:
+///
+///   seconds, minutes, hours, days, weeks   — fixed-second units.
+///   months, years                          — calendar-relative;
+///                                            require a UTC-only
+///                                            re-pack (timezone
+///                                            -aware month math is
+///                                            too much for one
+///                                            commit).
+///
+/// Unknown units fall through to a no-op (returns ``base`` unchanged)
+/// so a malformed call doesn't trap the whole interpreter.  Singular
+/// forms (``second`` / ``day``) are accepted — Tcl's parser is
+/// tolerant.
+pub export fn clock_add_pair(base_obj: i32, count_obj: i32, unit_obj: i32) i32 {
+    const base: i64 = if (base_obj == 0) 0 else obj.obj_get_int(base_obj);
+    const count: i64 = if (count_obj == 0) 0 else obj.obj_get_int(count_obj);
+    if (unit_obj == 0) return obj_new_int(base);
+    const u = obj_ensure_string(unit_obj);
+    if (u.ptr == 0 or u.len == 0) return obj_new_int(base);
+    const up: [*]const u8 = @ptrFromInt(u.ptr);
+    const us = up[0..u.len];
+    if (unit_eq(us, "seconds") or unit_eq(us, "second")) {
+        return obj_new_int(base + count);
+    }
+    if (unit_eq(us, "minutes") or unit_eq(us, "minute")) {
+        return obj_new_int(base + count * SECS_PER_MINUTE);
+    }
+    if (unit_eq(us, "hours") or unit_eq(us, "hour")) {
+        return obj_new_int(base + count * SECS_PER_HOUR);
+    }
+    if (unit_eq(us, "days") or unit_eq(us, "day")) {
+        return obj_new_int(base + count * SECS_PER_DAY);
+    }
+    if (unit_eq(us, "weeks") or unit_eq(us, "week")) {
+        return obj_new_int(base + count * SECS_PER_DAY * 7);
+    }
+    if (unit_eq(us, "months") or unit_eq(us, "month")) {
+        // Calendar month math: break down (UTC), bump month, re-pack.
+        // Day-of-month clamping matches Tcl: adding 1 month to
+        // 2025-01-31 lands on 2025-02-28, not "March 3".
+        const t = break_down(base);
+        var year = t.year;
+        var month: i64 = @as(i64, @intCast(t.month)) + count;
+        // Normalise to 1..12.
+        while (month < 1) {
+            year -= 1;
+            month += 12;
+        }
+        while (month > 12) {
+            year += 1;
+            month -= 12;
+        }
+        const dim = days_in_month(year, @intCast(month));
+        const day = if (t.day > dim) dim else t.day;
+        return obj_new_int(pack_epoch(
+            year,
+            @intCast(month),
+            day,
+            t.hour,
+            t.minute,
+            t.second,
+        ));
+    }
+    if (unit_eq(us, "years") or unit_eq(us, "year")) {
+        const t = break_down(base);
+        const year: i32 = @intCast(@as(i64, t.year) + count);
+        const dim = days_in_month(year, t.month);
+        const day = if (t.day > dim) dim else t.day;
+        return obj_new_int(pack_epoch(
+            year,
+            t.month,
+            day,
+            t.hour,
+            t.minute,
+            t.second,
+        ));
+    }
+    // Unknown unit — leave the timestamp untouched.  Tcl errors
+    // here but the existing ``clock_add`` stub returned 0; this is
+    // strictly less surprising.
+    return obj_new_int(base);
 }
 
 /// clock_format_tz — timezone-aware ``clock format``.  ``zone_obj``
