@@ -43,7 +43,7 @@ returns to the previous correct baseline.
 | **S3** | Interprocedural escape-analysis tightening | [s3](wasm-aot-staircase-s3.md) | partial — S3.4 pure_leaf tag landed (48e885ba); S3.1/S3.2/S3.3 deferred (existing checks already mostly precise) |
 | **S4** | Inlining of small leaf procs | [s4](wasm-aot-staircase-s4.md) | partial — S4.1 catalogue (e7480b4c), S4.2 v0 empty-body splice (2ce0fbe7), pipeline integration (d97e1c17), S4.2 v1 single-call wrapper splice (5c21fd76) + frame-observation soundness gate (9ff932fa) landed; multi-statement-body inlining deferred (needs IRCall return-value plumbing + α-renaming) |
 | **S5** | SSA-driven codegen optimisations | [s5](wasm-aot-staircase-s5.md) | partial — S5.1 first-write (acb851f4), S5.2 alias-skip (0cac52ce), S5.3 LICM for provably-≥1-iteration IRFor (099920da) + IRForeach with literal-list (f111b3c3) landed; S5.4 plug-in audit deferred (existing optimiser is diagnostic, not codegen-feeding) |
-| **S6** | Allocation + small-value representation | [s6](wasm-aot-staircase-s6.md) | partial — S6.1 free-list reuse (8fa4d064), S6.4 tagged-immediate small ints (33b968e9) + S6.2 inline strings (58ada312) landed; S6.3 per-statement arena deferred (needs runtime-parser context) |
+| **S6** | Allocation + small-value representation | [s6](wasm-aot-staircase-s6.md) | partial — S6.1 free-list reuse (8fa4d064), S6.4 tagged-immediate small ints (33b968e9), S6.2 inline strings (58ada312), S6.3 v0 per-scope arena for subst scratch (c1702928) landed; regex / interp arena routing deferred (delicate lifetimes need audit) |
 
 Each stage decomposes into numbered sub-plans (S0.1, S0.2, …). Sub-plans are
 sized to land in 1–3 commits each. Each per-stage doc lists tasks, file
