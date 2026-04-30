@@ -1146,8 +1146,16 @@ def _shift_range(
 def _analyse_when_body_with_cfg(
     body_text: str,
     body_tok: Token,
+    *,
+    outer_traced_commands: frozenset[str] | None = None,
+    outer_has_dynamic_trace: bool = False,
 ) -> list[RedundantComputation]:
-    """Analyse one ``when`` body as standalone Tcl for GVN/PRE/LICM."""
+    """Analyse one ``when`` body as standalone Tcl for GVN/PRE/LICM.
+
+    ``outer_traced_commands`` / ``outer_has_dynamic_trace`` carry trace
+    state from the document containing this ``when`` block — execution
+    traces installed at top level apply inside event bodies too.
+    """
     from .compilation_unit import compile_source
 
     try:
@@ -1155,6 +1163,11 @@ def _analyse_when_body_with_cfg(
     except Exception:
         log.debug("gvn: compilation failed for when-body analysis", exc_info=True)
         return []
+
+    body_traced = body_cu.ir_module.traced_commands()
+    if outer_traced_commands:
+        body_traced = body_traced | outer_traced_commands
+    body_has_dynamic_trace = body_cu.ir_module.has_dynamic_trace() or outer_has_dynamic_trace
 
     local_results: list[RedundantComputation] = []
     local_results.extend(
@@ -1164,6 +1177,8 @@ def _analyse_when_body_with_cfg(
             body_cu.top_level.analysis,
             body_text,
             interproc=body_cu.interproc,
+            traced_commands=body_traced,
+            has_dynamic_trace=body_has_dynamic_trace,
         )
     )
     local_results.extend(
@@ -1173,6 +1188,8 @@ def _analyse_when_body_with_cfg(
             body_cu.top_level.analysis,
             body_text,
             interproc=body_cu.interproc,
+            traced_commands=body_traced,
+            has_dynamic_trace=body_has_dynamic_trace,
         )
     )
     local_results.extend(
@@ -1182,6 +1199,8 @@ def _analyse_when_body_with_cfg(
             body_cu.top_level.analysis,
             body_text,
             interproc=body_cu.interproc,
+            traced_commands=body_traced,
+            has_dynamic_trace=body_has_dynamic_trace,
         )
     )
     for fu in body_cu.procedures.values():
@@ -1192,6 +1211,8 @@ def _analyse_when_body_with_cfg(
                 fu.analysis,
                 body_text,
                 interproc=body_cu.interproc,
+                traced_commands=body_traced,
+                has_dynamic_trace=body_has_dynamic_trace,
             )
         )
         local_results.extend(
@@ -1201,6 +1222,8 @@ def _analyse_when_body_with_cfg(
                 fu.analysis,
                 body_text,
                 interproc=body_cu.interproc,
+                traced_commands=body_traced,
+                has_dynamic_trace=body_has_dynamic_trace,
             )
         )
         local_results.extend(
@@ -1210,6 +1233,8 @@ def _analyse_when_body_with_cfg(
                 fu.analysis,
                 body_text,
                 interproc=body_cu.interproc,
+                traced_commands=body_traced,
+                has_dynamic_trace=body_has_dynamic_trace,
             )
         )
 
@@ -1242,7 +1267,12 @@ def _analyse_when_body_with_cfg(
     ]
 
 
-def _scan_when_bodies(source: str) -> list[RedundantComputation]:
+def _scan_when_bodies(
+    source: str,
+    *,
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
+) -> list[RedundantComputation]:
     """Analyse iRules ``when`` bodies for repeated pure command calls.
 
     ``when`` bodies bypass the parent document CFG/SSA pipeline (they are
@@ -1264,16 +1294,33 @@ def _scan_when_bodies(source: str) -> list[RedundantComputation]:
     Within each event body we track ``(cmd_name, args_text)`` keys.
     Because there is no SSA, variable-versioned canonicalisation is not
     possible; we simply use raw argument text.
+
+    ``traced_commands`` / ``has_dynamic_trace`` come from the enclosing
+    module's :class:`IRModule` so commands that are traced at top level
+    (or in a sibling ``when`` body) are excluded from CSE/PRE hints
+    inside event bodies — see issue #251.
     """
     results: list[RedundantComputation] = []
 
     def _writes_tracked_state(command: str, args: tuple[str, ...]) -> bool:
-        _reads, writes = classify_side_effects(command, args).to_effect_regions()
+        _reads, writes = classify_side_effects(
+            command,
+            args,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
+        ).to_effect_regions()
         return writes != EffectRegion.NONE
 
     for _event, _priority, body_text, body_tok, _event_tok in _find_when_bodies(source):
         # Path-sensitive pass first so it wins dedup ties over flat-scan hits.
-        results.extend(_analyse_when_body_with_cfg(body_text, body_tok))
+        results.extend(
+            _analyse_when_body_with_cfg(
+                body_text,
+                body_tok,
+                outer_traced_commands=traced_commands,
+                outer_has_dynamic_trace=has_dynamic_trace,
+            )
+        )
 
         # Track command-call keys seen so far within this body.
         seen: dict[tuple[str, ...], tuple[Range, str]] = {}
@@ -1294,9 +1341,18 @@ def _scan_when_bodies(source: str) -> list[RedundantComputation]:
 
             # Pattern 1: standalone pure command at top level
             # e.g. bare `HTTP::uri` or `HTTP::header value Host`
-            if _is_pure_command(cmd_name, top_args):
+            if _is_pure_command(
+                cmd_name,
+                top_args,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
+            ):
                 args = top_args
-                if _is_worth_reporting(cmd_name):
+                if _is_worth_reporting(
+                    cmd_name,
+                    traced_commands=traced_commands,
+                    has_dynamic_trace=has_dynamic_trace,
+                ):
                     key = ("call", cmd_name, *args)
                     _record_hit(
                         key,
@@ -1319,9 +1375,18 @@ def _scan_when_bodies(source: str) -> list[RedundantComputation]:
                     if _writes_tracked_state(inner_cmd, inner_args):
                         seen.clear()
                         continue
-                    if not _is_pure_command(inner_cmd, inner_args):
+                    if not _is_pure_command(
+                        inner_cmd,
+                        inner_args,
+                        traced_commands=traced_commands,
+                        has_dynamic_trace=has_dynamic_trace,
+                    ):
                         continue
-                    if not _is_worth_reporting(inner_cmd):
+                    if not _is_worth_reporting(
+                        inner_cmd,
+                        traced_commands=traced_commands,
+                        has_dynamic_trace=has_dynamic_trace,
+                    ):
                         continue
                     key = ("call", inner_cmd, *inner_args)
                     _record_hit(
@@ -1348,9 +1413,18 @@ def _scan_when_bodies(source: str) -> list[RedundantComputation]:
                         if _writes_tracked_state(inner_cmd, inner_args):
                             seen.clear()
                             continue
-                        if not _is_pure_command(inner_cmd, inner_args):
+                        if not _is_pure_command(
+                            inner_cmd,
+                            inner_args,
+                            traced_commands=traced_commands,
+                            has_dynamic_trace=has_dynamic_trace,
+                        ):
                             continue
-                        if not _is_worth_reporting(inner_cmd):
+                        if not _is_worth_reporting(
+                            inner_cmd,
+                            traced_commands=traced_commands,
+                            has_dynamic_trace=has_dynamic_trace,
+                        ):
                             continue
                         key = ("call", inner_cmd, *inner_args)
                         _record_hit(
@@ -1457,6 +1531,12 @@ def find_redundant_computations(
     # iRules ``when`` bodies bypass CFG/SSA -- scan them with a
     # flat token-level pass.
     if active_dialect() == "f5-irules":
-        results.extend(_scan_when_bodies(source))
+        results.extend(
+            _scan_when_bodies(
+                source,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
+            )
+        )
 
     return _deduplicate(results)
