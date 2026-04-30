@@ -78,8 +78,13 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
         if stmt.args[0] == "add" and stmt.args[1] == "variable":
             return (_normalise_var_name(stmt.args[2]),)
     # dict for/map barriers: extract iteration variable names from the
-    # varList arg so SSA sees them as definitions.
-    if isinstance(stmt, IRBarrier) and stmt.command.endswith(("::for", "::map")):
+    # varList arg so SSA sees them as definitions.  Match the rewritten
+    # command names exactly; a suffix test would also fire for unrelated
+    # commands like ``::my::for``.
+    if isinstance(stmt, IRBarrier) and stmt.command in (
+        "::tcl::dict::for",
+        "::tcl::dict::map",
+    ):
         if stmt.args:
             return tuple(stmt.args[0].split())
     return ()
@@ -240,11 +245,16 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
         case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
             body_indices = _structural_body_indices(command, args, barrier_tokens)
-            # dict for/map barriers carry the loop body as args[-1].  The
-            # body never enters the CFG, so its variable references must be
-            # discovered here (recursing into nested braced bodies) — see
-            # issue #234.
-            is_dict_iter_barrier = command.endswith(("::for", "::map")) and len(args) >= 3
+            # ``dict for/map`` barriers carry the loop body as args[-1] and
+            # the body never enters the CFG, so its variable references
+            # must be discovered here (recursing into nested braced bodies).
+            # Match the rewritten command names exactly — a suffix test
+            # would also catch unrelated namespaced commands like
+            # ``::my::for`` and silently scan their last arg as a script.
+            # See issues #234, #236.
+            is_dict_iter_barrier = (
+                command in ("::tcl::dict::for", "::tcl::dict::map") and len(args) >= 3
+            )
             for idx, arg in enumerate(args):
                 if idx in body_indices:
                     continue

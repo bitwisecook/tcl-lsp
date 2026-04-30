@@ -15,13 +15,27 @@ _DEFAULT_CACHE_SIZE = 512
 
 @dataclass(frozen=True, slots=True)
 class VarScanOptions:
+    """Options controlling :class:`VarReferenceScanner` behaviour.
+
+    Attributes:
+        include_var_read_roles: When True, also report variable names that
+            appear at ``ArgRole.VAR_READ`` positions (e.g. ``info exists
+            varName``) in addition to ``$var`` substitutions.
+        recurse_cmd_substitutions: When True, recurse into the source of
+            ``[cmd-substitution]`` tokens.
+        recurse_into_script_roles: When True, recursively scan BODY-role
+            and EXPR-role argument words (as scripts) for nested variable
+            references.  Driven by the command registry, so plain braced
+            data words (e.g. ``set msg {$lit}``) are left alone — only
+            argument positions known to be scripts/expressions are
+            descended into.  Used by SSA when scanning opaque ``IRBarrier``
+            bodies that are not lowered into the CFG (e.g. ``dict for``)
+            so ``$var`` references inside nested braced control-flow are
+            still observed.
+    """
+
     include_var_read_roles: bool = False
     recurse_cmd_substitutions: bool = True
-    # When set, recursively scan BODY-role and EXPR-role argument words
-    # (as scripts) for nested variable references.  Driven by the command
-    # registry, so plain braced data words (e.g. ``set msg {$lit}``) are
-    # left alone — only argument positions known to be scripts/expressions
-    # are descended into.
     recurse_into_script_roles: bool = False
 
 
