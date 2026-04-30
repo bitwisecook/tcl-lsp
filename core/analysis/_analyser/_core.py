@@ -101,6 +101,12 @@ class _AnalyserBase:
         self._objdefined_vars: set[str] = set()
         # Guard against double W123 emission across analyse_commands/analyse_irule_event.
         self._unresolved_commands_emitted: bool = False
+        # Pending trace-callback registrations: each entry is the tuple
+        # of candidate qualified proc names (in resolution order) for a
+        # ``trace add`` callback whose target proc may not yet have been
+        # parsed.  Resolved at finalisation to mark
+        # ``ProcDef.is_trace_callback`` and suppress W214.
+        self._pending_trace_callbacks: list[tuple[str, ...]] = []
 
     def snapshot(self) -> AnalyserSnapshot:
         """Capture the analyser state for later restoration.
@@ -132,6 +138,7 @@ class _AnalyserBase:
             # Tuples inside the list are immutable — shallow copy suffices.
             var_command_sites=list(self._var_command_sites),
             cmd_command_sites=list(self._cmd_command_sites),
+            pending_trace_callbacks=list(self._pending_trace_callbacks),
         )
 
     def restore(self, snap: AnalyserSnapshot) -> None:
@@ -180,6 +187,7 @@ class _AnalyserBase:
         # entries store Range, not scope references).
         self._var_command_sites = list(snap.var_command_sites)
         self._cmd_command_sites = list(snap.cmd_command_sites)
+        self._pending_trace_callbacks = list(snap.pending_trace_callbacks)
 
     @staticmethod
     def _build_scope_id_map(

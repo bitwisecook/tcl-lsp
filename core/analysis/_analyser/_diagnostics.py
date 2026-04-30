@@ -108,6 +108,8 @@ class _AnalyserDiagsMixin(_Base):
             racy_vars: frozenset[str],
         ) -> None: ...
 
+        def _resolve_pending_trace_callbacks(self) -> None: ...
+
     def _emit_variable_usage_diagnostics(self) -> None:
         """Kept for potential future scope-tree consumers.
 
@@ -122,6 +124,10 @@ class _AnalyserDiagsMixin(_Base):
         cu: CompilationUnit | None = None,
     ) -> None:
         """Emit diagnostics backed by CFG/SSA core analyses."""
+        # Resolve any pending ``trace`` callback registrations now that
+        # all procs have been parsed.  Marks ``ProcDef.is_trace_callback``
+        # so W214 is suppressed for those procs.
+        self._resolve_pending_trace_callbacks()
         cu = ensure_compilation_unit(
             source,
             cu,
