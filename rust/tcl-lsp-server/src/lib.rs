@@ -7,7 +7,8 @@
 //! exercising it.
 //!
 //! ARCH8 ships the bootstrap with the folding-range provider wired
-//! end-to-end; every other LSP method returns
+//! end-to-end; the `S-document-symbols` follow-up adds the
+//! document-symbol provider on top.  Every other LSP method returns
 //! [`tower_lsp::jsonrpc::ErrorCode::MethodNotFound`] until later
 //! chunks extend the provider set.
 
@@ -17,6 +18,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
@@ -24,9 +26,10 @@ use tokio::sync::Mutex;
 use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    FoldingRange, FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, MessageType, ServerCapabilities,
-    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
+    FoldingRangeParams, FoldingRangeProviderCapability, InitializeParams, InitializeResult,
+    InitializedParams, MessageType, OneOf, Position, Range, ServerCapabilities, ServerInfo,
+    SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -148,6 +151,7 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+                document_symbol_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -210,6 +214,62 @@ impl LanguageServer for Backend {
         let ranges = tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry);
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
+
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> jsonrpc::Result<Option<DocumentSymbolResponse>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let symbols = core_symbols::document_symbols(&doc.text, &doc.dialect);
+        let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
+        Ok(Some(DocumentSymbolResponse::Nested(lifted)))
+    }
+}
+
+fn lift_line_range(r: core_symbols::LineRange) -> Range {
+    Range {
+        start: Position {
+            line: r.start_line,
+            character: r.start_character,
+        },
+        end: Position {
+            line: r.end_line,
+            character: r.end_character,
+        },
+    }
+}
+
+fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
+    match k {
+        CoreSymbolKind::Function => SymbolKind::FUNCTION,
+        CoreSymbolKind::Method => SymbolKind::METHOD,
+        CoreSymbolKind::Class => SymbolKind::CLASS,
+        CoreSymbolKind::Property => SymbolKind::PROPERTY,
+        CoreSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+        CoreSymbolKind::Namespace => SymbolKind::NAMESPACE,
+        CoreSymbolKind::Variable => SymbolKind::VARIABLE,
+    }
+}
+
+fn lift_document_symbol(s: core_symbols::DocumentSymbol) -> DocumentSymbol {
+    let children = if s.children.is_empty() {
+        None
+    } else {
+        Some(s.children.into_iter().map(lift_document_symbol).collect())
+    };
+    #[allow(deprecated)] // `deprecated` is required by lsp-types but unused.
+    DocumentSymbol {
+        name: s.name,
+        detail: s.detail,
+        kind: lift_symbol_kind(s.kind),
+        tags: None,
+        deprecated: None,
+        range: lift_line_range(s.range),
+        selection_range: lift_line_range(s.selection_range),
+        children,
+    }
 }
 
 fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
@@ -256,6 +316,115 @@ mod tests {
         assert_eq!(
             lift_folding_range(comment).kind,
             Some(FoldingRangeKind::Comment),
+        );
+    }
+
+    /// `lift_symbol_kind` maps every `CoreSymbolKind` variant to the
+    /// matching LSP `SymbolKind` constant. The mapping is exhaustive
+    /// because `CoreSymbolKind` is non-exhaustive on the source side.
+    #[test]
+    fn lift_symbol_kind_covers_all_variants() {
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Function),
+            SymbolKind::FUNCTION
+        );
+        assert_eq!(lift_symbol_kind(CoreSymbolKind::Method), SymbolKind::METHOD);
+        assert_eq!(lift_symbol_kind(CoreSymbolKind::Class), SymbolKind::CLASS);
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Property),
+            SymbolKind::PROPERTY
+        );
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Constructor),
+            SymbolKind::CONSTRUCTOR,
+        );
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Namespace),
+            SymbolKind::NAMESPACE
+        );
+        assert_eq!(
+            lift_symbol_kind(CoreSymbolKind::Variable),
+            SymbolKind::VARIABLE
+        );
+    }
+
+    /// `lift_document_symbol` preserves the name / detail / kind /
+    /// range / selection-range fields and recursively lifts
+    /// children. An empty child list maps to `None` rather than
+    /// `Some(Vec::new())` so the serialised JSON omits the field
+    /// entirely (per `#[serde(skip_serializing_if)]` on the LSP
+    /// type).
+    #[test]
+    fn lift_document_symbol_preserves_fields_and_recurses() {
+        let inner = core_symbols::DocumentSymbol {
+            name: "child".to_owned(),
+            detail: None,
+            kind: CoreSymbolKind::Variable,
+            range: core_symbols::LineRange {
+                start_line: 2,
+                start_character: 4,
+                end_line: 2,
+                end_character: 9,
+            },
+            selection_range: core_symbols::LineRange {
+                start_line: 2,
+                start_character: 4,
+                end_line: 2,
+                end_character: 9,
+            },
+            children: Vec::new(),
+        };
+        let outer = core_symbols::DocumentSymbol {
+            name: "demo".to_owned(),
+            detail: Some("()".to_owned()),
+            kind: CoreSymbolKind::Function,
+            range: core_symbols::LineRange {
+                start_line: 0,
+                start_character: 0,
+                end_line: 4,
+                end_character: 1,
+            },
+            selection_range: core_symbols::LineRange {
+                start_line: 0,
+                start_character: 5,
+                end_line: 0,
+                end_character: 9,
+            },
+            children: vec![inner],
+        };
+
+        let lifted = lift_document_symbol(outer);
+        assert_eq!(lifted.name, "demo");
+        assert_eq!(lifted.detail.as_deref(), Some("()"));
+        assert_eq!(lifted.kind, SymbolKind::FUNCTION);
+        assert_eq!(
+            lifted.range.start,
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            lifted.range.end,
+            Position {
+                line: 4,
+                character: 1
+            }
+        );
+        assert_eq!(
+            lifted.selection_range.start,
+            Position {
+                line: 0,
+                character: 5
+            },
+        );
+        let kids = lifted.children.expect("non-empty children lift to Some");
+        assert_eq!(kids.len(), 1);
+        assert_eq!(kids[0].name, "child");
+        assert_eq!(kids[0].kind, SymbolKind::VARIABLE);
+        assert!(
+            kids[0].children.is_none(),
+            "leaf symbol's empty children must lift to None",
         );
     }
 }
