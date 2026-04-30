@@ -20,6 +20,10 @@ class ArgRole(Enum):
     EXPR = auto()  # Expression (expr sub-language)
     VAR_WRITE = auto()  # A variable name written by the command (set, regexp, scan, lassign)
     VAR_READ = auto()  # A variable name read without modification (info exists, array get)
+    VAR_READ_WRITE = auto()  # A variable name read and written (dict with/update — body reads keys, dict is updated after)
+    LOOP_VAR_LIST = (
+        auto()
+    )  # Whitespace-separated list of loop variable names (dict for/map ``{key val}``)
     PARAM_LIST = auto()  # Procedure parameter list
     NAME = auto()  # A symbolic name (proc name, namespace name)
     PATTERN = auto()  # Pattern or regex
@@ -29,6 +33,24 @@ class ArgRole(Enum):
     OPTION_TERMINATOR = auto()  # The "--" option terminator
     CHANNEL = auto()  # Channel identifier (stdout, stdin, channelId)
     INDEX = auto()  # List/string index expression
+
+
+class BodyKind(Enum):
+    """How a ``BODY`` argument relates to its enclosing block.
+
+    ``INLINE`` — the body executes in the caller's scope as part of the
+    current control flow (``catch``, ``while``, ``foreach``, ``dict for``,
+    …).  Variable references inside it must be discovered by the SSA scan
+    so reads/writes are visible to the enclosing function's analysis.
+
+    ``STRUCTURAL`` — the body defines its own scope and is lowered/analysed
+    as a separate procedure or handler (``proc``, ``when``, ``tcltest::test``).
+    Variable references inside the body are not part of the enclosing
+    block's data flow and must be excluded from local statement scans.
+    """
+
+    INLINE = auto()
+    STRUCTURAL = auto()
 
 
 @dataclass(frozen=True, slots=True)

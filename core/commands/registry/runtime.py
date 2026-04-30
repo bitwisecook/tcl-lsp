@@ -16,7 +16,7 @@ from ...compiler.types import TclType
 from ...parsing.tokens import Token
 from .command_registry import REGISTRY
 from .models import CommandSpec, PatternType, ValidationSpec
-from .signatures import ArgRole, Arity, CommandSig, SubcommandSig
+from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
 
@@ -24,16 +24,19 @@ from .type_hints import CommandTypeHint, SubcommandTypeHint
 __all__ = [
     "ArgRole",
     "BodyArgument",
+    "BodyKind",
     "CommandSig",
     "SubcommandSig",
     "CommandTypeHint",
     "SubcommandTypeHint",
     "SwitchCase",
     "TaintHint",
+    "body_kind_for_command",
     "is_switch_case_list_form",
     "iter_switch_case_list",
     "options_with_value",
     "regexp_pattern_index",
+    "resolve_rewrite_alias",
     "skip_options",
 ]
 
@@ -196,6 +199,7 @@ def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     TYPE_HINTS.clear()
     TYPE_HINTS.update(_type_hints_from_registry())
     _rebuild_fold_hints()
+    _rebuild_alias_maps()
     canonical_list_commands.cache_clear()
     taint_transform_map.cache_clear()
     taint_double_encode_map.cache_clear()
@@ -889,6 +893,214 @@ def skip_options(
     return i
 
 
+# Rewrite-alias and exported-short-name maps.
+#
+# The CFG lowering pass rewrites a few ensemble-form commands (``dict for``,
+# ``dict map``) into qualified internal names so codegen can dispatch them
+# uniformly; ``namespace import`` brings exported short names into scope
+# (``test`` → ``::tcltest::test`` in any namespace that imports
+# ``::tcltest::*`` or ``::tcltest::test``).  Downstream registry consumers
+# see the alternative spelling and need a reverse-lookup map to recover the
+# canonical spec — without it, every consumer would have to hardcode the
+# correspondence (the regression mode that #234, #236, and #243 stemmed
+# from).
+#
+# Both maps are derived from declarative spec properties — never hardcoded
+# here — so adding a new rewritten name or exported short name is a single
+# edit on the source spec.  ``_invalidate_runtime_caches`` rebuilds the
+# maps whenever a dialect's specs are loaded.
+#
+# **Caveat for the exported-short-name map.**  ``namespace import`` is
+# dynamic and namespace-scoped in real Tcl — knowing whether a bare ``test``
+# at a given call site refers to ``::tcltest::test`` requires tracking the
+# imports active in the current namespace.  Issue #246's broader plan
+# stages this canonicalisation into the IR.  Until then, the map below is
+# a static over-approximation: it assumes every exported short name is
+# imported.  This matches today's analyser behaviour and avoids regressing
+# tcltest-style packages where the bare name is the conventional spelling,
+# but at the cost of treating a user-defined ``test`` proc as if it were
+# ``::tcltest::test`` for body-kind/role queries.
+_REWRITE_ALIASES: dict[str, tuple[str, str]] = {}
+_COMMAND_NAME_ALIASES: dict[str, str] = {}
+
+
+def _build_rewrite_aliases() -> dict[str, tuple[str, str]]:
+    """Collect ``cfg_rewrite_name`` declarations into a reverse-lookup map."""
+    result: dict[str, tuple[str, str]] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            for sub_name, sub in spec.subcommands.items():
+                if sub.cfg_rewrite_name is not None:
+                    # Last writer wins on duplicates — there should only be
+                    # one rewriter per qualified name in practice.
+                    result[sub.cfg_rewrite_name] = (name, sub_name)
+    return result
+
+
+def _build_command_name_aliases() -> dict[str, str]:
+    """Collect bare names that ``is_namespace_exported`` specs may resolve to.
+
+    For each spec at qualified name ``<ns>::<bare>`` with
+    ``is_namespace_exported=True``, the bare ``<bare>`` is registered as
+    a possible alias for the qualified spec.  This is a static
+    over-approximation — see the module-level note for details.
+    """
+    result: dict[str, str] = {}
+    for name, specs in REGISTRY.specs_by_name.items():
+        for spec in specs:
+            if not spec.is_namespace_exported:
+                continue
+            if "::" not in name:
+                continue
+            bare = name.rsplit("::", 1)[-1]
+            if bare and bare != name:
+                # Last writer wins — duplicate exports across namespaces
+                # collapse to whichever spec was registered last.  The
+                # bare-name collision is a static-analysis ambiguity in
+                # any case; per-namespace IR canonicalisation resolves it.
+                result[bare] = name
+    return result
+
+
+def _rebuild_alias_maps() -> None:
+    global _REWRITE_ALIASES, _COMMAND_NAME_ALIASES
+    _REWRITE_ALIASES = _build_rewrite_aliases()
+    _COMMAND_NAME_ALIASES = _build_command_name_aliases()
+
+
+_rebuild_alias_maps()
+
+
+def resolve_rewrite_alias(command: str) -> tuple[str, str] | None:
+    """Resolve a CFG-rewritten command name to ``(source_cmd, subcommand)``.
+
+    Returns ``None`` for any command that is not a registered rewrite of an
+    ensemble-form command.  Callers that branch on the rewritten name should
+    consult this map first so a future rewrite addition is automatically
+    visible to every registry-driven query.
+    """
+    return _REWRITE_ALIASES.get(command)
+
+
+def _canonicalise_command_name(command: str) -> str:
+    """Resolve a :data:`_COMMAND_NAME_ALIASES` entry to its source spec name.
+
+    Returns *command* unchanged when no alias is registered.
+    """
+    return _COMMAND_NAME_ALIASES.get(command, command)
+
+
+def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, ArgRole], int]:
+    """Return ``(role_map, base_index)`` for a *command* invocation.
+
+    *role_map* maps argument indices into ``args[base_index:]`` to their
+    :class:`ArgRole`.  ``base_index`` is the offset to add when expressing
+    the indices against the original *args* list — 1 for ensemble-form
+    commands (where ``args[0]`` is the subcommand word) and 0 for plain
+    commands and CFG-rewritten ensemble names.
+
+    Returns ``({}, 0)`` for unregistered or unmatched commands; callers
+    should treat the empty role map as "no roles known" and skip output.
+
+    Resolution order matters: a direct registry hit on *command* always
+    wins over a namespace-export alias entry — so an explicit
+    ``configure_signatures(extra_commands=["test"])`` registration (or
+    any other dialect/extra-command spec for the bare name) shadows the
+    static ``test`` → ``tcltest::test`` over-approximation.  Only when
+    no spec exists for the user-written name does the alias map come
+    into play.  CFG-rewritten names (``::tcl::dict::for``) sit outside
+    this rule because they're qualified internal spellings that never
+    have a direct spec of their own.
+    """
+    alias = _REWRITE_ALIASES.get(command)
+    if alias is not None:
+        source_cmd, sub_name = alias
+        parent = SIGNATURES.get(source_cmd) or _ROLE_HINTS.get(source_cmd)
+        if isinstance(parent, SubcommandSig):
+            sub_sig = parent.subcommands.get(sub_name)
+            if sub_sig is not None:
+                return _resolved_role_map(sub_sig, args), 0
+        return {}, 0
+
+    sig = SIGNATURES.get(command) or _ROLE_HINTS.get(command)
+    if sig is None:
+        canonical = _canonicalise_command_name(command)
+        if canonical != command:
+            sig = SIGNATURES.get(canonical) or _ROLE_HINTS.get(canonical)
+    if isinstance(sig, SubcommandSig):
+        if not args:
+            return {}, 1
+        sub_sig = sig.subcommands.get(args[0])
+        if sub_sig is None:
+            return {}, 1
+        return _resolved_role_map(sub_sig, args[1:]), 1
+    if isinstance(sig, CommandSig):
+        return _resolved_role_map(sig, args), 0
+    return {}, 0
+
+
+def _resolved_role_map(sig: CommandSig, args: list[str]) -> dict[int, ArgRole]:
+    """Resolve :class:`CommandSig` roles for *args*, dynamic resolver first."""
+    if sig.arg_role_resolver is not None:
+        resolved = sig.arg_role_resolver(list(args))
+        return {idx: r for idx, r in resolved.items() if idx < len(args)}
+    return {idx: r for idx, r in sig.arg_roles.items() if idx < len(args)}
+
+
+# Subsumption: a query for these "narrower" roles also matches the
+# "broader" :data:`ArgRole.VAR_READ_WRITE` role.  Keeping the map small
+# means new role additions are explicit; widen as needed when more
+# combined-semantic roles are added.
+_ROLE_SUBSUMES: dict[ArgRole, frozenset[ArgRole]] = {
+    ArgRole.VAR_READ: frozenset({ArgRole.VAR_READ_WRITE}),
+    ArgRole.VAR_WRITE: frozenset({ArgRole.VAR_READ_WRITE}),
+}
+
+
+def body_kind_for_command(command: str, args: list[str]) -> BodyKind:
+    """Return the :class:`BodyKind` for ``ArgRole.BODY`` arguments of *command*.
+
+    Subcommand-form invocations (``dict for``, ``namespace eval``, …) inherit
+    from the subcommand's ``body_kind``; CFG-rewritten ensemble forms
+    (``::tcl::dict::for``) resolve through :data:`_REWRITE_ALIASES` to the
+    source ensemble's subcommand; and bare names that match an
+    ``is_namespace_exported`` spec (``test`` → ``tcltest::test``) resolve
+    through :data:`_COMMAND_NAME_ALIASES`.  See the module note above for
+    the over-approximation in the latter case.
+
+    Defaults to :class:`BodyKind.INLINE` when the command has no body or
+    isn't registered.
+    """
+    alias = _REWRITE_ALIASES.get(command)
+    if alias is not None:
+        source_cmd, sub_name = alias
+        spec = REGISTRY.get_any(source_cmd)
+        if spec is not None:
+            sub = spec.subcommands.get(sub_name)
+            if sub is not None:
+                return sub.body_kind
+        return BodyKind.INLINE
+
+    # If the user-written name has any direct registration — a real
+    # spec, a role hint, or an ``extra_commands`` stub in SIGNATURES —
+    # commit to that name and never fall through to the namespace-export
+    # alias.  Otherwise an explicit ``configure_signatures(extra_commands=
+    # ["test"])`` would silently get tcltest::test's structural body kind.
+    if command in SIGNATURES or command in _ROLE_HINTS:
+        target = command
+    else:
+        target = _canonicalise_command_name(command)
+
+    spec = REGISTRY.get_any(target)
+    if spec is None:
+        return BodyKind.INLINE
+    if spec.subcommands and args:
+        sub = spec.subcommands.get(args[0])
+        if sub is not None:
+            return sub.body_kind
+    return spec.body_kind
+
+
 def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[int]:
     """Return argument indices (0-based, after command name) for a role."""
     if role is ArgRole.BODY:
@@ -905,39 +1117,12 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
                 return {idx}
             return set()
 
-    sig = SIGNATURES.get(command)
-    if sig is None:
-        sig = _ROLE_HINTS.get(command)
-    if sig is None:
+    role_map, base_index = _resolve_arg_roles(command, args)
+    if not role_map:
         return set()
 
-    if isinstance(sig, SubcommandSig):
-        if not args:
-            return set()
-        sub_sig = sig.subcommands.get(args[0])
-        if sub_sig is None:
-            return set()
-        sub_args = args[1:]
-        if sub_sig.arg_role_resolver is not None:
-            resolved = sub_sig.arg_role_resolver(sub_args)
-            return {idx + 1 for idx, r in resolved.items() if r is role and idx < len(sub_args)}
-        return {
-            idx + 1
-            for idx, arg_role in sub_sig.arg_roles.items()
-            if arg_role is role and (idx + 1) < len(args)
-        }
-
-    if isinstance(sig, CommandSig):
-        # Dynamic resolver takes priority for variable-layout commands.
-        if sig.arg_role_resolver is not None:
-            resolved = sig.arg_role_resolver(args)
-            return {idx for idx, r in resolved.items() if r is role and idx < len(args)}
-        result = {
-            idx for idx, arg_role in sig.arg_roles.items() if arg_role is role and idx < len(args)
-        }
-        return result
-
-    return set()
+    accept = _ROLE_SUBSUMES.get(role, frozenset()) | {role}
+    return {idx + base_index for idx, r in role_map.items() if r in accept}
 
 
 _SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.PATTERN})
@@ -969,46 +1154,13 @@ def arg_indices_for_roles(
     if not need_sig_roles:
         return tuple(results)
 
-    sig = SIGNATURES.get(command)
-    if sig is None:
-        sig = _ROLE_HINTS.get(command)
-    if sig is None:
+    role_map, base_index = _resolve_arg_roles(command, args)
+    if not role_map:
         return tuple(results)
 
-    if isinstance(sig, SubcommandSig):
-        if not args:
-            return tuple(results)
-        sub_sig = sig.subcommands.get(args[0])
-        if sub_sig is None:
-            return tuple(results)
-        sub_args = args[1:]
-        if sub_sig.arg_role_resolver is not None:
-            resolved = sub_sig.arg_role_resolver(sub_args)
-            for idx_in_result, role in need_sig_roles:
-                results[idx_in_result] = {
-                    idx + 1 for idx, r in resolved.items() if r is role and idx < len(sub_args)
-                }
-        else:
-            for idx_in_result, role in need_sig_roles:
-                results[idx_in_result] = {
-                    idx + 1
-                    for idx, arg_role in sub_sig.arg_roles.items()
-                    if arg_role is role and (idx + 1) < len(args)
-                }
-    elif isinstance(sig, CommandSig):
-        if sig.arg_role_resolver is not None:
-            resolved = sig.arg_role_resolver(args)
-            for idx_in_result, role in need_sig_roles:
-                results[idx_in_result] = {
-                    idx for idx, r in resolved.items() if r is role and idx < len(args)
-                }
-        else:
-            for idx_in_result, role in need_sig_roles:
-                results[idx_in_result] = {
-                    idx
-                    for idx, arg_role in sig.arg_roles.items()
-                    if arg_role is role and idx < len(args)
-                }
+    for idx_in_result, role in need_sig_roles:
+        accept = _ROLE_SUBSUMES.get(role, frozenset()) | {role}
+        results[idx_in_result] = {idx + base_index for idx, r in role_map.items() if r in accept}
 
     return tuple(results)
 

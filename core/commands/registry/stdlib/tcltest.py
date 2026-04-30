@@ -10,7 +10,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, OptionSpec, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _PKG = "tcltest"
@@ -94,6 +94,8 @@ class TcltestTest(CommandDef):
             ),
             validation=ValidationSpec(arity=Arity(2)),
             arg_role_resolver=_test_arg_roles,
+            body_kind=BodyKind.STRUCTURAL,
+            is_namespace_exported=True,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,

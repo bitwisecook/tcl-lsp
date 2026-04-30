@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .namespace_models import EventRequires
-from .signatures import ArgRole, Arity
+from .signatures import ArgRole, Arity, BodyKind
 
 if TYPE_CHECKING:
     from ...compiler.side_effects import SideEffect, StorageType
@@ -411,6 +411,21 @@ class SubCommand:
     arg_roles: dict[int, ArgRole] = field(default_factory=dict)
     arg_role_resolver: ArgRoleResolver | None = None
 
+    # Body kind for any ``ArgRole.BODY`` arguments on this subcommand.
+    # Defaults to ``INLINE`` (body executes in the caller's scope).
+    # Set to ``STRUCTURAL`` for subcommands whose body is analysed as a
+    # separate procedure/handler.
+    body_kind: BodyKind = BodyKind.INLINE
+
+    # CFG-lowered command name for ensemble subcommands that get rewritten.
+    # When set, the CFG lowering pass replaces ``<command> <subname>`` with
+    # this qualified name and drops the subcommand word from the argument
+    # list (so role indices on this :class:`SubCommand` still apply 0-based
+    # to the rewritten call).  The runtime registry derives a reverse lookup
+    # map so downstream queries on the rewritten name resolve back to this
+    # subcommand without each consumer hardcoding the correspondence.
+    cfg_rewrite_name: str | None = None
+
     # Type info (replaces type_hints() -> SubcommandTypeHint).
     return_type: TclType | None = None
     arg_types: dict[int, ArgTypeHint] = field(default_factory=dict)
@@ -666,6 +681,25 @@ class CommandSpec:
 
     # Arg-role resolution for variable-layout commands (if/try/switch/foreach).
     arg_role_resolver: ArgRoleResolver | None = None
+
+    # Body kind for any ``ArgRole.BODY`` arguments on this command.
+    # Defaults to ``INLINE`` (body executes in the caller's scope).
+    # Set to ``STRUCTURAL`` for commands whose body is analysed as a
+    # separate procedure/handler (``proc``, ``when``, ``tcltest::test``).
+    body_kind: BodyKind = BodyKind.INLINE
+
+    # Whether this command's source namespace exports it via
+    # ``namespace export <bare>``, making it eligible for retrieval as a
+    # short name after ``namespace import``.  This is a fact about the
+    # *command's source* — it does not claim any particular call site has
+    # imported it.  Registry helpers derive the bare name from the
+    # qualified ``name`` (last ``::`` segment) and build a static
+    # over-approximation alias map: callers that see the bare name will
+    # resolve it to this spec.  Per-call-site, namespace-scoped resolution
+    # requires IR-stage canonicalisation (issue #246's broader plan); the
+    # static approximation matches today's analysis behaviour for tcltest-
+    # style packages where the bare name is the conventional spelling.
+    is_namespace_exported: bool = False
 
     # Keyword+scaffold completions inside variable-layout commands.
     keyword_completions: KeywordCompletionProvider | None = None

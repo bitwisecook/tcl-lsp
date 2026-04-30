@@ -6,7 +6,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "Tcl proc(1)"
@@ -39,6 +39,7 @@ class ProcCommand(CommandDef):
             ),
             wasm_emits_nothing=True,
             arg_roles={0: ArgRole.NAME, 1: ArgRole.PARAM_LIST, 2: ArgRole.BODY},
+            body_kind=BodyKind.STRUCTURAL,
             return_type=TclType.STRING,
             defines_procedure=True,
             irules_top_level_only=True,
