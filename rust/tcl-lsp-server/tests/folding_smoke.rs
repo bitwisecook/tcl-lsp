@@ -14,6 +14,10 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tower_lsp::{LspService, Server};
 
 /// Frame `body` as an LSP `Content-Length: …\r\n\r\n<body>` packet.
+///
+/// LSP defines `Content-Length` in bytes; Rust's `&str::len()`
+/// already returns the UTF-8 byte length (not the Unicode scalar
+/// count), so this is correct for non-ASCII payloads as well.
 fn frame(body: &str) -> String {
     format!("Content-Length: {}\r\n\r\n{body}", body.len())
 }
