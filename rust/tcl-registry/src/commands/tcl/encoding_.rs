@@ -4,6 +4,7 @@ use crate::prelude::*;
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "convertfrom",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         detail: "Convert from specified encoding.",
         synopsis: "encoding convertfrom ?encoding? data",

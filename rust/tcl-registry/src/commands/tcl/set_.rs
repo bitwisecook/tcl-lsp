@@ -1,5 +1,8 @@
 //! `set` — read or write a variable.
 
+// VERIFIED: Tcl 9.0.3 manpage set(n) (man3/set.n).
+
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Dynamic arg role resolver: getter (1 arg) vs setter (2 args).
@@ -26,6 +29,7 @@ pub fn spec() -> CommandSpec {
             &["set varName ?newValue?"],
             "Tcl set(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Set),
         ..CommandSpec::DEFAULT
     }
 }

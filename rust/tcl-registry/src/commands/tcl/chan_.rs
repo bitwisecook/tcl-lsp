@@ -67,6 +67,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "gets",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         detail: "Read a line.",
         synopsis: "chan gets channelId ?varName?",
@@ -125,6 +126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "read",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         detail: "Read from a channel.",
         synopsis: "chan read channelId ?numChars?",

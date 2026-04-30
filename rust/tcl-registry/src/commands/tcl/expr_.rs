@@ -1,5 +1,8 @@
 //! `expr` — evaluate a mathematical expression.
+//
+// VERIFIED: Tcl 9.0.3 manpage expr(n) (man3/expr.n).
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `expr`.
@@ -22,6 +25,7 @@ pub fn spec() -> CommandSpec {
             &["expr arg ?arg ...?"],
             "Tcl expr(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Expr),
         ..CommandSpec::DEFAULT
     }
 }

@@ -10,8 +10,11 @@ bitflags! {
     /// Declarative behavioural traits for a command.
     ///
     /// Packed into a single `u64` — compact storage, fast intersection
-    /// and containment queries. The registry pre-computes trait indexes
-    /// so consumers can ask "give me all commands with trait X" in O(1).
+    /// and containment queries on a single spec. Whole-registry
+    /// trait-membership queries
+    /// ([`crate::registry::CommandRegistry::commands_with_trait`])
+    /// scan the spec table in O(N) today; a precomputed trait index
+    /// is a future optimisation.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Traits: u64 {
         // Control flow
@@ -109,5 +112,12 @@ bitflags! {
         // Taint
         /// Command is a taint sink (absorbs tainted data).
         const TAINT_SINK                = 1 << 37;
+        /// Command returns attacker-controlled data
+        /// (`gets`, `read`, `exec`, `socket`, …).
+        const TAINT_SOURCE              = 1 << 38;
+        /// Command operates on attacker-controlled iRules data
+        /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
+        /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
+        const IRULES_DATA_GETTER        = 1 << 39;
     }
 }

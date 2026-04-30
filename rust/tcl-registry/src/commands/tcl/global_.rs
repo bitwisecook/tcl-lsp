@@ -1,5 +1,6 @@
 //! `global` — access global variables.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `global`.
@@ -22,6 +23,7 @@ pub fn spec() -> CommandSpec {
             &["global ?varname ...?"],
             "Tcl global(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Global),
         ..CommandSpec::DEFAULT
     }
 }

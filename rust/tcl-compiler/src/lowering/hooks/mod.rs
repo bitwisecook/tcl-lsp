@@ -11,4 +11,5 @@
 //! `crate::lowering_hooks` module so each command's logic lives in
 //! its own file (chunk **C43**).
 
+pub mod control;
 pub mod incr;

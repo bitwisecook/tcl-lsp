@@ -38,6 +38,22 @@ pub enum Severity {
     Error,
 }
 
+impl Severity {
+    /// Stable lower-case wire form (`"hint"`, `"suggestion"`,
+    /// `"warning"`, `"error"`). Same vocabulary as the
+    /// `compiler_checks::Severity` wire form — both LSP layers
+    /// consume the same strings.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hint => "hint",
+            Self::Suggestion => "suggestion",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}
+
 /// Lexical scope kind.
 ///
 /// Mirrors the ``Scope.kind`` string in
@@ -51,6 +67,20 @@ pub enum ScopeKind {
     Namespace,
     /// A ``proc`` body scope.
     Proc,
+}
+
+impl ScopeKind {
+    /// Stable lower-case wire form (`"global"`, `"namespace"`,
+    /// `"proc"`). Same vocabulary as the Python `Scope.kind`
+    /// string.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Global => "global",
+            Self::Namespace => "namespace",
+            Self::Proc => "proc",
+        }
+    }
 }
 
 /// A suggested fix for a [`Diagnostic`] — maps to an LSP

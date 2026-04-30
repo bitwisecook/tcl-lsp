@@ -1,5 +1,6 @@
 //! `return` — return from the current procedure or script.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `return`.
@@ -20,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["return ?-code code? ?-level level? ?result?"],
             "Tcl return(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Return),
         ..CommandSpec::DEFAULT
     }
 }

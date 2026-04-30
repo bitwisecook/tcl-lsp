@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
         assigns_variable_at: Some(1),

@@ -30,26 +30,22 @@
 //! - T103 regex-injection, T104 SSRF, T105 cross-interpreter injection
 //!   — follow-up strips once the registry gains full taint-hint metadata.
 //!
-//! ## Source commands (hardcoded pending registry metadata)
+//! ## Source / sink / sanitiser facts live in the registry
 //!
-//! The Python registry tags source commands via `taint_hints()` on
-//! each `CommandSpec`. The Rust registry does not carry that metadata
-//! yet. Until it does, sources are identified by a static list that
-//! mirrors the Python `TAINT_HINTS` entries for core Tcl:
+//! ARCH3 moved the source / sanitiser tables into
+//! [`tcl_registry::taint`]. This module asks the registry the
+//! questions it used to answer locally:
 //!
-//! | Command | Arity match | Reason |
-//! |---------|------------|--------|
-//! | `gets`  | any | Reads from stdin / channel |
-//! | `read`  | any | Reads from channel |
-//! | `exec`  | any | Returns shell-command stdout |
-//! | `socket`| any | Opens a network channel |
-//! | `chan gets` / `chan read` | any | Channel reads via subcommand |
-//! | `encoding convertfrom` | any | Decodes attacker-controlled bytes |
+//! * `tcl_registry::taint::is_taint_source` covers the trait-driven
+//!   sources (`gets`, `read`, `exec`, `socket`), the subcommand
+//!   sources (`chan gets`, `chan read`, `encoding convertfrom`),
+//!   the iRules `UNNORMALISED_HTTP_GETTER` trait, and the iRules
+//!   namespace-prefix fallback.
+//! * `tcl_registry::taint::is_sanitiser` covers fixed-numeric-return
+//!   sanitisers (e.g. `string length`, `string is integer`).
 //!
-//! When the active `dialect` is `"f5-irules"` / `"irules"`, the
-//! iRules HTTP/URI/IP/TCP/UDP/SSL/STREAM namespace-prefixed
-//! getters are treated as sources in addition to the registry-driven
-//! `UNNORMALISED_HTTP_GETTER` trait — see `is_irules_source`.
+//! Sinks are still resolved through the [`Traits::TAINT_SINK`] /
+//! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
 
 #![allow(clippy::implicit_hasher)]
 
@@ -58,6 +54,7 @@ use std::collections::{HashMap, HashSet};
 use bitflags::bitflags;
 
 use tcl_lexer::Span;
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg::Function as CfgFunction;
@@ -278,37 +275,8 @@ fn is_taint_source(
     args: &[&str],
     dialect: Option<&str>,
 ) -> bool {
-    // Registry-driven: UNNORMALISED_HTTP_GETTER marks HTTP data getters.
-    if let Some(spec) = registry.get(command) {
-        if spec.traits.contains(Traits::UNNORMALISED_HTTP_GETTER) {
-            return true;
-        }
-    }
-
-    // Hardcoded core-Tcl sources (pending registry taint-hint metadata).
-    let core_hit = match command {
-        "gets" | "read" | "exec" | "socket" => true,
-        "chan" => {
-            // chan gets / chan read are sources; chan puts, configure, etc. are not.
-            matches!(args.first().copied(), Some("gets" | "read"))
-        }
-        "encoding" => {
-            // encoding convertfrom may decode attacker-controlled bytes.
-            matches!(args.first().copied(), Some("convertfrom"))
-        }
-        _ => false,
-    };
-    if core_hit {
-        return true;
-    }
-
-    // iRules-dialect sources: commands under attacker-controlled
-    // namespaces that carry no UNNORMALISED_HTTP_GETTER trait yet.
-    if is_irules_dialect(dialect) && is_irules_source(command) {
-        return true;
-    }
-
-    false
+    let dialect_set = dialect_to_set(dialect);
+    tcl_registry::taint::is_taint_source(registry, command, args, dialect_set)
 }
 
 /// True when the supplied `dialect` enables iRules-specific taint rules.
@@ -320,47 +288,19 @@ pub fn is_irules_dialect(dialect: Option<&str>) -> bool {
     matches!(dialect, Some("f5-irules" | "irules"))
 }
 
-/// Return `true` when `command` is an iRules namespace-prefixed getter
-/// whose return value carries attacker-controlled data (an HTTP
-/// header, URI segment, transport tuple, or stream chunk).
-///
-/// Supplements `UNNORMALISED_HTTP_GETTER` for registry entries that
-/// don't yet carry the trait.
-fn is_irules_source(command: &str) -> bool {
-    // Any command under one of these namespaces is treated as a
-    // source. Callers are expected to pass the literal namespace-
-    // qualified form as typed in iRules source.
-    const PREFIXES: &[&str] = &[
-        "HTTP::", "URI::", "IP::", "TCP::", "UDP::", "SSL::", "STREAM::",
-    ];
-    PREFIXES.iter().any(|p| command.starts_with(p))
-}
-
-/// Return `true` when `command` (with optional subcommand in `args`) is a
-/// sanitiser — its return value is a fixed numeric type that cannot carry
-/// taint through it.
-///
-/// Mirrors `_is_sanitiser` in Python: commands (or subcommands) that return
-/// `Int` or `Boolean` are sanitisers because their output is type-determined,
-/// not content-determined.  Subcommand specs are checked first so that, e.g.,
-/// `string length` and `string is integer` are recognised as sanitisers even
-/// though `string` itself has no top-level return type.
-fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
-    use tcl_registry::TclType;
-    fn is_fixed_numeric(t: Option<TclType>) -> bool {
-        matches!(t, Some(TclType::Int | TclType::Boolean))
-    }
-    let Some(spec) = registry.get(command) else {
-        return false;
-    };
-    if let Some(sub_name) = args.first().copied() {
-        if let Some(sub) = spec.subcommand(sub_name) {
-            if is_fixed_numeric(sub.return_type) {
-                return true;
-            }
+fn dialect_to_set(dialect: Option<&str>) -> DialectSet {
+    if is_irules_dialect(dialect) {
+        DialectSet::IRULES
+    } else {
+        match dialect.and_then(DialectSet::parse) {
+            Some(d) => d,
+            None => DialectSet::empty(),
         }
     }
-    is_fixed_numeric(spec.return_type)
+}
+
+fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
+    tcl_registry::taint::is_sanitiser(registry, command, args)
 }
 
 // ---------------------------------------------------------------------------
@@ -2398,6 +2338,102 @@ mod tests {
         assert!(
             under_tcl.is_empty(),
             "no IRULE3101 under tcl dialect, got {under_tcl:?}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // ARCH3 — registry-driven source / sink / setter-constraint coverage
+    // -----------------------------------------------------------------------
+
+    /// The Tcl-core source classification flows from the registry's
+    /// [`Traits::TAINT_SOURCE`] flag: registry-side query and
+    /// end-to-end taint-warning emission must agree on `gets` /
+    /// `read` / `exec` / `socket`.
+    #[test]
+    fn arch3_tcl_core_source_is_registry_driven() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // Registry-side: TAINT_SOURCE trait is stamped on these.
+        for cmd in ["gets", "read", "exec", "socket"] {
+            let spec = registry.get(cmd).unwrap_or_else(|| panic!("{cmd} missing"));
+            assert!(
+                spec.traits.contains(tcl_registry::Traits::TAINT_SOURCE),
+                "{cmd} must carry TAINT_SOURCE in the registry",
+            );
+        }
+        // Same fact via the registry-side taint helper.
+        assert!(tcl_registry::taint::is_taint_source(
+            &registry,
+            "gets",
+            &["stdin"],
+            tcl_registry::dialects::DialectSet::empty(),
+        ));
+
+        // End-to-end: `gets` → `eval` raises T100. The fact reaches
+        // the diagnostic via the registry, not via a compiler-side
+        // command-name table.
+        let cu = CompilationUnit::build_for("set x [gets stdin]\neval $x", &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut warnings: Vec<TaintWarning> = Vec::new();
+        for fu in cu.functions() {
+            warnings.extend(find_taint_warnings(
+                &fu.cfg,
+                &fu.ssa,
+                &fu.taints,
+                &fu.sccp.executable_blocks,
+                &registry,
+                None,
+            ));
+        }
+        assert!(
+            warnings.iter().any(|w| w.code == "T100"),
+            "expected T100 from gets→eval with registry-driven source, got {warnings:?}",
+        );
+    }
+
+    /// The iRules sink classification is registry-driven (via
+    /// `TAINT_SINK` and `EVALUATES_CODE` traits): tainted data into
+    /// `expr` (which carries `TAINT_SINK`) raises T100. The trait
+    /// is the single source of truth — flipping it removes the
+    /// classification.
+    #[test]
+    fn arch3_irules_sink_is_registry_driven() {
+        let registry = CommandRegistry::build_default();
+        let expr_spec = registry.get("expr").expect("expr in registry");
+        assert!(
+            expr_spec.traits.contains(tcl_registry::Traits::TAINT_SINK),
+            "expr must carry TAINT_SINK in the registry",
+        );
+
+        // End-to-end: tainted iRules data (`HTTP::uri`) into expr
+        // surfaces T100 under the iRules dialect.
+        let w = irules_warnings_for("set u [HTTP::uri]\nexpr $u");
+        assert!(
+            w.iter().any(|d| d.code == "T100"),
+            "expected T100 on tainted expr sink under iRules, got {w:?}",
+        );
+    }
+
+    /// IRULE3101 setter-constraint violations are gated by the
+    /// iRules dialect filter — the diagnostic must not fire under
+    /// the plain Tcl dialect because the setter constraint comes
+    /// from the iRules-only registry entry.
+    #[test]
+    fn arch3_setter_constraint_is_dialect_driven() {
+        // `HTTP::uri foo` (no leading slash) under iRules produces
+        // an IRULE3101 setter-constraint violation.
+        let irules = setter_warnings_for_dialect("HTTP::uri foo", Some("f5-irules"));
+        assert!(
+            irules.iter().any(|w| w.code == "IRULE3101"),
+            "expected IRULE3101 under iRules dialect, got {irules:?}",
+        );
+
+        // The same source under plain Tcl: a user-defined proc named
+        // `HTTP::uri` is legal and the setter check must stay silent.
+        let plain = setter_warnings_for_dialect("HTTP::uri foo", None);
+        assert!(
+            plain.iter().all(|w| w.code != "IRULE3101"),
+            "no IRULE3101 outside iRules, got {plain:?}",
         );
     }
 }

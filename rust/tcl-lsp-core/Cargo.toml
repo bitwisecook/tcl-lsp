@@ -1,0 +1,17 @@
+[package]
+name = "tcl-lsp-core"
+description = "Pure Rust LSP feature providers for tcl-lsp (folding, symbols, diagnostics projection)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+
+[lints]
+workspace = true

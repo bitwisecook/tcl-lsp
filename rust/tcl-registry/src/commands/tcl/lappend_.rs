@@ -1,5 +1,6 @@
 //! `lappend` — append list elements onto a variable.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `lappend`.
@@ -31,6 +32,7 @@ pub fn spec() -> CommandSpec {
             &["lappend varName ?value value value ...?"],
             "Tcl lappend(1)",
         )),
+        lowering_hook: Some(LoweringHookId::AppendOrLappend),
         ..CommandSpec::DEFAULT
     }
 }

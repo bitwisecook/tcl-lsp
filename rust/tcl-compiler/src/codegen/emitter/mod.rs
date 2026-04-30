@@ -26,6 +26,8 @@ pub mod try_blocks;
 
 use std::collections::HashMap;
 
+use tcl_registry::CommandRegistry;
+
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::ir::{Module as IrModule, Procedure as IrProcedure};
 
@@ -36,9 +38,17 @@ use super::{CodegenCtx, FunctionAsm, ModuleAsm};
 /// When `is_proc` is true, variables are accessed via the LVT
 /// (`loadScalar1`/`storeScalar1`). When `false` (top-level scripts),
 /// variables are accessed via the stack (`loadStk`/`storeStk`).
+/// `registry` is consulted for codegen-hook resolution; pass the
+/// same instance the lowering pass used so dialect-loaded specs
+/// are visible.
 #[must_use]
-pub fn codegen_function(cfg: &CfgFunction, params: &[&str], is_proc: bool) -> FunctionAsm {
-    codegen_function_with_procs(cfg, params, is_proc, &[])
+pub fn codegen_function(
+    cfg: &CfgFunction,
+    params: &[&str],
+    is_proc: bool,
+    registry: &CommandRegistry,
+) -> FunctionAsm {
+    codegen_function_with_procs(cfg, params, is_proc, &[], registry)
 }
 
 /// Generate bytecode assembly for a CFG function, with pending proc defs.
@@ -51,15 +61,20 @@ pub fn codegen_function_with_procs(
     params: &[&str],
     is_proc: bool,
     proc_defs: &[IrProcedure],
+    registry: &CommandRegistry,
 ) -> FunctionAsm {
-    let mut ctx = CodegenCtx::new(is_proc, params);
+    let mut ctx = CodegenCtx::new(is_proc, params, registry);
     generate::generate(&mut ctx, cfg, proc_defs)
 }
 
 /// Generate bytecode assembly for an entire module.
 #[must_use]
-pub fn codegen_module(cfg_module: &CfgModule, ir_module: &IrModule) -> ModuleAsm {
-    let top = codegen_function(&cfg_module.top_level, &[], false);
+pub fn codegen_module(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    registry: &CommandRegistry,
+) -> ModuleAsm {
+    let top = codegen_function(&cfg_module.top_level, &[], false, registry);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -73,7 +88,10 @@ pub fn codegen_module(cfg_module: &CfgModule, ir_module: &IrModule) -> ModuleAsm
         let params: Vec<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
-        procs.insert(qname.clone(), codegen_function(cfg_func, &params, true));
+        procs.insert(
+            qname.clone(),
+            codegen_function(cfg_func, &params, true, registry),
+        );
     }
     ModuleAsm {
         top_level: top,

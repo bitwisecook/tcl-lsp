@@ -1,5 +1,6 @@
 //! `variable` — create and initialise a namespace variable.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `variable`.
@@ -22,6 +23,7 @@ pub fn spec() -> CommandSpec {
             &["variable name", "variable ?name value...?"],
             "Tcl variable(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Variable),
         ..CommandSpec::DEFAULT
     }
 }

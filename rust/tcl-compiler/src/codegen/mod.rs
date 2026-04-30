@@ -27,6 +27,8 @@ pub use emitter::{codegen_function, codegen_module};
 use std::collections::HashMap;
 use std::fmt;
 
+use tcl_registry::CommandRegistry;
+
 use crate::expr_ast::{BinOp, UnaryOp};
 
 /// Index sentinel for "end"-based Tcl index notation.
@@ -881,7 +883,7 @@ pub struct ModuleAsm {
 /// procedure or top-level script.
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
-pub struct CodegenCtx {
+pub struct CodegenCtx<'r> {
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.
@@ -920,16 +922,26 @@ pub struct CodegenCtx {
     pub pending_join_labels: HashMap<String, String>,
     /// 1-based source line of the current statement (for `errorInfo`).
     pub current_source_line: u32,
+    /// Command registry consulted by registry-driven codegen hooks.
+    ///
+    /// Threaded in by the caller so dialect-loaded specs (iRules,
+    /// Tk, EDA) drive codegen-hook resolution. Borrowed for the
+    /// lifetime of the context — codegen runs synchronously and the
+    /// caller already holds the registry that lowering used.
+    pub registry: &'r CommandRegistry,
 }
 
-impl CodegenCtx {
+impl<'r> CodegenCtx<'r> {
     /// Create a new emission context.
     ///
     /// When `is_proc` is true, variable references use LVT-based
     /// instructions; when false, stack-based instructions are used.
     /// `params` pre-populates the LVT with procedure parameter names.
+    /// `registry` is the [`CommandRegistry`] consulted by codegen
+    /// hooks (`try_bytecoded`); pass the same instance the lowering
+    /// pass used so dialect-loaded specs are visible.
     #[must_use]
-    pub fn new(is_proc: bool, params: &[&str]) -> Self {
+    pub fn new(is_proc: bool, params: &[&str], registry: &'r CommandRegistry) -> Self {
         Self {
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),
@@ -950,6 +962,7 @@ impl CodegenCtx {
             proc_exit_label: None,
             pending_join_labels: HashMap::new(),
             current_source_line: 0,
+            registry,
         }
     }
 

@@ -11,7 +11,7 @@ use super::{CodegenCtx, Instruction, Op, Operand};
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss
 )]
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Remove `pop` immediately before the final `done`.
     ///
     /// In tclsh, the last command's result stays on TOS and `done`
@@ -244,10 +244,12 @@ impl CodegenCtx {
 mod tests {
     use super::*;
     use crate::codegen::CodegenCtx;
+    use tcl_registry::CommandRegistry;
 
     #[test]
     fn remove_trailing_pop_basic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.push_lit("hello");
         ctx.emit(Op::POP, vec![]);
         ctx.emit(Op::DONE, vec![]);
@@ -259,7 +261,8 @@ mod tests {
 
     #[test]
     fn remove_trailing_pop_preserves_catch() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit(Op::REVERSE, vec![Operand::Imm(2)]);
         ctx.emit(Op::POP, vec![]);
         ctx.emit(Op::DONE, vec![]);
@@ -270,7 +273,8 @@ mod tests {
 
     #[test]
     fn fold_tail_return_to_done_proc() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.push_lit("");
         ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
         ctx.fold_tail_return_to_done();
@@ -279,7 +283,8 @@ mod tests {
 
     #[test]
     fn fold_tail_return_non_zero_preserved() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.push_lit("");
         ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
         ctx.fold_tail_return_to_done();
@@ -289,7 +294,8 @@ mod tests {
 
     #[test]
     fn fold_tail_return_toplevel_noop() {
-        let mut ctx = CodegenCtx::new(false, &[]); // not proc
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry); // not proc
         ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
         ctx.fold_tail_return_to_done();
         // Top-level — not changed
@@ -298,7 +304,8 @@ mod tests {
 
     #[test]
     fn strip_unused_start_cmd_no_generic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit(
             Op::START_CMD,
             vec![Operand::Label("end_0".into()), Operand::Imm(1)],
@@ -314,7 +321,8 @@ mod tests {
 
     #[test]
     fn strip_unused_start_cmd_with_generic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit(
             Op::START_CMD,
             vec![Operand::Label("end_0".into()), Operand::Imm(1)],
@@ -330,7 +338,8 @@ mod tests {
 
     #[test]
     fn strip_unused_start_cmd_proc_always_keeps() {
-        let mut ctx = CodegenCtx::new(true, &[]); // proc
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry); // proc
         ctx.emit(
             Op::START_CMD,
             vec![Operand::Label("end_0".into()), Operand::Imm(1)],
@@ -345,7 +354,8 @@ mod tests {
 
     #[test]
     fn fixup_top_level_removes_generic_tagged() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         // Tagged as generic
         let mut sc = Instruction::new(
             Op::START_CMD,
@@ -363,7 +373,8 @@ mod tests {
 
     #[test]
     fn fold_const_push_pop_nops_basic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.push_lit("42");
         ctx.emit(Op::POP, vec![]);
         ctx.push_lit("result");
@@ -379,7 +390,8 @@ mod tests {
 
     #[test]
     fn strip_nodedup_tags_basic() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.push_lit_no_dedup("x");
         assert!(ctx.instructions[0].comment.contains(NO_DEDUP_TAG));
         ctx.strip_nodedup_tags();
