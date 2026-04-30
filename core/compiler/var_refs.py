@@ -28,17 +28,26 @@ def _strip_outer_braces(text: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class VarScanOptions:
+    """Options controlling :class:`VarReferenceScanner` behaviour.
+
+    Attributes:
+        include_var_read_roles: When True, also report variable names that
+            appear at ``ArgRole.VAR_READ`` positions (e.g. ``info exists
+            varName``) in addition to ``$var`` substitutions.
+        recurse_cmd_substitutions: When True, recurse into the source of
+            ``[cmd-substitution]`` tokens.
+        recurse_body_args: When True, walk each command and recurse into
+            ``ArgRole.BODY`` / ``ArgRole.EXPR`` args, scanning their
+            brace-stripped contents as Tcl scripts.  Used by SSA when
+            scanning opaque ``IRBarrier`` / ``IRCall`` bodies that are not
+            lowered into the CFG (e.g. ``catch``, ``dict for``, deferred
+            ``foreach``) — without this, ``$var`` references inside the
+            braced body are hidden from the lexer.
+    """
+
     include_var_read_roles: bool = False
     recurse_cmd_substitutions: bool = True
     recurse_body_args: bool = False
-    """When True, recurse into ``ArgRole.BODY`` and ``ArgRole.EXPR`` args of
-    each command, scanning their brace-stripped contents as Tcl scripts.
-
-    Without this, ``$var`` and ``var`` references inside braced control-flow
-    bodies (``if {…} {…}``, ``for {…} {…} {…} {…}``, etc.) are hidden from
-    the lexer.  Used when scanning opaque ``IRBarrier`` / ``IRCall`` bodies
-    that are not lowered into the CFG (e.g. ``catch``, ``dict for``,
-    deferred ``foreach``)."""
 
 
 class VarReferenceScanner:
@@ -117,15 +126,12 @@ class VarReferenceScanner:
                     if name:
                         result.add(name)
             if self._options.recurse_body_args:
-                # Inside an opaque body, the parameter being referenced via a
-                # write role (e.g. ``incr count``, ``set count 5``) still
-                # counts as a textual use — we err toward suppressing
-                # ``unused parameter`` rather than risking false positives.
-                for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.VAR_WRITE)):
-                    if idx < len(args):
-                        name = normalise_var_name(args[idx])
-                        if name:
-                            result.add(name)
+                # Recurse into BODY/EXPR args so vars referenced inside
+                # nested braced control-flow (``if {$x>0} {…}`` etc.) are
+                # surfaced.  Pure-write roles (``set x 5``, ``lassign``,
+                # ``regexp -- … x``) are deliberately NOT counted as uses
+                # — W214's contract is "parameter never read", and writing
+                # to a parameter without reading it is exactly that.
                 for idx in sorted(arg_indices_for_role(cmd_name, args, ArgRole.BODY)):
                     if idx < len(args):
                         result.update(self.scan_script(_strip_outer_braces(args[idx])))
