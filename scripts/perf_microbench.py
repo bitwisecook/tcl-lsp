@@ -103,12 +103,10 @@ PRIMITIVES = {
         "set t 0\nfor {set i 0} {$i < $N} {incr i} { set t [expr {$t + $i * 3 - 1}] }",
         20_000,
     ),
-    # ``lappend`` benchmark removed: the current runtime's
-    # ``Tcl_ListObjAppendElement`` does an O(n) buffer copy on
-    # every call, so the workload is O(N²) and dominates the
-    # whole bench time.  Re-enable when the runtime grows a
-    # geometric-grow strategy for owned list buffers.
-
+    "lappend loop": (
+        "set L [list]\nfor {set i 0} {$i < $N} {incr i} { lappend L $i }",
+        10_000,
+    ),
     "string operations": (
         'set s ""\nfor {set i 0} {$i < $N} {incr i} { append s x; set len [string length $s] }',
         1_000,
