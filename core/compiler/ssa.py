@@ -96,6 +96,14 @@ _VAR_REF_SCANNER = VarReferenceScanner(
     )
 )
 
+_DEEP_VAR_REF_SCANNER = VarReferenceScanner(
+    VarScanOptions(
+        include_var_read_roles=True,
+        recurse_cmd_substitutions=True,
+        recurse_into_script_roles=True,
+    )
+)
+
 
 def _vars_in_word(text: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_word(text)
@@ -103,6 +111,16 @@ def _vars_in_word(text: str) -> frozenset[str]:
 
 def _vars_in_script(source: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_script(source)
+
+
+def _vars_in_body_script(source: str) -> frozenset[str]:
+    """Scan a body script and recurse into nested braced bodies.
+
+    Used for body-taking barriers (``dict for``/``dict map``) whose body
+    isn't lowered into the CFG — variable references inside nested
+    ``if``/``while``/``foreach`` braces would otherwise be missed.
+    """
+    return _DEEP_VAR_REF_SCANNER.scan_script(source)
 
 
 _TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
@@ -222,10 +240,18 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
         case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
             body_indices = _structural_body_indices(command, args, barrier_tokens)
+            # dict for/map barriers carry the loop body as args[-1].  The
+            # body never enters the CFG, so its variable references must be
+            # discovered here (recursing into nested braced bodies) — see
+            # issue #234.
+            is_dict_iter_barrier = command.endswith(("::for", "::map")) and len(args) >= 3
             for idx, arg in enumerate(args):
                 if idx in body_indices:
                     continue
-                vars_found |= _vars_in_word(arg)
+                if is_dict_iter_barrier and idx == len(args) - 1:
+                    vars_found |= _vars_in_body_script(arg)
+                else:
+                    vars_found |= _vars_in_word(arg)
             # dict with/update: the dict variable name is a plain string,
             # not a $-substitution, so _vars_in_word misses it.
             if command == "dict" and len(args) >= 2 and args[0] in ("with", "update"):
