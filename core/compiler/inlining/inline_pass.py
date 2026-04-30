@@ -57,7 +57,7 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 
-from ..expr_ast import vars_in_expr_node
+from ..expr_ast import ExprLiteral, vars_in_expr_node
 from ..ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -241,50 +241,114 @@ def _v3_eligible(
 ) -> bool:
     """Return True iff ``proc`` qualifies for parameterised inlining.
 
-    The gates accepted in v3:
+    Accepts:
 
-    * **Variadic ``args``** — handled at the call site by packing
-      trailing words into a list literal bound to the mangled
-      ``args`` slot.  An empty trailing slice produces ``""``.
-    * **Parameter defaults** — when the call site passes fewer
-      args than the proc has params, missing positions are
-      filled from the defaults parsed out of ``params_raw``.  A
-      missing-without-default position declines the inline.
-    * **Nested control flow** — :class:`IRBlock` / :class:`IRIf`
-      / :class:`IRFor` / :class:`IRWhile` / :class:`IRForeach`
-      / :class:`IRCatch` / :class:`IRTry` / :class:`IRSwitch` /
-      :class:`IRUpFrame` are accepted; the α-rename rewriter
-      already walks every nested body and substitutes locals.
-    * **Trailing :class:`IRReturn`** — accepted **only** at the
-      body's top level (last position).  At inline time, the
-      ``IRReturn`` is preserved verbatim — it exits the caller's
-      proc with the renamed value, which matches the call's
-      original return-value semantics ONLY when the call site
-      is in terminal position of the caller's proc body.  The
-      call-site walker tracks this; non-terminal sites of procs
-      with trailing IRReturn decline.
+    * **Variadic ``args``** — packed into a list literal at the
+      call site.
+    * **Parameter defaults** — parsed from ``params_raw``.
+    * **Nested control flow** — every IR shape walked by the
+      α-rename rewriter.
+    * **Array element writes** (``arr(idx)``) — the array base
+      name is renamed consistently across writes and
+      ``$arr(idx)`` reads.
+    * **Trailing :class:`IRReturn`** at body top level — kept
+      verbatim by the splice when the call site is in terminal
+      position; otherwise the for/break wrap below activates.
+    * **Non-trailing :class:`IRReturn`** — translated to
+      ``set __result <value>; break`` and the body wrapped in a
+      ``for {} {1} {} { … }`` loop, EXCEPT when an IRReturn
+      sits inside a context whose own ``break`` semantics would
+      trap our break: loop bodies (``IRFor`` / ``IRWhile`` /
+      ``IRForeach``), exception traps (``IRCatch`` / ``IRTry``),
+      and frame-shifted blocks (``IRUpFrame``).  IRReturn inside
+      transparent groupings (``IRBlock`` / ``IRIf`` / ``IRSwitch``
+      arms) IS handled because their ``break`` propagates to the
+      enclosing scope — our wrapper.
 
-    What still declines:
+    Still declines:
 
-    * IRReturn at any non-trailing position (early-exit inside
-      the body or inside nested control flow).  Without IR
-      labels / break primitives we can't safely cancel the rest
-      of the inlined body.
-    * Array writes (``arr(idx)``) — partial-write semantics
-      need alias-aware reasoning.
+    * ``IRReturn`` inside loop / catch / try / upframe bodies.
     """
+    if _has_irreturn_in_unsafe_scope(proc.body, inside_unsafe=False):
+        return False
     body_stmts = proc.body.statements
-    for i, stmt in enumerate(body_stmts):
-        is_trailing = (i == len(body_stmts) - 1)
+    for stmt in body_stmts:
         if isinstance(stmt, IRReturn):
-            if not is_trailing:
-                return False
-            # Trailing IRReturn — accepted; the call-site
-            # rewriter will keep it intact.
-            continue
+            continue  # IRReturn at top level is fine — handled by wrap or kept
         if not _v3_stmt_eligible(stmt, qname, summaries):
             return False
     return True
+
+
+def _has_irreturn_in_unsafe_scope(
+    script: IRScript | None,
+    *,
+    inside_unsafe: bool,
+) -> bool:
+    """Walk ``script`` looking for any :class:`IRReturn` inside a
+    construct whose ``break`` semantics would trap our wrapper's
+    break.
+
+    Loop bodies (``IRFor`` / ``IRWhile`` / ``IRForeach``) catch
+    ``break``; exception traps (``IRCatch`` / ``IRTry``) catch
+    return-codes including break; ``IRUpFrame`` frame-shifts
+    around its body so ``break`` inside it is unclear.  All of
+    these flag ``inside_unsafe=True`` for their bodies.
+
+    Transparent groupings (``IRBlock``, ``IRIf`` clauses,
+    ``IRSwitch`` arms) propagate the parent's ``inside_unsafe``
+    flag — ``break`` inside them goes through to whatever scope
+    encloses them.
+    """
+    if script is None:
+        return False
+    for stmt in script.statements:
+        if isinstance(stmt, IRReturn):
+            if inside_unsafe:
+                return True
+            continue
+        if isinstance(stmt, IRFor):
+            if _has_irreturn_in_unsafe_scope(stmt.init, inside_unsafe=inside_unsafe):
+                return True
+            if _has_irreturn_in_unsafe_scope(stmt.next, inside_unsafe=inside_unsafe):
+                return True
+            if _has_irreturn_in_unsafe_scope(stmt.body, inside_unsafe=True):
+                return True
+        elif isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
+            if _has_irreturn_in_unsafe_scope(stmt.body, inside_unsafe=True):
+                return True
+        elif isinstance(stmt, IRTry):
+            if _has_irreturn_in_unsafe_scope(stmt.body, inside_unsafe=True):
+                return True
+            for h in stmt.handlers:
+                if _has_irreturn_in_unsafe_scope(h.body, inside_unsafe=True):
+                    return True
+            if _has_irreturn_in_unsafe_scope(stmt.finally_body, inside_unsafe=True):
+                return True
+        elif isinstance(stmt, IRBlock):
+            if _has_irreturn_in_unsafe_scope(stmt.body, inside_unsafe=inside_unsafe):
+                return True
+        elif isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                if _has_irreturn_in_unsafe_scope(
+                    clause.body, inside_unsafe=inside_unsafe
+                ):
+                    return True
+            if _has_irreturn_in_unsafe_scope(
+                stmt.else_body, inside_unsafe=inside_unsafe
+            ):
+                return True
+        elif isinstance(stmt, IRSwitch):
+            for arm in stmt.arms:
+                if _has_irreturn_in_unsafe_scope(
+                    arm.body, inside_unsafe=inside_unsafe
+                ):
+                    return True
+            if _has_irreturn_in_unsafe_scope(
+                stmt.default_body, inside_unsafe=inside_unsafe
+            ):
+                return True
+    return False
 
 
 def _v3_stmt_eligible(
@@ -301,10 +365,14 @@ def _v3_stmt_eligible(
     Rejects any :class:`IRReturn` at non-trailing positions.
     """
     if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
-        # Array writes (``arr(idx)``) — partial-write semantics
-        # don't survive inlining without alias-aware reasoning.
+        # Array writes (``arr(idx)``) qualify: the α-renamer
+        # extracts the array base name (``arr``) and applies the
+        # rename consistently across writes and ``$arr(idx)``
+        # reads, so the whole-array binding stays coherent.
+        # ``::``-qualified names (globals) still decline because
+        # the rename map only covers locals.
         name = getattr(stmt, "name", "")
-        if "(" in name:
+        if "::" in name:
             return False
         return True
     if isinstance(stmt, IRCall):
@@ -362,20 +430,22 @@ def _v3_script_eligible(
     callee_qname: str,
     summaries: dict[str, ProcEscapeSummary],
 ) -> bool:
-    """Reject IRReturn at non-trailing positions inside a nested
-    script.  Trailing IRReturn anywhere besides the body's outer
-    top level is also rejected — the call-site rewriter only
-    handles the body-level trailing case.
+    """Recurse into a nested script and check per-statement
+    eligibility.  IRReturn inside a nested script IS allowed
+    (the for/break wrap routes it correctly) — the unsafe-scope
+    check at the body root has already verified no IRReturn
+    sits inside a loop / catch / try / upframe.
     """
     if script is None:
         return True
     for stmt in script.statements:
         if isinstance(stmt, IRReturn):
-            # Inside a nested control-flow script, ANY IRReturn
-            # would short-circuit the caller's proc — only the
-            # outer body's trailing IRReturn is allowed (handled
-            # by ``_v3_eligible``).
-            return False
+            # IRReturn inside a nested transparent grouping is
+            # accepted; the for/break wrap at inline time
+            # rewrites it.  Soundness depends on
+            # ``_has_irreturn_in_unsafe_scope`` having vetted
+            # the surrounding context.
+            continue
         if not _v3_stmt_eligible(stmt, callee_qname, summaries):
             return False
     return True
@@ -731,24 +801,281 @@ def _splice_call_site(
             if name not in rename:
                 rename[name] = f"__inline_{cid}__{name}"
 
-        # Trailing-IRReturn handling: keep the IRReturn iff the
-        # call site is in terminal position; otherwise the
-        # eligibility gate already declined this proc.  The
-        # check below is defensive — if we ever expanded the
-        # eligibility set we'd want an explicit guard here.
+        # Determine the IRReturn-handling strategy.
         body_stmts = list(proc.body.statements)
         body_has_trailing_return = (
             body_stmts and isinstance(body_stmts[-1], IRReturn)
         )
-        if body_has_trailing_return and not is_terminal:
-            # Non-terminal call site of a proc with a trailing
-            # IRReturn — keeping the return would short-circuit
-            # the rest of the caller's body.  Decline.
-            return None
+        body_has_non_trailing_return = any(
+            isinstance(s, IRReturn) for s in body_stmts[:-1]
+        ) or _has_nested_irreturn(proc.body)
 
         renamed_body = _rewrite_with_rename(proc.body, rename)
+
+        if body_has_non_trailing_return:
+            # Non-trailing IRReturn — wrap the inlined body in a
+            # ``for {} {1} {} { ... }`` loop and rewrite each
+            # IRReturn to ``set __result <value>; break``.  The
+            # final statement of the inlined body gets an
+            # explicit ``break`` so paths without IRReturn also
+            # exit the wrapper.  After the loop, the result is
+            # in ``__result``; if the call is terminal we emit a
+            # caller-level ``return $__result`` to forward it.
+            result_var = f"__inline_{cid}__RESULT"
+            wrapped = _wrap_with_irreturn_loop(
+                renamed_body,
+                result_var=result_var,
+                call=call,
+            )
+            if is_terminal:
+                wrapped.append(
+                    IRReturn(
+                        range=call.range,
+                        value="$" + result_var,
+                    )
+                )
+            return bindings + wrapped
+
+        if body_has_trailing_return and not is_terminal:
+            # Trailing IRReturn but call site isn't terminal —
+            # keeping the return would short-circuit the rest of
+            # the caller's body.  Same problem the wrap path
+            # solves; reuse the wrap.
+            result_var = f"__inline_{cid}__RESULT"
+            wrapped = _wrap_with_irreturn_loop(
+                renamed_body,
+                result_var=result_var,
+                call=call,
+            )
+            return bindings + wrapped
+
+        # No IRReturn, or trailing IRReturn at a terminal call
+        # site.  Flat splice — leaves the trailing IRReturn (if
+        # any) intact so it exits the caller proc with the
+        # renamed value.
         return bindings + list(renamed_body.statements)
     return None
+
+
+def _has_nested_irreturn(script: IRScript | None) -> bool:
+    """Return True if any IRReturn appears inside a nested
+    control-flow body of ``script`` (i.e., not at ``script``'s
+    own top level)."""
+    if script is None:
+        return False
+    for stmt in script.statements:
+        # Skip top-level IRReturn — caller examines that
+        # separately.
+        if isinstance(stmt, IRReturn):
+            continue
+        if _scan_for_irreturn(stmt):
+            return True
+    return False
+
+
+def _scan_for_irreturn(stmt: object) -> bool:
+    """Recursively scan ``stmt``'s sub-bodies for any IRReturn."""
+    if isinstance(stmt, IRReturn):
+        return True
+    if isinstance(stmt, IRBlock):
+        return _has_any_irreturn(stmt.body)
+    if isinstance(stmt, IRIf):
+        for clause in stmt.clauses:
+            if _has_any_irreturn(clause.body):
+                return True
+        return _has_any_irreturn(stmt.else_body)
+    if isinstance(stmt, IRFor):
+        return (
+            _has_any_irreturn(stmt.init)
+            or _has_any_irreturn(stmt.next)
+            or _has_any_irreturn(stmt.body)
+        )
+    if isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
+        return _has_any_irreturn(stmt.body)
+    if isinstance(stmt, IRTry):
+        if _has_any_irreturn(stmt.body):
+            return True
+        for h in stmt.handlers:
+            if _has_any_irreturn(h.body):
+                return True
+        return _has_any_irreturn(stmt.finally_body)
+    if isinstance(stmt, IRSwitch):
+        for arm in stmt.arms:
+            if _has_any_irreturn(arm.body):
+                return True
+        return _has_any_irreturn(stmt.default_body)
+    return False
+
+
+def _has_any_irreturn(script: IRScript | None) -> bool:
+    if script is None:
+        return False
+    for stmt in script.statements:
+        if isinstance(stmt, IRReturn):
+            return True
+        if _scan_for_irreturn(stmt):
+            return True
+    return False
+
+
+def _wrap_with_irreturn_loop(
+    renamed_body: IRScript,
+    *,
+    result_var: str,
+    call: IRCall,
+) -> list:
+    """Wrap ``renamed_body`` in a one-shot ``for`` loop that
+    routes IRReturn-as-break.
+
+    Generates::
+
+        set __result ""
+        for {} {1} {} {
+            <body with each IRReturn → set __result <v>; break>
+            break  # explicit fall-through exit
+        }
+
+    Returns the synthesised statement list — the caller appends
+    a ``return $__result`` after the loop iff the call site is
+    terminal.
+    """
+    # Step 1: rewrite IRReturn → set result_var <value>; break.
+    rewritten = _substitute_irreturn(renamed_body, result_var, call.range)
+
+    # Step 2: append a final break to ensure the loop exits even
+    # when no IRReturn fires.
+    body_with_break = list(rewritten.statements) + [
+        IRCall(
+            range=call.range,
+            command="break",
+            args=(),
+        )
+    ]
+
+    # Step 3: build the wrap.  Init the result var to empty, then
+    # loop with a constant-true condition.  We use ``IRWhile``
+    # rather than ``IRFor`` because ``IRFor`` with empty init /
+    # next emits ``<empty_clause>`` placeholder IRCalls that the
+    # WASM codegen routes through the eval fallback (and traps
+    # because ``<empty_clause>`` isn't a real Tcl command).
+    # ``IRWhile`` has no init / next clauses to worry about.
+    out: list = []
+    out.append(
+        IRAssignConst(
+            range=call.range,
+            name=result_var,
+            value="",
+        )
+    )
+    out.append(
+        IRWhile(
+            range=call.range,
+            condition=ExprLiteral(text="1", start=0, end=1),
+            condition_range=call.range,
+            body=IRScript(statements=tuple(body_with_break)),
+            body_range=call.range,
+        )
+    )
+    return out
+
+
+def _substitute_irreturn(
+    script: IRScript,
+    result_var: str,
+    range_,
+) -> IRScript:
+    """Replace each :class:`IRReturn` reachable from ``script``
+    with the two-statement sequence ``set <result_var> <value>;
+    break``.  Recurses into transparent nested bodies (IRBlock,
+    IRIf, IRSwitch); does NOT recurse into loop / catch / try /
+    upframe bodies because the eligibility gate guarantees no
+    IRReturn is nested inside them.
+    """
+    if script is None:
+        return script
+    new_stmts: list = []
+    changed = False
+    for stmt in script.statements:
+        if isinstance(stmt, IRReturn):
+            value = stmt.value if stmt.value is not None else ""
+            new_stmts.append(
+                IRAssignValue(
+                    range=stmt.range,
+                    name=result_var,
+                    value=value,
+                )
+            )
+            new_stmts.append(
+                IRCall(
+                    range=stmt.range,
+                    command="break",
+                    args=(),
+                )
+            )
+            changed = True
+            continue
+        substituted = _substitute_irreturn_stmt(stmt, result_var, range_)
+        if substituted is stmt:
+            new_stmts.append(stmt)
+        else:
+            new_stmts.append(substituted)
+            changed = True
+    if not changed:
+        return script
+    return IRScript(statements=tuple(new_stmts))
+
+
+def _substitute_irreturn_stmt(stmt, result_var: str, range_):
+    """Recurse into transparent-grouping containers and substitute
+    their bodies' IRReturn nodes.  Does NOT touch loop / catch /
+    try / upframe bodies — break inside those wouldn't reach our
+    wrapper, and the eligibility gate has already verified no
+    IRReturn sits there."""
+    if isinstance(stmt, IRBlock):
+        new_body = _substitute_irreturn(stmt.body, result_var, range_)
+        if new_body is stmt.body:
+            return stmt
+        return replace(stmt, body=new_body)
+    if isinstance(stmt, IRIf):
+        new_clauses = []
+        clauses_changed = False
+        for clause in stmt.clauses:
+            new_body = _substitute_irreturn(clause.body, result_var, range_)
+            if new_body is clause.body:
+                new_clauses.append(clause)
+            else:
+                new_clauses.append(replace(clause, body=new_body))
+                clauses_changed = True
+        new_else = stmt.else_body
+        else_changed = False
+        if stmt.else_body is not None:
+            new_else = _substitute_irreturn(stmt.else_body, result_var, range_)
+            else_changed = new_else is not stmt.else_body
+        if not clauses_changed and not else_changed:
+            return stmt
+        return replace(stmt, clauses=tuple(new_clauses), else_body=new_else)
+    if isinstance(stmt, IRSwitch):
+        new_arms = []
+        arms_changed = False
+        for arm in stmt.arms:
+            if arm.body is None:
+                new_arms.append(arm)
+                continue
+            new_body = _substitute_irreturn(arm.body, result_var, range_)
+            if new_body is arm.body:
+                new_arms.append(arm)
+            else:
+                new_arms.append(replace(arm, body=new_body))
+                arms_changed = True
+        new_default = stmt.default_body
+        default_changed = False
+        if stmt.default_body is not None:
+            new_default = _substitute_irreturn(stmt.default_body, result_var, range_)
+            default_changed = new_default is not stmt.default_body
+        if not arms_changed and not default_changed:
+            return stmt
+        return replace(stmt, arms=tuple(new_arms), default_body=new_default)
+    return stmt
 
 
 def _build_param_bindings(
@@ -884,10 +1211,28 @@ def _collect_local_names(script: IRScript) -> set[str]:
     """Return the union of every local-variable name written inside
     ``script``.  Used by the v3 inliner to build a complete rename
     map so the body's own writes don't leak into the caller's slot
-    namespace."""
+    namespace.  Array-element writes (``arr(idx)``) contribute the
+    array base name (``arr``) — the rename map needs the whole
+    array's binding to ride into the inlined scope.
+    """
     names: set[str] = set()
     _walk_local_writes(script, names)
     return names
+
+
+def _record_local_base(name: str, names: set[str]) -> None:
+    """Add the local base of ``name`` to ``names``, skipping
+    ``::``-qualified globals.  For ``arr(idx)``, only the ``arr``
+    base is recorded — the rename map operates at array-name
+    granularity, with the index expression preserved verbatim by
+    the rename helper.
+    """
+    if "::" in name:
+        return
+    paren = name.find("(")
+    base = name[:paren] if paren >= 0 else name
+    if base:
+        names.add(base)
 
 
 def _walk_local_writes(script: IRScript | None, names: set[str]) -> None:
@@ -895,13 +1240,10 @@ def _walk_local_writes(script: IRScript | None, names: set[str]) -> None:
         return
     for stmt in script.statements:
         if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
-            n = stmt.name
-            if "(" not in n and "::" not in n:
-                names.add(n)
+            _record_local_base(stmt.name, names)
         elif isinstance(stmt, IRCall):
             for d in stmt.defs:
-                if "(" not in d and "::" not in d:
-                    names.add(d)
+                _record_local_base(d, names)
         elif isinstance(stmt, IRBlock):
             _walk_local_writes(stmt.body, names)
         elif isinstance(stmt, IRIf):
@@ -917,8 +1259,7 @@ def _walk_local_writes(script: IRScript | None, names: set[str]) -> None:
         elif isinstance(stmt, IRForeach):
             for var_list, _ in stmt.iterators:
                 for v in var_list:
-                    if "(" not in v and "::" not in v:
-                        names.add(v)
+                    _record_local_base(v, names)
             _walk_local_writes(stmt.body, names)
         elif isinstance(stmt, IRCatch):
             _walk_local_writes(stmt.body, names)
@@ -999,7 +1340,7 @@ def _drop_dead_procs(
         )
 
     new_procs: dict[str, IRProcedure] = {}
-    changed = False
+    dropped: set[str] = set()
     for qname, proc in module.procedures.items():
         eligible = (
             qname in candidates
@@ -1007,12 +1348,54 @@ def _drop_dead_procs(
             and qname not in referenced
         )
         if eligible:
-            changed = True
+            dropped.add(qname)
             continue
         new_procs[qname] = proc
-    if not changed:
+    if not dropped:
         return module
-    return replace(module, procedures=new_procs)
+
+    # Also strip the top-level ``proc <name> …`` IRCall that
+    # defines each dropped proc.  Without this the codegen still
+    # tries to register the proc at module load time, but the
+    # corresponding compiled function is gone — observed during
+    # development as ``unknown command`` traps when the runtime
+    # falls back to interpreted dispatch on a stub registration.
+    new_top = _strip_proc_defs(module.top_level, dropped)
+    return replace(module, top_level=new_top, procedures=new_procs)
+
+
+def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:
+    """Remove every ``proc <name> …`` IRCall whose ``<name>``
+    qualifies (after global-namespace prefix) to a dropped proc.
+
+    Recurses into ``IRBlock`` nested at top level (``namespace
+    eval`` lowering) so a proc defined inside a namespace block
+    also gets its definition stripped.  Other control-flow
+    containers (``IRIf``, loops) are not walked — proc defs
+    inside conditional blocks would be runtime-dependent and
+    aren't dropped by the catalogue anyway.
+    """
+    new_stmts: list = []
+    changed = False
+    for stmt in script.statements:
+        if isinstance(stmt, IRCall) and stmt.command == "proc" and stmt.args:
+            proc_name = stmt.args[0]
+            qname = (
+                proc_name if proc_name.startswith("::") else "::" + proc_name
+            )
+            if qname in dropped:
+                changed = True
+                continue
+        if isinstance(stmt, IRBlock):
+            new_body = _strip_proc_defs(stmt.body, dropped)
+            if new_body is not stmt.body:
+                new_stmts.append(replace(stmt, body=new_body))
+                changed = True
+                continue
+        new_stmts.append(stmt)
+    if not changed:
+        return script
+    return IRScript(statements=tuple(new_stmts))
 
 
 _PROC_NAME_WORD_RE = re.compile(r"(?<![A-Za-z0-9_:])(::[A-Za-z_][A-Za-z0-9_:]*|[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_:])")

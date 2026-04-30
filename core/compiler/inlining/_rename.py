@@ -97,32 +97,51 @@ def rewrite_script(script: IRScript, rename: dict[str, str]) -> IRScript:
     return IRScript(statements=tuple(new_stmts))
 
 
+def _rename_var_name(name: str, rename: dict[str, str]) -> str:
+    """Apply ``rename`` to a variable-name field, handling array
+    element references.
+
+    For ``arr(idx)`` shapes, the array base is what carries the
+    binding identity; the ``(idx)`` suffix is preserved verbatim.
+    A bare name routes through the rename map directly.
+    """
+    paren = name.find("(")
+    if paren >= 0:
+        base = name[:paren]
+        tail = name[paren:]
+        renamed_base = rename.get(base, base)
+        if renamed_base is base:
+            return name
+        return renamed_base + tail
+    return rename.get(name, name)
+
+
 def rewrite_stmt(stmt: object, rename: dict[str, str]) -> object:
     """Return a :func:`replace`-cloned ``stmt`` with renames applied,
     or ``stmt`` unchanged if no rename touches it."""
 
     if isinstance(stmt, IRAssignConst):
-        new_name = rename.get(stmt.name, stmt.name)
+        new_name = _rename_var_name(stmt.name, rename)
         if new_name is stmt.name:
             return stmt
         return replace(stmt, name=new_name)
 
     if isinstance(stmt, IRAssignValue):
-        new_name = rename.get(stmt.name, stmt.name)
+        new_name = _rename_var_name(stmt.name, rename)
         new_value = _rewrite_value_string(stmt.value, rename)
         if new_name is stmt.name and new_value is stmt.value:
             return stmt
         return replace(stmt, name=new_name, value=new_value)
 
     if isinstance(stmt, IRAssignExpr):
-        new_name = rename.get(stmt.name, stmt.name)
+        new_name = _rename_var_name(stmt.name, rename)
         new_expr = _rewrite_expr(stmt.expr, rename)
         if new_name is stmt.name and new_expr is stmt.expr:
             return stmt
         return replace(stmt, name=new_name, expr=new_expr)
 
     if isinstance(stmt, IRIncr):
-        new_name = rename.get(stmt.name, stmt.name)
+        new_name = _rename_var_name(stmt.name, rename)
         new_amount = stmt.amount
         if stmt.amount is not None:
             new_amount = _rewrite_value_string(stmt.amount, rename)
@@ -132,8 +151,8 @@ def rewrite_stmt(stmt: object, rename: dict[str, str]) -> object:
 
     if isinstance(stmt, IRCall):
         new_args = tuple(_rewrite_value_string(a, rename) for a in stmt.args)
-        new_defs = tuple(rename.get(d, d) for d in stmt.defs)
-        new_reads = tuple(rename.get(r, r) for r in stmt.reads)
+        new_defs = tuple(_rename_var_name(d, rename) for d in stmt.defs)
+        new_reads = tuple(_rename_var_name(r, rename) for r in stmt.reads)
         if (
             new_args == stmt.args
             and new_defs == stmt.defs

@@ -249,17 +249,32 @@ class TestParameterisedInline:
             isinstance(s, IRReturn) for s in new_module.top_level.statements
         )
 
-    def test_proc_with_trailing_return_not_inlined_at_non_terminal(self):
+    def test_proc_with_trailing_return_inlines_at_non_terminal_via_wrap(self):
         # Same proc but the call is NOT in terminal position —
-        # there's a statement after.  Keeping the IRReturn would
-        # short-circuit ``set marker after``; v3 declines.
+        # the for/break wrap routes the IRReturn through a
+        # synthesised result var so the rest of the caller's body
+        # still runs.
         module, summaries = _prepare(
             'proc f {x} { puts $x; return $x }\n'
             "f 5\n"
             "set marker after\n"
         )
         new_module = inline_module(module, summaries)
-        assert _calls_to(new_module.top_level, "f") == 1
+        assert _calls_to(new_module.top_level, "f") == 0
+        # ``set marker after`` survives — the wrap didn't short-
+        # circuit the rest of the caller body.
+        from core.compiler.ir import IRAssignConst, IRAssignValue, IRWhile
+
+        assert any(
+            isinstance(s, (IRAssignConst, IRAssignValue))
+            and s.name == "marker"
+            for s in new_module.top_level.statements
+        )
+        # The wrap inserts an IRWhile {1} containing the
+        # rewritten body — the IRReturn turns into ``set
+        # __result; break`` and the loop's break exits to the
+        # caller's surrounding body.
+        assert any(isinstance(s, IRWhile) for s in new_module.top_level.statements)
 
     def test_arity_mismatch_declines(self):
         # Caller passes one arg to a two-param proc — defaults
@@ -339,6 +354,116 @@ class TestParameterisedInline:
         )
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_early_return_in_if_inlines_via_wrap(self):
+        # ``proc f {x} { if {$x > 0} { return 1 }; return 0 }``
+        # has an early return inside an IRIf clause.  The for/
+        # break wrap rewrites both IRReturns to ``set __result;
+        # break`` and the inlined site emits ``return $__result``
+        # (terminal call) after the loop.  Note: ``return -1``
+        # would lower to IRBarrier (interpreted as ``return -code
+        # ...``), defeating pure_leaf — use a positive literal.
+        module, summaries = _prepare(
+            'proc f {x} { if {$x > 0} { return 1 }; return 0 }\n'
+            "f 5\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        # Wrap emits an IRFor surrounding the rewritten body.
+        from core.compiler.ir import IRReturn, IRWhile
+
+        assert any(isinstance(s, IRWhile) for s in new_module.top_level.statements)
+        # Terminal call → the trailing ``return $__result`` is
+        # appended.
+        assert any(
+            isinstance(s, IRReturn) for s in new_module.top_level.statements
+        )
+
+    def test_irreturn_inside_loop_declines(self):
+        # ``proc f {} { for {set i 0} {$i < 10} {incr i} { if {$i == 5} { return $i } } }``
+        # has IRReturn inside a for body.  ``break`` rewriting
+        # would exit the inner for, not the wrap, so v3 declines.
+        module, summaries = _prepare(
+            'proc f {} {\n'
+            '  for {set i 0} {$i < 10} {incr i} {\n'
+            '    if {$i == 5} { return $i }\n'
+            '  }\n'
+            '}\n'
+            "f\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_irreturn_inside_catch_declines(self):
+        # ``catch`` traps return-codes including ``break``, so a
+        # break-rewritten IRReturn inside catch would be trapped
+        # rather than reaching the wrap.  Decline.
+        module, summaries = _prepare(
+            'proc f {x} {\n'
+            '  catch { if {$x < 0} { return -1 } }\n'
+            '  return $x\n'
+            '}\n'
+            "f 5\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_array_element_write_inlines_with_array_rename(self):
+        # ``proc f {} { set arr(0) 1; set arr(1) 2 }`` writes two
+        # elements of a local array.  v3 now accepts this: the
+        # array base ``arr`` is α-renamed to ``__inline_<n>__arr``
+        # and the ``(idx)`` suffix is preserved on every write,
+        # so all array elements bind to the same renamed array.
+        module, summaries = _prepare(
+            'proc f {} { set arr(0) 1; set arr(1) 2 }\n'
+            "f\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        from core.compiler.ir import IRAssignConst, IRAssignValue
+
+        # Both writes should have a mangled ``arr`` base with
+        # the original ``(0)`` / ``(1)`` index intact.
+        array_writes = [
+            s.name
+            for s in new_module.top_level.statements
+            if isinstance(s, (IRAssignConst, IRAssignValue))
+            and "(" in s.name
+        ]
+        assert len(array_writes) == 2
+        # Both writes share the same mangled base.
+        bases = {n.split("(")[0] for n in array_writes}
+        assert len(bases) == 1
+        base = next(iter(bases))
+        assert base.startswith("__inline_") and base.endswith("__arr")
+        # Indices preserved.
+        assert {n.split("(")[1].rstrip(")") for n in array_writes} == {"0", "1"}
+
+    def test_array_read_after_write_uses_same_rename(self):
+        # ``set arr(k) "hi"; puts $arr(k)`` — the read of the
+        # array element after the write must resolve to the same
+        # renamed array.
+        module, summaries = _prepare(
+            'proc f {} { set arr(k) "hi"; puts $arr(k) }\n'
+            "f\n"
+        )
+        new_module = inline_module(module, summaries)
+        from core.compiler.ir import IRAssignValue, IRCall
+
+        write_name = next(
+            s.name
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignValue) and "(" in s.name
+        )
+        write_base = write_name.split("(")[0]
+        # The puts arg should reference ``${<write_base>(k)}`` (or
+        # the bare-form equivalent) so the read targets the same
+        # renamed array.
+        puts_call = next(
+            s for s in new_module.top_level.statements
+            if isinstance(s, IRCall) and s.command == "puts"
+        )
+        assert any(write_base in a for a in puts_call.args)
 
     def test_nested_control_flow_inlines(self):
         # The body has an IRIf with a nested ``puts`` — v3 now
