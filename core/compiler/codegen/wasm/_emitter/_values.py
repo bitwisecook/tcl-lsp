@@ -26,6 +26,24 @@ from .._ownership import Ownership
 from ._ops import _is_end_relative_index
 
 
+def _try_tagged_immediate(value: int) -> int | None:
+    """Encode ``value`` as the signed-i32 tagged-immediate handle, or
+    return ``None`` if it doesn't fit the 31-bit signed range.
+
+    Mirrors the runtime ``immediate_box`` exactly:
+    ``handle = (value << 1) | 1``.  Returned as a Python int already
+    reinterpreted into the i32 signed domain so callers can pass it
+    straight to :meth:`_emit_i32_const`.  See ``runtime/zig/valtypes/
+    tcl_obj.zig`` for the matching decoder.
+    """
+    if not (-(1 << 30) <= value <= (1 << 30) - 1):
+        return None
+    tagged = ((value << 1) | 1) & 0xFFFFFFFF
+    if tagged >= 0x80000000:
+        tagged -= 0x100000000
+    return tagged
+
+
 def _contains_expand_prefix(text: str) -> bool:
     """True when *text* contains a Tcl ``{*}`` argument-expansion prefix.
 
@@ -130,6 +148,26 @@ class _WasmEmitterValuesMixin(_Base):
         if not was_braced:
             var = self._resolve_var_name(value)
             if var is not None:
+                # S5.4 SCCP — when ``_const_map`` proves ``var`` is
+                # currently bound to a small integer constant, emit
+                # the tagged-immediate ``i32.const`` directly
+                # instead of going through a ``local.get`` + boxing
+                # round-trip.  The const-map is updated by every
+                # ``IRAssignConst`` write; reads pick up the
+                # latest known value within the same basic block.
+                # Aliased / qualified vars are skipped by
+                # ``_resolve_var_name``'s upstream check, and the
+                # const-map itself is invalidated on any non-
+                # const write to the slot.
+                if (
+                    self._optimise
+                    and var not in self._aliases
+                    and var in self._const_map
+                ):
+                    immediate = _try_tagged_immediate(self._const_map[var])
+                    if immediate is not None:
+                        self._emit_i32_const(immediate)
+                        return Ownership.BORROWED
                 # Intern on first reference so reads before assignment
                 # get a proper local (default-initialised to 0) instead
                 # of falling through and boxing "$var" as a string literal.
@@ -142,6 +180,15 @@ class _WasmEmitterValuesMixin(_Base):
             if value in self._aliases:
                 self._emit_var_read_obj(value)
                 return Ownership.BORROWED
+            if (
+                self._optimise
+                and value not in self._aliases
+                and value in self._const_map
+            ):
+                immediate = _try_tagged_immediate(self._const_map[value])
+                if immediate is not None:
+                    self._emit_i32_const(immediate)
+                    return Ownership.BORROWED
             idx = self._local_index.get(value)
             if idx is not None:
                 self._emit_local_get(idx)

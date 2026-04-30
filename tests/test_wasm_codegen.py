@@ -117,6 +117,34 @@ def test_wat_contains_i64_const():
     assert f"i64.const {big}" in wat
 
 
+def test_sccp_constprop_inlines_known_int_var():
+    """S5.4 SCCP — when ``_const_map`` proves ``$x`` is a known
+    small int, ``_emit_value("$x")`` should emit ``i32.const
+    <tagged>`` directly instead of ``local.get`` + boxing.
+
+    The IR ``set x 7; set y $x`` with ``optimise=True`` exercises
+    the path: the first ``set`` populates the const map; the
+    second ``set y $x`` reads x with const propagation.  The
+    tagged immediate of 7 is ``(7 << 1) | 1 = 15``.
+    """
+    module = _compile("set x 7\nset y $x\n", optimise=True)
+    fn = next(f for f in module.functions if f.name == "::top")
+    # Tagged immediate of 7 = 15.  The SCCP path emits an
+    # i32.const for the read of $x; the non-SCCP path would have
+    # gone through global_get → unbox → rebox.
+    from core.compiler.codegen.wasm import WasmOp
+
+    seen_15 = False
+    for instr in fn.body:
+        if instr.op != WasmOp.I32_CONST:
+            continue
+        # Decode signed LEB128 (value 15 fits in 1 byte: 0x0F).
+        if instr.operands == b"\x0f":
+            seen_15 = True
+            break
+    assert seen_15, "expected i32.const 15 (tagged immediate of 7) in ::top"
+
+
 def test_inline_string_round_trip_short():
     """A short string returned from a proc should round-trip via the
     inline-string encoding without observable difference."""
