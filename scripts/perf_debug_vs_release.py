@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
-"""Compare Debug vs ReleaseFast Zig runtime on a fixed workload."""
+"""Compare Debug vs ReleaseFast Zig runtime on a fixed workload.
+
+The two artefacts are built separately and copied into ``tmp/perf-
+output/`` under distinct filenames so a default ``runtime_wasm_path()``
+auto-build (which produces a *Debug* binary by default) doesn't
+accidentally overwrite either side of the comparison.  The user is
+responsible for invoking the appropriate ``zig build`` ahead of
+running this script — see :func:`_ensure_artefacts` for the
+pre-flight check.
+"""
 
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -17,11 +28,34 @@ import wasmtime  # noqa: E402
 from core.compiler.cfg import build_cfg  # noqa: E402
 from core.compiler.codegen.wasm import wasm_codegen_module  # noqa: E402
 from core.compiler.lowering import lower_to_ir  # noqa: E402
-from core.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 OUTPUT = REPO / "tmp" / "perf-output"
-RELEASE_RT = runtime_wasm_path()
+RELEASE_RT = OUTPUT / "tcl_runtime_release.wasm"
 DEBUG_RT = OUTPUT / "tcl_runtime_debug.wasm"
+ZIG_DIR = REPO / "runtime" / "zig"
+ZIG_OUT = ZIG_DIR / "zig-out" / "bin" / "tcl_runtime.wasm"
+
+
+def _ensure_artefacts() -> None:
+    """Build the Debug and ReleaseFast runtime artefacts into
+    ``tmp/perf-output/``.  Each ``zig build`` invocation overwrites
+    ``zig-out/bin/tcl_runtime.wasm``, so we copy out after each
+    build.  Skips when both artefacts already exist (callers can
+    ``rm`` to force a rebuild).
+    """
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    if DEBUG_RT.exists() and RELEASE_RT.exists():
+        return
+    if not DEBUG_RT.exists():
+        subprocess.run(
+            ["zig", "build", "-Doptimize=Debug"], cwd=str(ZIG_DIR), check=True,
+        )
+        shutil.copy2(ZIG_OUT, DEBUG_RT)
+    if not RELEASE_RT.exists():
+        subprocess.run(
+            ["zig", "build", "-Doptimize=ReleaseFast"], cwd=str(ZIG_DIR), check=True,
+        )
+        shutil.copy2(ZIG_OUT, RELEASE_RT)
 
 WORKLOADS = {
     "set+incr (50k)": ("set x 0\nfor {set i 0} {$i < 50000} {incr i} { incr x }\n"),
@@ -89,6 +123,7 @@ def _run_with_runtime(rt_path: Path, wasm: bytes) -> float:
 
 
 def main():
+    _ensure_artefacts()
     out = []
     for label, src in WORKLOADS.items():
         wasm = _compile(src, label)

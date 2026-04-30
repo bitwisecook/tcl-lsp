@@ -231,6 +231,29 @@ class TestPipelineIntegration:
 
 
 class TestNestedLoops:
+    def test_read_before_write_blocks_hoist(self):
+        # Codex review (PR #237): hoisting ``set x C`` out of a loop
+        # body where ``x`` is read by an earlier statement changes
+        # the first iteration's observable behaviour.  Body
+        # ``puts $x; set x new`` must keep the assignment in place
+        # — first iteration of the loop reads the pre-loop value of
+        # ``x``, and after the hoist every iteration would see
+        # ``new`` instead.
+        module = _module(
+            "set x outer\n"
+            "for {set i 0} {$i < 3} {incr i} {\n"
+            '  puts $x\n'
+            '  set x "new"\n'
+            "}\n"
+        )
+        new_module = licm_module(module)
+        for_node = _find_first(new_module.top_level, IRFor)
+        assert for_node is not None
+        assert _find_assign(for_node.body, "x") is not None, (
+            "set x must stay in body when an earlier read of x "
+            "could observe the pre-loop value"
+        )
+
     def test_inner_loop_invariant_hoisted_to_outer_then_outer(self):
         # Inner loop writes ``inner_g`` once with a literal.  After
         # one LICM pass, ``inner_g`` lifts to the outer loop body.

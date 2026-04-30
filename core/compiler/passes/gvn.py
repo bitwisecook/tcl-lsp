@@ -119,7 +119,9 @@ def _gvn_script(script: IRScript) -> IRScript:
         # candidate's expression key BEFORE the write so we can
         # check for a prior equivalent.
         candidate_key: tuple | None = None
+        candidate_target: str | None = None
         if isinstance(stmt, IRAssignExpr) and _is_local(stmt.name):
+            candidate_target = stmt.name
             candidate_key = _expr_key(stmt.expr)
             if candidate_key is not None and candidate_key in value_table:
                 prior_var = value_table[candidate_key]
@@ -138,6 +140,7 @@ def _gvn_script(script: IRScript) -> IRScript:
                 # new entry — it just aliases.  Skip the post-
                 # statement table-update for this one.
                 candidate_key = None
+                candidate_target = None
 
         new_stmts.append(stmt)
 
@@ -159,8 +162,8 @@ def _gvn_script(script: IRScript) -> IRScript:
         # Now (after invalidation) record the new entry if we
         # had a candidate key — this prevents the just-recorded
         # entry from being immediately deleted by its own write.
-        if candidate_key is not None:
-            value_table[candidate_key] = stmt.name
+        if candidate_key is not None and candidate_target is not None:
+            value_table[candidate_key] = candidate_target
 
     if not changed:
         return script
@@ -320,13 +323,36 @@ def _expr_text(expr) -> str | None:
             return None
         return f"T:({c},{t},{f})"
     if isinstance(expr, ExprCall):
-        # Math functions like ``int()``, ``abs()`` are pure;
-        # treat them as cacheable.
-        parts = [_expr_text(a) for a in expr.args]
-        if any(p is None for p in parts):
+        # Tcl ``expr`` functions split into a pure-by-spec majority
+        # (``int``, ``abs``, ``sin``, …) and a small denylist of
+        # non-deterministic / stateful functions that depend on
+        # hidden state.  Caching the latter would collapse two
+        # distinct evaluations of e.g. ``rand()`` into one and
+        # change observable program output.  Reject any call whose
+        # function name appears in the denylist.
+        if expr.function in _IMPURE_EXPR_FUNCS:
             return None
+        parts: list[str] = []
+        for a in expr.args:
+            t = _expr_text(a)
+            if t is None:
+                return None
+            parts.append(t)
         return f"F:{expr.function}(" + ",".join(parts) + ")"
     return None
+
+
+# Tcl ``expr`` functions whose return value depends on hidden mutable
+# state.  ``rand()`` reads + advances the PRNG; ``srand(seed)`` resets
+# it.  Every other built-in math function is pure.  External / user-
+# registered ``expr`` functions are safely opaque too — they're routed
+# through the runtime, but a code path emitting an ``ExprCall`` for an
+# unknown name would still be wrong to cache because the body could
+# read globals; so the safer baseline is "if you're not in the pure
+# allowlist, you're impure."  Today we can prove the universe of
+# functions reaching here is small (only Tcl built-ins survive the
+# IR builder), so a denylist is sufficient.
+_IMPURE_EXPR_FUNCS: frozenset[str] = frozenset({"rand", "srand"})
 
 
 def _stmt_writes(stmt: object) -> set[str]:

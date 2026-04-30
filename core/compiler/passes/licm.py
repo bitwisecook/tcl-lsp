@@ -59,19 +59,24 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar
+import re
+
+from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar, vars_in_expr_node
 from ..ir import (
     IRAssignConst,
+    IRAssignExpr,
     IRAssignValue,
     IRBlock,
     IRCall,
     IRCatch,
+    IRExprEval,
     IRFor,
     IRForeach,
     IRIf,
     IRIncr,
     IRModule,
     IRProcedure,
+    IRReturn,
     IRScript,
     IRSwitch,
     IRTry,
@@ -332,12 +337,30 @@ def _hoist_from_loop_body(
     forbidden = forbidden_targets or set()
     hoisted: list = []
     keep: list = []
+    # Track every var name read OR written by statements *seen so
+    # far* in body order.  Hoisting ``set x C`` is unsound when an
+    # earlier statement reads ``x`` — the first iteration would
+    # observe the pre-loop value of ``x``, and after the hoist
+    # every iteration sees ``C`` instead.  Requiring the candidate
+    # write to be the *first* reference of its target is a
+    # straight-line dominance check that handles the common case
+    # without dragging in a full SSA / dominator analysis.
+    referenced_so_far: set[str] = set()
     for stmt in after_inner.statements:
         target = _assign_target(stmt)
-        if _is_hoistable(stmt) and target not in forbidden and write_counts.get(target, 0) == 1:
+        if (
+            _is_hoistable(stmt)
+            and target not in forbidden
+            and write_counts.get(target, 0) == 1
+            and target not in referenced_so_far
+        ):
             hoisted.append(stmt)
         else:
             keep.append(stmt)
+        # Either way, mark every name referenced by this statement
+        # as seen so subsequent candidates checking the same name
+        # see the prior reference.
+        referenced_so_far |= _stmt_references(stmt)
 
     if not hoisted:
         if after_inner is body:
@@ -560,3 +583,138 @@ def _collect_one(stmt: object, counts: dict[str, int]) -> None:
     if isinstance(stmt, IRUpFrame):
         _collect_writes_into(stmt.body, counts)
         return
+
+
+# Match ``$<name>`` and ``${<name>}`` Tcl variable substitutions in a
+# raw word.  Word-boundary on the bare form rules out ``$NAMES``
+# matching when the name we look for is ``NAME``.  Brace form has an
+# explicit terminator so any non-``}`` chars qualify as the name.
+_VAR_REF_BARE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_:]*)")
+_VAR_REF_BRACE = re.compile(r"\$\{([^}]+)\}")
+
+
+def _vars_in_value(value: str | None) -> set[str]:
+    """Return the bare variable names referenced by ``$x`` / ``${x}``
+    substitutions in *value*.  Conservative: doesn't track command
+    substitutions (``[cmd]``) since those can call back into anything,
+    but the LICM gate already refuses any value containing ``[``."""
+
+    if not value or "$" not in value:
+        return set()
+    out: set[str] = set()
+    out.update(m.group(1) for m in _VAR_REF_BARE.finditer(value))
+    out.update(m.group(1) for m in _VAR_REF_BRACE.finditer(value))
+    return out
+
+
+def _stmt_references(stmt: object) -> set[str]:
+    """Return the set of var names *stmt* may read or write.
+
+    Used by the LICM hoist gate: a candidate ``set x C`` is unsafe to
+    hoist when an earlier statement in the same body referenced
+    ``x`` — the first iteration would see the pre-loop value instead
+    of the hoisted-to-pre-loop value.  The set conservatively
+    over-approximates: control-flow blocks union references from
+    every nested arm, ``IRCall`` includes both ``defs`` and
+    arg-substitution reads, and ``IRIncr`` is treated as a read of
+    its target (the increment depends on the prior value).
+    """
+
+    refs: set[str] = set()
+    if isinstance(stmt, IRAssignConst):
+        refs.add(stmt.name)
+        return refs
+    if isinstance(stmt, IRAssignValue):
+        refs.add(stmt.name)
+        refs |= _vars_in_value(stmt.value)
+        return refs
+    if isinstance(stmt, IRAssignExpr):
+        refs.add(stmt.name)
+        refs |= vars_in_expr_node(stmt.expr)
+        return refs
+    if isinstance(stmt, IRIncr):
+        refs.add(stmt.name)
+        if stmt.amount:
+            refs |= _vars_in_value(stmt.amount)
+        return refs
+    if isinstance(stmt, IRExprEval):
+        refs |= vars_in_expr_node(stmt.expr)
+        return refs
+    if isinstance(stmt, IRCall):
+        refs.update(stmt.defs)
+        refs.update(stmt.reads)
+        if stmt.reads_own_defs:
+            refs.update(stmt.defs)
+        for a in stmt.args:
+            refs |= _vars_in_value(a)
+        return refs
+    if isinstance(stmt, IRReturn):
+        if stmt.value:
+            refs |= _vars_in_value(stmt.value)
+        if stmt.expr is not None:
+            refs |= vars_in_expr_node(stmt.expr)
+        return refs
+    if isinstance(stmt, IRBlock):
+        return _refs_in_script(stmt.body)
+    if isinstance(stmt, IRIf):
+        for clause in stmt.clauses:
+            refs |= vars_in_expr_node(clause.condition)
+            refs |= _refs_in_script(clause.body)
+        if stmt.else_body is not None:
+            refs |= _refs_in_script(stmt.else_body)
+        return refs
+    if isinstance(stmt, IRFor):
+        refs |= _refs_in_script(stmt.init)
+        refs |= vars_in_expr_node(stmt.condition)
+        refs |= _refs_in_script(stmt.next)
+        refs |= _refs_in_script(stmt.body)
+        return refs
+    if isinstance(stmt, IRWhile):
+        refs |= vars_in_expr_node(stmt.condition)
+        refs |= _refs_in_script(stmt.body)
+        return refs
+    if isinstance(stmt, IRForeach):
+        for var_list, list_arg in stmt.iterators:
+            refs.update(var_list)
+            refs |= _vars_in_value(list_arg)
+        refs |= _refs_in_script(stmt.body)
+        return refs
+    if isinstance(stmt, IRCatch):
+        refs |= _refs_in_script(stmt.body)
+        if stmt.result_var:
+            refs.add(stmt.result_var)
+        if stmt.options_var:
+            refs.add(stmt.options_var)
+        return refs
+    if isinstance(stmt, IRTry):
+        refs |= _refs_in_script(stmt.body)
+        for handler in stmt.handlers:
+            refs |= _refs_in_script(handler.body)
+            if handler.var_name:
+                refs.add(handler.var_name)
+            if handler.options_var:
+                refs.add(handler.options_var)
+        if stmt.finally_body is not None:
+            refs |= _refs_in_script(stmt.finally_body)
+        return refs
+    if isinstance(stmt, IRSwitch):
+        refs |= _vars_in_value(stmt.subject)
+        for arm in stmt.arms:
+            if arm.body is not None:
+                refs |= _refs_in_script(arm.body)
+        if stmt.default_body is not None:
+            refs |= _refs_in_script(stmt.default_body)
+        return refs
+    if isinstance(stmt, IRUpFrame):
+        refs |= _refs_in_script(stmt.body)
+        return refs
+    return refs
+
+
+def _refs_in_script(script: IRScript | None) -> set[str]:
+    if script is None:
+        return set()
+    refs: set[str] = set()
+    for s in script.statements:
+        refs |= _stmt_references(s)
+    return refs

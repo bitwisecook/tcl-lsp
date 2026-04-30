@@ -1358,13 +1358,19 @@ pub export fn global_set(name: i32, value: i32) i32 {
     // Scalar/array name-conflict detection.  Real Tcl raises
     // ``can't set "<name>": variable is array`` if the user tries to
     // store a scalar under a name that's currently shaped as an
-    // array.  ``array_exists`` returns a *boxed* TclObj 0 / 1, not a
-    // raw bool — must unbox via ``obj_get_int`` to get the actual
-    // truth value.  ``conflict_check_active`` suppresses the probe
-    // inside the ``stubs.raise → tcl_cmd_error → stamp_error_globals``
-    // chain, which recursively writes ``::errorInfo`` / ``::errorCode``
-    // and would otherwise infinite-loop here.
-    if (!conflict_check_active and obj.obj_get_int(tcl_array.array_exists(name)) != 0) {
+    // array.  Use ``array_exists_raw`` (no TclObj allocation) keyed
+    // by the *stripped* name so ``set ::a 1`` and ``set a 1`` both
+    // see an existing array ``a`` — the array directory keys by the
+    // post-normalisation form, which equals the var subsystem's
+    // stripped form for top-level / global writes.  The previous
+    // ``array_exists(name)`` allocated a TclObj on every set and
+    // missed the conflict on ``set ::a`` vs an existing ``a(...)``
+    // (Copilot review, PR #237).  ``conflict_check_active``
+    // suppresses the probe inside the ``stubs.raise → tcl_cmd_error
+    // → stamp_error_globals`` chain, which recursively writes
+    // ``::errorInfo`` / ``::errorCode`` and would otherwise infinite-
+    // loop here.
+    if (!conflict_check_active and tcl_array.array_exists_raw(k.ptr, k.len)) {
         conflict_check_active = true;
         defer conflict_check_active = false;
         const stubs = @import("../stubs/tcl_stubs.zig");
