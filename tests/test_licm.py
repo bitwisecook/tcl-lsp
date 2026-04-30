@@ -78,6 +78,50 @@ class TestSimpleHoist:
         assert _find_assign(while_node.body, "msg") is not None
 
 
+class TestForeachLiteralList:
+    def test_foreach_with_literal_list_hoists(self):
+        # ``foreach x {a b c}`` runs ≥ 1 times because the list
+        # is a non-empty literal — the body's invariant write is
+        # safely hoisted.
+        module = _module(
+            "foreach x {a b c} {\n"
+            "  set guard \"k\"\n"
+            "}\n"
+        )
+        new_module = licm_module(module)
+        for_node = _find_first(new_module.top_level, IRForeach)
+        assert _find_assign(for_node.body, "guard") is None
+        assert _find_assign(new_module.top_level, "guard") is not None
+
+    def test_foreach_with_dynamic_list_not_hoisted(self):
+        # ``$lst`` is a runtime variable; we can't decide ≥ 1
+        # iterations statically.
+        module = _module(
+            "set lst {a b c}\n"
+            "foreach x $lst {\n"
+            "  set guard \"k\"\n"
+            "}\n"
+        )
+        new_module = licm_module(module)
+        for_node = _find_first(new_module.top_level, IRForeach)
+        assert _find_assign(for_node.body, "guard") is not None
+
+    def test_foreach_with_empty_literal_list_not_hoisted(self):
+        # The historical regression case — an empty literal list
+        # must NOT trigger the hoist or it would change observable
+        # behaviour (the body's writes never execute, so they have
+        # no business landing before the loop).
+        module = _module(
+            "set x 99\n"
+            "foreach i {} {\n"
+            "  set x 0\n"
+            "}\n"
+        )
+        new_module = licm_module(module)
+        for_node = _find_first(new_module.top_level, IRForeach)
+        assert _find_assign(for_node.body, "x") is not None
+
+
 class TestZeroIterationGate:
     """The hoist must decline whenever the loop could run 0 iterations."""
 

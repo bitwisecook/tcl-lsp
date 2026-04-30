@@ -191,8 +191,23 @@ def _licm_stmt(stmt: object) -> tuple[list, object] | None:
 
     if isinstance(stmt, IRForeach):
         # ``foreach`` over an empty list runs zero iterations.
-        # Same soundness rule as ``while`` — recurse without
-        # hoisting.
+        # Hoist only when EVERY iterator's list arg is a literal
+        # with at least one element — then the body executes ≥ 1
+        # times unconditionally, so a hoisted body-level write
+        # would have run anyway.
+        iter_vars: set[str] = set()
+        for var_list, _ in stmt.iterators:
+            iter_vars.update(var_list)
+        if _every_foreach_iterator_runs_at_least_once(stmt.iterators):
+            hoisted, new_body = _hoist_from_loop_body(
+                stmt.body,
+                extra_writes={name: 1 for name in iter_vars},
+                forbidden_targets=iter_vars,
+            )
+            if new_body is stmt.body and not hoisted:
+                return None
+            return hoisted, replace(stmt, body=new_body)
+        # Otherwise recurse into the body for nested loops only.
         new_body = _licm_script(stmt.body)
         if new_body is stmt.body:
             return None
@@ -343,6 +358,39 @@ def _hoist_from_loop_body(
             return [], body
         return [], after_inner
     return hoisted, IRScript(statements=tuple(keep))
+
+
+def _every_foreach_iterator_runs_at_least_once(
+    iterators: tuple[tuple[tuple[str, ...], str], ...],
+) -> bool:
+    """Return True iff every ``foreach`` iterator binds at least one
+    iteration unconditionally.
+
+    Each iterator's list arg must be a static literal with a non-
+    empty content area.  Brace-quoted ``{a b c}`` and double-
+    quoted ``"a b c"`` (both without ``$`` or ``[``) qualify, as
+    do bare unquoted single-word args.  Anything containing a
+    runtime substitution returns False conservatively and the
+    caller declines the hoist.
+    """
+    for _, list_arg in iterators:
+        if not _literal_list_is_non_empty(list_arg):
+            return False
+    return True
+
+
+def _literal_list_is_non_empty(arg: str) -> bool:
+    """Return True iff ``arg`` is a literal that names ≥ 1 element."""
+    a = arg.strip()
+    if not a:
+        return False
+    if "$" in a or "[" in a:
+        return False
+    if a.startswith("{") and a.endswith("}"):
+        a = a[1:-1].strip()
+    elif a.startswith('"') and a.endswith('"'):
+        a = a[1:-1].strip()
+    return bool(a)
 
 
 def _proven_at_least_one_iteration(init: IRScript, condition) -> str | None:
