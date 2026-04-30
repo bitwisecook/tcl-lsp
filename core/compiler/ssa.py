@@ -28,6 +28,7 @@ from ..commands.registry.runtime import (
     BodyKind,
     arg_indices_for_role,
     body_kind_for_command,
+    scope_alias_commands,
 )
 from ..common.naming import normalise_var_name as _normalise_var_name
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
@@ -84,8 +85,13 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
     #
     # * ``ArgRole.VAR_WRITE`` — the named arg may later be mutated by a
     #   callback the command registers (``trace add variable name ...``
-    #   wires ``name`` to the trace body).  Gated on ``SIGNATURES`` so a
-    #   role hint loaded from a previously active dialect (e.g. EDA's
+    #   wires ``name`` to the trace body).  Scope-alias commands
+    #   (``global``, ``variable``, ``upvar``) are excluded: their
+    #   variable bindings are tracked separately via ``creates_scope_alias``
+    #   /``_collect_upvar_targets`` and their single-position ``VAR_WRITE``
+    #   role would only mark arg 0 of vararg forms like
+    #   ``global ?name ...?`` anyway.  Gated on ``SIGNATURES`` so a role
+    #   hint loaded from a previously active dialect (e.g. EDA's
     #   ``foreach_in_collection`` after the user switches back to plain
     #   Tcl) doesn't leak into SSA's def-tracking via the cross-dialect
     #   ``_ROLE_HINTS`` fallback.
@@ -93,7 +99,7 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
     #   variables (``dict for {k v} ...``).
     if isinstance(stmt, IRBarrier):
         defs: list[str] = []
-        if stmt.command in SIGNATURES:
+        if stmt.command in SIGNATURES and stmt.command not in scope_alias_commands():
             for idx in arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.VAR_WRITE):
                 if 0 <= idx < len(stmt.args):
                     name = _normalise_var_name(stmt.args[idx])
