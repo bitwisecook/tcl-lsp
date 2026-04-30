@@ -184,6 +184,31 @@ fn write_offset(out: [*]u8, off_in: u32, utoff_secs: i32) u32 {
     return off;
 }
 
+/// Render a signed integer as a left-zero-padded decimal, prefixed
+/// with ``-`` for negative values.  Used for ``%Y`` so ancient
+/// (pre-year-1) dates don't panic when ``t.year`` is negative — the
+/// tcltest clock-2.* coverage exercises epochs as far back as
+/// ``-62135769601`` (year ~1 AD/BC) which used to trip the
+/// ``@intCast(i32 → u32)`` safety check.
+fn write_pad_signed(out: [*]u8, off_in: u32, value: i64, width: u32) u32 {
+    if (value >= 0) {
+        return write_pad_int(out, off_in, @intCast(value), width, '0');
+    }
+    var off = off_in;
+    out[off] = '-';
+    off += 1;
+    const mag: u64 = @intCast(-value);
+    return write_pad_int(out, off, @intCast(mag), if (width > 0) width - 1 else 0, '0');
+}
+
+/// Render epoch seconds for ``%s``.  Computed by walking the
+/// broken-down time back to a Unix epoch (UTC) — convenient because
+/// ``render_format`` already has the local-time tuple plus the
+/// caller's offset, so reversing is just a pack + offset adjust.
+fn render_epoch(t: BrokenDown, utoff: i32) i64 {
+    return pack_epoch(t.year, t.month, t.day, t.hour, t.minute, t.second) - @as(i64, utoff);
+}
+
 /// Strftime over a caller-supplied broken-down time + offset/abbr.
 /// Shared between ``clock_format`` (the WASM-export entry, default
 /// UTC) and ``clock_format_tz`` (timezone-aware via the resolver).
@@ -222,8 +247,14 @@ fn render_format(
                 out[off] = '%';
                 off += 1;
             },
-            'Y' => off = write_pad_int(out, off, @intCast(t.year), 4, '0'),
-            'y' => off = write_pad_int(out, off, @intCast(@mod(t.year, 100)), 2, '0'),
+            'Y' => off = write_pad_signed(out, off, @intCast(t.year), 4),
+            'y' => {
+                // Mathematical mod (Zig ``@mod``) returns non-negative
+                // for negative inputs, so casting through u32 is safe.
+                const y2: u32 = @intCast(@mod(@as(i64, t.year), 100));
+                off = write_pad_int(out, off, y2, 2, '0');
+            },
+            's' => off = write_pad_signed(out, off, render_epoch(t, utoff), 0),
             'm' => off = write_pad_int(out, off, t.month, 2, '0'),
             'd' => off = write_pad_int(out, off, t.day, 2, '0'),
             'e' => off = write_pad_int(out, off, t.day, 2, ' '),
@@ -411,7 +442,12 @@ fn parse_signed(s: []const u8) ?i64 {
     var v: i64 = 0;
     var n: usize = 0;
     while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
-        v = v * 10 + (@as(i64, s[i] - '0'));
+        const d: i64 = @intCast(s[i] - '0');
+        const m = @mulWithOverflow(v, @as(i64, 10));
+        if (m[1] != 0) return null;
+        const a = @addWithOverflow(m[0], d);
+        if (a[1] != 0) return null;
+        v = a[0];
         n += 1;
     }
     if (n == 0 or i != s.len) return null;
@@ -678,8 +714,11 @@ fn apply_unit(base: i64, count: i64, u: UnitKind) i64 {
 }
 
 /// Parse a leading signed integer from a token.  ``"+5"`` / ``"-5"``
-/// / ``"5"`` all return 5 / -5 / 5 with consumed_all=true.  Returns
-/// null on miss.
+/// / ``"5"`` all return 5 / -5 / 5.  Returns null on miss or i64
+/// overflow — the upstream tcltest clock suite hands us very long
+/// digit-only tokens (epoch-style integers as scan input, plus a
+/// few "absurd" tokens to test error handling) that would overflow
+/// the running accumulator if left unchecked.
 fn token_signed_int(tok: []const u8) ?i64 {
     if (tok.len == 0) return null;
     var i: usize = 0;
@@ -693,7 +732,12 @@ fn token_signed_int(tok: []const u8) ?i64 {
     if (i >= tok.len) return null;
     var v: i64 = 0;
     while (i < tok.len and tok[i] >= '0' and tok[i] <= '9') : (i += 1) {
-        v = v * 10 + (@as(i64, tok[i] - '0'));
+        const d: i64 = @intCast(tok[i] - '0');
+        const m = @mulWithOverflow(v, @as(i64, 10));
+        if (m[1] != 0) return null;
+        const a = @addWithOverflow(m[0], d);
+        if (a[1] != 0) return null;
+        v = a[0];
     }
     if (i != tok.len) return null;
     return if (neg) -v else v;

@@ -122,6 +122,81 @@ proc auto_load {cmd args} { return 1 }
 # upstream shape closely enough that the four directly-affected
 # tests reach a tcltest summary line.  Other safe.test gaps
 # (filesystem, package machinery) remain out of scope.
+# ::tcl::unsupported::clock::configure stub — internal accessor the
+# Tcl 9 ``clock.test`` bundle calls during bootstrap (line 44 reads
+# ``-valid`` to decide whether to enable strict-validation tests, plus
+# clock-1.4.x reads ``-min-year`` / ``-max-year`` / ``-year-century`` /
+# ``-century-switch`` and rewrites them).  Real Tcl exposes these
+# knobs through ``library/clock.tcl``'s C-backed namespace; our
+# clock implementation is fixed-policy so the knobs are read-only
+# defaults.  Setter form silently accepts and stores into the
+# state dict so the test's "save / mutate / restore" pattern
+# round-trips without altering observable behaviour.
+# msgcat stubs — the upstream ``clock.test`` registers a few
+# locale-specific message catalogues at the top of the file
+# (``en_US_roman`` for Roman numerals, ``fr`` / ``zh`` /
+# ``ja`` / etc.) via ``::msgcat::mcset`` and ``::msgcat::mcmset``.
+# Without these the bundle traps before it reaches any ``test``
+# call.  ``msgcat`` is a real Tcl-library package; we ship a
+# minimal stub so the catalogue setters are accepted and a
+# subsequent ``::msgcat::mc`` call (used inside our clock
+# implementation's locale-aware paths only — the WASM runtime
+# ignores locale today) returns the key unchanged.
+namespace eval ::msgcat {
+    variable catalogue
+    array set catalogue {}
+    proc mcset {locale src {dst {}}} {
+        variable catalogue
+        if {$dst eq ""} { set dst $src }
+        set catalogue($locale,$src) $dst
+        return $dst
+    }
+    proc mcmset {locale pairs} {
+        variable catalogue
+        foreach {k v} $pairs { set catalogue($locale,$k) $v }
+        return [expr {[llength $pairs] / 2}]
+    }
+    proc mc {src args} {
+        # No locale routing — return the key (matches msgcat's
+        # fallback when no catalogue entry is found).
+        return $src
+    }
+    proc mclocale {args} { return en_US }
+    proc mcpreferences {} { return {en_US en {}} }
+    proc mcload {dir} { return 0 }
+    proc mcunknown {locale src args} { return $src }
+    namespace export mcset mcmset mc mclocale mcpreferences mcload mcunknown
+}
+
+namespace eval ::tcl::unsupported::clock {
+    variable state
+    array set state {
+        -valid 0
+        -min-year -9999
+        -max-year 9999
+        -year-century 2000
+        -century-switch 38
+    }
+    proc configure {args} {
+        variable state
+        if {[llength $args] == 0} {
+            return [array get state]
+        }
+        if {[llength $args] == 1} {
+            set opt [lindex $args 0]
+            if {[info exists state($opt)]} {
+                return $state($opt)
+            }
+            return -code error "bad option \"$opt\""
+        }
+        foreach {k v} $args {
+            set state($k) $v
+        }
+        return
+    }
+    namespace export configure
+}
+
 namespace eval ::tcl::tm {
     variable paths {}
     proc path {sub args} {
@@ -159,6 +234,18 @@ namespace import -force ::tcltest::*
 
 # Silence per-test progress chatter; keep the summary line.
 ::tcltest::configure -verbose {}
+
+# Override ::tcltest::Asciify to a passthrough.  The upstream impl
+# splits a result string into characters and uses ``format %02X``
+# / ``format %04X`` to emit ``\xNN`` / ``\uNNNN`` escapes, which
+# triggers a pre-existing runtime panic in ``tcl_cmd_append`` (its
+# integer-cast guard rejects some byte values produced by the
+# upstream test fixtures).  Asciify only runs as part of the
+# failure-diagnostic ``puts``; replacing it with identity loses
+# the pretty hex escapes but lets a tcltest summary line emerge
+# even when several tests fail.  Tracked separately from the
+# clock work in tcl_cmd_append.
+proc ::tcltest::Asciify {s} { return $s }
 """
 
 
