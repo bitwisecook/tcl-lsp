@@ -1138,6 +1138,94 @@ class TestUnusedProcParameters:
         w214 = [d for d in result.diagnostics if d.code == "W214"]
         assert len(w214) == 0
 
+    def test_trace_add_variable_callback_unused_args(self):
+        """Issue #239: ``trace add variable`` callbacks must accept the
+        ``name1 name2 op`` signature; the body legitimately may not use
+        any of those arguments, so W214 should not fire."""
+        source = textwrap.dedent("""\
+            proc watcher {name1 name2 op} {
+                puts hello
+            }
+            trace add variable x write watcher
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+        assert result.all_procs["::watcher"].is_trace_callback
+
+    def test_trace_add_command_callback_unused_args(self):
+        source = textwrap.dedent("""\
+            proc onCmd {oldName newName op} { puts hi }
+            trace add command mycmd rename onCmd
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_trace_add_execution_callback_unused_args(self):
+        source = textwrap.dedent("""\
+            proc onExec {cmd code result op} { puts hi }
+            trace add execution mycmd enter onExec
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_legacy_trace_variable_callback_unused_args(self):
+        """The deprecated ``trace variable name ops command`` form is
+        still in use and must also suppress W214."""
+        source = textwrap.dedent("""\
+            proc watcher {name1 name2 op} { puts hello }
+            trace variable x w watcher
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_trace_callback_braced_list_prefix(self):
+        """When the command prefix is a literal list, the first element
+        is the proc and W214 is suppressed for it."""
+        source = textwrap.dedent("""\
+            proc watcher {prefix name1 name2 op} { puts $prefix }
+            trace add variable x write {watcher hello}
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_trace_add_before_proc_definition(self):
+        """The proc may be defined after the ``trace add`` site."""
+        source = textwrap.dedent("""\
+            trace add variable x write watcher
+            proc watcher {name1 name2 op} { puts hello }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_trace_callback_in_namespace(self):
+        source = textwrap.dedent("""\
+            namespace eval ns {
+                proc watcher {name1 name2 op} { puts hello }
+                trace add variable x write watcher
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_unrelated_proc_unused_param_still_flagged(self):
+        """Suppression must be scoped to trace-registered procs only."""
+        source = textwrap.dedent("""\
+            proc watcher {name1 name2 op} { puts hello }
+            proc other {a b} { puts $a }
+            trace add variable x write watcher
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "'b'" in w214[0].message and "'other'" in w214[0].message
+
 
 # interp alias
 class TestInterpAlias:
