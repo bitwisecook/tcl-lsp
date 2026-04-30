@@ -777,6 +777,17 @@ def optimise_load_forwarding(
 
     executable_blocks = set(cfg.blocks) - set(analysis.unreachable_blocks)
 
+    # Hoist trace-aware classification context out of the per-statement
+    # loop: ``traced_commands()`` walks ``IRModule.command_traces`` on
+    # every call, and the answer is invariant across the def-use chain
+    # walk below.
+    if ctx.ir_module is not None:
+        traced_commands = ctx.ir_module.traced_commands()
+        has_dynamic_trace = ctx.ir_module.has_dynamic_trace()
+    else:
+        traced_commands = None
+        has_dynamic_trace = False
+
     # Build statement rewrite ranges for deletion.
     range_by_stmt, next_start_by_stmt = _statement_rewrite_context(source, cfg)
 
@@ -939,6 +950,8 @@ def optimise_load_forwarding(
                     between_stmt.command,
                     between_stmt.args,
                     callee_summary=callee_summary,
+                    traced_commands=traced_commands,
+                    has_dynamic_trace=has_dynamic_trace,
                 )
                 if not effect.pure:
                     unsafe = True
