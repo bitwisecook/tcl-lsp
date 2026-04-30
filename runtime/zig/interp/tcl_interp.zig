@@ -350,6 +350,14 @@ pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
     const saved: u32 = tcl_ns.current_ns;
     const ns = tcl_ns.ns_create_from_fqn(@bitCast(name_ptr), @bitCast(name_len));
     tcl_ns.current_ns = ns;
+    // Record the caller's namespace on the current proc frame so a
+    // later ``uplevel`` can restore it.  Only stamps when the slot
+    // hasn't been set yet — eval-fallback regions inside a compiled
+    // proc body re-emit ``ns_set`` to push the proc's own namespace
+    // for the duration of the fallback, and that secondary call
+    // would otherwise clobber the proc-prologue's caller-ns record
+    // and leave ``uplevel 1`` shifting to the wrong namespace.
+    frames.frame_set_ns_if_unset(saved);
     return @as(i64, saved);
 }
 
@@ -524,6 +532,10 @@ pub fn eval_uplevel(words: []const i32) i32 {
     if (body_start >= words.len) return 0;
 
     const body_obj = concat_words(words[body_start..]);
+    // ``frame_depth_stash`` / ``frame_depth_restore`` save and
+    // restore both the frame depth and the namespace context,
+    // re-entering the target frame's recorded caller-ns for the
+    // duration of the eval.  See :file:`tcl_frames.zig`.
     const saved = frames.frame_depth_stash(shift);
     const body_s = obj_ensure_string(body_obj);
     const result = eval_script(body_s.ptr, body_s.len);
@@ -1180,6 +1192,16 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
             }
         }
     }
+    // Record the *caller's* namespace on the new frame so a later
+    // ``uplevel`` from inside this body can re-enter the namespace
+    // that was active immediately before this proc was invoked.
+    // Without this, an uplevel'd script body resolves variables
+    // against the *callee*'s namespace (typically ``::tcltest``)
+    // instead of the caller's (e.g. ``::tcl::test::io``), so
+    // unqualified array element refs miss the outer namespace's
+    // array — the symptom upstream io.test / ioCmd.test exhibited
+    // when ``::tcltest::RunTest`` upleveled the test body.
+    frames.frame_set_ns(saved_proc_ns);
 
     // Bind parameters: walk the params list, assign each from argv.
     // If the last parameter is named "args", it collects all remaining

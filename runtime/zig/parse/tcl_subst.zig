@@ -8,6 +8,7 @@ const rt     = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const arena = @import("../valtypes/tcl_arena.zig");
+const tcl_array = @import("../valtypes/tcl_array.zig");
 
 const alloc            = rt.alloc;
 const memcpy           = rt.memcpy;
@@ -137,13 +138,39 @@ pub fn subst_flagged(
                     i += 1;
                 }
                 const name_obj = obj_new_string(@intCast(wptr + vstart), @intCast(i - vstart));
-                const val = frames.var_resolve(name_obj);
-                if (val != 0) {
-                    const sv = obj_ensure_string(val);
-                    push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
-                    obj_mod.tcl_obj_retain(val);
-                    write_i32(retained_objs + n_retained * 4, val);
-                    n_retained += 1;
+                // Array-element form ``$arr(idx)``: when the next byte
+                // is ``(`` we consume up to the matching ``)``,
+                // recursively substitute the index span (so
+                // ``$arr($k)`` and ``$arr([f])`` work), and look the
+                // element up with ``array_get``.  Without this branch
+                // the parser falls out of the variable-name loop at
+                // the ``(`` and emits ``arr`` plus the literal
+                // ``(idx)``, which is what real Tcl actively rejects
+                // as ``can't read "arr": variable is array``.
+                if (i < wlen and src[i] == '(') {
+                    i += 1;
+                    const ks = i;
+                    while (i < wlen and src[i] != ')') i += 1;
+                    const ke = i;
+                    if (i < wlen) i += 1; // consume ')'
+                    const key_obj = subst_flagged(wptr + ks, ke - ks, do_vars, do_cmds, do_bs);
+                    const elem = tcl_array.array_get(name_obj, key_obj);
+                    if (elem != 0) {
+                        const sv = obj_ensure_string(elem);
+                        push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                        obj_mod.tcl_obj_retain(elem);
+                        write_i32(retained_objs + n_retained * 4, elem);
+                        n_retained += 1;
+                    }
+                } else {
+                    const val = frames.var_resolve(name_obj);
+                    if (val != 0) {
+                        const sv = obj_ensure_string(val);
+                        push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                        obj_mod.tcl_obj_retain(val);
+                        write_i32(retained_objs + n_retained * 4, val);
+                        n_retained += 1;
+                    }
                 }
             }
             lit_start = i;
