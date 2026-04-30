@@ -338,15 +338,29 @@ def wasm_codegen_module(
     filename: str | None = None,
     diag_map: DiagMap | None = None,
     escape_summaries: dict[str, ProcEscapeSummary] | None = None,
+    frame_elision: bool = True,
+    inline: bool = True,
+    licm: bool = True,
+    dce: bool = True,
+    gvn: bool = True,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
     Args:
         cfg_module: The control-flow-graph module to compile.
         ir_module: The IR module (for procedure metadata).
-        optimise: When ``True``, enable optimisation passes
-            (constant folding, peephole, dead-code elimination).
-            When ``False``, emit straightforward unoptimised code.
+        optimise: Toggles the *codegen-side* optimisations only —
+            constant folding, peephole, SSA-emit-time dead-code
+            elimination.  This flag does **not** affect the IR-
+            level passes (S4 inlining, S5 LICM / GVN / DCE);
+            those are sound semantics-preserving transforms and
+            run by default for every callsite that doesn't pass
+            ``inline=False`` / ``licm=False`` / ``dce=False`` /
+            ``gvn=False`` explicitly.  Pass ``optimise=False``
+            (the default) when emitting straightforward unoptimised
+            output for diff-friendly inspection; pair with
+            ``inline=False, licm=False, dce=False, gvn=False`` to
+            additionally suppress the IR passes.
         filename: Source filename recorded on every diag site.
             Passing this without a ``diag_map`` allocates a fresh
             map; passing neither disables diag instrumentation
@@ -386,6 +400,93 @@ def wasm_codegen_module(
             escape_summaries = analyse_var_escape(ir_module=ir_module)
         except Exception:  # noqa: BLE001 — analysis failure falls back
             escape_summaries = None
+
+    # Phase 0.5: S4.2 — inline eligible calls before any other analysis
+    # consumes the IR.  ``inline_module`` (v0) only drops statement-
+    # position calls to ALWAYS-tagged empty-body procs, so the
+    # rewrite is purely subtractive: it removes ``IRCall`` statements
+    # without introducing new shapes.  We rebuild the CFG from the
+    # inlined IR so downstream passes (SSA, dataflow) see the
+    # same module the codegen will emit.  Re-running var-escape is
+    # cheap and ensures the per-proc summaries reflect the post-
+    # inline call graph (procs whose only callees were inlined-away
+    # may newly qualify as pure_leaf).
+    #
+    # **Failure policy.**  S4/S5 passes are *not* opportunistic any
+    # more — they're load-bearing once the call sites enable them
+    # by default.  Silently swallowing exceptions here masked real
+    # bugs (PR #237 review).  The pass functions are pure /
+    # structural; any exception they raise is a bug we want to fix,
+    # not paper over.  Same policy applies to LICM, DCE, and GVN
+    # below.
+    if inline and escape_summaries is not None:
+        from ...cfg import build_cfg as _build_cfg
+        from ...inlining import apply_inline_catalogue
+        from ...inlining import inline_module as _inline
+
+        tagged = apply_inline_catalogue(ir_module, escape_summaries)
+        inlined = _inline(tagged, escape_summaries)
+        if inlined is not tagged:
+            ir_module = inlined
+            cfg_module = _build_cfg(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
+        else:
+            # Catalogue still tagged the procs even if no splices
+            # fired this pass — keep the tagged module so any
+            # later inliner generation sees the metadata.
+            ir_module = tagged
+
+    # Phase 0.6: S5.3 — hoist loop-invariant literal assignments out
+    # of loop bodies.  The pass operates on the (possibly inlined)
+    # IR and is purely subtractive at the body level (it moves
+    # statements OUT of loops; the parent script grows by the same
+    # count).  We rebuild the CFG and re-run var-escape after
+    # changes so the downstream emitter sees the hoisted shape.
+    if licm:
+        from ...cfg import build_cfg as _build_cfg2
+        from ...passes.licm import licm_module as _licm
+
+        hoisted = _licm(ir_module)
+        if hoisted is not ir_module:
+            ir_module = hoisted
+            cfg_module = _build_cfg2(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
+
+    # Phase 0.7: S5.4 — dead-store elimination.  Removes
+    # ``IRAssignConst`` / ``IRAssignValue`` / ``IRAssignExpr`` /
+    # ``IRIncr`` whose target is only written once and never read.
+    # Only fires on ``ALWAYS``-tagged (pure_leaf) procs since
+    # other procs may read vars dynamically through eval / upvar /
+    # info.  Subtractive at the script level — rebuilds the CFG
+    # and var-escape after changes.
+    if dce:
+        from ...cfg import build_cfg as _build_cfg3
+        from ...passes.dce import dce_module as _dce
+
+        # Pass the post-fixpoint summaries so DCE can use the
+        # precise ``safe_to_dce`` predicate (PR #237 review)
+        # rather than piggybacking on the inline catalogue tag.
+        cleaned = _dce(ir_module, escape_summaries)
+        if cleaned is not ir_module:
+            ir_module = cleaned
+            cfg_module = _build_cfg3(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
+
+    # Phase 0.8: S5.4 GVN — replace redundant ``IRAssignExpr``
+    # writes with copies from prior equivalent results when the
+    # source variables haven't been modified between them.
+    # ``set y [expr {$x + 1}]; set z [expr {$x + 1}]`` becomes
+    # ``set y [expr {$x + 1}]; set z $y``.  Subtractive — never
+    # adds work, just elides recomputation.
+    if gvn:
+        from ...cfg import build_cfg as _build_cfg4
+        from ...passes.gvn import gvn_module as _gvn
+
+        valued = _gvn(ir_module)
+        if valued is not ir_module:
+            ir_module = valued
+            cfg_module = _build_cfg4(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
 
     module = WasmModule()
 
@@ -574,6 +675,7 @@ def wasm_codegen_module(
         diag_map=diag_map,
         escape_summary=top_escape,
         proc_imports=proc_imports,
+        frame_elision=frame_elision,
     )
     # Register every compiled proc in the runtime proc table with a
     # non-zero func_idx marker so the interpreter knows to dispatch
@@ -613,6 +715,7 @@ def wasm_codegen_module(
             diag_map=diag_map,
             escape_summary=proc_escape,
             proc_imports=proc_imports,
+            frame_elision=frame_elision,
         )
         callable_func = callable_emitter.generate()
         callable_func.name = qname

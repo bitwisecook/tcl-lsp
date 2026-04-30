@@ -78,6 +78,50 @@ pub fn count_elements(ptr: u32, len: u32) i64 {
     return count;
 }
 
+/// Validate that a list-string has balanced braces.  Returns true
+/// when the input is well-formed.  Internal callers
+/// (``count_elements`` / ``element_at``) stay permissive — they use
+/// the count as a sentinel and a partial walk is fine.  Only the
+/// user-visible ``tcl_cmd_list_length`` (S2.7) wants this check
+/// because ``llength`` reports the unmatched-brace error to users
+/// while ``linsert`` / ``lrepeat`` / ``lseq`` continue to operate
+/// on whatever string they're given.
+pub fn validate_list_braces(ptr: u32, len: u32) bool {
+    if (len == 0) return true;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len) {
+        while (i < len and is_space(src[i])) i += 1;
+        if (i >= len) break;
+        if (src[i] == '{') {
+            i += 1;
+            var depth: u32 = 1;
+            while (i < len and depth > 0) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '{') {
+                    depth += 1;
+                } else if (src[i] == '}') {
+                    depth -= 1;
+                }
+                i += 1;
+            }
+            if (depth > 0) return false;
+        } else {
+            while (i < len and !is_space(src[i])) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    return true;
+}
+
 /// Return the (start, len, braced) span of the nth element (0-based).
 /// Out-of-range requests return a zero-length element so callers can
 /// treat them as empty without a separate ``is_valid`` check.
