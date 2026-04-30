@@ -214,9 +214,7 @@ def build_bundle(zoneinfo: Path) -> bytes:
 
     if skipped:
         sys.stderr.write(
-            "build_tzdata_bundle: skipped (not present on host):\n  "
-            + "\n  ".join(skipped)
-            + "\n"
+            "build_tzdata_bundle: skipped (not present on host):\n  " + "\n  ".join(skipped) + "\n"
         )
 
     if not entries:

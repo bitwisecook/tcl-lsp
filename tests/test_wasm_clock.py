@@ -112,23 +112,17 @@ class TestClockFormatGmt:
     """``clock format`` with ``-gmt 1`` — synthetic UTC, no host tzdata."""
 
     def test_unix_epoch_iso_date(self):
-        stdout = _run_for_stdout(
-            'puts [clock format 0 -gmt 1 -format "%Y-%m-%d"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock format 0 -gmt 1 -format "%Y-%m-%d"]\n')
         assert stdout.strip() == "1970-01-01"
 
     def test_unix_epoch_full_iso(self):
-        stdout = _run_for_stdout(
-            'puts [clock format 0 -gmt 1 -format "%Y-%m-%dT%H:%M:%S"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock format 0 -gmt 1 -format "%Y-%m-%dT%H:%M:%S"]\n')
         assert stdout.strip() == "1970-01-01T00:00:00"
 
     def test_unix_epoch_weekday_and_zone_abbr(self):
         # Thursday 1970-01-01 in UTC.  ``%Z`` should expand to the
         # synthetic UTC zone's abbreviation.
-        stdout = _run_for_stdout(
-            'puts [clock format 0 -gmt 1 -format "%a %b %d %H:%M:%S %Z %Y"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock format 0 -gmt 1 -format "%a %b %d %H:%M:%S %Z %Y"]\n')
         assert stdout.strip() == "Thu Jan 01 00:00:00 UTC 1970"
 
     def test_known_y2k(self):
@@ -139,9 +133,7 @@ class TestClockFormatGmt:
         assert stdout.strip() == "2000-01-01T00:00:00Z"
 
     def test_numeric_offset(self):
-        stdout = _run_for_stdout(
-            'puts [clock format 0 -gmt 1 -format "%z"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock format 0 -gmt 1 -format "%z"]\n')
         assert stdout.strip() == "+0000"
 
 
@@ -225,8 +217,7 @@ class TestClockFormatBundle:
         # Asia/Tokyo is JST year-round (+09:00), no DST.
         # 2025-01-15 00:00:00 UTC → 09:00:00 JST.
         stdout = _run_for_stdout(
-            "puts [clock format 1736899200 -timezone :Asia/Tokyo "
-            '-format "%H:%M %Z"]\n'
+            'puts [clock format 1736899200 -timezone :Asia/Tokyo -format "%H:%M %Z"]\n'
         )
         assert stdout.strip() == "09:00 JST"
 
@@ -234,25 +225,21 @@ class TestClockFormatBundle:
         # Europe/London = GMT in winter, BST in summer.
         # 2025-01-15 12:00:00 UTC = 12:00 GMT.
         stdout = _run_for_stdout(
-            "puts [clock format 1736942400 -timezone :Europe/London "
-            '-format "%H:%M %Z"]\n'
+            'puts [clock format 1736942400 -timezone :Europe/London -format "%H:%M %Z"]\n'
         )
         assert stdout.strip() == "12:00 GMT"
 
     def test_bundle_serves_london_summer_bst(self):
         # 2025-07-15 12:00 UTC = 13:00 BST.
         stdout = _run_for_stdout(
-            "puts [clock format 1752580800 -timezone :Europe/London "
-            '-format "%H:%M %Z"]\n'
+            'puts [clock format 1752580800 -timezone :Europe/London -format "%H:%M %Z"]\n'
         )
         assert stdout.strip() == "13:00 BST"
 
     def test_bundle_miss_falls_through_to_utc(self):
         # Zone not in the bundle's curated list AND not on the host
         # (no preopen) — resolver lands on synthetic UTC.
-        stdout = _run_for_stdout(
-            'puts [clock format 0 -timezone :Antarctica/Troll -format "%Z"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock format 0 -timezone :Antarctica/Troll -format "%Z"]\n')
         assert stdout.strip() == "UTC"
 
 
@@ -263,29 +250,21 @@ class TestClockScan:
     """``clock scan`` — round-trip with ``clock format``."""
 
     def test_iso_date_returns_epoch(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "1970-01-01" -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "1970-01-01" -gmt 1]\n')
         assert stdout.strip() == "0"
 
     def test_iso_datetime_t_separator(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "2000-01-01T00:00:00Z"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "2000-01-01T00:00:00Z"]\n')
         assert stdout.strip() == "946684800"
 
     def test_iso_datetime_space_separator_gmt(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "2000-01-01 00:00:00" -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "2000-01-01 00:00:00" -gmt 1]\n')
         assert stdout.strip() == "946684800"
 
     def test_iso_with_explicit_offset(self):
         # 12:00:00 +05:00 == 07:00:00 UTC == epoch 946706400 - 0
         # 2000-01-01 12:00:00+05:00 -> 2000-01-01 07:00:00 UTC.
-        stdout = _run_for_stdout(
-            'puts [clock scan "2000-01-01T12:00:00+05:00"]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "2000-01-01T12:00:00+05:00"]\n')
         assert stdout.strip() == str(946684800 + 7 * 3600)
 
     def test_round_trip_via_format(self):
@@ -312,30 +291,22 @@ class TestClockScanFreeform:
     """
 
     def test_now_returns_base(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "now" -base 1234567890 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "now" -base 1234567890 -gmt 1]\n')
         assert stdout.strip() == "1234567890"
 
     def test_today_returns_midnight_of_base(self):
         # 2025-07-15 12:34:56 UTC = epoch 1752597296.
         # ``today`` should return midnight of the same date = 1752537600.
-        stdout = _run_for_stdout(
-            'puts [clock scan "today" -base 1752597296 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "today" -base 1752597296 -gmt 1]\n')
         assert stdout.strip() == "1752537600"
 
     def test_yesterday(self):
         # 2025-07-15 12:34:56 UTC base; yesterday = 2025-07-14 midnight.
-        stdout = _run_for_stdout(
-            'puts [clock scan "yesterday" -base 1752597296 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "yesterday" -base 1752597296 -gmt 1]\n')
         assert stdout.strip() == str(1752537600 - 86400)
 
     def test_tomorrow(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "tomorrow" -base 1752597296 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "tomorrow" -base 1752597296 -gmt 1]\n')
         assert stdout.strip() == str(1752537600 + 86400)
 
     def test_epoch_keyword(self):
@@ -344,68 +315,48 @@ class TestClockScanFreeform:
 
     def test_relative_days(self):
         # base = 1000000000; +5 days = +432000.
-        stdout = _run_for_stdout(
-            'puts [clock scan "+5 days" -base 1000000000 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "+5 days" -base 1000000000 -gmt 1]\n')
         assert stdout.strip() == str(1000000000 + 5 * 86400)
 
     def test_relative_negative_hours(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "-3 hours" -base 1000000000 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "-3 hours" -base 1000000000 -gmt 1]\n')
         assert stdout.strip() == str(1000000000 - 3 * 3600)
 
     def test_relative_unsigned(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "2 weeks" -base 1000000000 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "2 weeks" -base 1000000000 -gmt 1]\n')
         assert stdout.strip() == str(1000000000 + 2 * 7 * 86400)
 
     def test_relative_ago_suffix(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "10 minutes ago" -base 1000000000 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "10 minutes ago" -base 1000000000 -gmt 1]\n')
         assert stdout.strip() == str(1000000000 - 10 * 60)
 
     def test_month_day_year_full_name(self):
         # "January 15, 2025" -> 2025-01-15 midnight UTC.
-        stdout = _run_for_stdout(
-            'puts [clock scan "January 15, 2025" -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "January 15, 2025" -gmt 1]\n')
         assert stdout.strip() == "1736899200"
 
     def test_month_day_year_abbreviated(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "Jan 15, 2025" -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "Jan 15, 2025" -gmt 1]\n')
         assert stdout.strip() == "1736899200"
 
     def test_day_month_year(self):
         # "15 Jan 2025" -> 2025-01-15.
-        stdout = _run_for_stdout(
-            'puts [clock scan "15 Jan 2025" -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "15 Jan 2025" -gmt 1]\n')
         assert stdout.strip() == "1736899200"
 
     def test_us_slash_date(self):
         # 01/15/2025 -> 2025-01-15.
-        stdout = _run_for_stdout(
-            'puts [clock scan "01/15/2025" -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "01/15/2025" -gmt 1]\n')
         assert stdout.strip() == "1736899200"
 
     def test_relative_months_calendar(self):
         # base = 2025-01-15 midnight UTC = 1736899200.
         # +1 month -> 2025-02-15 midnight = 1739577600.
-        stdout = _run_for_stdout(
-            'puts [clock scan "+1 month" -base 1736899200 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "+1 month" -base 1736899200 -gmt 1]\n')
         assert stdout.strip() == "1739577600"
 
     def test_relative_years_calendar(self):
-        stdout = _run_for_stdout(
-            'puts [clock scan "+1 year" -base 1736899200 -gmt 1]\n'
-        )
+        stdout = _run_for_stdout('puts [clock scan "+1 year" -base 1736899200 -gmt 1]\n')
         # 2026-01-15 midnight UTC.
         # 1736899200 + 365 * 86400 (2025 is non-leap).
         assert stdout.strip() == str(1736899200 + 365 * 86400)
@@ -447,9 +398,7 @@ class TestClockAdd:
 
     def test_chained_units(self):
         # 1 day + 2 hours + 30 minutes = 86400 + 7200 + 1800 = 95400.
-        stdout = _run_for_stdout(
-            "puts [clock add 0 1 days 2 hours 30 minutes]\n"
-        )
+        stdout = _run_for_stdout("puts [clock add 0 1 days 2 hours 30 minutes]\n")
         assert stdout.strip() == "95400"
 
     def test_singular_unit(self):

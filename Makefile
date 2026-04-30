@@ -519,10 +519,10 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 CODES_SRCS    := $(shell find $(PYCORE_DIR)/common -name 'codes*.py' -not -path '*__pycache__*')
 OPTIMISER_SRCS := $(shell find $(PYCORE_DIR)/compiler/optimiser -name '*.py' -not -path '*__pycache__*')
 CHECKS_SRCS   := $(shell find $(PYCORE_DIR)/analysis/checks -name '*.py' -not -path '*__pycache__*')
-SETTINGS_SRCS := $(CODES_SRCS) $(OPTIMISER_SRCS) $(CHECKS_SRCS) \
+ANALYSER_SRCS := $(shell find $(PYCORE_DIR)/analysis/_analyser -name '*.py' -not -path '*__pycache__*')
+SETTINGS_SRCS := $(CODES_SRCS) $(OPTIMISER_SRCS) $(CHECKS_SRCS) $(ANALYSER_SRCS) \
 	$(PYCORE_DIR)/formatting/config.py \
 	$(PYCORE_DIR)/common/optimisation_profiles.py \
-	$(PYCORE_DIR)/analysis/analyser.py \
 	$(PYCORE_DIR)/analysis/irules_checks.py \
 	$(PYCORE_DIR)/compiler/compiler_checks.py \
 	$(PYCORE_DIR)/compiler/gvn.py \
