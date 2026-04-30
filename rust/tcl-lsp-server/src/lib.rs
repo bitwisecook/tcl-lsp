@@ -15,6 +15,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use tcl_lsp_core::folding::FoldKind;
 use tcl_registry::dialects::DialectSet;
@@ -52,22 +53,20 @@ impl DocumentState {
 /// Each dialect gets its own cached registry built lazily on the
 /// first request that names it — feature providers in
 /// `tcl-lsp-core` take a `&CommandRegistry` so no per-request
-/// rebuild is needed. `base_registry` carries the default
-/// Tcl + stdlib + tcllib specs and is the value handed back for
-/// the plain-Tcl path; it never has a dialect loaded.
+/// rebuild is needed. The cache also owns the plain-Tcl base
+/// registry under the empty-string key, so registries are dropped
+/// with the `Backend` rather than leaked for the process lifetime.
 pub struct Backend {
     client: Client,
     documents: Mutex<HashMap<Url, DocumentState>>,
     default_dialect: String,
-    base_registry: CommandRegistry,
-    dialect_registries: Mutex<HashMap<String, &'static CommandRegistry>>,
+    dialect_registries: Mutex<HashMap<String, Arc<CommandRegistry>>>,
 }
 
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("default_dialect", &self.default_dialect)
-            .field("base_registry", &self.base_registry)
             .finish_non_exhaustive()
     }
 }
@@ -75,14 +74,12 @@ impl std::fmt::Debug for Backend {
 impl Backend {
     /// Build a fresh backend wrapping the given client.
     ///
-    /// Constructs the per-session [`CommandRegistry`] holding
-    /// only the default Tcl + stdlib + tcllib specs. Dialect-
-    /// specific specs are loaded lazily from
-    /// [`Backend::registry_for_dialect`] on the first request that
-    /// names them. Pre-loading every dialect into one shared
-    /// registry would let dialect-specific command overrides
-    /// (e.g. iRules's `proc` shape) shadow the Tcl spec for
-    /// requests on unrelated dialects.
+    /// Dialect-specific registries (including the plain-Tcl base)
+    /// are loaded lazily from [`Backend::registry_for_dialect`] on
+    /// the first request that names them. Pre-loading every
+    /// dialect into one shared registry would let dialect-specific
+    /// command overrides (e.g. iRules's `proc` shape) shadow the
+    /// Tcl spec for requests on unrelated dialects.
     ///
     /// `default_dialect` is the dialect string forwarded to
     /// providers when the document store has no override.
@@ -93,7 +90,6 @@ impl Backend {
             documents: Mutex::new(HashMap::new()),
             default_dialect: "tcl8.6".to_owned(),
             dialect_registries: Mutex::new(HashMap::new()),
-            base_registry: CommandRegistry::build_default(),
         }
     }
 
@@ -101,51 +97,45 @@ impl Backend {
         self.documents.lock().await.get(url).cloned()
     }
 
-    /// Return a `&CommandRegistry` with `dialect` loaded on top of
-    /// the default Tcl + stdlib + tcllib specs.
+    /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
+    /// top of the default Tcl + stdlib + tcllib specs.
     ///
-    /// The result is cached per dialect string so each session
-    /// builds at most one registry per requested dialect. Use
-    /// `dialect = ""` (or any unparseable dialect string) for the
-    /// plain-Tcl case — it returns the base registry.
-    async fn registry_for_dialect(&self, dialect: &str) -> &'static CommandRegistry {
-        // Fast path: plain Tcl / unrecognised dialect → base
-        // registry, no caching needed (the base lives on Backend).
-        let Some(d) = DialectSet::parse(dialect) else {
-            // SAFETY-equivalent: we cast `&CommandRegistry` to
-            // `&'static CommandRegistry` by leaking a clone — but
-            // base_registry is owned by `&self`, not `'static`.
-            // For the plain-Tcl path return a leaked reference
-            // sourced from the dialect cache so the return type is
-            // uniform.
-            return self.cached_registry("", None).await;
-        };
-        self.cached_registry(dialect, Some(d)).await
+    /// The result is cached per canonical dialect key so each
+    /// session builds at most one registry per requested dialect.
+    /// Unparseable dialect strings collapse to the empty-string
+    /// key so they share a single cached "plain Tcl" registry
+    /// rather than leaking a fresh allocation per typo.
+    async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
+        let parsed = DialectSet::parse(dialect);
+        // Canonicalise the cache key: parseable dialects keep
+        // their string; unparseable / plain-Tcl collapse to "".
+        let key = if parsed.is_some() { dialect } else { "" };
+        self.cached_registry(key, parsed).await
     }
 
     /// Cache helper for [`Self::registry_for_dialect`].
     ///
-    /// Builds (or fetches) a `'static` registry holding the base
-    /// specs plus, when `dialect` is `Some`, the dialect-loaded
-    /// specs. Leaks each new registry so the returned reference
-    /// outlives the session — the leaks are bounded by the small
-    /// number of dialect strings any one server will ever see.
+    /// Builds (or fetches) a registry holding the base specs plus,
+    /// when `dialect` is `Some`, the dialect-loaded specs. The
+    /// cache owns the registries via `Arc`, so they are dropped
+    /// when the `Backend` is dropped instead of living for the
+    /// process lifetime.
     async fn cached_registry(
         &self,
         key: &str,
         dialect: Option<DialectSet>,
-    ) -> &'static CommandRegistry {
+    ) -> Arc<CommandRegistry> {
         let mut cache = self.dialect_registries.lock().await;
         if let Some(r) = cache.get(key) {
-            return r;
+            return Arc::clone(r);
         }
         let mut r = CommandRegistry::build_default();
         if let Some(d) = dialect {
             r.load_dialect(d);
         }
-        let leaked: &'static CommandRegistry = Box::leak(Box::new(r));
-        cache.insert(key.to_owned(), leaked);
-        leaked
+        let arc = Arc::new(r);
+        cache.insert(key.to_owned(), Arc::clone(&arc));
+        arc
     }
 }
 
@@ -217,7 +207,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let ranges = tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry);
+        let ranges = tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry);
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 }

@@ -37,27 +37,35 @@ pub(crate) fn default_registry() -> &'static CommandRegistry {
 /// of `CommandRegistry::build_default(); load_dialect(d)` without
 /// the per-call build cost.
 ///
+/// Unparseable dialect strings collapse to the empty-string key
+/// so a stream of typos can't leak one registry per typo — they
+/// all share a single cached "plain Tcl" registry.
+///
 /// Python callers don't pass a registry through; this is the
 /// shared instance every binding consults when it needs
 /// dialect-aware behaviour.
 pub(crate) fn default_registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
     static REGISTRIES: OnceLock<std::sync::Mutex<HashMap<String, &'static CommandRegistry>>> =
         OnceLock::new();
+    let parsed = DialectSet::parse(dialect);
+    // Canonicalise the cache key: parseable dialects keep their
+    // string; unparseable ones share the plain-Tcl entry.
+    let key = if parsed.is_some() { dialect } else { "" };
     let map = REGISTRIES.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
     let mut guard = map.lock().expect("registry cache mutex");
-    if let Some(r) = guard.get(dialect) {
+    if let Some(r) = guard.get(key) {
         return r;
     }
     // First request for this dialect: build the per-dialect
     // registry, leak it, and cache the resulting `&'static`
-    // reference. The leak is intentional — registries live for
-    // the process lifetime and are tiny relative to wheel data.
+    // reference. The leak is bounded by the small set of
+    // canonical dialects any Python process will see.
     let mut r = CommandRegistry::build_default();
-    if let Some(d) = DialectSet::parse(dialect) {
+    if let Some(d) = parsed {
         r.load_dialect(d);
     }
     let leaked: &'static CommandRegistry = Box::leak(Box::new(r));
-    guard.insert(dialect.to_owned(), leaked);
+    guard.insert(key.to_owned(), leaked);
     leaked
 }
 

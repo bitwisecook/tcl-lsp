@@ -96,7 +96,7 @@ NAME_PATTERN = re.compile(r'CommandSpec\s*\{\s*name:\s*"([^"]+)"')
 
 def parse_spec(path: Path) -> dict[str, Any] | None:
     """Parse a spec file. Returns None for non-spec files."""
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     name_m = NAME_PATTERN.search(text)
     if not name_m:
         return None
@@ -298,7 +298,7 @@ def main() -> int:
     report = render_report(specs)
 
     if args.check:
-        existing = args.out.read_text() if args.out.exists() else ""
+        existing = args.out.read_text(encoding="utf-8") if args.out.exists() else ""
         if existing != report:
             print(
                 f"command-spec coverage report at {args.out} is stale.",
@@ -312,7 +312,7 @@ def main() -> int:
         return 0
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(report)
+    args.out.write_text(report, encoding="utf-8")
     print(f"wrote {args.out.relative_to(REPO_ROOT)} ({len(specs)} specs)")
     return 0
 
