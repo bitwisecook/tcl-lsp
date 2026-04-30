@@ -722,6 +722,124 @@ Consider capturing the result: catch {\u{2026}} result"
         });
     }
 
+    /// **E004.** Emit "Malformed `if` command" / "Extra words after
+    /// `else` clause" errors when an `if` invocation's structural
+    /// shape doesn't match `if COND BODY ?elseif COND BODY ...?
+    /// ?else BODY?`.
+    ///
+    /// Mirrors the `IRBarrier` arm of `_check_statement` in
+    /// ``core/compiler/compiler_checks.py:506-525``, which fires
+    /// when Python's `_lower_if`
+    /// (``core/compiler/lowering.py:645-753``) returns an
+    /// `IRBarrier` with `command == "if"` because the syntactic
+    /// shape is invalid.  The reasons it produces:
+    ///
+    /// - `"malformed if"` — empty arg list, or no clauses after
+    ///   the full walk.
+    /// - `"malformed if else clause"` — bare `else` with no body
+    ///   following.
+    /// - `'extra words after "else" clause'` — `else BODY` with
+    ///   one or more trailing words.
+    /// - `"malformed if clause"` — condition with no body
+    ///   (with or without an intervening `then` keyword).
+    ///
+    /// Detected analyser-side at the `if`-command dispatch site
+    /// rather than by walking lowered IR — matches the established
+    /// W302 / W001 dispatch-site pattern.  Also closes a latent
+    /// parity gap in `lowering/structured.rs::lower_if`, which
+    /// currently doesn't produce an "extra words after else"
+    /// barrier at all (see `lowering.py:686-693` vs
+    /// `structured.rs:147-162`).
+    ///
+    /// Severity: `Error`.  No code fixes (Python doesn't emit
+    /// any).  Span anchors at the command-head token through the
+    /// last argument-token end, mirroring Python's `cmd.range`
+    /// (full command source range).
+    pub(super) fn emit_e004_malformed_if(
+        &mut self,
+        args: &[String],
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        let full_span = match arg_tokens.last() {
+            Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
+            None => cmd_tok.span,
+        };
+        let push_malformed = |this: &mut Self| {
+            this.result.diagnostics.push(super::types::Diagnostic {
+                code: "E004".to_string(),
+                span: full_span,
+                message: "Malformed 'if' command".to_string(),
+                severity: Severity::Error,
+                fixes: Vec::new(),
+            });
+        };
+        let push_extra_words = |this: &mut Self| {
+            this.result.diagnostics.push(super::types::Diagnostic {
+                code: "E004".to_string(),
+                span: full_span,
+                message: "Extra words after \"else\" clause in \"if\" command".to_string(),
+                severity: Severity::Error,
+                fixes: Vec::new(),
+            });
+        };
+
+        if args.is_empty() {
+            push_malformed(self);
+            return;
+        }
+
+        let mut i = 0;
+        let mut clause_count: usize = 0;
+        while i < args.len() {
+            if args[i] == "elseif" {
+                i += 1;
+                continue;
+            }
+            if args[i] == "else" {
+                if i + 1 >= args.len() {
+                    // Bare ``else`` with no body following.
+                    push_malformed(self);
+                    return;
+                }
+                if i + 2 < args.len() {
+                    // ``else BODY <extra...>``.
+                    push_extra_words(self);
+                    return;
+                }
+                // ``else BODY`` — well-formed terminator.  Note:
+                // Python's ``_lower_if`` does *not* append to
+                // ``clauses`` here (else-only sets ``else_body``);
+                // the post-walk ``if not clauses`` check still
+                // fires on ``if else BODY`` to produce a
+                // ``"malformed if"`` barrier.  We mirror that by
+                // leaving ``clause_count`` unchanged in this arm.
+                break;
+            }
+
+            // Condition + (optional ``then``) + body shape.
+            i += 1;
+            if i < args.len() && args[i] == "then" {
+                i += 1;
+            }
+            if i >= args.len() {
+                // Condition with no following body.
+                push_malformed(self);
+                return;
+            }
+            clause_count += 1;
+            i += 1;
+        }
+
+        if clause_count == 0 {
+            // E.g. ``if elseif`` / ``if else`` after the elseif-skip
+            // / else-skip branches consume their keywords without
+            // producing a clause.  Mirrors the post-walk
+            // ``if not clauses`` check in ``_lower_if``.
+            push_malformed(self);
+        }
+    }
+
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in
