@@ -518,4 +518,78 @@ mod tests {
             .resolve_call("dict", &["create"], DialectSet::TCL84)
             .is_none());
     }
+
+    #[test]
+    fn resolve_call_picks_arity_matched_command_form_for_incr() {
+        let reg = CommandRegistry::build_default();
+        // `incr counter` — arity 1 → matches the implicit form.
+        let r1 = reg
+            .resolve_call("incr", &["counter"], DialectSet::empty())
+            .unwrap();
+        let f1 = r1.form.expect("incr should match a CommandForm");
+        assert_eq!(f1.name, "implicit");
+        assert_eq!(f1.arity, crate::arity::Arity::exact(1));
+
+        // `incr counter 5` — arity 2 → matches the explicit form.
+        let r2 = reg
+            .resolve_call("incr", &["counter", "5"], DialectSet::empty())
+            .unwrap();
+        let f2 = r2.form.expect("incr counter 5 should match a CommandForm");
+        assert_eq!(f2.name, "explicit");
+        assert_eq!(f2.arity, crate::arity::Arity::exact(2));
+    }
+
+    #[test]
+    fn resolve_call_picks_arity_matched_command_form_for_lset() {
+        let reg = CommandRegistry::build_default();
+        // `lset lst value` — arity 2 → replace form.
+        let replace = reg
+            .resolve_call("lset", &["lst", "value"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(replace.form.unwrap().name, "replace");
+
+        // `lset lst 0 value` — arity 3 → single_index form.
+        let single = reg
+            .resolve_call("lset", &["lst", "0", "value"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(single.form.unwrap().name, "single_index");
+
+        // `lset lst 0 1 2 value` — arity 5 → flat_path form.
+        let flat = reg
+            .resolve_call("lset", &["lst", "0", "1", "2", "value"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(flat.form.unwrap().name, "flat_path");
+    }
+
+    #[test]
+    fn irules_sink_commands_carry_structural_options() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+
+        let respond = reg.get("HTTP::respond").expect("HTTP::respond loaded");
+        let opts: Vec<&str> = respond.options.iter().map(|o| o.name).collect();
+        assert!(
+            opts.contains(&"-version") && opts.contains(&"-status") && opts.contains(&"-noserver"),
+            "HTTP::respond options {opts:?} should include -version / -status / -noserver",
+        );
+        let noserver = respond
+            .options
+            .iter()
+            .find(|o| o.name == "-noserver")
+            .unwrap();
+        assert!(!noserver.takes_value);
+        let version = respond
+            .options
+            .iter()
+            .find(|o| o.name == "-version")
+            .unwrap();
+        assert!(version.takes_value);
+
+        let header = reg.get("HTTP::header").expect("HTTP::header loaded");
+        let header_opts: Vec<&str> = header.options.iter().map(|o| o.name).collect();
+        assert!(
+            header_opts.contains(&"-noupdate"),
+            "HTTP::header options {header_opts:?} should include -noupdate",
+        );
+    }
 }
