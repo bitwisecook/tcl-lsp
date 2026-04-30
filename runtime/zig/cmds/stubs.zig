@@ -111,7 +111,35 @@ fn eval_clock(words: []const i32) i32 {
         // micro = clicks (already microseconds from the fast clock)
         return clock.clock_clicks();
     }
-    if (std.mem.eql(u8, sp, "scan")) return rt.obj_new_int(0);
+    if (std.mem.eql(u8, sp, "scan")) {
+        // Form: clock scan TEXT ?-base T? ?-format F? ?-gmt 0|1? ?-timezone Z?
+        if (words.len < 3) return rt.obj_new_int(0);
+        var zone_obj: i32 = 0;
+        var gmt: i32 = 0;
+        var ai: usize = 3;
+        while (ai + 1 < words.len) : (ai += 2) {
+            const optn = rt.obj_ensure_string(words[ai]);
+            const op: []const u8 = if (optn.ptr == 0) "" else
+                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            if (std.mem.eql(u8, op, "-timezone")) {
+                zone_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-gmt")) {
+                const v = rt.obj_ensure_string(words[ai + 1]);
+                if (v.ptr != 0 and v.len > 0) {
+                    const vp: [*]const u8 = @ptrFromInt(v.ptr);
+                    const vs = vp[0..v.len];
+                    gmt = if (std.mem.eql(u8, vs, "0") or
+                        std.mem.eql(u8, vs, "false") or
+                        std.mem.eql(u8, vs, "no")) 0 else 1;
+                }
+            }
+            // ``-base`` / ``-format`` / ``-locale`` ignored — the
+            // ISO-ish parser is format-agnostic and ``-base`` only
+            // matters for relative inputs (``+1 day``) which this
+            // implementation doesn't yet support.
+        }
+        return clock.clock_scan_obj(words[2], zone_obj, gmt);
+    }
     if (std.mem.eql(u8, sp, "format")) {
         // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1? ?-timezone Z?
         if (words.len < 3) return rt.obj_new_string(0, 0);

@@ -344,6 +344,204 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
     return render_format(f.ptr, f.len, t, 0, "UTC");
 }
 
+// -- clock scan ---------------------------------------------------------------
+//
+// Free-form ``clock scan`` is a substantial parser in C Tcl
+// (``tclGetDate.y``).  We don't reimplement that here — instead we
+// support the subset of inputs that the task spec calls for and
+// that round-trip with ``clock format``:
+//
+//   YYYY-MM-DD                       (ISO date, midnight UTC)
+//   YYYY-MM-DDTHH:MM:SS              (ISO date+time, UTC)
+//   YYYY-MM-DD HH:MM:SS              (RFC 3339-like)
+//   YYYY-MM-DDTHH:MM:SSZ             (Zulu)
+//   YYYY-MM-DDTHH:MM:SS±HHMM         (offset)
+//   YYYY-MM-DDTHH:MM:SS±HH:MM        (offset, RFC 3339)
+//
+// Anything else falls through to the integer parser (``clock scan
+// 12345`` returns 12345 — useful when the input is already epoch
+// seconds), and a final failure returns 0 with no error so the
+// existing degraded-path callers don't regress.
+
+/// Skip leading whitespace, advancing the cursor.  Returns the
+/// new index.
+fn skip_ws(s: []const u8, i_in: usize) usize {
+    var i = i_in;
+    while (i < s.len) : (i += 1) {
+        const c = s[i];
+        if (c != ' ' and c != '\t') break;
+    }
+    return i;
+}
+
+/// Consume a non-negative decimal integer of up to ``max_digits``
+/// digits at ``s[i..]``.  Returns ``(value, next_i)`` or null if no
+/// digits were found.
+fn read_uint(s: []const u8, i_in: usize, max_digits: usize) ?struct { v: i64, i: usize } {
+    var i = i_in;
+    var v: i64 = 0;
+    var n: usize = 0;
+    while (i < s.len and n < max_digits and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        v = v * 10 + (@as(i64, s[i] - '0'));
+        n += 1;
+    }
+    if (n == 0) return null;
+    return .{ .v = v, .i = i };
+}
+
+/// Try to parse ``s`` as a decimal integer (signed, optional ``+`` /
+/// ``-`` prefix).  Returns the value or null on miss.
+fn parse_signed(s: []const u8) ?i64 {
+    if (s.len == 0) return null;
+    var i: usize = 0;
+    var neg = false;
+    if (s[0] == '-') {
+        neg = true;
+        i = 1;
+    } else if (s[0] == '+') {
+        i = 1;
+    }
+    var v: i64 = 0;
+    var n: usize = 0;
+    while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        v = v * 10 + (@as(i64, s[i] - '0'));
+        n += 1;
+    }
+    if (n == 0 or i != s.len) return null;
+    return if (neg) -v else v;
+}
+
+/// Result of a successful scan: epoch seconds in UTC plus a flag
+/// indicating whether the input carried an explicit zone (``Z`` /
+/// ``±HH:MM``).  Callers use the flag to decide whether to apply
+/// the resolver's default zone.
+const ScanResult = struct {
+    epoch: i64,
+    has_zone: bool,
+};
+
+/// Try to parse ``s`` as one of the supported ISO-ish forms.
+/// Returns null on any deviation — there's no recovery, so the
+/// integer fallback can take over.
+fn parse_iso(s: []const u8) ?ScanResult {
+    if (s.len < 8) return null; // "YYYY-M-D" is 8 chars minimum
+    var i: usize = 0;
+    const y = read_uint(s, i, 4) orelse return null;
+    if (y.i != 4) return null; // require exactly 4 year digits
+    if (y.i >= s.len or s[y.i] != '-') return null;
+    i = y.i + 1;
+    const mo = read_uint(s, i, 2) orelse return null;
+    if (mo.i >= s.len or s[mo.i] != '-') return null;
+    i = mo.i + 1;
+    const da = read_uint(s, i, 2) orelse return null;
+    i = da.i;
+
+    var hour: i64 = 0;
+    var minute: i64 = 0;
+    var second: i64 = 0;
+
+    if (i < s.len and (s[i] == 'T' or s[i] == ' ' or s[i] == 't')) {
+        i += 1;
+        const hh = read_uint(s, i, 2) orelse return null;
+        if (hh.i >= s.len or s[hh.i] != ':') return null;
+        i = hh.i + 1;
+        const mm = read_uint(s, i, 2) orelse return null;
+        i = mm.i;
+        hour = hh.v;
+        minute = mm.v;
+        if (i < s.len and s[i] == ':') {
+            i += 1;
+            const ss = read_uint(s, i, 2) orelse return null;
+            second = ss.v;
+            i = ss.i;
+            // Optional fractional seconds — recognised and dropped.
+            if (i < s.len and s[i] == '.') {
+                i += 1;
+                while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {}
+            }
+        }
+    }
+
+    var zone_offset: i64 = 0;
+    var has_zone = false;
+    if (i < s.len) {
+        const c = s[i];
+        if (c == 'Z' or c == 'z') {
+            i += 1;
+            has_zone = true;
+        } else if (c == '+' or c == '-') {
+            const sign: i64 = if (c == '-') -1 else 1;
+            i += 1;
+            const oh = read_uint(s, i, 2) orelse return null;
+            i = oh.i;
+            var om: i64 = 0;
+            if (i < s.len and s[i] == ':') i += 1;
+            if (i < s.len and s[i] >= '0' and s[i] <= '9') {
+                const omr = read_uint(s, i, 2) orelse return null;
+                om = omr.v;
+                i = omr.i;
+            }
+            zone_offset = sign * (oh.v * 3600 + om * 60);
+            has_zone = true;
+        }
+    }
+    if (i != s.len) return null; // trailing garbage
+
+    const epoch_local = pack_epoch(
+        @intCast(y.v),
+        @intCast(mo.v),
+        @intCast(da.v),
+        @intCast(hour),
+        @intCast(minute),
+        @intCast(second),
+    );
+    return .{ .epoch = epoch_local - zone_offset, .has_zone = has_zone };
+}
+
+/// clock_scan_obj — parse a date/time string into Unix epoch
+/// seconds.  ``zone_obj`` is consulted only when the input doesn't
+/// carry its own zone (no ``Z`` / no ``±HHMM``).  ``gmt_flag``
+/// non-zero forces UTC and overrides ``zone_obj``.
+pub export fn clock_scan_obj(text_obj: i32, zone_obj: i32, gmt_flag: i32) i32 {
+    if (text_obj == 0) return obj_new_int(0);
+    const t = obj_ensure_string(text_obj);
+    if (t.ptr == 0 or t.len == 0) return obj_new_int(0);
+    const tp: [*]const u8 = @ptrFromInt(t.ptr);
+    const ts0 = tp[0..t.len];
+    const start = skip_ws(ts0, 0);
+    var end = ts0.len;
+    while (end > start and (ts0[end - 1] == ' ' or ts0[end - 1] == '\t')) : (end -= 1) {}
+    const ts = ts0[start..end];
+
+    if (parse_iso(ts)) |r| {
+        if (r.has_zone) return obj_new_int(r.epoch);
+        if (gmt_flag != 0) return obj_new_int(r.epoch);
+        const zone_slice: []const u8 = blk: {
+            if (zone_obj == 0) break :blk &[_]u8{};
+            const zs = obj_ensure_string(zone_obj);
+            if (zs.ptr == 0 or zs.len == 0) break :blk &[_]u8{};
+            const zp: [*]const u8 = @ptrFromInt(zs.ptr);
+            break :blk zp[0..zs.len];
+        };
+        const z: *const tz.TimeZone = if (zone_slice.len == 0)
+            tz.resolve_default()
+        else
+            tz.resolve(zone_slice);
+        // Apply the zone's offset at the *target* time.  Two-pass:
+        // assume UTC first, look up the offset there, subtract it.
+        // Close enough for non-DST-transition timestamps; full
+        // disambiguation needs the offset-at-local-time logic from
+        // tclClock.c which can land in a follow-up.
+        const off_info = z.offset_at(r.epoch);
+        return obj_new_int(r.epoch - @as(i64, off_info.utoff));
+    }
+
+    // Fallback: integer epoch passes through unchanged so
+    // ``clock scan [clock format $t -gmt 1 -format %s]`` round-trips.
+    if (parse_signed(ts)) |v| return obj_new_int(v);
+    return obj_new_int(0);
+}
+
 // -- clock add ----------------------------------------------------------------
 
 const SECS_PER_MINUTE: i64 = 60;
