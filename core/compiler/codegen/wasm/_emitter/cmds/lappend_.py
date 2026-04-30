@@ -9,6 +9,7 @@ keeps the updated value on the stack for implicit return.
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
+from ..._ownership import Ownership
 from ..._parsing import _parse_array_ref
 
 
@@ -52,10 +53,20 @@ def _emit_lappend(
             emitter._emit_var_read_obj(var_name)
             emitter._emit_value(value_arg)
             emitter._emit_call(func_idx)
+            # ``tcl_cmd_lappend`` returns either a freshly allocated
+            # canonical-rebuild result (slow path, rc=1) or the input
+            # handle mutated in place (fast path, rc unchanged).  Both
+            # arrive on the stack at "+1 if alloc, +0 if borrow" — but
+            # ``tcl_global_set`` already retains on store, so treating
+            # the return as OWNED at the top-level write balances
+            # correctly: the post-gset release in
+            # ``_emit_var_write_obj_impl`` drops the +1 the caller
+            # owed.  Without OWNED, every iteration leaks one rc on
+            # the list value and the rc==1 fast path can never engage.
             if keep_last and i == last_index:
-                emitter._emit_var_write_obj_keep(var_name)
+                emitter._emit_var_write_obj_keep(var_name, source=Ownership.OWNED)
             else:
-                emitter._emit_var_write_obj(var_name)
+                emitter._emit_var_write_obj(var_name, source=Ownership.OWNED)
     else:
         var_idx = emitter._intern_local(var_name)
         for i, value_arg in enumerate(args[1:], start=1):

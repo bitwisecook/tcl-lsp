@@ -215,11 +215,26 @@ class _WasmEmitterVarMixin(_Base):
                 self._emit_obj_literal(name)
                 self._emit_local_get(tmp)
                 self._emit_call(gset_idx)
+                self._emit(WasmOp.DROP)  # drop gset return
+                # When the caller transferred a +1 (OWNED) and didn't
+                # ask to keep the value on the stack, balance the extra
+                # retain ``tcl_global_set`` did on store.  Without
+                # this, every top-level ``set L X`` accumulates one
+                # leaked rc on X — observable in the leak baseline and
+                # fatal to the rc==1 fast path of mutators like
+                # ``lappend`` (rc reads as 2, slow rebuild fires every
+                # iteration).  BORROWED writes leave rc untouched
+                # because the caller never owned the +1.  The
+                # keep_on_stack branch leaves the value on the stack
+                # for the caller to release, balancing the retain via a
+                # later release at the consume site.
+                if source is Ownership.OWNED and not keep_on_stack:
+                    release_idx = self._shared_imports.get("tcl_obj_release")
+                    if release_idx is not None:
+                        self._emit_local_get(tmp)
+                        self._emit_call(release_idx)
                 if keep_on_stack:
-                    self._emit(WasmOp.DROP)  # drop gset return
                     self._emit_local_get(tmp)  # leave value on stack
-                else:
-                    self._emit(WasmOp.DROP)  # drop gset return
                 return
         idx = self._intern_local(name)
         if source is not None:
