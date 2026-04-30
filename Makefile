@@ -125,7 +125,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-zig lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -199,7 +199,7 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 # Test targets
 
-test: test-py test-ext ## Run all tests (Python + VS Code extension)
+test: test-py test-ext test-zig ## Run all tests (Python + VS Code extension + Zig WASM runtime)
 
 lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
@@ -343,8 +343,28 @@ _prep-pr-smoke: smoke-zipapps smoke-vsix
 prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
 
-test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
-	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke
+test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX) + Zig WASM runtime tests
+	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke test-zig
+
+test-zig: ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/) — set SKIP_TEST_ZIG=1 to skip
+	@set -eu; \
+	if [ -n "$${SKIP_TEST_ZIG:-}" ]; then \
+		echo "==> SKIP_TEST_ZIG set — skipping Zig WASM runtime tests"; \
+		exit 0; \
+	fi; \
+	echo "==> Running Zig WASM runtime tests"; \
+	if ! command -v zig >/dev/null 2>&1; then \
+		echo "ERROR: 'zig' not found on PATH (need Zig 0.16+; the SessionStart hook installs it at /opt/zig-0.16.0)."; \
+		echo "       Set SKIP_TEST_ZIG=1 to skip this target."; \
+		exit 1; \
+	fi; \
+	if ! command -v wasmtime >/dev/null 2>&1; then \
+		echo "ERROR: 'wasmtime' not found on PATH — required because the runtime tests are wasm32-wasi binaries."; \
+		echo "       The SessionStart hook installs it at /opt/wasmtime-43.0.1; outside Claude Code, install from https://wasmtime.dev/."; \
+		echo "       Set SKIP_TEST_ZIG=1 to skip this target."; \
+		exit 1; \
+	fi; \
+	cd $(ROOT)runtime/zig && zig build test
 
 test-opt: $(UV_STAMP) ## Run optimiser coverage tests (not part of standard CI)
 	@echo "==> Running optimiser coverage tests"
