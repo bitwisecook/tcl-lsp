@@ -36,17 +36,24 @@ reports **`W306`** on the pattern argument.
 
 ## Not flagged
 
-A bare single substitution as the entire pattern is the canonical Tcl idiom
-for a parameterised regex and is **not** flagged:
+A bare single ``$var`` or ``${var}`` as the entire pattern is the canonical
+Tcl idiom for a parameterised regex and is **not** flagged:
 
 ```tcl
 regexp $pattern $string         ;# OK — single bare $var
 regexp ${ns::pattern} $string   ;# OK — single bare ${var}
-regexp [build_re] $string       ;# OK — single bare [cmd]
 ```
 
 There is no equivalent ``{...}``-braced form for these (bracing would
 suppress the substitution), so flagging them would be a false positive.
+
+## Still flagged: bare ``[cmd]`` patterns
+
+Bare command substitutions like ``[a-z]`` are still flagged.  This is the
+classic Tcl foot-gun: the user intends a regex character class, but Tcl
+parses ``[a-z]`` as command substitution (calling a command named
+``a-z``).  Catching that confusion is exactly the purpose of W306, so the
+exemption above does **not** apply to ``[cmd]`` patterns.
 
 ## Fix
 

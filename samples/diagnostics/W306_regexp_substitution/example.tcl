@@ -5,10 +5,11 @@
 # inside double quotes) is often unintentional — the $ might be meant as
 # the regex end-of-line anchor.  Bracing prevents the substitution.
 #
-# A bare single $var or [cmd] as the entire pattern is the canonical Tcl
+# A bare single $var or ${var} as the entire pattern is the canonical Tcl
 # idiom for a parameterised pattern and is NOT flagged (issue #235): there
 # is no equivalent {...}-braced form, so the warning would be a false
-# positive.
+# positive.  Bare [cmd] is still flagged — a literal like [a-z] looks like
+# a regex character class but is actually parsed as command substitution.
 #
 # Expected: tclsh runs — shows the difference.
 

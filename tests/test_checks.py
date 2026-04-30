@@ -1300,11 +1300,18 @@ class TestLiteralExpected:
         diags = _diag_with_code("regexp -- ${ns::pattern} $text", "W306")
         assert len(diags) == 0
 
-    def test_regexp_bare_cmd_pattern_clean(self):
-        # A bare single ``[cmd]`` as the entire pattern is the canonical
-        # idiom for a dynamically constructed pattern.
+    def test_regexp_bare_cmd_pattern_warns(self):
+        # ``[cmd]`` patterns must still be flagged: a literal like ``[a-z]``
+        # looks like a regex character class but is parsed by Tcl as a
+        # command substitution.  Catching that confusion is exactly what
+        # W306 is for.
         diags = _diag_with_code("regsub -- [build_re] $text X out", "W306")
-        assert len(diags) == 0
+        assert len(diags) == 1
+
+    def test_regexp_char_class_looking_cmd_subst_warns(self):
+        # Classic Tcl foot-gun: ``[a-z]`` parses as command substitution.
+        diags = _diag_with_code("regexp -- [a-z] $text", "W306")
+        assert len(diags) == 1
 
     def test_regexp_concatenated_var_pattern_warns(self):
         # Concatenation like ``$a$b`` is not a single bare substitution
