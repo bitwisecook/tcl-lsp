@@ -23,10 +23,12 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from ..commands.registry.runtime import (
+    SIGNATURES,
     ArgRole,
     BodyKind,
     arg_indices_for_role,
     body_kind_for_command,
+    scope_alias_commands,
 )
 from ..common.naming import normalise_var_name as _normalise_var_name
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
@@ -79,16 +81,30 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
         return (_normalise_var_name(stmt.name),)
     if isinstance(stmt, IRCall) and stmt.defs:
         return stmt.defs
-    if isinstance(stmt, IRBarrier) and stmt.command == "trace" and len(stmt.args) >= 3:
-        if stmt.args[0] == "add" and stmt.args[1] == "variable":
-            return (_normalise_var_name(stmt.args[2]),)
-    # Loop-variable lists (``dict for``/``dict map`` arg 0): the registry
-    # marks them with ``ArgRole.LOOP_VAR_LIST``; split each into individual
-    # iteration variables so SSA sees them as definitions.  The rewrite-alias
-    # map (``::tcl::dict::for`` → ``dict for``) makes the role visible on
-    # the CFG-rewritten name without re-deriving it here.
+    # Registry-driven barrier defs:
+    #
+    # * ``ArgRole.VAR_WRITE`` — the named arg may later be mutated by a
+    #   callback the command registers (``trace add variable name ...``
+    #   wires ``name`` to the trace body).  Scope-alias commands
+    #   (``global``, ``variable``, ``upvar``) are excluded: their
+    #   variable bindings are tracked separately via ``creates_scope_alias``
+    #   /``_collect_upvar_targets`` and their single-position ``VAR_WRITE``
+    #   role would only mark arg 0 of vararg forms like
+    #   ``global ?name ...?`` anyway.  Gated on ``SIGNATURES`` so a role
+    #   hint loaded from a previously active dialect (e.g. EDA's
+    #   ``foreach_in_collection`` after the user switches back to plain
+    #   Tcl) doesn't leak into SSA's def-tracking via the cross-dialect
+    #   ``_ROLE_HINTS`` fallback.
+    # * ``ArgRole.LOOP_VAR_LIST`` — split into individual iteration
+    #   variables (``dict for {k v} ...``).
     if isinstance(stmt, IRBarrier):
         defs: list[str] = []
+        if stmt.command in SIGNATURES and stmt.command not in scope_alias_commands():
+            for idx in arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.VAR_WRITE):
+                if 0 <= idx < len(stmt.args):
+                    name = _normalise_var_name(stmt.args[idx])
+                    if name:
+                        defs.append(name)
         for idx in arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.LOOP_VAR_LIST):
             if 0 <= idx < len(stmt.args):
                 defs.extend(stmt.args[idx].split())
