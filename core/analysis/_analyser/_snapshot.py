@@ -29,3 +29,6 @@ class AnalyserSnapshot:
     var_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
     # Command-substitution-as-command sites: (cmd_text, method_name_or_None, range, in_method).
     cmd_command_sites: list[tuple[str, str | None, Range, bool]] = field(default_factory=list)
+    # Pending trace-callback registrations: tuples of candidate qualified
+    # proc names for callbacks whose target may not yet be parsed.
+    pending_trace_callbacks: list[tuple[str, ...]] = field(default_factory=list)
