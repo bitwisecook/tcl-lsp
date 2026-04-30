@@ -1509,6 +1509,142 @@ mod tests {
         assert!(text.contains("puts hi"), "span text {text:?}");
     }
 
+    // -- ``postpass`` chunk: W001 unknown-subcommand emitter
+    //
+    // Mirrors the SubcommandSig branch of ``_check_arity`` in
+    // ``core/compiler/compiler_checks.py:580-643`` against the
+    // Rust port so the W001 path retires from the Python
+    // ``run_compiler_checks`` post-pass.
+
+    #[test]
+    fn analyse_emits_w001_for_unknown_string_subcommand() {
+        let mut a = Analyser::new();
+        let r = a.analyse("string bogus $x\n", "tcl");
+        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            w001[0].message.contains("'bogus'") && w001[0].message.contains("'string'"),
+            "got {:?}",
+            w001[0].message
+        );
+        assert!(matches!(
+            w001[0].severity,
+            crate::analyser::Severity::Warning
+        ));
+    }
+
+    #[test]
+    fn analyse_w001_includes_did_you_mean_suggestion() {
+        // ``string lenght`` — single-char typo for ``length``,
+        // edit distance 2.  ``suggest_similar`` should surface
+        // ``length``.
+        let mut a = Analyser::new();
+        let r = a.analyse("string lenght $x\n", "tcl");
+        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            w001[0].message.contains("did you mean 'length'"),
+            "got {:?}",
+            w001[0].message
+        );
+        assert!(
+            w001[0].fixes.iter().any(|f| f.new_text == "length"),
+            "got {:?}",
+            w001[0].fixes
+        );
+    }
+
+    #[test]
+    fn analyse_no_w001_for_known_subcommand() {
+        // ``string length $x`` — known subcommand.  No W001.
+        let mut a = Analyser::new();
+        let r = a.analyse("string length $x\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w001_for_dynamic_subcommand_position() {
+        // ``string $sub $x`` — runtime-resolved subcommand;
+        // can't statically check.  No W001.
+        let mut a = Analyser::new();
+        let r = a.analyse("string $sub $x\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w001_for_command_substitution_in_subcommand_position() {
+        // ``string [pick] $x`` — ``[…]`` in the subcommand
+        // position is also a runtime-resolved value.  No W001.
+        let mut a = Analyser::new();
+        let r = a.analyse("string [pick] $x\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w001_for_simple_command() {
+        // ``set x 1`` — ``set`` has no SubcommandSig.  No W001.
+        let mut a = Analyser::new();
+        let r = a.analyse("set x 1\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w001_for_unknown_command() {
+        // ``unknownthing foo`` — registry doesn't know the
+        // command, so no signature lookup, no W001.  (W123
+        // owns the unknown-command diagnostic.)
+        let mut a = Analyser::new();
+        let r = a.analyse("unknownthing foo\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W001"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w001_anchors_at_cmd_plus_subcommand_range() {
+        let mut a = Analyser::new();
+        let src = "string bogus $x\n";
+        let r = a.analyse(src, "tcl");
+        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        assert_eq!(w001.len(), 1);
+        let span = w001[0].span;
+        let text = &src[span.start() as usize..span.end() as usize];
+        assert_eq!(text, "string bogus", "got {text:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w001_for_unknown_dict_subcommand() {
+        // ``dict`` is also a SubcommandSig command — confirm
+        // dispatch isn't ``string``-specific.
+        let mut a = Analyser::new();
+        let r = a.analyse("dict froob $d $k\n", "tcl");
+        let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+        assert_eq!(w001.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            w001[0].message.contains("'dict'"),
+            "got {:?}",
+            w001[0].message
+        );
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry
