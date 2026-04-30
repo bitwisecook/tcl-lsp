@@ -188,6 +188,87 @@ class TestImplicitReturn:
         assert _proc_writes(new_module, "::p", "y") == 1
 
 
+class TestNestedRecursion:
+    """PR #237 review: DCE now recurses into nested control-flow
+    bodies so dead stores inside ``if {…} { set y 42 }``,
+    ``for { … } { … } {…}``, etc. get removed too."""
+
+    def _proc_writes_recursive(self, module, qname: str, name: str) -> int:
+        """Count writes to ``name`` anywhere in the proc body
+        (top-level + every nested control-flow body)."""
+        from core.compiler.ir import (
+            IRAssignConst,
+            IRAssignValue,
+            IRBlock,
+            IRCatch,
+            IRFor,
+            IRForeach,
+            IRIf,
+            IRIncr,
+            IRSwitch,
+            IRTry,
+            IRUpFrame,
+            IRWhile,
+        )
+
+        proc = module.procedures[qname]
+        n = 0
+
+        def walk(script):
+            nonlocal n
+            if script is None:
+                return
+            for s in script.statements:
+                if isinstance(s, (IRAssignConst, IRAssignValue, IRIncr)) and s.name == name:
+                    n += 1
+                if isinstance(s, IRBlock):
+                    walk(s.body)
+                elif isinstance(s, IRIf):
+                    for clause in s.clauses:
+                        walk(clause.body)
+                    walk(s.else_body)
+                elif isinstance(s, IRFor):
+                    walk(s.init)
+                    walk(s.next)
+                    walk(s.body)
+                elif isinstance(s, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
+                    walk(s.body)
+                elif isinstance(s, IRTry):
+                    walk(s.body)
+                    for h in s.handlers:
+                        walk(h.body)
+                    walk(s.finally_body)
+                elif isinstance(s, IRSwitch):
+                    for arm in s.arms:
+                        if arm.body is not None:
+                            walk(arm.body)
+                    walk(s.default_body)
+
+        walk(proc.body)
+        return n
+
+    def test_dead_store_inside_if_clause_removed(self):
+        # ``if {1} { set y 42 }`` — y is unread.  Pre-fix DCE only
+        # walked top-level statements and missed this.
+        module, _ = _prepare("proc f {} {\n  if {1} { set y 42 }\n  puts ok\n}\n")
+        new_module = dce_module(module)
+        assert self._proc_writes_recursive(new_module, "::f", "y") == 0
+
+    def test_dead_store_inside_for_body_removed(self):
+        module, _ = _prepare(
+            "proc f {} {\n  for {set i 0} {$i < 3} {incr i} { set y 42 }\n  puts ok\n}\n"
+        )
+        new_module = dce_module(module)
+        assert self._proc_writes_recursive(new_module, "::f", "y") == 0
+
+    def test_used_var_inside_nested_if_kept(self):
+        # ``set y 42`` inside an if AND ``puts $y`` outside —
+        # y has a read so the write stays.
+        module, _ = _prepare("proc f {} {\n  if {1} { set y 42 }\n  puts $y\n}\n")
+        new_module = dce_module(module)
+        assert self._proc_writes_recursive(new_module, "::f", "y") == 1
+
+
 class TestPurity:
     def test_input_module_unchanged(self):
         module, _ = _prepare('proc f {} {\n  set tmp 5\n  puts "hi"\n}\n')

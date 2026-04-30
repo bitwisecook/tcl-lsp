@@ -132,7 +132,8 @@ def _proc_is_dce_eligible(
 
 
 def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
-    """Drop dead top-level assignments from ``script``.
+    """Drop dead assignments from ``script`` and every nested
+    control-flow body it contains.
 
     ``params`` lists names bound by the enclosing proc's parameter
     list — we must not delete writes to a parameter slot because
@@ -145,25 +146,46 @@ def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
     ``proc p {} {set y 42}`` returns ``42`` because ``set`` returns
     the value it stored.  If DCE deletes that ``set`` because
     ``y`` is unread, the proc's return value silently changes to
-    ``""``.  Therefore the terminal statement of the script is
-    *always* preserved regardless of read/write counts.
+    ``""``.  Therefore the terminal statement of the *outermost*
+    script is always preserved regardless of read/write counts.
 
-    The check is positional: the LAST statement of ``script``
-    keeps its assignment.  This is conservative — earlier
-    statements that happen to be tail-equivalent on some control-
-    flow path (e.g. inside an ``if`` whose else branch falls
-    through) aren't recognised here, but DCE only walks the
-    top-level body anyway, so the simple "last statement" rule
-    covers the proc-implicit-return case completely.
+    **Nested-body recursion (PR #237 review).**  Previously the
+    pass walked only top-level statements, missing dead stores
+    inside ``if {…} { set y 42 }``, ``for {…}`` etc.  We now
+    recurse using the outer script's aggregate read/write counts
+    as the eligibility gate — that's correct because
+    ``_count_writes`` / ``_collect_reads`` walk the whole script
+    transitively.  The terminal-protection rule applies only to
+    the outermost script's last statement (a branch's last
+    statement is *not* the proc's implicit return).
     """
     reads = _collect_reads(script)
     writes = _count_writes(script)
+    return _dce_script_with_counts(
+        script,
+        params=params,
+        reads=reads,
+        writes=writes,
+        outer_terminal=True,
+    )
+
+
+def _dce_script_with_counts(
+    script: IRScript,
+    *,
+    params: set[str],
+    reads: dict[str, int],
+    writes: dict[str, int],
+    outer_terminal: bool,
+) -> IRScript:
+    """Helper that consumes pre-computed read/write counts so the
+    recursive walk doesn't re-scan the proc on every body."""
 
     new_stmts: list = []
     changed = False
-    last_index = len(script.statements) - 1
+    last_index = len(script.statements) - 1 if outer_terminal else -1
     for i, stmt in enumerate(script.statements):
-        is_terminal = i == last_index
+        is_terminal = outer_terminal and i == last_index
         target = _assign_target(stmt)
         if (
             target is not None
@@ -176,10 +198,118 @@ def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
         ):
             changed = True
             continue
-        new_stmts.append(stmt)
+        rewritten = _dce_recurse_nested(stmt, params=params, reads=reads, writes=writes)
+        if rewritten is not stmt:
+            changed = True
+        new_stmts.append(rewritten)
     if not changed:
         return script
     return IRScript(statements=tuple(new_stmts))
+
+
+def _dce_recurse_nested(
+    stmt: object,
+    *,
+    params: set[str],
+    reads: dict[str, int],
+    writes: dict[str, int],
+) -> object:
+    """Apply DCE recursively to nested control-flow bodies in
+    ``stmt``.  Nested bodies use ``outer_terminal=False`` because
+    only the proc's outermost trailing statement is the implicit
+    return.  Returns ``stmt`` unchanged when no nested rewrite
+    fires."""
+
+    def _ds(body):
+        return _dce_script_with_counts(
+            body,
+            params=params,
+            reads=reads,
+            writes=writes,
+            outer_terminal=False,
+        )
+
+    if isinstance(stmt, IRBlock):
+        new_body = _ds(stmt.body)
+        if new_body is stmt.body:
+            return stmt
+        return replace(stmt, body=new_body)
+    if isinstance(stmt, IRIf):
+        new_clauses: list = []
+        any_clause_changed = False
+        for clause in stmt.clauses:
+            new_body = _ds(clause.body)
+            if new_body is clause.body:
+                new_clauses.append(clause)
+            else:
+                new_clauses.append(replace(clause, body=new_body))
+                any_clause_changed = True
+        new_else = stmt.else_body
+        else_changed = False
+        if stmt.else_body is not None:
+            new_else = _ds(stmt.else_body)
+            else_changed = new_else is not stmt.else_body
+        if not any_clause_changed and not else_changed:
+            return stmt
+        return replace(stmt, clauses=tuple(new_clauses), else_body=new_else)
+    if isinstance(stmt, IRFor):
+        new_init = _ds(stmt.init)
+        new_next = _ds(stmt.next)
+        new_body = _ds(stmt.body)
+        if new_init is stmt.init and new_next is stmt.next and new_body is stmt.body:
+            return stmt
+        return replace(stmt, init=new_init, next=new_next, body=new_body)
+    if isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
+        new_body = _ds(stmt.body)
+        if new_body is stmt.body:
+            return stmt
+        return replace(stmt, body=new_body)
+    if isinstance(stmt, IRTry):
+        new_body = _ds(stmt.body)
+        new_handlers: list = []
+        any_handler_changed = False
+        for h in stmt.handlers:
+            new_h_body = _ds(h.body)
+            if new_h_body is h.body:
+                new_handlers.append(h)
+            else:
+                new_handlers.append(replace(h, body=new_h_body))
+                any_handler_changed = True
+        new_finally = stmt.finally_body
+        finally_changed = False
+        if stmt.finally_body is not None:
+            new_finally = _ds(stmt.finally_body)
+            finally_changed = new_finally is not stmt.finally_body
+        if new_body is stmt.body and not any_handler_changed and not finally_changed:
+            return stmt
+        return replace(
+            stmt,
+            body=new_body,
+            handlers=tuple(new_handlers),
+            finally_body=new_finally,
+        )
+    if isinstance(stmt, IRSwitch):
+        new_arms: list = []
+        any_arm_changed = False
+        for arm in stmt.arms:
+            if arm.body is None:
+                new_arms.append(arm)
+                continue
+            new_arm_body = _ds(arm.body)
+            if new_arm_body is arm.body:
+                new_arms.append(arm)
+            else:
+                new_arms.append(replace(arm, body=new_arm_body))
+                any_arm_changed = True
+        new_default = stmt.default_body
+        default_changed = False
+        if stmt.default_body is not None:
+            new_default = _ds(stmt.default_body)
+            default_changed = new_default is not stmt.default_body
+        if not any_arm_changed and not default_changed:
+            return stmt
+        return replace(stmt, arms=tuple(new_arms), default_body=new_default)
+    return stmt
 
 
 def _stmt_has_side_effects(stmt: object) -> bool:

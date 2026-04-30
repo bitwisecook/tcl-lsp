@@ -104,7 +104,12 @@ pub fn dict_invalidate_cache(dict_obj: i32) void {
 }
 
 fn dict_alloc_buckets(cap: u32) u32 {
+    // PR #237 review: ``alloc`` returns 0 on OOM.  Without a check
+    // the loop below would dereference null and silently corrupt
+    // the bucket store; the guard converts OOM into a propagated
+    // 0 sentinel that callers reject.
     const buf = alloc(cap * DICT_BUCKET_SIZE);
+    if (buf == 0) return 0;
     var i: u32 = 0;
     while (i < cap) : (i += 1) {
         const base = buf + i * DICT_BUCKET_SIZE;
@@ -118,7 +123,13 @@ fn dict_alloc_buckets(cap: u32) u32 {
 
 fn dict_ext_alloc() u32 {
     const ext = alloc(DICT_EXT_SIZE);
-    obj.write_i32(ext + DICT_EXT_BUF, @bitCast(dict_alloc_buckets(DICT_INITIAL_CAP)));
+    if (ext == 0) return 0;
+    const buckets = dict_alloc_buckets(DICT_INITIAL_CAP);
+    if (buckets == 0) {
+        obj.free_sized(ext, DICT_EXT_SIZE);
+        return 0;
+    }
+    obj.write_i32(ext + DICT_EXT_BUF, @bitCast(buckets));
     obj.write_i32(ext + DICT_EXT_CAP, @bitCast(DICT_INITIAL_CAP));
     obj.write_i32(ext + DICT_EXT_COUNT, 0);
     return ext;
@@ -136,7 +147,13 @@ fn dict_clone_ext(src_ext: u32) u32 {
     const src_cap: u32 = @bitCast(obj.read_i32(src_ext + DICT_EXT_CAP));
     const src_count: u32 = @bitCast(obj.read_i32(src_ext + DICT_EXT_COUNT));
     const dst = alloc(DICT_EXT_SIZE);
-    obj.write_i32(dst + DICT_EXT_BUF, @bitCast(dict_alloc_buckets(src_cap)));
+    if (dst == 0) return 0;
+    const new_buckets = dict_alloc_buckets(src_cap);
+    if (new_buckets == 0) {
+        obj.free_sized(dst, DICT_EXT_SIZE);
+        return 0;
+    }
+    obj.write_i32(dst + DICT_EXT_BUF, @bitCast(new_buckets));
     obj.write_i32(dst + DICT_EXT_CAP, @bitCast(src_cap));
     obj.write_i32(dst + DICT_EXT_COUNT, @bitCast(src_count));
     const dst_buf: u32 = @bitCast(obj.read_i32(dst + DICT_EXT_BUF));
@@ -148,19 +165,17 @@ fn dict_clone_ext(src_ext: u32) u32 {
         const skl: u32 = @bitCast(obj.read_i32(sb + DICT_BUCKET_KEY_LEN));
         const skh: u32 = @bitCast(obj.read_i32(sb + DICT_BUCKET_HASH));
         const sv: i32 = obj.read_i32(sb + DICT_BUCKET_VALUE);
-        // Re-probe in dst to find the correct slot — both buffers
-        // have the same capacity but free / occupied bucket sets
-        // may differ slightly with the new linear-probe walk if a
-        // future change makes ``dict_alloc_buckets`` add tombstones
-        // by default.  Today both start fully empty so the walk is
-        // identical, but the explicit re-probe keeps the clone
-        // robust to that.
         const mask = src_cap - 1;
         var idx = skh & mask;
         while (true) {
             const db = dst_buf + idx * DICT_BUCKET_SIZE;
             if (obj.read_i32(db + DICT_BUCKET_KEY_PTR) == 0) {
                 const nbuf = alloc(skl);
+                if (nbuf == 0) {
+                    // OOM mid-clone: tear down what we built.
+                    dict_destroy_ext(dst);
+                    return 0;
+                }
                 memcpy(nbuf, skp, skl);
                 obj.write_i32(db + DICT_BUCKET_KEY_PTR, @bitCast(nbuf));
                 obj.write_i32(db + DICT_BUCKET_KEY_LEN, @bitCast(skl));
@@ -221,6 +236,13 @@ fn dict_hash_insert(ext_addr: u32, kp: u32, kl: u32, h: u32, value: i32) void {
         // Grow at 75% load factor.  Walk old buckets and re-hash.
         const new_cap = cap * 2;
         const new_buf = dict_alloc_buckets(new_cap);
+        if (new_buf == 0) {
+            // OOM during grow: leave the table at the current
+            // capacity.  Side-cache mutators fail soft — the next
+            // ``dict_get`` misses the key and falls back to the
+            // list-rep walk; correctness is preserved.
+            return;
+        }
         const old_mask = cap - 1;
         _ = old_mask;
         var i: u32 = 0;
@@ -264,6 +286,13 @@ fn dict_hash_insert(ext_addr: u32, kp: u32, kl: u32, h: u32, value: i32) void {
             // tombstone seen along the way).
             const target = if (first_tombstone != 0) first_tombstone else base;
             const nbuf = alloc(kl);
+            if (nbuf == 0) {
+                // OOM on key copy: leave the bucket empty so
+                // probes don't see a half-populated entry (a
+                // ``key_ptr=0`` would alias the empty-slot sentinel
+                // and silently drop later probes).
+                return;
+            }
             memcpy(nbuf, kp, kl);
             obj.write_i32(target + DICT_BUCKET_KEY_PTR, @bitCast(nbuf));
             obj.write_i32(target + DICT_BUCKET_KEY_LEN, @bitCast(kl));
@@ -318,6 +347,13 @@ fn dict_ensure_cache(dict_obj: i32) u32 {
     var ext: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_DICT_EXT));
     if (ext != 0) return ext;
     ext = dict_ext_alloc();
+    if (ext == 0) {
+        // OOM during cache build: skip the side-cache and let the
+        // caller fall back to a list-rep walk.  Don't write a
+        // sentinel into ``OBJ_DICT_EXT`` (it's already 0) so the
+        // next ``dict_ensure_cache`` retries cleanly.
+        return 0;
+    }
     obj.write_i32(addr + obj.OBJ_DICT_EXT, @bitCast(ext));
     const sd = obj_ensure_string(dict_obj);
     if (sd.len == 0) return ext;

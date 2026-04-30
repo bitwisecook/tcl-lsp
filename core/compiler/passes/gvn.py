@@ -356,7 +356,14 @@ _IMPURE_EXPR_FUNCS: frozenset[str] = frozenset({"rand", "srand"})
 
 
 def _stmt_writes(stmt: object) -> set[str]:
-    """Return the set of local-variable names ``stmt`` writes."""
+    """Return the set of local-variable names ``stmt`` writes.
+
+    The special token ``"*"`` is a "clear-all" sentinel — used for
+    calls whose side effects on the caller's locals can't be
+    bounded (``eval``, ``uplevel``, ``upvar``, dynamic dispatch).
+    Recognised by the caller in ``_gvn_script`` to drop the entire
+    value table.
+    """
     written: set[str] = set()
     if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
         if _is_local(stmt.name):
@@ -372,14 +379,41 @@ def _stmt_writes(stmt: object) -> set[str]:
         for d in stmt.defs:
             if _is_local(d):
                 written.add(d)
-        # Conservative: any IRCall might have side effects on
-        # vars we don't see (eval, upvar).  Clear ALL entries
-        # whose key references vars we might mutate.  We don't
-        # have proof of that, so for conservatism we just clear
-        # the value table here.  Returning a sentinel "clear-
-        # all" set keeps the API simple.
-        written.add("*")  # special marker recognised by caller
+        # PR #237 review: previously every IRCall added the ``"*"``
+        # clear-all marker, which was severely pessimistic — a call
+        # to ``list``, ``lindex``, ``string length``, etc. cannot
+        # mutate any local but the table got wiped anyway.  Most
+        # ``set y [expr {…}]; set d [list a b]; set z [expr {…}]``
+        # idioms lost their GVN match across the intervening pure
+        # call.  Reuse the inliner's splice-safe allow-list (those
+        # commands are by definition incapable of writing caller-
+        # frame locals).  Anything outside the allow-list — eval,
+        # upvar, uplevel, info, unknown user commands, dynamic
+        # dispatch — keeps the conservative clear-all behaviour.
+        if not _command_is_value_pure(stmt.command):
+            written.add("*")
     return written
+
+
+def _command_is_value_pure(command: str) -> bool:
+    """True iff ``command`` is known to neither read nor write any
+    caller-frame local through hidden routes (``upvar`` / ``eval``
+    / ``info`` / ``unknown``).  Used by GVN to decide whether the
+    value table survives the call.
+
+    Implementation reuses the inliner's curated allow-list
+    (:data:`core.compiler.inlining.inline_pass._SPLICE_SAFE_COMMANDS`)
+    via late import so we don't introduce a top-level dependency
+    cycle.  The allow-list is the right shape for this check:
+    every command in it is either pure value computation
+    (``list``, ``lindex``, ``string``, …) or has only an
+    independent observable side effect (``puts``) — neither
+    category mutates the caller's locals.
+    """
+
+    from ..inlining.inline_pass import _command_is_splice_safe as _safe
+
+    return _safe(command)
 
 
 # Re-exposing the special "clear-all" marker so the caller can

@@ -249,6 +249,28 @@ class TestParameterisedInline:
         assert "1" in args_binding.value
         assert "3" in args_binding.value
 
+    def test_variadic_args_with_quoted_word_declines(self):
+        # PR #237 review: ``f a "hello world" c`` packs three runtime
+        # words into ``args``.  The inliner's ``[list ...]`` synth
+        # would space-join the post-parse texts to produce
+        # ``[list a hello world c]`` (4 elements!) — silently
+        # changing the variadic slot's arity.  The pre-decline check
+        # catches the embedded whitespace and falls back to runtime
+        # dispatch.
+        module, summaries = _prepare('proc f {args} { puts $args }\nf a "hello world" c\n')
+        new_module = inline_module(module, summaries)
+        # Call NOT inlined — runtime handles the variadic packing
+        # with correct arity.
+        assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_variadic_args_with_var_subst_inlines(self):
+        # ``$y`` is substitution-bearing but the post-parse text
+        # has no top-level whitespace, so the splice produces the
+        # right arity at runtime.  The inline still fires.
+        module, summaries = _prepare("proc f {args} { puts $args }\nset y 7\nf a $y c\n")
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+
     def test_variadic_args_with_zero_extras_inlines_to_empty(self):
         # ``proc f {a args} { ... }`` called as ``f 1`` — no extras.
         # The empty-args binding may be IRAssignConst (preferred for
