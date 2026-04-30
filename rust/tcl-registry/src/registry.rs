@@ -221,8 +221,11 @@ impl CommandRegistry {
         if !spec.subcommands.is_empty() {
             if let Some(first) = args.first() {
                 if let Some(sub) = spec.subcommand(first) {
-                    let sub_args: Vec<&str> = args.iter().skip(1).copied().collect();
-                    let form = pick_form(sub.subcommand_forms, &sub_args, dialect);
+                    // Re-slice rather than allocating a fresh `Vec<&str>`
+                    // — `resolve_call` is on the lowering / codegen /
+                    // analysis hot path.
+                    let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
+                    let form = pick_form(sub.subcommand_forms, sub_args, dialect);
                     resolved.sub = Some(sub);
                     resolved.lowering_hook = form
                         .and_then(|f| f.lowering_hook)

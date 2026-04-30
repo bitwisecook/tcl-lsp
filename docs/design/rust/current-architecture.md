@@ -126,22 +126,25 @@ chunk above has flipped.
 
 ## Crate boundary intentions
 
-- **`tcl-lsp-core`** — pure LSP feature providers. No `pyo3`. The
-  eventual native LSP server links against this crate over JSON-RPC;
-  the PyO3 binding wraps the same functions for Python callers.
-- **`tcl-lsp-server`** *(planned)* — `tower-lsp` binary, async
-  document store, request routing, cancellation, progress, and
-  editor-facing protocol plumbing. Depends on `tcl-lsp-core` and
-  `tcl-compiler`.
-- **`tcl-lsp-py`** *(planned)* — public, stable PyO3 API. Replaces
-  the transitional `tcl-lsp-rust` once the Python compatibility
-  surface is finalised. `tcl-lsp-rust` either disappears or remains
-  for one release as an alias.
+- **`tcl-lsp-core`** — pure LSP feature providers (folding,
+  document symbols). No `pyo3`. Both the native LSP server and the
+  PyO3 binding link against this crate so the algorithm has one
+  canonical home.
+- **`tcl-lsp-server`** — `tower-lsp` binary serving folding
+  ranges over stdio. ARCH8 lands the bootstrap; future `S*` chunks
+  extend the provider set (document symbols, hover, completion,
+  semantic tokens, diagnostics).
+- **`tcl-lsp-py`** — canonical public PyO3 binding crate. ARCH9
+  lands it as the new home for every `#[pyclass]` / `#[pyfunction]`
+  surface.
+- **`tcl-lsp-rust`** — transitional alias. Re-exports `tcl-lsp-py`
+  under the legacy `tcl_lsp_rust` Python module name for one
+  release cycle, then retires in vNext. Carries no product logic;
+  new bindings land in `tcl-lsp-py`.
 
-The transitional `tcl-lsp-rust` crate must not absorb new product
-logic. New LSP features land in `tcl-lsp-core`; any Python-facing
-wiring lives in a thin per-feature `*_binding.rs` file inside
-`tcl-lsp-rust` that re-exports via `#[pyfunction]`.
+New LSP features land in `tcl-lsp-core`; any Python-facing wiring
+lives in a thin per-feature `*_binding.rs` file under
+`tcl-lsp-py/src/features/` that re-exports via `#[pyfunction]`.
 
 ## Where to add a new fact
 
@@ -150,7 +153,8 @@ wiring lives in a thin per-feature `*_binding.rs` file inside
 | New command | `tcl-registry/src/commands/<dialect>/<name>.rs` |
 | Lowering specialisation | new `LoweringHookId` variant + arm in `tcl_compiler::lowering_hooks::dispatch_lowering_hook` |
 | Codegen specialisation | new `CodegenHookId` variant + arm in `tcl_compiler::codegen::emitter::bytecoded::dispatch_codegen_hook` |
-| Taint source | `Traits::TAINT_SOURCE` on the spec, or a subcommand pattern in `tcl_registry::taint::is_taint_source` |
+| Taint source (top-level command) | stamp `Traits::TAINT_SOURCE` on the matching `CommandSpec` |
+| Taint source (subcommand-shaped, e.g. `chan gets`) | stamp `Traits::TAINT_SOURCE` on the matching `SubCommand` |
 | iRules option-driven check | declare the option in the registry (`OptionSpec`); consumer reads `spec.options` |
 | Side-effect summary | populate `side_effects: &[SideEffect { ... }]` on the spec |
 

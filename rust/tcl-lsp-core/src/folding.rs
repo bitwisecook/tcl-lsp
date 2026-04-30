@@ -8,8 +8,8 @@
 //! recurses through nested braced bodies.
 //!
 //! The result is a fully line-resolved `Vec<FoldingRange>`.  The
-//! `PyO3` binding (in `lib.rs`) emits these as plain dicts; the
-//! Python dispatcher in `lsp/features/folding.py` materialises
+//! `PyO3` binding (`super::folding_binding`) emits these as plain
+//! dicts; the Python dispatcher in `lsp/features/folding.py` materialises
 //! [`lsprotocol.types.FoldingRange`] values and runs
 //! `_normalise_overlaps` on them — keeping the overlap-normalisation
 //! algorithm in Python preserves the
@@ -655,7 +655,7 @@ mod tests {
                     continue;
                 }
                 let overlaps = a.end_line >= b.start_line && a.start_line <= b.end_line;
-                assert!(!overlaps, "non-nested overlap between {a:?} and {b:?}",);
+                assert!(!overlaps, "non-nested overlap between {a:?} and {b:?}");
             }
         }
     }

@@ -53,7 +53,7 @@ pub(crate) mod compilation_unit;
 pub(crate) mod compiler_checks;
 pub(crate) mod expr_lexer;
 pub(crate) mod expr_parser;
-pub(crate) mod folding_binding;
+pub(crate) mod features;
 pub(crate) mod gvn;
 pub(crate) mod interprocedural;
 pub(crate) mod lexer;
@@ -125,7 +125,7 @@ pub fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {
     compilation_unit::register_with(m)?;
     signature_scan::register_with(m)?;
     analyser::register_with(m)?;
-    folding_binding::register_with(m)?;
+    features::register_with(m)?;
     Ok(())
 }
 

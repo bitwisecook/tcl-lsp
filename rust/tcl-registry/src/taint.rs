@@ -45,7 +45,7 @@ pub fn is_taint_source(
     dialect: DialectSet,
 ) -> bool {
     let Some(spec) = registry.get(command) else {
-        return iRules_dialect_only_source(command, dialect);
+        return irules_dialect_only_source(command, dialect);
     };
 
     if spec
@@ -63,7 +63,7 @@ pub fn is_taint_source(
         }
     }
 
-    iRules_dialect_only_source(command, dialect)
+    irules_dialect_only_source(command, dialect)
 }
 
 /// Return `true` when `command` carries the iRules data-getter trait
@@ -82,8 +82,7 @@ pub fn is_irules_data_getter(registry: &CommandRegistry, command: &str) -> bool 
         .any(|p| command.starts_with(p))
 }
 
-#[allow(non_snake_case)]
-fn iRules_dialect_only_source(command: &str, dialect: DialectSet) -> bool {
+fn irules_dialect_only_source(command: &str, dialect: DialectSet) -> bool {
     if dialect.contains(DialectSet::IRULES) {
         IRULES_TAINT_SOURCE_PREFIXES
             .iter()

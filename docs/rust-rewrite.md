@@ -1032,20 +1032,35 @@ should land after the binding layer has been audited.
 
 **ARCH5 — thread `&CommandRegistry` through codegen.**
 
-`codegen::emitter::bytecoded` currently consults a private
+`codegen::emitter::bytecoded` previously consulted a private
 `OnceLock<CommandRegistry>` to look up each call's `codegen_hook`.
-The static instance holds only the default registry, so dialect-
-loaded commands (iRules / Tk / EDA) can never resolve their codegen
-hooks correctly. Plumb a `&CommandRegistry` reference through
-`CodegenCtx::emit_call` and `try_bytecoded`, drop the static, and
-verify dialect-resolved hook lookup end-to-end.
+The static instance held only the default registry, so dialect-
+loaded commands (iRules / Tk / EDA) could never resolve their
+codegen hooks correctly. Thread a `&CommandRegistry` reference
+through codegen, drop the static, and verify dialect-resolved hook
+lookup end-to-end.
+
+As landed, `CodegenCtx` grew a `registry: &'r CommandRegistry`
+field and a lifetime parameter; `CodegenCtx::new` now takes the
+registry as a required argument. `codegen_function` /
+`codegen_function_with_procs` / `codegen_module` thread the same
+registry the lowering pass used. This was the simplest way to
+keep `try_bytecoded` and the per-call helpers reading from the
+same instance without re-introducing a static. The earlier
+"signature unchanged" goal proved unworkable once the call chain
+was fully audited — the registry needs to reach `try_bytecoded`
+without a private cache, and ctx state was the only path that
+didn't fan a registry argument across hundreds of helper sites.
 
 Acceptance criteria:
 
 - No `OnceLock` / `LazyLock` / `static …: CommandRegistry` anywhere
   under `rust/tcl-compiler/src/codegen/`.
-- `CodegenCtx::new`'s signature is unchanged — the registry is a
-  per-call dependency, not ctx state.
+- `CodegenCtx` holds the registry on the context (with a `'r`
+  lifetime parameter); `CodegenCtx::new` takes it as a required
+  argument. The codegen public API
+  (`codegen_function` / `codegen_module`) takes a
+  `&CommandRegistry`.
 - A cargo test loads `DialectSet::IRULES` and proves the loaded-
   dialect spec drives codegen-hook selection.
 - Existing `bytecoded` and `statements` tests stay green.

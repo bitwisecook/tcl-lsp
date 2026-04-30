@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod document_symbols;
 pub mod folding;
 
 /// Crate version string.

@@ -14,7 +14,9 @@ use pyo3::prelude::*;
 
 use tcl_lexer::{SourcePosition as CoreSourcePosition, TokenType as CoreTokenType};
 
-/// `enum.Enum`-style token kind exposed to Python as `tcl_lsp_rust.TokenType`.
+/// `enum.Enum`-style token kind exposed to Python as
+/// `tcl_lsp_py.TokenType` (also reachable via the legacy
+/// `tcl_lsp_rust.TokenType` alias for the transition window).
 ///
 /// Variants carry explicit discriminants matching the order of the
 /// original Python `auto()` declarations (1-indexed) so `TokenType.X.value`
@@ -113,7 +115,8 @@ impl From<PyTokenType> for CoreTokenType {
 }
 
 /// A position in source text. Exposed to Python as
-/// `tcl_lsp_rust.SourcePosition`.
+/// `tcl_lsp_py.SourcePosition` (also reachable via the legacy
+/// `tcl_lsp_rust.SourcePosition` alias for the transition window).
 #[pyclass(name = "SourcePosition", eq, hash, frozen, module = "tcl_lsp_py")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PySourcePosition {
@@ -170,7 +173,8 @@ impl PySourcePosition {
 }
 
 /// A token: kind, text, source range, quoting context. Exposed to Python
-/// as `tcl_lsp_rust.Token`.
+/// as `tcl_lsp_py.Token` (also reachable via the legacy
+/// `tcl_lsp_rust.Token` alias for the transition window).
 ///
 /// Owns its text as `String`. The original Python dataclass was frozen
 /// (`@dataclass(frozen=True, slots=True)`) and Rust enforces the same
