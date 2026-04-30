@@ -268,8 +268,7 @@ def _check_regression(results: dict, baseline_path: Path, threshold_pct: float) 
     the baseline trapped); 1 on any regression.
     """
     if not baseline_path.exists():
-        print(f"baseline {baseline_path} not found — skipping regression check",
-              file=sys.stderr)
+        print(f"baseline {baseline_path} not found — skipping regression check", file=sys.stderr)
         return 0
     baseline = json.loads(baseline_path.read_text())
     base_by_label = {b["label"]: b for b in baseline.get("benchmarks", [])}
@@ -296,13 +295,11 @@ def _check_regression(results: dict, baseline_path: Path, threshold_pct: float) 
     if improvements:
         print("\n=== Improvements ===", file=sys.stderr)
         for label, prev, cur, delta in improvements:
-            print(f"  {label:40} {prev:6.0f} ns → {cur:6.0f} ns  ({delta:+5.1f}%)",
-                  file=sys.stderr)
+            print(f"  {label:40} {prev:6.0f} ns → {cur:6.0f} ns  ({delta:+5.1f}%)", file=sys.stderr)
     if regressions:
         print("\n=== Regressions (>20%) ===", file=sys.stderr)
         for label, prev, cur, delta in regressions:
-            print(f"  {label:40} {prev:6.0f} ns → {cur:6.0f} ns  ({delta:+5.1f}%)",
-                  file=sys.stderr)
+            print(f"  {label:40} {prev:6.0f} ns → {cur:6.0f} ns  ({delta:+5.1f}%)", file=sys.stderr)
         return 1
     print("\nNo regressions past threshold.", file=sys.stderr)
     return 0

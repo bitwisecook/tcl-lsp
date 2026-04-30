@@ -51,14 +51,12 @@ from ..ir import (
     IRBlock,
     IRCall,
     IRCatch,
-    IRExprEval,
     IRFor,
     IRForeach,
     IRIf,
     IRIncr,
     IRModule,
     IRProcedure,
-    IRReturn,
     IRScript,
     IRSwitch,
     IRTry,
@@ -200,11 +198,7 @@ def _recurse_nested(stmt: object) -> object:
         new_init = _gvn_script(stmt.init)
         new_next = _gvn_script(stmt.next)
         new_body = _gvn_script(stmt.body)
-        if (
-            new_init is stmt.init
-            and new_next is stmt.next
-            and new_body is stmt.body
-        ):
+        if new_init is stmt.init and new_next is stmt.next and new_body is stmt.body:
             return stmt
         return replace(stmt, init=new_init, next=new_next, body=new_body)
     if isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
@@ -228,11 +222,7 @@ def _recurse_nested(stmt: object) -> object:
         if stmt.finally_body is not None:
             new_finally = _gvn_script(stmt.finally_body)
             finally_changed = new_finally is not stmt.finally_body
-        if (
-            new_body is stmt.body
-            and not handlers_changed
-            and not finally_changed
-        ):
+        if new_body is stmt.body and not handlers_changed and not finally_changed:
             return stmt
         return replace(
             stmt,

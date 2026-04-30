@@ -11,8 +11,6 @@ prebuilt binary needs to be present in the working tree.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from core.compiler.cfg import build_cfg
@@ -23,7 +21,7 @@ wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
 # Path to the pre-built Zig WASM runtime — the helper auto-builds
 # on a fresh checkout where the artefact isn't yet on disk.
-from core.runtime_wasm import runtime_wasm_path
+from core.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
 

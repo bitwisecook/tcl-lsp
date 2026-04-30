@@ -55,13 +55,14 @@ from core.runtime_wasm import DEFAULT_PATH as LEAKCHECK_WASM  # noqa: E402
 
 os.environ.setdefault("TCL_LSP_RUNTIME_WASM", str(LEAKCHECK_WASM))
 
+import wasmtime  # noqa: E402
+
 from tests.external.run_tcl9_tests import _IN_SCOPE, _bundle  # noqa: E402
 from tests.test_wasm_real_tcl import (  # noqa: E402
     _compile_tcl,
-    _get_engine_with_timeout,
     _define_call_compiled_proc,
+    _get_engine_with_timeout,
 )
-import wasmtime  # noqa: E402
 
 OUTPUT = REPO / "tmp" / "perf-output" / "leak_sweep_results.json"
 TIMEOUT_S = 15.0
@@ -74,8 +75,7 @@ def _verify_leakcheck_binary() -> None:
     """
     if not LEAKCHECK_WASM.exists():
         raise SystemExit(
-            f"runtime not built: {LEAKCHECK_WASM}\n"
-            "run 'make build-runtime-leakcheck' first."
+            f"runtime not built: {LEAKCHECK_WASM}\nrun 'make build-runtime-leakcheck' first."
         )
     engine = wasmtime.Engine()
     module = wasmtime.Module.from_file(engine, str(LEAKCHECK_WASM))

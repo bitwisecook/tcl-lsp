@@ -404,8 +404,9 @@ def wasm_codegen_module(
     # may newly qualify as pure_leaf).
     if inline and escape_summaries is not None:
         try:
-            from ...inlining import apply_inline_catalogue, inline_module as _inline
             from ...cfg import build_cfg as _build_cfg
+            from ...inlining import apply_inline_catalogue
+            from ...inlining import inline_module as _inline
 
             tagged = apply_inline_catalogue(ir_module, escape_summaries)
             inlined = _inline(tagged, escape_summaries)
@@ -431,8 +432,8 @@ def wasm_codegen_module(
     # changes so the downstream emitter sees the hoisted shape.
     if licm:
         try:
-            from ...passes.licm import licm_module as _licm
             from ...cfg import build_cfg as _build_cfg2
+            from ...passes.licm import licm_module as _licm
 
             hoisted = _licm(ir_module)
             if hoisted is not ir_module:
@@ -451,8 +452,8 @@ def wasm_codegen_module(
     # and var-escape after changes.
     if dce:
         try:
-            from ...passes.dce import dce_module as _dce
             from ...cfg import build_cfg as _build_cfg3
+            from ...passes.dce import dce_module as _dce
 
             cleaned = _dce(ir_module)
             if cleaned is not ir_module:
@@ -470,8 +471,8 @@ def wasm_codegen_module(
     # adds work, just elides recomputation.
     if gvn:
         try:
-            from ...passes.gvn import gvn_module as _gvn
             from ...cfg import build_cfg as _build_cfg4
+            from ...passes.gvn import gvn_module as _gvn
 
             valued = _gvn(ir_module)
             if valued is not ir_module:

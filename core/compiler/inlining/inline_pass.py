@@ -57,8 +57,9 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 
-from ..expr_ast import ExprLiteral, vars_in_expr_node
+from ..expr_ast import ExprLiteral
 from ..ir import (
+    InlineDecision,
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -81,7 +82,6 @@ from ..ir import (
     IRTryHandler,
     IRUpFrame,
     IRWhile,
-    InlineDecision,
 )
 from ..var_escape import ProcEscapeSummary
 from ..var_escape._interprocedural import _resolve_callee
@@ -144,13 +144,21 @@ def inline_module(
     # so the LAST statement of each body is recognised as terminal
     # — that's where keeping a callee's trailing IRReturn is sound.
     new_top = _rewrite_script(
-        module.top_level, "::", inlinable, summaries, counter,
+        module.top_level,
+        "::",
+        inlinable,
+        summaries,
+        counter,
         parent_is_terminal=True,
     )
     new_procs: dict[str, IRProcedure] = {}
     for qname, proc in module.procedures.items():
         new_body = _rewrite_script(
-            proc.body, qname, inlinable, summaries, counter,
+            proc.body,
+            qname,
+            inlinable,
+            summaries,
+            counter,
             parent_is_terminal=True,
         )
         if new_body is proc.body:
@@ -208,9 +216,7 @@ def _build_inlinable_map(
         # verbatim to the call site.
         if not proc.params:
             body_stmts = proc.body.statements
-            verbatim_safe = all(
-                _stmt_is_splice_eligible(s, qname, summaries) for s in body_stmts
-            )
+            verbatim_safe = all(_stmt_is_splice_eligible(s, qname, summaries) for s in body_stmts)
             if verbatim_safe:
                 eligible[qname] = _InlineSpec(
                     kind=_InlineKind.VERBATIM,
@@ -330,23 +336,15 @@ def _has_irreturn_in_unsafe_scope(
                 return True
         elif isinstance(stmt, IRIf):
             for clause in stmt.clauses:
-                if _has_irreturn_in_unsafe_scope(
-                    clause.body, inside_unsafe=inside_unsafe
-                ):
+                if _has_irreturn_in_unsafe_scope(clause.body, inside_unsafe=inside_unsafe):
                     return True
-            if _has_irreturn_in_unsafe_scope(
-                stmt.else_body, inside_unsafe=inside_unsafe
-            ):
+            if _has_irreturn_in_unsafe_scope(stmt.else_body, inside_unsafe=inside_unsafe):
                 return True
         elif isinstance(stmt, IRSwitch):
             for arm in stmt.arms:
-                if _has_irreturn_in_unsafe_scope(
-                    arm.body, inside_unsafe=inside_unsafe
-                ):
+                if _has_irreturn_in_unsafe_scope(arm.body, inside_unsafe=inside_unsafe):
                     return True
-            if _has_irreturn_in_unsafe_scope(
-                stmt.default_body, inside_unsafe=inside_unsafe
-            ):
+            if _has_irreturn_in_unsafe_scope(stmt.default_body, inside_unsafe=inside_unsafe):
                 return True
     return False
 
@@ -611,7 +609,7 @@ def _rewrite_script(
     changed = False
     n = len(script.statements)
     for i, stmt in enumerate(script.statements):
-        is_last = (i == n - 1)
+        is_last = i == n - 1
         replacements = _rewrite_stmt(
             stmt,
             caller_qname,
@@ -653,9 +651,7 @@ def _rewrite_stmt(
         return None
 
     if isinstance(stmt, IRBlock):
-        new_body = _rewrite_script(
-            stmt.body, caller_qname, inlinable, summaries, counter
-        )
+        new_body = _rewrite_script(stmt.body, caller_qname, inlinable, summaries, counter)
         if new_body is stmt.body:
             return None
         return [replace(stmt, body=new_body)]
@@ -667,44 +663,28 @@ def _rewrite_stmt(
         new_else = stmt.else_body
         else_changed = False
         if stmt.else_body is not None:
-            new_else = _rewrite_script(
-                stmt.else_body, caller_qname, inlinable, summaries, counter
-            )
+            new_else = _rewrite_script(stmt.else_body, caller_qname, inlinable, summaries, counter)
             else_changed = new_else is not stmt.else_body
         if not clauses_changed and not else_changed:
             return None
         return [replace(stmt, clauses=new_clauses, else_body=new_else)]
 
     if isinstance(stmt, IRFor):
-        new_init = _rewrite_script(
-            stmt.init, caller_qname, inlinable, summaries, counter
-        )
-        new_next = _rewrite_script(
-            stmt.next, caller_qname, inlinable, summaries, counter
-        )
-        new_body = _rewrite_script(
-            stmt.body, caller_qname, inlinable, summaries, counter
-        )
-        if (
-            new_init is stmt.init
-            and new_next is stmt.next
-            and new_body is stmt.body
-        ):
+        new_init = _rewrite_script(stmt.init, caller_qname, inlinable, summaries, counter)
+        new_next = _rewrite_script(stmt.next, caller_qname, inlinable, summaries, counter)
+        new_body = _rewrite_script(stmt.body, caller_qname, inlinable, summaries, counter)
+        if new_init is stmt.init and new_next is stmt.next and new_body is stmt.body:
             return None
         return [replace(stmt, init=new_init, next=new_next, body=new_body)]
 
     if isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
-        new_body = _rewrite_script(
-            stmt.body, caller_qname, inlinable, summaries, counter
-        )
+        new_body = _rewrite_script(stmt.body, caller_qname, inlinable, summaries, counter)
         if new_body is stmt.body:
             return None
         return [replace(stmt, body=new_body)]
 
     if isinstance(stmt, IRTry):
-        new_body = _rewrite_script(
-            stmt.body, caller_qname, inlinable, summaries, counter
-        )
+        new_body = _rewrite_script(stmt.body, caller_qname, inlinable, summaries, counter)
         new_handlers, handlers_changed = _rewrite_try_handlers(
             stmt.handlers, caller_qname, inlinable, summaries, counter
         )
@@ -715,11 +695,7 @@ def _rewrite_stmt(
                 stmt.finally_body, caller_qname, inlinable, summaries, counter
             )
             finally_changed = new_finally is not stmt.finally_body
-        if (
-            new_body is stmt.body
-            and not handlers_changed
-            and not finally_changed
-        ):
+        if new_body is stmt.body and not handlers_changed and not finally_changed:
             return None
         return [
             replace(
@@ -803,9 +779,7 @@ def _splice_call_site(
 
         # Determine the IRReturn-handling strategy.
         body_stmts = list(proc.body.statements)
-        body_has_trailing_return = (
-            body_stmts and isinstance(body_stmts[-1], IRReturn)
-        )
+        body_has_trailing_return = body_stmts and isinstance(body_stmts[-1], IRReturn)
         body_has_non_trailing_return = any(
             isinstance(s, IRReturn) for s in body_stmts[:-1]
         ) or _has_nested_irreturn(proc.body)
@@ -1120,9 +1094,7 @@ def _build_param_bindings(
             # required positionals — fall through to default
             # handling below as if the proc had ``positional_count``
             # required params.
-            return _build_with_defaults(
-                cid, rename, proc, args, positional_count, has_variadic
-            )
+            return _build_with_defaults(cid, rename, proc, args, positional_count, has_variadic)
         # First ``positional_count`` args bind to required params.
         bound.extend(args[:positional_count])
         # Remaining args pack into the ``args`` list literal.
@@ -1144,9 +1116,7 @@ def _build_param_bindings(
             # the runtime surfaces the error from the call site.
             return None
         if len(args) < len(params):
-            return _build_with_defaults(
-                cid, rename, proc, args, len(params), False
-            )
+            return _build_with_defaults(cid, rename, proc, args, len(params), False)
         bound.extend(args)
 
     bindings: list = [
@@ -1331,22 +1301,14 @@ def _drop_dead_procs(
         name_index.setdefault(qname, set()).add(qname)
 
     referenced: set[str] = set()
-    _collect_referenced_procs(
-        module.top_level, "::", summaries, referenced, name_index
-    )
+    _collect_referenced_procs(module.top_level, "::", summaries, referenced, name_index)
     for qname, proc in module.procedures.items():
-        _collect_referenced_procs(
-            proc.body, qname, summaries, referenced, name_index
-        )
+        _collect_referenced_procs(proc.body, qname, summaries, referenced, name_index)
 
     new_procs: dict[str, IRProcedure] = {}
     dropped: set[str] = set()
     for qname, proc in module.procedures.items():
-        eligible = (
-            qname in candidates
-            and proc.static_call_count > 0
-            and qname not in referenced
-        )
+        eligible = qname in candidates and proc.static_call_count > 0 and qname not in referenced
         if eligible:
             dropped.add(qname)
             continue
@@ -1380,9 +1342,7 @@ def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:
     for stmt in script.statements:
         if isinstance(stmt, IRCall) and stmt.command == "proc" and stmt.args:
             proc_name = stmt.args[0]
-            qname = (
-                proc_name if proc_name.startswith("::") else "::" + proc_name
-            )
+            qname = proc_name if proc_name.startswith("::") else "::" + proc_name
             if qname in dropped:
                 changed = True
                 continue
@@ -1398,7 +1358,9 @@ def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:
     return IRScript(statements=tuple(new_stmts))
 
 
-_PROC_NAME_WORD_RE = re.compile(r"(?<![A-Za-z0-9_:])(::[A-Za-z_][A-Za-z0-9_:]*|[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_:])")
+_PROC_NAME_WORD_RE = re.compile(
+    r"(?<![A-Za-z0-9_:])(::[A-Za-z_][A-Za-z0-9_:]*|[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_:])"
+)
 
 
 # Commands whose args are NOT proc-name references — the
@@ -1477,50 +1439,26 @@ def _collect_referenced_procs(
         elif isinstance(stmt, IRSwitch):
             _scan_text_for_procs(stmt.subject, name_index, out)
         if isinstance(stmt, IRBlock):
-            _collect_referenced_procs(
-                stmt.body, caller_qname, summaries, out, name_index
-            )
+            _collect_referenced_procs(stmt.body, caller_qname, summaries, out, name_index)
         elif isinstance(stmt, IRIf):
             for clause in stmt.clauses:
-                _collect_referenced_procs(
-                    clause.body, caller_qname, summaries, out, name_index
-                )
-            _collect_referenced_procs(
-                stmt.else_body, caller_qname, summaries, out, name_index
-            )
+                _collect_referenced_procs(clause.body, caller_qname, summaries, out, name_index)
+            _collect_referenced_procs(stmt.else_body, caller_qname, summaries, out, name_index)
         elif isinstance(stmt, IRFor):
-            _collect_referenced_procs(
-                stmt.init, caller_qname, summaries, out, name_index
-            )
-            _collect_referenced_procs(
-                stmt.next, caller_qname, summaries, out, name_index
-            )
-            _collect_referenced_procs(
-                stmt.body, caller_qname, summaries, out, name_index
-            )
+            _collect_referenced_procs(stmt.init, caller_qname, summaries, out, name_index)
+            _collect_referenced_procs(stmt.next, caller_qname, summaries, out, name_index)
+            _collect_referenced_procs(stmt.body, caller_qname, summaries, out, name_index)
         elif isinstance(stmt, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
-            _collect_referenced_procs(
-                stmt.body, caller_qname, summaries, out, name_index
-            )
+            _collect_referenced_procs(stmt.body, caller_qname, summaries, out, name_index)
         elif isinstance(stmt, IRTry):
-            _collect_referenced_procs(
-                stmt.body, caller_qname, summaries, out, name_index
-            )
+            _collect_referenced_procs(stmt.body, caller_qname, summaries, out, name_index)
             for h in stmt.handlers:
-                _collect_referenced_procs(
-                    h.body, caller_qname, summaries, out, name_index
-                )
-            _collect_referenced_procs(
-                stmt.finally_body, caller_qname, summaries, out, name_index
-            )
+                _collect_referenced_procs(h.body, caller_qname, summaries, out, name_index)
+            _collect_referenced_procs(stmt.finally_body, caller_qname, summaries, out, name_index)
         elif isinstance(stmt, IRSwitch):
             for arm in stmt.arms:
-                _collect_referenced_procs(
-                    arm.body, caller_qname, summaries, out, name_index
-                )
-            _collect_referenced_procs(
-                stmt.default_body, caller_qname, summaries, out, name_index
-            )
+                _collect_referenced_procs(arm.body, caller_qname, summaries, out, name_index)
+            _collect_referenced_procs(stmt.default_body, caller_qname, summaries, out, name_index)
 
 
 def _rewrite_if_clauses(
@@ -1533,9 +1471,7 @@ def _rewrite_if_clauses(
     new_clauses = []
     changed = False
     for clause in clauses:
-        new_body = _rewrite_script(
-            clause.body, caller_qname, inlinable, summaries, counter
-        )
+        new_body = _rewrite_script(clause.body, caller_qname, inlinable, summaries, counter)
         if new_body is clause.body:
             new_clauses.append(clause)
         else:
@@ -1554,9 +1490,7 @@ def _rewrite_try_handlers(
     new_handlers = []
     changed = False
     for handler in handlers:
-        new_body = _rewrite_script(
-            handler.body, caller_qname, inlinable, summaries, counter
-        )
+        new_body = _rewrite_script(handler.body, caller_qname, inlinable, summaries, counter)
         if new_body is handler.body:
             new_handlers.append(handler)
         else:
@@ -1578,9 +1512,7 @@ def _rewrite_switch_arms(
         if arm.body is None:
             new_arms.append(arm)
             continue
-        new_body = _rewrite_script(
-            arm.body, caller_qname, inlinable, summaries, counter
-        )
+        new_body = _rewrite_script(arm.body, caller_qname, inlinable, summaries, counter)
         if new_body is arm.body:
             new_arms.append(arm)
         else:

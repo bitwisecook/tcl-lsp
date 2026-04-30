@@ -32,21 +32,14 @@ def _find_first(script, cls):
 
 def _find_assign(script, name: str):
     for stmt in script.statements:
-        if (
-            isinstance(stmt, (IRAssignConst, IRAssignValue))
-            and stmt.name == name
-        ):
+        if isinstance(stmt, (IRAssignConst, IRAssignValue)) and stmt.name == name:
             return stmt
     return None
 
 
 class TestSimpleHoist:
     def test_literal_const_in_for_body_hoisted(self):
-        module = _module(
-            "for {set i 0} {$i < 10} {incr i} {\n"
-            "  set guard \"constant\"\n"
-            "}\n"
-        )
+        module = _module('for {set i 0} {$i < 10} {incr i} {\n  set guard "constant"\n}\n')
         new_module = licm_module(module)
         # The ``set guard "constant"`` should now appear at the
         # top-level (outside the IRFor), and be removed from the
@@ -64,13 +57,7 @@ class TestSimpleHoist:
         # ``while`` loops can run zero iterations when the
         # condition is initially false; hoisting would change
         # the post-loop slot value.  S5.3 declines.
-        module = _module(
-            "set i 0\n"
-            "while {$i < 5} {\n"
-            "  set msg \"hello\"\n"
-            "  incr i\n"
-            "}\n"
-        )
+        module = _module('set i 0\nwhile {$i < 5} {\n  set msg "hello"\n  incr i\n}\n')
         new_module = licm_module(module)
         while_node = _find_first(new_module.top_level, IRWhile)
         assert while_node is not None
@@ -83,11 +70,7 @@ class TestForeachLiteralList:
         # ``foreach x {a b c}`` runs ≥ 1 times because the list
         # is a non-empty literal — the body's invariant write is
         # safely hoisted.
-        module = _module(
-            "foreach x {a b c} {\n"
-            "  set guard \"k\"\n"
-            "}\n"
-        )
+        module = _module('foreach x {a b c} {\n  set guard "k"\n}\n')
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRForeach)
         assert _find_assign(for_node.body, "guard") is None
@@ -96,12 +79,7 @@ class TestForeachLiteralList:
     def test_foreach_with_dynamic_list_not_hoisted(self):
         # ``$lst`` is a runtime variable; we can't decide ≥ 1
         # iterations statically.
-        module = _module(
-            "set lst {a b c}\n"
-            "foreach x $lst {\n"
-            "  set guard \"k\"\n"
-            "}\n"
-        )
+        module = _module('set lst {a b c}\nforeach x $lst {\n  set guard "k"\n}\n')
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRForeach)
         assert _find_assign(for_node.body, "guard") is not None
@@ -111,12 +89,7 @@ class TestForeachLiteralList:
         # must NOT trigger the hoist or it would change observable
         # behaviour (the body's writes never execute, so they have
         # no business landing before the loop).
-        module = _module(
-            "set x 99\n"
-            "foreach i {} {\n"
-            "  set x 0\n"
-            "}\n"
-        )
+        module = _module("set x 99\nforeach i {} {\n  set x 0\n}\n")
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRForeach)
         assert _find_assign(for_node.body, "x") is not None
@@ -128,12 +101,7 @@ class TestZeroIterationGate:
     def test_for_with_initially_false_condition_not_hoisted(self):
         # ``set i 5; ... $i < 0`` is initially false → 0 iterations.
         # The hoist would otherwise overwrite ``x``.
-        module = _module(
-            "set x 99\n"
-            "for {set i 5} {$i < 0} {incr i} {\n"
-            "  set x 0\n"
-            "}\n"
-        )
+        module = _module("set x 99\nfor {set i 5} {$i < 0} {incr i} {\n  set x 0\n}\n")
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRFor)
         assert _find_assign(for_node.body, "x") is not None
@@ -141,13 +109,7 @@ class TestZeroIterationGate:
     def test_for_with_dynamic_bound_not_hoisted(self):
         # ``$i < $N`` — the bound is a runtime variable; we can't
         # decide ≥ 1 iteration statically.
-        module = _module(
-            "set x 99\n"
-            "set N 0\n"
-            "for {set i 0} {$i < $N} {incr i} {\n"
-            "  set x 0\n"
-            "}\n"
-        )
+        module = _module("set x 99\nset N 0\nfor {set i 0} {$i < $N} {incr i} {\n  set x 0\n}\n")
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRFor)
         assert _find_assign(for_node.body, "x") is not None
@@ -155,12 +117,7 @@ class TestZeroIterationGate:
 
 class TestDeclines:
     def test_var_with_substitution_value_not_hoisted(self):
-        module = _module(
-            "set y 5\n"
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set guard $y\n"
-            "}\n"
-        )
+        module = _module("set y 5\nfor {set i 0} {$i < 3} {incr i} {\n  set guard $y\n}\n")
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRFor)
         # Value contains ``$`` — not hoisted.
@@ -168,10 +125,7 @@ class TestDeclines:
 
     def test_var_written_twice_in_body_not_hoisted(self):
         module = _module(
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set guard \"foo\"\n"
-            "  set guard \"bar\"\n"
-            "}\n"
+            'for {set i 0} {$i < 3} {incr i} {\n  set guard "foo"\n  set guard "bar"\n}\n'
         )
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRFor)
@@ -195,8 +149,8 @@ class TestDeclines:
     def test_var_written_in_nested_if_not_hoisted(self):
         module = _module(
             "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set guard \"foo\"\n"
-            "  if {$i > 1} { set guard \"bar\" }\n"
+            '  set guard "foo"\n'
+            '  if {$i > 1} { set guard "bar" }\n'
             "}\n"
         )
         new_module = licm_module(module)
@@ -208,11 +162,7 @@ class TestDeclines:
     def test_var_written_in_for_next_clause_not_hoisted(self):
         # ``incr i`` in ``next`` writes ``i``.  A body-level
         # ``set i 0`` would be illegal LICM target.
-        module = _module(
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set i 0\n"
-            "}\n"
-        )
+        module = _module("for {set i 0} {$i < 3} {incr i} {\n  set i 0\n}\n")
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRFor)
         # Body's ``set i 0`` not hoisted because ``next`` also
@@ -220,11 +170,7 @@ class TestDeclines:
         assert _find_assign(for_node.body, "i") is not None
 
     def test_foreach_iter_var_not_hoisted(self):
-        module = _module(
-            "foreach x {a b c} {\n"
-            "  set x \"override\"\n"
-            "}\n"
-        )
+        module = _module('foreach x {a b c} {\n  set x "override"\n}\n')
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRForeach)
         assert _find_assign(for_node.body, "x") is not None
@@ -232,11 +178,7 @@ class TestDeclines:
 
 class TestPurity:
     def test_input_module_unchanged(self):
-        module = _module(
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set g \"k\"\n"
-            "}\n"
-        )
+        module = _module('for {set i 0} {$i < 3} {incr i} {\n  set g "k"\n}\n')
         original_for = _find_first(module.top_level, IRFor)
         assert _find_assign(original_for.body, "g") is not None
         licm_module(module)
@@ -244,11 +186,7 @@ class TestPurity:
         assert _find_assign(original_for.body, "g") is not None
 
     def test_idempotent(self):
-        module = _module(
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set g \"k\"\n"
-            "}\n"
-        )
+        module = _module('for {set i 0} {$i < 3} {incr i} {\n  set g "k"\n}\n')
         once = licm_module(module)
         twice = licm_module(once)
         # Second pass produces the same shape (no further
@@ -270,11 +208,7 @@ class TestPipelineIntegration:
         from core.compiler.cfg import build_cfg
         from core.compiler.codegen.wasm import wasm_codegen_module
 
-        source = (
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            "  set guard \"k\"\n"
-            "}\n"
-        )
+        source = 'for {set i 0} {$i < 3} {incr i} {\n  set guard "k"\n}\n'
         ir = lower_to_ir(source)
         cfg = build_cfg(ir)
         # Body retains the literal alloc when LICM is off.
@@ -308,7 +242,7 @@ class TestNestedLoops:
         module = _module(
             "for {set i 0} {$i < 3} {incr i} {\n"
             "  for {set j 0} {$j < 3} {incr j} {\n"
-            "    set inner_g \"k\"\n"
+            '    set inner_g "k"\n'
             "  }\n"
             "}\n"
         )

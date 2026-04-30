@@ -8,14 +8,12 @@ Dispatch is exercised through the interpreter by staging + calling
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
 
-from core.runtime_wasm import runtime_wasm_path
+from core.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 _ZIG_RUNTIME_PATH = runtime_wasm_path()
 

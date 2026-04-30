@@ -424,8 +424,7 @@ class _WasmEmitterBase:
         if idx not in self._owned_locals_set:
             return False
         return (
-            "tcl_obj_retain" in self._shared_imports
-            and "tcl_obj_release" in self._shared_imports
+            "tcl_obj_retain" in self._shared_imports and "tcl_obj_release" in self._shared_imports
         )
 
     def _peek_last_local_get_idx(self) -> int | None:
@@ -1023,9 +1022,7 @@ class _WasmEmitterBase:
                 self._emit(WasmOp.I32_EQZ)
                 self._emit(WasmOp.IF, bytes([_BLOCK_VOID]), label="default_sub")
                 self._emit_obj_literal(default_val)
-                self._emit_owned_local_write(
-                    i, Ownership.OWNED, keep_on_stack=False
-                )
+                self._emit_owned_local_write(i, Ownership.OWNED, keep_on_stack=False)
                 self._emit(WasmOp.END)
 
         if wants_frame:

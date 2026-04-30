@@ -17,7 +17,6 @@ import wasmtime  # noqa: E402
 from core.compiler.cfg import build_cfg  # noqa: E402
 from core.compiler.codegen.wasm import wasm_codegen_module  # noqa: E402
 from core.compiler.lowering import lower_to_ir  # noqa: E402
-
 from core.runtime_wasm import runtime_wasm_path  # noqa: E402
 
 OUTPUT = REPO / "tmp" / "perf-output"

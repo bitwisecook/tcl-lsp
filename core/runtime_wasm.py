@@ -29,9 +29,7 @@ from pathlib import Path
 # Repo root = two levels up from this file (.../core/runtime_wasm.py).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-DEFAULT_PATH: Path = (
-    _REPO_ROOT / "runtime" / "zig" / "zig-out" / "bin" / "tcl_runtime.wasm"
-)
+DEFAULT_PATH: Path = _REPO_ROOT / "runtime" / "zig" / "zig-out" / "bin" / "tcl_runtime.wasm"
 
 
 def runtime_wasm_path(*, build_if_missing: bool = True) -> Path:
@@ -68,9 +66,6 @@ def build_runtime(*, build_opts: list[str] | None = None) -> Path:
         cmd.extend(env_opts)
     subprocess.run(cmd, cwd=str(zig_dir), check=True)
     if not DEFAULT_PATH.exists():
-        msg = (
-            f"build_runtime: zig build completed but {DEFAULT_PATH} "
-            "was not produced"
-        )
+        msg = f"build_runtime: zig build completed but {DEFAULT_PATH} was not produced"
         raise FileNotFoundError(msg)
     return DEFAULT_PATH

@@ -31,6 +31,7 @@ from dataclasses import replace
 from typing import Iterable
 
 from ..ir import (
+    InlineDecision,
     IRBlock,
     IRCall,
     IRCatch,
@@ -44,7 +45,6 @@ from ..ir import (
     IRTry,
     IRUpFrame,
     IRWhile,
-    InlineDecision,
 )
 from ..var_escape import ProcEscapeSummary
 from ..var_escape._interprocedural import _resolve_callee
