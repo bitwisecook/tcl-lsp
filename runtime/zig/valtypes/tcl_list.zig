@@ -20,8 +20,19 @@ const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
 
 // Exported: list length — count elements by whitespace-splitting.
+//
+// Validates brace balance and raises ``unmatched open brace in
+// list`` on failure (S2.7).  Internal callers (linsert / lrepeat /
+// lseq / list_index) call ``list_count_elements`` directly and
+// stay permissive — only ``llength`` reports the error to user
+// scripts.
 pub export fn tcl_cmd_list_length(list: i32) i32 {
     const s = obj_ensure_string(list);
+    if (!obj.list_validate_braces(s.ptr, s.len)) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("unmatched open brace in list");
+        return 0;
+    }
     const n = list_count_elements(s.ptr, s.len);
     return obj_new_int(n);
 }
@@ -53,7 +64,10 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // O(N) per call, which makes any ``for { ... { lappend L $i } }``
     // loop O(N²).  The in-place path is O(1) per call when the
     // buffer has room, O(N) only on grow.
-    if (sc.len > 0 and current != 0) {
+    // ``is_immediate`` guard (PR #237 review): tagged immediates would
+    // ``@intCast`` to a low integer and the rc/tag/cap reads would
+    // dereference wasm data-segment bytes — junk values or a trap.
+    if (sc.len > 0 and current != 0 and !obj.is_immediate(current)) {
         const addr: u32 = @intCast(current);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);

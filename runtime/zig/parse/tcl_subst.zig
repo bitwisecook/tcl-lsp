@@ -7,6 +7,7 @@
 const rt     = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const obj_mod = @import("../valtypes/tcl_obj.zig");
+const arena = @import("../valtypes/tcl_arena.zig");
 
 const alloc            = rt.alloc;
 const memcpy           = rt.memcpy;
@@ -46,8 +47,18 @@ pub fn subst_flagged(
     if (!has_dollar and !has_bracket and (!do_bs or !has_backslash)) {
         return obj_new_string(@intCast(wptr), @intCast(wlen));
     }
+    // S6.3: route the two per-piece scratch buffers and every
+    // ``esc_ptr`` escape allocation through the arena.  The
+    // ``arena_save`` / ``arena_restore`` bracket reclaims them
+    // all in O(1) at function exit.  Allocations that overflow
+    // the arena fall back to libc transparently — ``arena_free``
+    // routes the cleanup correctly for both cases.
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
     const pieces_cap: u32 = wlen * 8;
-    const pieces_buf = alloc(pieces_cap);
+    const pieces_alloc = arena.arena_alloc_or_libc(pieces_cap);
+    const pieces_buf = pieces_alloc.addr;
     if (pieces_buf == 0) {
         // OOM on the per-piece scratch.  Without it the rest of
         // this function would write through address 0 — surface as
@@ -67,11 +78,12 @@ pub fn subst_flagged(
     // stale.  The retained_objs scratch holds those refs until
     // we're done concatenating, then releases them.  Bound is
     // wlen $-substs / [bracket] subs, so wlen u32s of scratch
-    // is the worst case.  Both buffers are freed before return.
+    // is the worst case.
     const retained_cap: u32 = wlen * 4;
-    const retained_objs = alloc(retained_cap);
+    const retained_alloc = arena.arena_alloc_or_libc(retained_cap);
+    const retained_objs = retained_alloc.addr;
     if (retained_objs == 0) {
-        obj_mod.free_sized(pieces_buf, pieces_cap);
+        arena.arena_free(pieces_alloc);
         return obj_new_string(0, 0);
     }
     var n_retained: u32 = 0;
@@ -157,7 +169,12 @@ pub fn subst_flagged(
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
             flush_lit(pieces_buf, &n_pieces, &total_out, lit_start, &lit_run, wptr);
-            const esc_ptr = alloc(4);
+            // S6.3: previously this 4-byte escape buffer was
+            // ``alloc()``-ed and never freed (each call leaked a
+            // size-class slab).  Routing through the arena both
+            // fixes the leak and avoids the libc round-trip.
+            const esc_alloc = arena.arena_alloc_or_libc(4);
+            const esc_ptr = esc_alloc.addr;
             const r = obj_mod.consume_bs_escape(src, i + 1, wlen, @ptrFromInt(esc_ptr));
             i = r.next_si;
             push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, r.written);
@@ -174,15 +191,16 @@ pub fn subst_flagged(
     if (buf == 0) {
         // Final concat buffer OOM.  Release any sources we've
         // retained so we don't compound an OOM with a refcount
-        // leak, free the scratch buffers, then surface as an empty
-        // TclObj.
+        // leak.  Scratch cleanup happens via the deferred
+        // ``arena_restore`` at the outer scope; ``arena_free``
+        // routes any libc-fallback allocations correctly.
         var rj: u32 = 0;
         while (rj < n_retained) : (rj += 1) {
             const r = read_i32(retained_objs + rj * 4);
             if (r != 0) obj_mod.tcl_obj_release(r);
         }
-        obj_mod.free_sized(retained_objs, retained_cap);
-        obj_mod.free_sized(pieces_buf, pieces_cap);
+        arena.arena_free(retained_alloc);
+        arena.arena_free(pieces_alloc);
         return obj_new_string(0, 0);
     }
     var out: u32 = 0;
@@ -197,16 +215,18 @@ pub fn subst_flagged(
         }
     }
     // MM-B.6: now that the bytes are copied, release the retained
-    // sources and free the per-call scratch buffers.  Without this
-    // free, every ``subst_flagged`` call would leak ``wlen * 12``
-    // bytes (pieces_buf + retained_objs).
+    // sources.  S6.3: scratch buffers (``pieces_buf`` /
+    // ``retained_objs`` / per-escape ``esc_ptr``) are reclaimed by
+    // the deferred ``arena_restore`` — ``arena_free`` only does
+    // work for libc-fallback allocations that overflowed the
+    // arena, so it's safe (and necessary) to call regardless.
     var ri: u32 = 0;
     while (ri < n_retained) : (ri += 1) {
         const r = read_i32(retained_objs + ri * 4);
         if (r != 0) obj_mod.tcl_obj_release(r);
     }
-    obj_mod.free_sized(retained_objs, retained_cap);
-    obj_mod.free_sized(pieces_buf, pieces_cap);
+    arena.arena_free(retained_alloc);
+    arena.arena_free(pieces_alloc);
     // NOTE: deliberately NOT claiming ownership of ``buf`` via
     // OBJ_STR_CAP.  Callers (e.g. ``array set arr [subst …]``)
     // borrow ``(ptr, len)`` slices out of the returned TclObj's

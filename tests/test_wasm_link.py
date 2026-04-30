@@ -104,6 +104,52 @@ class TestWasmLinkSources:
         result = _run_linked_module(mod, "::caller", (7,))
         assert result == 14
 
+    def test_cross_file_inline_and_dce(self):
+        """A proc defined in one file and called only from another
+        should be inlinable across the file boundary.  The dead-
+        proc DCE then drops the original definition since every
+        static reference was spliced away.
+
+        Regression: the inline catalogue's ``static_call_count``
+        is computed on the post-merge module, so cross-file
+        references contribute to the count exactly like in-file
+        references would.  An earlier worry about "linker-mode
+        DCE missing cross-file calls" turned out to be unfounded.
+        """
+        from core.compiler.codegen.wasm_link import (
+            merge_ir_modules,
+            wasm_link_sources,
+        )
+        from core.compiler.inlining import apply_inline_catalogue
+        from core.compiler.lowering import lower_to_ir
+        from core.compiler.var_escape import analyse_var_escape
+
+        # Lower each "file" individually then merge — exactly what
+        # ``wasm_link_sources`` does internally.
+        mod_a = lower_to_ir("proc helper {x} { puts $x }\n")
+        mod_b = lower_to_ir("source helper.tcl\nhelper hello\n")
+        merged = merge_ir_modules(mod_a, mod_b)
+        summaries = analyse_var_escape(ir_module=merged)
+        tagged = apply_inline_catalogue(merged, summaries)
+        # The catalogue saw both files' references — helper was
+        # called once at top level (in mod_b).
+        assert tagged.procedures["::helper"].static_call_count == 1
+
+        # End-to-end through the linker: helper's call site in
+        # ``main_entry`` is inlined.  Per PR #237 review the proc
+        # itself stays in the module (Tcl procs are externally
+        # observable commands; the inliner can't prove the host
+        # won't reach helper through eval / namespace-import).
+        mod = wasm_link_sources(
+            [
+                ("helper.tcl", "proc helper {x} { puts $x }\n"),
+                ("main.tcl", "source helper.tcl\nproc main_entry {} { helper world }\n"),
+            ]
+        )
+        names = {f.name for f in mod.functions}
+        assert "::helper" in names
+        assert "::main_entry" in names
+
     def test_cross_file_proc_call(self):
         """A proc in one file should be able to call a proc from another."""
         mod = wasm_link_sources(

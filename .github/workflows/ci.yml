@@ -66,6 +66,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Zig (needed for runtime auto-build)
+        run: |
+          set -eu
+          ZIG_VERSION=0.16.0
+          curl -fsSLo /tmp/zig.tar.xz \
+            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          mkdir -p /opt/zig
+          tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1
+          echo "/opt/zig" >> "$GITHUB_PATH"
+          /opt/zig/zig version
+
       - name: Sync Python environment
         run: uv sync --extra dev
 

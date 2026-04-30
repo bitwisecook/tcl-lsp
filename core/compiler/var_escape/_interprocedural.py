@@ -218,6 +218,40 @@ def solve_interprocedural_escape(
             has_fallback=downgraded_fallback[qname],
         )
         result[qname] = new_summary
+
+    # S3.4: transitive pure_leaf fixpoint.  A proc remains pure_leaf
+    # only if all of its direct callees are themselves pure_leaf.
+    # Iterate until stable.  Bounded by len(summaries) iterations.
+    from dataclasses import replace as _replace
+
+    from ._propagation import _FRAMELESS_RUNTIME_COMMANDS
+
+    changed = True
+    while changed:
+        changed = False
+        for qname, summary in result.items():
+            if not summary.pure_leaf:
+                continue
+            # An unresolved callee that is a known frameless
+            # runtime builtin (``puts``, ``list``, ``string``, …)
+            # is treated as pure_leaf for inlining purposes —
+            # those commands don't capture caller locals or
+            # introduce upvar aliases, so splicing a wrapper
+            # body around them is safe.  Truly unknown callees
+            # remain opaque and force a downgrade.
+            for callee in summary.direct_callees:
+                callee_summary = result.get(callee)
+                if callee_summary is None:
+                    bare = callee[2:] if callee.startswith("::") else callee
+                    if bare in _FRAMELESS_RUNTIME_COMMANDS:
+                        continue
+                    result[qname] = _replace(summary, pure_leaf=False)
+                    changed = True
+                    break
+                if not callee_summary.pure_leaf:
+                    result[qname] = _replace(summary, pure_leaf=False)
+                    changed = True
+                    break
     return result
 
 

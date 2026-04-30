@@ -43,34 +43,41 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     const total: u32 = a.len + b.len;
     if (total == 0) return obj_new_string(0, 0);
 
-    const addr: u32 = @intCast(current);
-    const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
-    const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
-    const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+    // ``is_immediate`` guard (PR #237 review): with S6.4, every small
+    // integer is a tagged handle whose ``@intCast`` value is a low
+    // integer — rc/tag/cap reads would dereference wasm data-segment
+    // bytes.  Skip the in-place paths on immediates and fall through
+    // to the new-buffer fallback below.
+    if (!obj.is_immediate(current)) {
+        const addr: u32 = @intCast(current);
+        const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
+        const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+        const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
 
-    // In-place fast path: we own the buffer and have spare capacity.
-    if (rc == 1 and tag == obj.TYPE_STRING and cap >= total and cap > 0) {
-        if (b.len > 0) memcpy(a.ptr + a.len, b.ptr, b.len);
-        obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(total));
-        return current;
-    }
+        // In-place fast path: we own the buffer and have spare capacity.
+        if (rc == 1 and tag == obj.TYPE_STRING and cap >= total and cap > 0) {
+            if (b.len > 0) memcpy(a.ptr + a.len, b.ptr, b.len);
+            obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(total));
+            return current;
+        }
 
-    // In-place grow path: we own the buffer but need more capacity.
-    // Pick the smallest size class >= total, doubling past the
-    // current cap to amortise grow cost across a long append loop.
-    if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
-        var new_cap: u32 = if (cap == 0) 16 else cap * 2;
-        while (new_cap < total) new_cap *= 2;
-        const new_buf = alloc(new_cap);
-        if (new_buf == 0) return current; // OOM — alloc raised the flag
-        if (a.len > 0) memcpy(new_buf, a.ptr, a.len);
-        if (b.len > 0) memcpy(new_buf + a.len, b.ptr, b.len);
-        // Recycle the old buffer.
-        obj.free_sized(a.ptr, cap);
-        obj.write_i32(addr + obj.OBJ_STR_PTR, @bitCast(new_buf));
-        obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(total));
-        obj.write_i32(addr + obj.OBJ_STR_CAP, @bitCast(new_cap));
-        return current;
+        // In-place grow path: we own the buffer but need more capacity.
+        // Pick the smallest size class >= total, doubling past the
+        // current cap to amortise grow cost across a long append loop.
+        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
+            var new_cap_g: u32 = if (cap == 0) 16 else cap * 2;
+            while (new_cap_g < total) new_cap_g *= 2;
+            const new_buf = alloc(new_cap_g);
+            if (new_buf == 0) return current; // OOM — alloc raised the flag
+            if (a.len > 0) memcpy(new_buf, a.ptr, a.len);
+            if (b.len > 0) memcpy(new_buf + a.len, b.ptr, b.len);
+            // Recycle the old buffer.
+            obj.free_sized(a.ptr, cap);
+            obj.write_i32(addr + obj.OBJ_STR_PTR, @bitCast(new_buf));
+            obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(total));
+            obj.write_i32(addr + obj.OBJ_STR_CAP, @bitCast(new_cap_g));
+            return current;
+        }
     }
 
     // Fallback: shared (rc > 1) or non-owning (cap == 0, literal /
