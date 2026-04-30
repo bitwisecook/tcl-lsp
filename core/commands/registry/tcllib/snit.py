@@ -5,7 +5,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "tcllib snit package"
@@ -123,6 +123,11 @@ class SnitTypemethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
+            arg_roles={3: ArgRole.BODY},
+            # Type method bodies run in the type's own dispatch context,
+            # not the caller's scope — STRUCTURAL keeps the body out of
+            # the enclosing block's data flow.
+            body_kind=BodyKind.STRUCTURAL,
         )
 
 
@@ -147,6 +152,11 @@ class SnitMethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
+            arg_roles={3: ArgRole.BODY},
+            # Instance method bodies run in the object's own dispatch
+            # context, not the caller's scope — STRUCTURAL keeps the
+            # body out of the enclosing block's data flow.
+            body_kind=BodyKind.STRUCTURAL,
         )
 
 
