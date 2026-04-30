@@ -342,6 +342,7 @@ def wasm_codegen_module(
     inline: bool = True,
     licm: bool = True,
     dce: bool = True,
+    gvn: bool = True,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -459,6 +460,25 @@ def wasm_codegen_module(
                 cfg_module = _build_cfg3(ir_module)
                 escape_summaries = analyse_var_escape(ir_module=ir_module)
         except Exception:  # noqa: BLE001 — DCE is opportunistic
+            pass
+
+    # Phase 0.8: S5.4 GVN — replace redundant ``IRAssignExpr``
+    # writes with copies from prior equivalent results when the
+    # source variables haven't been modified between them.
+    # ``set y [expr {$x + 1}]; set z [expr {$x + 1}]`` becomes
+    # ``set y [expr {$x + 1}]; set z $y``.  Subtractive — never
+    # adds work, just elides recomputation.
+    if gvn:
+        try:
+            from ...passes.gvn import gvn_module as _gvn
+            from ...cfg import build_cfg as _build_cfg4
+
+            valued = _gvn(ir_module)
+            if valued is not ir_module:
+                ir_module = valued
+                cfg_module = _build_cfg4(ir_module)
+                escape_summaries = analyse_var_escape(ir_module=ir_module)
+        except Exception:  # noqa: BLE001 — GVN is opportunistic
             pass
 
     module = WasmModule()
