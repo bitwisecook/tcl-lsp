@@ -216,7 +216,21 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # Global variable table.
     "tcl_global_set": ("tcl", "global_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_global_get": ("tcl", "global_get", [ValType.I32], [ValType.I32]),
+    # Strict variant of ``global_get`` — raises ``can't read "<name>":
+    # no such variable`` when the global has never been set.  Used by
+    # the codegen for ``$var`` substitutions / ``set var`` reads /
+    # ``expr {$var}`` operands so the WASM backend matches the Python
+    # VM and reference Tcl on missing-variable errors.  The lenient
+    # ``tcl_global_get`` is still used by ``info exists`` / ``unset
+    # -nocomplain`` / frame readback / the ``global`` command's pre-load.
+    "tcl_global_get_or_error": ("tcl", "global_get_or_error", [ValType.I32], [ValType.I32]),
     "tcl_global_exists": ("tcl", "global_exists", [ValType.I32], [ValType.I32]),
+    # Helper for the WASM-local-mirror read path — when a compiled
+    # proc-local was never assigned (slot stays at 0) we need to raise
+    # the standard Tcl missing-variable error.  Takes the name TclObj,
+    # builds ``can't read "<name>": no such variable`` and routes
+    # through the standard error path (catch / trap).
+    "tcl_var_unset_error": ("tcl", "var_unset_error", [ValType.I32], []),
     # Catch / error handling.
     "tcl_catch_enter": ("tcl", "catch_enter", [], []),
     "tcl_catch_leave": ("tcl", "catch_leave", [], [ValType.I32]),
@@ -277,6 +291,10 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_var_exists": ("tcl", "var_exists", [ValType.I32], [ValType.I32]),
     "tcl_local_set": ("tcl", "local_set", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_local_get": ("tcl", "local_get", [ValType.I32], [ValType.I32]),
+    # Strict variant of ``local_get`` — raises ``can't read "<name>":
+    # no such variable`` when the frame slot has never been set.
+    # Mirror of ``tcl_global_get_or_error`` for proc-local reads.
+    "tcl_local_get_or_error": ("tcl", "local_get_or_error", [ValType.I32], [ValType.I32]),
     # Proc registry.
     "tcl_proc_register": (
         "tcl",

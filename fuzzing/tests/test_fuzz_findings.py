@@ -984,3 +984,60 @@ class TestBatch5VmTimeoutResolved:
         source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
         status, _detail = _run(source)
         assert status == "error"
+
+
+class TestBatch6WasmIgnoresMissingVar:
+    """WASM backend silently returned 0 / empty for unset variable reads.
+
+    Issue #263.  The WASM codegen elided the existence check on ``$x``
+    substitutions / ``set x`` reads / ``expr {$x}`` operands; the
+    runtime's ``local_get`` / ``global_get`` returned 0 (NULL TclObj)
+    rather than raising ``can't read "<name>": no such variable``.
+    Loops driven by the empty-default value never terminated, which
+    drove a fraction of the ``wasm-timeout`` cluster.
+
+    The fix added strict variants — ``local_get_or_error`` /
+    ``global_get_or_error`` — and an inline check on the WASM-local
+    mirror read path that raises through ``var_unset_error``.
+
+    The seeds covered here are the four from the original finding
+    batch whose mismatch was directly the missing-variable behaviour.
+    Seeds 1774200067, 1774200082, and 1774200094 were also listed in
+    the issue but turn out to surface independent ``wasm-timeout``
+    bugs once the missing-variable signal stops short-circuiting the
+    bad loop; those need their own follow-up fixes and stay
+    ``"fixed": false``.
+
+    The test imports the WASM backend lazily because ``wasmtime`` /
+    the compiled runtime are optional at install time; without them
+    the tests skip rather than fail.
+    """
+
+    SEEDS = (
+        1774200012,
+        1774200028,
+        1774200037,
+        1774200068,
+    )
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_wasm_errors_on_missing_var(self, seed: int) -> None:
+        """WASM should not silently return 0 / empty for unset variables.
+
+        The minimum bar is that the WASM run completes with a non-OK
+        return code (error or trap, not OK); the precise error text
+        is allowed to drift from the VM's because some seeds chain
+        into secondary errors after the first missing-variable read.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_wasm(source, timeout=5.0)
+        assert result.return_code == 1, (
+            f"seed {seed}: wasm did not surface a Tcl-level error on a "
+            f"script the VM rejects with 'no such variable' — "
+            f"issue #263 regression (rc={result.return_code}, "
+            f"err={result.error_message!r})"
+        )

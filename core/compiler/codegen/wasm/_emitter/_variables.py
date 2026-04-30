@@ -32,11 +32,23 @@ class _WasmEmitterVarMixin(_Base):
         """Push the current TclObj value of local Tcl variable *name* on the stack.
 
         For aliased variables (``upvar``/``variable``), this reads through
-        ``tcl_global_get`` using the target name stashed at alias-setup time.
+        ``tcl_global_get_or_error`` using the target name stashed at alias-setup time.
         For ``::``-qualified names (e.g. ``::ns::var``), this reads the
         global directly.  Array references (``arr(key)``) dispatch to
         ``tcl_array_get`` with the element's stored value.  Otherwise
-        this is a plain WASM ``local.get`` of the interned local.
+        this is a plain WASM ``local.get`` of the interned local,
+        followed by a runtime check that raises
+        ``can't read "<name>": no such variable`` when the slot was
+        never assigned.
+
+        This is a user-visible variable read — every path raises the
+        standard Tcl missing-variable error when the lookup resolves to
+        the null TclObj handle (slot zero).  The lenient lookups
+        (``tcl_global_get`` / ``tcl_local_get``) remain in use by paths
+        that legitimately want the missing-is-fine behaviour:
+        ``info exists`` / ``unset -nocomplain`` / frame readback after an
+        eval-fallback / the ``global`` command's pre-load of a possibly-
+        uninitialised slot.
         """
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
@@ -46,13 +58,13 @@ class _WasmEmitterVarMixin(_Base):
         if binding is not None:
             kind, target_idx = binding
             if kind == "global":
-                gget_idx = self._shared_imports.get("tcl_global_get")
+                gget_idx = self._shared_imports.get("tcl_global_get_or_error")
                 if gget_idx is not None:
                     self._emit_local_get(target_idx)
                     self._emit_call(gget_idx)
                     return
         if name.startswith("::"):
-            gget_idx = self._shared_imports.get("tcl_global_get")
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
             if gget_idx is not None:
                 self._emit_obj_literal(name)
                 self._emit_call(gget_idx)
@@ -63,7 +75,7 @@ class _WasmEmitterVarMixin(_Base):
         # we wrote it through the global table with the qualified
         # name, and a bare-local read would find 0.
         if not self._is_proc and self._block_namespace and self._block_namespace != "::":
-            gget_idx = self._shared_imports.get("tcl_global_get")
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
             if gget_idx is not None:
                 qname = f"{self._block_namespace}::{name}"
                 self._emit_obj_literal(qname)
@@ -72,11 +84,12 @@ class _WasmEmitterVarMixin(_Base):
         # Var-escape FRAME branch: the escape analysis proved this
         # name is observed by the interpreter or a callee upvar, so
         # its authoritative value lives in the runtime frame.  Read
-        # through ``tcl_local_get`` (frame-scoped; does NOT fall through
-        # to globals — that would alias with top-level vars of the same
-        # name).
+        # through ``tcl_local_get_or_error`` (frame-scoped; does NOT
+        # fall through to globals — that would alias with top-level
+        # vars of the same name — and raises ``no such variable`` if
+        # the frame slot is unset).
         if self._is_frame_only_var(name):
-            lget_idx = self._shared_imports.get("tcl_local_get")
+            lget_idx = self._shared_imports.get("tcl_local_get_or_error")
             if lget_idx is not None:
                 self._emit_obj_literal(name)
                 self._emit_call(lget_idx)
@@ -90,13 +103,56 @@ class _WasmEmitterVarMixin(_Base):
         # the compiled read used the stale WASM-local seeded by the
         # original ``set v 1``.  Phase 4.5 finalisation.
         if not self._is_proc:
-            gget_idx = self._shared_imports.get("tcl_global_get")
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
             if gget_idx is not None:
                 self._emit_obj_literal(name)
                 self._emit_call(gget_idx)
                 return
+        # WASM-local-mirror read for proc-locals.  The slot defaults to 0
+        # (null TclObj) when never assigned, so emit an inline check that
+        # raises ``can't read "<name>": no such variable`` via
+        # ``tcl_var_unset_error`` when the slot is still zero.  The check
+        # is ``i32.eqz``-cheap on the hot path (taken slot is always
+        # non-null) and only allocates the error message TclObj on the
+        # cold (missing-variable) path.
+        #
+        # The check is elided when we can statically prove the slot is
+        # bound:
+        # * proc parameters are always initialised by the call prologue
+        #   (param-retain stores the caller's arg into the slot, even
+        #   when that arg is the empty string),
+        # * variables already assigned in this proc body's emission so
+        #   far carry a non-zero handle in the slot.
+        # Eliding on these paths keeps S5.2's ``set x $x`` peephole
+        # working — every read of ``x`` is provably bound after the
+        # parameter prologue, so the alias-skip optimisation that
+        # collapses retain+release on a self-set still triggers.
         idx = self._intern_local(name)
+        unset_err_idx = self._shared_imports.get("tcl_var_unset_error")
+        is_param = name in self._params
+        already_written = idx in self._first_writes_seen
+        if unset_err_idx is None or is_param or already_written:
+            self._emit_local_get(idx)
+            return
+        # Stack: [value].  We want to:
+        #   if (value == 0) { tcl_var_unset_error(name); }
+        #   leave value on stack
+        # Use a scratch local so we can check-and-restore the value.
         self._emit_local_get(idx)
+        tmp = self._add_extra_local(prefix="_var_check", val_type=ValType.I32)
+        self._emit_local_tee(tmp)
+        self._emit(WasmOp.I32_EQZ)
+        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+        self._emit_obj_literal(name)
+        self._emit_call(unset_err_idx)
+        self._emit(WasmOp.END)
+        # ``tcl_var_unset_error`` traps when not in catch; inside a
+        # catch it sets ``error_flag`` and the surrounding statement
+        # path observes the error.  Either way, leaving the (zero)
+        # value on the stack is fine — the catch dispatcher tears
+        # down the stack on unwind, and a hard trap never reaches a
+        # consumer.
+        self._emit_local_get(tmp)
 
     def _emit_var_write_obj(
         self,

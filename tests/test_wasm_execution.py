@@ -794,6 +794,17 @@ class TestCommandDispatch:
             "tcl_list",
             "local_set",
             "local_get",
+            # Strict variants of var_get — issue #263.  Used by
+            # ``_emit_var_read_obj`` to raise ``can't read "<name>":
+            # no such variable`` when a ``$x`` substitution / ``set
+            # x`` read references an unset variable.  Always imported
+            # because every non-trivial module reads at least one
+            # variable.  ``var_unset_error`` is the helper the
+            # WASM-local-mirror inline check calls when the slot is
+            # zero (missing-variable cold path).
+            "global_get_or_error",
+            "local_get_or_error",
+            "var_unset_error",
             # Since S2, retain/release are always imported because
             # the owned-slot wrap can fire on any frame-elided proc.
             "tcl_obj_retain",
