@@ -14,10 +14,26 @@ from ..models import (
     ValidationSpec,
     WasmRuntimeImport,
 )
-from ..signatures import Arity
+from ..signatures import ArgRole, Arity
 from ._base import register
 
 _SOURCE = "Tcl man page trace.n"
+
+
+def _trace_add_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+    """Map ``trace add`` argument roles by trace type.
+
+    Indices are relative to the args after the ``add`` subcommand word
+    (so ``args[0]`` is the trace type: ``variable``/``command``/``execution``).
+
+    For ``trace add variable name ops body`` the *name* arg is treated as
+    a write-site: the registered body can mutate the variable's value when
+    fired, so SSA must see *name* as a definition.  ``trace add command``
+    and ``trace add execution`` refer to commands, not variables.
+    """
+    if len(args) >= 2 and args[0] == "variable":
+        return {1: ArgRole.VAR_WRITE}
+    return {}
 
 
 @register
@@ -48,6 +64,7 @@ class TraceCommand(CommandDef):
                     arity=Arity(4, 4),
                     detail="Arrange for a command to be executed when the specified operation occurs.",
                     synopsis="trace add type name ops commandPrefix",
+                    arg_role_resolver=_trace_add_arg_roles,
                 ),
                 "info": SubCommand(
                     name="info",

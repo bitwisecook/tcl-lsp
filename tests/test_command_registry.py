@@ -799,3 +799,67 @@ class TestBodyKind:
         # applies — preserving the behaviour for tcltest-style packages
         # where the bare name is the conventional spelling.
         assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL
+
+
+class TestTraceAddVariableVarWrite:
+    """Issue #249 — ``trace add variable`` resolves *name* to ``ArgRole.VAR_WRITE``.
+
+    The trace body can fire on read/write/unset and rewrite *name*, so
+    SSA must see *name* as a definition site.  Routing this through the
+    registry's sub-sub-resolver (dispatching on ``args[1]`` of ``trace add``)
+    replaces the literal ``stmt.command == "trace"`` check that previously
+    lived in ``core/compiler/ssa.py``.
+    """
+
+    def test_add_variable_marks_name_as_var_write(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # ``trace add variable name ops body`` — ``name`` is at index 2.
+        args = ["add", "variable", "x", "write", "watcher"]
+        assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == {2}
+
+    def test_add_variable_var_write_for_each_op_variant(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # The op (read/write/unset/array) doesn't change the role of name.
+        for op in ("read", "write", "unset", "array", "rwu"):
+            args = ["add", "variable", "x", op, "watcher"]
+            assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == {2}, op
+
+    def test_add_command_does_not_mark_name_as_var_write(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # ``trace add command`` is about a command name, not a variable.
+        args = ["add", "command", "mycmd", "rename", "onCmd"]
+        assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
+
+    def test_add_execution_does_not_mark_name_as_var_write(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # ``trace add execution`` is about a command name, not a variable.
+        args = ["add", "execution", "mycmd", "enter", "onExec"]
+        assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
+
+    def test_remove_variable_does_not_mark_name_as_var_write(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # Removing a trace doesn't add a callback, so SSA shouldn't treat
+        # the name as a (re-)definition.
+        args = ["remove", "variable", "x", "write", "watcher"]
+        assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
+
+    def test_info_variable_does_not_mark_name_as_var_write(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # ``trace info`` only inspects.
+        args = ["info", "variable", "x"]
+        assert arg_indices_for_role("trace", args, ArgRole.VAR_WRITE) == set()
+
+    def test_add_variable_truncated_args_yield_empty(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # Defensive: a malformed ``trace add variable`` (no name) must not
+        # blow up or invent an index.
+        assert arg_indices_for_role("trace", ["add", "variable"], ArgRole.VAR_WRITE) == set()
+        assert arg_indices_for_role("trace", ["add"], ArgRole.VAR_WRITE) == set()
+        assert arg_indices_for_role("trace", [], ArgRole.VAR_WRITE) == set()
