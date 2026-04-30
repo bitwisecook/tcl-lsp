@@ -1,8 +1,8 @@
 //! `PyO3` bindings for the GVN passes (C32-shim).
 //!
 //! Exposes three entry points mirroring
-//! `tcl_compiler::gvn::{find_redundancies, find_partial_redundancies,
-//! find_loop_invariants}`:
+//! `tcl_compiler::gvn::{find_redundancies_for_cu,
+//! find_partial_redundancies_for_cu, find_loop_invariants_for_cu}`:
 //!
 //! - `gvn_redundancies(source, dialect)` — full redundancies (O105)
 //! - `gvn_partial_redundancies(source, dialect)` — partial (O106)
@@ -14,13 +14,16 @@
 //!
 //! The Python caller builds its native `RedundantComputation`
 //! dataclass from these primitives, so this crate stays free of
-//! Python-type knowledge.
+//! Python-type knowledge. ARCH7 moved the per-function iteration
+//! into `tcl_compiler::gvn::find_*_for_cu` so this module is pure
+//! conversion glue.
 
 use pyo3::prelude::*;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::gvn::{
-    find_loop_invariants, find_partial_redundancies, find_redundancies, RedundantComputation,
+    find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
+    RedundantComputation,
 };
 
 type GvnTuple = (String, u32, u32, u32, u32, String, String);
@@ -43,13 +46,10 @@ fn lift(r: RedundantComputation) -> GvnTuple {
 pub fn gvn_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
     let registry = crate::registry::default_registry();
     let cu = CompilationUnit::build_for(source, registry, false);
-    let mut out = Vec::new();
-    for fu in cu.functions() {
-        for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(lift(r));
-        }
-    }
-    out
+    find_redundancies_for_cu(&cu, registry, dialect)
+        .into_iter()
+        .map(lift)
+        .collect()
 }
 
 /// Partial-redundancy detection (O106).
@@ -58,13 +58,10 @@ pub fn gvn_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
 pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
     let registry = crate::registry::default_registry();
     let cu = CompilationUnit::build_for(source, registry, false);
-    let mut out = Vec::new();
-    for fu in cu.functions() {
-        for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(lift(r));
-        }
-    }
-    out
+    find_partial_redundancies_for_cu(&cu, registry, dialect)
+        .into_iter()
+        .map(lift)
+        .collect()
 }
 
 /// Loop-invariant detection (O107).
@@ -73,13 +70,10 @@ pub fn gvn_partial_redundancies(source: &str, dialect: Option<&str>) -> Vec<GvnT
 pub fn gvn_loop_invariants(source: &str, dialect: Option<&str>) -> Vec<GvnTuple> {
     let registry = crate::registry::default_registry();
     let cu = CompilationUnit::build_for(source, registry, false);
-    let mut out = Vec::new();
-    for fu in cu.functions() {
-        for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(lift(r));
-        }
-    }
-    out
+    find_loop_invariants_for_cu(&cu, registry, dialect)
+        .into_iter()
+        .map(lift)
+        .collect()
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

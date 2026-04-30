@@ -17,15 +17,14 @@
 //! the unmodified word vector.
 
 use crate::ir::Statement;
-use crate::lowering_hooks::{make_call, LoweringCommand};
+use crate::lowering_hooks::{has_expansion, make_call, LoweringCommand};
 
 /// Lower `incr` to [`Statement::Incr`] or fall back to
 /// [`Statement::Call`] when the call shape is not the
 /// specialise-able `incr name ?amount?` form.
 #[must_use]
 pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
-    let has_expansion = cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e));
-    if has_expansion || cmd.args.is_empty() || cmd.args.len() > 2 {
+    if has_expansion(cmd) || cmd.args.is_empty() || cmd.args.len() > 2 {
         return make_call(cmd);
     }
     Statement::Incr {

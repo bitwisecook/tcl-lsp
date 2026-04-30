@@ -56,7 +56,7 @@ fn rust_disasm(source: &str) -> String {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(source, &registry);
     let cfg = build_cfg(&ir, false);
-    let asm = codegen_module(&cfg, &ir);
+    let asm = codegen_module(&cfg, &ir, &registry);
     format_module_asm(&asm)
 }
 

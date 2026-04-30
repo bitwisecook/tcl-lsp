@@ -3,10 +3,12 @@
 //! Exposes registry queries to Python so the transition period can
 //! use the Rust registry from Python consumer code.
 
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use pyo3::prelude::*;
 
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::traits::Traits;
 use tcl_registry::ArgRole;
@@ -22,6 +24,49 @@ use tcl_registry::ArgRole;
 pub(crate) fn default_registry() -> &'static CommandRegistry {
     static REGISTRY: OnceLock<CommandRegistry> = OnceLock::new();
     REGISTRY.get_or_init(CommandRegistry::build_default)
+}
+
+/// Per-dialect cached registry.
+///
+/// Loads exactly the dialect parsed from `dialect` (e.g.
+/// `"f5-irules"` → `DialectSet::IRULES`) on top of the default
+/// Tcl + stdlib + tcllib specs. Each dialect gets its own cached
+/// instance so dialect-specific overrides (e.g. iRules's
+/// command-shape constraints) don't bleed across requests for
+/// unrelated dialects. Mirrors the original per-call behaviour
+/// of `CommandRegistry::build_default(); load_dialect(d)` without
+/// the per-call build cost.
+///
+/// Unparseable dialect strings collapse to the empty-string key
+/// so a stream of typos can't leak one registry per typo — they
+/// all share a single cached "plain Tcl" registry.
+///
+/// Python callers don't pass a registry through; this is the
+/// shared instance every binding consults when it needs
+/// dialect-aware behaviour.
+pub(crate) fn default_registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+    static REGISTRIES: OnceLock<std::sync::Mutex<HashMap<String, &'static CommandRegistry>>> =
+        OnceLock::new();
+    let parsed = DialectSet::parse(dialect);
+    // Canonicalise the cache key: parseable dialects keep their
+    // string; unparseable ones share the plain-Tcl entry.
+    let key = if parsed.is_some() { dialect } else { "" };
+    let map = REGISTRIES.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
+    let mut guard = map.lock().expect("registry cache mutex");
+    if let Some(r) = guard.get(key) {
+        return r;
+    }
+    // First request for this dialect: build the per-dialect
+    // registry, leak it, and cache the resulting `&'static`
+    // reference. The leak is bounded by the small set of
+    // canonical dialects any Python process will see.
+    let mut r = CommandRegistry::build_default();
+    if let Some(d) = parsed {
+        r.load_dialect(d);
+    }
+    let leaked: &'static CommandRegistry = Box::leak(Box::new(r));
+    guard.insert(key.to_owned(), leaked);
+    leaked
 }
 
 /// Query the Rust registry for a command's traits.

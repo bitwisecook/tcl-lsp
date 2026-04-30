@@ -539,7 +539,7 @@ impl<'r> Lowerer<'r> {
             tokens: Some(Self::cmd_tokens(seg)),
             arg_kinds: &Self::arg_kinds(seg),
         };
-        if let Some(stmt) = try_lower_hook(&hook_cmd, &self.aliases) {
+        if let Some(stmt) = try_lower_hook(&hook_cmd, &self.aliases, self.registry) {
             return Some(stmt);
         }
 

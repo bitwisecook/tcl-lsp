@@ -75,6 +75,9 @@ VSCODE   ?= code
 STAMP_DIR  := $(BUILD_DIR)/stamps
 NPM_STAMP  := $(STAMP_DIR)/npm-install
 UV_STAMP   := $(STAMP_DIR)/uv-sync
+RUST_SRCS  := $(shell find $(ROOT)rust -type f \( -name '*.rs' -o -name 'Cargo.toml' -o -name 'pyproject.toml' \) 2>/dev/null) $(ROOT)Cargo.toml $(ROOT)rust-toolchain.toml
+RUST_STAMP := $(STAMP_DIR)/rust-wheel
+CARGO      := MAKEFLAGS= MFLAGS= MAKEOVERRIDES= cargo
 STAGE_DIR  := $(BUILD_DIR)/vsix-stage
 
 # Version — derived from git describe (fallback: dev when unavailable)
@@ -262,6 +265,7 @@ typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty (mirro
 	@# environment locally by removing the wheel + stamp before ty
 	@# runs; the stamp gets rebuilt by the next `rust-build`.
 	@cd $(ROOT) && $(UV) pip uninstall --quiet tcl_lsp_rust >/dev/null 2>&1 || true
+	@cd $(ROOT) && $(UV) pip uninstall --quiet tcl_lsp_py >/dev/null 2>&1 || true
 	@rm -f $(RUST_STAMP)
 	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
 
@@ -270,15 +274,24 @@ typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with 
 	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' ai core explorer lsp tests vm scripts
 
 # Rust workspace targets — see docs/rust-rewrite.md.
+# ARCH9 split the public PyO3 surface into `tcl-lsp-py`; the
+# legacy `tcl-lsp-rust` cdylib is now a one-release re-export
+# alias. We build both wheels here so existing
+# `import tcl_lsp_rust` consumers and new
+# `import tcl_lsp_py` consumers both work.
 $(RUST_STAMP): $(RUST_SRCS) $(UV_STAMP)
-	@echo "==> Building tcl_lsp_rust wheel with maturin"
+	@echo "==> Building tcl_lsp_py wheel with maturin"
+	cd $(ROOT) && MAKEFLAGS= MFLAGS= MAKEOVERRIDES= $(UV) run --with 'maturin>=1.7,<2.0' maturin build --release --manifest-path rust/tcl-lsp-py/Cargo.toml --out $(ROOT)target/wheels
+	@echo "==> Building tcl_lsp_rust alias wheel with maturin"
 	cd $(ROOT) && MAKEFLAGS= MFLAGS= MAKEOVERRIDES= $(UV) run --with 'maturin>=1.7,<2.0' maturin build --release --manifest-path rust/tcl-lsp-rust/Cargo.toml --out $(ROOT)target/wheels
-	@echo "==> Installing tcl_lsp_rust wheel into project venv"
+	@echo "==> Installing tcl_lsp_py wheel into project venv"
+	cd $(ROOT) && $(UV) pip install --reinstall --quiet "$$(ls -t $(ROOT)target/wheels/tcl_lsp_py-*.whl | head -1)"
+	@echo "==> Installing tcl_lsp_rust alias wheel into project venv"
 	cd $(ROOT) && $(UV) pip install --reinstall --quiet "$$(ls -t $(ROOT)target/wheels/tcl_lsp_rust-*.whl | head -1)"
 	@mkdir -p $(STAMP_DIR)
 	@touch $@
 
-rust-build: $(RUST_STAMP) ## Build the tcl_lsp_rust wheel with maturin and install it into the uv venv
+rust-build: $(RUST_STAMP) ## Build both `tcl_lsp_py` and `tcl_lsp_rust` wheels with maturin and install them into the uv venv
 
 rust-test: ## Run the Rust workspace test suite (cargo test)
 	@echo "==> Running cargo test on Rust workspace"
@@ -588,9 +601,17 @@ check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_editor_settings.py --check
 
+gen-command-spec-coverage: $(UV_STAMP) ## Regenerate docs/generated/command-spec-coverage.md from rust/tcl-registry/src/commands/
+	@echo "==> Regenerating command-spec coverage report"
+	cd $(ROOT) && $(UV) run python scripts/check_command_spec_coverage.py
+
+check-command-spec-coverage: $(UV_STAMP) ## Verify the command-spec coverage report matches the live specs
+	@echo "==> Checking command-spec coverage report is up to date"
+	cd $(ROOT) && $(UV) run python scripts/check_command_spec_coverage.py --check
+
 # Unified codegen — regenerate ALL generated files from registries
 
-codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts)
+codegen: generate gen-editor-settings gen-command-spec-coverage ## Regenerate ALL generated files (catalogs + editor settings + AI prompts + command-spec coverage)
 
 # Compiler Explorer (WASM GUI)
 

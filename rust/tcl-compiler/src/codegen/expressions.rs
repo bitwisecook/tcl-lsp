@@ -10,7 +10,7 @@ use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{bytecode_imm, CodegenCtx, Op, Operand};
 use crate::expr_ast::{render_expr, BinOp, ExprNode};
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Compile an expression AST node; leaves the result on TOS.
     ///
     /// Returns `true` when the result is *guaranteed numeric*
@@ -208,6 +208,8 @@ impl CodegenCtx {
 
 #[cfg(test)]
 mod tests {
+    use tcl_registry::CommandRegistry;
+
     use crate::codegen::{CodegenCtx, Op, Operand};
     use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
@@ -220,7 +222,8 @@ mod tests {
 
     #[test]
     fn emit_literal() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Literal {
             text: "42".into(),
             start: 0,
@@ -233,7 +236,8 @@ mod tests {
 
     #[test]
     fn emit_literal_invalid_prefix() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Literal {
             text: "0o289".into(),
             start: 0,
@@ -247,7 +251,8 @@ mod tests {
 
     #[test]
     fn emit_literal_valid_hex() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Literal {
             text: "0xFF".into(),
             start: 0,
@@ -263,7 +268,8 @@ mod tests {
 
     #[test]
     fn emit_string_quoted() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::String {
             text: "\"hello\"".into(),
             start: 0,
@@ -278,7 +284,8 @@ mod tests {
 
     #[test]
     fn emit_string_braced() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::String {
             text: "{world}".into(),
             start: 0,
@@ -291,7 +298,8 @@ mod tests {
 
     #[test]
     fn emit_string_backslash_escape() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::String {
             text: "\"a\\nb\"".into(),
             start: 0,
@@ -305,7 +313,8 @@ mod tests {
 
     #[test]
     fn emit_var_scalar() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         let node = ExprNode::Var {
             text: "$x".into(),
             name: "x".into(),
@@ -319,7 +328,8 @@ mod tests {
 
     #[test]
     fn emit_var_array() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let node = ExprNode::Var {
             text: "$arr(key)".into(),
             name: "arr".into(),
@@ -336,7 +346,8 @@ mod tests {
 
     #[test]
     fn emit_binary_add() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::Add,
             left: Box::new(ExprNode::Literal {
@@ -357,7 +368,8 @@ mod tests {
 
     #[test]
     fn emit_binary_streq() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::StrEq,
             left: Box::new(ExprNode::Literal {
@@ -378,7 +390,8 @@ mod tests {
 
     #[test]
     fn emit_short_circuit_and() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::And,
             left: Box::new(ExprNode::Literal {
@@ -402,7 +415,8 @@ mod tests {
 
     #[test]
     fn emit_short_circuit_or() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::Or,
             left: Box::new(ExprNode::Literal {
@@ -423,7 +437,8 @@ mod tests {
 
     #[test]
     fn emit_binary_in() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::In,
             left: Box::new(ExprNode::Literal {
@@ -446,7 +461,8 @@ mod tests {
 
     #[test]
     fn emit_unary_neg() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::Neg,
             operand: Box::new(ExprNode::Literal {
@@ -462,7 +478,8 @@ mod tests {
 
     #[test]
     fn emit_unary_not() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::Not,
             operand: Box::new(ExprNode::Literal {
@@ -478,7 +495,8 @@ mod tests {
 
     #[test]
     fn emit_unary_bitnot() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::BitNot,
             operand: Box::new(ExprNode::Literal {
@@ -496,7 +514,8 @@ mod tests {
 
     #[test]
     fn emit_ternary() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         let node = ExprNode::Ternary {
             condition: Box::new(ExprNode::Var {
                 text: "$x".into(),
@@ -528,7 +547,8 @@ mod tests {
 
     #[test]
     fn emit_raw_var_ref() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         let node = ExprNode::Raw {
             text: "${x}".into(),
         };
@@ -539,7 +559,8 @@ mod tests {
 
     #[test]
     fn emit_raw_braced_scalar() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Raw {
             text: "$={a(1)}".into(),
         };
@@ -551,7 +572,8 @@ mod tests {
 
     #[test]
     fn emit_raw_unknown() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Raw {
             text: "some complex thing".into(),
         };
@@ -565,7 +587,8 @@ mod tests {
 
     #[test]
     fn emit_call_sin() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Call {
             function: "sin".into(),
             args: vec![ExprNode::Literal {
@@ -594,7 +617,8 @@ mod tests {
 
     #[test]
     fn emit_call_max_two_args() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Call {
             function: "max".into(),
             args: vec![
@@ -623,7 +647,8 @@ mod tests {
 
     #[test]
     fn emit_command_fallback() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Command {
             text: "[info exists x]".into(),
             start: 0,
@@ -639,7 +664,8 @@ mod tests {
 
     #[test]
     fn emit_irules_contains() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::Contains,
             left: Box::new(ExprNode::Literal {
@@ -660,7 +686,8 @@ mod tests {
 
     #[test]
     fn emit_irules_word_not() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Unary {
             op: UnaryOp::WordNot,
             operand: Box::new(ExprNode::Literal {
@@ -679,7 +706,8 @@ mod tests {
     #[test]
     fn emit_nested_binary() {
         // (1 + 2) * 3
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Binary {
             op: BinOp::Mul,
             left: Box::new(ExprNode::Binary {

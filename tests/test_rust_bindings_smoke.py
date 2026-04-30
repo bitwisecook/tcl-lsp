@@ -26,6 +26,25 @@ def test_hello_rust_returns_expected_string() -> None:
     assert tcl_lsp_rust.hello_rust() == "hello from rust"
 
 
+def test_tcl_lsp_py_imports_and_exposes_same_surface() -> None:
+    """ARCH9: `tcl_lsp_py` is the canonical public PyO3 module;
+    `tcl_lsp_rust` is a transitional alias re-exporting the same
+    functions. Both modules must produce identical results.
+    """
+    tcl_lsp_py = pytest.importorskip(
+        "tcl_lsp_py",
+        reason="tcl_lsp_py wheel not installed; run `make rust-build` first",
+    )
+    assert tcl_lsp_py.hello_rust() == tcl_lsp_rust.hello_rust()
+    assert tcl_lsp_py.lexer_version() == tcl_lsp_rust.lexer_version()
+    # Same folding output for the same source.
+    src = "proc demo {} {\n  puts hi\n  puts bye\n}\n"
+    assert tcl_lsp_py.folding_ranges(src, "tcl8.6") == tcl_lsp_rust.folding_ranges(src, "tcl8.6")
+    # Pyclasses share their canonical module.
+    assert tcl_lsp_py.TokenType.__module__ == "tcl_lsp_py"
+    assert tcl_lsp_rust.TokenType.__module__ == "tcl_lsp_py"
+
+
 def test_lexer_version_is_non_empty_string() -> None:
     version = tcl_lsp_rust.lexer_version()
     assert isinstance(version, str)

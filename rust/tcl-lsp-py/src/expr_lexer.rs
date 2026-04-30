@@ -7,7 +7,7 @@ use tcl_lexer::{
     tokenise_expr as core_tokenise, ExprToken as CoreExprToken, ExprTokenType as CoreExprTokenType,
 };
 
-#[pyclass(name = "ExprTokenType", eq, hash, frozen, module = "tcl_lsp_rust")]
+#[pyclass(name = "ExprTokenType", eq, hash, frozen, module = "tcl_lsp_py")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyExprTokenType {
     #[pyo3(name = "NUMBER")]
@@ -103,7 +103,7 @@ impl From<PyExprTokenType> for CoreExprTokenType {
     }
 }
 
-#[pyclass(name = "ExprToken", eq, hash, frozen, module = "tcl_lsp_rust")]
+#[pyclass(name = "ExprToken", eq, hash, frozen, module = "tcl_lsp_py")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyExprToken {
     kind: PyExprTokenType,

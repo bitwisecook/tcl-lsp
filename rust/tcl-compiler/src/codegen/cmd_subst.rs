@@ -255,7 +255,7 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
 // CodegenCtx methods — emission helpers for command substitutions
 // ---------------------------------------------------------------------------
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Emit a single arg from a parsed command substitution.
     ///
     /// Handles: `$var` loads, `$={name}` braced scalars, `[cmd]`
@@ -1169,6 +1169,7 @@ impl CodegenCtx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::CommandRegistry;
 
     // -- unroll_nested_set --
 
@@ -1268,14 +1269,16 @@ mod tests {
 
     #[test]
     fn emit_arg_literal() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_cmd_subst_arg("hello", false);
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
     }
 
     #[test]
     fn emit_arg_var_ref() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.emit_cmd_subst_arg("${x}", false);
         assert_eq!(ctx.instructions[0].op, Op::LOAD_SCALAR1);
     }
@@ -1284,7 +1287,8 @@ mod tests {
 
     #[test]
     fn emit_generic_simple() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_generic_cmd_subst("puts", &[("hello".into(), false)]);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert_eq!(ops, vec![Op::PUSH1, Op::PUSH1, Op::INVOKE_STK1]);
@@ -1294,7 +1298,8 @@ mod tests {
 
     #[test]
     fn inline_expr() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[expr {1+2}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         // Should produce push "1", push "2", add
@@ -1303,7 +1308,8 @@ mod tests {
 
     #[test]
     fn inline_incr_proc() {
-        let mut ctx = CodegenCtx::new(true, &["x"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
         ctx.emit_inline_cmd_subst("[incr x]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::INCR_SCALAR1_IMM));
@@ -1311,7 +1317,8 @@ mod tests {
 
     #[test]
     fn inline_string_length() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[string length ${x}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::STR_LEN));
@@ -1319,7 +1326,8 @@ mod tests {
 
     #[test]
     fn inline_list() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[list a b c]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::LIST));
@@ -1327,7 +1335,8 @@ mod tests {
 
     #[test]
     fn inline_multicommand_falls_back() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_inline_cmd_subst("[set x 1; set y 2]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::EVAL_STK));
@@ -1342,7 +1351,8 @@ mod tests {
     /// to a different label.
     #[test]
     fn inline_string_equal_nested_cmd_label_resolves() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         // Nested `[expr ...]` does not allocate labels, but nested
         // `[array names ...]` wraps in a startCommand, which does.
         ctx.emit_inline_cmd_subst("[string equal [array names a] foo]");
@@ -1366,7 +1376,8 @@ mod tests {
 
     #[test]
     fn inline_string_compare_nested_cmd_label_resolves() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_inline_cmd_subst("[string compare [array names a] foo]");
         let has_str_cmp = ctx.instructions.iter().any(|i| i.op == Op::STR_CMP);
         assert!(has_str_cmp, "expected STR_CMP in output");
@@ -1387,7 +1398,8 @@ mod tests {
 
     #[test]
     fn try_list_expand_concat_matches_two_vars() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         assert!(ctx.try_list_expand_concat("[list {*}$a {*}$b]"));
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         // push "a"; loadStk; push "b"; loadStk; listConcat
@@ -1405,20 +1417,23 @@ mod tests {
 
     #[test]
     fn try_list_expand_concat_rejects_single_var() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         assert!(!ctx.try_list_expand_concat("[list {*}$a]"));
         assert!(ctx.instructions.is_empty());
     }
 
     #[test]
     fn try_list_expand_concat_rejects_three_vars() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         assert!(!ctx.try_list_expand_concat("[list {*}$a {*}$b {*}$c]"));
     }
 
     #[test]
     fn try_list_expand_concat_rejects_non_expanded_arg() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         // Literal first arg without {*} prefix — falls back to generic path.
         assert!(!ctx.try_list_expand_concat("[list a {*}$b]"));
     }
@@ -1429,7 +1444,8 @@ mod tests {
         // a loop target in scope, the pattern still claims the value
         // and emits `[break]` as a literal list element. The generic
         // fallback is never reached.
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         assert!(ctx.try_inline_list_with_break_continue("[list a [break] c]"));
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         // No JUMP4 since no break target.
@@ -1440,7 +1456,8 @@ mod tests {
 
     #[test]
     fn try_inline_list_with_break_emits_jump_to_target() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.break_target = Some("loop_break_1".into());
         assert!(ctx.try_inline_list_with_break_continue("[list a [break] c]"));
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
@@ -1455,7 +1472,8 @@ mod tests {
 
     #[test]
     fn try_inline_list_without_break_returns_false() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.break_target = Some("loop_break_1".into());
         // No [break]/[continue] inside — should not match.
         assert!(!ctx.try_inline_list_with_break_continue("[list a b c]"));
@@ -1465,7 +1483,8 @@ mod tests {
     /// twice when falling back to the generic invoke path.
     #[test]
     fn inline_lrange_variable_indices_no_double_push() {
-        let mut ctx = CodegenCtx::new(true, &["lst", "a", "b"]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["lst", "a", "b"], &registry);
         ctx.emit_inline_cmd_subst("[lrange ${lst} ${a} ${b}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         // Should be: push "lrange"; load lst; load a; load b; invokeStk1 4
