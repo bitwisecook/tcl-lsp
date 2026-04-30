@@ -99,8 +99,16 @@ def _is_pure_command(
     args: tuple[str, ...],
     interproc: InterproceduralAnalysis | None = None,
     caller_name: str = "::top",
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> bool:
-    """Return True if the command invocation is pure for GVN purposes."""
+    """Return True if the command invocation is pure for GVN purposes.
+
+    ``traced_commands`` and ``has_dynamic_trace`` come from
+    :meth:`IRModule.traced_commands` / :meth:`IRModule.has_dynamic_trace`
+    — calls to a command with an active execution trace are never pure
+    because the trace body composes side-effects in (issue #251).
+    """
     callee_summary = None
     if interproc is not None:
         known = set(interproc.procedures)
@@ -108,7 +116,13 @@ def _is_pure_command(
         if target is None:
             target = _normalise_qualified_name(command)
         callee_summary = interproc.procedures.get(target)
-    effect = classify_side_effects(command, args, callee_summary=callee_summary)
+    effect = classify_side_effects(
+        command,
+        args,
+        callee_summary=callee_summary,
+        traced_commands=traced_commands,
+        has_dynamic_trace=has_dynamic_trace,
+    )
     return effect.pure
 
 
@@ -117,8 +131,16 @@ def _is_worth_reporting(
     interproc: InterproceduralAnalysis | None = None,
     caller_name: str = "::top",
     args: tuple[str, ...] = (),
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> bool:
-    """Return True if redundant use of this command is worth flagging."""
+    """Return True if redundant use of this command is worth flagging.
+
+    A traced command has unknowable per-call effects so CSE/reporting
+    must skip it (issue #251).
+    """
+    if has_dynamic_trace or (traced_commands is not None and command in traced_commands):
+        return False
     if REGISTRY.is_cse_candidate(command):
         return True
     # User-defined pure procs are always worth reporting.
@@ -271,6 +293,8 @@ def _statement_occurrences(
     *,
     interproc: InterproceduralAnalysis | None = None,
     caller_name: str = "::top",
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> list[_ExprOccurrence]:
     """Collect pure expression occurrences from one statement."""
     occurrences: list[_ExprOccurrence] = []
@@ -280,8 +304,17 @@ def _statement_occurrences(
         ir_stmt.args,
         interproc,
         caller_name,
+        traced_commands=traced_commands,
+        has_dynamic_trace=has_dynamic_trace,
     ):
-        if _is_worth_reporting(ir_stmt.command, interproc, caller_name, args=ir_stmt.args):
+        if _is_worth_reporting(
+            ir_stmt.command,
+            interproc,
+            caller_name,
+            args=ir_stmt.args,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
+        ):
             stmt_range = getattr(ir_stmt, "range", None)
             if stmt_range is not None:
                 occurrences.append(
@@ -300,7 +333,14 @@ def _statement_occurrences(
         if parsed is None:
             continue
         cmd_name, cmd_args = parsed
-        if not _is_pure_command(cmd_name, cmd_args, interproc, caller_name):
+        if not _is_pure_command(
+            cmd_name,
+            cmd_args,
+            interproc,
+            caller_name,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
+        ):
             continue
         occurrences.append(
             _ExprOccurrence(
@@ -322,6 +362,8 @@ def _statement_writes_state(
     *,
     interproc: InterproceduralAnalysis | None = None,
     caller_name: str = "::top",
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> bool:
     """Return True when statement effects must invalidate value numbering."""
     if isinstance(ir_stmt, IRBarrier):
@@ -339,6 +381,8 @@ def _statement_writes_state(
             ir_stmt.command,
             ir_stmt.args,
             callee_summary=callee_summary,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
         )
         _reads, writes = effect.to_effect_regions()
         if writes != EffectRegion.NONE:
@@ -356,7 +400,13 @@ def _statement_writes_state(
             if target is None:
                 target = _normalise_qualified_name(cmd_name)
             callee_summary = interproc.procedures.get(target)
-        effect = classify_side_effects(cmd_name, cmd_args, callee_summary=callee_summary)
+        effect = classify_side_effects(
+            cmd_name,
+            cmd_args,
+            callee_summary=callee_summary,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
+        )
         _reads, writes = effect.to_effect_regions()
         if writes != EffectRegion.NONE:
             return True
@@ -546,6 +596,8 @@ def _collect_function_occurrence_events(
     source: str,
     *,
     interproc: InterproceduralAnalysis | None = None,
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> tuple[dict[BlockName, tuple[_ExprOccurrence | None, ...]], list[_ExprOccurrence]]:
     """Collect per-block occurrence streams; ``None`` marks a barrier kill."""
     executable = set(cfg.blocks) - analysis.unreachable_blocks
@@ -571,6 +623,8 @@ def _collect_function_occurrence_events(
                 source,
                 interproc=interproc,
                 caller_name=cfg.name,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             ):
                 events.append(None)
                 continue
@@ -583,6 +637,8 @@ def _collect_function_occurrence_events(
                 idx,
                 interproc=interproc,
                 caller_name=cfg.name,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             )
             events.extend(occurrences)
             all_occurrences.extend(occurrences)
@@ -612,6 +668,8 @@ def _find_partial_redundancies(
     source: str,
     *,
     interproc: InterproceduralAnalysis | None = None,
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> list[RedundantComputation]:
     """Detect path-partial redundancies via may/must-availability."""
     executable = set(cfg.blocks) - analysis.unreachable_blocks
@@ -624,6 +682,8 @@ def _find_partial_redundancies(
         analysis,
         source,
         interproc=interproc,
+        traced_commands=traced_commands,
+        has_dynamic_trace=has_dynamic_trace,
     )
     if not all_occurrences:
         return []
@@ -784,6 +844,8 @@ def _find_loop_invariants(
     source: str,
     *,
     interproc: InterproceduralAnalysis | None = None,
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> list[RedundantComputation]:
     """Detect loop-invariant pure computations (LICM-style hints)."""
     executable = set(cfg.blocks) - analysis.unreachable_blocks
@@ -796,6 +858,8 @@ def _find_loop_invariants(
         analysis,
         source,
         interproc=interproc,
+        traced_commands=traced_commands,
+        has_dynamic_trace=has_dynamic_trace,
     )
     if not events_by_block:
         return []
@@ -847,7 +911,13 @@ def _find_loop_invariants(
                     continue
 
                 command = occ.key[1] if len(occ.key) > 1 else ""
-                if not _is_worth_reporting(command, interproc, cfg.name):
+                if not _is_worth_reporting(
+                    command,
+                    interproc,
+                    cfg.name,
+                    traced_commands=traced_commands,
+                    has_dynamic_trace=has_dynamic_trace,
+                ):
                     continue
 
                 results.append(
@@ -873,6 +943,8 @@ def _gvn_walk_function(
     source: str,
     *,
     interproc: InterproceduralAnalysis | None = None,
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> list[RedundantComputation]:
     """Walk one function in dominator-tree preorder, detecting CSE."""
     table = _ScopedValueTable()
@@ -903,6 +975,8 @@ def _gvn_walk_function(
                 source,
                 interproc=interproc,
                 caller_name=cfg.name,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             ):
                 table.kill_all()
                 continue
@@ -915,6 +989,8 @@ def _gvn_walk_function(
                 idx,
                 interproc=interproc,
                 caller_name=cfg.name,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             )
             for occ in occurrences:
                 existing = table.lookup(occ.key)
@@ -1306,6 +1382,9 @@ def find_redundant_computations(
     if cu is None:
         return []
 
+    traced_commands = cu.ir_module.traced_commands()
+    has_dynamic_trace = cu.ir_module.has_dynamic_trace()
+
     results: list[RedundantComputation] = []
     results.extend(
         _gvn_walk_function(
@@ -1314,6 +1393,8 @@ def find_redundant_computations(
             cu.top_level.analysis,
             source,
             interproc=cu.interproc,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
         )
     )
     results.extend(
@@ -1323,6 +1404,8 @@ def find_redundant_computations(
             cu.top_level.analysis,
             source,
             interproc=cu.interproc,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
         )
     )
     results.extend(
@@ -1332,6 +1415,8 @@ def find_redundant_computations(
             cu.top_level.analysis,
             source,
             interproc=cu.interproc,
+            traced_commands=traced_commands,
+            has_dynamic_trace=has_dynamic_trace,
         )
     )
     for fu in cu.procedures.values():
@@ -1342,6 +1427,8 @@ def find_redundant_computations(
                 fu.analysis,
                 source,
                 interproc=cu.interproc,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             )
         )
         results.extend(
@@ -1351,6 +1438,8 @@ def find_redundant_computations(
                 fu.analysis,
                 source,
                 interproc=cu.interproc,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             )
         )
         results.extend(
@@ -1360,6 +1449,8 @@ def find_redundant_computations(
                 fu.analysis,
                 source,
                 interproc=cu.interproc,
+                traced_commands=traced_commands,
+                has_dynamic_trace=has_dynamic_trace,
             )
         )
 

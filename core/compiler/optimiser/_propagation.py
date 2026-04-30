@@ -935,10 +935,18 @@ def optimise_load_forwarding(
                     )
                     if target is not None:
                         callee_summary = ctx.interproc.procedures.get(target)
+                traced_commands = (
+                    ctx.ir_module.traced_commands() if ctx.ir_module is not None else None
+                )
+                has_dynamic_trace = (
+                    ctx.ir_module.has_dynamic_trace() if ctx.ir_module is not None else False
+                )
                 effect = classify_side_effects(
                     between_stmt.command,
                     between_stmt.args,
                     callee_summary=callee_summary,
+                    traced_commands=traced_commands,
+                    has_dynamic_trace=has_dynamic_trace,
                 )
                 if not effect.pure:
                     unsafe = True

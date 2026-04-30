@@ -340,6 +340,40 @@ class IRMethodDef:
     range: Range | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CommandTrace:
+    """A static record of a ``trace add/remove execution`` directive.
+
+    Captured at lowering time so downstream side-effect classification
+    can union the trace body's effects into every call to ``target``.
+    Variable / command traces are not captured here — only execution
+    traces, which are the form whose body composes into the traced
+    command's effective side-effects (issue #251).
+
+    ``body`` is ``None`` when the body argument is dynamic
+    (non-literal — e.g. a ``$variable`` or ``[command]`` substitution);
+    callers must treat dynamic bodies as worst-case.
+    """
+
+    target: str
+    """Command name being traced (e.g. ``"set"``, ``"::ns::proc"``)."""
+
+    ops: tuple[str, ...]
+    """Operations the trace fires on (``"enter"``/``"leave"``/``"enterstep"``/``"leavestep"``)."""
+
+    body: str | None
+    """Literal trace-body script, or ``None`` when the body is dynamic."""
+
+    body_range: Range | None = None
+    """Source range of the body argument (when known)."""
+
+    action: str = "add"
+    """``"add"`` or ``"remove"`` — distinguishes registration from removal."""
+
+    target_dynamic: bool = False
+    """True when the *target* command name itself is a non-literal."""
+
+
 @dataclass
 class IRModule:
     top_level: IRScript = field(default_factory=IRScript)
@@ -368,6 +402,46 @@ class IRModule:
     # path, where the interpreter can apply the correct
     # "unknown command" diagnostic.
     namespace_exports: tuple[tuple[str, str], ...] = ()
+
+    # ``trace add/remove execution`` directives captured at lowering
+    # time.  Traces installed on a command compose into that command's
+    # effective side-effects: a trace on a registry-pure command (e.g.
+    # ``set``) is no longer pure because the trace body runs around
+    # every call.  Side-effect classification consults
+    # :meth:`traced_commands` to gate purity / CSE on traced names.
+    # See ``docs/design/compiler/side-effects-system.md`` for the
+    # composition rule and ``docs/design/compiler/lowering-contracts.md``
+    # for the capture contract.  Out of scope here:
+    # ``trace add command`` and ``trace add variable`` (different
+    # semantics — handled, if at all, in their own captures).
+    command_traces: tuple["CommandTrace", ...] = ()
+
+    def traced_commands(self) -> frozenset[str]:
+        """Return the set of command names with a net active execution trace.
+
+        A trace is "net active" when there are more ``trace add execution``
+        directives for the target than ``trace remove execution`` directives
+        — modelling the global command-table state at end-of-script.
+        Dynamic targets (``target_dynamic=True``) are not folded into the
+        named set; callers that need the over-approximation must check
+        :meth:`has_dynamic_trace` separately.
+        """
+        counts: dict[str, int] = {}
+        for trace in self.command_traces:
+            if trace.target_dynamic:
+                continue
+            delta = 1 if trace.action == "add" else -1
+            counts[trace.target] = counts.get(trace.target, 0) + delta
+        return frozenset(name for name, count in counts.items() if count > 0)
+
+    def has_dynamic_trace(self) -> bool:
+        """True when any ``trace add execution`` had a non-literal target.
+
+        When this flag is set, downstream effect classification cannot
+        rule out *any* command being traced and must pessimise calls
+        whose purity matters for correctness.
+        """
+        return any(t.target_dynamic and t.action == "add" for t in self.command_traces)
 
 
 def when_event_name(qualified_name: str) -> str:
