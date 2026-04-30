@@ -63,8 +63,8 @@ class GetsCommand(CommandDef):
             ),
             wasm_runtime_import=WasmRuntimeImport(
                 import_key="tcl_gets",
-                argc=1,
-                params=("i32",),
+                argc=2,
+                params=("i32", "i32"),
                 results=("i32",),
             ),
         )
