@@ -1,0 +1,29 @@
+{
+  "seed": 1774200012,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm error vs wasm ok",
+      "backend_a": "vm",
+      "backend_b": "wasm",
+      "detail_a": "can't read \"count\": no such variable",
+      "detail_b": "(ok)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt error vs wasm ok",
+      "backend_a": "vm_opt",
+      "backend_b": "wasm",
+      "detail_a": "can't read \"count\": no such variable",
+      "detail_b": "(ok)"
+    }
+  ],
+  "kind": "error_status",
+  "backends": [
+    "vm",
+    "vm_opt",
+    "wasm"
+  ],
+  "fixed": false,
+  "category": "wasm-ignores-missing-var"
+}

@@ -7,6 +7,7 @@ the results:
   2. Our VM — optimised
   3. Our parser (tokenise round-trip)
   4. C tclsh (if available in PATH)
+  5. Our WASM codegen + Zig runtime under wasmtime (optional)
 
 Any mismatch in output, return code, or error/no-error status is flagged
 as a finding.
@@ -306,6 +307,8 @@ def run_differential(
     use_tclsh: bool = True,
     tclsh_path: str | None = None,
     bad_input: bool = False,
+    use_wasm: bool = False,
+    wasm_timeout: float = 5.0,
 ) -> FuzzResult:
     """Run a script through all backends and compare results.
 
@@ -322,6 +325,12 @@ def run_differential(
     bad_input:
         Mark this script as intentionally corrupted so only crashes
         (not error-status mismatches) are flagged.
+    use_wasm:
+        Whether to also run via the Tcl→WASM codegen + Zig runtime
+        under wasmtime.  Skipped silently when the wasmtime Python
+        bindings or the Zig runtime artefact are unavailable.
+    wasm_timeout:
+        Per-script timeout for the WASM backend (seconds).
     """
     result = FuzzResult(seed=seed, script=script, bad_input=bad_input)
 
@@ -343,7 +352,15 @@ def run_differential(
         if tclsh:
             result.results[f"tclsh({tclsh})"] = _run_tclsh(script, tclsh)
 
-    # 5. Compare
+    # 5. WASM codegen + Zig runtime (if requested and available)
+    if use_wasm:
+        from .wasm_backend import is_available as _wasm_available  # noqa: PLC0415
+        from .wasm_backend import run_wasm as _run_wasm  # noqa: PLC0415
+
+        if _wasm_available():
+            result.results["wasm"] = _run_wasm(script, timeout=wasm_timeout)
+
+    # 6. Compare
     result.mismatches = _compare_results(result.results)
 
     return result

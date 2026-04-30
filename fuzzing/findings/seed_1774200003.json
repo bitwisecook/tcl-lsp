@@ -1,0 +1,29 @@
+{
+  "seed": 1774200003,
+  "mismatches": [
+    {
+      "kind": "error_status",
+      "description": "vm error vs wasm ok",
+      "backend_a": "vm",
+      "backend_b": "wasm",
+      "detail_a": "negative shift argument",
+      "detail_b": "(ok)"
+    },
+    {
+      "kind": "error_status",
+      "description": "vm_opt error vs wasm ok",
+      "backend_a": "vm_opt",
+      "backend_b": "wasm",
+      "detail_a": "negative shift argument",
+      "detail_b": "(ok)"
+    }
+  ],
+  "kind": "error_status",
+  "backends": [
+    "vm",
+    "vm_opt",
+    "wasm"
+  ],
+  "fixed": false,
+  "category": "wasm-accepts-negative-shift"
+}
