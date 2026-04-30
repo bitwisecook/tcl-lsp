@@ -268,6 +268,28 @@ class TestDialectProfiles:
         result = analyse(src)
         assert all(d.code != "W002" for d in result.diagnostics)
 
+    def test_w307_not_suppressed_for_composite_var_command_word(self):
+        # The CONSTSET-based W307 suppression must also gate on
+        # single-token-ness: ``${cmd}x`` is the concatenation
+        # ``<value>x``, not the variable's value, so the lattice
+        # resolution of ``$cmd`` to a known command name does not
+        # tell us what the actual dispatched command is.  W307 must
+        # still fire on the composite outer word.
+        configure_signatures(dialect="tcl8.6")
+        src = "set cmd puts\n${cmd}x hello\n"
+        result = analyse(src)
+        assert any(d.code == "W307" for d in result.diagnostics)
+
+    def test_w308_not_emitted_for_composite_cmd_substitution_word(self):
+        # ``[Dog new]x extra`` dispatches to ``<object_handle>x``,
+        # not ``[Dog new] extra`` — so even though ``Dog new`` returns
+        # a Dog instance, the method-validation post-pass must not
+        # treat ``extra`` as a method call on Dog.
+        configure_signatures(dialect="tcl8.6")
+        src = "oo::class create Dog {\n    method bark {} { return woof }\n}\n[Dog new]x extra\n"
+        result = analyse(src)
+        assert all(d.code != "W308" for d in result.diagnostics)
+
     def test_w002_fires_for_fully_qualified_disallowed_command(self):
         # The command registry is keyed without a leading ``::``; W002
         # must strip it so ``::open`` under the iRules dialect is
