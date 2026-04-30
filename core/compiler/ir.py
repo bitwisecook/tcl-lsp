@@ -361,6 +361,15 @@ class IRProcedure:
     # Used as the gate for ``IF_SINGLE_CALL``.  ``0`` means the
     # catalogue hasn't run.
     static_call_count: int = 0
+    # PR #237 review: True when the compiler synthesised this
+    # procedure (e.g. as a helper extracted by an optimisation
+    # pass) and is therefore safe to delete after inlining its
+    # call sites.  Lowering from user source code never sets this
+    # — Tcl ``proc`` definitions register externally observable
+    # commands and must survive inlining unconditionally.  The
+    # dead-proc-removal pass in :mod:`core.compiler.inlining`
+    # consults this flag before pruning.
+    compiler_synthetic: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -71,19 +71,27 @@ from ..ir import (
 _VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)")
 
 
-def dce_module(module: IRModule) -> IRModule:
+def dce_module(module: IRModule, summaries: object | None = None) -> IRModule:
     """Return a new module with dead local stores removed.
 
-    Only procs that the inline catalogue tagged ``ALWAYS`` (i.e.
-    ``pure_leaf`` after the interprocedural pass) are eligible.
-    Other procs may have eval-fallback / upvar / info reads the
-    syntactic walk can't see, so their assignments stay put.
+    Eligibility (PR #237 review): consult the per-proc
+    ``safe_to_dce`` predicate from the post-fixpoint escape
+    summary when available — that's the precise proof for
+    "this proc's locals are unobservable externally".  When
+    ``summaries`` is None (legacy callers) we fall back to the
+    inline catalogue tag (``ALWAYS`` ⇒ ``pure_leaf`` ⇒
+    over-conservatively safe), which is strictly stricter.
+
+    Procs whose locals ARE observable (upvar source, info
+    fallback, dynamic_barrier) keep their stores intact because
+    the syntactic read-walk can't see those reach-ins.
     """
 
     new_procs: dict[str, IRProcedure] = {}
     changed_any = False
     for qname, proc in module.procedures.items():
-        if proc.inline_decision is not InlineDecision.ALWAYS:
+        eligible = _proc_is_dce_eligible(proc, summaries, qname)
+        if not eligible:
             new_procs[qname] = proc
             continue
         new_body = _dce_script(proc.body, params=set(proc.params))
@@ -95,6 +103,32 @@ def dce_module(module: IRModule) -> IRModule:
     if not changed_any:
         return module
     return replace(module, procedures=new_procs)
+
+
+def _proc_is_dce_eligible(
+    proc: IRProcedure,
+    summaries: object | None,
+    qname: str,
+) -> bool:
+    """Decide whether DCE may rewrite *proc*'s body.
+
+    Prefers the per-proc ``safe_to_dce`` predicate when an
+    interprocedural-resolved summaries map is supplied.  Otherwise
+    falls back to the catalogue-tagged ``InlineDecision.ALWAYS``
+    gate — strictly stricter, so the legacy path stays sound.
+    """
+    if summaries is not None:
+        # Late import + duck-typed lookup so this module stays
+        # decoupled from the var-escape implementation while
+        # still consuming its precise predicate when present.
+        try:
+            summary = summaries[qname]  # type: ignore[index]
+        except (KeyError, TypeError):
+            summary = None
+        if summary is not None and getattr(summary, "safe_to_dce", False):
+            return True
+        return False
+    return proc.inline_decision is InlineDecision.ALWAYS
 
 
 def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:

@@ -253,7 +253,11 @@ def classify_proc(
     inlining is size-neutral), and ``NEVER``.
     """
 
-    if summary is None or not summary.pure_leaf:
+    # PR #237 review: ask the precise predicate.  ``safe_to_inline``
+    # is the relevant proof for body-relocation safety; using it
+    # here lets the analysis tighten in the future without touching
+    # the catalogue policy.
+    if summary is None or not summary.safe_to_inline:
         return InlineDecision.NEVER
     body_size = count_statements(proc.body)
     if body_size <= small_threshold:

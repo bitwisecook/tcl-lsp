@@ -651,7 +651,21 @@ def _rewrite_stmt(
         return None
 
     if isinstance(stmt, IRBlock):
-        new_body = _rewrite_script(stmt.body, caller_qname, inlinable, summaries, counter)
+        # ``namespace eval ::ns { … }`` lowers to an IRBlock whose
+        # ``namespace`` field carries the qualified namespace the
+        # body was lowered in.  Calls inside the block must resolve
+        # against that namespace, not the outer caller's — without
+        # this fix a same-namespace helper call (``Option`` →
+        # ``::ns::Option``) silently fell through to the global
+        # candidate ``::Option`` (PR #237 review).  We synthesise a
+        # caller qname under the block's namespace so the
+        # ``_name_candidates`` walker (which strips the trailing
+        # name component to get the enclosing namespace) lands on
+        # ``block.namespace`` first, then walks up to ``::``.
+        inner_caller = caller_qname
+        if stmt.namespace and stmt.namespace != "::":
+            inner_caller = f"{stmt.namespace}::__inblock__"
+        new_body = _rewrite_script(stmt.body, inner_caller, inlinable, summaries, counter)
         if new_body is stmt.body:
             return None
         return [replace(stmt, body=new_body)]
@@ -795,11 +809,29 @@ def _splice_call_site(
             # exit the wrapper.  After the loop, the result is
             # in ``__result``; if the call is terminal we emit a
             # caller-level ``return $__result`` to forward it.
+            #
+            # **Implicit-trailing-return preservation** (PR #237
+            # review).  When the body falls off the end (no
+            # trailing IRReturn), Tcl's implicit-return rule says
+            # the proc's return value is the value of the last
+            # command.  ``_capture_implicit_return_value`` returns
+            # the literal string for trivial trailing assignments
+            # (``set x V`` returns ``V``); for any other shape we
+            # decline so the call falls back to runtime dispatch
+            # which has correct implicit-return semantics.
+            implicit: str | None = None
+            renamed_stmts = list(renamed_body.statements)
+            if not body_has_trailing_return and renamed_stmts:
+                trailing = renamed_stmts[-1]
+                implicit = _capture_implicit_return_value(trailing)
+                if implicit is None:
+                    return None  # decline; runtime handles correctly
             result_var = f"__inline_{cid}__RESULT"
             wrapped = _wrap_with_irreturn_loop(
                 renamed_body,
                 result_var=result_var,
                 call=call,
+                implicit_value=implicit,
             )
             if is_terminal:
                 wrapped.append(
@@ -892,11 +924,52 @@ def _has_any_irreturn(script: IRScript | None) -> bool:
     return False
 
 
+def _capture_implicit_return_value(stmt: object) -> str | None:
+    """Return the literal string the body's last statement contributes
+    as Tcl's implicit return value, or ``None`` when the shape is too
+    complex for the inliner to capture safely.
+
+    Tcl: when a proc body falls off the end without an explicit
+    ``return``, the value of the last command becomes the proc's
+    return value.  ``set y V`` returns ``V``; ``incr y`` returns
+    the new value of ``y``; ``puts X`` returns ``""``; an
+    ``[expr {…}]`` invocation returns the expression's value.
+
+    The inliner's wrap path needs to capture that value into the
+    synthesised result variable so the final ``return $__result``
+    forwards what the proc would have returned naturally.
+
+    Currently we recognise:
+
+    * :class:`IRAssignConst` — Tcl ``set`` returns the assigned
+      literal.  Capture is the literal string verbatim.
+    * :class:`IRAssignValue` — same; the value field is the
+      Tcl word that ``set`` would also have returned.
+
+    Other statement types (calls, expressions, control flow) need
+    deeper rewriting we don't do today; callers fall back to
+    declining the inline so the runtime dispatch path handles
+    the implicit-return semantics correctly.
+
+    PR #237 review: previously the wrap path silently *lost* the
+    implicit-return value, so e.g. ``proc f {} {if {$x} {return 1};
+    set y 2}`` returned ``""`` from the inlined wrap when the
+    if-branch was false instead of ``2``.
+    """
+
+    if isinstance(stmt, IRAssignConst):
+        return stmt.value
+    if isinstance(stmt, IRAssignValue):
+        return stmt.value
+    return None
+
+
 def _wrap_with_irreturn_loop(
     renamed_body: IRScript,
     *,
     result_var: str,
     call: IRCall,
+    implicit_value: str | None = None,
 ) -> list:
     """Wrap ``renamed_body`` in a one-shot ``for`` loop that
     routes IRReturn-as-break.
@@ -906,8 +979,18 @@ def _wrap_with_irreturn_loop(
         set __result ""
         for {} {1} {} {
             <body with each IRReturn → set __result <v>; break>
+            [set __result <implicit_value>]   # iff body falls off end
             break  # explicit fall-through exit
         }
+
+    ``implicit_value``, when provided, captures the body's
+    implicit-trailing-return value into ``result_var`` *before* the
+    fall-through ``break``.  This preserves Tcl's "value of the
+    last command becomes the proc's return value" semantics for
+    bodies that don't end with an explicit IRReturn.  Callers pass
+    ``None`` when no implicit capture is needed (e.g. body has a
+    trailing IRReturn already, or the call site doesn't observe
+    the return value).
 
     Returns the synthesised statement list — the caller appends
     a ``return $__result`` after the loop iff the call site is
@@ -916,15 +999,26 @@ def _wrap_with_irreturn_loop(
     # Step 1: rewrite IRReturn → set result_var <value>; break.
     rewritten = _substitute_irreturn(renamed_body, result_var, call.range)
 
-    # Step 2: append a final break to ensure the loop exits even
-    # when no IRReturn fires.
-    body_with_break = list(rewritten.statements) + [
+    # Step 2: assemble the body.  When ``implicit_value`` is
+    # provided, capture it into the result var on the
+    # fall-through path so a body without a trailing IRReturn
+    # still carries its last-command's value forward.
+    body_with_break: list = list(rewritten.statements)
+    if implicit_value is not None:
+        body_with_break.append(
+            IRAssignValue(
+                range=call.range,
+                name=result_var,
+                value=implicit_value,
+            )
+        )
+    body_with_break.append(
         IRCall(
             range=call.range,
             command="break",
             args=(),
         )
-    ]
+    )
 
     # Step 3: build the wrap.  Init the result var to empty, then
     # loop with a constant-true condition.  We use ``IRWhile``
@@ -1329,48 +1423,80 @@ def _drop_dead_procs(
 ) -> IRModule:
     """Remove dead inlinable procs from the module.
 
-    **Currently disabled (PR #237 review).**  The pass formerly
-    removed every catalogue-eligible proc whose static call sites
-    were spliced away, on the theory that ``pure_leaf`` + zero
-    remaining IRCall references made the proc unreachable.  That
-    theory is wrong for ordinary user-defined Tcl procs:
+    **Eligibility (PR #237 review).**  Only procs flagged
+    ``compiler_synthetic`` on :class:`IRProcedure` are eligible
+    for removal.  User-defined Tcl ``proc`` definitions register
+    externally observable commands — host eval, ``info procs``,
+    ``namespace import`` from another compilation unit, ``rename``
+    — and must survive inlining unconditionally.  The synthetic
+    flag is set explicitly by passes that *introduce* procs (no
+    such pass exists today, hence this function is a no-op in
+    practice for current modules).  All other gates from the
+    earlier version still apply on top of the synthetic check:
 
-    * Tcl ``proc`` definitions register *commands* in the
-      interpreter's namespace.  A pure_leaf helper is just as
-      observable as any other command — the embedding host can
-      call it via the public eval API, tcltest fixtures probe it
-      with ``info procs`` / ``namespace which``, ``namespace
-      import`` from another compilation unit picks it up, and
-      ``rename`` aliases it.  None of those reach through an
-      IRCall, so the syntactic scan sees zero references and
-      the proc *looks* dead.
-    * The PR's textual reference scan caught the
-      ``rename once {}`` / ``info procs once`` / ``interp alias``
-      classes inside the same compilation unit, but it can't see
-      cross-module references and it can't see host-side eval
-      calls.  Removing the proc silently breaks those callers.
+    * The proc must be in ``candidates`` (the catalogue's
+      inlinable set — already proved pure_leaf, so no observable
+      side-effect from removal).
+    * Its pre-inline ``static_call_count`` must be ``> 0`` —
+      synthetic procs with zero internal call sites are by
+      construction unused, but we keep the counter check so the
+      removal predicate stays consistent with the catalogue
+      tagging step.
+    * Post-inline reference set must not mention the proc by
+      name — neither as a resolved IRCall command nor as a
+      literal-text mention (the textual scan catches dynamic
+      ``rename`` / ``info procs`` / ``interp alias`` patterns).
 
-    A correct version of this pass needs an explicit "compiler-
-    private synthetic proc" marker on :class:`IRProcedure` so the
-    inliner can drop only procs *it* synthesised.  Until that
-    marker exists, this function is a no-op: every proc stays in
-    the module regardless of whether its static IRCall sites were
-    inlined away.
-
-    Tradeoff: inlining without proc removal is pure code
-    duplication at the splice site (the body is emitted twice —
-    inline at the call AND as a standalone wasm function).  We
-    keep the perf benefit at the call site (no call overhead, no
+    Tradeoff for non-synthetic procs: inlining is pure code
+    duplication at the splice site (body emitted twice — inline
+    at the call AND as the standalone wasm function).  We keep
+    the perf benefit at the call site (no call overhead, no
     frame pop/push) while preserving the proc's observability.
-    Binary-size cost is the duplicated bodies.
     """
-    # Intentionally do not consult ``candidates`` — keeping the
-    # parameter for API stability with the call sites above.  The
-    # ``summaries`` parameter is similarly preserved for when the
-    # synthetic-proc marker lands.
-    _ = candidates
-    _ = summaries
-    return module
+    if not candidates:
+        return module
+
+    # Restrict the candidate set further to only ``compiler_
+    # synthetic`` procs — user-defined procs always stay.
+    synthetic_candidates: set[str] = {
+        qname for qname in candidates if module.procedures[qname].compiler_synthetic
+    }
+    if not synthetic_candidates:
+        return module
+
+    name_index: dict[str, set[str]] = {}
+    for qname in synthetic_candidates:
+        bare = qname[2:] if qname.startswith("::") else qname
+        name_index.setdefault(bare, set()).add(qname)
+        name_index.setdefault(qname, set()).add(qname)
+
+    referenced: set[str] = set()
+    _collect_referenced_procs(module.top_level, "::", summaries, referenced, name_index)
+    for qname, proc in module.procedures.items():
+        _collect_referenced_procs(proc.body, qname, summaries, referenced, name_index)
+
+    new_procs: dict[str, IRProcedure] = {}
+    dropped: set[str] = set()
+    for qname, proc in module.procedures.items():
+        eligible = (
+            qname in synthetic_candidates and proc.static_call_count > 0 and qname not in referenced
+        )
+        if eligible:
+            dropped.add(qname)
+            continue
+        new_procs[qname] = proc
+    if not dropped:
+        return module
+
+    # Also strip the top-level ``proc <name> …`` IRCall that
+    # defines each dropped synthetic proc.  Without this the
+    # codegen still tries to register the proc at module load
+    # time, but the corresponding compiled function is gone —
+    # observed during development as ``unknown command`` traps
+    # when the runtime falls back to interpreted dispatch on a
+    # stub registration.
+    new_top = _strip_proc_defs(module.top_level, dropped)
+    return replace(module, top_level=new_top, procedures=new_procs)
 
 
 def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:
@@ -1486,7 +1612,15 @@ def _collect_referenced_procs(
         elif isinstance(stmt, IRSwitch):
             _scan_text_for_procs(stmt.subject, name_index, out)
         if isinstance(stmt, IRBlock):
-            _collect_referenced_procs(stmt.body, caller_qname, summaries, out, name_index)
+            # Switch the resolution context to the block's
+            # namespace (PR #237 review) — ``namespace eval ::ns
+            # { … }`` lowers to an IRBlock and unqualified calls
+            # inside resolve against ``::ns`` first.  See the
+            # matching fix in ``_rewrite_stmt``.
+            inner_caller = caller_qname
+            if stmt.namespace and stmt.namespace != "::":
+                inner_caller = f"{stmt.namespace}::__inblock__"
+            _collect_referenced_procs(stmt.body, inner_caller, summaries, out, name_index)
         elif isinstance(stmt, IRIf):
             for clause in stmt.clauses:
                 _collect_referenced_procs(clause.body, caller_qname, summaries, out, name_index)

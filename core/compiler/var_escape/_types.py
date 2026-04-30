@@ -103,6 +103,82 @@ class ProcEscapeSummary:
         """Shorthand: does ``name`` need to live in the runtime frame?"""
         return self.tag(name) is EscapeTag.FRAME
 
+    # -- PR #237 review: split predicates for separate proofs ---------
+    #
+    # ``pure_leaf`` is the union of every safety constraint we've
+    # accumulated, so it's a safe-but-conservative gate for any
+    # downstream pass.  The reviewer's point: each pass actually
+    # needs a different proof.  These derived properties let
+    # callers ask the precise question rather than over-rely on
+    # the union flag.  The current implementations are conservative
+    # equivalents — i.e. ``safe_to_inline`` is exactly ``pure_leaf``,
+    # ``safe_to_dce`` and ``safe_for_frame_elision`` are
+    # relaxations that rely on a smaller subset of the same fields.
+    # Future tightening can refine each independently without
+    # racing the others.
+
+    @property
+    def safe_to_inline(self) -> bool:
+        """Can the proc body be physically relocated into the caller's
+        IR without changing observable behaviour?
+
+        Required (today, conservatively pulled from ``pure_leaf``):
+
+        * No body-level ``upvar`` / ``uplevel`` / ``info level`` /
+          ``info frame`` — those would observe the wrong frame
+          after splice.
+        * No ``eval`` / dynamic dispatch fallback that depends on
+          the proc being registered as a runtime command.
+        * Every direct callee is itself inline-safe (transitively).
+
+        Implementation: identical to :attr:`pure_leaf`.  Future
+        relaxation can split out the "callees are inline-safe"
+        clause from the body-frame-observation clause if a
+        downstream consumer needs a less restrictive predicate.
+        """
+
+        return self.pure_leaf
+
+    @property
+    def safe_to_dce(self) -> bool:
+        """Is dead-store elimination on this proc's locals sound?
+
+        Required: the proc's locals must be inaccessible to anything
+        outside the body — no caller can read them through ``upvar``,
+        no eval-fallback can introspect them through
+        ``info locals``, no callee can reach into the frame.
+
+        Today this is the same as ``pure_leaf`` because every
+        contributing flag (``frame_needed``, ``has_fallback``,
+        ``unbounded_upvar_source``) gets unioned into pure_leaf.
+        Future tightening can drop the inlining-specific clauses
+        (e.g. "callees pure_leaf") since DCE doesn't care about
+        what callees do — only whether they reach back into our
+        locals, which is captured by ``frame_needed``.
+        """
+
+        return self.pure_leaf
+
+    @property
+    def safe_for_frame_elision(self) -> bool:
+        """Can codegen omit the per-call ``tcl_frame_push`` /
+        ``tcl_frame_pop`` for this proc?
+
+        Required: the proc's frame is never observed externally
+        (no upvar source from another proc, no caller's
+        ``info level`` reading our depth, no eval-fallback that
+        would need a real frame to resolve unqualified names).
+
+        Implementation today: ``not frame_needed``.  This is a
+        relaxation of ``pure_leaf`` — frame elision doesn't care
+        whether the body itself does eval / has callees; only
+        whether OUR frame matters externally.  ``frame_needed``
+        already encodes exactly that question (it's set whenever
+        any var or the dynamic barrier escapes).
+        """
+
+        return not self.frame_needed
+
     def with_escapes(
         self,
         extra_escaped: Iterable[str],
