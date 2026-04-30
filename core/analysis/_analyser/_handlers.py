@@ -275,10 +275,15 @@ class _AnalyserHandlersMixin(_Base):
             return
 
         prefix: str | None = None
-        if len(args) >= 5 and args[0] == "add" and args[1] in (
-            "variable",
-            "command",
-            "execution",
+        if (
+            len(args) >= 5
+            and args[0] == "add"
+            and args[1]
+            in (
+                "variable",
+                "command",
+                "execution",
+            )
         ):
             prefix = args[4]
         elif len(args) >= 4 and args[0] == "variable":
