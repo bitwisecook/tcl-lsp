@@ -1121,14 +1121,35 @@ def resolve_arg_role_map(command: str, args: list[str]) -> dict[int, frozenset[A
     Indices are expressed against the original *args* list (after the
     command name).  Subcommand offsets are pre-applied so callers don't
     need to know whether *command* is a plain command or an ensemble.
-    Returns an empty dict for unregistered or unmatched commands.
+
+    Includes the same special-case role logic that
+    :func:`arg_indices_for_role` applies on top of the registry data:
+    TclOO definition subcommands (``method``/``constructor``/...) get
+    their context-sensitive ``BODY`` index, and ``regexp``/``regsub``
+    pick up the ``PATTERN`` index.  Unregistered commands return an
+    empty dict.  Indices not listed by the registry default to "no
+    declared roles" — this map does not synthesise ``ArgRole.VALUE``
+    entries for unannotated arguments.
     """
     role_map, base_index = _resolve_arg_roles(command, args)
-    if not role_map:
-        return {}
-    if base_index == 0:
-        return dict(role_map)
-    return {idx + base_index: roles for idx, roles in role_map.items()}
+    result: dict[int, frozenset[ArgRole]] = {}
+    if role_map:
+        if base_index == 0:
+            result.update(role_map)
+        else:
+            for idx, roles in role_map.items():
+                result[idx + base_index] = roles
+
+    oo_body = _oo_definition_body_indices(command, args)
+    for idx in oo_body:
+        result[idx] = result.get(idx, frozenset()) | {ArgRole.BODY}
+
+    if command in ("regexp", "regsub"):
+        idx = regexp_pattern_index(args)
+        if idx is not None:
+            result[idx] = result.get(idx, frozenset()) | {ArgRole.PATTERN}
+
+    return result
 
 
 _SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.PATTERN})
