@@ -1685,6 +1685,159 @@ mod tests {
         }
     }
 
+    // -- ``postpass`` chunk: E004 malformed-if emitter
+    //
+    // Mirrors the ``IRBarrier`` arm of ``_check_statement`` in
+    // ``core/compiler/compiler_checks.py:506-525`` — fires
+    // ``Severity::Error`` when an ``if`` invocation's structural
+    // shape doesn't match
+    // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``.
+    // Detection is analyser-side (mirrors W302 / W001 dispatch
+    // pattern) rather than via IR-walk.
+
+    #[test]
+    fn analyse_emits_e004_for_extra_words_after_else() {
+        // ``if {1} { a } else { b } extra`` — Python's
+        // ``_lower_if`` produces an IRBarrier with reason
+        // ``'extra words after "else" clause'``.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1} { a } else { b } extra\n", "tcl");
+        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            e004[0].message.contains("Extra words after \"else\""),
+            "got {:?}",
+            e004[0].message
+        );
+        assert!(matches!(e004[0].severity, crate::analyser::Severity::Error));
+    }
+
+    #[test]
+    fn analyse_emits_e004_for_bare_else_without_body() {
+        // ``if {1} { a } else`` — bare ``else`` keyword with no
+        // body.  Python's ``_lower_if`` produces ``"malformed if
+        // else clause"``.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1} { a } else\n", "tcl");
+        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            e004[0].message.contains("Malformed 'if'"),
+            "got {:?}",
+            e004[0].message
+        );
+    }
+
+    #[test]
+    fn analyse_emits_e004_for_condition_without_body() {
+        // ``if {1}`` — condition with no body following.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1}\n", "tcl");
+        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            e004[0].message.contains("Malformed 'if'"),
+            "got {:?}",
+            e004[0].message
+        );
+    }
+
+    #[test]
+    fn analyse_emits_e004_for_then_keyword_without_body() {
+        // ``if {1} then`` — condition + ``then`` keyword without
+        // body.  Mirrors Python's ``"malformed if clause"``.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1} then\n", "tcl");
+        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            e004[0].message.contains("Malformed 'if'"),
+            "got {:?}",
+            e004[0].message
+        );
+    }
+
+    #[test]
+    fn analyse_emits_e004_for_if_with_only_else() {
+        // ``if else { x }`` — no condition+body clause produced
+        // before the else, so Python's post-walk
+        // ``if not clauses`` check fires with ``"malformed if"``.
+        let mut a = Analyser::new();
+        let r = a.analyse("if else { x }\n", "tcl");
+        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        assert_eq!(e004.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            e004[0].message.contains("Malformed 'if'"),
+            "got {:?}",
+            e004[0].message
+        );
+    }
+
+    #[test]
+    fn analyse_no_e004_for_valid_if() {
+        // ``if {1} { a }`` — single-clause without else.  No E004.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1} { a }\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_e004_for_valid_if_else() {
+        // ``if {1} { a } else { b }`` — well-formed.  No E004.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1} { a } else { b }\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_e004_for_valid_if_elseif_chain() {
+        // ``if {a} { x } elseif {b} { y } else { z }`` — full
+        // shape.  No E004.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$a} { x } elseif {$b} { y } else { z }\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_e004_for_if_with_then_keyword() {
+        // ``if {1} then { a }`` — explicit ``then`` keyword is
+        // accepted by both Tcl and Python's lowerer.  No E004.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {1} then { a }\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "E004"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_e004_anchors_at_full_command_range() {
+        // Span runs from the ``if`` keyword through the last arg
+        // token's end, mirroring Python's ``cmd.range``.
+        let mut a = Analyser::new();
+        let src = "if {1} { a } else { b } extra\n";
+        let r = a.analyse(src, "tcl");
+        let e004: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "E004").collect();
+        assert_eq!(e004.len(), 1);
+        let span = e004[0].span;
+        let text = &src[span.start() as usize..span.end() as usize];
+        assert!(text.starts_with("if"), "span starts at {text:?}");
+        assert!(text.contains("extra"), "span text {text:?}");
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry

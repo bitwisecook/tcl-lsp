@@ -247,6 +247,21 @@ impl Analyser {
         // for an unknown ``foo`` still gets flagged.
         self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
 
+        // **C41-default-on-followups-postpass.**  E004 — malformed
+        // ``if`` command (extra words after ``else``, or a
+        // structural shape that doesn't match
+        // ``if COND BODY ?elseif COND BODY ...? ?else BODY?``).
+        // Mirrors the ``IRBarrier`` arm of ``_check_statement`` in
+        // ``core/compiler/compiler_checks.py:506-525``, with the
+        // shape detection re-implemented analyser-side rather than
+        // by walking lowered IR — same dispatch-site pattern as
+        // W302 / W001.  ``if`` falls through to
+        // ``dispatch_body_arguments`` below (no early-returning
+        // handler), so dispatch ordering is consistency-only.
+        if cmd_name == "if" {
+            self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
+        }
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
