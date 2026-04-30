@@ -20,7 +20,7 @@ from ..semantic_model import Diagnostic, Severity
 from ._helpers import (
     _first_token_is_braced,
     _has_substitution,
-    _is_bare_single_substitution,
+    _is_bare_single_var_substitution,
     _tok_is_quoted,
 )
 
@@ -282,12 +282,15 @@ def check_literal_expected(
                 continue
             if not _has_substitution(text, tok):
                 continue
-            # A bare single ``$var``/``${var}``/``[cmd]`` is the canonical
-            # idiom for a dynamic regex pattern.  There is no equivalent
+            # A bare single ``$var``/``${var}`` is the canonical idiom for
+            # a parameterised regex pattern.  There is no equivalent
             # ``{...}``-braced form (bracing would suppress substitution),
-            # so flagging it as substitution-in-literal-position is a false
-            # positive.  See issue #235.
-            if _is_bare_single_substitution(tok, source):
+            # so flagging it would be a false positive (issue #235).  Bare
+            # command substitutions like ``[a-z]`` are intentionally not
+            # exempt — that case looks like a regex character class but is
+            # parsed as command substitution, which is exactly the foot-gun
+            # W306 is meant to catch.
+            if _is_bare_single_var_substitution(tok, source):
                 continue
             is_quoted = _tok_is_quoted(tok, source)
             is_var = tok.type == TokenType.VAR or "$" in text
@@ -334,7 +337,7 @@ def check_literal_expected(
                 if (
                     not _first_token_is_braced(tok)
                     and _has_substitution(text, tok)
-                    and not _is_bare_single_substitution(tok, source)
+                    and not _is_bare_single_var_substitution(tok, source)
                 ):
                     diagnostics.append(
                         Diagnostic(
