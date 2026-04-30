@@ -73,8 +73,28 @@ pub const OBJ_SIZE: u32 = 32;
 //   handle = (value << 1) | 1
 //   value  = handle >> 1   (arithmetic shift — sign-preserving)
 //
-// Range: ``[-2^30, 2^30 - 1]`` = ``[-1_073_741_824, 1_073_741_823]``.
-// Outside this range we fall back to allocation.
+// Range: ``[0, 2^30 - 1]`` = ``[0, 1_073_741_823]``.  Negative
+// values fall back to allocation.
+//
+// Why the range is positive-only (PR #237 review): the frame
+// layer's local-variable bucket value field shares the same i32
+// space, and uses negative sentinels to mark variable aliases:
+//
+//   * ``ALIAS_GLOBAL`` = ``-1``  (bucket value -1 means "alias to
+//     a same-named global").
+//   * ``ALIAS_EXT``    = ``v <= -2`` (bucket value is the negated
+//     descriptor heap address).
+//
+// A tagged immediate of ``-1`` encodes as ``(0xFFFFFFFE | 1) =
+// 0xFFFFFFFF = -1`` — the same bit pattern as ``ALIAS_GLOBAL``.
+// Any negative value's encoding has bit 31 set, so it can also
+// collide with a descriptor-pointer sentinel.  Restricting the
+// tagged-immediate range to **non-negative** values makes the
+// encoding bit-31 = 0, which can't ever equal a negative
+// alias sentinel.  The cost is that small *negative* integers
+// (``-1``, ``-2``, …) take the heap-allocated path, but loop
+// counters, list indices, and the vast majority of literal
+// integers are non-negative anyway.
 //
 // Why bit 0 is safe as a tag:
 //
@@ -86,12 +106,6 @@ pub const OBJ_SIZE: u32 = 32;
 // 2. ``handle == 0`` (null) is preserved: bit 0 is 0, so it is
 //    treated as a pointer (and null-checked separately by every
 //    accessor).
-// 3. Bit 31 stays free for the frame layer's negative-i32
-//    sentinels (``ALIAS_GLOBAL`` = -1, ``ALIAS_EXT`` descriptor
-//    pointers encoded as negative values).  Tagging on bit 0
-//    means a tagged immediate's *signed* value is unconstrained
-//    in the high bit, so positive and negative immediates do not
-//    accidentally trigger the alias-bucket path.
 //
 // Tagged immediates are immortal — they have no refcount and no
 // header, so :func:`tcl_obj_retain` / :func:`tcl_obj_release` are
@@ -100,7 +114,7 @@ pub const OBJ_SIZE: u32 = 32;
 // :func:`is_immediate` and short-circuit before dereferencing.
 
 pub const IMMEDIATE_TAG_BIT: u32 = 0x1;
-pub const IMMEDIATE_MIN: i64 = -(1 << 30);
+pub const IMMEDIATE_MIN: i64 = 0;
 pub const IMMEDIATE_MAX: i64 = (1 << 30) - 1;
 
 /// True iff *handle* is a tagged immediate (bit 0 set).

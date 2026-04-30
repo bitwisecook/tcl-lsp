@@ -411,27 +411,30 @@ def wasm_codegen_module(
     # cheap and ensures the per-proc summaries reflect the post-
     # inline call graph (procs whose only callees were inlined-away
     # may newly qualify as pure_leaf).
+    #
+    # **Failure policy.**  S4/S5 passes are *not* opportunistic any
+    # more — they're load-bearing once the call sites enable them
+    # by default.  Silently swallowing exceptions here masked real
+    # bugs (PR #237 review).  The pass functions are pure /
+    # structural; any exception they raise is a bug we want to fix,
+    # not paper over.  Same policy applies to LICM, DCE, and GVN
+    # below.
     if inline and escape_summaries is not None:
-        try:
-            from ...cfg import build_cfg as _build_cfg
-            from ...inlining import apply_inline_catalogue
-            from ...inlining import inline_module as _inline
+        from ...cfg import build_cfg as _build_cfg
+        from ...inlining import apply_inline_catalogue
+        from ...inlining import inline_module as _inline
 
-            tagged = apply_inline_catalogue(ir_module, escape_summaries)
-            inlined = _inline(tagged, escape_summaries)
-            if inlined is not tagged:
-                ir_module = inlined
-                cfg_module = _build_cfg(ir_module)
-                escape_summaries = analyse_var_escape(ir_module=ir_module)
-            else:
-                # Catalogue still tagged the procs even if no splices
-                # fired this pass — keep the tagged module so any
-                # later inliner generation sees the metadata.
-                ir_module = tagged
-        except Exception:  # noqa: BLE001 — inlining is opportunistic
-            # Any failure leaves the original module intact; codegen
-            # proceeds against pre-inline IR.
-            pass
+        tagged = apply_inline_catalogue(ir_module, escape_summaries)
+        inlined = _inline(tagged, escape_summaries)
+        if inlined is not tagged:
+            ir_module = inlined
+            cfg_module = _build_cfg(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
+        else:
+            # Catalogue still tagged the procs even if no splices
+            # fired this pass — keep the tagged module so any
+            # later inliner generation sees the metadata.
+            ir_module = tagged
 
     # Phase 0.6: S5.3 — hoist loop-invariant literal assignments out
     # of loop bodies.  The pass operates on the (possibly inlined)
@@ -440,17 +443,14 @@ def wasm_codegen_module(
     # count).  We rebuild the CFG and re-run var-escape after
     # changes so the downstream emitter sees the hoisted shape.
     if licm:
-        try:
-            from ...cfg import build_cfg as _build_cfg2
-            from ...passes.licm import licm_module as _licm
+        from ...cfg import build_cfg as _build_cfg2
+        from ...passes.licm import licm_module as _licm
 
-            hoisted = _licm(ir_module)
-            if hoisted is not ir_module:
-                ir_module = hoisted
-                cfg_module = _build_cfg2(ir_module)
-                escape_summaries = analyse_var_escape(ir_module=ir_module)
-        except Exception:  # noqa: BLE001 — LICM is opportunistic
-            pass
+        hoisted = _licm(ir_module)
+        if hoisted is not ir_module:
+            ir_module = hoisted
+            cfg_module = _build_cfg2(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
 
     # Phase 0.7: S5.4 — dead-store elimination.  Removes
     # ``IRAssignConst`` / ``IRAssignValue`` / ``IRAssignExpr`` /
@@ -460,17 +460,14 @@ def wasm_codegen_module(
     # info.  Subtractive at the script level — rebuilds the CFG
     # and var-escape after changes.
     if dce:
-        try:
-            from ...cfg import build_cfg as _build_cfg3
-            from ...passes.dce import dce_module as _dce
+        from ...cfg import build_cfg as _build_cfg3
+        from ...passes.dce import dce_module as _dce
 
-            cleaned = _dce(ir_module)
-            if cleaned is not ir_module:
-                ir_module = cleaned
-                cfg_module = _build_cfg3(ir_module)
-                escape_summaries = analyse_var_escape(ir_module=ir_module)
-        except Exception:  # noqa: BLE001 — DCE is opportunistic
-            pass
+        cleaned = _dce(ir_module)
+        if cleaned is not ir_module:
+            ir_module = cleaned
+            cfg_module = _build_cfg3(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
 
     # Phase 0.8: S5.4 GVN — replace redundant ``IRAssignExpr``
     # writes with copies from prior equivalent results when the
@@ -479,17 +476,14 @@ def wasm_codegen_module(
     # ``set y [expr {$x + 1}]; set z $y``.  Subtractive — never
     # adds work, just elides recomputation.
     if gvn:
-        try:
-            from ...cfg import build_cfg as _build_cfg4
-            from ...passes.gvn import gvn_module as _gvn
+        from ...cfg import build_cfg as _build_cfg4
+        from ...passes.gvn import gvn_module as _gvn
 
-            valued = _gvn(ir_module)
-            if valued is not ir_module:
-                ir_module = valued
-                cfg_module = _build_cfg4(ir_module)
-                escape_summaries = analyse_var_escape(ir_module=ir_module)
-        except Exception:  # noqa: BLE001 — GVN is opportunistic
-            pass
+        valued = _gvn(ir_module)
+        if valued is not ir_module:
+            ir_module = valued
+            cfg_module = _build_cfg4(ir_module)
+            escape_summaries = analyse_var_escape(ir_module=ir_module)
 
     module = WasmModule()
 

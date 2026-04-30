@@ -28,15 +28,23 @@ from ._ops import _is_end_relative_index
 
 def _try_tagged_immediate(value: int) -> int | None:
     """Encode ``value`` as the signed-i32 tagged-immediate handle, or
-    return ``None`` if it doesn't fit the 31-bit signed range.
+    return ``None`` if it doesn't fit the **non-negative** 30-bit
+    range.
+
+    Range is restricted to ``[0, 2^30 - 1]`` to match the runtime's
+    ``IMMEDIATE_MIN`` / ``IMMEDIATE_MAX`` constants.  Negative
+    values *would* fit the bit-shifted encoding but their bit-31 = 1
+    pattern collides with the frame layer's ``ALIAS_GLOBAL`` /
+    ``ALIAS_EXT`` sentinels — see ``tcl_obj.zig``'s commentary at
+    ``IMMEDIATE_MIN``.  Negative integers fall back to
+    ``tcl_obj_new_int`` (heap allocation).
 
     Mirrors the runtime ``immediate_box`` exactly:
     ``handle = (value << 1) | 1``.  Returned as a Python int already
     reinterpreted into the i32 signed domain so callers can pass it
-    straight to :meth:`_emit_i32_const`.  See ``runtime/zig/valtypes/
-    tcl_obj.zig`` for the matching decoder.
+    straight to :meth:`_emit_i32_const`.
     """
-    if not (-(1 << 30) <= value <= (1 << 30) - 1):
+    if not (0 <= value <= (1 << 30) - 1):
         return None
     tagged = ((value << 1) | 1) & 0xFFFFFFFF
     if tagged >= 0x80000000:
@@ -905,7 +913,12 @@ class _WasmEmitterValuesMixin(_Base):
                 # otherwise have to short-circuit on.  The encoding
                 # (``(value << 1) | 1``) matches the runtime's
                 # ``immediate_box`` so readers transparently round-trip.
-                if -(1 << 30) <= int_val <= (1 << 30) - 1:
+                # Non-negative range only — negative tagged
+                # immediates collide with the frame layer's alias
+                # sentinels (see ``_try_tagged_immediate`` for the
+                # rationale).  Negative literals fall through to the
+                # ``tcl_obj_new_int`` path below.
+                if 0 <= int_val <= (1 << 30) - 1:
                     tagged = ((int_val << 1) | 1) & 0xFFFFFFFF
                     # _emit_i32_const takes a signed value; reinterpret
                     # as signed via the standard 32-bit two's-complement
