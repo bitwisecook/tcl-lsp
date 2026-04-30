@@ -20,7 +20,9 @@ from __future__ import annotations
 from ......commands.registry import REGISTRY, EmitContext
 
 
-def _emit_fcopy(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
+def _emit_fcopy(
+    emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
+) -> bool:
     if len(args) > 2:
         # Option-bearing form — let the eval-fallback path handle it
         # so option validation runs.
