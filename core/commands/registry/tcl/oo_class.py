@@ -13,16 +13,19 @@ from ._base import register
 _SOURCE = "Tcl man page class.n"
 
 
-def _oo_metaclass_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _oo_metaclass_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY roles for OO metaclass commands (create/new/createWithNamespace)."""
     if len(args) < 2:
         return {}
     if args[0] == "create" and len(args) >= 3:
-        return {2: ArgRole.BODY}
+        return {2: _BODY}
     if args[0] == "new" and len(args) >= 2:
-        return {1: ArgRole.BODY}
+        return {1: _BODY}
     if args[0] == "createWithNamespace" and len(args) >= 4:
-        return {3: ArgRole.BODY}
+        return {3: _BODY}
     return {}
 
 

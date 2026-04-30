@@ -143,6 +143,13 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_obj_get_int": ("tcl", "obj_get_int", [ValType.I32], [ValType.I64]),
     "tcl_obj_new_float": ("tcl", "obj_new_float", [ValType.F64], [ValType.I32]),
     "tcl_obj_get_float": ("tcl", "obj_get_float", [ValType.I32], [ValType.F64]),
+    # Refcount discipline (S2): ``retain`` is null-safe (matches
+    # ``release``) so the codegen can wrap every owned-slot write
+    # unconditionally and release each owned slot in the epilogue
+    # without per-slot null checks.  Only emitted by frame-elided
+    # procs from S2.2 onwards.
+    "tcl_obj_retain": ("tcl", "tcl_obj_retain", [ValType.I32], []),
+    "tcl_obj_release": ("tcl", "tcl_obj_release", [ValType.I32], []),
     # Float-aware arithmetic — int/float dispatch happens runtime-side.
     "tcl_arith_add": ("tcl", "tcl_arith_add", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_sub": ("tcl", "tcl_arith_sub", [ValType.I32, ValType.I32], [ValType.I32]),
@@ -351,6 +358,8 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
         "tcl_obj_new_int",
         "tcl_obj_new_string",
         "tcl_obj_get_int",
+        "tcl_obj_retain",
+        "tcl_obj_release",
     }
 )
 

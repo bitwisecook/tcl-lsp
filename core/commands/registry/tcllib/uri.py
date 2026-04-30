@@ -186,7 +186,7 @@ class UriRegisterCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="uri::register schemeList script"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
-            arg_roles={1: ArgRole.BODY},
+            arg_roles={1: frozenset({ArgRole.BODY})},
             # The registered script becomes a scheme handler that runs
             # later inside ``uri::split``'s dispatch — it does not share
             # the caller's scope.  STRUCTURAL keeps the body out of the

@@ -82,6 +82,47 @@ ownership matrices.
   phased plan for the Zig runtime: allocator hygiene, frame
   management, string append capacity, tcltest correctness
   unblockers, and per-phase acceptance gates.
+- [runtime/refcount-contract.md](runtime/refcount-contract.md) —
+  ownership categories for every WASM-exported runtime function
+  (callee-takes / caller-keeps / borrow), the linter that
+  enforces them, and the decision rules for new exports.
+- [runtime/leak-sweep-trap-triage.md](runtime/leak-sweep-trap-triage.md) —
+  triage clusters for the 29 trapping tcltest files in the leak-
+  sweep baseline, suggested order of attack, and the structured
+  ``trap_origin`` enrichment that would unblock deeper analysis.
+- [runtime/trace-implementation.md](runtime/trace-implementation.md) —
+  current ``trace add variable`` no-op gap, the design sketch
+  (per-Var TraceList + fire hooks on every mutator), and an
+  effort estimate for closing it.
+
+## Compiler staircase (S0–S6)
+
+The phased plan to drive the Tcl-WASM AOT compiler from "frames
+everywhere" baseline through inlining and SSA-driven optimisations.
+Each stage doc lists tasks, file paths, test plans, and acceptance
+gates.
+
+- [compiler/wasm-aot-staircase.md](compiler/wasm-aot-staircase.md)
+  — overview tying S0 through S6 together: stage status,
+  acceptance gates, sequencing rules.
+- [compiler/wasm-aot-staircase-s0.md](compiler/wasm-aot-staircase-s0.md)
+  — S0 foundations: leak detector, refcount contract,
+  deterministic repro for the canonical bug.
+- [compiler/wasm-aot-staircase-s1.md](compiler/wasm-aot-staircase-s1.md)
+  — S1 frames-everywhere baseline + ``--no-frame-elision``
+  kill-switch.
+- [compiler/wasm-aot-staircase-s2.md](compiler/wasm-aot-staircase-s2.md)
+  — S2 per-proc frame elision with refcount discipline.
+- [compiler/wasm-aot-staircase-s3.md](compiler/wasm-aot-staircase-s3.md)
+  — S3 escape-analysis tightening + ``pure_leaf`` predicate.
+- [compiler/wasm-aot-staircase-s4.md](compiler/wasm-aot-staircase-s4.md)
+  — S4 IR-level inlining (catalogue + inliner).
+- [compiler/wasm-aot-staircase-s5.md](compiler/wasm-aot-staircase-s5.md)
+  — S5 SSA-driven codegen optimisations (LICM + GVN + DCE).
+- [compiler/wasm-aot-staircase-s6.md](compiler/wasm-aot-staircase-s6.md)
+  — S6 allocation + small-value representation (free-lists,
+  inline strings, dict hash side-cache, tagged immediates,
+  per-statement arena).
 
 ## Contracts and interfaces
 

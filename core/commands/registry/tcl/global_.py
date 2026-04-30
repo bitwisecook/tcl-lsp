@@ -40,7 +40,7 @@ class GlobalCommand(CommandDef):
             creates_scope_alias=True,
             creates_dynamic_barrier=True,
             assigns_variable_at=0,
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

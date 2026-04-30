@@ -13,10 +13,10 @@ from .shimmer_resolvers import resolve_foreach
 _SOURCE = "Tcl foreach(1)"
 
 
-def _foreach_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _foreach_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is the body script."""
     if len(args) >= 3:
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: frozenset({ArgRole.BODY})}
     return {}
 
 

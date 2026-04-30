@@ -10,13 +10,14 @@ from ._base import _EXPECT_ONLY, register
 _SOURCE = "Expect exit(1)"
 
 
-def _exit_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _exit_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY role only for the -onexit handler argument."""
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
+    body = frozenset({ArgRole.BODY})
     i = 0
     while i < len(args):
         if args[i] == "-onexit" and i + 1 < len(args):
-            roles[i + 1] = ArgRole.BODY
+            roles[i + 1] = body
             i += 2
         else:
             i += 1

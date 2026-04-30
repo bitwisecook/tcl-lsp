@@ -200,7 +200,7 @@ class NamespaceCommand(CommandDef):
                     detail="Activates a namespace called namespace and evaluates some code in that context.",
                     synopsis="namespace eval namespace arg ?arg ...?",
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.NAME, 1: ArgRole.BODY},
+                    arg_roles={0: frozenset({ArgRole.NAME}), 1: frozenset({ArgRole.BODY})},
                 ),
                 "exists": SubCommand(
                     name="exists",
@@ -230,7 +230,7 @@ class NamespaceCommand(CommandDef):
                     detail="Executes a script in the context of the specified namespace.",
                     synopsis="namespace inscope namespace script ?arg ...?",
                     return_type=TclType.STRING,
-                    arg_roles={0: ArgRole.NAME, 1: ArgRole.BODY},
+                    arg_roles={0: frozenset({ArgRole.NAME}), 1: frozenset({ArgRole.BODY})},
                 ),
                 "origin": SubCommand(
                     name="origin",

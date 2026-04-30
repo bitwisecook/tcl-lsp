@@ -44,7 +44,11 @@ class ProcCommand(CommandDef):
                 arity=Arity(3, 3),
             ),
             event_requires=EventRequires(),
-            arg_roles={0: ArgRole.NAME, 1: ArgRole.PARAM_LIST, 2: ArgRole.BODY},
+            arg_roles={
+                0: frozenset({ArgRole.NAME}),
+                1: frozenset({ArgRole.PARAM_LIST}),
+                2: frozenset({ArgRole.BODY}),
+            },
             body_kind=BodyKind.STRUCTURAL,
             defines_procedure=True,
             side_effect_hints=(

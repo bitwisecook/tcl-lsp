@@ -46,6 +46,7 @@ from .._ir import (
     ValType,
     WasmOp,
 )
+from .._ownership import Ownership
 
 
 class _WasmEmitterStmtMixin(_Base):
@@ -99,7 +100,9 @@ class _WasmEmitterStmtMixin(_Base):
         match stmt:
             case IRAssignConst(name=name, value=value):
                 self._emit_obj_literal(value)
-                self._emit_var_write_obj(name)
+                # ``_emit_obj_literal`` always allocates a fresh
+                # TclObj → OWNED.  S2.3 migration.
+                self._emit_var_write_obj(name, source=Ownership.OWNED)
                 if self._optimise and name not in self._aliases:
                     # Aliased writes go to a global under a possibly-dynamic
                     # name — constant-tracking the local Tcl name would
@@ -112,15 +115,20 @@ class _WasmEmitterStmtMixin(_Base):
 
             case IRAssignExpr(name=name, expr=expr):
                 self._emit_expr_obj(expr)
-                self._emit_var_write_obj(name)
+                # ``_emit_expr_obj`` allocates a fresh boxed result
+                # in every code path → OWNED.  S2.3 migration.
+                self._emit_var_write_obj(name, source=Ownership.OWNED)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
             case IRAssignValue(name=name, value=value):
                 # value_needs_backsubst is already handled by _emit_value's
                 # general backslash substitution path for non-braced literals.
-                self._emit_value(value)
-                self._emit_var_write_obj(name)
+                source = self._emit_value(value)
+                # ``_emit_value`` returns Ownership describing the
+                # stack value; threads it through so the wrap picks
+                # the right retain-vs-transfer behaviour.
+                self._emit_var_write_obj(name, source=source)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
@@ -137,14 +145,17 @@ class _WasmEmitterStmtMixin(_Base):
                         self._emit_unbox_int()
                         self._emit(WasmOp.I64_ADD)
                         self._emit_box_int()
-                        self._emit_var_write_obj(name)
+                        # ``_emit_box_int`` allocates a fresh int
+                        # obj → OWNED.
+                        self._emit_var_write_obj(name, source=Ownership.OWNED)
                         if self._optimise:
                             self._const_map.pop(name, None)
                         return
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                self._emit_var_write_obj(name)
+                # ``_emit_box_int`` returns OWNED.
+                self._emit_var_write_obj(name, source=Ownership.OWNED)
                 if self._optimise:
                     self._const_map.pop(name, None)
 
@@ -548,7 +559,18 @@ class _WasmEmitterStmtMixin(_Base):
             # so we re-split it.
             if " " in p.strip() or p.strip().startswith("{"):
                 n_required -= 1
-        qname = name if name.startswith("::") else f"::{name}"
+        # S2.7 — qualify against the active block namespace so a
+        # static ``proc bar { … }`` inside ``namespace eval ::foo
+        # { … }`` re-registers as ``::foo::bar`` rather than
+        # ``::bar`` (the prior global-only path orphaned the bucket
+        # and host-bridge dispatch then went looking for a wasm
+        # export under the wrong qualified name).
+        if name.startswith("::"):
+            qname = name
+        elif self._block_namespace and self._block_namespace != "::":
+            qname = f"{self._block_namespace}::{name}"
+        else:
+            qname = f"::{name}"
         self._emit_obj_literal(qname)
         self._emit_i32_const(n_params)
         self._emit_i32_const(1)  # func_idx marker
@@ -752,7 +774,15 @@ class _WasmEmitterStmtMixin(_Base):
                 # SUBSEQUENT compile-time call-site resolution
                 # misses and falls through to the bucket dispatch
                 # — which then reads the new body.
-                qname = args[0] if args[0].startswith("::") else f"::{args[0]}"
+                # Same block-namespace qualification as
+                # ``_emit_re_register_proc`` so the seen-set / proc-
+                # index pop keys agree with the registered name.
+                if args[0].startswith("::"):
+                    qname = args[0]
+                elif self._block_namespace and self._block_namespace != "::":
+                    qname = f"{self._block_namespace}::{args[0]}"
+                else:
+                    qname = f"::{args[0]}"
                 seen = getattr(self, "_seen_top_level_procs", None)
                 if seen is None:
                     seen = set()

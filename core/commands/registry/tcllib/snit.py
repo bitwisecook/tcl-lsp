@@ -39,7 +39,7 @@ class SnitTypeCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::type name definition"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
-            arg_roles={1: ArgRole.BODY},
+            arg_roles={1: frozenset({ArgRole.BODY})},
             # The definition body runs in snit's own definition context
             # (it's reinterpreted by snit's parser into a class
             # description), not the caller's scope.
@@ -76,7 +76,7 @@ class SnitWidgetCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::widget name definition"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
-            arg_roles={1: ArgRole.BODY},
+            arg_roles={1: frozenset({ArgRole.BODY})},
             # See ``snit::type`` — definition body runs in snit's own
             # definition context.
             body_kind=BodyKind.STRUCTURAL,
@@ -106,7 +106,7 @@ class SnitWidgetadaptorCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 2)),
-            arg_roles={1: ArgRole.BODY},
+            arg_roles={1: frozenset({ArgRole.BODY})},
             # See ``snit::type`` — definition body runs in snit's own
             # definition context.
             body_kind=BodyKind.STRUCTURAL,
@@ -136,7 +136,7 @@ class SnitTypemethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
-            arg_roles={3: ArgRole.BODY},
+            arg_roles={3: frozenset({ArgRole.BODY})},
             # Type method bodies run in the type's own dispatch context,
             # not the caller's scope — STRUCTURAL keeps the body out of
             # the enclosing block's data flow.
@@ -165,7 +165,7 @@ class SnitMethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
-            arg_roles={3: ArgRole.BODY},
+            arg_roles={3: frozenset({ArgRole.BODY})},
             # Instance method bodies run in the object's own dispatch
             # context, not the caller's scope — STRUCTURAL keeps the
             # body out of the enclosing block's data flow.
@@ -189,7 +189,7 @@ class SnitCompileCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::compile which name body"),),
             validation=ValidationSpec(arity=Arity(3, 3)),
-            arg_roles={2: ArgRole.BODY},
+            arg_roles={2: frozenset({ArgRole.BODY})},
             # The body is a snit type definition — run through snit's
             # compiler in its own definition context, not the caller's
             # scope.
@@ -222,7 +222,7 @@ class SnitMacroCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::macro name arglist body"),),
             validation=ValidationSpec(arity=Arity(3, 3)),
-            arg_roles={2: ArgRole.BODY},
+            arg_roles={2: frozenset({ArgRole.BODY})},
             # Macro bodies are reinterpreted by snit during type
             # definition processing — they don't share the caller's
             # scope.

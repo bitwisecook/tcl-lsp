@@ -14,6 +14,7 @@ const frames = @import("tcl_frames.zig");
 const info = @import("../cmds/tcl_cmd_info.zig");
 
 const obj_mod = @import("../valtypes/tcl_obj.zig");
+const arena = @import("../valtypes/tcl_arena.zig");
 
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
@@ -763,14 +764,25 @@ fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
         const target_name = obj_ensure_string(words[3]);
         const n_prefix: u32 = @as(u32, @intCast(words.len)) - 4;
         var prefix_buf: u32 = 0;
+        // S6.3 v1: route the prefix-args staging buffer through
+        // the arena.  ``alias_alloc`` heap-copies the handles into
+        // its own buffer before returning, so the caller's buffer
+        // is pure scratch — pre-arena code leaked it on every
+        // ``interp alias`` call.  ``arena_restore`` runs AFTER
+        // ``interp_alias_create`` returns its value, so the
+        // alias_alloc's reads see valid bytes.
+        const arena_saved = arena.arena_save();
+        defer arena.arena_restore(arena_saved);
+        var prefix_alloc: arena.Allocation = .{ .addr = 0, .size = 0, .from_arena = true };
         if (n_prefix > 0) {
-            prefix_buf = alloc(n_prefix * 4);
+            prefix_alloc = arena.arena_alloc_or_libc(n_prefix * 4);
+            prefix_buf = prefix_alloc.addr;
             var j: u32 = 0;
             while (j < n_prefix) : (j += 1) {
                 write_i32(prefix_buf + j * 4, words[4 + j]);
             }
         }
-        return interp_impl.interp_alias_create(
+        const result = interp_impl.interp_alias_create(
             child,
             interp_reg.interp_current(),
             new_name.ptr,
@@ -780,6 +792,8 @@ fn dispatch_interp_child(words: []const i32, bucket: i32) i32 {
             n_prefix,
             prefix_buf,
         );
+        arena.arena_free(prefix_alloc);
+        return result;
     }
 
     // The remaining subcommands route through the top-level
@@ -1369,17 +1383,23 @@ pub fn eval_interp(words: []const i32) i32 {
     const parent_interp = interp_impl.resolve_interp_path(words[4]);
     if (parent_interp == 0) return 0;
     const target_name = obj_ensure_string(words[5]);
-    // Pack prefix args into a bump-allocated u32 array.
+    // Pack prefix args into an arena-allocated u32 array.  See
+    // the matching site higher up — alias_alloc heap-copies the
+    // handles, so this buffer is pure scratch.
     const n_prefix: u32 = @as(u32, @intCast(words.len)) - 6;
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
     var prefix_buf: u32 = 0;
+    var prefix_alloc: arena.Allocation = .{ .addr = 0, .size = 0, .from_arena = true };
     if (n_prefix > 0) {
-        prefix_buf = alloc(n_prefix * 4);
+        prefix_alloc = arena.arena_alloc_or_libc(n_prefix * 4);
+        prefix_buf = prefix_alloc.addr;
         var i: u32 = 0;
         while (i < n_prefix) : (i += 1) {
             write_i32(prefix_buf + i * 4, words[6 + i]);
         }
     }
-    return interp_impl.interp_alias_create(
+    const result = interp_impl.interp_alias_create(
         child_interp,
         parent_interp,
         new_name.ptr,
@@ -1389,6 +1409,8 @@ pub fn eval_interp(words: []const i32) i32 {
         n_prefix,
         prefix_buf,
     );
+    arena.arena_free(prefix_alloc);
+    return result;
 }
 
 fn eval_interp_invokehidden(words: []const i32) i32 {

@@ -253,9 +253,9 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
             # is read as well as written (the body sees the keys unpacked
             # into local variables of the same name), but the variable name
             # is a plain string, not a $-substitution, so ``_vars_in_word``
-            # misses it.  The registry marks the arg as
-            # ``ArgRole.VAR_READ_WRITE``; ``arg_indices_for_role`` reports
-            # it under ``VAR_READ`` via the role-subsumption table.
+            # misses it.  The registry's resolver attaches both
+            # ``ArgRole.VAR_READ`` and ``ArgRole.VAR_WRITE`` to the same
+            # index, so a plain ``VAR_READ`` query finds it.
             for idx in arg_indices_for_role(command, list(args), ArgRole.VAR_READ):
                 if 0 <= idx < len(args):
                     name = _normalise_var_name(args[idx])

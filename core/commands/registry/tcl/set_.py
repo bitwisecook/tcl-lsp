@@ -12,15 +12,15 @@ from ._base import register
 _SOURCE = "Tcl set(1)"
 
 
-def _set_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
+def _set_arg_role_resolver(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve variable role based on the shape of ``set``.
 
     ``set varName``       -- read: returns the value (VAR_READ)
     ``set varName value`` -- write: assigns and returns (VAR_WRITE)
     """
     if len(args) >= 2:
-        return {0: ArgRole.VAR_WRITE}
-    return {0: ArgRole.VAR_READ}
+        return {0: frozenset({ArgRole.VAR_WRITE})}
+    return {0: frozenset({ArgRole.VAR_READ})}
 
 
 @register

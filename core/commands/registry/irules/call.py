@@ -72,7 +72,7 @@ class CallCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1),
             ),
-            arg_roles={0: ArgRole.NAME},
+            arg_roles={0: frozenset({ArgRole.NAME})},
             event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(
