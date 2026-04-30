@@ -292,17 +292,21 @@ comptime {
     // a silent wrong answer.  Imports of these are wired up in
     // core/compiler/codegen/wasm.py's ``_RUNTIME_IMPORTS``; the
     // comptime references here ensure the linker keeps them.
-    _ = &tcl_io_stubs.tcl_cmd_open;
-    _ = &tcl_io_stubs.tcl_cmd_close;
-    _ = &tcl_io_stubs.tcl_cmd_read;
-    _ = &tcl_io_stubs.tcl_cmd_gets;
-    _ = &tcl_io_stubs.tcl_cmd_eof;
+    // Channel commands with real WASI-backed implementations live
+    // in tcl_chan.zig; only flush / chan / fileevent / socket remain
+    // stubs in tcl_io_stubs.zig.
+    _ = &tcl_chan.tcl_cmd_open;
+    _ = &tcl_chan.tcl_cmd_close;
+    _ = &tcl_chan.tcl_cmd_read;
+    _ = &tcl_chan.tcl_cmd_gets;
+    _ = &tcl_chan.tcl_cmd_eof;
+    _ = &tcl_chan.tcl_cmd_fblocked;
+    _ = &tcl_chan.tcl_cmd_tell;
+    _ = &tcl_chan.tcl_cmd_seek;
+    _ = &tcl_chan.tcl_cmd_fcopy;
+    _ = &tcl_chan.tcl_cmd_puts_chan;
     _ = &tcl_io_stubs.tcl_cmd_flush;
-    _ = &tcl_io_stubs.tcl_cmd_fblocked;
-    _ = &tcl_io_stubs.tcl_cmd_tell;
-    _ = &tcl_io_stubs.tcl_cmd_seek;
     _ = &tcl_io_stubs.tcl_cmd_chan;
-    _ = &tcl_io_stubs.tcl_cmd_fcopy;
     _ = &tcl_io_stubs.tcl_cmd_fileevent;
     _ = &tcl_io_stubs.tcl_cmd_socket;
     // file has a real impl in tcl_fs.zig.
