@@ -119,4 +119,54 @@ pub fn build(b: *std.Build) void {
     exe.wasi_exec_model = .reactor;
 
     b.installArtifact(exe);
+
+    // ---------------------------------------------------------------
+    // ``zig build test`` — unit tests for the WASM runtime.
+    //
+    // The runtime modules speak the wasm32 ABI throughout (``u32``
+    // pointer arguments cast via ``@ptrFromInt``), so the tests must
+    // be compiled for the same target and run under wasmtime.  Setting
+    // ``b.enable_wasmtime = true`` lets ``addRunArtifact`` invoke
+    // ``wasmtime`` automatically for the produced ``.wasm`` binaries.
+    // ``/usr/local/bin/wasmtime`` is provided by the SessionStart
+    // hook in CI / Claude Code on the web.
+    // ---------------------------------------------------------------
+    b.enable_wasmtime = true;
+
+    const test_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .wasi,
+    });
+
+    const test_step = b.step(
+        "test",
+        "Run all WASM runtime unit tests (test_*.zig under valtypes/, parse/, ...)",
+    );
+
+    const TestSpec = struct { name: []const u8, file: []const u8 };
+    const test_specs = [_]TestSpec{
+        .{ .name = "tcl_chars", .file = "valtypes/test_tcl_chars.zig" },
+        .{ .name = "tcl_bs", .file = "valtypes/test_tcl_bs.zig" },
+        .{ .name = "tcl_list_quote", .file = "valtypes/test_tcl_list_quote.zig" },
+        .{ .name = "tcl_list_parse", .file = "valtypes/test_tcl_list_parse.zig" },
+        .{ .name = "tcl_parse", .file = "parse/test_tcl_parse.zig" },
+    };
+
+    for (test_specs) |spec| {
+        const t_module = b.createModule(.{
+            .root_source_file = b.path(spec.file),
+            .target = test_target,
+            .optimize = optimize,
+        });
+        const t_exe = b.addTest(.{
+            .name = spec.name,
+            .root_module = t_module,
+        });
+        const run = b.addRunArtifact(t_exe);
+        // We're invoking via wasmtime intentionally — silence Zig's
+        // foreign-binary safety net so a missing native runner
+        // doesn't fail the step before wasmtime gets a chance.
+        run.skip_foreign_checks = true;
+        test_step.dependOn(&run.step);
+    }
 }
