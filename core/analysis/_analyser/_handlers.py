@@ -271,7 +271,7 @@ class _AnalyserHandlersMixin(_Base):
         fixed trailing signature (e.g. ``name1 name2 op``) regardless of
         whether the body uses those arguments.
         """
-        if cmd_name != "trace":
+        if cmd_name not in ("trace", "::trace"):
             return
 
         prefix: str | None = None
@@ -314,11 +314,16 @@ class _AnalyserHandlersMixin(_Base):
 
     @staticmethod
     def _trace_callback_candidates(cmd_name: str, scope: Scope) -> tuple[str, ...]:
-        """Mirror ``_resolve_proc_call`` candidate ordering as plain strings.
+        """Enumerate qualified-name candidates for an unqualified callback.
 
-        Returns the qualified-name candidates for *cmd_name* given the
-        current *scope*'s namespace chain.  Storing a tuple instead of
-        keeping a scope reference keeps the pending list snapshot-safe.
+        Tcl resolves the trace ``commandPrefix`` at trace-fire time using
+        the namespace active at the variable-write site, which the
+        analyser cannot know statically — it may be the registration
+        namespace, the global namespace, or any caller's namespace.  We
+        therefore enumerate every namespace ancestor plus the global
+        namespace as plausible candidates and let the resolver mark all
+        existing procs that match.  Storing a tuple instead of keeping a
+        scope reference keeps the pending list snapshot-safe.
         """
         from ...common.naming import normalise_qualified_name as _norm
 
@@ -348,9 +353,14 @@ class _AnalyserHandlersMixin(_Base):
     def _resolve_pending_trace_callbacks(self) -> None:
         """Resolve deferred ``trace`` callback registrations.
 
-        Marks each resolved ``ProcDef`` with ``is_trace_callback = True``
-        so W214 is suppressed for trace callbacks regardless of whether
-        the ``trace add`` site appeared before or after the proc body.
+        Marks every ``ProcDef`` matching any candidate qualified name
+        with ``is_trace_callback = True``.  Marking *all* matches (rather
+        than only the first) reflects Tcl's runtime resolution rules:
+        the callback's actual target depends on the namespace active at
+        the variable-write site, so any matching proc could legitimately
+        receive the trace arguments.  Suppressing W214 on every plausible
+        target avoids false positives at the small cost of suppressing
+        a hint on a same-named proc that happens not to be the callback.
         """
         if not self._pending_trace_callbacks:
             return
@@ -359,7 +369,6 @@ class _AnalyserHandlersMixin(_Base):
                 proc = self.result.all_procs.get(qname)
                 if proc is not None:
                     proc.is_trace_callback = True
-                    break
         self._pending_trace_callbacks.clear()
 
     def _handle_namespace_ensemble(
