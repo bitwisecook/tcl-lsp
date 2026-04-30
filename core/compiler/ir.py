@@ -419,20 +419,40 @@ class IRModule:
     def traced_commands(self) -> frozenset[str]:
         """Return the set of command names with a net active execution trace.
 
-        A trace is "net active" when there are more ``trace add execution``
-        directives for the target than ``trace remove execution`` directives
-        — modelling the global command-table state at end-of-script.
-        Dynamic targets (``target_dynamic=True``) are not folded into the
-        named set; callers that need the over-approximation must check
-        :meth:`has_dynamic_trace` separately.
+        Walks ``command_traces`` in source order, modelling the global
+        command-table state.  Tcl matches ``trace remove execution`` by
+        the full registration tuple (target, ops, command prefix); a
+        non-matching ``remove`` is a runtime no-op.  We mirror that
+        semantics conservatively:
+
+        - An ``add`` with a literal target appends ``(target, ops_set,
+          body)`` to the active list.
+        - A ``remove`` cancels at most one matching add — same target,
+          same ops set, same literal body.  Removes with a dynamic ops
+          list, dynamic body, or dynamic target leave the active list
+          alone (the safe over-approximation: the trace might still be
+          installed, so keep treating the command as traced).
+        - Dynamic-target adds are not folded into the named set;
+          callers that need the worst-case over-approximation must
+          check :meth:`has_dynamic_trace` separately.
         """
-        counts: dict[str, int] = {}
+        active: list[tuple[str, frozenset[str], str | None]] = []
         for trace in self.command_traces:
             if trace.target_dynamic:
                 continue
-            delta = 1 if trace.action == "add" else -1
-            counts[trace.target] = counts.get(trace.target, 0) + delta
-        return frozenset(name for name, count in counts.items() if count > 0)
+            if trace.action == "add":
+                active.append((trace.target, frozenset(trace.ops), trace.body))
+                continue
+            # ``remove`` — only cancel a matching add when target, ops,
+            # and body are all known.  Skip otherwise (over-pessimise).
+            if not trace.ops or trace.body is None:
+                continue
+            key = (trace.target, frozenset(trace.ops), trace.body)
+            try:
+                active.remove(key)
+            except ValueError:
+                continue
+        return frozenset(target for target, _ops, _body in active)
 
     def has_dynamic_trace(self) -> bool:
         """True when any ``trace add execution`` had a non-literal target.

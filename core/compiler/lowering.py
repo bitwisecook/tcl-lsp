@@ -1653,18 +1653,29 @@ class _Lowerer:
             and (cmd.expand_word is None or not any(cmd.expand_word))
             and self._dead_code_depth == 0
         ):
-            target_arg_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
-            ops_arg_tok = arg_tokens[3] if len(arg_tokens) > 3 else None
+            # An argument word is "literal" only when it is composed of a
+            # single non-substituting token: ``single_token_word`` is True
+            # AND the token type is STR (braced) or ESC (plain/escaped).
+            # ``foo$cmd`` lexes as ESC + VAR — its first token is ESC, but
+            # ``single_token_word`` is False, so it must be treated as
+            # dynamic.  Without the multi-token guard a target like
+            # ``foo$cmd`` would record as a literal ``foo`` and let
+            # purity/CSE checks proceed even though the actual traced
+            # command is runtime-dependent (issue #251 review).
+            def _arg_is_literal(arg_idx: int) -> bool:
+                word_idx = arg_idx + 1
+                if word_idx >= len(cmd.single_token_word):
+                    return False
+                if not cmd.single_token_word[word_idx]:
+                    return False
+                if word_idx >= len(cmd.argv):
+                    return False
+                return cmd.argv[word_idx].type in (TokenType.STR, TokenType.ESC)
+
             body_arg_tok = arg_tokens[4] if len(arg_tokens) > 4 else None
-            target_dynamic = target_arg_tok is None or target_arg_tok.type not in (
-                TokenType.STR,
-                TokenType.ESC,
-            )
+            target_dynamic = not _arg_is_literal(2)
             target_name = "" if target_dynamic else args[2]
-            ops_dynamic = ops_arg_tok is None or ops_arg_tok.type not in (
-                TokenType.STR,
-                TokenType.ESC,
-            )
+            ops_dynamic = not _arg_is_literal(3)
             if ops_dynamic:
                 ops_tuple: tuple[str, ...] = ()
             else:
@@ -1673,7 +1684,14 @@ class _Lowerer:
                 # literal form; non-literal ops fall through as ``()``
                 # which the consumer treats as "all ops".
                 ops_tuple = tuple(args[3].split())
-            body_literal = body_arg_tok is not None and body_arg_tok.type is TokenType.STR
+            # Body must be braced (STR) and single-token to be considered
+            # literal — an ESC body or a multi-token body could substitute.
+            body_literal = (
+                body_arg_tok is not None
+                and body_arg_tok.type is TokenType.STR
+                and len(cmd.single_token_word) > 5
+                and cmd.single_token_word[5]
+            )
             body_text: str | None = args[4] if body_literal else None
             body_range: Range | None = None
             if body_arg_tok is not None:
