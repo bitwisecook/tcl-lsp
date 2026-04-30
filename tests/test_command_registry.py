@@ -947,3 +947,88 @@ class TestOOAndSnitStructuralBodies:
         args = ["scheme", "script"]
         assert body_kind_for_command("uri::register", args) is BodyKind.STRUCTURAL
         assert arg_indices_for_role("uri::register", args, ArgRole.BODY) == {1}
+
+    def test_oo_objdefine_method_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["$obj", "method", "foo", "args", "body"]
+        assert body_kind_for_command("oo::objdefine", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::objdefine", args, ArgRole.BODY) == {4}
+
+    def test_oo_objdefine_bare_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        # ``oo::objdefine $obj { defScript }`` — the 2-arg form.
+        args = ["$obj", "body"]
+        assert body_kind_for_command("oo::objdefine", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::objdefine", args, ArgRole.BODY) == {1}
+
+    def test_snit_type_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Dog", "body"]
+        assert body_kind_for_command("snit::type", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::type", args, ArgRole.BODY) == {1}
+
+    def test_snit_widget_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["MyW", "body"]
+        assert body_kind_for_command("snit::widget", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::widget", args, ArgRole.BODY) == {1}
+
+    def test_snit_widgetadaptor_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["MyW", "body"]
+        assert body_kind_for_command("snit::widgetadaptor", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::widgetadaptor", args, ArgRole.BODY) == {1}
+
+    def test_snit_compile_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["type", "name", "body"]
+        assert body_kind_for_command("snit::compile", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::compile", args, ArgRole.BODY) == {2}
+
+    def test_snit_macro_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["name", "arglist", "body"]
+        assert body_kind_for_command("snit::macro", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::macro", args, ArgRole.BODY) == {2}
