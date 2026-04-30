@@ -1226,6 +1226,35 @@ class TestUnusedProcParameters:
         assert len(w214) == 1
         assert "'b'" in w214[0].message and "'other'" in w214[0].message
 
+    def test_trace_with_qualified_command_name(self):
+        """``::trace`` (qualified built-in) is recognised the same as ``trace``."""
+        source = textwrap.dedent("""\
+            proc watcher {name1 name2 op} { puts hello }
+            ::trace add variable x write watcher
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_trace_callback_marks_all_namespace_candidates(self):
+        """Tcl resolves the trace ``commandPrefix`` at fire time using the
+        namespace active at the variable-write site.  When a same-named
+        proc exists in both the registration namespace and the global
+        namespace, either could be the actual callback target — we mark
+        both to avoid false-positive W214 on the real callback."""
+        source = textwrap.dedent("""\
+            proc watcher {name1 name2 op} { puts global }
+            namespace eval ns {
+                proc watcher {name1 name2 op} { puts ns }
+                trace add variable ::x write watcher
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+        assert result.all_procs["::watcher"].is_trace_callback
+        assert result.all_procs["::ns::watcher"].is_trace_callback
+
 
 # interp alias
 class TestInterpAlias:

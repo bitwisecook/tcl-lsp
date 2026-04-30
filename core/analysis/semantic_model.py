@@ -207,6 +207,7 @@ class Scope:
                     v.body_range,
                     v.doc,
                     dict(v.param_traits),
+                    v.is_trace_callback,
                 )
                 for k, v in self.procs.items()
             },
