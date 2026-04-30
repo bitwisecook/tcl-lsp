@@ -1138,6 +1138,103 @@ class TestUnusedProcParameters:
         w214 = [d for d in result.diagnostics if d.code == "W214"]
         assert len(w214) == 0
 
+    def test_param_used_in_dict_for_body_issue_236(self):
+        """Issue #236 — parameter referenced inside a ``dict for`` body
+        (which is lowered as an opaque ``::tcl::dict::for`` barrier) must
+        be detected as used."""
+        source = textwrap.dedent("""\
+            proc allSpecsUpdate {{count 0}} {
+                dict for {k v} $things {
+                    if {$count>0} {
+                        incr count
+                    }
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
+    def test_param_used_inside_nested_braced_body(self):
+        """A parameter referenced only inside a nested ``if`` body that
+        sits inside a ``dict for`` body must not be flagged."""
+        source = textwrap.dedent("""\
+            proc f {but} {
+                dict for {k v} $d {
+                    if {$but ne ""} { puts $but }
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
+    def test_param_used_only_in_dict_map_body(self):
+        """``dict map`` follows the same opaque-body lowering as ``dict for``."""
+        source = textwrap.dedent("""\
+            proc f {scale} {
+                dict map {k v} $d { expr {$v * $scale} }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
+    def test_unused_param_in_dict_for_still_flagged(self):
+        """Make sure the broader scan does not silence true unused
+        parameters that appear alongside used ones."""
+        source = textwrap.dedent("""\
+            proc f {{count 0} other} {
+                dict for {k v} $d {
+                    if {$count>0} { incr count }
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "other" in w214[0].message
+
+    def test_param_read_inside_catch_body(self):
+        """A parameter referenced via ``$``-substitution inside a
+        ``catch { ... }`` body must be observed as used."""
+        source = textwrap.dedent("""\
+            proc f {x} {
+                catch { puts $x }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
+    def test_pure_write_to_param_inside_body_still_flags(self):
+        """A parameter that is only *written* (never read) inside an
+        opaque body is still unused — the deep body scan must not count
+        ``set x 1`` etc. as a read."""
+        source = textwrap.dedent("""\
+            proc f {x} {
+                dict for {k v} $d { set x 1 }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "x" in w214[0].message
+
+    def test_namespaced_for_command_does_not_get_dict_body_fallback(self):
+        """Only ``::tcl::dict::for|map`` get the synthetic body-arg
+        fallback — an unrelated ``::my::for`` must not have its third
+        arg scanned as a script (which would silently suppress W214)."""
+        source = textwrap.dedent("""\
+            proc f {x} {
+                ::my::for a b { set x 1 }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "x" in w214[0].message
+
     def test_trace_add_variable_callback_unused_args(self):
         """Issue #239: ``trace add variable`` callbacks must accept the
         ``name1 name2 op`` signature; the body legitimately may not use
