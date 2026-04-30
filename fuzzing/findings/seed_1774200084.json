@@ -25,5 +25,5 @@
     "wasm"
   ],
   "fixed": false,
-  "category": "wasm-accepts-non-numeric"
+  "category": "wasm-accepts-float-as-integer"
 }
