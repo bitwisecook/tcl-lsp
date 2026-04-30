@@ -1072,7 +1072,30 @@ def _build_param_bindings(
       proc has positional parameters, missing slots are filled
       from ``params_raw``-parsed defaults.  A missing slot
       without a default declines.
+    * **Braced literal args** — a call-site word that was
+      ``{literal}`` in source is bound via :class:`IRAssignConst`
+      so embedded ``$``/``[`` characters are preserved as-is at
+      the inlined call site (matching Tcl's "no substitution
+      inside ``{...}``" rule).  Without this, ``f {$y}`` would
+      have its ``$y`` re-substituted at the bound-parameter
+      assignment, reading the caller's ``y`` rather than passing
+      the literal string ``$y``.
+    * **``{*}`` argument expansion** — declined.  The inliner
+      currently can't unpack a runtime list into the parameter
+      slots; the call falls back to the runtime dispatch path
+      where the expander has correct semantics.
     """
+    # ``{*}`` expansion changes call arity at runtime.  Splicing
+    # the body with bindings frozen from ``call.args`` would skip
+    # the expansion entirely and bind the wrong number of
+    # parameters.  Decline (PR #237 review).
+    if call.tokens is not None and call.tokens.expand_word is not None:
+        # ``expand_word`` aligns with argv (which has the command
+        # name at index 0).  Any True past index 0 means an
+        # expanded arg word.
+        if any(call.tokens.expand_word[1:]):
+            return None
+
     counter[0] += 1
     cid = counter[0]
     rename: dict[str, str] = {}
@@ -1087,6 +1110,32 @@ def _build_param_bindings(
     # source string for the IRAssignValue going into
     # ``__inline_<cid>__<params[i]>``.
     bound: list[str] = []
+    # Track which bound-arg slots came from a braced-literal
+    # call-site word so we emit IRAssignConst for them below.
+    # ``True`` at index ``i`` means ``bound[i]`` is a braced
+    # literal; ``False`` means it's a substitution-bearing word
+    # (or a synthesised ``[list ...]`` packing).
+    bound_is_literal: list[bool] = []
+
+    def _arg_is_braced_literal(call_arg_index: int) -> bool:
+        """Return True iff the call-site word at index
+        ``call_arg_index`` (into ``call.args``) was a braced
+        literal in the source.  Falls back to False (treat as
+        substitution-bearing) when token info isn't available."""
+        if call.tokens is None:
+            return False
+        # argv[0] is the command name; argv[i+1] aligns with
+        # args[i].
+        idx = call_arg_index + 1
+        if idx >= len(call.tokens.argv):
+            return False
+        token = call.tokens.argv[idx]
+        # TokenType.STR is the type assigned to braced single-
+        # token words.  Importing the enum would tangle this
+        # module with parsing internals; comparing the type's
+        # name is sufficient.
+        return token.type.name == "STR"
+
     if has_variadic:
         positional_count = len(params) - 1
         if len(args) < positional_count:
@@ -1096,20 +1145,27 @@ def _build_param_bindings(
             # required params.
             return _build_with_defaults(cid, rename, proc, args, positional_count, has_variadic)
         # First ``positional_count`` args bind to required params.
-        bound.extend(args[:positional_count])
+        for i in range(positional_count):
+            bound.append(args[i])
+            bound_is_literal.append(_arg_is_braced_literal(i))
         # Remaining args pack into the ``args`` list literal.
         # ``list a b c`` is a clean Tcl idiom that produces a
         # well-formed list regardless of element content.
         extras = args[positional_count:]
         if not extras:
             bound.append("")
+            bound_is_literal.append(True)  # empty literal
         else:
-            # Build ``[list <e1> <e2> …]``.  Each extra is
-            # already a call-site arg string (possibly with $-
-            # subst, [cmd] subst, or literal); ``list`` is
-            # responsible for quoting at runtime.
+            # Build ``[list <e1> <e2> …]``.  Decline for now if any
+            # extras came from a braced-literal source — synthesising
+            # a literal-preserving list would need per-element brace-
+            # quoting, which the current synth can't do safely.
+            for i in range(positional_count, len(args)):
+                if _arg_is_braced_literal(i):
+                    return None
             list_call = "[list " + " ".join(extras) + "]"
             bound.append(list_call)
+            bound_is_literal.append(False)
     else:
         if len(args) > len(params):
             # Too many args — Tcl error normally; we decline so
@@ -1117,16 +1173,28 @@ def _build_param_bindings(
             return None
         if len(args) < len(params):
             return _build_with_defaults(cid, rename, proc, args, len(params), False)
-        bound.extend(args)
+        for i in range(len(args)):
+            bound.append(args[i])
+            bound_is_literal.append(_arg_is_braced_literal(i))
 
-    bindings: list = [
-        IRAssignValue(
-            range=call.range,
-            name=rename[p],
-            value=v,
-        )
-        for p, v in zip(params, bound)
-    ]
+    bindings: list = []
+    for p, v, is_literal in zip(params, bound, bound_is_literal):
+        if is_literal:
+            bindings.append(
+                IRAssignConst(
+                    range=call.range,
+                    name=rename[p],
+                    value=v,
+                )
+            )
+        else:
+            bindings.append(
+                IRAssignValue(
+                    range=call.range,
+                    name=rename[p],
+                    value=v,
+                )
+            )
     return cid, rename, bindings
 
 
@@ -1259,71 +1327,50 @@ def _drop_dead_procs(
     summaries: dict[str, ProcEscapeSummary],
     candidates: frozenset[str],
 ) -> IRModule:
-    """Remove from ``module.procedures`` every proc whose every
-    static reference was just inlined away.
+    """Remove dead inlinable procs from the module.
 
-    Eligibility:
+    **Currently disabled (PR #237 review).**  The pass formerly
+    removed every catalogue-eligible proc whose static call sites
+    were spliced away, on the theory that ``pure_leaf`` + zero
+    remaining IRCall references made the proc unreachable.  That
+    theory is wrong for ordinary user-defined Tcl procs:
 
-    * The proc must be in ``candidates`` (the catalogue's inlinable
-      set — already proved pure_leaf, so no observable side-effect
-      from removal).
-    * Its pre-inline ``static_call_count`` must be **> 0** — that
-      is, the catalogue saw at least one internal IRCall to it.
-      Procs with zero internal call sites are typically reached
-      externally (Python tests, embedding host calls,
-      ``namespace import`` from other compilation units) and are
-      conservatively kept regardless of post-inline reference
-      count.
-    * Post-inline reference set must not mention the proc by
-      name — neither as a resolved IRCall command nor as a
-      literal-text mention in any IRCall arg / IRAssign* value /
-      IRSwitch subject / IRReturn value.  The textual scan
-      catches dynamic-dispatch sites like
-      ``rename once {}`` / ``info procs once`` /
-      ``interp alias {} new {} once``: builtins that accept a
-      proc name as a string argument and look it up at runtime.
+    * Tcl ``proc`` definitions register *commands* in the
+      interpreter's namespace.  A pure_leaf helper is just as
+      observable as any other command — the embedding host can
+      call it via the public eval API, tcltest fixtures probe it
+      with ``info procs`` / ``namespace which``, ``namespace
+      import`` from another compilation unit picks it up, and
+      ``rename`` aliases it.  None of those reach through an
+      IRCall, so the syntactic scan sees zero references and
+      the proc *looks* dead.
+    * The PR's textual reference scan caught the
+      ``rename once {}`` / ``info procs once`` / ``interp alias``
+      classes inside the same compilation unit, but it can't see
+      cross-module references and it can't see host-side eval
+      calls.  Removing the proc silently breaks those callers.
 
-    Truly opaque procs (non-pure_leaf, possibly reached through
-    ``eval`` / ``unknown`` / dynamic ``[$cmd …]``) are never in
-    ``candidates`` and stay regardless.
+    A correct version of this pass needs an explicit "compiler-
+    private synthetic proc" marker on :class:`IRProcedure` so the
+    inliner can drop only procs *it* synthesised.  Until that
+    marker exists, this function is a no-op: every proc stays in
+    the module regardless of whether its static IRCall sites were
+    inlined away.
+
+    Tradeoff: inlining without proc removal is pure code
+    duplication at the splice site (the body is emitted twice —
+    inline at the call AND as a standalone wasm function).  We
+    keep the perf benefit at the call site (no call overhead, no
+    frame pop/push) while preserving the proc's observability.
+    Binary-size cost is the duplicated bodies.
     """
-    if not candidates:
-        return module
-
-    # Build the set of bare names we need to look for in args /
-    # values.  Each candidate qname may be referenced by its
-    # bare form (``once``) or its qualified form (``::once``);
-    # checking both bare and qualified avoids false negatives.
-    name_index: dict[str, set[str]] = {}
-    for qname in candidates:
-        bare = qname[2:] if qname.startswith("::") else qname
-        name_index.setdefault(bare, set()).add(qname)
-        name_index.setdefault(qname, set()).add(qname)
-
-    referenced: set[str] = set()
-    _collect_referenced_procs(module.top_level, "::", summaries, referenced, name_index)
-    for qname, proc in module.procedures.items():
-        _collect_referenced_procs(proc.body, qname, summaries, referenced, name_index)
-
-    new_procs: dict[str, IRProcedure] = {}
-    dropped: set[str] = set()
-    for qname, proc in module.procedures.items():
-        eligible = qname in candidates and proc.static_call_count > 0 and qname not in referenced
-        if eligible:
-            dropped.add(qname)
-            continue
-        new_procs[qname] = proc
-    if not dropped:
-        return module
-
-    # Also strip the top-level ``proc <name> …`` IRCall that
-    # defines each dropped proc.  Without this the codegen still
-    # tries to register the proc at module load time, but the
-    # corresponding compiled function is gone — observed during
-    # development as ``unknown command`` traps when the runtime
-    # falls back to interpreted dispatch on a stub registration.
-    new_top = _strip_proc_defs(module.top_level, dropped)
-    return replace(module, top_level=new_top, procedures=new_procs)
+    # Intentionally do not consult ``candidates`` — keeping the
+    # parameter for API stability with the call sites above.  The
+    # ``summaries`` parameter is similarly preserved for when the
+    # synthetic-proc marker lands.
+    _ = candidates
+    _ = summaries
+    return module
 
 
 def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:

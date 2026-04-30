@@ -104,13 +104,32 @@ def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
     list — we must not delete writes to a parameter slot because
     callers may observe the parameter's input value through
     ``[info args]`` / debug paths even when the body never reads it.
+
+    **Implicit-result protection (PR #237 review).**  Tcl proc
+    semantics: the value of the *last* command in the body becomes
+    the proc's return value when no explicit ``return`` fires.
+    ``proc p {} {set y 42}`` returns ``42`` because ``set`` returns
+    the value it stored.  If DCE deletes that ``set`` because
+    ``y`` is unread, the proc's return value silently changes to
+    ``""``.  Therefore the terminal statement of the script is
+    *always* preserved regardless of read/write counts.
+
+    The check is positional: the LAST statement of ``script``
+    keeps its assignment.  This is conservative — earlier
+    statements that happen to be tail-equivalent on some control-
+    flow path (e.g. inside an ``if`` whose else branch falls
+    through) aren't recognised here, but DCE only walks the
+    top-level body anyway, so the simple "last statement" rule
+    covers the proc-implicit-return case completely.
     """
     reads = _collect_reads(script)
     writes = _count_writes(script)
 
     new_stmts: list = []
     changed = False
-    for stmt in script.statements:
+    last_index = len(script.statements) - 1
+    for i, stmt in enumerate(script.statements):
+        is_terminal = i == last_index
         target = _assign_target(stmt)
         if (
             target is not None
@@ -119,6 +138,7 @@ def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
             and writes.get(target, 0) == 1
             and reads.get(target, 0) == 0
             and not _stmt_has_side_effects(stmt)
+            and not is_terminal
         ):
             changed = True
             continue

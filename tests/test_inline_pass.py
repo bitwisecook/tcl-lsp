@@ -44,12 +44,16 @@ class TestEmptyBodySplice:
         # restriction.  ``proc setup {} { set x 1 }`` is a v3
         # candidate: body writes a local, no params, no return.
         # The set is α-renamed so the caller's ``x`` (if any) is
-        # not mutated.
+        # not mutated.  Per PR #237 review the proc itself stays
+        # in the module — embedding hosts may still reach it via
+        # eval / namespace import / rename — but the static call
+        # site is gone.
         module, summaries = _prepare("proc setup {} { set x 1 }\nsetup\n")
         new_module = inline_module(module, summaries)
-        # Call vanishes; setup body is dead-proc-eliminated.
+        # Call vanishes; setup body STAYS (observable as a Tcl
+        # command from outside the compilation unit).
         assert _calls_to(new_module.top_level, "setup") == 0
-        assert "::setup" not in new_module.procedures
+        assert "::setup" in new_module.procedures
 
     def test_non_pure_leaf_is_not_inlined(self):
         # ``upvar`` blocks pure_leaf, so the catalogue tags ``skip_me``
@@ -247,17 +251,64 @@ class TestParameterisedInline:
 
     def test_variadic_args_with_zero_extras_inlines_to_empty(self):
         # ``proc f {a args} { ... }`` called as ``f 1`` — no extras.
+        # The empty-args binding may be IRAssignConst (preferred for
+        # the literal empty string) or IRAssignValue depending on
+        # how the binder represents empties; either is correct.
         module, summaries = _prepare("proc f {a args} { puts $a }\nf 1\n")
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 0
-        from core.compiler.ir import IRAssignValue
+        from core.compiler.ir import IRAssignConst, IRAssignValue
 
         args_binding = next(
             s
             for s in new_module.top_level.statements
-            if isinstance(s, IRAssignValue) and s.name.endswith("__args")
+            if isinstance(s, (IRAssignConst, IRAssignValue)) and s.name.endswith("__args")
         )
         assert args_binding.value == ""
+
+    def test_braced_literal_arg_uses_iassignconst(self):
+        # PR #237 review: ``f {$y}`` passes the *literal string*
+        # ``$y`` to f.  Bound parameter must be IRAssignConst so
+        # the inlined ``set __inline_x ...`` doesn't re-substitute
+        # ``$y`` from the caller's frame.
+        module, summaries = _prepare("proc f {x} { puts $x }\nf {literal-$y}\n")
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        from core.compiler.ir import IRAssignConst
+
+        binding = next(
+            s
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignConst) and s.name.endswith("__x")
+        )
+        # Value preserves the dollar sign verbatim — no substitution.
+        assert binding.value == "literal-$y"
+
+    def test_substitution_arg_keeps_iassignvalue(self):
+        # ``f $y`` passes the value of caller's ``y``.  Bound
+        # parameter remains IRAssignValue so the inlined ``set
+        # __inline_x $y`` reads the caller's frame correctly.
+        module, summaries = _prepare("proc f {x} { puts $x }\nset y 42\nf $y\n")
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        from core.compiler.ir import IRAssignValue
+
+        binding = next(
+            s
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignValue) and s.name.endswith("__x")
+        )
+        assert binding.value == "${y}"
+
+    def test_expand_arg_declines_inlining(self):
+        # ``f {*}$lst`` expands the runtime list into call words.
+        # The inliner can't statically unpack a runtime list into
+        # parameter slots, so it must decline and let the call
+        # fall back to the runtime dispatch path.
+        module, summaries = _prepare("proc f {a b c} { puts $a }\nset lst {1 2 3}\nf {*}$lst\n")
+        new_module = inline_module(module, summaries)
+        # Call NOT inlined — still present as an IRCall.
+        assert _calls_to(new_module.top_level, "f") == 1
 
     def test_default_arg_inlines(self):
         # ``proc f {x {y 5}} { puts $x }`` called with one arg —
@@ -408,26 +459,33 @@ class TestParameterisedInline:
 
 
 class TestDeadProcElimination:
-    def test_inlinable_proc_dropped_after_inlining(self):
-        # ``noop`` is inlined at every call site → no static refs
-        # remain → drop from module.procedures.
+    """Per PR #237 review: user-defined procs are externally
+    observable Tcl commands (host eval, ``info procs``, ``namespace
+    import``, ``rename``).  The inliner can't safely remove them
+    even when its static IRCall sites are all spliced away.  These
+    tests verify that procs survive inlining unconditionally;
+    dead-proc removal will return only when an explicit
+    ``compiler_synthetic`` marker exists on :class:`IRProcedure`."""
+
+    def test_inlinable_proc_kept_after_inlining(self):
+        # ``noop`` is inlined at every call site, but the proc
+        # definition stays — it's a Tcl command observable from
+        # outside the compilation unit.
         module, summaries = _prepare("proc noop {} {}\nnoop\nnoop\n")
         new_module = inline_module(module, summaries)
-        assert "::noop" not in new_module.procedures
+        assert "::noop" in new_module.procedures
 
     def test_unreferenced_inlinable_proc_kept_for_external_callers(self):
-        # No internal call sites — but the proc may be invoked
-        # externally (Python test harness, embedding host).  The
-        # post-inline pruning conservatively keeps procs whose
-        # pre-inline ``static_call_count`` was 0 because we can't
-        # distinguish "truly dead" from "only externally called".
+        # No internal call sites — proc may be invoked externally
+        # (Python test harness, embedding host).
         module, summaries = _prepare("proc lonely {} {}\n")
         new_module = inline_module(module, summaries)
         assert "::lonely" in new_module.procedures
 
     def test_non_inlinable_proc_kept_even_if_unreferenced(self):
         # ``upvar`` makes it non-pure_leaf → not in candidates set
-        # → kept regardless of static reference count.
+        # → kept regardless of static reference count (same as
+        # before).
         module, summaries = _prepare("proc opaque {name} { upvar 1 $name v }\n")
         new_module = inline_module(module, summaries)
         assert "::opaque" in new_module.procedures
