@@ -243,7 +243,7 @@ class TestDialectProfiles:
         # is suppressed, but only when the dispatched command cannot
         # be statically pinned.
         configure_signatures(dialect="f5-irules")
-        src = 'set cmd open\n$cmd /tmp/x\n'
+        src = "set cmd open\n$cmd /tmp/x\n"
         result = analyse(src)
         w002 = [d for d in result.diagnostics if d.code == "W002"]
         assert len(w002) == 1

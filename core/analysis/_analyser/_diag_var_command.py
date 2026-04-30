@@ -59,9 +59,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
 
         _w002_enabled = "W002" not in self._disabled_diagnostics
         _dialect = active_dialect() if _w002_enabled else None
-        _user_procs = (
-            _collect_unconditional_top_level_procs(cu.ir_module) if _w002_enabled else {}
-        )
+        _user_procs = _collect_unconditional_top_level_procs(cu.ir_module) if _w002_enabled else {}
 
         def _maybe_emit_w002(values: frozenset[object], site_range) -> None:
             """Emit W002 when every resolved literal command name is disabled.
@@ -93,9 +91,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 msg = f"'{disabled_names[0]}' is disabled in the active dialect profile"
             else:
                 quoted = ", ".join(f"'{n}'" for n in sorted(set(disabled_names)))
-                msg = (
-                    f"command may resolve to {quoted}, all disabled in the active dialect profile"
-                )
+                msg = f"command may resolve to {quoted}, all disabled in the active dialect profile"
             if any(
                 REGISTRY.command_status(normalise_qualified_name(n).lstrip(":"), "f5-irules")
                 is DialectStatus.EXISTS
