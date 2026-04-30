@@ -43,6 +43,8 @@ const tcl_alias = @import("cmds/tcl_alias.zig");
 const tcl_hide = @import("cmds/tcl_hide.zig");
 const tcl_interp_registry = @import("interp/tcl_interp_registry.zig");
 const interp = @import("interp/tcl_interp.zig");
+const tcl_sched = @import("sched/tcl_sched.zig");
+const tcl_coro = @import("sched/tcl_coro.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
 // (backwards-compatible: code that does @import("tcl_runtime.zig").X still works)

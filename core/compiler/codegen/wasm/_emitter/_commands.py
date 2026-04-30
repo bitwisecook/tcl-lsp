@@ -111,19 +111,23 @@ class _WasmEmitterCmdMixin(_Base):
         """
         rimp = runtime_import_for(command)
         if rimp is None:
-            if context is EmitContext.VALUE:
-                # Fall through to the interpreter so the implicit-return
-                # slot gets a real i32 TclObj.
-                self._emit_eval_fallback(command, args)
-            else:
-                self._emit_unsupported_trap(command)
+            # Fall through to the interpreter regardless of context.
+            # Statement-context commands (``update``, ``vwait``,
+            # ``after`` standalone) without a direct runtime import
+            # still need to execute via :func:`tcl_eval`; trapping
+            # would defeat the purpose of declaring them in the
+            # registry without a wasm_runtime_import.
+            self._emit_eval_fallback(command, args)
+            if context is EmitContext.STATEMENT:
+                # Eval fallback leaves a TclObj on the stack; STATEMENT
+                # context has no consumer, so drop it.
+                self._emit(WasmOp.DROP)
             return
         func_idx = self._shared_imports.get(rimp.import_key)
         if func_idx is None:
-            if context is EmitContext.VALUE:
-                self._emit_eval_fallback(command, args)
-            else:
-                self._emit_unsupported_trap(command)
+            self._emit_eval_fallback(command, args)
+            if context is EmitContext.STATEMENT:
+                self._emit(WasmOp.DROP)
             return
 
         # Record a diag site for commands whose stubs can trap

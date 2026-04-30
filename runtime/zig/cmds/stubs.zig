@@ -78,11 +78,6 @@ fn eval_package(words: []const i32) i32 {
     return 0;
 }
 
-fn eval_after(words: []const i32) i32 {
-    _ = words;
-    return rt.obj_new_string(0, 0);
-}
-
 // Interpreter-side ``clock`` dispatcher.
 //
 // The Tcl compiler emits ``_emit_eval_fallback("clock", args)`` for
@@ -226,9 +221,8 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "auto_execok", .arity_min = 1, .arity_max = 1, .handler = &eval_auto_noop },
     .{ .name = "auto_qualify", .arity_min = 2, .arity_max = 2, .handler = &eval_auto_noop },
     .{ .name = "package", .arity_min = 1, .arity_max = null, .handler = &eval_package },
-    .{ .name = "after", .arity_min = 1, .arity_max = null, .handler = &eval_after },
-    .{ .name = "vwait", .arity_min = 1, .arity_max = 1, .handler = &eval_auto_noop },
-    .{ .name = "update", .arity_min = 0, .arity_max = 1, .handler = &eval_auto_noop },
+    // ``after`` / ``vwait`` / ``update`` moved to ``cmds/after.zig`` +
+    // ``cmds/event.zig`` (real scheduler-backed implementations).
     .{ .name = "clock", .arity_min = 1, .arity_max = null, .handler = &eval_clock },
 };
 
