@@ -174,6 +174,20 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32],
         [ValType.I32],
     ),
+    # Channel-form puts — used by the ``puts $chan msg`` and
+    # ``puts -nonewline $chan msg`` shapes.  Routes the write through
+    # the channel registry in ``runtime/zig/io/tcl_chan.zig`` so the
+    # message lands on the right fd.  The third arg is a flag (0 =
+    # append newline, 1 = ``-nonewline``).  Emitting this directly
+    # avoids the eval-fallback path, which would round-trip the
+    # quoted-string message through list-quote and silently brace it
+    # (suppressing ``$var`` / ``[cmd]`` substitution).
+    "tcl_puts_chan": (
+        "tcl",
+        "tcl_cmd_puts_chan",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # ``tcl_expr_order_cmp`` is used by expr codegen to compare TclObjs.
     "tcl_expr_order_cmp": (
         "tcl",
