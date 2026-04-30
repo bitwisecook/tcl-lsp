@@ -204,21 +204,35 @@ fn collectTestFiles(b: *std.Build) ![][]const u8 {
         const base = std.fs.path.basename(entry.path);
         if (!std.mem.startsWith(u8, base, "test_")) continue;
         if (!std.mem.endsWith(u8, base, ".zig")) continue;
-        // Skip vendored / dependency trees — they won't contain our
-        // tests and walking into them slows discovery on cold caches.
-        if (std.mem.startsWith(u8, entry.path, "vendor/") or
-            std.mem.startsWith(u8, entry.path, "regex_include/") or
-            std.mem.startsWith(u8, entry.path, ".zig-cache/") or
-            std.mem.indexOf(u8, entry.path, "/.zig-cache/") != null)
+
+        // Normalise to forward slashes BEFORE the directory-prefix
+        // skip checks so they work identically on Windows
+        // (``walker`` returns native separators — ``\`` on Windows,
+        // ``/`` on POSIX).  Doing this after the filter would leave
+        // Windows hosts walking ``vendor\`` / ``zig-out\`` trees that
+        // matched none of the ``/``-suffixed prefix patterns.
+        //
+        // ``b.allocator`` is the build's arena, so the dup on the
+        // skip path is reclaimed wholesale at end-of-build.
+        const norm = try b.allocator.dupe(u8, entry.path);
+        std.mem.replaceScalar(u8, norm, std.fs.path.sep, '/');
+
+        // Skip vendored / dependency / build-output trees — they
+        // won't contain our tests and walking into them slows
+        // discovery, especially after ``zig build`` has populated
+        // ``zig-out/`` with installed artifacts.  Both top-level
+        // (``zig-out/...``) and nested (``deps/foo/zig-out/...``)
+        // forms are filtered.
+        if (std.mem.startsWith(u8, norm, "vendor/") or
+            std.mem.startsWith(u8, norm, "regex_include/") or
+            std.mem.startsWith(u8, norm, ".zig-cache/") or
+            std.mem.startsWith(u8, norm, "zig-out/") or
+            std.mem.indexOf(u8, norm, "/.zig-cache/") != null or
+            std.mem.indexOf(u8, norm, "/zig-out/") != null)
         {
             continue;
         }
-        // ``walker.next`` reuses its internal buffer — dupe the path
-        // so it survives the rest of the walk.  Normalise to forward
-        // slashes so ``b.path`` works identically on Windows.
-        const dup = try b.allocator.dupe(u8, entry.path);
-        std.mem.replaceScalar(u8, dup, std.fs.path.sep, '/');
-        try list.append(b.allocator, dup);
+        try list.append(b.allocator, norm);
     }
 
     const slice = try list.toOwnedSlice(b.allocator);
