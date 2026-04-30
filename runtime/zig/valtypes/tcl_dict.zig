@@ -469,7 +469,16 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
         }
     }
     // Key absent — try the in-place geometric append fast path.
-    if (sd.len > 0 and dict != 0) {
+    // ``is_immediate`` guard (PR #237 review): with S6.4, every small
+    // integer is a tagged immediate.  ``@intCast(dict)`` on a tagged
+    // handle yields a low integer (e.g. ``11`` for the immediate form
+    // of ``5``); reading from ``addr + OBJ_REFCOUNT`` then deref's a
+    // wasm data-segment / null-padding address, either trapping or
+    // returning junk that the cap/rc check would silently believe.
+    // The earlier ``obj_ensure_string`` / ``dict_ensure_cache`` calls
+    // already cope with immediates; the in-place path needs the same
+    // guard.
+    if (sd.len > 0 and dict != 0 and !obj.is_immediate(dict)) {
         const addr: u32 = @intCast(dict);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
@@ -641,8 +650,16 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
 
 fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp: u32, vl: u32) i32 {
     // Worst-case: each existing byte could double (backslash-escape) plus
-    // braces, plus the new value doubled, plus separator spaces.
-    const buf = alloc(sd_len * 2 + vl * 2 + 16);
+    // braces, plus the new value doubled, plus separator spaces.  Round
+    // up to a known size class so OBJ_STR_CAP records the real
+    // allocation size — without that, ``release_now`` skips the
+    // ``free_sized`` call (gated on ``cap > 0``) and the rebuilt
+    // buffer leaks on every ``dict set $d existing-key new-val`` (PR
+    // #237 second-pass review).
+    const max_buf: u32 = sd_len * 2 + vl * 2 + 16;
+    const cap = obj.round_up_to_class((max_buf + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
@@ -673,7 +690,13 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             }
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    const out = obj_new_string(@intCast(buf), @intCast(off));
+    if (out == 0) {
+        obj.free_sized(buf, cap);
+        return 0;
+    }
+    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    return out;
 }
 
 fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {

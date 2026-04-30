@@ -64,7 +64,10 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // O(N) per call, which makes any ``for { ... { lappend L $i } }``
     // loop O(N²).  The in-place path is O(1) per call when the
     // buffer has room, O(N) only on grow.
-    if (sc.len > 0 and current != 0) {
+    // ``is_immediate`` guard (PR #237 review): tagged immediates would
+    // ``@intCast`` to a low integer and the rc/tag/cap reads would
+    // dereference wasm data-segment bytes — junk values or a trap.
+    if (sc.len > 0 and current != 0 and !obj.is_immediate(current)) {
         const addr: u32 = @intCast(current);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
