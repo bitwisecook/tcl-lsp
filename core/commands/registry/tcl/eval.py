@@ -48,7 +48,7 @@ class EvalCommand(CommandDef):
             taint_sink=True,
             taint_sink_safe_colour=TaintColour.LIST_CANONICAL,
             xc_translatable=False,
-            arg_roles={0: ArgRole.BODY},
+            arg_roles={0: frozenset({ArgRole.BODY})},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(target=SideEffectTarget.UNKNOWN, connection_side=ConnectionSide.NONE),

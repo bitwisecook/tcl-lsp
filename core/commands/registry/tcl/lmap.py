@@ -13,10 +13,10 @@ from .shimmer_resolvers import resolve_lmap
 _SOURCE = "Tcl man page lmap.n"
 
 
-def _lmap_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _lmap_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is the body script."""
     if len(args) >= 3:
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: frozenset({ArgRole.BODY})}
     return {}
 
 

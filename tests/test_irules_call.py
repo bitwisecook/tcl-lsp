@@ -542,7 +542,7 @@ class TestCallSpec:
         from core.commands.registry.signatures import ArgRole
 
         spec = CallCommand.spec()
-        assert spec.arg_roles.get(0) == ArgRole.NAME
+        assert ArgRole.NAME in spec.arg_roles.get(0, frozenset())
 
     def test_call_minimum_arity(self):
         """call requires at least 1 argument (the proc name)."""
