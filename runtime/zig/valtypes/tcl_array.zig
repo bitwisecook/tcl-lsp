@@ -31,6 +31,16 @@ const obj_get_int = obj.obj_get_int;
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
+/// Forward-declared probe into the namespace var subsystem so we can
+/// detect scalar/array name conflicts without creating a circular
+/// import (tcl_ns already imports this module).  Defined in
+/// ``tcl_ns.zig`` as an exported helper and called only from
+/// ``find_or_create`` below.  Returns 1 iff a scalar of the given
+/// name already exists with a non-null value; 0 otherwise (including
+/// "name has been unset" and "name is currently the array's key").
+extern fn ns_scalar_exists(name_ptr: u32, name_len: u32) i32;
+const stubs = @import("../stubs/tcl_stubs.zig");
+
 // --- Array directory (name → per-array table) --------------------------
 
 // Bucket: [name_ptr:4 | name_len:4 | hash:4 | table_ptr:4] = 16 bytes
@@ -354,6 +364,19 @@ fn find_or_create(name: i32) u32 {
         write_i32(bucket + 12, @bitCast(fresh));
         return fresh;
     }
+    // No array with this name yet — but a *scalar* might exist.  Real
+    // Tcl raises ``can't set "<name>(...)": variable isn't array`` in
+    // that case.  Detect via ``ns_scalar_exists`` (probe into the var
+    // subsystem); if so, raise AND return 0 so callers know not to
+    // proceed.  ``stubs.raise`` only sets the catch-side error flag —
+    // it does NOT abort execution — so without the 0 sentinel we'd
+    // both report an error and silently mutate the directory by
+    // creating the array anyway, which is exactly what real Tcl
+    // doesn't do.
+    if (ns_scalar_exists(sn.ptr, sn.len) != 0) {
+        stubs.raise("can't set: variable isn't array");
+        return 0;
+    }
     const t = ar_new();
     dir_insert(sn.ptr, sn.len, hash, t);
     return t;
@@ -373,9 +396,13 @@ fn find_table(name: i32) u32 {
 // --- Public exports ----------------------------------------------------
 
 /// array_set arrName key value — stores value under key in the array
-/// named arrName.  Creates the array on first write.  Returns value.
+/// named arrName.  Creates the array on first write.  Returns value
+/// on success, or 0 (null TclObj) when ``find_or_create`` reported a
+/// scalar/array name conflict via ``stubs.raise`` — in that case no
+/// element is stored.
 pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
     const t = find_or_create(arr);
+    if (t == 0) return 0;
     const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
@@ -421,7 +448,11 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
         const v_info = obj.list_element_at(sp.ptr, sp.len, i + 1);
         const k_obj = obj_new_string(@bitCast(sp.ptr + k_info.start), @bitCast(k_info.len));
         const v_obj = obj_new_string(@bitCast(sp.ptr + v_info.start), @bitCast(v_info.len));
-        _ = array_set(arr, k_obj, v_obj);
+        // ``array_set`` returns 0 when ``find_or_create`` flagged
+        // a scalar/array name-conflict.  Stop iterating in that
+        // case — every further call would re-raise the same
+        // error and do no useful work.
+        if (array_set(arr, k_obj, v_obj) == 0) break;
     }
     return obj_new_string(0, 0);
 }
@@ -450,6 +481,50 @@ pub export fn array_exists(arr: i32) i32 {
     const t = find_table(arr);
     if (t == 0) return obj_new_int(0);
     return obj_new_int(1);
+}
+
+/// Bare-int variant of :func:`array_exists` for runtime-side
+/// callers that don't want a TclObj round-trip.  Returns 1 iff the
+/// array directory has an entry for the given (raw byte, length)
+/// name; 0 otherwise.  Used by ``tcl_ns.global_set`` so it can
+/// query the array directory using the same stripped-``::``
+/// canonical form ``ns_var_find`` uses for the matching scalar
+/// lookup, *without* allocating a TclObj that the caller would
+/// have to release.
+pub fn array_exists_raw(name_ptr: u32, name_len: u32) bool {
+    if (dir_buf == 0 or name_len == 0) return false;
+    // The directory keys things by the *post-normalisation* name
+    // (``::ns::a`` for any qualified write, bare ``a`` otherwise),
+    // and ``find_or_create`` does normalisation on insert.  We
+    // mirror the same key here: callers pass the stripped key
+    // (``a`` or ``ns::a``); for ``ns::a`` we add the ``::`` prefix
+    // so the lookup matches the inserted form.
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    var probe_ptr = name_ptr;
+    var probe_len = name_len;
+    var prefix_buf: [256]u8 = undefined;
+    if (name_len >= 2 and sp[0] != ':' and sp[1] != ':') {
+        // Look for an internal ``::`` to mirror normalize_ns_name's
+        // behaviour.  If we find one, prepend ``::`` for the
+        // directory lookup.
+        var i: u32 = 0;
+        while (i + 1 < name_len) : (i += 1) {
+            if (sp[i] == ':' and sp[i + 1] == ':') {
+                if (name_len + 2 > prefix_buf.len) return false;
+                prefix_buf[0] = ':';
+                prefix_buf[1] = ':';
+                for (0..name_len) |k| prefix_buf[2 + k] = sp[k];
+                probe_ptr = @intFromPtr(&prefix_buf[0]);
+                probe_len = name_len + 2;
+                break;
+            }
+        }
+    }
+    const hash = fnv1a(probe_ptr, probe_len);
+    if (dir_find(probe_ptr, probe_len, hash)) |bucket| {
+        return @as(u32, @bitCast(read_i32(bucket + 12))) != 0;
+    }
+    return false;
 }
 
 /// array_element_exists arrName key — 1 if arr(key) is set, 0 otherwise.

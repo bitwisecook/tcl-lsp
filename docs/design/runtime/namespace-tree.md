@@ -571,9 +571,11 @@ every commit.  Source: `/root/.claude/plans/plan-out-and-fix-floofy-gadget.md`.
 | P5.2 | `tcl_procs.zig` / `tcl_ns.zig` — `ns_find_command` consults `path_array` between context-ns and root | Resolution uses the path; matches tclsh on `namespace path` cases |
 | P5.3 | `tcl_ns.zig` — `cmd_ref_epoch` bumped in `ns_add_command` / `ns_remove_command` + cascaded through `path_source_head`; LRU in `proc_lookup` keyed partly on the source ns's epoch | Invalidation correctness; no observable change unless a cached entry points at a stale cmd |
 
-Every runtime PR rebuilds `runtime/zig/zig-out/bin/tcl_runtime.wasm`
-as part of the commit (so downstream bundle tests see the new
-binary).  Compiler PRs (P6-P8) don't touch the .wasm.
+The runtime artefact (`runtime/zig/zig-out/bin/tcl_runtime.wasm`)
+is no longer checked in — `core.runtime_wasm.runtime_wasm_path()`
+locates it and runs `zig build` on first call when missing, so
+downstream bundle tests pick up the right binary on a fresh
+checkout without anyone manually committing it.
 
 ## 7. Zig API surface
 

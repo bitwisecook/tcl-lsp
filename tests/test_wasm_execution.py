@@ -4,13 +4,12 @@ These tests compile Tcl source to WASM, link with the Zig value
 runtime (also compiled to WASM), and execute the resulting module
 natively in wasmtime — no Python↔WASM FFI stubs.
 
-Requires: ``wasmtime`` Python package (listed in dev dependencies)
-and the pre-built Zig runtime at ``runtime/zig/zig-out/bin/tcl_runtime.wasm``.
+Requires: ``wasmtime`` Python package (listed in dev dependencies).
+The Zig runtime is built on demand by ``core.runtime_wasm`` — no
+prebuilt binary needs to be present in the working tree.
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import pytest
 
@@ -20,15 +19,11 @@ from core.compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-# Path to the pre-built Zig WASM runtime
-_ZIG_RUNTIME_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "runtime"
-    / "zig"
-    / "zig-out"
-    / "bin"
-    / "tcl_runtime.wasm"
-)
+# Path to the pre-built Zig WASM runtime — the helper auto-builds
+# on a fresh checkout where the artefact isn't yet on disk.
+from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+
+_ZIG_RUNTIME_PATH = runtime_wasm_path()
 
 # Shared wasmtime engine (expensive to create — reuse across tests)
 _engine: wasmtime.Engine | None = None
@@ -799,6 +794,10 @@ class TestCommandDispatch:
             "tcl_list",
             "local_set",
             "local_get",
+            # Since S2, retain/release are always imported because
+            # the owned-slot wrap can fire on any frame-elided proc.
+            "tcl_obj_retain",
+            "tcl_obj_release",
         }
 
 

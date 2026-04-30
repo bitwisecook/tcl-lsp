@@ -7,22 +7,25 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "Tcl man page class.n"
 
 
-def _oo_metaclass_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _oo_metaclass_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY roles for OO metaclass commands (create/new/createWithNamespace)."""
     if len(args) < 2:
         return {}
     if args[0] == "create" and len(args) >= 3:
-        return {2: ArgRole.BODY}
+        return {2: _BODY}
     if args[0] == "new" and len(args) >= 2:
-        return {1: ArgRole.BODY}
+        return {1: _BODY}
     if args[0] == "createWithNamespace" and len(args) >= 4:
-        return {3: ArgRole.BODY}
+        return {3: _BODY}
     return {}
 
 
@@ -75,6 +78,12 @@ class OoClassCommand(CommandDef):
                 arity=Arity(),
             ),
             arg_role_resolver=_oo_metaclass_arg_roles,
+            # ``oo::class create FOO { ... }`` and friends carry a class
+            # definition script that runs in the class's definition
+            # context, not the caller's scope.  STRUCTURAL excludes the
+            # body from the enclosing block's data flow; the OO analyser
+            # (``_handle_oo_class_command``) recurses into it separately.
+            body_kind=BodyKind.STRUCTURAL,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

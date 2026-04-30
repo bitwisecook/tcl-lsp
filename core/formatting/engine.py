@@ -349,17 +349,17 @@ def _identify_param_list_args(name: str, args: list[CommandArg]) -> None:
     if isinstance(sig, SubcommandSig) and args:
         sub_sig = sig.subcommands.get(args[0].text)
         if isinstance(sub_sig, CommandSig):
-            for idx, role in sub_sig.arg_roles.items():
+            for idx, roles in sub_sig.arg_roles.items():
                 actual_idx = idx + 1
                 if (
-                    role is ArgRole.PARAM_LIST
+                    ArgRole.PARAM_LIST in roles
                     and actual_idx < len(args)
                     and args[actual_idx].is_braced
                 ):
                     args[actual_idx].kind = ArgKind.PARAM_LIST
     elif isinstance(sig, CommandSig):
-        for idx, role in sig.arg_roles.items():
-            if role is ArgRole.PARAM_LIST and idx < len(args) and args[idx].is_braced:
+        for idx, roles in sig.arg_roles.items():
+            if ArgRole.PARAM_LIST in roles and idx < len(args) and args[idx].is_braced:
                 args[idx].kind = ArgKind.PARAM_LIST
 
 

@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 
 from ..commands.registry import REGISTRY
+from ..commands.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from ..commands.registry.signatures import ArgRole
 from ..parsing.lexer import TclParseError
 from .semantic_model import ProcArgTrait
@@ -53,26 +54,6 @@ def _extract_var_name(text: str) -> str | None:
     if m:
         return m.group(1) or m.group(2)
     return None
-
-
-def _resolve_arg_roles(command: str, args: list[str]) -> dict[int, ArgRole]:
-    """Get arg roles for a command from the registry."""
-    spec = REGISTRY.get_any(command)
-    if spec is None:
-        return {}
-
-    if spec.arg_role_resolver is not None:
-        return spec.arg_role_resolver(args)
-
-    if spec.arg_roles:
-        return dict(spec.arg_roles)
-
-    if spec.subcommands and args:
-        sub = spec.subcommands.get(args[0])
-        if sub is not None and sub.arg_roles:
-            return {k + 1: v for k, v in sub.arg_roles.items()}
-
-    return {}
 
 
 def _extract_commands(source: str) -> list[tuple[str, list[str]]]:
@@ -114,15 +95,15 @@ def _scan_commands(
             if source_param is None:
                 continue
 
-            role = arg_roles.get(idx)
+            roles = arg_roles.get(idx, frozenset())
 
-            if role is ArgRole.BODY:
+            if ArgRole.BODY in roles:
                 traits[source_param].add(ProcArgTrait.BODY)
-            elif role is ArgRole.EXPR:
+            if ArgRole.EXPR in roles:
                 traits[source_param].add(ProcArgTrait.EXPR)
-            elif role is ArgRole.VAR_WRITE:
+            if ArgRole.VAR_WRITE in roles:
                 traits[source_param].add(ProcArgTrait.VAR_WRITE)
-            elif role is ArgRole.VAR_READ:
+            if ArgRole.VAR_READ in roles:
                 traits[source_param].add(ProcArgTrait.VAR_READ)
 
         # Commands that evaluate code (eval, uplevel, subst, etc.)

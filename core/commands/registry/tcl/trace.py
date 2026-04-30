@@ -20,7 +20,7 @@ from ._base import register
 _SOURCE = "Tcl man page trace.n"
 
 
-def _trace_add_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _trace_add_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Map ``trace add`` argument roles by trace type.
 
     Indices are relative to the args after the ``add`` subcommand word
@@ -32,7 +32,7 @@ def _trace_add_arg_roles(args: list[str]) -> dict[int, ArgRole]:
     and ``trace add execution`` refer to commands, not variables.
     """
     if len(args) >= 2 and args[0] == "variable":
-        return {1: ArgRole.VAR_WRITE}
+        return {1: frozenset({ArgRole.VAR_WRITE})}
     return {}
 
 

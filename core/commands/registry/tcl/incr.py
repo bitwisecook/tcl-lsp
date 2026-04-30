@@ -44,7 +44,7 @@ class IncrCommand(CommandDef):
             # In 8.4 (and dialects based on it, e.g. iRules) it raises
             # "can't read": no such variable.
             safe_on_uninit=dialects_since("tcl8.5"),
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             return_type=TclType.INT,
             arg_types={
                 0: ArgTypeHint(expected=TclType.INT, shimmers=True),

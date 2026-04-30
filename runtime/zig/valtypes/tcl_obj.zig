@@ -1,12 +1,26 @@
 // TclObj value type, memory management, and string helpers for WASM.
 //
-// Memory layout of a TclObj:
-//   offset 0: refcount  (i32)
-//   offset 4: type_tag  (i32)  0=string, 1=int, 2=list
-//   offset 8: int_cache (i64)  cached integer representation
-//   offset 16: str_ptr  (i32)  pointer to UTF-8 data in linear memory
-//   offset 20: str_len  (i32)  byte length of the string representation
-//   Total: 24 bytes per TclObj
+// Memory layout of a TclObj (32 bytes; ``OBJ_SIZE``):
+//   offset 0:  refcount  (i32)
+//   offset 4:  type_tag  (i32)  0=string, 1=int, 2=list, 3=dict,
+//                                4=float, 5=inline-string
+//   offset 8:  int_cache (i64)  cached integer / float bits, OR
+//                                ≤ 8-byte inline string payload
+//                                when type_tag == TYPE_INLINE_STRING
+//   offset 16: str_ptr   (i32)  pointer to UTF-8 string-rep buffer
+//                                (or to the inline payload at +8 for
+//                                TYPE_INLINE_STRING)
+//   offset 20: str_len   (i32)  byte length of the string rep
+//   offset 24: str_cap   (i32)  size-class-rounded capacity of the
+//                                buffer pointed to by ``str_ptr``;
+//                                non-zero ⇒ obj owns the buffer and
+//                                ``release_now`` will ``free_sized``
+//                                it.  Zero ⇒ borrowed (interned
+//                                literal in the data segment, or the
+//                                inline payload at +8).
+//   offset 28: dict_ext  (i32)  pointer to a dict hash side-cache
+//                                (see ``tcl_dict.zig``); zero on
+//                                every other obj type
 //
 // Layering: character classification and byte-span comparison are in
 // ``tcl_chars.zig``; list-quoting / list-parsing / backslash decoding
@@ -18,6 +32,7 @@
 
 const chars = @import("tcl_chars.zig");
 const std = @import("std");
+const build_options = @import("build_options");
 
 // Type tags
 pub const TYPE_STRING: i32 = 0;
@@ -28,6 +43,16 @@ pub const TYPE_DICT: i32 = 3;
 // The str_ptr/str_len fields hold a cached string representation
 // once obj_ensure_string has been called.
 pub const TYPE_FLOAT: i32 = 4;
+// TYPE_INLINE_STRING: short strings (≤ MAX_INLINE_STR bytes) stored
+// directly in the obj header at OBJ_INT_CACHE.  No external buffer
+// is allocated, so :func:`obj_new_string_copy` for a short payload
+// avoids the second ``alloc`` call.  ``obj_str_ptr`` returns a
+// pointer INTO the obj header for these — readers must not hold
+// the pointer past the obj's lifetime.  ``obj_type`` reports
+// ``TYPE_STRING`` for callers that don't distinguish, so the
+// inline encoding stays transparent to the rest of the system.
+pub const TYPE_INLINE_STRING: i32 = 5;
+pub const MAX_INLINE_STR: u32 = 8;
 
 // TclObj field offsets
 pub const OBJ_REFCOUNT: u32 = 0;
@@ -46,7 +71,85 @@ pub const OBJ_STR_LEN: u32 = 20;
 // the runtime grow the buffer geometrically (doubling) instead of
 // reallocating on every append.
 pub const OBJ_STR_CAP: u32 = 24;
+// OBJ_DICT_EXT: pointer to a hash side-cache for dict objects (see
+// :file:`tcl_dict.zig`).  Zero on every other obj type.  Co-located
+// with the existing 32-byte header — bytes 28..31 were padding
+// before the dict cache was introduced.
+pub const OBJ_DICT_EXT: u32 = 28;
 pub const OBJ_SIZE: u32 = 32;
+
+// S6.4 — Tagged-immediate small integers.
+//
+// Bit 0 of an i32 handle is the tag bit.  When set, the handle is
+// NOT a pointer to a TclObj header; it encodes a signed integer
+// shifted left by 1 with the tag in bit 0:
+//
+//   handle = (value << 1) | 1
+//   value  = handle >> 1   (arithmetic shift — sign-preserving)
+//
+// Range: ``[0, 2^30 - 1]`` = ``[0, 1_073_741_823]``.  Negative
+// values fall back to allocation.
+//
+// Why the range is positive-only (PR #237 review): the frame
+// layer's local-variable bucket value field shares the same i32
+// space, and uses negative sentinels to mark variable aliases:
+//
+//   * ``ALIAS_GLOBAL`` = ``-1``  (bucket value -1 means "alias to
+//     a same-named global").
+//   * ``ALIAS_EXT``    = ``v <= -2`` (bucket value is the negated
+//     descriptor heap address).
+//
+// A tagged immediate of ``-1`` encodes as ``(0xFFFFFFFE | 1) =
+// 0xFFFFFFFF = -1`` — the same bit pattern as ``ALIAS_GLOBAL``.
+// Any negative value's encoding has bit 31 set, so it can also
+// collide with a descriptor-pointer sentinel.  Restricting the
+// tagged-immediate range to **non-negative** values makes the
+// encoding bit-31 = 0, which can't ever equal a negative
+// alias sentinel.  The cost is that small *negative* integers
+// (``-1``, ``-2``, …) take the heap-allocated path, but loop
+// counters, list indices, and the vast majority of literal
+// integers are non-negative anyway.
+//
+// Why bit 0 is safe as a tag:
+//
+// 1. The allocator rounds every request up to a multiple of 8
+//    (``alloc`` does ``(size + 7) & ~7`` and the heap starts on a
+//    page boundary), so every valid TclObj pointer has bits 0..2
+//    = 0.  A handle with bit 0 set cannot collide with a valid
+//    object address.
+// 2. ``handle == 0`` (null) is preserved: bit 0 is 0, so it is
+//    treated as a pointer (and null-checked separately by every
+//    accessor).
+//
+// Tagged immediates are immortal — they have no refcount and no
+// header, so :func:`tcl_obj_retain` / :func:`tcl_obj_release` are
+// no-ops on them.  Readers (:func:`obj_get_int`, :func:`obj_type`,
+// :func:`obj_ensure_string`) detect the tag bit via
+// :func:`is_immediate` and short-circuit before dereferencing.
+
+pub const IMMEDIATE_TAG_BIT: u32 = 0x1;
+pub const IMMEDIATE_MIN: i64 = 0;
+pub const IMMEDIATE_MAX: i64 = (1 << 30) - 1;
+
+/// True iff *handle* is a tagged immediate (bit 0 set).
+pub fn is_immediate(handle: i32) bool {
+    return (@as(u32, @bitCast(handle)) & IMMEDIATE_TAG_BIT) != 0;
+}
+
+/// Return the boxed signed integer represented by a tagged immediate
+/// handle.  Caller must already have verified ``is_immediate(handle)``.
+pub fn immediate_unbox(handle: i32) i64 {
+    return @as(i64, handle >> 1);
+}
+
+/// Encode *value* as a tagged-immediate handle, or return ``null``
+/// when it doesn't fit the 31-bit signed range.
+pub fn immediate_box(value: i64) ?i32 {
+    if (value < IMMEDIATE_MIN or value > IMMEDIATE_MAX) return null;
+    const v32: i32 = @intCast(value);
+    const u: u32 = @bitCast(v32);
+    return @bitCast((u << 1) | IMMEDIATE_TAG_BIT);
+}
 
 // WASM linear-memory allocator.
 //
@@ -99,10 +202,15 @@ pub const MAX_HEAP_PAGES: u32 = 4096; // 256 MB ceiling; configurable via build 
 // regex-heavy workload and lose a class of latent corruption
 // bugs.
 //
-// We keep the size-class free-list machinery as a no-op layer
-// (``class_head_for`` etc. still exist for backwards compat with
-// callers that reach into them) but the lists are never
-// populated — every free goes straight to libc free.
+// S6.1: re-enabled the size-class free-lists for the four most-
+// common size classes (32 / 48 / 64 / 96 — TclObj headers + small
+// strings).  ``alloc()`` pops a slab if available before falling
+// through to libc malloc; ``free_obj`` / ``free_sized`` push.
+// Each list is bounded at MAX_FREELIST entries so a regex stress
+// test cannot pin too much memory in the recycler.
+//
+// The four classes cover the bulk of allocs in tcltest workloads;
+// classes above 96 still go straight to libc.
 
 extern fn malloc(size: usize) ?*anyopaque;
 extern fn free(ptr: ?*anyopaque) void;
@@ -110,11 +218,15 @@ extern fn calloc(nmemb: usize, size: usize) ?*anyopaque;
 
 var oom_flag: u32 = 0;
 
-// Per-size-class free-lists kept for backwards compat — never
-// populated under the libc-malloc routing.  Anything reading
-// these still gets a valid empty list.
+// Per-size-class free-list head pointers.  When non-zero, the
+// slab at the head's address contains its successor's address at
+// offset 0 (we re-purpose the first word of a free slab as the
+// next-link).  Only the first four classes are recycled today.
 const SIZE_CLASSES = [_]u32{ 32, 48, 64, 96, 128, 192, 256, 384, 512, 1024, 2048 };
+const FREELIST_REUSE_CLASSES: u32 = 4; // first 4 classes recycle
+const MAX_FREELIST: u32 = 256;
 var free_lists = [_]u32{0} ** SIZE_CLASSES.len;
+var free_list_counts = [_]u32{0} ** SIZE_CLASSES.len;
 
 fn class_head_for(aligned: u32) ?*u32 {
     for (SIZE_CLASSES, 0..) |sz, i| {
@@ -133,11 +245,43 @@ pub fn round_up_to_class(aligned: u32) u32 {
 pub fn alloc(size: u32) callconv(.c) u32 {
     const requested = (size + 7) & ~@as(u32, 7);
     const aligned = if (requested <= 2048) round_up_to_class(requested) else requested;
+    // S6.1: recycle from the per-class free-list if it has a slab
+    // available.  Only the first four classes participate so
+    // larger allocations still go straight to libc.
+    for (SIZE_CLASSES[0..FREELIST_REUSE_CLASSES], 0..) |cls, i| {
+        if (cls == aligned and free_lists[i] != 0) {
+            const head = free_lists[i];
+            // Read the next-link (overlays the slab's first word).
+            const next: u32 = @bitCast(read_i32(head));
+            free_lists[i] = next;
+            free_list_counts[i] -= 1;
+            return head;
+        }
+    }
     const p = malloc(@intCast(aligned)) orelse {
         oom_flag = 1;
         return 0;
     };
     return @intCast(@intFromPtr(p));
+}
+
+/// Push a slab onto the free-list for its size class if there's
+/// room and the size matches one of the recycled classes.  Returns
+/// True if the slab was kept; False if the caller should hand it
+/// to libc free.
+fn try_recycle(addr: u32, size: u32) bool {
+    const aligned = if (size <= 2048) round_up_to_class((size + 7) & ~@as(u32, 7)) else size;
+    for (SIZE_CLASSES[0..FREELIST_REUSE_CLASSES], 0..) |cls, i| {
+        if (cls == aligned and free_list_counts[i] < MAX_FREELIST) {
+            // Push: store current head as next-link in the slab,
+            // then set head to this slab.
+            write_i32(addr, @bitCast(free_lists[i]));
+            free_lists[i] = addr;
+            free_list_counts[i] += 1;
+            return true;
+        }
+    }
+    return false;
 }
 
 pub export fn tcl_test_heap_ptr() i32 {
@@ -162,17 +306,21 @@ pub export fn tcl_oom_clear() void {
 
 fn free_obj(addr: u32) void {
     if (addr == 0) return;
+    // S6.1: TclObj headers are size class 32 (OBJ_SIZE = 32) so
+    // try the recycler first.
+    if (try_recycle(addr, OBJ_SIZE)) return;
     free(@ptrFromInt(addr));
 }
 
 /// Public free-by-size: routes through wasi-libc ``free``.  The
-/// ``size`` argument is ignored under the libc-malloc routing
-/// (libc tracks chunk sizes internally) but kept for ABI compat
-/// with the old size-class layer.  Callers that pass ``size = 0``
-/// or with addr == 0 are no-ops.
+/// ``size`` argument was historically ignored under the libc-only
+/// path; S6.1 uses it to decide whether the slab is small enough
+/// to recycle into the per-class free-list before falling through
+/// to libc.  Callers that pass ``size = 0`` or with addr == 0 are
+/// no-ops.
 pub fn free_sized(addr: u32, size: u32) void {
-    _ = size;
     if (addr == 0) return;
+    if (size > 0 and try_recycle(addr, size)) return;
     free(@ptrFromInt(addr));
 }
 
@@ -208,9 +356,48 @@ pub fn write_i64(addr: u32, val: i64) void {
     }
 }
 
+// -- Leak-check counters (S0.2) ------------------------------------
+//
+// Bumped only when ``-Dleak-check=true`` is set on the zig build
+// command line.  Production builds compile out the bookkeeping
+// entirely (the ``if (build_options.leak_check)`` is folded by the
+// optimiser to a constant ``false``).
+//
+// The harness reads ``tcl_test_alloc_count`` after a workload to
+// assert zero residual.  ``tcl_test_double_free_count`` catches the
+// case where ``tcl_obj_release`` is called on an obj whose refcount
+// is already 0 (already on the deferred-free queue) — that is the
+// over-release pattern S2's failed attempt hit.
+
+var g_alloc_count: i32 = 0;
+var g_double_free_count: i32 = 0;
+
+pub export fn tcl_test_alloc_count() i32 {
+    return g_alloc_count;
+}
+
+pub export fn tcl_test_double_free_count() i32 {
+    return g_double_free_count;
+}
+
+pub export fn tcl_test_reset_counters() void {
+    g_alloc_count = 0;
+    g_double_free_count = 0;
+}
+
+/// Run at the end of a test workload.  Drains the deferred-free
+/// queue first (so any objs queued but not yet freed do not show up
+/// as residual), then returns the residual alloc count.  The
+/// harness compares this to zero and reports the delta.
+pub export fn tcl_test_finalize() i32 {
+    tcl_obj_drain_pending();
+    return g_alloc_count;
+}
+
 // Allocate a new TclObj with refcount 1
 pub fn obj_alloc() u32 {
     const ptr = alloc(OBJ_SIZE);
+    if (build_options.leak_check) g_alloc_count += 1;
     write_i32(ptr + OBJ_REFCOUNT, 1);
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_STRING);
     write_i64(ptr + OBJ_INT_CACHE, 0);
@@ -220,10 +407,15 @@ pub fn obj_alloc() u32 {
     // owning paths (obj_new_string_copy, the in-place append grower)
     // overwrite this with the actual allocation size.
     write_i32(ptr + OBJ_STR_CAP, 0);
+    write_i32(ptr + OBJ_DICT_EXT, 0);
     return ptr;
 }
 
 pub export fn obj_new_int(value: i64) i32 {
+    // S6.4 — short-circuit small ints to a tagged immediate.
+    // No allocation, no refcount, no header.  Most loop counters
+    // and small literals (0, 1, -1, …) take this path.
+    if (immediate_box(value)) |tagged| return tagged;
     const ptr = obj_alloc();
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_INT);
     write_i64(ptr + OBJ_INT_CACHE, value);
@@ -247,11 +439,21 @@ pub export fn obj_new_float(value: f64) i32 {
 
 pub export fn obj_get_float(obj: i32) f64 {
     if (obj == 0) return 0.0;
+    // S6.4 — tagged immediate: convert int → float directly.
+    if (is_immediate(obj)) return @floatFromInt(immediate_unbox(obj));
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_FLOAT) return @bitCast(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_INT) return @floatFromInt(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_STRING) {
+        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        if (try_parse_float(sptr, slen)) |val| return val;
+        if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
+    }
+    // S6.2 — inline string parses the inline payload through the
+    // obj-internal pointer in OBJ_STR_PTR.
+    if (tag == TYPE_INLINE_STRING) {
         const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_float(sptr, slen)) |val| return val;
@@ -266,6 +468,8 @@ pub export fn obj_get_int(obj: i32) i64 {
     // ``global_get`` returns 0 for unset variables; callers that pass
     // that result here expect to get the empty-string / zero integer.
     if (obj == 0) return 0;
+    // S6.4 — tagged immediate: extract the value directly.
+    if (is_immediate(obj)) return immediate_unbox(obj);
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
@@ -297,6 +501,19 @@ pub export fn obj_get_int(obj: i32) i64 {
             write_i64(addr + OBJ_INT_CACHE, val);
             return val;
         }
+    }
+    // S6.2 — inline string: parse the inline payload reachable
+    // through the (obj-internal) pointer in OBJ_STR_PTR.  We
+    // don't shimmer-cache the parsed value because that would
+    // clobber the string bytes the inline encoding shares the
+    // OBJ_INT_CACHE slot with.
+    if (tag == TYPE_INLINE_STRING) {
+        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        if (try_parse_int(sptr, slen)) |val| return val;
+        if (try_parse_float(sptr, slen)) |fval| return @intFromFloat(fval);
+        if (try_parse_bool(sptr, slen)) |val| return val;
+        return 0;
     }
     return read_i64(addr + OBJ_INT_CACHE);
 }
@@ -404,8 +621,36 @@ pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
 }
 
 pub export fn tcl_obj_retain(obj: i32) void {
+    // Null-safe to mirror ``tcl_obj_release``.  Compile-side
+    // call sites (frame-elided proc prologues, the future
+    // owned-slot retain wrap from S2.2) emit the retain
+    // unconditionally on every param / value to keep the call
+    // sequence regular; without this guard the very first param
+    // slot (which is 0 at function entry when the caller passed
+    // no argument) would write to address 0 in linear memory.
+    if (obj == 0) return;
+    // S6.4 — tagged immediates have no refcount header (immortal).
+    if (is_immediate(obj)) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
+    // PR #237 second-pass review: refuse to retain a deferred-free-
+    // queued obj (rc == 0 marker).  Without this guard, the sequence
+    //
+    //     release(A)  → rc 1→0, queue A
+    //     retain(A)   → rc 0→1 (resurrects A on the queue)
+    //     release(A)  → rc 1→0, queue A AGAIN
+    //     drain       → free A twice → free-list double-entry
+    //
+    // gives a duplicated free-list slab that two future ``alloc``
+    // calls receive as the same address.  The release path already
+    // guards rc==0 (records double-release in leakcheck); make
+    // retain symmetric so the resurrection-into-second-queue path
+    // is impossible.  A retain after a defer is itself a refcount-
+    // discipline violation; record it for leakcheck visibility.
+    if (rc == 0) {
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
 }
 
@@ -429,6 +674,21 @@ var pending_free: [PENDING_FREE_CAP]u32 = [_]u32{0} ** PENDING_FREE_CAP;
 var pending_free_count: u32 = 0;
 
 fn release_now(addr: u32) void {
+    if (build_options.leak_check) g_alloc_count -= 1;
+    // Free any dict hash side-cache before the obj header is freed —
+    // the cache holds retained value handles that need draining
+    // through ``tcl_obj_release`` so they reach refcount 0 with the
+    // dict.  Done first because ``dict_destroy_ext`` may trigger a
+    // chain of releases that recursively land in ``release_now`` for
+    // the value handles, and the obj header bytes must still be
+    // valid (not freed) for those recursive releases to read the
+    // ``OBJ_DICT_EXT`` field correctly during their own cleanup.
+    const ext: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+    if (ext != 0) {
+        const tcl_dict = @import("tcl_dict.zig");
+        write_i32(addr + OBJ_DICT_EXT, 0);
+        tcl_dict.dict_destroy_ext(ext);
+    }
     const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
     if (cap > 0) {
         const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
@@ -475,8 +735,19 @@ pub export fn tcl_obj_drain_pending() void {
 
 pub export fn tcl_obj_release(obj: i32) void {
     if (obj == 0) return;
+    // S6.4 — tagged immediates have no refcount and no buffer
+    // to free; release is a no-op.
+    if (is_immediate(obj)) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
+    if (rc == 0) {
+        // Already on the deferred-free queue (rc==0 marker) or
+        // freed.  Any further release is the over-release pattern
+        // S2's failed attempt hit; record it so leakcheck builds
+        // surface it.  Production builds compile this branch out.
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     if (rc <= 1) {
         // Defer the actual free so a ``(ptr, len)`` reference
         // borrowed elsewhere can't alias a freshly-reissued slab.
@@ -512,18 +783,32 @@ pub export fn tcl_var_get(value: i32) i32 {
 // -- TclObj string helpers --
 
 pub fn obj_str_ptr(obj: i32) u32 {
+    // S6.4 — tagged immediates have no string buffer; callers
+    // expecting a buffer need ``obj_ensure_string`` first.
+    if (is_immediate(obj)) return 0;
     const addr: u32 = @intCast(obj);
+    // S6.2 — inline strings populate ``OBJ_STR_PTR`` with the
+    // inline buffer's address (= obj + OBJ_INT_CACHE), so this
+    // path needs no special-casing.
     return @intCast(read_i32(addr + OBJ_STR_PTR));
 }
 
 pub fn obj_str_len(obj: i32) u32 {
+    if (is_immediate(obj)) return 0;
     const addr: u32 = @intCast(obj);
     return @intCast(read_i32(addr + OBJ_STR_LEN));
 }
 
 pub fn obj_type(obj: i32) i32 {
+    // S6.4 — tagged immediates always represent integers.
+    if (is_immediate(obj)) return TYPE_INT;
     const addr: u32 = @intCast(obj);
-    return read_i32(addr + OBJ_TYPE_TAG);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    // S6.2 — inline-string encoding is a representational detail;
+    // callers checking ``obj_type`` for ``TYPE_STRING`` shouldn't
+    // have to know about it.
+    if (tag == TYPE_INLINE_STRING) return TYPE_STRING;
+    return tag;
 }
 
 /// Copy *len* bytes from src to dst in linear memory.
@@ -540,6 +825,25 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 /// size) so subsequent appends can grow in place when refcount==1.
 pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     if (len == 0) return obj_new_string(0, 0);
+    // S6.2 — inline-string optimisation.  Strings short enough to
+    // fit in the obj header skip the second ``alloc`` call; the
+    // bytes live directly at ``OBJ_INT_CACHE`` and ``str_ptr`` is
+    // 0 to flag the inline encoding.  ``str_cap`` stays 0 so
+    // ``release_now`` doesn't try to free a non-existent buffer.
+    if (len <= MAX_INLINE_STR) {
+        const obj = obj_alloc();
+        write_i32(obj + OBJ_TYPE_TAG, TYPE_INLINE_STRING);
+        memcpy(obj + OBJ_INT_CACHE, src, len);
+        // Point str_ptr at the inline buffer so callers reading
+        // OBJ_STR_PTR / OBJ_STR_LEN directly (e.g. test harnesses
+        // and dispatch helpers that don't go through
+        // ``obj_str_ptr``) see a valid pointer transparently.
+        // ``str_cap`` stays 0 so ``release_now`` doesn't try to
+        // ``free`` an address that's part of the obj header.
+        write_i32(obj + OBJ_STR_PTR, @intCast(obj + OBJ_INT_CACHE));
+        write_i32(obj + OBJ_STR_LEN, @intCast(len));
+        return @intCast(obj);
+    }
     // Round capacity up to the smallest size class so the recycler
     // can return the slab to the right free-list at end-of-life.
     const cap = round_up_to_class((len + 7) & ~@as(u32, 7));
@@ -555,6 +859,37 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
 
 // Scratch buffer for integer-to-string conversion (no newline)
 var itoa_buf: [21]u8 = undefined;
+
+// S6.4 — Scratch ring for ``obj_ensure_string`` of tagged
+// immediates.  Tagged immediates have no header to cache the
+// rendered string into, so each call to ``obj_ensure_string``
+// must produce a fresh-looking buffer.  The single ``itoa_buf``
+// would be overwritten by any nested rendering (consider
+// ``format "%d-%d" $a $b`` where both args are immediates), so
+// we rotate through a ring.
+//
+// **PR #237 review**: previously ``IMMEDIATE_RING_SIZE = 8`` with
+// no overflow protection — a caller producing 9+ simultaneously-
+// live renders silently corrupted earlier outputs by wrapping
+// back into in-use slots.  The size has been bumped to 32 to
+// comfortably exceed every current caller's deepest nesting
+// (``format`` with up to 16 ``%d`` substitutions, ``lappend``
+// chains, ``regsub`` capture interpolation).  The ring's running
+// total is exposed via ``tcl_immediate_ring_total_renders`` so
+// tests can detect a regression in nesting headroom.
+//
+// Production builds keep the silent wrap (correctness still
+// degrades to "earliest renders may be stale" rather than to
+// random memory corruption — the ring storage is module-static
+// and bounded), with much more generous headroom than before.
+const IMMEDIATE_RING_SIZE: u32 = 32;
+const IMMEDIATE_BUF_BYTES: u32 = 24;
+var immediate_string_ring: [IMMEDIATE_RING_SIZE][IMMEDIATE_BUF_BYTES]u8 = undefined;
+var immediate_ring_cursor: u32 = 0;
+pub var immediate_ring_total_renders: u64 = 0;
+pub export fn tcl_immediate_ring_total_renders() i64 {
+    return @bitCast(immediate_ring_total_renders);
+}
 
 pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     var v = value;
@@ -603,9 +938,31 @@ fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
 /// Render a TclObj to its string representation (integer, float, or string).
 pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     if (obj == 0) return .{ .ptr = 0, .len = 0 };
+    // S6.4 — tagged immediate: render into the next ring buffer.
+    // Rotating buffers means consecutive renders of distinct
+    // immediates (e.g. ``format "%d-%d" $a $b``) keep their
+    // results valid until the ring wraps.
+    if (is_immediate(obj)) {
+        const result = itoa(immediate_unbox(obj));
+        const slot = immediate_ring_cursor;
+        immediate_ring_cursor = (immediate_ring_cursor + 1) % IMMEDIATE_RING_SIZE;
+        immediate_ring_total_renders += 1;
+        const dst_ptr: u32 = @intFromPtr(&immediate_string_ring[slot]);
+        memcpy(dst_ptr, @intFromPtr(result.ptr), result.len);
+        return .{ .ptr = dst_ptr, .len = result.len };
+    }
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_STRING) {
+        return .{
+            .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
+            .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
+        };
+    }
+    // S6.2 — inline strings populate OBJ_STR_PTR with the inline
+    // buffer's address.  The pointer aliases the obj header
+    // itself; callers must not hold it past the obj's lifetime.
+    if (tag == TYPE_INLINE_STRING) {
         return .{
             .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
             .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
@@ -621,18 +978,35 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     if (tag == TYPE_FLOAT) {
         const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
         const result = ftoa(fval);
-        const buf = alloc(result.len);
+        // PR #237 review: also set ``OBJ_STR_CAP`` so the buffer
+        // can be reclaimed by ``release_now`` (which gates the
+        // free on ``cap > 0``).  Use the same size-class rounding
+        // the recycler expects on the free side — the free path
+        // matches ``alloc(cap)`` only when ``cap`` is the class-
+        // rounded size.  Without recording the cap, the rendered
+        // buffer leaks once per TYPE_FLOAT obj that's ever been
+        // stringified.
+        const cap = round_up_to_class((result.len + 7) & ~@as(u32, 7));
+        const buf = alloc(cap);
+        if (buf == 0) return .{ .ptr = 0, .len = 0 };
         memcpy(buf, @intFromPtr(result.ptr), result.len);
         write_i32(addr + OBJ_STR_PTR, @intCast(buf));
         write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+        write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
         return .{ .ptr = buf, .len = result.len };
     }
     const val = read_i64(addr + OBJ_INT_CACHE);
     const result = itoa(val);
-    const buf = alloc(result.len);
+    // Same OBJ_STR_CAP discipline as the float path — see comment
+    // above.  Pre-fix, the rendered buffer leaked once per
+    // TYPE_INT obj that was ever stringified.
+    const cap = round_up_to_class((result.len + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     memcpy(buf, @intFromPtr(result.ptr), result.len);
     write_i32(addr + OBJ_STR_PTR, @intCast(buf));
     write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+    write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
     return .{ .ptr = buf, .len = result.len };
 }
 
@@ -653,6 +1027,7 @@ const list_parse = @import("tcl_list_parse.zig");
 pub const encode_utf8 = bs.encode_utf8;
 pub const consume_bs_escape = bs.consume_bs_escape;
 pub const list_count_elements = list_parse.count_elements;
+pub const list_validate_braces = list_parse.validate_list_braces;
 pub const copy_unbraced_elem = list_parse.copy_unbraced_elem;
 
 /// Re-export of :func:`tcl_list_parse.element_at` with the legacy
