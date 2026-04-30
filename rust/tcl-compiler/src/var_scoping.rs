@@ -1,0 +1,265 @@
+//! Variable-scoping command detection.
+//!
+//! Shared helpers for identifying which tokens in a `global` /
+//! `variable` / `upvar` (or `namespace upvar`) command are
+//! declarations. Both the LSP `textDocument/declaration` provider
+//! and the compiler's memory-SSA alias detector parse these
+//! commands; putting the logic here keeps the semantics in one
+//! place.
+//!
+//! Each helper takes the raw argument texts and returns *indices
+//! into the argument list* for the positions that name a declared
+//! variable. Callers map those indices back to whatever
+//! representation they care about — `String` names for memory-SSA,
+//! source tokens for the LSP declaration provider.
+//!
+//! Ported from `core/analysis/var_scoping.py` (C24b4).
+
+// ---------------------------------------------------------------------------
+// global
+// ---------------------------------------------------------------------------
+
+/// Return indices of declared variables in `global var1 var2 ...`.
+///
+/// Every argument whose text does not start with `$` (i.e. is a
+/// bare name, not a substituted reference) is a declaration.
+#[must_use]
+pub fn global_declaration_indices(args: &[String]) -> Vec<usize> {
+    args.iter()
+        .enumerate()
+        .filter(|(_, a)| !a.is_empty() && !a.starts_with('$'))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// variable
+// ---------------------------------------------------------------------------
+
+/// Return indices of declared variables in
+/// `variable name ?value? name ?value? ...`.
+///
+/// The `variable` command alternates (name, value?) pairs, so every
+/// even-indexed arg is a name. A bare-name filter matches the
+/// compiler's `!text.starts_with('$')` guard, skipping substituted
+/// references.
+#[must_use]
+pub fn variable_declaration_indices(args: &[String]) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if !args[i].is_empty() && !args[i].starts_with('$') {
+            out.push(i);
+        }
+        i += 2;
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// upvar / namespace upvar
+// ---------------------------------------------------------------------------
+
+/// Return indices of the *local-alias* tokens in an `upvar`
+/// command.
+///
+/// Returns indices into the caller's own `args` sequence rather
+/// than `(caller, local)` name pairs. Handles both `upvar` and
+/// `namespace upvar` forms, including the lowered form where the
+/// segmenter has spliced `namespace upvar` into a single command
+/// whose first argument is literally `"upvar"`.
+///
+/// `command` is the command word as the caller saw it; `args` is
+/// the command's remaining arguments *excluding* the command word
+/// itself. Returns an empty vector for any unrelated command.
+///
+/// Level detection in the `upvar` form: a bare integer (optionally
+/// prefixed with `-`) or `#<digits>` is treated as the level word.
+/// Anything else makes the level default to 1 and the first
+/// argument becomes the start of the `(otherVar, myVar)` pair list.
+///
+/// Pairs where either side starts with `$` (a substituted
+/// reference) are skipped, matching the compiler's aliasing logic.
+#[must_use]
+pub fn upvar_local_declaration_indices(command: &str, args: &[String]) -> Vec<usize> {
+    if args.is_empty() {
+        return Vec::new();
+    }
+
+    let offset: usize = match command {
+        "namespace" => {
+            // Lowered `namespace upvar ns src dst ...` form.
+            if args[0] != "upvar" {
+                return Vec::new();
+            }
+            2 // skip 'upvar' subcommand + namespace argument
+        }
+        "namespace upvar" => 1, // skip namespace argument
+        "upvar" => usize::from(looks_like_level(&args[0])),
+        _ => return Vec::new(),
+    };
+
+    if offset >= args.len() {
+        return Vec::new();
+    }
+
+    let mut out = Vec::new();
+    // Walk pairs of (otherVar, myVar). Report the myVar index
+    // (offset + i + 1) when neither side is a substituted reference.
+    let mut i = offset;
+    while i + 1 < args.len() {
+        let caller_text = &args[i];
+        let local_text = &args[i + 1];
+        if !caller_text.starts_with('$') && !local_text.starts_with('$') {
+            out.push(i + 1);
+        }
+        i += 2;
+    }
+    out
+}
+
+/// True when `head` looks like a Tcl upvar-level word:
+/// - A decimal integer (optionally prefixed with `-`).
+/// - `#<digits>` (absolute frame level).
+fn looks_like_level(head: &str) -> bool {
+    if head.is_empty() {
+        return false;
+    }
+    if let Some(digits) = head.strip_prefix('#') {
+        return !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+    }
+    let tail = head.strip_prefix('-').unwrap_or(head);
+    !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn v(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    // -- global --
+
+    #[test]
+    fn global_decls_bare_names_only() {
+        let args = v(&["foo", "bar", "$skip"]);
+        assert_eq!(global_declaration_indices(&args), vec![0, 1]);
+    }
+
+    #[test]
+    fn global_decls_empty_input() {
+        assert!(global_declaration_indices(&[]).is_empty());
+    }
+
+    // -- variable --
+
+    #[test]
+    fn variable_decls_skip_values() {
+        // `variable foo 42 bar 99 baz` → names at 0, 2, 4.
+        let args = v(&["foo", "42", "bar", "99", "baz"]);
+        assert_eq!(variable_declaration_indices(&args), vec![0, 2, 4]);
+    }
+
+    #[test]
+    fn variable_decls_reject_substituted_names() {
+        let args = v(&["$x", "42", "bar", "99"]);
+        assert_eq!(variable_declaration_indices(&args), vec![2]);
+    }
+
+    // -- upvar --
+
+    #[test]
+    fn upvar_without_level() {
+        // `upvar caller local`
+        let args = v(&["caller", "local"]);
+        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![1]);
+    }
+
+    #[test]
+    fn upvar_with_integer_level() {
+        // `upvar 1 caller local`
+        let args = v(&["1", "caller", "local"]);
+        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2]);
+    }
+
+    #[test]
+    fn upvar_with_negative_integer_level() {
+        // `upvar -1 caller local` — negative levels count from
+        // the top of the stack.
+        let args = v(&["-1", "caller", "local"]);
+        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2]);
+    }
+
+    #[test]
+    fn upvar_with_hash_level() {
+        // `upvar #0 caller local`
+        let args = v(&["#0", "caller", "local"]);
+        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2]);
+    }
+
+    #[test]
+    fn upvar_multi_pair() {
+        // `upvar 1 a la b lb`
+        let args = v(&["1", "a", "la", "b", "lb"]);
+        assert_eq!(upvar_local_declaration_indices("upvar", &args), vec![2, 4]);
+    }
+
+    #[test]
+    fn upvar_rejects_substituted_pair() {
+        // `upvar 1 $cached local` — skip because caller looks
+        // like a substitution.
+        let args = v(&["1", "$cached", "local"]);
+        assert!(upvar_local_declaration_indices("upvar", &args).is_empty());
+    }
+
+    #[test]
+    fn namespace_upvar_lowered() {
+        // Lowered form: segmenter produces
+        // `namespace upvar ns src dst src2 dst2` as one command.
+        let args = v(&["upvar", "::ns", "src", "dst", "src2", "dst2"]);
+        assert_eq!(
+            upvar_local_declaration_indices("namespace", &args),
+            vec![3, 5]
+        );
+    }
+
+    #[test]
+    fn namespace_upvar_space_joined() {
+        // Pre-composed command word "namespace upvar".
+        let args = v(&["::ns", "src", "dst"]);
+        assert_eq!(
+            upvar_local_declaration_indices("namespace upvar", &args),
+            vec![2]
+        );
+    }
+
+    #[test]
+    fn upvar_unrelated_command_empty() {
+        let args = v(&["a", "b"]);
+        assert!(upvar_local_declaration_indices("set", &args).is_empty());
+    }
+
+    #[test]
+    fn upvar_insufficient_args_empty() {
+        assert!(upvar_local_declaration_indices("upvar", &[]).is_empty());
+        // Only level, no pairs.
+        let args = v(&["1"]);
+        assert!(upvar_local_declaration_indices("upvar", &args).is_empty());
+    }
+
+    #[test]
+    fn looks_like_level_covers_forms() {
+        assert!(looks_like_level("0"));
+        assert!(looks_like_level("42"));
+        assert!(looks_like_level("-1"));
+        assert!(looks_like_level("#0"));
+        assert!(looks_like_level("#42"));
+        assert!(!looks_like_level(""));
+        assert!(!looks_like_level("#"));
+        assert!(!looks_like_level("-"));
+        assert!(!looks_like_level("abc"));
+        assert!(!looks_like_level("1x"));
+    }
+}

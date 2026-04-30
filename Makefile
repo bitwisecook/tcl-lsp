@@ -123,9 +123,14 @@ VM_SRCS  := $(shell find $(VM_DIR) -name '*.py' -not -path '*__pycache__*')
 PY_TESTS := $(shell find $(TEST_DIR) -name '*.py' -not -path '*__pycache__*')
 TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
+# Rust workspace sources (excludes editors/zed, which is standalone)
+RUST_SRCS  := $(shell find $(ROOT)rust -type f \( -name '*.rs' -o -name 'Cargo.toml' -o -name 'pyproject.toml' \) 2>/dev/null) $(ROOT)Cargo.toml $(ROOT)rust-toolchain.toml
+RUST_STAMP := $(STAMP_DIR)/rust-wheel
+CARGO      := MAKEFLAGS= MFLAGS= MAKEOVERRIDES= cargo
+
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-py-rust test-slow test-opt test-ext lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated rust-build rust-test rust-lint rust-format .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -201,9 +206,9 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 
 test: test-py test-ext ## Run all tests (Python + VS Code extension)
 
-lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
+lint: lint-py typecheck-py lint-ts rust-lint ## Run all lint and style checks (Python, TypeScript, Rust)
 
-format: format-py format-ts ## Format Python and TypeScript code
+format: format-py format-ts rust-format ## Format Python, TypeScript, and Rust code
 
 test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
@@ -249,13 +254,49 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 	@echo "==> Checking Python formatting with Ruff"
 	cd $(ROOT) && $(UV) run --extra dev ruff format --check .
 
-typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
-	@echo "==> Type-checking Python code with ty"
+typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty (mirrors CI by hiding tcl_lsp_rust)
+	@echo "==> Type-checking Python code with ty (uninstalling tcl_lsp_rust first to mirror CI)"
+	@# CI's lint job runs ty without `make rust-build`, so the rust
+	@# wheel is absent and any `# ty: ignore[unresolved-import]`
+	@# directives on the wrong line surface as errors. Mirror that
+	@# environment locally by removing the wheel + stamp before ty
+	@# runs; the stamp gets rebuilt by the next `rust-build`.
+	@cd $(ROOT) && $(UV) pip uninstall --quiet tcl_lsp_rust >/dev/null 2>&1 || true
+	@rm -f $(RUST_STAMP)
 	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
 	@echo "==> Type-checking all Python code with ty"
 	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' ai core explorer lsp tests vm scripts
+
+# Rust workspace targets — see docs/rust-rewrite.md.
+$(RUST_STAMP): $(RUST_SRCS) $(UV_STAMP)
+	@echo "==> Building tcl_lsp_rust wheel with maturin"
+	cd $(ROOT) && MAKEFLAGS= MFLAGS= MAKEOVERRIDES= $(UV) run --with 'maturin>=1.7,<2.0' maturin build --release --manifest-path rust/tcl-lsp-rust/Cargo.toml --out $(ROOT)target/wheels
+	@echo "==> Installing tcl_lsp_rust wheel into project venv"
+	cd $(ROOT) && $(UV) pip install --reinstall --quiet "$$(ls -t $(ROOT)target/wheels/tcl_lsp_rust-*.whl | head -1)"
+	@mkdir -p $(STAMP_DIR)
+	@touch $@
+
+rust-build: $(RUST_STAMP) ## Build the tcl_lsp_rust wheel with maturin and install it into the uv venv
+
+rust-test: ## Run the Rust workspace test suite (cargo test)
+	@echo "==> Running cargo test on Rust workspace"
+	cd $(ROOT) && $(CARGO) test --workspace --quiet
+
+rust-lint: ## Lint the Rust workspace (cargo fmt --check + cargo clippy -D warnings)
+	@echo "==> Checking Rust formatting with cargo fmt"
+	cd $(ROOT) && $(CARGO) fmt --all -- --check
+	@echo "==> Linting Rust code with cargo clippy"
+	cd $(ROOT) && $(CARGO) clippy --workspace --all-targets -- -D warnings
+
+rust-format: ## Auto-format the Rust workspace with cargo fmt
+	@echo "==> Formatting Rust code with cargo fmt"
+	cd $(ROOT) && $(CARGO) fmt --all
+
+test-py-rust: $(UV_STAMP) $(RUST_STAMP) ## Run the Python test suite with the Rust wheel pre-built
+	@echo "==> Running Python tests (with Rust wheel)"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 -m 'not slow' --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
 	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
@@ -335,13 +376,20 @@ snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity
 	@echo "==> Snapshotting WASM command parity baseline"
 	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --snapshot
 
-# Phase targets for parallel prep-pr execution
-_prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
-_prep-pr-tests: test-py test-opt
+# Phase targets for parallel prep-pr execution.
+#
+# typecheck-py uninstalls the rust wheel + clears the rust-build
+# stamp to mirror CI's lint job (which runs ty without ever
+# building the wheel). It must therefore be sequenced *before* the
+# parallel phase that runs tests — otherwise test-py-rust would
+# race with the wheel uninstall. rust-build is invoked between the
+# two phases to reinstall the wheel for the differential tests.
+_prep-pr-checks-noty: lint-py lint-ts typecheck-ts check-editor-settings check-wasm-parity
+_prep-pr-tests: test-py-rust test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
-prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
-	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
+prep-pr: format codegen typecheck-py rust-build ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
+	@$(MAKE) -j $(NPROC) _prep-pr-checks-noty _prep-pr-tests
 
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX)
 	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke
@@ -519,10 +567,10 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 CODES_SRCS    := $(shell find $(PYCORE_DIR)/common -name 'codes*.py' -not -path '*__pycache__*')
 OPTIMISER_SRCS := $(shell find $(PYCORE_DIR)/compiler/optimiser -name '*.py' -not -path '*__pycache__*')
 CHECKS_SRCS   := $(shell find $(PYCORE_DIR)/analysis/checks -name '*.py' -not -path '*__pycache__*')
-SETTINGS_SRCS := $(CODES_SRCS) $(OPTIMISER_SRCS) $(CHECKS_SRCS) \
+ANALYSER_SRCS := $(shell find $(PYCORE_DIR)/analysis/_analyser -name '*.py' -not -path '*__pycache__*')
+SETTINGS_SRCS := $(CODES_SRCS) $(OPTIMISER_SRCS) $(CHECKS_SRCS) $(ANALYSER_SRCS) \
 	$(PYCORE_DIR)/formatting/config.py \
 	$(PYCORE_DIR)/common/optimisation_profiles.py \
-	$(PYCORE_DIR)/analysis/analyser.py \
 	$(PYCORE_DIR)/analysis/irules_checks.py \
 	$(PYCORE_DIR)/compiler/compiler_checks.py \
 	$(PYCORE_DIR)/compiler/gvn.py \

@@ -14,6 +14,15 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from .rust_spans import rust_shim_enabled
+
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        interprocedural_summaries as _rust_interprocedural_summaries,
+    )
+except ImportError:
+    _rust_interprocedural_summaries = None
+
 from ..analysis.proc_arg_traits import infer_param_traits
 from ..analysis.semantic_model import ProcArgTrait
 from ..commands.registry.signatures import Arity
@@ -835,8 +844,92 @@ def analyse_interprocedural_ir(
     return InterproceduralAnalysis(procedures=summaries)
 
 
+_EFFECT_REGION_BITS = {
+    1 << 0: "HTTP_STATE",
+    1 << 1: "RESPONSE_LIFECYCLE",
+    1 << 2: "GLOBAL_STATE",
+    1 << 3: "UNKNOWN_STATE",
+}
+
+
+def _effect_region_from_bits(bits: int) -> EffectRegion:
+    """Rebuild an ``EffectRegion`` flag set from its integer bits."""
+    region = EffectRegion.NONE
+    for bit, name in _EFFECT_REGION_BITS.items():
+        if bits & bit:
+            region |= EffectRegion[name]
+    return region
+
+
+def _materialise_rust_summaries(
+    raw: dict[str, dict],
+) -> InterproceduralAnalysis:
+    """Lift the Rust ``interprocedural_summaries`` dict-of-dicts into
+    Python ``ProcSummary`` / ``InterproceduralAnalysis`` dataclasses.
+
+    The Rust ``param_traits`` enum carries different information from
+    Python's registry-level ``ProcArgTrait``; this shim drops the Rust
+    traits and leaves ``ProcSummary.param_traits`` empty so callers
+    that need the Python-shape traits can invoke
+    ``infer_param_traits`` separately.
+    """
+    procedures: dict[str, ProcSummary] = {}
+    for qname, s in raw.items():
+        arity_min = int(s["arity_min"])
+        arity_max = int(s["arity_max"])
+        arity = Arity(min=arity_min, max=arity_max)
+        constant_return_raw = s.get("constant_return")
+        if constant_return_raw is None:
+            constant_return: int | float | bool | str | None = None
+        else:
+            kind, text = constant_return_raw
+            if kind == "int":
+                constant_return = int(text)
+            elif kind == "float":
+                constant_return = float(text)
+            elif kind == "bool":
+                constant_return = text == "1"
+            else:
+                constant_return = text
+        procedures[qname] = ProcSummary(
+            qualified_name=s["qualified_name"],
+            params=tuple(s["params"]),
+            arity=arity,
+            calls=tuple(s["calls"]),
+            has_barrier=bool(s["has_barrier"]),
+            has_unknown_calls=bool(s["has_unknown_calls"]),
+            writes_global=bool(s["writes_global"]),
+            pure=bool(s["pure"]),
+            effect_reads=_effect_region_from_bits(int(s["effect_reads"])),
+            effect_writes=_effect_region_from_bits(int(s["effect_writes"])),
+            returns_constant=bool(s["returns_constant"]),
+            constant_return=constant_return,
+            return_depends_on_params=tuple(s["return_depends_on_params"]),
+            return_passthrough_param=s.get("return_passthrough_param"),
+            can_fold_static_calls=bool(s["can_fold_static_calls"]),
+            param_traits={},
+        )
+    return InterproceduralAnalysis(procedures=procedures)
+
+
 def analyse_interprocedural_source(source: str) -> InterproceduralAnalysis:
-    """Lower source then build conservative interprocedural summaries."""
+    """Lower source then build conservative interprocedural summaries.
+
+    When ``TCL_LSP_RUST_INTERPROC=1`` is set in the environment and
+    the ``tcl_lsp_rust`` wheel is importable, delegates to the Rust
+    implementation; otherwise uses the Python pipeline.
+    """
+    if _rust_interprocedural_summaries is not None and rust_shim_enabled("TCL_LSP_RUST_INTERPROC"):
+        try:
+            from ..common.dialect import active_dialect
+
+            raw = _rust_interprocedural_summaries(source, active_dialect())
+            return _materialise_rust_summaries(raw)
+        except Exception:
+            log.debug(
+                "Rust interprocedural delegation failed, falling back",
+                exc_info=True,
+            )
     return analyse_interprocedural_ir(lower_to_ir(source))
 
 

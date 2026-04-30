@@ -1,0 +1,23 @@
+[package]
+name = "tcl-lsp-rust"
+description = "PyO3 bindings exposing the tcl-lsp Rust crates to Python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+# cdylib → Python can load it as a native extension module.
+# rlib   → lets `cargo test` link against it for integration tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+
+[lints]
+workspace = true
