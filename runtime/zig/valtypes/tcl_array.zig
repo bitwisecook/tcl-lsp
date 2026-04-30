@@ -31,6 +31,16 @@ const obj_get_int = obj.obj_get_int;
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
+/// Forward-declared probe into the namespace var subsystem so we can
+/// detect scalar/array name conflicts without creating a circular
+/// import (tcl_ns already imports this module).  Defined in
+/// ``tcl_ns.zig`` as an exported helper and called only from
+/// ``find_or_create`` below.  Returns 1 iff a scalar of the given
+/// name already exists with a non-null value; 0 otherwise (including
+/// "name has been unset" and "name is currently the array's key").
+extern fn ns_scalar_exists(name_ptr: u32, name_len: u32) i32;
+const stubs = @import("../stubs/tcl_stubs.zig");
+
 // --- Array directory (name → per-array table) --------------------------
 
 // Bucket: [name_ptr:4 | name_len:4 | hash:4 | table_ptr:4] = 16 bytes
@@ -353,6 +363,16 @@ fn find_or_create(name: i32) u32 {
         const fresh = ar_new();
         write_i32(bucket + 12, @bitCast(fresh));
         return fresh;
+    }
+    // No array with this name yet — but a *scalar* might exist.  Real
+    // Tcl raises ``can't set "<name>(...)": variable isn't array`` in
+    // that case.  Detect via ``ns_scalar_exists`` (probe into the var
+    // subsystem); if so, raise.  ``raise`` puts the ``catch``-aware
+    // error message in the interpreter and short-circuits — callers
+    // that proceed to insert see ``ar_new`` returning a fresh table,
+    // which is the no-conflict path.
+    if (ns_scalar_exists(sn.ptr, sn.len) != 0) {
+        stubs.raise("can't set: variable isn't array");
     }
     const t = ar_new();
     dir_insert(sn.ptr, sn.len, hash, t);

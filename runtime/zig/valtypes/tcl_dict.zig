@@ -124,6 +124,57 @@ fn dict_ext_alloc() u32 {
     return ext;
 }
 
+/// Clone an existing hash side-cache.  Allocates a fresh ext + bucket
+/// buffer of the same capacity and copies every live entry, retaining
+/// each value handle so the source cache and clone are independent
+/// owners of the values.  Used when ``dict_set`` produces a new dict
+/// from a shared (rc>1) source — without cloning, the cache transfer
+/// would strip the source dict of its cache, leaving any other holder
+/// of the source TclObj with cache-cold reads.
+fn dict_clone_ext(src_ext: u32) u32 {
+    const src_buf: u32 = @bitCast(obj.read_i32(src_ext + DICT_EXT_BUF));
+    const src_cap: u32 = @bitCast(obj.read_i32(src_ext + DICT_EXT_CAP));
+    const src_count: u32 = @bitCast(obj.read_i32(src_ext + DICT_EXT_COUNT));
+    const dst = alloc(DICT_EXT_SIZE);
+    obj.write_i32(dst + DICT_EXT_BUF, @bitCast(dict_alloc_buckets(src_cap)));
+    obj.write_i32(dst + DICT_EXT_CAP, @bitCast(src_cap));
+    obj.write_i32(dst + DICT_EXT_COUNT, @bitCast(src_count));
+    const dst_buf: u32 = @bitCast(obj.read_i32(dst + DICT_EXT_BUF));
+    var i: u32 = 0;
+    while (i < src_cap) : (i += 1) {
+        const sb = src_buf + i * DICT_BUCKET_SIZE;
+        const skp: u32 = @bitCast(obj.read_i32(sb + DICT_BUCKET_KEY_PTR));
+        if (skp == 0 or skp == DICT_TOMBSTONE) continue;
+        const skl: u32 = @bitCast(obj.read_i32(sb + DICT_BUCKET_KEY_LEN));
+        const skh: u32 = @bitCast(obj.read_i32(sb + DICT_BUCKET_HASH));
+        const sv: i32 = obj.read_i32(sb + DICT_BUCKET_VALUE);
+        // Re-probe in dst to find the correct slot — both buffers
+        // have the same capacity but free / occupied bucket sets
+        // may differ slightly with the new linear-probe walk if a
+        // future change makes ``dict_alloc_buckets`` add tombstones
+        // by default.  Today both start fully empty so the walk is
+        // identical, but the explicit re-probe keeps the clone
+        // robust to that.
+        const mask = src_cap - 1;
+        var idx = skh & mask;
+        while (true) {
+            const db = dst_buf + idx * DICT_BUCKET_SIZE;
+            if (obj.read_i32(db + DICT_BUCKET_KEY_PTR) == 0) {
+                const nbuf = alloc(skl);
+                memcpy(nbuf, skp, skl);
+                obj.write_i32(db + DICT_BUCKET_KEY_PTR, @bitCast(nbuf));
+                obj.write_i32(db + DICT_BUCKET_KEY_LEN, @bitCast(skl));
+                obj.write_i32(db + DICT_BUCKET_HASH, @bitCast(skh));
+                obj.write_i32(db + DICT_BUCKET_VALUE, sv);
+                obj.tcl_obj_retain(sv);
+                break;
+            }
+            idx = (idx + 1) & mask;
+        }
+    }
+    return dst;
+}
+
 /// Look up *key* in a hash side-cache.  Returns the bucket address
 /// (so callers can read the value without re-hashing) or null.
 fn dict_hash_find(buf: u32, cap: u32, kp: u32, kl: u32, h: u32) ?u32 {
@@ -428,20 +479,37 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
         }
     }
     const new = dict_append_pair(sd.ptr, sd.len, sk.ptr, sk.len, sv.ptr, sv.len);
-    // Transfer the hash side-cache from the old dict to the new one,
-    // then insert the just-appended pair.  Without this transfer,
-    // every shared/rc>1 ``dict set`` returns a fresh obj with no
-    // cache, and the next ``dict set`` rebuilds the cache from
-    // scratch — O(M) per call → O(N^2) total for a builder loop.
+    // Propagate the hash side-cache to the new dict.  Strategy
+    // depends on whether the source is uniquely owned:
+    //
+    // * **rc == 1 (sole owner)** — *transfer* the cache.  No other
+    //   holder will read the source obj after this call returns, so
+    //   we save the O(N) clone cost and detach + reattach in O(1).
+    //
+    // * **rc > 1 (shared)** — *clone* the cache.  Other holders of
+    //   the source dict still expect cache-warm reads of their copy.
+    //   Transferring would cache-cold-strip them.  Cloning is O(N)
+    //   per shared mutation but preserves COW symmetry.
+    //
+    // Either way the new dict ends up with a cache containing the
+    // just-appended (k, v) pair, so the next mutation on the new
+    // dict starts cache-warm.
     if (new != 0 and !obj.is_immediate(new) and ext != 0 and dict != 0 and !obj.is_immediate(dict)) {
         const dict_addr: u32 = @intCast(dict);
         const new_addr: u32 = @intCast(new);
-        // Detach from old, attach to new.
-        obj.write_i32(dict_addr + obj.OBJ_DICT_EXT, 0);
-        obj.write_i32(new_addr + obj.OBJ_DICT_EXT, @bitCast(ext));
-        // Insert the new (k, v) pair into the transferred cache.
+        const dict_rc = obj.read_i32(dict_addr + obj.OBJ_REFCOUNT);
+        var target_ext: u32 = 0;
+        if (dict_rc <= 1) {
+            // Transfer.
+            obj.write_i32(dict_addr + obj.OBJ_DICT_EXT, 0);
+            target_ext = ext;
+        } else {
+            // Clone — the source keeps its own cache.
+            target_ext = dict_clone_ext(ext);
+        }
+        obj.write_i32(new_addr + obj.OBJ_DICT_EXT, @bitCast(target_ext));
         const v_obj = obj_new_string_copy(sv.ptr, sv.len);
-        dict_hash_insert(ext, sk.ptr, sk.len, h, v_obj);
+        dict_hash_insert(target_ext, sk.ptr, sk.len, h, v_obj);
         obj.tcl_obj_release(v_obj);
     } else {
         dict_invalidate_cache(dict);
