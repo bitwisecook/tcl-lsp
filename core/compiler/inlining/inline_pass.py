@@ -124,42 +124,59 @@ def _build_inlinable_map(
             eligible[qname] = ()
             continue
 
-        # v1 — zero-param wrapper around a single IRCall
+        # v1 / v2 — zero-param wrapper around N pure-side-effect
+        # IRCalls.  Every body statement must be splice-eligible.
+        # The pre-flight check (``_stmt_is_splice_eligible``)
+        # rejects any IRCall that observes the caller's frame, that
+        # writes a variable in the caller's scope, or whose args
+        # contain a ``[cmd]`` substitution.  Multi-statement bodies
+        # propagate every body statement verbatim to the call site —
+        # an N-statement body splices N statements in place of the
+        # caller's IRCall.
         if proc.params:
             continue
-        if len(proc.body.statements) != 1:
+        body_stmts = proc.body.statements
+        all_safe = True
+        for stmt in body_stmts:
+            if not _stmt_is_splice_eligible(stmt, qname, summaries):
+                all_safe = False
+                break
+        if not all_safe:
             continue
-        only = proc.body.statements[0]
-        if not isinstance(only, IRCall):
-            continue
-        if only.defs:
-            # Writing a variable in the splice would mutate the
-            # caller's scope — decline.
-            continue
-        if not _command_is_namespace_invariant(only.command, qname, summaries):
-            continue
-        if not _command_is_splice_safe(only.command):
-            # Some frameless commands observe the caller's frame
-            # (``info level``, ``uplevel``, ``upvar``) or transfer
-            # control out of it (``return``, ``break``, ``continue``).
-            # Splicing them into a different frame would silently
-            # change semantics — decline.
-            continue
-        if any(_arg_has_command_subst(a) for a in only.args):
-            # Args containing a ``[cmd]`` substitution evaluate
-            # ``cmd`` in whatever frame the caller's IRCall lives
-            # in.  Splicing the wrapper into a different frame
-            # would silently change ``info level`` / ``upvar`` /
-            # ``info frame`` semantics that the inner ``cmd``
-            # might depend on.  ``$var`` substitutions are also
-            # frame-scoped but the v1 wrapper has no params (so
-            # the wrapped IRCall can't reach the wrapper's own
-            # locals — any ``$x`` it carries refers to a global,
-            # which is frame-independent).
-            continue
-        eligible[qname] = (only,)
+        eligible[qname] = tuple(body_stmts)
 
     return eligible
+
+
+def _stmt_is_splice_eligible(
+    stmt: object,
+    callee_qname: str,
+    summaries: dict[str, ProcEscapeSummary],
+) -> bool:
+    """Return True iff ``stmt`` can be lifted out of the wrapper and
+    spliced into a caller's body without changing observable
+    behaviour.
+
+    Only :class:`IRCall` qualifies today.  The call must have no
+    ``defs`` (would mutate the caller's scope), resolve to a
+    namespace-invariant command (``::``-qualified or unresolved
+    runtime builtin), be in the splice-safe allow-list
+    (frame-independent commands only — no ``info ...``,
+    ``uplevel``, ``upvar``, no ``return`` / ``break`` /
+    ``continue``), and carry no arg containing a ``[cmd]``
+    substitution.
+    """
+    if not isinstance(stmt, IRCall):
+        return False
+    if stmt.defs:
+        return False
+    if not _command_is_namespace_invariant(stmt.command, callee_qname, summaries):
+        return False
+    if not _command_is_splice_safe(stmt.command):
+        return False
+    if any(_arg_has_command_subst(a) for a in stmt.args):
+        return False
+    return True
 
 
 # Commands whose semantics are independent of the calling frame.

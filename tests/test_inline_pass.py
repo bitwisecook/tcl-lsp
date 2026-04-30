@@ -122,6 +122,47 @@ class TestPurity:
         )
 
 
+class TestMultiStatementWrapperSplice:
+    """v2: zero-param wrappers whose body is N pure-side-effect IRCalls."""
+
+    def test_two_call_wrapper_inlines_both(self):
+        # ``proc setup {} { puts "a"; puts "b" }`` — every body
+        # statement is a splice-safe IRCall.  Calls to ``setup``
+        # become two ``puts`` calls inline.
+        module, summaries = _prepare(
+            'proc setup {} { puts "a"; puts "b" }\n'
+            "setup\n"
+        )
+        assert _calls_to(module.top_level, "setup") == 1
+        assert _calls_to(module.top_level, "puts") == 0
+
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "setup") == 0
+        assert _calls_to(new_module.top_level, "puts") == 2
+
+    def test_mixed_safe_calls_inline(self):
+        # ``puts`` + ``string`` are both splice-safe.
+        module, summaries = _prepare(
+            'proc setup {} { puts "starting"; ::string length "x" }\n'
+            "setup\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "setup") == 0
+        assert _calls_to(new_module.top_level, "puts") == 1
+        assert _calls_to(new_module.top_level, "::string") == 1
+
+    def test_one_unsafe_call_disables_inline(self):
+        # ``set`` writes a variable (defs) → not splice-eligible →
+        # the whole wrapper stays put, even though ``puts`` would
+        # have been fine on its own.
+        module, summaries = _prepare(
+            'proc setup {} { puts "starting"; set marker 1 }\n'
+            "setup\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "setup") == 1
+
+
 class TestSingleCallWrapperSplice:
     """v1: zero-param wrapper procs whose body is a single IRCall."""
 
