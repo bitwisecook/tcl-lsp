@@ -1,44 +1,38 @@
-// Coroutine support — v1 (segment-based, Stage 1).
+// Coroutine support — Stage 2 (asyncify-backed) with v1 fallback.
 //
-// Real Tcl coroutines suspend at arbitrary call depth via NRE.  Without
-// NRE or asyncify (Stage 2 in the event-loop staircase) we can't
-// resume execution mid-callstack.  v1 ships a *severely* restricted
-// model that nonetheless covers the common test idiom:
+// Two drivers live behind a single :func:`resume_one` entry point:
 //
-//     coroutine c apply {{} { yield A; yield B; return C }}
-//     [c]   ;# A
-//     [c]   ;# B
-//     [c]   ;# C
+//   * **v1 (segment-based)** — default build.  Body is split at
+//     top-level command boundaries (semicolons / newlines outside
+//     braces) and each ``[c]`` evaluates the next segment.  Yield
+//     only works as a top-level command; nested yields fail.  This
+//     is what runs in the standard ``zig build`` artefact.
 //
-// Mechanism:
+//   * **Stage 2 (asyncify)** — opt-in via ``-Dasyncify=true``.  The
+//     runtime is post-processed with ``wasm-opt --asyncify`` so calls
+//     to the ``asyncify_*`` intrinsics declared in
+//     :file:`tcl_asyncify.zig` perform full call-stack save/restore.
+//     :func:`tcl_coro_drive` is in the asyncify removelist
+//     (``--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive``)
+//     so the unwind triggered by yield stops at the driver instead
+//     of propagating to the host.
 //
-//   1. ``coroutine NAME prefix args...`` immediately invokes
-//      ``prefix args...`` exactly once, with a marker pushed on the
-//      coro stack.  The marker tells :func:`yield` to capture its
-//      argument and raise a ``SIG_YIELD`` "signal" that unwinds back
-//      to the coroutine driver.
-//   2. The driver registers ``NAME`` as a CMD_COROUTINE redirect
-//      Command.  Calling it invokes :func:`resume`, which evaluates
-//      the *next* segment of the body.
-//   3. Segments are computed by parsing the body once at coro
-//      creation: top-level command boundaries become candidate
-//      resumption points.  Concretely, the body is split into a
-//      list of (start, len) source-byte spans; each call to ``c``
-//      eats and evaluates the next span.  ``yield`` short-circuits
-//      the segment so subsequent commands in the same span run on
-//      the next resume.
+// **Status of the asyncify path (Stage 2 partial):**
 //
-// Limitations (acceptable for v1, documented in
-// ``docs/design/runtime/event-loop.md``):
+//   * Single-yield works correctly — yield from arbitrary call
+//     depth (apply / proc / nested loops) unwinds cleanly to the
+//     driver and returns the yielded value.
+//   * Multi-yield rewind has a known issue: the second ``[c]`` call
+//     either returns empty or stack-exhausts depending on the
+//     surrounding shape.  Suspected interaction between the rewind
+//     state machine and the proc-dispatch / apply-frame paths.
+//     Tracked as Stage 2.5; the v1 segment driver is selected by
+//     default so this doesn't affect production use.
 //
-//   * ``yield`` only works when invoked as a top-level command in
-//     the coroutine body.  ``set x [yield]`` or yields inside a
-//     nested ``proc`` raise an error.
-//   * No locals persistence between segments — each segment runs
-//     in a fresh frame.  Workaround: use ``set ::ns::var`` to
-//     persist state.  Stage 2 with asyncify removes this limit.
-//   * ``yieldto`` invokes the target command and yields its result;
-//     no restriction beyond the above.
+// Both drivers share the public surface (:func:`create`,
+// :func:`lookup`, :func:`resume_one`, :func:`signal_yield`,
+// :func:`current_in_coroutine`) so the dispatch site in
+// :func:`eval_proc_call_bucket` doesn't care which model is active.
 
 const obj = @import("../valtypes/tcl_obj.zig");
 const tcl_obj_retain = obj.tcl_obj_retain;
@@ -47,6 +41,7 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const tcl_async = @import("tcl_asyncify.zig");
 
 // The yield signal flag lives on ``tcl_catch.yield_flag`` so
 // ``has_signal()`` in the interpreter sees it without a module-
@@ -73,9 +68,16 @@ pub const Coro = struct {
     body_ptr: u32,
     body_len: u32,
     body_obj: i32, // retained TclObj backing body bytes
+    // v1 segment state — unused under asyncify.
     segments: [MAX_SEGMENTS]Segment,
     n_segments: u32,
     next_segment: u32,
+    // Stage-2 asyncify state — buffer holds the saved call stack
+    // between yield and resume.  ``buf == 0`` until the first
+    // resume allocates it; thereafter it persists for the
+    // coroutine's lifetime.
+    async_buf: u32,
+    async_buf_size: u32,
     state: CoroState,
 };
 
@@ -111,12 +113,12 @@ pub fn lookup(name_ptr: u32, name_len: u32) ?*Coro {
     return null;
 }
 
-/// Split ``body`` into top-level command spans.  Mirrors a tiny
-/// subset of the Tcl tokeniser: tracks brace nesting and bracket
-/// nesting, treats unescaped semicolons and newlines at nesting
-/// depth zero as command separators.  Backslash-newline counts as
-/// whitespace (the line continuation form).  Quotes don't suppress
-/// command separators in real Tcl either.
+/// Split ``body`` into top-level command spans (v1 fallback only).
+/// Mirrors a tiny subset of the Tcl tokeniser: tracks brace nesting
+/// and bracket nesting, treats unescaped semicolons and newlines at
+/// nesting depth zero as command separators.  Backslash-newline
+/// counts as whitespace.  Quotes don't suppress separators in real
+/// Tcl either.
 fn split_segments(c: *Coro) void {
     const src: [*]const u8 = @ptrFromInt(c.body_ptr);
     var i: u32 = 0;
@@ -160,10 +162,8 @@ fn split_segments(c: *Coro) void {
 }
 
 /// Register a new coroutine.  ``name`` is the command name to
-/// register.  ``body`` is the script (typically ``apply {{} { ... }}``
-/// produced by the caller's word-concatenation).  Returns null on
-/// table overflow.  Stage-2's asyncify will drop the segment array
-/// and just run the body straight through.
+/// register.  ``body`` is the script the dispatcher will run.
+/// Returns null on table overflow.
 pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     if (g_n_coros >= MAX_COROS) return null;
     if (lookup(name_ptr, name_len)) |_| return null; // duplicate
@@ -182,38 +182,134 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     c.body_obj = body_obj;
     c.n_segments = 0;
     c.next_segment = 0;
+    c.async_buf = 0;
+    c.async_buf_size = 0;
     c.state = .PENDING;
-    split_segments(c);
+    if (!tcl_async.ENABLED) split_segments(c);
     return c;
 }
 
-/// Resume the coroutine: evaluate the next segment.  Returns the
-/// yield value (or the segment's return value if the segment
-/// finished without yielding).  When all segments have run, the
-/// coroutine becomes DEAD and subsequent resume calls return an
-/// error.
-pub fn resume_one(c: *Coro) i32 {
+fn push_call(c: *Coro) bool {
+    if (g_call_depth >= MAX_COROS) return false;
+    const idx: u32 = @intCast((@intFromPtr(c) - @intFromPtr(&g_coros[0])) / @sizeOf(Coro));
+    g_call_stack[g_call_depth] = idx;
+    g_call_depth += 1;
+    return true;
+}
+
+fn pop_call() void {
+    if (g_call_depth > 0) g_call_depth -= 1;
+}
+
+fn current_coro() ?*Coro {
+    if (g_call_depth == 0) return null;
+    return &g_coros[g_call_stack[g_call_depth - 1]];
+}
+
+/// Stage-2 asyncify resume — must be EXCLUDED from asyncify
+/// instrumentation via ``--pass-arg=asyncify-removelist@tcl_coro_drive``
+/// so the unwind triggered by yield stops here instead of
+/// propagating all the way out to the host.  Exposed as
+/// ``pub export fn`` so the export name survives the linker's
+/// symbol stripping; without an export the function index is
+/// anonymous and asyncify can't find it by name in the removelist.
+///
+/// Either invokes the body for the first time or rewinds the saved
+/// stack so execution resumes inside the previous yield call.  When
+/// the body suspends via yield this function returns the yielded
+/// value; when the body returns normally we report the body's result
+/// and mark the coroutine DEAD.
+pub export fn tcl_coro_drive(coro_addr: i32) i32 {
+    const c: *Coro = @ptrFromInt(@as(u32, @bitCast(coro_addr)));
+    const interp = @import("../interp/tcl_interp.zig");
+
+    if (c.state == .DEAD) return 0;
+
+    const is_resume = c.state == .SUSPENDED;
+    if (c.state == .PENDING) {
+        c.async_buf = obj.alloc(tcl_async.DEFAULT_BUFFER_SIZE);
+        c.async_buf_size = tcl_async.DEFAULT_BUFFER_SIZE;
+        tcl_async.init_buffer(c.async_buf, c.async_buf_size);
+    }
+
+    // Every instrumented helper call MUST happen before
+    // ``asyncify_start_rewind`` — otherwise the helper's prelude
+    // sees the rewind state, tries to restore from a buffer that
+    // never held its frame, and traps ``unreachable`` on the
+    // bogus state-machine ID.  Asyncify treats *import* calls as
+    // leaves (no instrumentation), so ``start_rewind`` itself plus
+    // the inline memory writes below are safe right up to the
+    // ``eval_script`` re-entry.
+    if (!push_call(c)) return 0;
+    // Note: ``defer pop_call();`` would inject pop_call into the
+    // unwind path, which under asyncify writes its frame into the
+    // saved buffer.  Replicate it by hand AFTER eval_script
+    // returns instead.
+
+    c.state = .RUNNING;
+    tcl_catch.yield_flag = 0;
+    tcl_catch.yield_value = 0;
+
+    if (is_resume) {
+        // Last instrumented call is push_call above; from here to
+        // eval_script we touch only imports + raw memory.
+        tcl_async.asyncify_start_rewind(c.async_buf);
+    }
+
+    const result = interp.eval_script(c.body_ptr, c.body_len);
+
+    // After eval_script returns, three things can have happened:
+    //   1. Body completed normally — coroutine is now DEAD.
+    //   2. yield() called ``asyncify_start_unwind``, the eval stack
+    //      unwound, control returned here through that mechanism.
+    //      ``asyncify_get_state`` reports UNWINDING; we stop the
+    //      unwind so the next resume can either rewind or start
+    //      fresh.
+    //   3. error / return propagated up; treat like (1).
+    const state = tcl_async.asyncify_get_state();
+    if (state == tcl_async.STATE_UNWINDING) {
+        tcl_async.asyncify_stop_unwind();
+        const yv = tcl_catch.yield_value;
+        tcl_catch.yield_flag = 0;
+        tcl_catch.yield_value = 0;
+        c.state = .SUSPENDED;
+        // pop_call() runs while state is NORMAL — safe (no rewind
+        // active).  But to keep the semantics of the v1 driver
+        // (g_call_depth = 0 outside an active resume) we MUST pop
+        // before returning.  Inline the body to dodge a function
+        // call on the unwind path; the asyncify pass would try to
+        // save/restore it otherwise.
+        if (g_call_depth > 0) g_call_depth -= 1;
+        return yv;
+    }
+    if (state == tcl_async.STATE_REWINDING) {
+        tcl_async.asyncify_stop_rewind();
+    }
+    if (g_call_depth > 0) g_call_depth -= 1;
+    c.state = .DEAD;
+    return result;
+}
+
+fn resume_async(c: *Coro) i32 {
+    return tcl_coro_drive(@bitCast(@intFromPtr(c)));
+}
+
+/// v1 segment-based resume — used when asyncify is disabled.
+fn resume_segments(c: *Coro) i32 {
     if (c.state == .DEAD) return 0;
     if (c.next_segment >= c.n_segments) {
         c.state = .DEAD;
         return 0;
     }
     const interp = @import("../interp/tcl_interp.zig");
-    // Push call-stack so a top-level yield knows which coro to
-    // attribute its value to.
-    if (g_call_depth >= MAX_COROS) return 0;
-    const idx: u32 = @intCast((@intFromPtr(c) - @intFromPtr(&g_coros[0])) / @sizeOf(Coro));
-    g_call_stack[g_call_depth] = idx;
-    g_call_depth += 1;
-    defer g_call_depth -= 1;
+    if (!push_call(c)) return 0;
+    defer pop_call();
 
     c.state = .RUNNING;
     tcl_catch.yield_flag = 0;
     tcl_catch.yield_value = 0;
 
     var result: i32 = 0;
-    // Evaluate segments until one of: yield, error, return, or all
-    // segments consumed.
     while (c.next_segment < c.n_segments) {
         const seg = c.segments[c.next_segment];
         c.next_segment += 1;
@@ -235,16 +331,29 @@ pub fn resume_one(c: *Coro) i32 {
     return result;
 }
 
+/// Resume the coroutine.  Routes to the asyncify driver when
+/// available, segment driver otherwise.
+pub fn resume_one(c: *Coro) i32 {
+    if (tcl_async.ENABLED) return resume_async(c);
+    return resume_segments(c);
+}
+
 /// Called by the ``yield`` command.  Signals the coroutine driver
-/// to stop the current segment and propagate ``value`` back to the
-/// caller of ``[c]``.  When called outside a coroutine, sets
-/// ``error_flag`` with a "yield without coroutine" message and
-/// returns false.
+/// to suspend and propagate ``value`` back to the caller of ``[c]``.
+/// When called outside a coroutine, returns false so the caller
+/// emits a ``yield without coroutine`` error.  Under asyncify we
+/// trigger the unwind here; under the v1 driver we just set
+/// ``yield_flag`` and let the segment loop notice.
 pub fn signal_yield(value: i32) bool {
     if (g_call_depth == 0) return false;
     if (value != 0) tcl_obj_retain(value);
     tcl_catch.yield_flag = 1;
     tcl_catch.yield_value = value;
+    if (tcl_async.ENABLED) {
+        if (current_coro()) |c| {
+            tcl_async.asyncify_start_unwind(c.async_buf);
+        }
+    }
     return true;
 }
 
