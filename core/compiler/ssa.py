@@ -94,16 +94,12 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
     if isinstance(stmt, IRBarrier):
         defs: list[str] = []
         if stmt.command in SIGNATURES:
-            for idx in arg_indices_for_role(
-                stmt.command, list(stmt.args), ArgRole.VAR_WRITE
-            ):
+            for idx in arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.VAR_WRITE):
                 if 0 <= idx < len(stmt.args):
                     name = _normalise_var_name(stmt.args[idx])
                     if name:
                         defs.append(name)
-        for idx in arg_indices_for_role(
-            stmt.command, list(stmt.args), ArgRole.LOOP_VAR_LIST
-        ):
+        for idx in arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.LOOP_VAR_LIST):
             if 0 <= idx < len(stmt.args):
                 defs.extend(stmt.args[idx].split())
         if defs:
