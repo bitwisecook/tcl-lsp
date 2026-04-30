@@ -858,10 +858,7 @@ class TestOOAndSnitStructuralBodies:
         # ``cls create FOO { defScript }`` form would be analysed
         # differently depending on the metaclass.
         for cmd in ("oo::abstract", "oo::singleton", "oo::configurable"):
-            assert (
-                body_kind_for_command(cmd, ["create", "FOO", "body"])
-                is BodyKind.STRUCTURAL
-            ), cmd
+            assert body_kind_for_command(cmd, ["create", "FOO", "body"]) is BodyKind.STRUCTURAL, cmd
 
     def test_oo_define_method_body_is_structural(self):
         from core.commands.registry.runtime import (
