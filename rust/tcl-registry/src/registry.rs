@@ -315,6 +315,42 @@ impl CommandRegistry {
         None
     }
 
+    /// Whether `name` (or the compound key `"cmd sub"`) produces a
+    /// canonical Tcl list — a list whose elements are properly
+    /// quoted so re-parsing by ``eval`` / ``uplevel`` /
+    /// ``interp eval`` doesn't trigger unwanted substitution.
+    ///
+    /// Mirrors `core/commands/registry/runtime.py::canonical_list_commands`:
+    /// derived from `return_type == TclType::List` on the command
+    /// (or its subcommand entry), minus the explicit exclusion
+    /// `concat` whose join-strip-grouping semantics can leave
+    /// unquoted specials in the output.
+    ///
+    /// Drives the W101 (`eval` with string concatenation) safe-
+    /// idiom suppression — `eval [list ...]`, `eval [linsert ...]`,
+    /// `eval [split ...]`, etc. shouldn't fire because the inner
+    /// command's output is a properly-quoted list.
+    #[must_use]
+    pub fn is_canonical_list_command(&self, name: &str) -> bool {
+        // Exclusion: concat returns LIST but isn't canonical.
+        if name == "concat" {
+            return false;
+        }
+        // Compound form ``"cmd sub"`` — split into head + sub.
+        if let Some((head, sub_name)) = name.split_once(' ') {
+            if let Some(spec) = self.get(head) {
+                if let Some(sub) = spec.subcommand(sub_name) {
+                    return sub.return_type == Some(crate::types::TclType::List);
+                }
+            }
+            return false;
+        }
+        // Bare command name.
+        self.get(name)
+            .and_then(|spec| spec.return_type)
+            .is_some_and(|t| t == crate::types::TclType::List)
+    }
+
     /// Number of registered commands.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -732,6 +768,33 @@ mod tests {
             .resolve_option_terminator("unset", &["$x"], DialectSet::empty())
             .expect("unset declares --");
         assert!(!profile.warn_without_terminator);
+    }
+
+    // -- ``is_canonical_list_command`` (W101 safe-idiom driver)
+
+    #[test]
+    fn is_canonical_list_command_includes_list_and_split_excludes_concat() {
+        let reg = CommandRegistry::build_default();
+        assert!(reg.is_canonical_list_command("list"));
+        assert!(reg.is_canonical_list_command("linsert"));
+        assert!(reg.is_canonical_list_command("split"));
+        assert!(reg.is_canonical_list_command("lreverse"));
+        // ``concat`` returns LIST but is the explicit non-canonical
+        // exclusion (mirrors Python's ``_NON_CANONICAL_LIST_COMMANDS``).
+        assert!(!reg.is_canonical_list_command("concat"));
+        // Non-list commands (e.g. ``set``) are filtered out.
+        assert!(!reg.is_canonical_list_command("set"));
+        // Unknown commands return false.
+        assert!(!reg.is_canonical_list_command("unknownthing"));
+    }
+
+    #[test]
+    fn is_canonical_list_command_handles_compound_subcommand_keys() {
+        let reg = CommandRegistry::build_default();
+        // ``dict keys`` returns LIST.
+        assert!(reg.is_canonical_list_command("dict keys"));
+        // ``dict get`` returns String (or unspecified) — not canonical.
+        assert!(!reg.is_canonical_list_command("dict froob"));
     }
 
     #[test]

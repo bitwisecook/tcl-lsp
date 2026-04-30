@@ -262,6 +262,17 @@ impl Analyser {
             self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
         }
 
+        // **C41-default-on-followups-postpass.**  W101 — ``eval``
+        // with substituted arguments (string-concatenation
+        // injection risk).  Mirrors ``check_eval_string_concat`` in
+        // ``core/analysis/checks/_security.py:19-73``.  Run before
+        // the early-returning handlers / body-walk dispatch so the
+        // generic ``ArgRole::Body`` recursion into the ``eval``
+        // body still runs even after W101 fires.  Cheap guard
+        // (cmd_name == "eval") inside the emitter avoids the
+        // overhead for the common case.
+        self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
+
         // **C41-default-on-followups-postpass.**  W304 — missing
         // option terminator (``--``) on option-bearing commands.
         // Mirrors ``check_missing_option_terminator`` in
