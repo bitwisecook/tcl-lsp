@@ -321,7 +321,8 @@ mod tests {
 
     /// `lift_symbol_kind` maps every `CoreSymbolKind` variant to the
     /// matching LSP `SymbolKind` constant. The mapping is exhaustive
-    /// because `CoreSymbolKind` is non-exhaustive on the source side.
+    /// so additions to `CoreSymbolKind` force an explicit decision
+    /// about the corresponding LSP `SymbolKind`.
     #[test]
     fn lift_symbol_kind_covers_all_variants() {
         assert_eq!(
