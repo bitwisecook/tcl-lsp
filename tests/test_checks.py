@@ -1318,8 +1318,7 @@ class TestLiteralExpected:
         # the pattern is inside a nested braced script body (the analyser
         # recursively checks bodies of ``dict filter ... script ... body``).
         diags = _diag_with_code(
-            "set out [dict filter $d script {key value}"
-            " {regexp $pattern $value}]",
+            "set out [dict filter $d script {key value} {regexp $pattern $value}]",
             "W306",
         )
         assert len(diags) == 0
