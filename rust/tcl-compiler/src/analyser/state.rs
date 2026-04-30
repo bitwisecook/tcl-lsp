@@ -1397,7 +1397,7 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w110_no_fire_on_for_init_or_step() {
+    fn analyse_w110_no_fire_on_for_clean_condition() {
         // ``for {set i 0} {$i < 10} {incr i} {body}`` — no ``==``
         // anywhere, but ensure the EXPR-role dispatch on ``for``
         // doesn't crash and produces no W110.
@@ -1408,6 +1408,19 @@ mod tests {
             "got {:?}",
             r.diagnostics
         );
+    }
+
+    #[test]
+    fn analyse_w110_fires_on_for_condition() {
+        // ``for {set i 0} {$x == "foo"} {incr i} {body}`` —
+        // ``handle_for_command`` returns early from
+        // ``process_command``, so the EXPR-role dispatch must
+        // run *before* the early-return handlers (otherwise
+        // W110 on a ``for`` condition would silently miss).
+        let mut a = Analyser::new();
+        let r = a.analyse("for {set i 0} {$x == \"foo\"} {incr i} { break }\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
