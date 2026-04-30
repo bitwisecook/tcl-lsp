@@ -10,7 +10,10 @@ from ._base import _EXPECT_ONLY, register
 _SOURCE = "Expect expect(1)"
 
 
-def _expect_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _expect_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY arg roles for expect pattern/body pairs.
 
     The expect command uses: expect ?opts? pat1 body1 ?pat2 body2 ...?
@@ -19,7 +22,7 @@ def _expect_arg_roles(args: list[str]) -> dict[int, ArgRole]:
     The special patterns ``timeout``, ``eof``, ``default``, ``full_buffer``
     and ``null`` are followed by a body.
     """
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
     i = 0
     while i < len(args):
         arg = args[i]
@@ -34,7 +37,7 @@ def _expect_arg_roles(args: list[str]) -> dict[int, ArgRole]:
             continue
         # At this point, arg is a pattern; the next is the body.
         if i + 1 < len(args):
-            roles[i + 1] = ArgRole.BODY
+            roles[i + 1] = _BODY
             i += 2
         else:
             i += 1

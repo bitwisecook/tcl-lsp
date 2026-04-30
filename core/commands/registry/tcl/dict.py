@@ -32,23 +32,26 @@ from .shimmer_resolvers import resolve_dict_merge
 _SOURCE = "Tcl man page dict.n"
 
 
-def _dict_last_arg_body(args: list[str]) -> dict[int, ArgRole]:
+def _dict_last_arg_body(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is a body script (for dict update/with).
 
     Argument 0 is the dict variable: it is both *written* (the dict is
     rewritten when the body returns) and *read* (its keys are unpacked
     into local variables of the same name for the body's duration), so
-    it carries the combined :class:`ArgRole.VAR_READ_WRITE` role.
+    it carries both :data:`ArgRole.VAR_READ` and :data:`ArgRole.VAR_WRITE`.
     """
     if len(args) >= 2:
-        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_READ_WRITE}
+        return {
+            len(args) - 1: frozenset({ArgRole.BODY}),
+            0: frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE}),
+        }
     return {}
 
 
-def _dict_filter_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _dict_filter_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve roles for dict filter -- script type has a body."""
     if len(args) >= 3 and args[1] == "script":
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: frozenset({ArgRole.BODY})}
     return {}
 
 

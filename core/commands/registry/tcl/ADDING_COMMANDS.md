@@ -311,21 +311,26 @@ subcommands={
 When argument positions depend on the actual invocation (optional keywords,
 option-value pairs, variable-length argument lists), use `arg_role_resolver`
 instead of static `arg_roles`.  The resolver receives the argument list
-(after the command name) and returns a dict mapping indices to roles:
+(after the command name) and returns a dict mapping each index to a
+`frozenset[ArgRole]` — the set lets a single argument carry multiple roles
+at once (e.g. `dict with` arg 0 is both `VAR_READ` and `VAR_WRITE`):
 
 ```python
-def _try_arg_roles(args: list[str]) -> dict[int, ArgRole]:
-    roles: dict[int, ArgRole] = {}
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _try_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    roles: dict[int, frozenset[ArgRole]] = {}
     if args:
-        roles[0] = ArgRole.BODY          # try body
+        roles[0] = _BODY                 # try body
     i = 1
     while i < len(args):
         kw = args[i]
         if kw == "finally" and i + 1 < len(args):
-            roles[i + 1] = ArgRole.BODY  # finally body
+            roles[i + 1] = _BODY         # finally body
             i += 2
         elif kw in ("on", "trap") and i + 3 < len(args):
-            roles[i + 3] = ArgRole.BODY  # handler body
+            roles[i + 3] = _BODY         # handler body
             i += 4
         else:
             i += 1

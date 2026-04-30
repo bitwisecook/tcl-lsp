@@ -129,11 +129,11 @@ def _fileutil_se(
     )
 
 
-def _update_in_place_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _update_in_place_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is the body script."""
     if not args:
         return {}
-    return {len(args) - 1: ArgRole.BODY}
+    return {len(args) - 1: frozenset({ArgRole.BODY})}
 
 
 def _fu(name: str, summary: str, synopsis: str, arity: Arity, **kw: object) -> type:

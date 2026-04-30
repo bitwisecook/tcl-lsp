@@ -990,14 +990,14 @@ def _canonicalise_command_name(command: str) -> str:
     return _COMMAND_NAME_ALIASES.get(command, command)
 
 
-def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, ArgRole], int]:
+def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, frozenset[ArgRole]], int]:
     """Return ``(role_map, base_index)`` for a *command* invocation.
 
-    *role_map* maps argument indices into ``args[base_index:]`` to their
-    :class:`ArgRole`.  ``base_index`` is the offset to add when expressing
-    the indices against the original *args* list — 1 for ensemble-form
-    commands (where ``args[0]`` is the subcommand word) and 0 for plain
-    commands and CFG-rewritten ensemble names.
+    *role_map* maps argument indices into ``args[base_index:]`` to a
+    ``frozenset`` of :class:`ArgRole` values.  ``base_index`` is the offset
+    to add when expressing the indices against the original *args* list —
+    1 for ensemble-form commands (where ``args[0]`` is the subcommand word)
+    and 0 for plain commands and CFG-rewritten ensemble names.
 
     Returns ``({}, 0)`` for unregistered or unmatched commands; callers
     should treat the empty role map as "no roles known" and skip output.
@@ -1039,22 +1039,18 @@ def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, ArgRole
     return {}, 0
 
 
-def _resolved_role_map(sig: CommandSig, args: list[str]) -> dict[int, ArgRole]:
-    """Resolve :class:`CommandSig` roles for *args*, dynamic resolver first."""
+def _resolved_role_map(sig: CommandSig, args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """Resolve :class:`CommandSig` roles for *args*, dynamic resolver first.
+
+    The dynamic resolver returns ``dict[int, frozenset[ArgRole]]`` directly.
+    The static ``arg_roles`` field carries a single role per index for
+    historical reasons; we wrap each value in a single-element frozenset
+    here so the rest of the runtime sees one consistent shape.
+    """
     if sig.arg_role_resolver is not None:
         resolved = sig.arg_role_resolver(list(args))
         return {idx: r for idx, r in resolved.items() if idx < len(args)}
-    return {idx: r for idx, r in sig.arg_roles.items() if idx < len(args)}
-
-
-# Subsumption: a query for these "narrower" roles also matches the
-# "broader" :data:`ArgRole.VAR_READ_WRITE` role.  Keeping the map small
-# means new role additions are explicit; widen as needed when more
-# combined-semantic roles are added.
-_ROLE_SUBSUMES: dict[ArgRole, frozenset[ArgRole]] = {
-    ArgRole.VAR_READ: frozenset({ArgRole.VAR_READ_WRITE}),
-    ArgRole.VAR_WRITE: frozenset({ArgRole.VAR_READ_WRITE}),
-}
+    return {idx: frozenset({r}) for idx, r in sig.arg_roles.items() if idx < len(args)}
 
 
 def body_kind_for_command(command: str, args: list[str]) -> BodyKind:
@@ -1121,8 +1117,7 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
     if not role_map:
         return set()
 
-    accept = _ROLE_SUBSUMES.get(role, frozenset()) | {role}
-    return {idx + base_index for idx, r in role_map.items() if r in accept}
+    return {idx + base_index for idx, roles in role_map.items() if role in roles}
 
 
 _SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.PATTERN})
@@ -1159,8 +1154,9 @@ def arg_indices_for_roles(
         return tuple(results)
 
     for idx_in_result, role in need_sig_roles:
-        accept = _ROLE_SUBSUMES.get(role, frozenset()) | {role}
-        results[idx_in_result] = {idx + base_index for idx, r in role_map.items() if r in accept}
+        results[idx_in_result] = {
+            idx + base_index for idx, roles in role_map.items() if role in roles
+        }
 
     return tuple(results)
 
