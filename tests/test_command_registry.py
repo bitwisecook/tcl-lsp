@@ -674,17 +674,17 @@ class TestRewriteAliasResolution:
         assert arg_indices_for_role("::my::for", ["k v", "$d", "body"], ArgRole.BODY) == set()
 
 
-class TestVarReadWriteSubsumption:
-    """Issues #246 / #252 — multi-role args satisfy both ``VAR_READ`` and ``VAR_WRITE``.
+class TestMultiRoleArguments:
+    """Issues #246 / #252 — an argument can carry multiple roles at once.
 
-    ``dict with`` / ``dict update`` arg 0 carries a variable name that
-    is both written (the dict is rewritten when the body returns) and
-    read (the body sees keys unpacked into local variables of the same
-    name).  The resolver attaches both :class:`ArgRole.VAR_READ` and
-    :class:`ArgRole.VAR_WRITE` to the same index as a ``frozenset``, so
-    a query for either role hits.  The previous design used a combined
-    :class:`ArgRole.VAR_READ_WRITE` plus a subsumption table; this is
-    now expressed directly via the frozenset.
+    ``dict with`` / ``dict update`` arg 0 names a variable that is both
+    written (the dict is rewritten when the body returns) and read (the
+    body sees keys unpacked into local variables of the same name).  The
+    resolver attaches both :class:`ArgRole.VAR_READ` and
+    :class:`ArgRole.VAR_WRITE` to the same index as a ``frozenset``, so a
+    query for either role hits.  An earlier design used a combined
+    ``VAR_READ_WRITE`` role plus a subsumption table; this is now
+    expressed directly by the frozenset value.
     """
 
     def test_dict_with_var_arg_is_read_and_written(self):
@@ -706,6 +706,12 @@ class TestVarReadWriteSubsumption:
 
         args = ["with", "myDict", "body"]
         assert arg_indices_for_role("dict", args, ArgRole.BODY) == {2}
+
+    def test_var_read_write_deprecated_alias(self):
+        """``VAR_READ_WRITE`` is preserved as a frozenset alias for back-compat."""
+        from core.commands.registry.signatures import VAR_READ_WRITE, ArgRole
+
+        assert VAR_READ_WRITE == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
 
 
 class TestBodyKind:

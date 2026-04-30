@@ -194,7 +194,7 @@ class InterpCommand(CommandDef):
                     detail="This command concatenates all of the arg arguments in the same fashion as the concat command, then evaluates the resulting string as a Tcl script in the child interpreter identified by path.",
                     synopsis="interp eval path arg ?arg ...?",
                     return_type=TclType.STRING,
-                    arg_roles={1: ArgRole.BODY},
+                    arg_roles={1: frozenset({ArgRole.BODY})},
                 ),
                 "exists": SubCommand(
                     name="exists",

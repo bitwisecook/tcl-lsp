@@ -46,7 +46,7 @@ class LappendCommand(CommandDef):
             assigns_variable_at=0,
             reads_variable_before_write=True,
             safe_on_uninit=frozenset(),
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             return_type=TclType.LIST,
             inferred_storage_type=StorageType.LIST,
             arg_types={0: ArgTypeHint(expected=TclType.LIST, shimmers=True)},

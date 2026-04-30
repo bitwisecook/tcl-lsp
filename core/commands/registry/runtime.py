@@ -36,6 +36,7 @@ __all__ = [
     "iter_switch_case_list",
     "options_with_value",
     "regexp_pattern_index",
+    "resolve_arg_role_map",
     "resolve_rewrite_alias",
     "skip_options",
 ]
@@ -1040,17 +1041,11 @@ def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, frozens
 
 
 def _resolved_role_map(sig: CommandSig, args: list[str]) -> dict[int, frozenset[ArgRole]]:
-    """Resolve :class:`CommandSig` roles for *args*, dynamic resolver first.
-
-    The dynamic resolver returns ``dict[int, frozenset[ArgRole]]`` directly.
-    The static ``arg_roles`` field carries a single role per index for
-    historical reasons; we wrap each value in a single-element frozenset
-    here so the rest of the runtime sees one consistent shape.
-    """
+    """Resolve :class:`CommandSig` roles for *args*, dynamic resolver first."""
     if sig.arg_role_resolver is not None:
         resolved = sig.arg_role_resolver(list(args))
         return {idx: r for idx, r in resolved.items() if idx < len(args)}
-    return {idx: frozenset({r}) for idx, r in sig.arg_roles.items() if idx < len(args)}
+    return {idx: r for idx, r in sig.arg_roles.items() if idx < len(args)}
 
 
 def body_kind_for_command(command: str, args: list[str]) -> BodyKind:
@@ -1118,6 +1113,22 @@ def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[in
         return set()
 
     return {idx + base_index for idx, roles in role_map.items() if role in roles}
+
+
+def resolve_arg_role_map(command: str, args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """Return ``{arg_index: frozenset[ArgRole]}`` for *command* with *args*.
+
+    Indices are expressed against the original *args* list (after the
+    command name).  Subcommand offsets are pre-applied so callers don't
+    need to know whether *command* is a plain command or an ensemble.
+    Returns an empty dict for unregistered or unmatched commands.
+    """
+    role_map, base_index = _resolve_arg_roles(command, args)
+    if not role_map:
+        return {}
+    if base_index == 0:
+        return dict(role_map)
+    return {idx + base_index: roles for idx, roles in role_map.items()}
 
 
 _SPECIAL_ROLES = frozenset({ArgRole.BODY, ArgRole.PATTERN})

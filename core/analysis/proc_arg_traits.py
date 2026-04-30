@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 
 from ..commands.registry import REGISTRY
+from ..commands.registry.runtime import resolve_arg_role_map as _resolve_arg_roles
 from ..commands.registry.signatures import ArgRole
 from ..parsing.lexer import TclParseError
 from .semantic_model import ProcArgTrait
@@ -53,36 +54,6 @@ def _extract_var_name(text: str) -> str | None:
     if m:
         return m.group(1) or m.group(2)
     return None
-
-
-def _resolve_arg_roles(command: str, args: list[str]) -> dict[int, frozenset[ArgRole]]:
-    """Get arg roles for a command from the registry.
-
-    Returns a ``dict[int, frozenset[ArgRole]]``: each argument index maps
-    to the set of roles it carries, mirroring the
-    :data:`core.commands.registry.models.ArgRoleResolver` shape.  Static
-    ``arg_roles`` entries are wrapped in a single-element ``frozenset`` at
-    this boundary so callers don't have to handle two shapes.
-    """
-    spec = REGISTRY.get_any(command)
-    if spec is None:
-        return {}
-
-    if spec.arg_role_resolver is not None:
-        return spec.arg_role_resolver(args)
-
-    if spec.arg_roles:
-        return {k: frozenset({v}) for k, v in spec.arg_roles.items()}
-
-    if spec.subcommands and args:
-        sub = spec.subcommands.get(args[0])
-        if sub is not None:
-            if sub.arg_role_resolver is not None:
-                return {k + 1: roles for k, roles in sub.arg_role_resolver(args[1:]).items()}
-            if sub.arg_roles:
-                return {k + 1: frozenset({v}) for k, v in sub.arg_roles.items()}
-
-    return {}
 
 
 def _extract_commands(source: str) -> list[tuple[str, list[str]]]:

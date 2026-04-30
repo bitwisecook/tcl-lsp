@@ -63,7 +63,7 @@ class SeekCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 3)),
-            arg_roles={0: ArgRole.CHANNEL},
+            arg_roles={0: frozenset({ArgRole.CHANNEL})},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

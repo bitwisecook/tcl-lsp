@@ -38,7 +38,11 @@ class CatchCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 3),
             ),
-            arg_roles={0: ArgRole.BODY, 1: ArgRole.VAR_WRITE, 2: ArgRole.VAR_WRITE},
+            arg_roles={
+                0: frozenset({ArgRole.BODY}),
+                1: frozenset({ArgRole.VAR_WRITE}),
+                2: frozenset({ArgRole.VAR_WRITE}),
+            },
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(
