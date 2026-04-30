@@ -251,6 +251,126 @@ class _AnalyserHandlersMixin(_Base):
         if obj_name:
             self._objdefined_vars.add(obj_name)
 
+    def _handle_trace_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        scope: Scope,
+    ) -> None:
+        """Detect ``trace`` callback registrations and mark target procs.
+
+        Recognises:
+          - ``trace add variable|command|execution name ops commandPrefix``
+            (Tcl 8.4+)
+          - ``trace variable name ops command`` (legacy form, deprecated
+            but still in use)
+
+        When the commandPrefix resolves to a known user proc, the
+        ``ProcDef.is_trace_callback`` flag is set so that W214
+        (unused parameter) is suppressed: trace callbacks must accept a
+        fixed trailing signature (e.g. ``name1 name2 op``) regardless of
+        whether the body uses those arguments.
+        """
+        if cmd_name not in ("trace", "::trace"):
+            return
+
+        prefix: str | None = None
+        if (
+            len(args) >= 5
+            and args[0] == "add"
+            and args[1]
+            in (
+                "variable",
+                "command",
+                "execution",
+            )
+        ):
+            prefix = args[4]
+        elif len(args) >= 4 and args[0] == "variable":
+            prefix = args[3]
+
+        if not prefix:
+            return
+
+        from ...compiler.tcl_expr_eval import _split_tcl_list
+
+        try:
+            elements = _split_tcl_list(prefix)
+        except Exception:
+            return
+        if not elements:
+            return
+        callback_name = elements[0]
+        if not callback_name:
+            return
+
+        # Defer resolution until finalisation: the proc may be defined
+        # after the ``trace add`` site.  Pre-compute the candidate
+        # qualified names so the snapshot does not need to retain a
+        # scope reference.
+        candidates = self._trace_callback_candidates(callback_name, scope)
+        if candidates:
+            self._pending_trace_callbacks.append(candidates)
+
+    @staticmethod
+    def _trace_callback_candidates(cmd_name: str, scope: Scope) -> tuple[str, ...]:
+        """Enumerate qualified-name candidates for an unqualified callback.
+
+        Tcl resolves the trace ``commandPrefix`` at trace-fire time using
+        the namespace active at the variable-write site, which the
+        analyser cannot know statically — it may be the registration
+        namespace, the global namespace, or any caller's namespace.  We
+        therefore enumerate every namespace ancestor plus the global
+        namespace as plausible candidates and let the resolver mark all
+        existing procs that match.  Storing a tuple instead of keeping a
+        scope reference keeps the pending list snapshot-safe.
+        """
+        from ...common.naming import normalise_qualified_name as _norm
+
+        seen: set[str] = set()
+        result: list[str] = []
+
+        def add(name: str) -> None:
+            qname = _norm(name)
+            if not qname or qname in seen:
+                return
+            seen.add(qname)
+            result.append(qname)
+
+        if cmd_name.startswith("::"):
+            add(cmd_name)
+        elif "::" in cmd_name:
+            add(f"::{cmd_name}")
+        else:
+            current: Scope | None = scope
+            while current is not None:
+                if current.kind == "namespace":
+                    add(f"{current.name}::{cmd_name}")
+                current = current.parent
+            add(f"::{cmd_name}")
+        return tuple(result)
+
+    def _resolve_pending_trace_callbacks(self) -> None:
+        """Resolve deferred ``trace`` callback registrations.
+
+        Marks every ``ProcDef`` matching any candidate qualified name
+        with ``is_trace_callback = True``.  Marking *all* matches (rather
+        than only the first) reflects Tcl's runtime resolution rules:
+        the callback's actual target depends on the namespace active at
+        the variable-write site, so any matching proc could legitimately
+        receive the trace arguments.  Suppressing W214 on every plausible
+        target avoids false positives at the small cost of suppressing
+        a hint on a same-named proc that happens not to be the callback.
+        """
+        if not self._pending_trace_callbacks:
+            return
+        for candidates in self._pending_trace_callbacks:
+            for qname in candidates:
+                proc = self.result.all_procs.get(qname)
+                if proc is not None:
+                    proc.is_trace_callback = True
+        self._pending_trace_callbacks.clear()
+
     def _handle_namespace_ensemble(
         self,
         cmd_name: str,
