@@ -1241,6 +1241,175 @@ mod tests {
         assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
     }
 
+    // -- ``postpass`` chunk: W110 string-compare-in-expr emitter
+    //
+    // Mirrors ``tests/test_checks.py::TestStringCompareInExpr``
+    // against the Rust port so the W110 path retires from the
+    // Python ``run_compiler_checks`` post-pass.
+
+    #[test]
+    fn analyse_emits_w110_for_string_eq_in_if_condition() {
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x == \"foo\"} {puts yes}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        assert!(w110[0].message.contains("eq"), "got {:?}", w110[0].message);
+        assert!(matches!(w110[0].severity, crate::analyser::Severity::Hint));
+    }
+
+    #[test]
+    fn analyse_emits_w110_for_string_ne_in_if_condition() {
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x != \"bar\"} {puts no}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        assert!(w110[0].message.contains("ne"), "got {:?}", w110[0].message);
+    }
+
+    #[test]
+    fn analyse_no_w110_for_numeric_compare() {
+        // ``$x == 42`` — numeric literal on the right, no string
+        // operand, should not fire.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x == 42} {puts yes}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w110_for_eq_operator() {
+        // ``$x eq "foo"`` is the correct form — no W110.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x eq \"foo\"} {puts yes}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w110_includes_eq_code_fix() {
+        // Single ``==`` against a string literal — the blanket
+        // rewrite should run and produce a fix containing ``eq``.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x == \"foo\"} {puts yes}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        assert_eq!(w110[0].fixes.len(), 1, "got {:?}", w110[0].fixes);
+        assert!(
+            w110[0].fixes[0].new_text.contains("eq"),
+            "got {:?}",
+            w110[0].fixes[0].new_text
+        );
+    }
+
+    #[test]
+    fn analyse_no_w110_for_variable_only_compare() {
+        // ``$a == $b`` — both operands are variables, may hold
+        // ints, no W110.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$a == $b} {puts yes}\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w110_fires_for_numeric_string_literal() {
+        // ``$x == "42"`` — user explicitly wrote a string literal
+        // (with quotes), so W110 still fires.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x == \"42\"} {puts yes}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn analyse_w110_fires_for_boolean_string_literal() {
+        // ``$x == "true"`` — boolean-spelled string literal still
+        // counts as ExprString.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$x == \"true\"} {puts yes}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn analyse_w110_fires_through_unary_negation() {
+        // ``!($x == "foo")`` — W110 walks through ExprUnary.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {!($x == \"foo\")} {puts no}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn analyse_w110_no_fix_when_some_compare_is_non_string() {
+        // ``$a == $b || $x == "foo"`` — only one of the two
+        // ``==`` ops has a string operand; the blanket regex
+        // rewrite would corrupt the var-only ``==``, so the fix
+        // is suppressed.
+        let mut a = Analyser::new();
+        let r = a.analyse("if {$a == $b || $x == \"foo\"} {puts y}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        assert_eq!(w110[0].fixes.len(), 0, "got {:?}", w110[0].fixes);
+    }
+
+    #[test]
+    fn analyse_w110_fires_on_while_condition() {
+        // ``while {EXPR} {body}`` — EXPR-role is at index 0.
+        let mut a = Analyser::new();
+        let r = a.analyse("while {$x == \"foo\"} { break }\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn analyse_w110_fires_on_top_level_expr_command() {
+        // ``expr {$x == "foo"}`` — top-level invocation of
+        // ``expr`` exercises the EXPR-role dispatch on the
+        // single braced arg.  (Nested ``[expr ...]`` command
+        // substitutions are recorded as invocations but the
+        // analyser doesn't currently re-enter them for per-
+        // command checks; that's a separate concern.)
+        let mut a = Analyser::new();
+        let r = a.analyse("expr {$x == \"foo\"}\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn analyse_w110_fires_on_multi_arg_expr_command() {
+        // ``expr $x == "foo"`` (no braces, multiple argv slots) —
+        // matches Python's ``expr_text = " ".join(args)`` special
+        // case.
+        let mut a = Analyser::new();
+        let r = a.analyse("expr $x == \"foo\"\n", "tcl");
+        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+    }
+
+    #[test]
+    fn analyse_w110_no_fire_on_for_init_or_step() {
+        // ``for {set i 0} {$i < 10} {incr i} {body}`` — no ``==``
+        // anywhere, but ensure the EXPR-role dispatch on ``for``
+        // doesn't crash and produces no W110.
+        let mut a = Analyser::new();
+        let r = a.analyse("for {set i 0} {$i < 10} {incr i} { break }\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W110"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry
