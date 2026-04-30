@@ -155,13 +155,33 @@ fn eval_fcopy(words: []const i32) i32 {
     }
     var size_limit: i64 = -1;
     var i: usize = 3;
-    while (i + 1 < words.len) : (i += 2) {
+    while (i < words.len) : (i += 2) {
+        if (i + 1 >= words.len) {
+            // Trailing option without value (``fcopy a b -size``) —
+            // Tcl reports this as ``-size`` requiring an argument.
+            stubs.raise("fcopy: option requires an argument");
+            return 0;
+        }
         if (word_eq(words[i], "-size")) {
             const s = obj_ensure_string(words[i + 1]);
-            if (obj.try_parse_int(s.ptr, s.len)) |v| size_limit = v;
+            const parsed = obj.try_parse_int(s.ptr, s.len) orelse {
+                stubs.raise("fcopy: -size requires an integer value");
+                return 0;
+            };
+            if (parsed < 0) {
+                stubs.raise("fcopy: -size value must be non-negative");
+                return 0;
+            }
+            size_limit = parsed;
         } else if (word_eq(words[i], "-command")) {
             // ``-command`` requires an event loop we don't model.
             stubs.unsupported("fcopy -command (no event loop)");
+            return 0;
+        } else {
+            // Unknown option — Tcl rejects with a "bad option" error.
+            // Don't silently ignore; that would cause typos like
+            // ``-szie 10`` to behave as unbounded copy.
+            stubs.raise("fcopy: bad option (use -size or -command)");
             return 0;
         }
     }
@@ -204,7 +224,7 @@ fn eval_format(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "puts", .arity_min = 1, .arity_max = 2, .handler = &eval_puts },
+    .{ .name = "puts", .arity_min = 1, .arity_max = 3, .handler = &eval_puts },
     .{ .name = "flush", .arity_min = 0, .arity_max = 1, .handler = &eval_flush },
     .{ .name = "append", .arity_min = 1, .arity_max = null, .handler = &eval_append },
     .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_format },
