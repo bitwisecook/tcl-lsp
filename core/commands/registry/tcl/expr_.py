@@ -46,7 +46,7 @@ class ExprCommand(CommandDef):
                 arity=Arity(1),
             ),
             taint_sink=True,
-            arg_roles={0: ArgRole.EXPR},
+            arg_roles={0: frozenset({ArgRole.EXPR})},
             return_type=TclType.NUMERIC,
             arg_types={0: ArgTypeHint(expected=TclType.NUMERIC, shimmers=True)},
             pure_evaluation=True,

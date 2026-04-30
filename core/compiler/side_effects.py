@@ -565,9 +565,11 @@ def classify_side_effects(
     dialect: str | None = None,
     subcommand: str | None = None,
     callee_summary: object | None = None,
+    traced_commands: frozenset[str] | None = None,
+    has_dynamic_trace: bool = False,
 ) -> CommandSideEffects:
-    # Fast cache lookup for the common case (no callee_summary).
-    if callee_summary is None:
+    # Fast cache lookup for the common case (no callee_summary, no traces).
+    if callee_summary is None and not traced_commands and not has_dynamic_trace:
         cache_key = (command, args, dialect, subcommand)
         cached = _side_effect_cache.get(cache_key)
         if cached is not None:
@@ -581,12 +583,60 @@ def classify_side_effects(
         if len(_side_effect_cache) < _SIDE_EFFECT_CACHE_MAX:
             _side_effect_cache[cache_key] = result
         return result
-    return _classify_side_effects_impl(
+    base = _classify_side_effects_impl(
         command,
         args,
         dialect=dialect,
         subcommand=subcommand,
         callee_summary=callee_summary,
+    )
+    return _compose_with_traces(
+        base,
+        command,
+        traced_commands=traced_commands,
+        has_dynamic_trace=has_dynamic_trace,
+    )
+
+
+def _compose_with_traces(
+    base: CommandSideEffects,
+    command: str,
+    *,
+    traced_commands: frozenset[str] | None,
+    has_dynamic_trace: bool,
+) -> CommandSideEffects:
+    """Compose ``trace add execution`` body effects into a base classification.
+
+    The trace body runs around every call to ``command`` so its effects
+    union into the traced command's effective side-effects.  Today we
+    take the *conservative* upper bound: a traced command is treated
+    as if its body had unknown reads/writes (purity is dropped, a
+    catch-all UNKNOWN write is added).  A future pass can refine this
+    to the trace body's recursively-classified effects when the body
+    is statically known.
+
+    ``has_dynamic_trace`` widens the rule to all commands when *any*
+    trace was installed with a non-literal target — we cannot prove
+    a particular call isn't traced, so we must pessimise it.
+    """
+    if not has_dynamic_trace and (not traced_commands or command not in traced_commands):
+        return base
+    # Avoid double-pessimising commands that are already classified as
+    # dynamic barriers — they're already worst-case.
+    if base.dynamic_barrier:
+        return base
+    trace_effect = SideEffect(
+        target=SideEffectTarget.UNKNOWN,
+        reads=True,
+        writes=True,
+    )
+    composed_effects = (*base.effects, trace_effect)
+    return CommandSideEffects(
+        effects=composed_effects,
+        pure=False,
+        deterministic=False,
+        dynamic_barrier=base.dynamic_barrier,
+        dialect=base.dialect,
     )
 
 

@@ -19,7 +19,7 @@ from ..signatures import ArgRole, Arity
 from ._base import register
 
 
-def _regexp_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
+def _regexp_arg_role_resolver(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Dynamically assign VAR_WRITE to regexp capture variables.
 
     ``regexp ?switches? exp string ?matchVar? ?subMatchVar ...?``
@@ -32,10 +32,11 @@ def _regexp_arg_role_resolver(args: list[str]) -> dict[int, ArgRole]:
 
     first_positional = skip_options(args, options_with_value("regexp"))
     # Capture variables start 2 past the first positional arg.
-    result: dict[int, ArgRole] = {}
+    result: dict[int, frozenset[ArgRole]] = {}
     capture_start = first_positional + 2
+    var_write = frozenset({ArgRole.VAR_WRITE})
     for i in range(capture_start, len(args)):
-        result[i] = ArgRole.VAR_WRITE
+        result[i] = var_write
     return result
 
 

@@ -61,8 +61,8 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
     # dropped.  ``_emit_var_write_obj`` already resolves aliases,
     # array refs, namespace qualification, and frame-only vars.
     if len(args) >= 2:
-        emitter._emit_value(args[1])
-        emitter._emit_var_write_obj(var)
+        ownership = emitter._emit_value(args[1])
+        emitter._emit_var_write_obj(var, source=ownership)
     else:
         emitter._emit_var_read_obj(var)
         if defs:

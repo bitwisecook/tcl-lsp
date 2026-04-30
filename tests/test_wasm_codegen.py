@@ -104,10 +104,74 @@ def test_wat_output_parseable():
 
 
 def test_wat_contains_i64_const():
-    """Literal integers should appear as i64.const in WAT."""
+    """Large literal integers should appear as i64.const in WAT.
+
+    Small integers (S6.4 — fitting in [-2^30, 2^30-1]) are emitted
+    as a tagged-immediate ``i32.const`` directly, bypassing the
+    ``obj_new_int`` runtime call.  Pick a value outside that range
+    so the i64 path still fires.
+    """
+    big = (1 << 31) + 5  # 2_147_483_653 — outside immediate range
+    module = _compile(f"set x {big}\n")
+    wat = module.to_wat()
+    assert f"i64.const {big}" in wat
+
+
+def test_sccp_constprop_inlines_known_int_var():
+    """S5.4 SCCP — when ``_const_map`` proves ``$x`` is a known
+    small int, ``_emit_value("$x")`` should emit ``i32.const
+    <tagged>`` directly instead of ``local.get`` + boxing.
+
+    The IR ``set x 7; set y $x`` with ``optimise=True`` exercises
+    the path: the first ``set`` populates the const map; the
+    second ``set y $x`` reads x with const propagation.  The
+    tagged immediate of 7 is ``(7 << 1) | 1 = 15``.
+    """
+    module = _compile("set x 7\nset y $x\n", optimise=True)
+    fn = next(f for f in module.functions if f.name == "::top")
+    # Tagged immediate of 7 = 15.  The SCCP path emits an
+    # i32.const for the read of $x; the non-SCCP path would have
+    # gone through global_get → unbox → rebox.
+    from core.compiler.codegen.wasm import WasmOp
+
+    seen_15 = False
+    for instr in fn.body:
+        if instr.op != WasmOp.I32_CONST:
+            continue
+        # Decode signed LEB128 (value 15 fits in 1 byte: 0x0F).
+        if instr.operands == b"\x0f":
+            seen_15 = True
+            break
+    assert seen_15, "expected i32.const 15 (tagged immediate of 7) in ::top"
+
+
+def test_inline_string_round_trip_short():
+    """A short string returned from a proc should round-trip via the
+    inline-string encoding without observable difference."""
+    from core.compiler.cfg import build_cfg
+    from core.compiler.codegen.wasm import wasm_codegen_module
+
+    # A 5-byte payload fits in MAX_INLINE_STR=8.
+    source = 'proc f {} { return [string trimleft "  hi" " "] }\n'
+    ir = lower_to_ir(source)
+    cfg = build_cfg(ir)
+    # The codegen produces a valid module — inline encoding kicks
+    # in transparently in the runtime.
+    module = wasm_codegen_module(cfg, ir)
+    assert any(f.name == "::f" for f in module.functions)
+
+
+def test_wat_small_int_uses_tagged_immediate():
+    """S6.4 — small literals encode inline; no obj_new_int call."""
     module = _compile("set x 42\n")
     wat = module.to_wat()
-    assert "i64.const 42" in wat
+    # Tagged immediate of 42 = (42 << 1) | 1 = 85.
+    assert "i32.const 85" in wat
+    # The ``set`` for ``x`` should NOT call obj_new_int for this
+    # literal — the call appears only when the value is large.
+    # We can't grep for "call 4" specifically since indices vary,
+    # but we CAN assert the i64 const is absent.
+    assert "i64.const 42" not in wat
 
 
 def test_wat_contains_memory():
@@ -320,6 +384,9 @@ def test_no_cmd_imports_for_pure_math():
     The float-aware expr path also pulls in ``tcl_arith_add`` and
     ``obj_new_float`` (the integer-vs-float dispatch helpers); they're
     treated as arithmetic primitives rather than command imports.
+    Since S2, ``tcl_obj_retain`` / ``tcl_obj_release`` are also always
+    imported because the refcount-discipline wrap can fire on any
+    owned-slot write.
     """
     module = _compile("set x [expr {1 + 2}]\n")
     import_names = {imp.name for imp in module.imports}
@@ -333,6 +400,8 @@ def test_no_cmd_imports_for_pure_math():
         "tcl_arith_add",
         "tcl_cmd_error",
         "tcl_eval",
+        "tcl_obj_retain",
+        "tcl_obj_release",
         "ns_set",
         "ns_restore",
         "diag_set",
@@ -412,6 +481,92 @@ def test_proc_index_consistent():
     assert "::top" in names
     assert any("foo" in n for n in names)
     assert any("bar" in n for n in names)
+
+
+# S5.2 — alias-skip peephole
+
+
+def _retain_release_call_count(module: WasmModule, fn_name: str) -> tuple[int, int]:
+    """Return (retain_calls, release_calls) emitted in function ``fn_name``."""
+    from core.compiler.codegen.wasm import WasmOp
+
+    fn = next(f for f in module.functions if fn_name in f.name)
+    # Resolve import indices for tcl_obj_retain / tcl_obj_release.
+    retain_target = None
+    release_target = None
+    for i, imp in enumerate(module.imports):
+        if imp.name == "tcl_obj_retain":
+            retain_target = i
+        elif imp.name == "tcl_obj_release":
+            release_target = i
+    retain_calls = 0
+    release_calls = 0
+    for instr in fn.body:
+        if instr.op != WasmOp.CALL:
+            continue
+        # Decode the unsigned LEB128 callee index.
+        idx = 0
+        shift = 0
+        for byte in instr.operands:
+            idx |= (byte & 0x7F) << shift
+            if not (byte & 0x80):
+                break
+            shift += 7
+        if idx == retain_target:
+            retain_calls += 1
+        elif idx == release_target:
+            release_calls += 1
+    return retain_calls, release_calls
+
+
+def test_s52_alias_skip_self_assign():
+    """``set x $x`` in a frame-elided proc emits no body wrap.
+
+    With S5.2 the peephole notices that the value about to be
+    stored aliases the slot's current contents and elides the
+    body's retain + release pair entirely.  Counting WHOLE-function
+    retain/release calls captures the savings: the alias case
+    should emit strictly fewer of each than the non-alias case.
+    """
+    alias_module = _compile("proc f {x} { set x $x; return $x }\n")
+    distinct_module = _compile("proc f {x y} { set x $y; return $x }\n")
+    alias_retain, alias_release = _retain_release_call_count(alias_module, "::f")
+    distinct_retain, distinct_release = _retain_release_call_count(distinct_module, "::f")
+    # The alias body emits zero refcount calls; the distinct body
+    # emits at least one retain + one release.  Every other site
+    # (prologue param-retain, epilogue release-each-owned, return-
+    # value wrap) is the same shape across both, so the deltas
+    # come purely from the body.
+    assert alias_retain < distinct_retain, (
+        f"expected fewer retains in alias body; alias={alias_retain} distinct={distinct_retain}"
+    )
+    assert alias_release < distinct_release, (
+        f"expected fewer releases in alias body; alias={alias_release} distinct={distinct_release}"
+    )
+
+
+def test_s52_counter_increments():
+    """The S5.2 alias-skip counter is bumped each time the peephole fires."""
+    from core.compiler.cfg import build_cfg
+    from core.compiler.codegen.wasm._emitter import _WasmEmitter
+
+    counts: list[int] = []
+    orig = _WasmEmitter.generate
+
+    def spy(self, *a, **kw):
+        result = orig(self, *a, **kw)
+        counts.append(self._s52_alias_skipped)
+        return result
+
+    _WasmEmitter.generate = spy  # type: ignore[method-assign]
+    try:
+        ir = lower_to_ir("proc f {x} { set x $x; return $x }\n")
+        cfg = build_cfg(ir)
+        wasm_codegen_module(cfg, ir)
+    finally:
+        _WasmEmitter.generate = orig
+    # At least one elision happened across the per-proc emissions.
+    assert any(c > 0 for c in counts), f"counter never incremented; got {counts}"
 
 
 # Binary size with imports

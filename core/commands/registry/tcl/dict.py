@@ -32,23 +32,26 @@ from .shimmer_resolvers import resolve_dict_merge
 _SOURCE = "Tcl man page dict.n"
 
 
-def _dict_last_arg_body(args: list[str]) -> dict[int, ArgRole]:
+def _dict_last_arg_body(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is a body script (for dict update/with).
 
     Argument 0 is the dict variable: it is both *written* (the dict is
     rewritten when the body returns) and *read* (its keys are unpacked
     into local variables of the same name for the body's duration), so
-    it carries the combined :class:`ArgRole.VAR_READ_WRITE` role.
+    it carries both :data:`ArgRole.VAR_READ` and :data:`ArgRole.VAR_WRITE`.
     """
     if len(args) >= 2:
-        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_READ_WRITE}
+        return {
+            len(args) - 1: frozenset({ArgRole.BODY}),
+            0: frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE}),
+        }
     return {}
 
 
-def _dict_filter_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _dict_filter_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve roles for dict filter -- script type has a body."""
     if len(args) >= 3 and args[1] == "script":
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: frozenset({ArgRole.BODY})}
     return {}
 
 
@@ -193,7 +196,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This appends the given string (or strings) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict append dictionaryVariable key ?string ...?",
-                    arg_roles={0: ArgRole.VAR_WRITE},
+                    arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -237,7 +240,7 @@ class DictCommand(CommandDef):
                     arity=Arity(3, 3),
                     detail="This command takes three arguments, the first a two-element list of variable names (for the key and value respectively of each mapping in the dictionary), the second the dictionary value to iterate across, and the third…",
                     synopsis="dict for {keyVariable valueVariable} dictionaryValue body",
-                    arg_roles={0: ArgRole.LOOP_VAR_LIST, 2: ArgRole.BODY},
+                    arg_roles={0: frozenset({ArgRole.LOOP_VAR_LIST}), 2: frozenset({ArgRole.BODY})},
                     arg_types={1: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     loop_list_header=True,
                     cfg_rewrite_name="::tcl::dict::for",
@@ -264,7 +267,7 @@ class DictCommand(CommandDef):
                     detail="This adds the given increment value (an integer that defaults to 1 if not specified) to the value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary valu…",
                     synopsis="dict incr dictionaryVariable key ?increment?",
                     return_type=TclType.DICT,
-                    arg_roles={0: ArgRole.VAR_WRITE},
+                    arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -299,7 +302,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This appends the given items to the list value that the given key maps to in the dictionary value contained in the given variable, writing the resulting dictionary value back to that variable.",
                     synopsis="dict lappend dictionaryVariable key ?value ...?",
-                    arg_roles={0: ArgRole.VAR_WRITE},
+                    arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -309,7 +312,7 @@ class DictCommand(CommandDef):
                     arity=Arity(3, 3),
                     detail="This command applies a transformation to each element of a dictionary, returning a new dictionary.",
                     synopsis="dict map {keyVariable valueVariable} dictionaryValue body",
-                    arg_roles={0: ArgRole.LOOP_VAR_LIST, 2: ArgRole.BODY},
+                    arg_roles={0: frozenset({ArgRole.LOOP_VAR_LIST}), 2: frozenset({ArgRole.BODY})},
                     arg_types={1: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     loop_list_header=True,
                     cfg_rewrite_name="::tcl::dict::map",
@@ -348,7 +351,7 @@ class DictCommand(CommandDef):
                     detail="This operation takes the name of a variable containing a dictionary value and places an updated dictionary value in that variable containing a mapping from the given key to the given value.",
                     synopsis="dict set dictionaryVariable key ?key ...? value",
                     return_type=TclType.DICT,
-                    arg_roles={0: ArgRole.VAR_WRITE},
+                    arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                     safe_on_uninit=frozenset(),
@@ -380,7 +383,7 @@ class DictCommand(CommandDef):
                     arity=Arity(2),
                     detail="This operation (the companion to dict set) takes the name of a variable containing a dictionary value and places an updated dictionary value in that variable that does not contain a mapping for the given key.",
                     synopsis="dict unset dictionaryVariable key ?key ...?",
-                    arg_roles={0: ArgRole.VAR_WRITE},
+                    arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                 ),

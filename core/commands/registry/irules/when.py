@@ -24,10 +24,10 @@ from ._base import _IRULES_ONLY, register
 _SOURCE = "https://clouddocs.f5.com/api/irules/when.html"
 
 
-def _when_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _when_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is the event handler body."""
     if len(args) >= 2:
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: frozenset({ArgRole.BODY})}
     return {}
 
 

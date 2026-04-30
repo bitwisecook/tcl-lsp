@@ -45,7 +45,7 @@ class CoroutineCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2),
             ),
-            arg_roles={0: ArgRole.NAME},
+            arg_roles={0: frozenset({ArgRole.NAME})},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

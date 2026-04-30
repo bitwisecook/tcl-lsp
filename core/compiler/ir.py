@@ -7,6 +7,7 @@ Later passes can lower this further to CFG + SSA.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from ..analysis.semantic_model import Range
@@ -14,6 +15,34 @@ from .expr_ast import ExprNode
 
 if TYPE_CHECKING:
     from ..parsing.tokens import Token
+
+
+class InlineDecision(Enum):
+    """S4.1 catalogue of inlining-eligibility decisions.
+
+    Set on ``IRProcedure.inline_decision`` by the
+    ``core.compiler.inlining.decision`` policy after var-escape
+    analysis has populated ``pure_leaf``.
+
+    ``NEVER``  — the proc is too large, has dynamic-barrier
+    constructs (upvar / uplevel / info / tailcall), or any callee is
+    not itself ``pure_leaf``.  The S4.2 inliner skips it.
+
+    ``ALWAYS`` — small (≤ ``SMALL_BODY_THRESHOLD`` IR statements) and
+    fully ``pure_leaf``.  Inline at every static call site.
+
+    ``IF_SINGLE_CALL`` — ``pure_leaf`` and statically referenced
+    exactly once.  Inlining replaces the only call and the original
+    proc becomes garbage.
+
+    ``IF_HOT`` — reserved for S4.3 (profile-guided hot-call
+    inlining); the static catalogue never assigns this.
+    """
+
+    NEVER = "never"
+    ALWAYS = "always"
+    IF_SINGLE_CALL = "if_single_call"
+    IF_HOT = "if_hot"
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,6 +351,25 @@ class IRProcedure:
     body_source: str | None = None  # None for synthetic procs (``when``)
     namespace_scoped: bool = False  # True when defined inside namespace eval
     base_priority: int = 500  # BigIP handler priority (0–2**32-1, default 500)
+    # S4.1: inlining-eligibility tag.  Computed by
+    # ``core.compiler.inlining.decision`` after var-escape analysis.
+    # Default ``NEVER`` so any proc that hasn't been classified is
+    # opaque to the inliner.
+    inline_decision: InlineDecision = InlineDecision.NEVER
+    # S4.1: number of statically resolved call sites for this proc
+    # across the whole module (top-level + every other proc body).
+    # Used as the gate for ``IF_SINGLE_CALL``.  ``0`` means the
+    # catalogue hasn't run.
+    static_call_count: int = 0
+    # PR #237 review: True when the compiler synthesised this
+    # procedure (e.g. as a helper extracted by an optimisation
+    # pass) and is therefore safe to delete after inlining its
+    # call sites.  Lowering from user source code never sets this
+    # — Tcl ``proc`` definitions register externally observable
+    # commands and must survive inlining unconditionally.  The
+    # dead-proc-removal pass in :mod:`core.compiler.inlining`
+    # consults this flag before pruning.
+    compiler_synthetic: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +386,40 @@ class IRMethodDef:
     body: IRScript
     kind: str = "method"  # "method" | "classmethod" | "constructor" | "destructor"
     range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CommandTrace:
+    """A static record of a ``trace add/remove execution`` directive.
+
+    Captured at lowering time so downstream side-effect classification
+    can union the trace body's effects into every call to ``target``.
+    Variable / command traces are not captured here — only execution
+    traces, which are the form whose body composes into the traced
+    command's effective side-effects (issue #251).
+
+    ``body`` is ``None`` when the body argument is dynamic
+    (non-literal — e.g. a ``$variable`` or ``[command]`` substitution);
+    callers must treat dynamic bodies as worst-case.
+    """
+
+    target: str
+    """Command name being traced (e.g. ``"set"``, ``"::ns::proc"``)."""
+
+    ops: tuple[str, ...]
+    """Operations the trace fires on (``"enter"``/``"leave"``/``"enterstep"``/``"leavestep"``)."""
+
+    body: str | None
+    """Literal trace-body script, or ``None`` when the body is dynamic."""
+
+    body_range: Range | None = None
+    """Source range of the body argument (when known)."""
+
+    action: str = "add"
+    """``"add"`` or ``"remove"`` — distinguishes registration from removal."""
+
+    target_dynamic: bool = False
+    """True when the *target* command name itself is a non-literal."""
 
 
 @dataclass
@@ -368,6 +450,66 @@ class IRModule:
     # path, where the interpreter can apply the correct
     # "unknown command" diagnostic.
     namespace_exports: tuple[tuple[str, str], ...] = ()
+
+    # ``trace add/remove execution`` directives captured at lowering
+    # time.  Traces installed on a command compose into that command's
+    # effective side-effects: a trace on a registry-pure command (e.g.
+    # ``set``) is no longer pure because the trace body runs around
+    # every call.  Side-effect classification consults
+    # :meth:`traced_commands` to gate purity / CSE on traced names.
+    # See ``docs/design/compiler/side-effects-system.md`` for the
+    # composition rule and ``docs/design/compiler/lowering-contracts.md``
+    # for the capture contract.  Out of scope here:
+    # ``trace add command`` and ``trace add variable`` (different
+    # semantics — handled, if at all, in their own captures).
+    command_traces: tuple["CommandTrace", ...] = ()
+
+    def traced_commands(self) -> frozenset[str]:
+        """Return the set of command names with a net active execution trace.
+
+        Walks ``command_traces`` in source order, modelling the global
+        command-table state.  Tcl matches ``trace remove execution`` by
+        the full registration tuple (target, ops, command prefix); a
+        non-matching ``remove`` is a runtime no-op.  We mirror that
+        semantics conservatively:
+
+        - An ``add`` with a literal target appends ``(target, ops_set,
+          body)`` to the active list.
+        - A ``remove`` cancels at most one matching add — same target,
+          same ops set, same literal body.  Removes with a dynamic ops
+          list, dynamic body, or dynamic target leave the active list
+          alone (the safe over-approximation: the trace might still be
+          installed, so keep treating the command as traced).
+        - Dynamic-target adds are not folded into the named set;
+          callers that need the worst-case over-approximation must
+          check :meth:`has_dynamic_trace` separately.
+        """
+        active: list[tuple[str, frozenset[str], str | None]] = []
+        for trace in self.command_traces:
+            if trace.target_dynamic:
+                continue
+            if trace.action == "add":
+                active.append((trace.target, frozenset(trace.ops), trace.body))
+                continue
+            # ``remove`` — only cancel a matching add when target, ops,
+            # and body are all known.  Skip otherwise (over-pessimise).
+            if not trace.ops or trace.body is None:
+                continue
+            key = (trace.target, frozenset(trace.ops), trace.body)
+            try:
+                active.remove(key)
+            except ValueError:
+                continue
+        return frozenset(target for target, _ops, _body in active)
+
+    def has_dynamic_trace(self) -> bool:
+        """True when any ``trace add execution`` had a non-literal target.
+
+        When this flag is set, downstream effect classification cannot
+        rule out *any* command being traced and must pessimise calls
+        whose purity matters for correctness.
+        """
+        return any(t.target_dynamic and t.action == "add" for t in self.command_traces)
 
 
 def when_event_name(qualified_name: str) -> str:

@@ -236,7 +236,7 @@ class ChanCommand(CommandDef):
                     detail="Set up event handler for channel.",
                     synopsis="chan event channelId event ?script?",
                     return_type=TclType.STRING,
-                    arg_roles={2: ArgRole.BODY},
+                    arg_roles={2: frozenset({ArgRole.BODY})},
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,
@@ -266,7 +266,7 @@ class ChanCommand(CommandDef):
                     detail="Read a line from a channel.",
                     synopsis="chan gets channelId ?varName?",
                     return_type=TclType.STRING,
-                    arg_roles={1: ArgRole.VAR_WRITE},
+                    arg_roles={1: frozenset({ArgRole.VAR_WRITE})},
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,

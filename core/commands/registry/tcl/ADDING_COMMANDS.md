@@ -258,7 +258,10 @@ def _av(value, detail, synopsis=""):
 
 Tell the compiler/analyser what role each argument plays.  Set
 `arg_roles` on the `CommandSpec` (for simple commands) or on individual
-`SubCommand` entries (for subcommand commands).
+`SubCommand` entries (for subcommand commands).  Each argument index
+maps to a `frozenset[ArgRole]` so a single argument can carry multiple
+roles at once (e.g. `dict with` arg 0 is both `VAR_READ` and
+`VAR_WRITE`).
 
 ### Available roles (ArgRole)
 
@@ -281,9 +284,9 @@ from ..signatures import ArgRole, Arity
 CommandSpec(
     name="proc",
     arg_roles={
-        0: ArgRole.NAME,         # proc name
-        1: ArgRole.PARAM_LIST,   # args
-        2: ArgRole.BODY,         # body
+        0: frozenset({ArgRole.NAME}),         # proc name
+        1: frozenset({ArgRole.PARAM_LIST}),   # args
+        2: frozenset({ArgRole.BODY}),         # body
     },
     validation=ValidationSpec(arity=Arity(3, 3)),
     ...
@@ -297,7 +300,10 @@ subcommands={
     "eval": SubCommand(
         name="eval",
         arity=Arity(2),
-        arg_roles={0: ArgRole.NAME, 1: ArgRole.BODY},
+        arg_roles={
+            0: frozenset({ArgRole.NAME}),
+            1: frozenset({ArgRole.BODY}),
+        },
     ),
     "exists": SubCommand(
         name="exists",
@@ -306,26 +312,40 @@ subcommands={
 }
 ```
 
+### Multi-role argument
+
+When one argument plays more than one role at once, list them all in
+the same `frozenset` — `dict with` arg 0 is read *and* written:
+
+```python
+arg_roles={0: frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})}
+```
+
 ### Variable-layout command (dynamic resolver)
 
 When argument positions depend on the actual invocation (optional keywords,
 option-value pairs, variable-length argument lists), use `arg_role_resolver`
 instead of static `arg_roles`.  The resolver receives the argument list
-(after the command name) and returns a dict mapping indices to roles:
+(after the command name) and returns a dict mapping each index to a
+`frozenset[ArgRole]` — the set lets a single argument carry multiple roles
+at once (e.g. `dict with` arg 0 is both `VAR_READ` and `VAR_WRITE`):
 
 ```python
-def _try_arg_roles(args: list[str]) -> dict[int, ArgRole]:
-    roles: dict[int, ArgRole] = {}
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _try_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    roles: dict[int, frozenset[ArgRole]] = {}
     if args:
-        roles[0] = ArgRole.BODY          # try body
+        roles[0] = _BODY                 # try body
     i = 1
     while i < len(args):
         kw = args[i]
         if kw == "finally" and i + 1 < len(args):
-            roles[i + 1] = ArgRole.BODY  # finally body
+            roles[i + 1] = _BODY         # finally body
             i += 2
         elif kw in ("on", "trap") and i + 3 < len(args):
-            roles[i + 3] = ArgRole.BODY  # handler body
+            roles[i + 3] = _BODY         # handler body
             i += 4
         else:
             i += 1

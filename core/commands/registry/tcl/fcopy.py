@@ -49,7 +49,7 @@ class FcopyCommand(CommandDef):
                 # name: 2..6, with only even values actually legal.
                 arity=Arity(2, 6),
             ),
-            arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.CHANNEL},
+            arg_roles={0: frozenset({ArgRole.CHANNEL}), 1: frozenset({ArgRole.CHANNEL})},
             return_type=TclType.INT,
             side_effect_hints=(
                 SideEffect(

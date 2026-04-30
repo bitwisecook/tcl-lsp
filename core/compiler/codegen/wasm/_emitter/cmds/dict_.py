@@ -7,6 +7,7 @@ from ..._imports import (
     subcommand_runtime_import_for,
 )
 from ..._ir import WasmOp
+from ..._ownership import Ownership
 
 
 def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
@@ -36,7 +37,10 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
                         emitter._emit_value(sub_args[1])
                         emitter._emit_value(sub_args[2])
                         emitter._emit_call(func_idx)
-                        emitter._emit_var_write_obj_keep(sub_args[0])
+                        emitter._emit_var_write_obj_keep(
+                            sub_args[0],
+                            source=Ownership.OWNED,
+                        )
                     else:
                         var_idx = emitter._intern_local(sub_args[0])
                         emitter._emit_local_get(var_idx)
@@ -139,11 +143,17 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             emitter._emit_value(sub_args[2])
             emitter._emit_call(func_idx)
             if defs:
-                emitter._emit_var_write_obj_keep(sub_args[0])
+                emitter._emit_var_write_obj_keep(
+                    sub_args[0],
+                    source=Ownership.OWNED,
+                )
                 def_idx = emitter._intern_local(defs[0])
                 emitter._emit_local_set(def_idx)
             else:
-                emitter._emit_var_write_obj(sub_args[0])
+                emitter._emit_var_write_obj(
+                    sub_args[0],
+                    source=Ownership.OWNED,
+                )
             return True
         for i in range(min(param_count, len(sub_args))):
             emitter._emit_value(sub_args[i])

@@ -13,38 +13,42 @@ from ._base import register
 _SOURCE = "Tcl if(1)"
 
 
-def _if_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_EXPR = frozenset({ArgRole.EXPR})
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _if_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY and EXPR roles for if/elseif/else chains."""
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
     i = 0
     if i < len(args):
-        roles[i] = ArgRole.EXPR
+        roles[i] = _EXPR
         i += 1
     if i < len(args) and args[i] == "then":
         i += 1
     if i < len(args):
-        roles[i] = ArgRole.BODY
+        roles[i] = _BODY
         i += 1
     while i < len(args):
         kw = args[i]
         if kw == "elseif":
             i += 1
             if i < len(args):
-                roles[i] = ArgRole.EXPR
+                roles[i] = _EXPR
                 i += 1
             if i < len(args) and args[i] == "then":
                 i += 1
             if i < len(args):
-                roles[i] = ArgRole.BODY
+                roles[i] = _BODY
                 i += 1
             continue
         if kw == "else":
             if i + 1 < len(args):
-                roles[i + 1] = ArgRole.BODY
+                roles[i + 1] = _BODY
             break
         # Implicit else: a trailing word after the last body (no keyword).
         if i == len(args) - 1:
-            roles[i] = ArgRole.BODY
+            roles[i] = _BODY
             break
         i += 1
     return roles

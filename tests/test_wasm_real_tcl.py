@@ -22,14 +22,9 @@ from core.compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-_ZIG_RUNTIME_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "runtime"
-    / "zig"
-    / "zig-out"
-    / "bin"
-    / "tcl_runtime.wasm"
-)
+from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+
+_ZIG_RUNTIME_PATH = runtime_wasm_path()
 
 _SNIPPETS_DIR = Path(__file__).resolve().parent / "bytecode_snippets"
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -111,7 +106,12 @@ def _get_rt_module_with_timeout() -> wasmtime.Module:
     return _rt_module_with_timeout
 
 
-def _compile_tcl(source: str, *, source_dir: Path | None = None) -> bytes:
+def _compile_tcl(
+    source: str,
+    *,
+    source_dir: Path | None = None,
+    frame_elision: bool = True,
+) -> bytes:
     """Compile Tcl source to WASM bytes.
 
     *source_dir* enables compile-time inlining of ``source LITERAL``
@@ -126,7 +126,12 @@ def _compile_tcl(source: str, *, source_dir: Path | None = None) -> bytes:
     if source_dir is not None:
         ir_module = inline_static_sources(ir_module, source_dir=source_dir)
     cfg_module = build_cfg(ir_module)
-    wasm_module = wasm_codegen_module(cfg_module, ir_module, optimise=False)
+    wasm_module = wasm_codegen_module(
+        cfg_module,
+        ir_module,
+        optimise=False,
+        frame_elision=frame_elision,
+    )
     return wasm_module.to_bytes()
 
 

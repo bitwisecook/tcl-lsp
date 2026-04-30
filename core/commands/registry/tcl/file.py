@@ -368,7 +368,7 @@ class FileCommand(CommandDef):
                     detail="Same as stat option (see below) except uses the lstat kernel call instead of stat.",
                     synopsis="file lstat name ?varName?",
                     return_type=TclType.STRING,
-                    arg_roles={1: ArgRole.VAR_WRITE},
+                    arg_roles={1: frozenset({ArgRole.VAR_WRITE})},
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,
@@ -516,7 +516,7 @@ class FileCommand(CommandDef):
                     detail="Invokes the stat kernel call on name, and returns a dictionary with the information returned from the kernel call.",
                     synopsis="file stat name ?varName?",
                     return_type=TclType.STRING,
-                    arg_roles={1: ArgRole.VAR_WRITE},
+                    arg_roles={1: frozenset({ArgRole.VAR_WRITE})},
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,
@@ -555,7 +555,7 @@ class FileCommand(CommandDef):
                     return_type=TclType.CHANNEL,
                     mutator=True,
                     returns_path=True,
-                    arg_roles={0: ArgRole.VAR_WRITE},
+                    arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
                     side_effect_hints=(
                         SideEffect(
                             target=SideEffectTarget.FILE_IO,

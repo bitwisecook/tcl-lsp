@@ -30,5 +30,5 @@ class TrapCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="trap ?command? ?signal ...?"),),
             validation=ValidationSpec(arity=Arity(0)),
-            arg_roles={0: ArgRole.BODY},
+            arg_roles={0: frozenset({ArgRole.BODY})},
         )

@@ -176,6 +176,38 @@ Key interaction: when a subcommand is marked `pure=True` and has a hint, the cla
 7. **Hint fallback** — if a hint exists, use it directly.
 8. **Conservative fallback** — `UNKNOWN` read+write.
 
+After the registry-based classification produces a base result, the
+**execution-trace composition rule** runs as a post-processing step
+(see issue #251):
+
+- `trace add execution cmdName ops body` registers a Tcl-language hook
+  that fires before/after every call to `cmdName`. The trace body's
+  effects compose into the traced command's effective per-call
+  side-effects: a registry-pure `set` is no longer pure once `set` is
+  traced, because the trace body runs around every invocation.
+- Captured at lowering time: `IRModule.command_traces` is a tuple of
+  `CommandTrace(target, ops, body, body_range, action, target_dynamic)`
+  records, one per syntactic `trace add execution` / `trace remove
+  execution` directive.
+- `IRModule.traced_commands()` returns the *net active* set: a target
+  is included when adds outnumber removes, modelling the global
+  command-table state at end-of-script. `IRModule.has_dynamic_trace()`
+  reports whether any `add` had a non-literal target — when true,
+  every command must be pessimised because we cannot prove a particular
+  call isn't traced.
+- Optimisation passes that consult purity (GVN, optimiser propagation)
+  pass `traced_commands` and `has_dynamic_trace` into
+  `classify_side_effects`. The composition is conservative today: a
+  matching command gets an extra `SideEffectTarget.UNKNOWN` read+write
+  effect appended, and `pure` / `deterministic` are forced to `False`.
+  A future refinement can replace the catch-all with the trace body's
+  recursively-classified effects.
+- `trace remove execution` undoes the propagation by cancelling the
+  matching `add` in the net count. `trace add command` and
+  `trace add variable` are **not** captured here — they have different
+  semantics (rename/delete and variable-access traces respectively)
+  and do not compose into the traced command's per-call effects.
+
 ## Examples of different side effect profiles
 
 ### Read-only data store access
@@ -275,14 +307,17 @@ SideEffect(
 
 ## File-path anchors
 
-- `core/compiler/side_effects.py` — enums, dataclasses, `classify_side_effects()`, `EffectRegion` bridge
+- `core/compiler/side_effects.py` — enums, dataclasses, `classify_side_effects()`, `_compose_with_traces()`, `EffectRegion` bridge
 - `core/commands/registry/models.py` — `CommandSpec.side_effect_hints`, `SubCommand.side_effect_hints`
 - `core/commands/registry/command_registry.py` — `REGISTRY.side_effect_hints()` lookup
-- `core/compiler/gvn.py` — GVN consumer (6 call sites)
+- `core/compiler/ir.py` — `CommandTrace`, `IRModule.command_traces`, `IRModule.traced_commands()`, `IRModule.has_dynamic_trace()`
+- `core/compiler/lowering.py` — `trace add/remove execution` capture (search "Capture ``trace add execution``")
+- `core/compiler/gvn.py` — GVN consumer (threads `traced_commands` from `IRModule`)
 - `core/compiler/interprocedural.py` — interprocedural consumer
 - `core/compiler/irules_flow.py` — response-commit and drop-command derivation
 - `core/compiler/execution_intent.py` — purity consumer
 - `core/compiler/core_analyses.py` — purity consumer
+- `core/compiler/optimiser/_propagation.py` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
 
 ## Failure modes
 
@@ -295,6 +330,7 @@ SideEffect(
 ## Test anchors
 
 - `tests/test_side_effects.py`
+- `tests/test_trace_execution_effects.py` — `trace add/remove execution` capture and side-effect composition (issue #251)
 
 ## Discoverability
 

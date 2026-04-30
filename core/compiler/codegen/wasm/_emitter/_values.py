@@ -22,7 +22,34 @@ from .._imports import (
 from .._ir import (
     ValType,
 )
+from .._ownership import Ownership
 from ._ops import _is_end_relative_index
+
+
+def _try_tagged_immediate(value: int) -> int | None:
+    """Encode ``value`` as the signed-i32 tagged-immediate handle, or
+    return ``None`` if it doesn't fit the **non-negative** 30-bit
+    range.
+
+    Range is restricted to ``[0, 2^30 - 1]`` to match the runtime's
+    ``IMMEDIATE_MIN`` / ``IMMEDIATE_MAX`` constants.  Negative
+    values *would* fit the bit-shifted encoding but their bit-31 = 1
+    pattern collides with the frame layer's ``ALIAS_GLOBAL`` /
+    ``ALIAS_EXT`` sentinels — see ``tcl_obj.zig``'s commentary at
+    ``IMMEDIATE_MIN``.  Negative integers fall back to
+    ``tcl_obj_new_int`` (heap allocation).
+
+    Mirrors the runtime ``immediate_box`` exactly:
+    ``handle = (value << 1) | 1``.  Returned as a Python int already
+    reinterpreted into the i32 signed domain so callers can pass it
+    straight to :meth:`_emit_i32_const`.
+    """
+    if not (0 <= value <= (1 << 30) - 1):
+        return None
+    tagged = ((value << 1) | 1) & 0xFFFFFFFF
+    if tagged >= 0x80000000:
+        tagged -= 0x100000000
+    return tagged
 
 
 def _contains_expand_prefix(text: str) -> bool:
@@ -96,8 +123,9 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_list_value(self, *a: Any, **kw: Any) -> Any: ...
 
-    def _emit_value(self, value: str, *, was_braced: bool = False) -> None:
-        """Emit an i32 TclObj pointer for *value*.
+    def _emit_value(self, value: str, *, was_braced: bool = False) -> Ownership:
+        """Emit an i32 TclObj pointer for *value* and return its
+        :class:`Ownership` tag.
 
         Resolves ``$x`` and ``${x}`` variable references to local.get
         (already i32), detects ``[cmd ...]`` command substitution and
@@ -107,6 +135,15 @@ class _WasmEmitterValuesMixin(_Base):
         For strings with embedded substitutions (e.g. ``"hello $x"`` or
         ``"fib(10) = [fib 10]"``), parses the string into chunks and
         emits a concat chain using the runtime ``tcl_append`` function.
+
+        Return value (S2.1):
+
+        - :data:`Ownership.BORROWED` when the value came from
+          ``local.get`` of a slot — the caller must retain if it
+          stores the value into another owning slot.
+        - :data:`Ownership.OWNED` for everything else (literals,
+          interpolated strings, command-substitution results) — the
+          stack value carries a +1 the caller can transfer.
 
         *was_braced* is set by callers that know the IR value came from
         a braced ``{…}`` token (the lexer strips the outer braces before
@@ -119,49 +156,71 @@ class _WasmEmitterValuesMixin(_Base):
         if not was_braced:
             var = self._resolve_var_name(value)
             if var is not None:
+                # S5.4 SCCP — when ``_const_map`` proves ``var`` is
+                # currently bound to a small integer constant, emit
+                # the tagged-immediate ``i32.const`` directly
+                # instead of going through a ``local.get`` + boxing
+                # round-trip.  The const-map is updated by every
+                # ``IRAssignConst`` write; reads pick up the
+                # latest known value within the same basic block.
+                # Aliased / qualified vars are skipped by
+                # ``_resolve_var_name``'s upstream check, and the
+                # const-map itself is invalidated on any non-
+                # const write to the slot.
+                if self._optimise and var not in self._aliases and var in self._const_map:
+                    immediate = _try_tagged_immediate(self._const_map[var])
+                    if immediate is not None:
+                        self._emit_i32_const(immediate)
+                        return Ownership.BORROWED
                 # Intern on first reference so reads before assignment
                 # get a proper local (default-initialised to 0) instead
                 # of falling through and boxing "$var" as a string literal.
                 # Aliased variables (upvar/variable) route through the
                 # runtime global table via _emit_var_read_obj.
                 self._emit_var_read_obj(var)
-                return
+                return Ownership.BORROWED
             # Try direct local lookup (for bare names like in IRAssignValue).
             # Alias-aware: checks _aliases before local_index.
             if value in self._aliases:
                 self._emit_var_read_obj(value)
-                return
+                return Ownership.BORROWED
+            if self._optimise and value not in self._aliases and value in self._const_map:
+                immediate = _try_tagged_immediate(self._const_map[value])
+                if immediate is not None:
+                    self._emit_i32_const(immediate)
+                    return Ownership.BORROWED
             idx = self._local_index.get(value)
             if idx is not None:
                 self._emit_local_get(idx)
-                return
+                return Ownership.BORROWED
         # Braced literal — outer braces suppress all substitution in Tcl.
         # _split_command_subst preserves {…} so downstream code can
         # distinguish a braced word (literal) from a quoted one (allows
         # substitution).  Strip the braces and emit the content as-is.
         if value.startswith("{") and value.endswith("}"):
             self._emit_obj_literal(value[1:-1])
-            return
+            return Ownership.OWNED
         # Braced token whose outer braces the IR already stripped — emit
         # the raw content verbatim, no ``\\`` / ``$`` / ``[`` processing.
         if was_braced:
             self._emit_obj_literal(value)
-            return
+            return Ownership.OWNED
         # Command substitution: [cmd arg1 arg2 ...]
         if value.startswith("[") and value.endswith("]"):
             self._emit_command_subst_value(value)
-            return
+            return Ownership.OWNED
         # Interpolated string: contains embedded $var/${var}/[cmd]
         # mixed with literal text.  Emit a concat chain.
         if self._has_embedded_subst(value):
             self._emit_interpolated_value(value)
-            return
+            return Ownership.OWNED
         # Apply Tcl backslash substitution for non-braced literals.  Braced
         # words (already handled above) suppress all substitution; plain words
         # and double-quoted words allow ``\\`` → ``\``, ``\n`` → newline, etc.
         if "\\" in value:
             value = _tcl_backslash_subst(value)
         self._emit_obj_literal(value)
+        return Ownership.OWNED
 
     def _has_embedded_subst(self, value: str) -> bool:
         """Check if *value* contains embedded $var, ${var}, or [cmd] substitutions."""
@@ -847,6 +906,27 @@ class _WasmEmitterValuesMixin(_Base):
             # would saturate (or be rejected by wasmtime entirely) and
             # silently lose precision on every BigInt arithmetic step.
             if -(1 << 63) <= int_val <= (1 << 63) - 1:
+                # S6.4 — small integers fit in a tagged-immediate
+                # handle.  Emit the encoded i32 directly instead of
+                # calling ``tcl_obj_new_int`` — saves a function call
+                # plus the heap allocation that the runtime would
+                # otherwise have to short-circuit on.  The encoding
+                # (``(value << 1) | 1``) matches the runtime's
+                # ``immediate_box`` so readers transparently round-trip.
+                # Non-negative range only — negative tagged
+                # immediates collide with the frame layer's alias
+                # sentinels (see ``_try_tagged_immediate`` for the
+                # rationale).  Negative literals fall through to the
+                # ``tcl_obj_new_int`` path below.
+                if 0 <= int_val <= (1 << 30) - 1:
+                    tagged = ((int_val << 1) | 1) & 0xFFFFFFFF
+                    # _emit_i32_const takes a signed value; reinterpret
+                    # as signed via the standard 32-bit two's-complement
+                    # mapping.
+                    if tagged >= 0x80000000:
+                        tagged -= 0x100000000
+                    self._emit_i32_const(tagged)
+                    return
                 self._emit_i64_const(int_val)
                 self._emit_call(new_int_idx)
                 return

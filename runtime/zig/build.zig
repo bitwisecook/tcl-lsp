@@ -9,6 +9,20 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{});
 
+    // -Dleak-check=true enables the per-type-tag alloc/free counter
+    // in tcl_obj.zig.  Off by default — production builds skip the
+    // bookkeeping entirely.  See ``tcl_test_alloc_count`` and
+    // ``tcl_test_finalize`` exports for how the test harness reads
+    // the result.  Plan: ``docs/design/compiler/wasm-aot-staircase-s0.md``
+    // §S0.2.
+    const leak_check = b.option(
+        bool,
+        "leak-check",
+        "enable leak counters in tcl_obj.zig (S0.2 debug aid)",
+    ) orelse false;
+    const build_options = b.addOptions();
+    build_options.addOption(bool, "leak_check", leak_check);
+
     // Fetch Tcl 9.0.3's regex engine sources on demand (idempotent
     // via a stamp file; see scripts/fetch_tcl_regex.sh).  Running
     // the script from the repo root keeps its REPO_ROOT resolution
@@ -30,6 +44,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
     });
+    root_module.addOptions("build_options", build_options);
 
     // ``regex_include/`` comes first on the include path so
     // ``#include "regcustom.h"`` in ``regguts.h`` resolves to our

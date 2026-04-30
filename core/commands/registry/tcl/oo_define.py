@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "Tcl man page define.n"
@@ -41,41 +41,44 @@ _OO_DEFINE_SUBCOMMANDS = frozenset(
 )
 
 
-def _oo_define_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _oo_define_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY roles for ``oo::define`` / ``oo::objdefine``."""
     # Script form: oo::define Target { script }
     if len(args) == 2 and args[1] not in _OO_DEFINE_SUBCOMMANDS:
-        return {1: ArgRole.BODY}
+        return {1: _BODY}
     if len(args) < 2:
         return {}
     subcommand = args[1]
     if subcommand == "constructor" and len(args) >= 4:
-        return {3: ArgRole.BODY}
+        return {3: _BODY}
     if subcommand == "destructor" and len(args) >= 3:
-        return {2: ArgRole.BODY}
+        return {2: _BODY}
     if subcommand == "method" and len(args) >= 5:
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: _BODY}
     if subcommand == "classmethod" and len(args) >= 5:
-        return {len(args) - 1: ArgRole.BODY}
+        return {len(args) - 1: _BODY}
     if subcommand in ("initialise", "initialize") and len(args) >= 3:
-        return {2: ArgRole.BODY}
+        return {2: _BODY}
     if subcommand == "private" and len(args) >= 3:
-        return {2: ArgRole.BODY}
+        return {2: _BODY}
     if subcommand == "self" and len(args) >= 3:
         self_sub = args[2]
         if self_sub == "constructor" and len(args) >= 5:
-            return {4: ArgRole.BODY}
+            return {4: _BODY}
         if self_sub == "destructor" and len(args) >= 4:
-            return {3: ArgRole.BODY}
+            return {3: _BODY}
         if self_sub == "method" and len(args) >= 6:
-            return {len(args) - 1: ArgRole.BODY}
+            return {len(args) - 1: _BODY}
         if self_sub == "classmethod" and len(args) >= 6:
-            return {len(args) - 1: ArgRole.BODY}
+            return {len(args) - 1: _BODY}
     if subcommand == "property":
-        roles: dict[int, ArgRole] = {}
+        roles: dict[int, frozenset[ArgRole]] = {}
         for i in range(2, len(args) - 1):
             if args[i] in ("-set", "-get"):
-                roles[i + 1] = ArgRole.BODY
+                roles[i + 1] = _BODY
         return roles
     return {}
 
@@ -226,6 +229,14 @@ class OoDefineCommand(CommandDef):
                 arity=Arity(1),
             ),
             arg_role_resolver=_oo_define_arg_roles,
+            # ``oo::define`` body forms (``method``, ``classmethod``,
+            # ``constructor``, ``destructor``, ``initialise``, ``self``
+            # methods, ``private``, ``property -get/-set`` and the bare
+            # ``oo::define $cls { defScript }`` form) all run in the
+            # class's definition context, not the caller's scope.  The
+            # OO analyser (``_handle_oo_define_command``) recurses into
+            # those bodies separately.
+            body_kind=BodyKind.STRUCTURAL,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(
