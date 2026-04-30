@@ -41,6 +41,24 @@ class TestCommandTraceCapture:
         assert len(module.command_traces) == 1
         assert module.command_traces[0].target_dynamic
 
+    def test_multi_token_target_marked_dynamic(self) -> None:
+        # ``foo$cmd`` lexes as ESC + VAR — single_token_word[3] is False,
+        # so the target must be treated as dynamic even though the first
+        # token is ESC.  Otherwise purity/CSE checks would proceed against
+        # a fake literal name (issue #251 P1 review).
+        module = lower_to_ir("trace add execution foo$cmd {enter} {puts hi}")
+        assert len(module.command_traces) == 1
+        trace = module.command_traces[0]
+        assert trace.target_dynamic
+        assert trace.target == ""
+        assert module.has_dynamic_trace()
+
+    def test_multi_token_ops_marked_dynamic(self) -> None:
+        module = lower_to_ir("trace add execution set $ops {puts hi}")
+        assert len(module.command_traces) == 1
+        # Dynamic ops list — recorded as empty so removes can't match.
+        assert module.command_traces[0].ops == ()
+
     def test_traced_commands_net_set(self) -> None:
         module = lower_to_ir(
             "trace add execution set {enter} {puts a}\n"
@@ -49,6 +67,39 @@ class TestCommandTraceCapture:
         )
         # ``set`` cancelled, ``incr`` still active.
         assert module.traced_commands() == frozenset({"incr"})
+
+    def test_remove_with_mismatched_ops_does_not_cancel(self) -> None:
+        # Tcl only removes a trace when the full registration matches —
+        # mismatched ops on the ``remove`` is a no-op (issue #251 P1
+        # review).
+        module = lower_to_ir(
+            "trace add execution expr {enter} {puts a}\n"
+            "trace remove execution expr {leave} {puts a}\n"
+        )
+        assert module.traced_commands() == frozenset({"expr"})
+
+    def test_remove_with_mismatched_body_does_not_cancel(self) -> None:
+        module = lower_to_ir(
+            "trace add execution expr {enter} {puts a}\n"
+            "trace remove execution expr {enter} {puts b}\n"
+        )
+        assert module.traced_commands() == frozenset({"expr"})
+
+    def test_remove_with_matching_registration_cancels(self) -> None:
+        module = lower_to_ir(
+            "trace add execution expr {enter leave} {puts a}\n"
+            "trace remove execution expr {leave enter} {puts a}\n"
+        )
+        # Same ops set (order-independent) and same body — cancels.
+        assert module.traced_commands() == frozenset()
+
+    def test_remove_with_dynamic_body_does_not_cancel(self) -> None:
+        # Dynamic body on the remove can't be matched against the add
+        # — keep the trace active to over-pessimise safely.
+        module = lower_to_ir(
+            "trace add execution expr {enter} {puts a}\ntrace remove execution expr {enter} $body\n"
+        )
+        assert module.traced_commands() == frozenset({"expr"})
 
     def test_has_dynamic_trace_flag(self) -> None:
         module = lower_to_ir("trace add execution $cmd {enter} {puts hi}")
