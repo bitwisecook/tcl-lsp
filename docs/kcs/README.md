@@ -42,6 +42,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)
   — `expr {1 / 0}` returns 0 in compiled WASM instead of raising
   `divide by zero`.
+- [kcs-issue-wasm-ignores-missing-var.md](kcs-issue-wasm-ignores-missing-var.md)
+  — `expr {$undefined + 1}` returned `1` in compiled WASM instead of
+  raising `can't read "undefined": no such variable` (issue #263).
 - [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
   — tcltest's `numTests(Failed)` reads as an empty string in the
   compiled counter-bundle run.

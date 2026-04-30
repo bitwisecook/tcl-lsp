@@ -198,3 +198,37 @@ pub fn error_unknown_command(cmd_obj: i32) void {
     const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
     tcl_cmd_error(msg);
 }
+
+// Build a ``can't read "<name>": no such variable`` TclObj and route
+// it through :func:`tcl_cmd_error`.  Used by the var-read paths
+// (``local_get_or_error``, ``global_get_or_error``,
+// ``var_unset_error``) when a ``$x`` substitution / ``set x`` /
+// ``expr {$x}`` references a variable that has never been set in the
+// current scope.  The wording matches reference Tcl exactly so
+// existing regression tests can grep the substring.
+pub export fn var_unset_error(name_obj: i32) void {
+    const prefix: []const u8 = "can't read \"";
+    const suffix: []const u8 = "\": no such variable";
+    const s = obj_ensure_string(name_obj);
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            buf[off] = src[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    tcl_cmd_error(msg);
+}
