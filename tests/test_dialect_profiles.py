@@ -230,12 +230,20 @@ class TestDialectProfiles:
     def test_w002_skipped_for_command_substitution_as_command(self):
         # ``[lookup] arg`` is command-substitution-as-command. The
         # actual dispatched command is the substitution's runtime
-        # value, not the inner command name. W002 must not fire on
-        # the outer call site.
+        # *return value*, not the inner command name. Use a disabled
+        # inner name (``open`` under f5-irules) to verify that W002
+        # only fires for the inner literal call, never for the outer
+        # ``[`` site — even though the outer site's first token is a
+        # CMD token whose text starts with ``open``.
         configure_signatures(dialect="f5-irules")
-        src = "proc helper {} { return puts }\n[helper] hello\n"
+        src = "[open /tmp/x] arg\n"
         result = analyse(src)
-        assert all(d.code != "W002" for d in result.diagnostics)
+        w002 = [d for d in result.diagnostics if d.code == "W002"]
+        # Exactly one W002, on the *inner* literal ``open`` (offset 1),
+        # never on the outer ``[`` site (offset 0).
+        assert len(w002) == 1
+        assert w002[0].range.start.offset == 1
+        assert "'open' is disabled" in w002[0].message
 
     def test_w002_fires_for_lattice_resolved_disabled_command(self):
         # When the lattice statically resolves ``$cmd`` to a literal

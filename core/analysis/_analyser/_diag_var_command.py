@@ -87,15 +87,23 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 disabled_names.append(v)
             if not disabled_names:
                 return
+            unique_names = sorted(set(disabled_names))
             if len(disabled_names) == 1:
                 msg = f"'{disabled_names[0]}' is disabled in the active dialect profile"
             else:
-                quoted = ", ".join(f"'{n}'" for n in sorted(set(disabled_names)))
+                quoted = ", ".join(f"'{n}'" for n in unique_names)
                 msg = f"command may resolve to {quoted}, all disabled in the active dialect profile"
-            if any(
+            # Mirror the special-case guidance from
+            # ``check_disabled_command``: ``when`` is the iRules
+            # event-binding command, so direct users to the iRules
+            # dialect.  Otherwise add the generic "available in iRules"
+            # hint when at least one resolved name exists there.
+            if "when" in unique_names:
+                msg += ". Select iRules as the language to enable F5 iRules support"
+            elif any(
                 REGISTRY.command_status(normalise_qualified_name(n).lstrip(":"), "f5-irules")
                 is DialectStatus.EXISTS
-                for n in disabled_names
+                for n in unique_names
             ):
                 msg += " (available in the iRules dialect)"
             self.result.diagnostics.append(
