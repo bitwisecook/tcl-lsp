@@ -118,7 +118,7 @@ class VarReferenceScanner:
                 if len(inner) >= 2 and inner[0] == "{" and inner[-1] == "}":
                     inner = inner[1:-1]
                 if inner:
-                    result |= self.scan_script(inner)
+                    result.update(self.scan_script(inner))
 
         for tok in lexer.tokenise_all():
             if tok.type in (TokenType.EOL, TokenType.EOF):
