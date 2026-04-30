@@ -314,6 +314,264 @@ pub fn utc() TimeZone {
     };
 }
 
+// -- Filesystem resolver + cache ---------------------------------------------
+//
+// ``resolve(name)`` returns a ``*const TimeZone`` for the requested
+// zone, probing in order:
+//
+//   1. Built-in synthetic UTC (``UTC`` / ``GMT`` / ``:UTC`` /
+//      ``:GMT`` / ``Etc/UTC`` / ``Etc/GMT``).  No I/O.
+//   2. ``$TZ`` (only consulted when ``name`` is empty / NULL — a
+//      caller-supplied name always wins so explicit ``-timezone``
+//      isn't bulldozed by the host environment).
+//   3. ``/usr/share/zoneinfo/<name>``,
+//      ``/usr/share/lib/zoneinfo/<name>``,
+//      ``/etc/zoneinfo/<name>`` — typical Linux / BSD layouts.
+//   4. For empty ``name`` only: ``/etc/localtime`` (system default).
+//   5. Bundled trimmed-tzdata fallback (TODO in a follow-up commit;
+//      the design doc tracks it).
+//   6. Last-ditch: the synthetic UTC zone, with a non-zero error
+//      flag the caller can surface.
+//
+// Cache: an 8-slot LRU keyed on the requested name.  Each slot owns
+// the raw TZif blob (allocated via ``obj.alloc``) plus the
+// ``types`` / ``transitions`` storage backing the parsed
+// ``TimeZone``.  Cache entries are never freed — the cache lives
+// for the entire WASM-module lifetime, same as the file-descriptor
+// table.  Eight slots covers the common multi-zone usage (logging
+// in UTC + reporting in two regional zones) without special-casing.
+
+// libc externs (resolved against wasi-libc — see runtime/zig/build.zig).
+extern fn open(path: [*:0]const u8, flags: i32, mode: u32) i32;
+extern fn read(fd: i32, buf: [*]u8, n: usize) isize;
+extern fn close(fd: i32) i32;
+extern fn getenv(name: [*:0]const u8) ?[*:0]const u8;
+
+// Match the wasi-libc fcntl values used in tcl_fs.zig — these are
+// derived from the underlying ``__WASI_OFLAGS_*`` bits, not POSIX
+// musl bit positions.
+const O_RDONLY: i32 = 0x04000000;
+
+const MAX_ZONE_NAME: usize = 64;
+const MAX_BLOB: usize = 64 * 1024; // largest tzdata file is ~10 KB
+const MAX_TRANSITIONS: usize = 2048;
+const MAX_TYPES: usize = 64;
+const CACHE_SLOTS: usize = 8;
+
+const Slot = struct {
+    /// Zone name (NUL-padded).  ``name_len == 0`` means "free slot".
+    name: [MAX_ZONE_NAME]u8 = [_]u8{0} ** MAX_ZONE_NAME,
+    name_len: u8 = 0,
+    /// Pointer + length to the raw TZif blob owned by this slot.
+    blob_ptr: u32 = 0,
+    blob_len: u32 = 0,
+    /// Storage backing TimeZone.transitions / types.
+    transitions: [MAX_TRANSITIONS]i64 = [_]i64{0} ** MAX_TRANSITIONS,
+    types: [MAX_TYPES]LocalType = [_]LocalType{
+        .{ .utoff = 0, .isdst = false, .abbr = "" },
+    } ** MAX_TYPES,
+    parsed: TimeZone = .{
+        .transitions = &[_]i64{},
+        .type_indices = &[_]u8{},
+        .types = &[_]LocalType{},
+        .posix_tz = "",
+        .pre_first = 0,
+    },
+    valid: bool = false,
+};
+
+var cache: [CACHE_SLOTS]Slot = [_]Slot{.{}} ** CACHE_SLOTS;
+var utc_cache: TimeZone = utc();
+
+/// Last-error sentinel for the resolver — non-zero when the most
+/// recent ``resolve()`` call had to fall back to UTC.  Callers
+/// (e.g. the compiled-Tcl ``-timezone`` path) can surface this as
+/// a Tcl-side warning if they care; today nothing reads it but the
+/// hook is here to make wiring trivial later.
+pub var last_error: i32 = 0;
+
+/// Try to open + read a file into a fresh blob.  Returns null on
+/// any I/O failure.  Strict size cap to keep degenerate or
+/// malicious files out of the cache.
+fn read_file(path: [*:0]const u8) ?[]u8 {
+    const fd = open(path, O_RDONLY, 0);
+    if (fd < 0) return null;
+    defer _ = close(fd);
+
+    const cap: u32 = MAX_BLOB;
+    const ptr = obj.alloc(cap);
+    if (ptr == 0) return null;
+    const buf: [*]u8 = @ptrFromInt(ptr);
+
+    var total: usize = 0;
+    while (total < cap) {
+        const n = read(fd, buf + total, cap - total);
+        if (n < 0) {
+            obj.free_sized(ptr, cap);
+            return null;
+        }
+        if (n == 0) break;
+        total += @intCast(n);
+    }
+    if (total < HEADER_SIZE) {
+        obj.free_sized(ptr, cap);
+        return null;
+    }
+    return buf[0..total];
+}
+
+/// Build a NUL-terminated path "<prefix><name>" in scratch.  Prefix
+/// is a literal compiled into the wasm binary; ``name`` is the
+/// caller-supplied zone name.  Rejects names that contain NUL bytes
+/// or look like absolute / parent-traversal paths.
+fn join_path(prefix: []const u8, name: []const u8, scratch: *[256]u8) ?[*:0]const u8 {
+    if (name.len == 0) return null;
+    if (prefix.len + name.len + 1 > scratch.len) return null;
+    if (name[0] == '/' or name[0] == '.') {
+        // No leading slash or dot — only safe relative zone names
+        // (``America/New_York``, ``Etc/UTC``) are allowed through.
+        // Absolute paths and ``..`` walks would let the script
+        // exfiltrate arbitrary host files.
+        return null;
+    }
+    var i: usize = 0;
+    while (i < name.len) : (i += 1) {
+        const b = name[i];
+        if (b == 0 or b == '\\') return null;
+        if (b == '.' and i + 1 < name.len and name[i + 1] == '.') return null;
+    }
+    @memcpy(scratch[0..prefix.len], prefix);
+    @memcpy(scratch[prefix.len .. prefix.len + name.len], name);
+    scratch[prefix.len + name.len] = 0;
+    return @ptrCast(&scratch[0]);
+}
+
+/// Strip a leading ':' from a zone name.  Tcl accepts both
+/// ``:America/New_York`` (POSIX-style "look up Olson") and the
+/// bare ``America/New_York`` form; treat them identically.
+fn strip_colon(name: []const u8) []const u8 {
+    if (name.len > 0 and name[0] == ':') return name[1..];
+    return name;
+}
+
+/// True if ``name`` (after colon-stripping) is one of the synthetic
+/// UTC aliases.
+fn is_utc_alias(name: []const u8) bool {
+    const n = strip_colon(name);
+    return std.mem.eql(u8, n, "UTC") or
+        std.mem.eql(u8, n, "GMT") or
+        std.mem.eql(u8, n, "Etc/UTC") or
+        std.mem.eql(u8, n, "Etc/GMT") or
+        std.mem.eql(u8, n, "Universal") or
+        std.mem.eql(u8, n, "Zulu");
+}
+
+/// Find a cache slot matching ``name``.  Returns null on miss.
+fn cache_find(name: []const u8) ?*Slot {
+    for (&cache) |*s| {
+        if (s.valid and s.name_len == name.len and
+            std.mem.eql(u8, s.name[0..s.name_len], name))
+            return s;
+    }
+    return null;
+}
+
+/// Pick a free slot, or evict slot 0 if all are taken.  Simple
+/// FIFO eviction is fine — zones are looked up rarely and the
+/// usual workload has ≤ 3 distinct zones.
+fn cache_pick_slot() *Slot {
+    for (&cache) |*s| {
+        if (!s.valid) return s;
+    }
+    // All taken — evict slot 0.  Free its blob and reset.
+    const s = &cache[0];
+    if (s.blob_ptr != 0) obj.free_sized(s.blob_ptr, s.blob_len);
+    s.* = .{};
+    return s;
+}
+
+/// Parse ``blob`` into ``slot.parsed``.  On failure, leaves the
+/// slot invalidated and returns false.
+fn install_blob(slot: *Slot, blob: []u8, name: []const u8) bool {
+    const z = parse(blob, slot.types[0..], slot.transitions[0..]) catch {
+        return false;
+    };
+    slot.parsed = z;
+    slot.blob_ptr = @intCast(@intFromPtr(blob.ptr));
+    slot.blob_len = @intCast(blob.len);
+    const copy_len = @min(name.len, MAX_ZONE_NAME);
+    @memcpy(slot.name[0..copy_len], name[0..copy_len]);
+    slot.name_len = @intCast(copy_len);
+    slot.valid = true;
+    return true;
+}
+
+/// Search a list of host directories for ``<dir>/<name>``.  First
+/// hit wins.
+fn try_load_host(name: []const u8) ?[]u8 {
+    var scratch: [256]u8 = undefined;
+    const dirs = [_][]const u8{
+        "/usr/share/zoneinfo/",
+        "/usr/share/lib/zoneinfo/",
+        "/etc/zoneinfo/",
+    };
+    for (dirs) |d| {
+        const p = join_path(d, name, &scratch) orelse continue;
+        if (read_file(p)) |blob| return blob;
+    }
+    return null;
+}
+
+/// Public resolver entry-point.  ``name`` is the caller's zone
+/// request — empty / null falls back to ``$TZ`` or ``/etc/localtime``.
+/// The returned ``TimeZone`` is owned by the cache; do not free.
+pub fn resolve(name: []const u8) *const TimeZone {
+    last_error = 0;
+    const stripped = strip_colon(name);
+
+    // 1. Synthetic UTC — no I/O, no cache footprint.
+    if (stripped.len == 0 or is_utc_alias(name)) {
+        return &utc_cache;
+    }
+
+    // 2. Cache hit?
+    if (cache_find(stripped)) |s| return &s.parsed;
+
+    // 3. Host filesystem lookup.
+    if (try_load_host(stripped)) |blob| {
+        const slot = cache_pick_slot();
+        if (install_blob(slot, blob, stripped)) return &slot.parsed;
+        obj.free_sized(@intCast(@intFromPtr(blob.ptr)), @intCast(blob.len));
+    }
+
+    // 4. (Future) bundled trimmed-tzdata blob lookup goes here.
+    //    Tracked in docs/design/compiler/wasm-runtime-primitives.md.
+
+    // 5. Last-ditch: UTC and a non-zero error sentinel.
+    last_error = 1;
+    return &utc_cache;
+}
+
+/// Resolve with no caller-supplied name.  Honours ``$TZ`` when set,
+/// falls back to ``/etc/localtime``.  Returns the synthetic UTC
+/// zone when neither resolves.
+pub fn resolve_default() *const TimeZone {
+    last_error = 0;
+    if (getenv("TZ")) |tz_c| {
+        const tz_slice = std.mem.sliceTo(tz_c, 0);
+        if (tz_slice.len > 0) return resolve(tz_slice);
+    }
+    // ``/etc/localtime`` is the conventional system-default tzdata
+    // file.  Read directly (no name-resolution dance).
+    if (read_file("/etc/localtime")) |blob| {
+        const slot = cache_pick_slot();
+        if (install_blob(slot, blob, "localtime")) return &slot.parsed;
+        obj.free_sized(@intCast(@intFromPtr(blob.ptr)), @intCast(blob.len));
+    }
+    last_error = 1;
+    return &utc_cache;
+}
+
 // -- Tests --------------------------------------------------------------------
 
 test "utc zone returns 0 offset for any time" {
