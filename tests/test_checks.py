@@ -1288,8 +1288,28 @@ class TestUnknownIRulesEvent:
 class TestLiteralExpected:
     """W306 -- literal-expected positions should not contain substitution."""
 
-    def test_regexp_pattern_with_var(self):
+    def test_regexp_bare_var_pattern_clean(self):
+        # A bare single $var as the entire pattern is the canonical Tcl
+        # idiom for a parameterised regex.  There is no equivalent
+        # ``{...}``-braced form, so W306 must not fire.  See issue #235.
         diags = _diag_with_code("regexp -- $pattern $text", "W306")
+        assert len(diags) == 0
+
+    def test_regexp_bare_braced_var_pattern_clean(self):
+        # ``${name}`` form is also a bare single substitution.
+        diags = _diag_with_code("regexp -- ${ns::pattern} $text", "W306")
+        assert len(diags) == 0
+
+    def test_regexp_bare_cmd_pattern_clean(self):
+        # A bare single ``[cmd]`` as the entire pattern is the canonical
+        # idiom for a dynamically constructed pattern.
+        diags = _diag_with_code("regsub -- [build_re] $text X out", "W306")
+        assert len(diags) == 0
+
+    def test_regexp_concatenated_var_pattern_warns(self):
+        # Concatenation like ``$a$b`` is not a single bare substitution
+        # and is suspicious enough to warrant the warning.
+        diags = _diag_with_code("regexp -- $pattern$suffix $text", "W306")
         assert len(diags) == 1
         assert diags[0].severity == Severity.WARNING
         assert "Literal expected" in diags[0].message
@@ -1303,8 +1323,10 @@ class TestLiteralExpected:
         assert len(diags) == 1
         assert "quotes" in diags[0].message.lower()
 
-    def test_regsub_pattern_with_cmd_subst(self):
-        diags = _diag_with_code("regsub -- [build_re] $text X out", "W306")
+    def test_regexp_quoted_pattern_with_dollar_anchor(self):
+        # The classic foot-gun: ``$"`` is unintended substitution where
+        # the user likely meant the regex end-of-line anchor.
+        diags = _diag_with_code('regexp -- "^foo$" $text', "W306")
         assert len(diags) == 1
 
     def test_class_match_literal_name_clean(self):

@@ -26,18 +26,38 @@ A regexp pattern or class name undergoes unintended variable or command substitu
 ## Example that triggers it
 
 ```tcl
-regexp "$pattern" $string
+regexp "test$x" $string
 ```
 
-The analyser reports **`W306`** on the pattern argument.
+The pattern mixes a literal with a substituted variable inside double quotes.
+If the user meant `$` as the regex end-of-line anchor (or `$x` as a literal),
+the substitution will silently produce the wrong pattern.  The analyser
+reports **`W306`** on the pattern argument.
+
+## Not flagged
+
+A bare single substitution as the entire pattern is the canonical Tcl idiom
+for a parameterised regex and is **not** flagged:
+
+```tcl
+regexp $pattern $string         ;# OK — single bare $var
+regexp ${ns::pattern} $string   ;# OK — single bare ${var}
+regexp [build_re] $string       ;# OK — single bare [cmd]
+```
+
+There is no equivalent ``{...}``-braced form for these (bracing would
+suppress the substitution), so flagging them would be a false positive.
 
 ## Fix
 
+When the pattern is meant to be a literal, brace it:
+
 ```tcl
-regexp {$pattern} $string
+regexp {^hello$} $string
 ```
 
-Use braces instead of double quotes so the pattern is treated as a literal.
+When the pattern is genuinely a parameter, use a single bare ``$var``
+without surrounding double quotes.
 
 ## How to suppress
 
