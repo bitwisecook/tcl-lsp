@@ -78,8 +78,13 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
         if stmt.args[0] == "add" and stmt.args[1] == "variable":
             return (_normalise_var_name(stmt.args[2]),)
     # dict for/map barriers: extract iteration variable names from the
-    # varList arg so SSA sees them as definitions.
-    if isinstance(stmt, IRBarrier) and stmt.command.endswith(("::for", "::map")):
+    # varList arg so SSA sees them as definitions.  Match the rewritten
+    # command names exactly; a suffix test would also fire for unrelated
+    # commands like ``::my::for``.
+    if isinstance(stmt, IRBarrier) and stmt.command in (
+        "::tcl::dict::for",
+        "::tcl::dict::map",
+    ):
         if stmt.args:
             return tuple(stmt.args[0].split())
     return ()
@@ -96,12 +101,11 @@ _VAR_REF_SCANNER = VarReferenceScanner(
     )
 )
 
-
-_VAR_REF_SCANNER_DEEP = VarReferenceScanner(
+_DEEP_VAR_REF_SCANNER = VarReferenceScanner(
     VarScanOptions(
         include_var_read_roles=True,
         recurse_cmd_substitutions=True,
-        recurse_body_args=True,
+        recurse_into_script_roles=True,
     )
 )
 
@@ -114,48 +118,14 @@ def _vars_in_script(source: str) -> frozenset[str]:
     return _VAR_REF_SCANNER.scan_script(source)
 
 
-def _vars_in_body_arg(text: str) -> frozenset[str]:
-    """Scan a body argument as a Tcl script, recursively.
+def _vars_in_body_script(source: str) -> frozenset[str]:
+    """Scan a body script and recurse into nested braced bodies.
 
-    Body args of opaque calls/barriers (e.g. ``catch``, ``dict for`` body,
-    deferred ``foreach`` body) are typically passed as a single brace-quoted
-    word.  ``_vars_in_word`` would lex the body as a single STR token and
-    miss variable references inside it, so we strip one layer of outer
-    braces and use the deep scanner that recurses into nested ``BODY`` /
-    ``EXPR`` args (``if {$x} {…}``, ``for {…} {$y} {…} {…}``, …) so a
-    parameter referenced inside any nested brace-quoted body is observed.
+    Used for body-taking barriers (``dict for``/``dict map``) whose body
+    isn't lowered into the CFG — variable references inside nested
+    ``if``/``while``/``foreach`` braces would otherwise be missed.
     """
-    s = text.strip()
-    if len(s) >= 2 and s.startswith("{") and s.endswith("}"):
-        s = s[1:-1]
-    return _VAR_REF_SCANNER_DEEP.scan_script(s)
-
-
-def _body_arg_indices(
-    command: str, args: tuple[str, ...], tokens: CommandTokens | None
-) -> set[int]:
-    """Return body-arg indices for an opaque call/barrier whose body should
-    be scanned as a script.
-
-    Excludes :func:`_structural_body_indices` (proc/when/test) — those bodies
-    are analysed separately as their own functions.  Includes ``dict for`` /
-    ``dict map`` bodies, which are rewritten to ``::tcl::dict::for`` /
-    ``::tcl::dict::map`` during CFG lowering and lose their registry entry.
-    """
-    structural = _structural_body_indices(command, args, tokens)
-    indices = {
-        idx
-        for idx in arg_indices_for_role(command, list(args), ArgRole.BODY)
-        if idx not in structural and 0 <= idx < len(args)
-    }
-    # ``dict for/map`` is rewritten to a fully-qualified ensemble name during
-    # CFG lowering; the registry only knows the ``dict`` ensemble form, so
-    # supply the body index (after dropping the subcommand).  Use an exact
-    # name match — a suffix test would also catch unrelated commands like
-    # ``::my::for`` and silently scan their args[2] as a script.
-    if command in ("::tcl::dict::for", "::tcl::dict::map") and len(args) >= 3:
-        indices.add(2)
-    return indices
+    return _DEEP_VAR_REF_SCANNER.scan_script(source)
 
 
 _TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
@@ -254,15 +224,11 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
             tokens=call_tokens,
         ):
             vars_found |= _vars_in_word(command)
-            structural = _structural_body_indices(command, args, call_tokens)
-            scan_as_script = _body_arg_indices(command, args, call_tokens)
+            body_indices = _structural_body_indices(command, args, call_tokens)
             for idx, arg in enumerate(args):
-                if idx in structural:
+                if idx in body_indices:
                     continue
-                if idx in scan_as_script:
-                    vars_found |= _vars_in_body_arg(arg)
-                else:
-                    vars_found |= _vars_in_word(arg)
+                vars_found |= _vars_in_word(arg)
             if call_reads:
                 for name in call_reads:
                     if name:
@@ -278,13 +244,22 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                 vars_found |= _vars_in_expr(expr)
         case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
-            structural = _structural_body_indices(command, args, barrier_tokens)
-            scan_as_script = _body_arg_indices(command, args, barrier_tokens)
+            body_indices = _structural_body_indices(command, args, barrier_tokens)
+            # ``dict for/map`` barriers carry the loop body as args[-1] and
+            # the body never enters the CFG, so its variable references
+            # must be discovered here (recursing into nested braced bodies).
+            # Match the rewritten command names exactly — a suffix test
+            # would also catch unrelated namespaced commands like
+            # ``::my::for`` and silently scan their last arg as a script.
+            # See issues #234, #236.
+            is_dict_iter_barrier = (
+                command in ("::tcl::dict::for", "::tcl::dict::map") and len(args) >= 3
+            )
             for idx, arg in enumerate(args):
-                if idx in structural:
+                if idx in body_indices:
                     continue
-                if idx in scan_as_script:
-                    vars_found |= _vars_in_body_arg(arg)
+                if is_dict_iter_barrier and idx == len(args) - 1:
+                    vars_found |= _vars_in_body_script(arg)
                 else:
                     vars_found |= _vars_in_word(arg)
             # dict with/update: the dict variable name is a plain string,

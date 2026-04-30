@@ -79,6 +79,38 @@ def _has_substitution(text: str, tok: Token | None = None) -> bool:
     return False
 
 
+def _is_bare_single_var_substitution(tok: Token, source: str) -> bool:
+    """Return True if *tok* spans exactly a bare ``$var`` or ``${var}``.
+
+    This identifies the canonical Tcl idiom for parameterising an argument
+    with a single variable's value, with no surrounding literal text or
+    quotes.  For these cases there is no equivalent ``{...}``-braced form
+    (bracing would suppress the substitution), so flagging substitution-
+    in-literal-expected-position would be a false positive.
+
+    Bare command substitutions (``[cmd]``) are intentionally **not**
+    exempted: a literal like ``[a-z]`` looks like a regex character class
+    but is parsed by Tcl as a command substitution, and that confusion is
+    exactly what W306 is meant to catch.
+
+    Note: ``tok.end.offset`` typically points at the last character of the
+    substitution name and excludes the trailing delimiter (``}``), so the
+    closing delimiter is checked separately at ``end + 1``.
+    """
+    if tok.type is not TokenType.VAR:
+        return False
+    start = tok.start.offset
+    end = tok.end.offset + 1
+    if start < 0 or end > len(source) or end <= start:
+        return False
+    word = source[start:end]
+    if word == "$" + tok.text:
+        return True
+    if word == "${" + tok.text and end < len(source) and source[end] == "}":
+        return True
+    return False
+
+
 def _rewrite_string_compare_ops(expr_text: str) -> str:
     """Rewrite expr operators for string comparison diagnostics."""
     _EXPR_EQ_RE = re.compile(r"(?<![=!])==(?!=)")
