@@ -150,8 +150,10 @@ def _body_arg_indices(
     }
     # ``dict for/map`` is rewritten to a fully-qualified ensemble name during
     # CFG lowering; the registry only knows the ``dict`` ensemble form, so
-    # supply the body index (after dropping the subcommand).
-    if command.endswith(("::for", "::map")) and len(args) >= 3:
+    # supply the body index (after dropping the subcommand).  Use an exact
+    # name match — a suffix test would also catch unrelated commands like
+    # ``::my::for`` and silently scan their args[2] as a script.
+    if command in ("::tcl::dict::for", "::tcl::dict::map") and len(args) >= 3:
         indices.add(2)
     return indices
 

@@ -1195,6 +1195,47 @@ class TestUnusedProcParameters:
         assert len(w214) == 1
         assert "other" in w214[0].message
 
+    def test_param_read_inside_catch_body(self):
+        """A parameter referenced via ``$``-substitution inside a
+        ``catch { ... }`` body — itself an opaque ``IRCall`` — must be
+        observed as used."""
+        source = textwrap.dedent("""\
+            proc f {x} {
+                catch { puts $x }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
+    def test_pure_write_to_param_inside_body_still_flags(self):
+        """A parameter that is only *written* (never read) inside an
+        opaque body is still unused — the deep body scan must not count
+        ``set x 1`` etc. as a read."""
+        source = textwrap.dedent("""\
+            proc f {x} {
+                dict for {k v} $d { set x 1 }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "x" in w214[0].message
+
+    def test_namespaced_for_command_does_not_get_dict_body_fallback(self):
+        """Only ``::tcl::dict::for|map`` get the synthetic body-arg
+        fallback — an unrelated ``::my::for`` must not have its third
+        arg scanned as a script (which would silently suppress W214)."""
+        source = textwrap.dedent("""\
+            proc f {x} {
+                ::my::for a b { set x 1 }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "x" in w214[0].message
+
 
 # interp alias
 class TestInterpAlias:
