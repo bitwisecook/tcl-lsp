@@ -799,6 +799,10 @@ class TestCommandDispatch:
             "tcl_list",
             "local_set",
             "local_get",
+            # Since S2, retain/release are always imported because
+            # the owned-slot wrap can fire on any frame-elided proc.
+            "tcl_obj_retain",
+            "tcl_obj_release",
         }
 
 

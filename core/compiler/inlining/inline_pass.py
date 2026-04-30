@@ -138,9 +138,100 @@ def _build_inlinable_map(
             continue
         if not _command_is_namespace_invariant(only.command, qname, summaries):
             continue
+        if not _command_is_splice_safe(only.command):
+            # Some frameless commands observe the caller's frame
+            # (``info level``, ``uplevel``, ``upvar``) or transfer
+            # control out of it (``return``, ``break``, ``continue``).
+            # Splicing them into a different frame would silently
+            # change semantics — decline.
+            continue
+        if any(_arg_has_command_subst(a) for a in only.args):
+            # Args containing a ``[cmd]`` substitution evaluate
+            # ``cmd`` in whatever frame the caller's IRCall lives
+            # in.  Splicing the wrapper into a different frame
+            # would silently change ``info level`` / ``upvar`` /
+            # ``info frame`` semantics that the inner ``cmd``
+            # might depend on.  ``$var`` substitutions are also
+            # frame-scoped but the v1 wrapper has no params (so
+            # the wrapped IRCall can't reach the wrapper's own
+            # locals — any ``$x`` it carries refers to a global,
+            # which is frame-independent).
+            continue
         eligible[qname] = (only,)
 
     return eligible
+
+
+# Commands whose semantics are independent of the calling frame.
+# A wrapped IRCall whose command is in this set can be spliced into
+# any caller's frame without changing its observable behaviour.
+# Frame-observing commands (``info ...``, ``uplevel``, ``upvar``)
+# and frame-affecting control flow (``return``, ``break``,
+# ``continue``) are deliberately omitted: a wrapper around any of
+# them must keep the proc-call boundary so the command sees the
+# right frame / terminates the right scope.
+_SPLICE_SAFE_COMMANDS: frozenset[str] = frozenset(
+    {
+        # List primitives — pure value computation.
+        "list",
+        "lindex",
+        "lrange",
+        "linsert",
+        "llength",
+        "lsort",
+        "lsearch",
+        "lreverse",
+        "lreplace",
+        "lrepeat",
+        "concat",
+        # String primitives — pure value computation.
+        "split",
+        "join",
+        "string",
+        # Arithmetic — pure value computation.
+        "expr",
+        # I/O — observable side effect, but doesn't depend on the
+        # caller's frame structure.
+        "puts",
+    }
+)
+
+
+def _command_is_splice_safe(command: str) -> bool:
+    """True iff ``command`` is safe to splice across a proc boundary.
+
+    Strips ``::`` qualification before checking the allow-list so
+    both bare and qualified forms (``puts``, ``::puts``) match.
+    """
+    bare = command[2:] if command.startswith("::") else command
+    return bare in _SPLICE_SAFE_COMMANDS
+
+
+def _arg_has_command_subst(arg: str) -> bool:
+    """True iff ``arg`` contains a ``[cmd …]`` command substitution.
+
+    A bare ``[`` opens a command substitution in Tcl; a literal
+    bracket would be backslash-escaped or quoted.  We use the
+    coarse "any ``[`` outside braces" approximation — false
+    positives just decline a hoist, never silently inline an
+    unsafe one.
+    """
+    depth = 0
+    i = 0
+    while i < len(arg):
+        c = arg[i]
+        if c == "\\" and i + 1 < len(arg):
+            i += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            if depth > 0:
+                depth -= 1
+        elif c == "[" and depth == 0:
+            return True
+        i += 1
+    return False
 
 
 def _command_is_namespace_invariant(

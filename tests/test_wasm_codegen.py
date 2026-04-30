@@ -340,6 +340,9 @@ def test_no_cmd_imports_for_pure_math():
     The float-aware expr path also pulls in ``tcl_arith_add`` and
     ``obj_new_float`` (the integer-vs-float dispatch helpers); they're
     treated as arithmetic primitives rather than command imports.
+    Since S2, ``tcl_obj_retain`` / ``tcl_obj_release`` are also always
+    imported because the refcount-discipline wrap can fire on any
+    owned-slot write.
     """
     module = _compile("set x [expr {1 + 2}]\n")
     import_names = {imp.name for imp in module.imports}
@@ -353,6 +356,8 @@ def test_no_cmd_imports_for_pure_math():
         "tcl_arith_add",
         "tcl_cmd_error",
         "tcl_eval",
+        "tcl_obj_retain",
+        "tcl_obj_release",
         "ns_set",
         "ns_restore",
         "diag_set",
