@@ -40,6 +40,14 @@ _engine = None  # type: ignore[var-annotated]
 _rt_module = None  # type: ignore[var-annotated]
 _rt_module_path: str | None = None
 
+# Tracks how many times we've called ``increment_epoch`` on the cached
+# engine.  ``set_epoch_deadline`` takes an *absolute* counter value, so
+# every store must arm the deadline at ``current_count + 1`` — arming
+# at a fixed ``1`` traps immediately as soon as a single prior watchdog
+# has bumped the engine.  Mirrors the pattern in
+# ``tests/test_wasm_real_tcl.py`` (which has the same constraint).
+_epoch_count: int = 0
+
 
 def _try_import_wasmtime():
     """Return the wasmtime module or None if unavailable."""
@@ -125,43 +133,50 @@ def _stubbed_commands() -> frozenset[str]:
     return frozenset(stubbed)
 
 
+@lru_cache(maxsize=1)
+def _stubbed_command_pattern():
+    """Compiled regex matching a stubbed command at a command-start position.
+
+    Tcl command boundaries are: start-of-line (``^``), newline,
+    semicolon, ``{`` (start of a body / braced word), or ``[`` (start
+    of a command substitution).  We require one of those — optionally
+    followed by inline whitespace — before the command name, with a
+    word boundary after.  This rules out:
+
+    * variable reads / assignments — ``set switch 1`` (preceded by
+      space, not a separator).
+    * string literals — ``"the switch is on"`` (preceded by ``"``).
+    * parameter / loop-variable names — ``foreach switch …``
+      (preceded by space).
+    * substring-of-identifier — ``my_switch_proc`` (no word break).
+
+    …while still firing on commands inside braced bodies, since a
+    body opens with ``{`` and the next non-whitespace token is the
+    command word (the case the previous token-walk filter missed —
+    the lexer treated braced bodies as a single ESC token).
+    """
+    import re  # noqa: PLC0415
+
+    stubbed = _stubbed_commands()
+    if not stubbed:
+        # Pattern that never matches — keeps the API uniform.
+        return re.compile(r"(?!x)x")
+    # Sort longest-first so e.g. ``regex_quote`` is preferred over
+    # any (currently nonexistent) prefix collision.
+    alt = "|".join(re.escape(c) for c in sorted(stubbed, key=len, reverse=True))
+    return re.compile(rf"(?:^|[\n;{{\[])\s*({alt})\b", re.MULTILINE)
+
+
 def uses_stubbed_command(script: str) -> bool:
     """True if *script* invokes any WASM-stubbed command.
 
-    Tokenises with the project lexer and inspects each command-start
-    token.  Substring matching would false-positive on string literals
-    like ``"the switch is on"``.  When the lexer fails we fall back to
-    a conservative whole-word regex search — better to over-skip a few
-    inputs than to feed a stubbed command into the WASM backend and
-    record a phantom divergence.
+    Matches command names at Tcl command-start positions only — this
+    is intentionally narrower than a substring search so non-command
+    uses (``set switch 1``, ``foreach switch …``, ``"the switch
+    is on"``) aren't falsely flagged and dropped from the corpus.
+    See :func:`_stubbed_command_pattern` for the boundary conditions.
     """
-    stubbed = _stubbed_commands()
-    if not stubbed:
-        return False
-
-    try:
-        from core.parsing.lexer import TclLexer  # noqa: PLC0415
-
-        lexer = TclLexer(script)
-        tokens = lexer.tokenise_all()
-    except Exception:
-        # Fallback: whole-word match
-        import re  # noqa: PLC0415
-
-        for cmd in stubbed:
-            if re.search(rf"(?:^|[\s;\[]){re.escape(cmd)}\b", script):
-                return True
-        return False
-
-    # Token kinds vary across versions of the lexer; be tolerant.  We
-    # look for ``Word``/``Bareword``-shaped tokens immediately after a
-    # statement separator.  Any token whose text matches a stub name
-    # forces the script to be filtered.
-    for tok in tokens:
-        text = getattr(tok, "text", None) or getattr(tok, "value", None)
-        if text in stubbed:
-            return True
-    return False
+    return bool(_stubbed_command_pattern().search(script))
 
 
 def _compile_script(script: str) -> bytes:
@@ -207,7 +222,18 @@ def _run_wasm_inner(
     store = wasmtime.Store(engine)
     # Watchdog: bump the engine's epoch after `timeout` seconds.  The
     # next wasm op then traps with an epoch-deadline error.
-    store.set_epoch_deadline(1)
+    #
+    # ``set_epoch_deadline`` takes an *absolute* counter value.  The
+    # engine is process-global, so ``_epoch_count`` mirrors how many
+    # ``increment_epoch`` calls prior watchdog fires have made; the
+    # next deadline must be strictly ahead of that or the store traps
+    # immediately on first wasm op.  Arming at a fixed ``1`` (the
+    # earlier shape of this code) was wrong — once any prior
+    # iteration timed out, every subsequent run would trap before
+    # ``::top`` started executing, poisoning the whole campaign.
+    global _epoch_count
+    deadline_value = _epoch_count + 1
+    store.set_epoch_deadline(deadline_value)
 
     wasi_config = wasmtime.WasiConfig()
     fd_out, stdout_path = tempfile.mkstemp(suffix=".out")
@@ -338,6 +364,14 @@ def _run_wasm_inner(
         )
     finally:
         watchdog.cancel()
+        # Mirror the engine's epoch counter when the watchdog actually
+        # fired (``increment_epoch`` was called).  A clean wasm return
+        # leaves the counter where it was, so we leave ``_epoch_count``
+        # alone in that case — bumping unconditionally would manufacture
+        # ticks the engine never observed and eventually push deadlines
+        # beyond what a single ``increment_epoch`` can reach.
+        if watchdog_fired[0]:
+            _epoch_count = max(_epoch_count, deadline_value)
 
 
 def _extract_tcl_trap(stderr_text: str) -> str:
