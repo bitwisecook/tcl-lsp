@@ -187,12 +187,19 @@ test "consume_bs_escape — octal \\NNN" {
     try testing.expectEqual(@as(u32, 3), r.next_si);
     try testing.expectEqual(@as(u8, 0xFF), out[0]);
 
-    // ``8`` and ``9`` are NOT octal digits — \8 produces 0 and only
-    // consumes the leading digit's worth of zeroed octal.
+    // ``8`` and ``9`` are NOT octal digits — Tcl treats ``\8`` and
+    // ``\9`` as unknown escapes and emits the literal byte (cf.
+    // ``subst "\\8"`` → ``"8"`` under tclsh 9.0).  The decoder must
+    // therefore advance past the digit and emit it verbatim.
     r = one("8", &out);
-    try testing.expectEqual(@as(u32, 0), r.next_si);
+    try testing.expectEqual(@as(u32, 1), r.next_si);
     try testing.expectEqual(@as(u32, 1), r.written);
-    try testing.expectEqual(@as(u8, 0), out[0]);
+    try testing.expectEqual(@as(u8, '8'), out[0]);
+
+    r = one("9", &out);
+    try testing.expectEqual(@as(u32, 1), r.next_si);
+    try testing.expectEqual(@as(u32, 1), r.written);
+    try testing.expectEqual(@as(u8, '9'), out[0]);
 }
 
 // ---- whitespace folding --------------------------------------------

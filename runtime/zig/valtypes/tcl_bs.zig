@@ -109,8 +109,12 @@ pub fn consume_bs_escape(
             }
             return .{ .next_si = si, .written = encode_utf8(out, cp) };
         },
-        '0'...'9' => {
-            // ``\NNN`` — up to 3 octal digits.
+        '0'...'7' => {
+            // ``\NNN`` — up to 3 octal digits.  ``\8`` / ``\9`` are
+            // NOT octal: real Tcl treats them as unknown escapes and
+            // emits the literal byte (``subst "\\8"`` → ``"8"``), so
+            // they fall through to the ``else`` arm below rather than
+            // being accepted by this case.
             var val: u32 = 0;
             var ndig: u32 = 0;
             while (ndig < 3 and si < len and src[si] >= '0' and src[si] <= '7') {
