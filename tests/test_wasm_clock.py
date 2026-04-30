@@ -195,6 +195,67 @@ class TestClockFormatTimezone:
         assert stdout.strip() == "1970-01-01 UTC"
 
 
+class TestClockFormatBundle:
+    """Embedded tzdata bundle — no host preopen.
+
+    Verifies the resolver's step 4 fallback fires when the WASI
+    sandbox blocks ``/usr/share/zoneinfo``.  No ``preopen`` is
+    passed, so the runtime can't reach the host tzdata; the only
+    way these tests can succeed is via the comptime-embedded
+    ``data/tzdata.bin`` blob.
+    """
+
+    def test_bundle_serves_eastern_zone(self):
+        # 2025-07-15 12:00:00 UTC → 08:00:00 EDT.
+        stdout = _run_for_stdout(
+            "puts [clock format 1752580800 -timezone :America/New_York "
+            '-format "%Y-%m-%d %H:%M:%S %Z"]\n'
+        )
+        assert stdout.strip() == "2025-07-15 08:00:00 EDT"
+
+    def test_bundle_serves_us_eastern_alias(self):
+        # ``US/Eastern`` is bundled as a separate alias entry
+        # pointing at the ``America/New_York`` payload.
+        stdout = _run_for_stdout(
+            'puts [clock format 1752580800 -timezone US/Eastern -format "%Z"]\n'
+        )
+        assert stdout.strip() == "EDT"
+
+    def test_bundle_serves_tokyo(self):
+        # Asia/Tokyo is JST year-round (+09:00), no DST.
+        # 2025-01-15 00:00:00 UTC → 09:00:00 JST.
+        stdout = _run_for_stdout(
+            "puts [clock format 1736899200 -timezone :Asia/Tokyo "
+            '-format "%H:%M %Z"]\n'
+        )
+        assert stdout.strip() == "09:00 JST"
+
+    def test_bundle_serves_london_winter_gmt(self):
+        # Europe/London = GMT in winter, BST in summer.
+        # 2025-01-15 12:00:00 UTC = 12:00 GMT.
+        stdout = _run_for_stdout(
+            "puts [clock format 1736942400 -timezone :Europe/London "
+            '-format "%H:%M %Z"]\n'
+        )
+        assert stdout.strip() == "12:00 GMT"
+
+    def test_bundle_serves_london_summer_bst(self):
+        # 2025-07-15 12:00 UTC = 13:00 BST.
+        stdout = _run_for_stdout(
+            "puts [clock format 1752580800 -timezone :Europe/London "
+            '-format "%H:%M %Z"]\n'
+        )
+        assert stdout.strip() == "13:00 BST"
+
+    def test_bundle_miss_falls_through_to_utc(self):
+        # Zone not in the bundle's curated list AND not on the host
+        # (no preopen) — resolver lands on synthetic UTC.
+        stdout = _run_for_stdout(
+            'puts [clock format 0 -timezone :Antarctica/Troll -format "%Z"]\n'
+        )
+        assert stdout.strip() == "UTC"
+
+
 # ---- clock scan -------------------------------------------------------------
 
 
