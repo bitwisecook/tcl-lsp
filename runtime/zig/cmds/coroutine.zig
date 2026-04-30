@@ -7,6 +7,7 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const coro_mod = @import("../sched/tcl_coro.zig");
+const tcl_async = @import("../sched/tcl_asyncify.zig");
 const procs = @import("../interp/tcl_procs.zig");
 const tcl_ns = @import("../interp/tcl_ns.zig");
 
@@ -68,14 +69,19 @@ fn eval_coroutine(words: []const i32) i32 {
         stubs.raise("wrong # args: should be \"coroutine name command ?arg ...?\"");
         return 0;
     }
-    // v1 special case: if the prefix is ``apply LAMBDA`` (the canonical
-    // idiom from coroutine.test) extract the lambda body so segment
-    // splitting at top-level yields actually fires.  Real Tcl runs the
-    // lambda inside ``apply``; our segment-based model can't interrupt
-    // that nested call, so the script we segment must be the lambda
-    // body itself.
+    // Build the body as a single list-quoted script so the
+    // dispatcher invokes ``prefix args...`` exactly once.  Under
+    // the asyncify driver the resulting script runs end-to-end
+    // (yields suspend at any depth), so no segment-aware shaping
+    // is needed.  Under the v1 segment driver this body is split
+    // at top-level command boundaries — the caller is responsible
+    // for shaping the prefix so the splits land where intended.
     var body: i32 = 0;
-    if (words.len == 4) {
+    // v1 segment-based driver special case: when the prefix is
+    // ``apply LAMBDA`` extract the lambda body so segment splits
+    // at top-level yields actually fire.  Asyncify-enabled builds
+    // skip this — the full lambda runs as one script.
+    if (!tcl_async.ENABLED and words.len == 4) {
         const w2 = obj.obj_ensure_string(words[2]);
         const w2s: []const u8 = if (w2.ptr == 0) "" else
             @as([*]const u8, @ptrFromInt(w2.ptr))[0..w2.len];
@@ -94,10 +100,6 @@ fn eval_coroutine(words: []const i32) i32 {
         }
     }
     if (body == 0) {
-        // Fall back: render ``prefix args...`` as a list-quoted script.
-        // ``apply``-shaped bodies covered by the special case above keep
-        // their inner braces; other prefixes ride through the generic
-        // path with one outer segment.
         body = build_invocation_script(words[2..]);
     }
     const name = obj.obj_ensure_string(words[1]);

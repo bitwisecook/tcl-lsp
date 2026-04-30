@@ -252,9 +252,10 @@ def _run_wasm(
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
 
-    tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
+    tcl_instance_box, memory_box, rt_instance_box = _define_call_compiled_proc(linker, store)
 
     rt_instance = linker.instantiate(store, rt_module)
+    rt_instance_box[0] = rt_instance
 
     # WASI reactor initialisation — wasi-libc installs its ctors
     # (preopen-fd scanner, global locks, etc.) in ``_initialize``
@@ -356,7 +357,7 @@ def _run_wasm(
 def _define_call_compiled_proc(
     linker: wasmtime.Linker,
     store: wasmtime.Store,
-) -> tuple[list, list]:
+) -> tuple[list, list, list]:
     """Register ``env.call_compiled_proc`` on *linker*.
 
     The host bridge that lets the runtime dispatch a compiled proc
@@ -421,7 +422,58 @@ def _define_call_compiled_proc(
         ),
         _call_compiled_proc,
     )
-    return tcl_instance_box, memory_box
+
+    # Asyncify-enabled runtime builds (Stage 2 coroutines) declare the
+    # five ``asyncify_*`` control functions as ``env`` imports in
+    # ``runtime/zig/sched/tcl_asyncify.zig``.  ``wasm-opt --asyncify``
+    # also exports the same names as the auto-generated
+    # implementations.  The host trampolines below route imports →
+    # exports of the same instance so internal callers (the coroutine
+    # driver) actually trigger the unwind / rewind machinery.  When
+    # the runtime is built without ``-Dasyncify=true`` no module
+    # imports the ``env.asyncify_*`` symbols; the linker holds the
+    # unused trampoline definitions inert.
+    rt_instance_box: list = [None]
+
+    def _make_async_trampoline(name: str, has_arg: bool, has_result: bool):
+        def _call(*py_args: int) -> int | None:
+            inst = rt_instance_box[0]
+            if inst is None:
+                raise RuntimeError(f"asyncify trampoline {name}: rt_instance not yet wired")
+            fn = inst.exports(store).get(name)
+            if fn is None:
+                raise RuntimeError(f"asyncify trampoline {name}: export not present")
+            return fn(store, *py_args) if py_args else fn(store)
+
+        return _call
+
+    _i32 = wasmtime.ValType.i32()
+    _arg_i32 = wasmtime.FuncType([_i32], [])
+    _arg_none = wasmtime.FuncType([], [])
+    _result_i32 = wasmtime.FuncType([], [_i32])
+    for fname, ftype in (
+        ("asyncify_start_unwind", _arg_i32),
+        ("asyncify_stop_unwind", _arg_none),
+        ("asyncify_start_rewind", _arg_i32),
+        ("asyncify_stop_rewind", _arg_none),
+        ("asyncify_get_state", _result_i32),
+    ):
+        try:
+            linker.define_func(
+                "env",
+                fname,
+                ftype,
+                _make_async_trampoline(
+                    fname,
+                    has_arg=(ftype is _arg_i32),
+                    has_result=(ftype is _result_i32),
+                ),
+            )
+        except wasmtime.WasmtimeError:
+            # Linker rejects redefinitions — only relevant if the test
+            # harness runs the same function across runs in one Store.
+            pass
+    return tcl_instance_box, memory_box, rt_instance_box
 
 
 def _maybe_read(path: str | None) -> str:
@@ -2960,8 +3012,9 @@ class TestExternalTcllibCounter:
         rt_mod = _get_rt_module()
         linker = wasmtime.Linker(engine)
         linker.define_wasi()
-        tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
+        tcl_instance_box, memory_box, rt_instance_box = _define_call_compiled_proc(linker, store)
         rt_inst = linker.instantiate(store, rt_mod)
+        rt_instance_box[0] = rt_inst
         for export in rt_mod.exports:
             name = export.name
             if name.startswith("__"):
