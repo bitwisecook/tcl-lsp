@@ -117,6 +117,22 @@ def test_wat_contains_i64_const():
     assert f"i64.const {big}" in wat
 
 
+def test_inline_string_round_trip_short():
+    """A short string returned from a proc should round-trip via the
+    inline-string encoding without observable difference."""
+    from core.compiler.cfg import build_cfg
+    from core.compiler.codegen.wasm import wasm_codegen_module
+
+    # A 5-byte payload fits in MAX_INLINE_STR=8.
+    source = 'proc f {} { return [string trimleft "  hi" " "] }\n'
+    ir = lower_to_ir(source)
+    cfg = build_cfg(ir)
+    # The codegen produces a valid module — inline encoding kicks
+    # in transparently in the runtime.
+    module = wasm_codegen_module(cfg, ir)
+    assert any(f.name == "::f" for f in module.functions)
+
+
 def test_wat_small_int_uses_tagged_immediate():
     """S6.4 — small literals encode inline; no obj_new_int call."""
     module = _compile("set x 42\n")

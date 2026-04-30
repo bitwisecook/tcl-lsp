@@ -29,6 +29,16 @@ pub const TYPE_DICT: i32 = 3;
 // The str_ptr/str_len fields hold a cached string representation
 // once obj_ensure_string has been called.
 pub const TYPE_FLOAT: i32 = 4;
+// TYPE_INLINE_STRING: short strings (≤ MAX_INLINE_STR bytes) stored
+// directly in the obj header at OBJ_INT_CACHE.  No external buffer
+// is allocated, so :func:`obj_new_string_copy` for a short payload
+// avoids the second ``alloc`` call.  ``obj_str_ptr`` returns a
+// pointer INTO the obj header for these — readers must not hold
+// the pointer past the obj's lifetime.  ``obj_type`` reports
+// ``TYPE_STRING`` for callers that don't distinguish, so the
+// inline encoding stays transparent to the rest of the system.
+pub const TYPE_INLINE_STRING: i32 = 5;
+pub const MAX_INLINE_STR: u32 = 8;
 
 // TclObj field offsets
 pub const OBJ_REFCOUNT: u32 = 0;
@@ -407,6 +417,14 @@ pub export fn obj_get_float(obj: i32) f64 {
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
     }
+    // S6.2 — inline string parses the inline payload through the
+    // obj-internal pointer in OBJ_STR_PTR.
+    if (tag == TYPE_INLINE_STRING) {
+        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        if (try_parse_float(sptr, slen)) |val| return val;
+        if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
+    }
     return 0.0;
 }
 
@@ -449,6 +467,19 @@ pub export fn obj_get_int(obj: i32) i64 {
             write_i64(addr + OBJ_INT_CACHE, val);
             return val;
         }
+    }
+    // S6.2 — inline string: parse the inline payload reachable
+    // through the (obj-internal) pointer in OBJ_STR_PTR.  We
+    // don't shimmer-cache the parsed value because that would
+    // clobber the string bytes the inline encoding shares the
+    // OBJ_INT_CACHE slot with.
+    if (tag == TYPE_INLINE_STRING) {
+        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        if (try_parse_int(sptr, slen)) |val| return val;
+        if (try_parse_float(sptr, slen)) |fval| return @intFromFloat(fval);
+        if (try_parse_bool(sptr, slen)) |val| return val;
+        return 0;
     }
     return read_i64(addr + OBJ_INT_CACHE);
 }
@@ -690,6 +721,9 @@ pub fn obj_str_ptr(obj: i32) u32 {
     // expecting a buffer need ``obj_ensure_string`` first.
     if (is_immediate(obj)) return 0;
     const addr: u32 = @intCast(obj);
+    // S6.2 — inline strings populate ``OBJ_STR_PTR`` with the
+    // inline buffer's address (= obj + OBJ_INT_CACHE), so this
+    // path needs no special-casing.
     return @intCast(read_i32(addr + OBJ_STR_PTR));
 }
 
@@ -703,7 +737,12 @@ pub fn obj_type(obj: i32) i32 {
     // S6.4 — tagged immediates always represent integers.
     if (is_immediate(obj)) return TYPE_INT;
     const addr: u32 = @intCast(obj);
-    return read_i32(addr + OBJ_TYPE_TAG);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    // S6.2 — inline-string encoding is a representational detail;
+    // callers checking ``obj_type`` for ``TYPE_STRING`` shouldn't
+    // have to know about it.
+    if (tag == TYPE_INLINE_STRING) return TYPE_STRING;
+    return tag;
 }
 
 /// Copy *len* bytes from src to dst in linear memory.
@@ -720,6 +759,25 @@ pub fn memcpy(dst: u32, src: u32, len: u32) void {
 /// size) so subsequent appends can grow in place when refcount==1.
 pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     if (len == 0) return obj_new_string(0, 0);
+    // S6.2 — inline-string optimisation.  Strings short enough to
+    // fit in the obj header skip the second ``alloc`` call; the
+    // bytes live directly at ``OBJ_INT_CACHE`` and ``str_ptr`` is
+    // 0 to flag the inline encoding.  ``str_cap`` stays 0 so
+    // ``release_now`` doesn't try to free a non-existent buffer.
+    if (len <= MAX_INLINE_STR) {
+        const obj = obj_alloc();
+        write_i32(obj + OBJ_TYPE_TAG, TYPE_INLINE_STRING);
+        memcpy(obj + OBJ_INT_CACHE, src, len);
+        // Point str_ptr at the inline buffer so callers reading
+        // OBJ_STR_PTR / OBJ_STR_LEN directly (e.g. test harnesses
+        // and dispatch helpers that don't go through
+        // ``obj_str_ptr``) see a valid pointer transparently.
+        // ``str_cap`` stays 0 so ``release_now`` doesn't try to
+        // ``free`` an address that's part of the obj header.
+        write_i32(obj + OBJ_STR_PTR, @intCast(obj + OBJ_INT_CACHE));
+        write_i32(obj + OBJ_STR_LEN, @intCast(len));
+        return @intCast(obj);
+    }
     // Round capacity up to the smallest size class so the recycler
     // can return the slab to the right free-list at end-of-life.
     const cap = round_up_to_class((len + 7) & ~@as(u32, 7));
@@ -813,6 +871,15 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     const addr: u32 = @intCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_STRING) {
+        return .{
+            .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
+            .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
+        };
+    }
+    // S6.2 — inline strings populate OBJ_STR_PTR with the inline
+    // buffer's address.  The pointer aliases the obj header
+    // itself; callers must not hold it past the obj's lifetime.
+    if (tag == TYPE_INLINE_STRING) {
         return .{
             .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
             .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
