@@ -108,3 +108,40 @@ class TestSSA:
         a_phi = [phi for phi in header.phis if phi.name == "a"][0]
         assert "entry" in a_phi.incoming
         assert "body" in a_phi.incoming
+
+
+class TestBarrierVarWriteRoles:
+    """Issue #249 — registry-driven ``ArgRole.VAR_WRITE`` def-tracking on barriers.
+
+    ``trace add variable`` registers a callback that may rewrite the
+    target at runtime, so SSA must see *name* as a definition site.
+    """
+
+    def test_trace_add_variable_marks_name_as_def(self):
+        # ``trace add variable x ...`` becomes an IRBarrier.  SSA must
+        # see ``x`` as defined so a later read is the trace's version,
+        # not a free use.
+        mod = lower_to_ir("trace add variable x write watcher\nset y $x")
+        cfg = build_cfg(mod).top_level
+        ssa = build_ssa(cfg)
+        entry = ssa.blocks[ssa.entry]
+        assert entry.exit_versions.get("x") == 1
+
+    def test_scope_alias_barriers_skipped_at_def_layer(self):
+        # ``global``/``variable``/``upvar`` carry ``VAR_WRITE`` on arg 0
+        # too, but the static role only marks the first position — for
+        # vararg forms like ``global x y z`` that would silently miss
+        # ``y`` and ``z``.  In practice these commands have specific
+        # lowering hooks that emit an ``IRCall`` with the full ``defs``
+        # tuple; SSA's barrier path skips the registry ``VAR_WRITE``
+        # query for scope-alias commands as a safety net so any future
+        # spec or lowering edit can't silently regress to partial defs.
+        from core.compiler.ir import IRBarrier
+        from core.compiler.ssa import _defs
+
+        r = _dummy_range()
+        for cmd in ("global", "variable"):
+            barrier = IRBarrier(
+                range=r, reason="dynamic command", command=cmd, args=("x", "y", "z")
+            )
+            assert _defs(barrier) == (), cmd
