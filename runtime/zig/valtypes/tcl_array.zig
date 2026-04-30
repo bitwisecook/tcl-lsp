@@ -406,6 +406,8 @@ fn find_table(name: i32) u32 {
     if (ns_len <= 2) return 0; // root or unset — no extra prefix to try
     const total: u32 = ns_len + 2 + sn.len;
     const buf = obj.alloc(total);
+    if (buf == 0) return 0;
+    defer obj.free_sized(buf, total);
     const dst: [*]u8 = @ptrFromInt(buf);
     const ns_p: [*]const u8 = @ptrFromInt(ns_ptr);
     for (0..ns_len) |i| dst[i] = ns_p[i];

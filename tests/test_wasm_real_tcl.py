@@ -2707,6 +2707,114 @@ class TestChannelIO:
             stderr = getattr(trap, "tcl_stderr", "")
             assert "open" in stderr, f"stderr: {stderr!r}"
 
+    def test_fcopy_after_partial_read_drains_buffer(self, tmp_path):
+        """``fcopy`` must drain ``read``'s pull-side buffer first.
+
+        Regression for codex P1: a prior ``read`` / ``gets`` prefetches
+        bytes into the channel's pull buffer, which advances the OS
+        file offset past the logical channel position.  Without
+        consuming the buffered span, ``fcopy`` would skip those
+        bytes (or return them out of order).
+        """
+        (tmp_path / "src.bin").write_bytes(b"abcdefghij")
+        out = self._run(
+            tmp_path,
+            (
+                "set in [open /src.bin r]\n"
+                "set head [read $in 3]\n"  # consumes "abc", buffer now holds "defghij"
+                "set out [open /dst.bin w]\n"
+                "set n [fcopy $in $out]\n"
+                "close $in\n"
+                "close $out\n"
+                "puts head=$head\n"
+                "puts n=$n\n"
+            ),
+        )
+        # fcopy should write the remaining 7 buffered/file bytes — not 0
+        # (which is what an unaware fcopy would emit because read had
+        # already pulled the whole 10-byte file into its 4 KB buffer).
+        assert out.strip().splitlines() == ["head=abc", "n=7"], f"got {out!r}"
+        assert (tmp_path / "dst.bin").read_bytes() == b"defghij"
+
+    def test_read_rejects_non_integer_numchars(self, tmp_path):
+        """Regression for codex P2: ``read $fd abc`` must error,
+        not silently treat the bad arg as 'read to EOF'."""
+        (tmp_path / "f.txt").write_text("xyz")
+        wasm, _ = _compile_tcl_with_diag(
+            "set fd [open /f.txt r]\nread $fd abc\n", "t.tcl"
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on non-integer numChars")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "read" in stderr and "integer" in stderr, f"stderr: {stderr!r}"
+
+    def test_read_rejects_negative_numchars(self, tmp_path):
+        """Regression for codex P2: ``read $fd -2`` must error."""
+        (tmp_path / "f.txt").write_text("xyz")
+        wasm, _ = _compile_tcl_with_diag(
+            "set fd [open /f.txt r]\nread $fd -2\n", "t.tcl"
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on negative numChars")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "read" in stderr and "non-negative" in stderr, f"stderr: {stderr!r}"
+
+    def test_fcopy_rejects_unknown_option(self, tmp_path):
+        """Regression for codex P2: ``fcopy a b -foo 1`` must error."""
+        (tmp_path / "src.bin").write_text("abc")
+        wasm, _ = _compile_tcl_with_diag(
+            (
+                "set in [open /src.bin r]\n"
+                "set out [open /dst.bin w]\n"
+                "fcopy $in $out -foo 1\n"
+            ),
+            "t.tcl",
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on unknown option")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "fcopy" in stderr and "bad option" in stderr, f"stderr: {stderr!r}"
+
+    def test_fcopy_rejects_non_integer_size(self, tmp_path):
+        """Regression for codex P2: ``fcopy a b -size abc`` must error."""
+        (tmp_path / "src.bin").write_text("abc")
+        wasm, _ = _compile_tcl_with_diag(
+            (
+                "set in [open /src.bin r]\n"
+                "set out [open /dst.bin w]\n"
+                "fcopy $in $out -size abc\n"
+            ),
+            "t.tcl",
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on non-integer -size")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "fcopy" in stderr and "integer" in stderr, f"stderr: {stderr!r}"
+
 
 class TestEncoding:
     """Minimal UTF-8 encoding command — pass-through for identity/utf-8."""

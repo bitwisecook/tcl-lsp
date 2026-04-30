@@ -236,16 +236,32 @@ fn alloc_slot() ?u32 {
     return null;
 }
 
+// Two static slots for ``path_cstr`` so call sites that thread two
+// paths simultaneously (``rename src dst``, ``file copy``, …) don't
+// clobber each other's buffer.  WASM is single-threaded so a static
+// global is safe.  Cap matches POSIX ``PATH_MAX`` on Linux; longer
+// names get truncated, which mirrors what wasi-libc's open would
+// reject anyway.
+const PATH_MAX: u32 = 4096;
+var path_buf_a: [PATH_MAX]u8 = undefined;
+var path_buf_b: [PATH_MAX]u8 = undefined;
+var path_buf_toggle: u32 = 0;
+
 fn path_cstr(path: i32) [*:0]const u8 {
     const s = obj_ensure_string(path);
-    const buf_addr = obj.alloc(s.len + 1);
-    const out: [*]u8 = @ptrFromInt(buf_addr);
-    if (s.len > 0) {
+    const buf_ptr: [*]u8 = if (path_buf_toggle == 0)
+        @ptrCast(&path_buf_a[0])
+    else
+        @ptrCast(&path_buf_b[0]);
+    path_buf_toggle = 1 - path_buf_toggle;
+    var n: u32 = s.len;
+    if (n >= PATH_MAX) n = PATH_MAX - 1;
+    if (n > 0) {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| out[i] = src[i];
+        for (0..n) |i| buf_ptr[i] = src[i];
     }
-    out[s.len] = 0;
-    return @ptrCast(out);
+    buf_ptr[n] = 0;
+    return @ptrCast(buf_ptr);
 }
 
 /// Render a channel name for slot ``n`` ("stdin" / "stdout" /
@@ -256,28 +272,37 @@ fn slot_name(n: u32) i32 {
     if (n == 0) return obj_new_string_copy(@intFromPtr("stdin".ptr), 5);
     if (n == 1) return obj_new_string_copy(@intFromPtr("stdout".ptr), 6);
     if (n == 2) return obj_new_string_copy(@intFromPtr("stderr".ptr), 6);
-    var digits: [16]u8 = undefined;
+    // Render ``fileN`` into a tiny stack buffer and let
+    // ``obj_new_string_copy`` mint a TclObj that owns its own
+    // payload (the obj's ``OBJ_STR_CAP`` slot is set, so
+    // ``release_now`` frees the bytes alongside the header).  The
+    // earlier shape used a fresh ``obj.alloc`` whose pointer was
+    // wrapped in ``obj_new_string`` *without* the cap slot, so
+    // every ``open`` leaked one heap allocation when the channel
+    // id obj was eventually released.
+    var stack: [16]u8 = undefined;
+    stack[0] = 'f';
+    stack[1] = 'i';
+    stack[2] = 'l';
+    stack[3] = 'e';
     var dlen: u32 = 0;
-    var v: u32 = n;
-    if (v == 0) {
-        digits[0] = '0';
-        dlen = 1;
-    } else {
-        while (v > 0) : (v /= 10) {
-            digits[dlen] = '0' + @as(u8, @intCast(v % 10));
-            dlen += 1;
+    {
+        var digits: [10]u8 = undefined;
+        var v: u32 = n;
+        if (v == 0) {
+            digits[0] = '0';
+            dlen = 1;
+        } else {
+            while (v > 0) : (v /= 10) {
+                digits[dlen] = '0' + @as(u8, @intCast(v % 10));
+                dlen += 1;
+            }
         }
+        var i: u32 = 0;
+        while (i < dlen) : (i += 1) stack[4 + i] = digits[dlen - 1 - i];
     }
     const total: u32 = 4 + dlen;
-    const addr = obj.alloc(total);
-    const buf: [*]u8 = @ptrFromInt(addr);
-    buf[0] = 'f';
-    buf[1] = 'i';
-    buf[2] = 'l';
-    buf[3] = 'e';
-    var i: u32 = 0;
-    while (i < dlen) : (i += 1) buf[4 + i] = digits[dlen - 1 - i];
-    return obj_new_string(@intCast(addr), @intCast(total));
+    return obj_new_string_copy(@intFromPtr(&stack[0]), @intCast(total));
 }
 
 // -- Mode parsing for ``open`` --
@@ -355,8 +380,10 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
 /// ``close channelId`` — flush nothing (no per-channel write
 /// buffer), close the underlying fd, and free the slot.  Returns
 /// the empty string on success.  Closing stdin/stdout/stderr is
-/// rejected because the WASI host owns those fds; matching tclsh
-/// here would require dup/close/dup3 which we don't model.
+/// silently treated as a no-op: the WASI host owns those fds, and
+/// shutting them mid-script would surprise the embedder.  This
+/// diverges from real tclsh (which would close the host stream)
+/// in the conservative direction.
 pub export fn tcl_cmd_close(chan: i32) i32 {
     const slot = resolve(chan) orelse {
         stubs.raise("close: unknown channel");
@@ -399,8 +426,19 @@ fn refill(c: *Channel) u32 {
     c.buf_pos = 0;
     c.buf_end = 0;
     const n = read_fn(c.fd, @ptrFromInt(c.buf_addr), READ_BUF_SIZE);
-    if (n <= 0) {
+    if (n == 0) {
+        // Genuine end-of-file: stamp the sticky EOF flag so
+        // ``eof $chan`` reports 1 and signal "no bytes available".
         c.eof = true;
+        return 0;
+    }
+    if (n < 0) {
+        // I/O error from wasi-libc.  Surface as a real error
+        // instead of a silent short read; otherwise EOF semantics
+        // become indistinguishable from a transport failure and
+        // scripts loop forever waiting for a refill that's
+        // already broken.
+        stubs.raise("read: I/O error");
         return 0;
     }
     c.buf_end = @intCast(n);
@@ -498,9 +536,19 @@ pub export fn tcl_cmd_read(chan: i32, num_chars: i32) i32 {
     if (num_chars != 0) {
         const ns = obj_ensure_string(num_chars);
         if (ns.len > 0) {
-            if (obj.try_parse_int(ns.ptr, ns.len)) |v| {
-                if (v > 0) want = v;
+            const parsed = obj.try_parse_int(ns.ptr, ns.len) orelse {
+                // ``read $chan abc`` — Tcl reports
+                // ``expected integer but got "abc"``.  We surface a
+                // shorter message here; the upstream-wording sweep
+                // (#272) folds it into the canonical phrasing.
+                stubs.raise("read: expected integer but got non-integer numChars");
+                return 0;
+            };
+            if (parsed < 0) {
+                stubs.raise("read: numChars must be non-negative");
+                return 0;
             }
+            want = parsed;
         }
     }
     var buf = buf_init(if (want > 0 and want < 4096) @intCast(want) else 256);
@@ -678,6 +726,39 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
         return 0;
     }
     var copied: i64 = 0;
+
+    // Drain any bytes still sitting in the input channel's pull-side
+    // buffer before reading more from the fd.  ``read``/``gets``
+    // prefetch into ``in_c.buf_*`` via :func:`refill`, which
+    // advances the OS file offset past the logical channel
+    // position; an unguarded ``read_fn`` call here would skip those
+    // bytes (or return them out of order).  We forward the buffer's
+    // pending span verbatim — translation already happened on the
+    // way into ``in_c.buf_*``.
+    if (in_c.buf_pos < in_c.buf_end) {
+        const pending: u32 = in_c.buf_end - in_c.buf_pos;
+        var take: u32 = pending;
+        if (max_bytes >= 0 and @as(i64, take) > max_bytes - copied) {
+            take = @intCast(max_bytes - copied);
+        }
+        if (take > 0) {
+            const src: [*]const u8 = @ptrFromInt(in_c.buf_addr + in_c.buf_pos);
+            var off: usize = 0;
+            var rem: usize = take;
+            while (rem > 0) {
+                const w = write_fn(out_c.fd, src + off, rem);
+                if (w <= 0) {
+                    stubs.raise("fcopy: write failed");
+                    return 0;
+                }
+                off += @intCast(w);
+                rem -= @intCast(w);
+            }
+            in_c.buf_pos += take;
+            copied += take;
+        }
+    }
+
     var tmp: [4096]u8 = undefined;
     while (true) {
         var want: usize = tmp.len;
@@ -793,24 +874,23 @@ fn is_accepted_option(p: [*]const u8, len: u32) bool {
         eq(p, len, "-translation");
 }
 
-fn apply_option(c: ?*Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) void {
-    if (c == null) return;
+fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) void {
     if (eq(name_p, name_len, "-translation")) {
-        if (eq(val_p, val_len, "auto")) c.?.translation = TR_AUTO;
-        if (eq(val_p, val_len, "lf")) c.?.translation = TR_LF;
-        if (eq(val_p, val_len, "cr")) c.?.translation = TR_CR;
-        if (eq(val_p, val_len, "crlf")) c.?.translation = TR_CRLF;
-        if (eq(val_p, val_len, "binary")) c.?.translation = TR_BINARY;
+        if (eq(val_p, val_len, "auto")) c.translation = TR_AUTO;
+        if (eq(val_p, val_len, "lf")) c.translation = TR_LF;
+        if (eq(val_p, val_len, "cr")) c.translation = TR_CR;
+        if (eq(val_p, val_len, "crlf")) c.translation = TR_CRLF;
+        if (eq(val_p, val_len, "binary")) c.translation = TR_BINARY;
         return;
     }
     if (eq(name_p, name_len, "-buffering")) {
-        if (eq(val_p, val_len, "full")) c.?.buffering = BUF_FULL;
-        if (eq(val_p, val_len, "line")) c.?.buffering = BUF_LINE;
-        if (eq(val_p, val_len, "none")) c.?.buffering = BUF_NONE;
+        if (eq(val_p, val_len, "full")) c.buffering = BUF_FULL;
+        if (eq(val_p, val_len, "line")) c.buffering = BUF_LINE;
+        if (eq(val_p, val_len, "none")) c.buffering = BUF_NONE;
         return;
     }
     if (eq(name_p, name_len, "-encoding")) {
-        c.?.encoding_binary = eq(val_p, val_len, "binary");
+        c.encoding_binary = eq(val_p, val_len, "binary");
         return;
     }
 }
@@ -822,9 +902,17 @@ fn apply_option(c: ?*Channel, name_p: [*]const u8, name_len: u32, val_p: [*]cons
 /// trap with ``unsupported command: fconfigure`` so the caller can
 /// either drop the option or extend this allowlist.
 pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
-    const slot_opt = resolve(fd);
-    var c: ?*Channel = null;
-    if (slot_opt) |slot| c = &channels[slot];
+    const slot = resolve(fd) orelse {
+        // Match the other channel commands' behaviour: an unknown
+        // channel id is a hard error, not a silent no-op.  Without
+        // this guard, ``fconfigure $bogusFd ...`` returned empty
+        // and any per-channel state mutation in the option list
+        // was discarded — masking caller bugs and breaking the
+        // script's expectation that unknown ids surface here.
+        stubs.raise("fconfigure: unknown channel");
+        return 0;
+    };
+    const c: *Channel = &channels[slot];
     if (args == 0) {
         stubs.unsupported("fconfigure (query all options)");
         return 0;

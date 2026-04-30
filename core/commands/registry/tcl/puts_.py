@@ -47,7 +47,11 @@ class PutsCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(
-                arity=Arity(1, 2),
+                # ``puts ?-nonewline? ?channelId? string`` accepts
+                # 1, 2, or 3 args.  The 3-arg form is the
+                # ``puts -nonewline $chan msg`` shape, dispatched
+                # to ``tcl_cmd_puts_chan`` from the codegen path.
+                arity=Arity(1, 3),
             ),
             wasm_runtime_import=WasmRuntimeImport(
                 import_key="tcl_puts",
