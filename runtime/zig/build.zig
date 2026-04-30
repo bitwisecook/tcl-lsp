@@ -119,4 +119,151 @@ pub fn build(b: *std.Build) void {
     exe.wasi_exec_model = .reactor;
 
     b.installArtifact(exe);
+
+    // ---------------------------------------------------------------
+    // ``zig build test`` — unit tests for the WASM runtime.
+    //
+    // The runtime modules speak the wasm32 ABI throughout (``u32``
+    // pointer arguments cast via ``@ptrFromInt``), so the tests must
+    // be compiled for the same target and run under wasmtime.  Setting
+    // ``b.enable_wasmtime = true`` lets ``addRunArtifact`` invoke
+    // ``wasmtime`` automatically for the produced ``.wasm`` binaries.
+    // ``/usr/local/bin/wasmtime`` is provided by the SessionStart
+    // hook in CI / Claude Code on the web.
+    // ---------------------------------------------------------------
+    b.enable_wasmtime = true;
+
+    const test_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .wasi,
+    });
+
+    const test_step = b.step(
+        "test",
+        "Run all WASM runtime unit tests (test_*.zig under valtypes/, parse/, ...)",
+    );
+
+    // Auto-discover ``test_*.zig`` files under the build root — drop
+    // a new test file under ``valtypes/`` / ``parse/`` / ``cmds/`` /
+    // etc. and ``zig build test`` picks it up without a build.zig
+    // edit.  ``vendor/`` and ``regex_include/`` are skipped: we don't
+    // own those trees and they will never contain our tests.
+    const test_files = collectTestFiles(b) catch |err| {
+        std.debug.panic("failed to enumerate test_*.zig files: {s}", .{@errorName(err)});
+    };
+
+    for (test_files) |file| {
+        const t_module = b.createModule(.{
+            .root_source_file = b.path(file),
+            .target = test_target,
+            .optimize = optimize,
+            // ``tcl_obj.alloc`` falls back to libc ``malloc`` past
+            // the static heap, and the WASI test runner pulls in
+            // ``__main_argc_argv`` / ``write`` from wasi-libc — both
+            // resolve only when libc is linked.  Match the main
+            // runtime's ``.link_libc = true`` so the test wasm
+            // instantiates under wasmtime.
+            .link_libc = true,
+        });
+        // ``tcl_obj.zig`` (and a handful of other modules) gates
+        // leak-counter bookkeeping behind ``@import("build_options")
+        // .leak_check``.  Tests need the same options module wired
+        // in or the import resolves to "no module named
+        // build_options" and compilation fails — leak_check stays
+        // false in tests, matching the production default.
+        t_module.addOptions("build_options", build_options);
+        const t_exe = b.addTest(.{
+            .name = testNameFromPath(b, file),
+            .root_module = t_module,
+        });
+        const run = b.addRunArtifact(t_exe);
+        // We're invoking via wasmtime intentionally — silence Zig's
+        // foreign-binary safety net so a missing native runner
+        // doesn't fail the step before wasmtime gets a chance.
+        run.skip_foreign_checks = true;
+        test_step.dependOn(&run.step);
+    }
+}
+
+/// Walk the build root looking for ``test_*.zig`` files.  Returns
+/// the matched paths as build-root-relative slices, sorted so the
+/// build graph is deterministic across hosts (filesystem walk order
+/// otherwise depends on inode ordering).
+fn collectTestFiles(b: *std.Build) ![][]const u8 {
+    const io = b.graph.io;
+    const build_root = b.build_root.path orelse ".";
+    var dir = try std.Io.Dir.openDirAbsolute(io, build_root, .{ .iterate = true });
+    defer dir.close(io);
+
+    var walker = try dir.walk(b.allocator);
+    defer walker.deinit();
+
+    var list: std.ArrayList([]const u8) = .empty;
+    while (try walker.next(io)) |entry| {
+        if (entry.kind != .file) continue;
+        const base = std.fs.path.basename(entry.path);
+        if (!std.mem.startsWith(u8, base, "test_")) continue;
+        if (!std.mem.endsWith(u8, base, ".zig")) continue;
+
+        // Normalise to forward slashes BEFORE the directory-prefix
+        // skip checks so they work identically on Windows
+        // (``walker`` returns native separators — ``\`` on Windows,
+        // ``/`` on POSIX).  Doing this after the filter would leave
+        // Windows hosts walking ``vendor\`` / ``zig-out\`` trees that
+        // matched none of the ``/``-suffixed prefix patterns.
+        //
+        // ``b.allocator`` is the build's arena, so the dup on the
+        // skip path is reclaimed wholesale at end-of-build.
+        const norm = try b.allocator.dupe(u8, entry.path);
+        std.mem.replaceScalar(u8, norm, std.fs.path.sep, '/');
+
+        // Skip vendored / dependency / build-output trees — they
+        // won't contain our tests and walking into them slows
+        // discovery, especially after ``zig build`` has populated
+        // ``zig-out/`` with installed artifacts.  Both top-level
+        // (``zig-out/...``) and nested (``deps/foo/zig-out/...``)
+        // forms are filtered.
+        if (std.mem.startsWith(u8, norm, "vendor/") or
+            std.mem.startsWith(u8, norm, "regex_include/") or
+            std.mem.startsWith(u8, norm, ".zig-cache/") or
+            std.mem.startsWith(u8, norm, "zig-out/") or
+            std.mem.indexOf(u8, norm, "/.zig-cache/") != null or
+            std.mem.indexOf(u8, norm, "/zig-out/") != null)
+        {
+            continue;
+        }
+        try list.append(b.allocator, norm);
+    }
+
+    const slice = try list.toOwnedSlice(b.allocator);
+    std.mem.sort([]const u8, slice, {}, struct {
+        fn lessThan(_: void, a: []const u8, c: []const u8) bool {
+            return std.mem.lessThan(u8, a, c);
+        }
+    }.lessThan);
+    return slice;
+}
+
+/// Derive a short, unique test-step name from a discovered file
+/// path.  ``valtypes/test_tcl_bs.zig`` → ``valtypes-tcl_bs`` so the
+/// build summary is readable and Zig 0.16's
+/// "looks-like-a-file-path" name validator stays happy.
+fn testNameFromPath(b: *std.Build, file: []const u8) []const u8 {
+    const without_ext = if (std.mem.endsWith(u8, file, ".zig"))
+        file[0 .. file.len - ".zig".len]
+    else
+        file;
+    const buf = b.allocator.dupe(u8, without_ext) catch @panic("OOM");
+    // ``test_`` prefix on the basename is implied by the discovery
+    // filter, so strip it for brevity.  Convert directory separators
+    // to dashes.
+    std.mem.replaceScalar(u8, buf, '/', '-');
+    const marker = "test_";
+    if (std.mem.lastIndexOf(u8, buf, marker)) |idx| {
+        const tail = buf[idx + marker.len ..];
+        const dir_prefix = if (idx == 0) "" else buf[0 .. idx - 1]; // trim trailing '-'
+        if (dir_prefix.len == 0) return tail;
+        return std.fmt.allocPrint(b.allocator, "{s}-{s}", .{ dir_prefix, tail }) catch @panic("OOM");
+    }
+    return buf;
 }
