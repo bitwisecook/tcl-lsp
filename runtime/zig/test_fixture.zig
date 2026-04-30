@@ -164,3 +164,17 @@ test "with_catch nests cleanly inside with_interp" {
     fixture.with_interp(&body_raise_inside_interp);
     try testing.expectEqual(@as(i32, 1), observed_value);
 }
+
+fn body_raise_via_with_interp() void {
+    // ``with_interp`` must preserve the catch scope set up by the
+    // outer ``with_catch`` — otherwise the raise below would see
+    // ``catch_depth == 0`` and trap the WASM binary.  Regression
+    // test for the composition reported in PR #278 review.
+    fixture.with_interp(&body_raise_oops);
+}
+
+test "with_interp preserves outer with_catch scope" {
+    const result = fixture.with_catch(&body_raise_via_with_interp);
+    try testing.expect(result != null);
+    try testing.expectEqualStrings("oops", result.?);
+}

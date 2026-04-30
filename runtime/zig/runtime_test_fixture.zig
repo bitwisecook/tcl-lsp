@@ -83,9 +83,9 @@ pub fn catch_leave() ?[]const u8 {
 /// Initialise a minimal interpreter, run *body* inside it, and
 /// tear the state back down on exit.  The fixture:
 ///
-///   1. resets every control-flow flag (``error_flag``,
-///      ``return_flag``, ``break_flag``, ``continue_flag``,
-///      ``catch_depth``) so prior tests can't leak state in,
+///   1. resets the loop-flow flags (``return_flag``,
+///      ``break_flag``, ``continue_flag``) so prior tests can't
+///      leak loop or proc-dispatch state in,
 ///   2. ensures the root namespace exists and re-anchors
 ///      ``current_ns`` to it, and
 ///   3. pushes a fresh global frame so ``var_resolve`` /
@@ -95,19 +95,27 @@ pub fn catch_leave() ?[]const u8 {
 /// On exit the fixture pops back to the depth captured before
 /// *body* ran (defensive against bodies that imbalanced
 /// ``frame_push`` / ``frame_pop`` on their own) and clears the
-/// flags again.
+/// loop-flow flags again.
+///
+/// Catch state (``catch_depth`` / ``error_flag`` / ``error_msg``)
+/// is owned by :func:`with_catch` and is *not* touched here —
+/// otherwise a test wrapping ``with_interp`` inside an outer
+/// ``with_catch`` would lose the outer catch scope and any
+/// raise inside the interp body would trap the WASM binary
+/// instead of setting ``error_flag``.  The two fixtures must
+/// compose in either nesting order.
 ///
 /// State sharing: every ``test_*.zig`` compiles to its own WASM
 /// binary (see ``build.zig``'s test step), so global state is
 /// isolated *across* test binaries.  Within one binary, sharing
 /// the bump allocator across tests is fine — the state we touch
 /// is the call-frame stack, the namespace tree, and the
-/// control-flow flags, all of which this fixture resets between
+/// loop-flow flags, all of which this fixture resets between
 /// runs.  Per-test setup was preferred over a single
 /// shared-interp lifecycle so a leak in one test surfaces in that
 /// test rather than smearing into the next.
 pub fn with_interp(body: *const fn () void) void {
-    reset_flags();
+    reset_loop_flags();
     _ = ns.ns_root();
     ns.current_ns = ns.ns_root();
     const saved_depth = frames.frame_depth;
@@ -117,13 +125,10 @@ pub fn with_interp(body: *const fn () void) void {
     // forgot to pop them, drain back to the depth we entered at
     // so the next test still sees a clean stack.
     while (frames.frame_depth > saved_depth) frames.frame_pop();
-    reset_flags();
+    reset_loop_flags();
 }
 
-fn reset_flags() void {
-    catch_mod.catch_depth = 0;
-    catch_mod.error_flag = 0;
-    catch_mod.error_msg = 0;
+fn reset_loop_flags() void {
     catch_mod.return_flag = 0;
     catch_mod.return_val = 0;
     catch_mod.break_flag = 0;
