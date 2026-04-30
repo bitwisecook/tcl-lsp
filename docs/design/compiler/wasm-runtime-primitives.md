@@ -174,6 +174,104 @@ that slot.  The compiler tracks this per-proc in
 the call site; the runtime (`eval_proc_call` in `tcl_interp.zig`) does
 the same packing for interpreter-dispatched calls.
 
+## Clock + timezone resolution
+
+The `clock` ensemble in the WASM runtime supports the four practical
+subcommands a typical Tcl script uses: `seconds` / `clicks` /
+`milliseconds` / `microseconds` (WASI-clock-backed) plus `format` /
+`scan` / `add` (real timezone-aware implementations).  The split is
+across three Zig modules:
+
+- [`runtime/zig/io/tcl_tz.zig`](../../../runtime/zig/io/tcl_tz.zig) —
+  TZif (RFC 8536) parser, 8-slot LRU cache, and the host-tzdata
+  resolver.  Pure-parse + libc fopen — no compiler bridge needed.
+- [`runtime/zig/io/tcl_clock.zig`](../../../runtime/zig/io/tcl_clock.zig) —
+  strftime renderer (`render_format`), broken-down time helper
+  (`break_down`), epoch repacker (`pack_epoch`), and the four
+  exports the interpreter dispatcher calls: `clock_format`,
+  `clock_format_tz`, `clock_scan_obj`, `clock_add_pair`.
+- [`runtime/zig/cmds/stubs.zig`](../../../runtime/zig/cmds/stubs.zig) —
+  the interpreter-side `eval_clock` parses `-format` / `-gmt` /
+  `-timezone` flags and routes to the right export.
+
+### `clock_format_tz(secs, fmt, zone) → TclObj`
+
+Renders `secs` (Unix epoch) under the timezone identified by the
+TclObj `zone`.  Empty `zone` falls through to
+`tz.resolve_default()` — `$TZ` first, then `/etc/localtime`, then
+synthetic UTC.  `fmt == 0` selects the same default as tclsh
+(`%a %b %e %H:%M:%S %Z %Y`).
+
+### `clock_scan_obj(text, zone, gmt) → TclObj(i64)`
+
+Recognises ISO date / RFC 3339 date+time / Zulu / `±HHMM` / `±HH:MM`
+suffixes.  Inputs that don't match fall through to the integer
+parser so `clock scan 12345` returns `12345` (matches the
+counter::init pattern referenced in the KCS issue).  Free-form
+`"next thursday"`-style grammar from `library/clock.tcl::GetDate`
+is *not* supported and is unlikely to land — the C parser is
+~3 KSLOC of yacc grammar.
+
+### `clock_add_pair(base, count, unit) → TclObj(i64)`
+
+Fixed-second units (`seconds` / `minutes` / `hours` / `days` /
+`weeks`) are pure i64 multiplies.  Calendar units (`months` /
+`years`) re-pack via UTC broken-down time with day-of-month
+clamping that matches tclsh — adding 1 month to 2025-01-31 lands
+on 2025-02-28 rather than spilling into March.  The interpreter
+loop iterates `(count, unit)` pairs so multi-unit inputs
+(`clock add $t 1 day 2 hours`) accumulate correctly.
+
+### TZ resolver lookup order
+
+Implemented in `tcl_tz.resolve()`:
+
+1. Synthetic UTC for `UTC` / `GMT` / `:UTC` / `:GMT` / `Etc/UTC` /
+   `Etc/GMT` / `Universal` / `Zulu` — no I/O, always succeeds.
+2. 8-slot LRU cache keyed on the requested zone name.
+3. Host filesystem probe via wasi-libc `open()`:
+   `/usr/share/zoneinfo/<zone>`, `/usr/share/lib/zoneinfo/<zone>`,
+   `/etc/zoneinfo/<zone>`.  Path validation rejects `..` walks
+   and absolute-path overrides as defence in depth — the WASI
+   sandbox already blocks anything outside the embedder's
+   preopens, but the validator keeps a buggy / malicious script
+   from probing arbitrary host files via the resolver.
+4. (`resolve_default()` only) `/etc/localtime` for the
+   system-default zone.
+5. Last-ditch synthetic UTC with a non-zero `last_error` flag so
+   callers can surface a warning if they care.
+
+### Bundled trimmed-tzdata fallback (deferred)
+
+The task spec calls for a bundled blob compiled into the wasm
+binary so a host with no preopened tzdata still produces real
+local-time output.  This is *not* implemented yet — the host
+filesystem path covers the common case (every Linux container in
+the repo's CI image has `/usr/share/zoneinfo`).  When the bundle
+lands it will plug into `tz.resolve()` between the host probe and
+the synthetic-UTC fallback.
+
+The intended trim policy:
+
+- **Decade ± 5 years**.  Real-world callers care about timestamps
+  near "now"; transitions older than ~5 years and newer than
+  ~5 years (rounded to whole-decade boundaries) can be omitted.
+  This trims `/usr/share/zoneinfo` from ~3 MB to a few hundred KB.
+- **Drop unused zones**.  Aliases like `US/Eastern` (which `link`
+  to `America/New_York`) cost only the symlink entry; we keep
+  them.  But obscure zones with no living users (e.g. abolished
+  jurisdictions like `America/Buenos_Aires` superseded by
+  `America/Argentina/Buenos_Aires`) can be dropped from the
+  trimmed bundle if size becomes a concern.
+- **Strip leap-second tables**.  POSIX time pretends leap seconds
+  don't exist and Tcl follows that convention; the leap-second
+  records in TZif are dead weight for our renderer.
+
+The trimmer should live in `scripts/trim_tzdata.py` and run at
+runtime build time (idempotent, like `fetch_tcl_regex.sh`).
+Output goes to `runtime/zig/data/tzdata.bin` and is pulled in
+via `@embedFile` from `tcl_tz.zig`.
+
 ## Known limitations
 
 - **Dialect gating** — the runtime targets Tcl 9.0.  `tcl_expr_order_cmp`
