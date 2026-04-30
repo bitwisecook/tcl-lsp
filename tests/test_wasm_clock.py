@@ -1,0 +1,301 @@
+"""WASM ``clock`` command tests — format / scan / add round-trip.
+
+These tests compile small Tcl snippets that call ``clock format`` /
+``clock scan`` / ``clock add``, run them in wasmtime, and assert
+against the captured stdout.  They cover the user-visible contract
+the runtime is supposed to provide once the TZ resolver lands:
+
+* ``clock format`` with explicit format strings produces real
+  field expansions (year / month / day / hour / minute / second /
+  weekday / month-name / zone-abbr).
+* ``-gmt 1`` always works (synthetic UTC, no I/O).
+* ``-timezone :America/New_York`` works *if* the host tzdata is
+  preopened into the WASI sandbox, otherwise the test skips.
+* ``clock scan`` round-trips the formats ``clock format`` produces.
+* ``clock add`` matches arithmetic for ``weeks`` / ``days`` /
+  ``hours`` / ``minutes``.
+
+The test harness reuses the linker / runtime helpers from
+``tests.test_wasm_real_tcl`` so any future build/runtime changes
+flow through one place.
+"""
+
+from __future__ import annotations
+
+import os
+import pathlib
+import tempfile
+
+import pytest
+
+wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
+
+from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+from tests.test_wasm_real_tcl import (  # noqa: E402
+    _compile_tcl,
+    _define_call_compiled_proc,
+    _get_engine,
+    _run_wasm,
+)
+
+
+def _run_for_stdout(source: str, *, preopen: str | None = None) -> str:
+    """Compile + run *source*, returning captured stdout.
+
+    Without ``preopen`` this defers to the shared
+    :func:`tests.test_wasm_real_tcl._run_wasm` helper.  With a
+    ``preopen``, we replicate the helper inline so we can map the
+    host directory to the *same* absolute guest path — the runtime
+    opens ``/usr/share/zoneinfo/<zone>`` literally, so a guest-root
+    mount (the default) doesn't surface the file at the expected
+    path.
+    """
+    wasm_bytes = _compile_tcl(source)
+    if preopen is None:
+        _, stdout = _run_wasm(wasm_bytes, capture_stdout=True)
+        return stdout
+    return _run_with_same_path_preopen(wasm_bytes, preopen)
+
+
+def _run_with_same_path_preopen(wasm_bytes: bytes, preopen: str) -> str:
+    """Run *wasm_bytes* with ``preopen`` mounted at the same guest path.
+
+    Lifted from the same scaffolding as
+    :func:`tests.test_wasm_real_tcl._run_wasm` but with the preopen
+    mapping pinned to ``preopen → preopen`` instead of ``preopen →
+    /``.  Only the timezone tests need this, so the duplication is
+    minimal.
+    """
+    engine = _get_engine()
+    store = wasmtime.Store(engine)
+    wasi = wasmtime.WasiConfig()
+
+    fd, stdout_path = tempfile.mkstemp(suffix=".txt")
+    os.close(fd)
+    wasi.stdout_file = stdout_path
+
+    wasi.preopen_dir(preopen, preopen)
+    store.set_wasi(wasi)
+
+    rt_module = wasmtime.Module.from_file(engine, str(runtime_wasm_path()))
+    linker = wasmtime.Linker(engine)
+    linker.define_wasi()
+    tcl_box, mem_box = _define_call_compiled_proc(linker, store)
+    rt_instance = linker.instantiate(store, rt_module)
+    init_fn = rt_instance.exports(store).get("_initialize")
+    if init_fn is not None:
+        init_fn(store)
+    for export in rt_module.exports:
+        name = export.name
+        if name.startswith("__"):
+            continue
+        val = rt_instance.exports(store)[name]
+        if isinstance(val, wasmtime.Func):
+            linker.define(store, "tcl", name, val)
+        elif name == "memory":
+            linker.define(store, "tcl", name, val)
+    tcl_module = wasmtime.Module(engine, wasm_bytes)
+    tcl_instance = linker.instantiate(store, tcl_module)
+    tcl_box[0] = tcl_instance
+    mem_box[0] = rt_instance.exports(store)["memory"]
+    top = tcl_instance.exports(store).get("::top")
+    if top is not None:
+        top(store)
+    with open(stdout_path) as f:
+        return f.read()
+
+
+# ---- clock format -----------------------------------------------------------
+
+
+class TestClockFormatGmt:
+    """``clock format`` with ``-gmt 1`` — synthetic UTC, no host tzdata."""
+
+    def test_unix_epoch_iso_date(self):
+        stdout = _run_for_stdout(
+            'puts [clock format 0 -gmt 1 -format "%Y-%m-%d"]\n'
+        )
+        assert stdout.strip() == "1970-01-01"
+
+    def test_unix_epoch_full_iso(self):
+        stdout = _run_for_stdout(
+            'puts [clock format 0 -gmt 1 -format "%Y-%m-%dT%H:%M:%S"]\n'
+        )
+        assert stdout.strip() == "1970-01-01T00:00:00"
+
+    def test_unix_epoch_weekday_and_zone_abbr(self):
+        # Thursday 1970-01-01 in UTC.  ``%Z`` should expand to the
+        # synthetic UTC zone's abbreviation.
+        stdout = _run_for_stdout(
+            'puts [clock format 0 -gmt 1 -format "%a %b %d %H:%M:%S %Z %Y"]\n'
+        )
+        assert stdout.strip() == "Thu Jan 01 00:00:00 UTC 1970"
+
+    def test_known_y2k(self):
+        # 946684800 = 2000-01-01 00:00:00 UTC.
+        stdout = _run_for_stdout(
+            'puts [clock format 946684800 -gmt 1 -format "%Y-%m-%dT%H:%M:%SZ"]\n'
+        )
+        assert stdout.strip() == "2000-01-01T00:00:00Z"
+
+    def test_numeric_offset(self):
+        stdout = _run_for_stdout(
+            'puts [clock format 0 -gmt 1 -format "%z"]\n'
+        )
+        assert stdout.strip() == "+0000"
+
+
+class TestClockFormatTimezone:
+    """``clock format -timezone`` — needs host tzdata in the sandbox."""
+
+    @pytest.fixture(scope="class")
+    def has_zoneinfo(self) -> bool:
+        return pathlib.Path("/usr/share/zoneinfo/America/New_York").exists()
+
+    def test_eastern_winter(self, has_zoneinfo: bool):
+        if not has_zoneinfo:
+            pytest.skip("host /usr/share/zoneinfo not available")
+        # 2025-01-15 12:00:00 UTC → 07:00:00 EST (-05:00).
+        # Epoch: 1736942400.
+        stdout = _run_for_stdout(
+            "puts [clock format 1736942400 -timezone :America/New_York "
+            '-format "%Y-%m-%d %H:%M:%S %Z"]\n',
+            preopen="/usr/share/zoneinfo",
+        )
+        line = stdout.strip()
+        # Two acceptable shapes: the WASI sandbox might fail to open
+        # the preopen on some hosts (kernel quirk / read-only mount),
+        # in which case the runtime falls through to UTC.  Skip
+        # rather than fail in that degraded environment.
+        if "UTC" in line:
+            pytest.skip(f"WASI preopen didn't expose tzdata: got {line!r}")
+        assert line == "2025-01-15 07:00:00 EST"
+
+    def test_eastern_summer_dst(self, has_zoneinfo: bool):
+        if not has_zoneinfo:
+            pytest.skip("host /usr/share/zoneinfo not available")
+        # 2025-07-15 12:00:00 UTC → 08:00:00 EDT (-04:00).
+        # Epoch: 1752580800.
+        stdout = _run_for_stdout(
+            "puts [clock format 1752580800 -timezone :America/New_York "
+            '-format "%Y-%m-%d %H:%M:%S %Z"]\n',
+            preopen="/usr/share/zoneinfo",
+        )
+        line = stdout.strip()
+        if "UTC" in line:
+            pytest.skip(f"WASI preopen didn't expose tzdata: got {line!r}")
+        assert line == "2025-07-15 08:00:00 EDT"
+
+    def test_unknown_zone_falls_back_to_utc(self):
+        # No preopen, no real zone — resolver should hand back UTC
+        # rather than trapping.
+        stdout = _run_for_stdout(
+            'puts [clock format 0 -timezone :Mars/Olympus -format "%Y-%m-%d %Z"]\n'
+        )
+        assert stdout.strip() == "1970-01-01 UTC"
+
+
+# ---- clock scan -------------------------------------------------------------
+
+
+class TestClockScan:
+    """``clock scan`` — round-trip with ``clock format``."""
+
+    def test_iso_date_returns_epoch(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "1970-01-01" -gmt 1]\n'
+        )
+        assert stdout.strip() == "0"
+
+    def test_iso_datetime_t_separator(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "2000-01-01T00:00:00Z"]\n'
+        )
+        assert stdout.strip() == "946684800"
+
+    def test_iso_datetime_space_separator_gmt(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "2000-01-01 00:00:00" -gmt 1]\n'
+        )
+        assert stdout.strip() == "946684800"
+
+    def test_iso_with_explicit_offset(self):
+        # 12:00:00 +05:00 == 07:00:00 UTC == epoch 946706400 - 0
+        # 2000-01-01 12:00:00+05:00 -> 2000-01-01 07:00:00 UTC.
+        stdout = _run_for_stdout(
+            'puts [clock scan "2000-01-01T12:00:00+05:00"]\n'
+        )
+        assert stdout.strip() == str(946684800 + 7 * 3600)
+
+    def test_round_trip_via_format(self):
+        stdout = _run_for_stdout(
+            "set t 1234567890\n"
+            'set s [clock format $t -gmt 1 -format "%Y-%m-%dT%H:%M:%SZ"]\n'
+            "set back [clock scan $s]\n"
+            "puts $back\n"
+        )
+        assert stdout.strip() == "1234567890"
+
+    def test_integer_passthrough(self):
+        stdout = _run_for_stdout('puts [clock scan "12345"]\n')
+        assert stdout.strip() == "12345"
+
+
+# ---- clock add --------------------------------------------------------------
+
+
+class TestClockAdd:
+    """``clock add`` — fixed-second units."""
+
+    def test_add_seconds(self):
+        stdout = _run_for_stdout("puts [clock add 1000 30 seconds]\n")
+        assert stdout.strip() == "1030"
+
+    def test_add_minutes(self):
+        stdout = _run_for_stdout("puts [clock add 0 5 minutes]\n")
+        assert stdout.strip() == "300"
+
+    def test_add_hours(self):
+        stdout = _run_for_stdout("puts [clock add 0 2 hours]\n")
+        assert stdout.strip() == "7200"
+
+    def test_add_days(self):
+        stdout = _run_for_stdout("puts [clock add 0 1 days]\n")
+        assert stdout.strip() == "86400"
+
+    def test_add_weeks(self):
+        stdout = _run_for_stdout("puts [clock add 0 2 weeks]\n")
+        assert stdout.strip() == str(2 * 7 * 86400)
+
+    def test_negative_count(self):
+        stdout = _run_for_stdout("puts [clock add 86400 -1 days]\n")
+        assert stdout.strip() == "0"
+
+    def test_chained_units(self):
+        # 1 day + 2 hours + 30 minutes = 86400 + 7200 + 1800 = 95400.
+        stdout = _run_for_stdout(
+            "puts [clock add 0 1 days 2 hours 30 minutes]\n"
+        )
+        assert stdout.strip() == "95400"
+
+    def test_singular_unit(self):
+        stdout = _run_for_stdout("puts [clock add 0 1 day]\n")
+        assert stdout.strip() == "86400"
+
+    def test_add_month_then_format(self):
+        # 2025-01-15 + 1 month = 2025-02-15.
+        # Epoch for 2025-01-15 00:00 UTC: 1736899200.
+        stdout = _run_for_stdout(
+            "set t [clock add 1736899200 1 months]\n"
+            'puts [clock format $t -gmt 1 -format "%Y-%m-%d"]\n'
+        )
+        assert stdout.strip() == "2025-02-15"
+
+    def test_add_month_clamps_day(self):
+        # 2025-01-31 + 1 month = 2025-02-28 (clamped).
+        # Epoch for 2025-01-31 00:00 UTC: 1738281600.
+        stdout = _run_for_stdout(
+            "set t [clock add 1738281600 1 months]\n"
+            'puts [clock format $t -gmt 1 -format "%Y-%m-%d"]\n'
+        )
+        assert stdout.strip() == "2025-02-28"

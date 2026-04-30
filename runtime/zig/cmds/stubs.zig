@@ -196,7 +196,14 @@ fn eval_clock(words: []const i32) i32 {
             const w = rt.obj_ensure_string(words[ai]);
             const ws: []const u8 = if (w.ptr == 0) "" else
                 @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
-            if (ws.len > 0 and ws[0] == '-') {
+            // Distinguish a real option flag (``-gmt`` / ``-timezone``)
+            // from a negative count (``-1 days``).  An option starts
+            // with ``-`` followed by an alphabetic character; anything
+            // else (``-``, ``-1``, ``-0.5``) is a numeric count.
+            if (ws.len >= 2 and ws[0] == '-' and
+                ((ws[1] >= 'a' and ws[1] <= 'z') or
+                    (ws[1] >= 'A' and ws[1] <= 'Z')))
+            {
                 ai += 2; // skip option + value
                 continue;
             }

@@ -138,7 +138,14 @@ fn write_pad_int(out: [*]u8, off: u32, value: u32, width: u32, pad: u8) u32 {
         }
     }
     var o = off;
-    while (n < width) : (n += 1) {
+    // Emit pad characters first.  ``n`` is the digit count and must
+    // stay frozen here — the emit loop below uses it as the bound
+    // for buf indexing, and an earlier version of this function
+    // bumped ``n`` inside the pad loop, which made the emit phase
+    // read uninitialised buf slots and emit garbage bytes alongside
+    // the real digits (visible as ``0X1`` in formatted ISO dates).
+    var pad_remaining: u32 = if (n < width) width - n else 0;
+    while (pad_remaining > 0) : (pad_remaining -= 1) {
         @as([*]u8, @ptrFromInt(@intFromPtr(out) + o))[0] = pad;
         o += 1;
     }
