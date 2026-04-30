@@ -17,6 +17,7 @@ _DEFAULT_CACHE_SIZE = 512
 class VarScanOptions:
     include_var_read_roles: bool = False
     recurse_cmd_substitutions: bool = True
+    recurse_braced_strings: bool = False
 
 
 class VarReferenceScanner:
@@ -71,6 +72,8 @@ class VarReferenceScanner:
                 if name:
                     vars_found.add(name)
             elif tok.type is TokenType.CMD and self._options.recurse_cmd_substitutions and tok.text:
+                vars_found |= self.scan_script(tok.text)
+            elif tok.type is TokenType.STR and self._options.recurse_braced_strings and tok.text:
                 vars_found |= self.scan_script(tok.text)
 
         if self._options.include_var_read_roles:
