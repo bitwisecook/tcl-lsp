@@ -18,7 +18,7 @@ from ..namespace_data import (
     get_event_description,
     get_event_detail,
 )
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/when.html"
@@ -159,6 +159,7 @@ class WhenCommand(CommandDef):
                 arity=Arity(2, 6),
             ),
             arg_role_resolver=_when_arg_roles,
+            body_kind=BodyKind.STRUCTURAL,
             irules_top_level_only=True,
             is_language_keyword=True,
             side_effect_hints=(

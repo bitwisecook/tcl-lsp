@@ -563,3 +563,239 @@ class TestLazyDialectLoading:
         assert "button" in registry.specs_by_name
         # SDC base commands should also be present.
         assert len(registry._loaded_loaders & {"tk", "sdc-base", "synopsys-eda-tcl"}) == 3
+
+
+class TestRewriteAliasResolution:
+    """Issue #246 — CFG-rewritten command names must resolve through the registry.
+
+    The CFG lowering pass rewrites ``dict for`` / ``dict map`` to the
+    qualified names ``::tcl::dict::for`` / ``::tcl::dict::map`` so they
+    can be dispatched as opaque barriers.  Downstream consumers (SSA,
+    optimisations, diagnostics) must be able to query the registry on
+    the rewritten name and get the same role, body-kind, and arity
+    information that the source ensemble form provides — otherwise each
+    caller has to hardcode the correspondence (the regression that
+    issues #234, #236, #243 all stemmed from).
+    """
+
+    def test_rewrite_alias_map_covers_dict_iteration(self):
+        from core.commands.registry.runtime import resolve_rewrite_alias
+
+        assert resolve_rewrite_alias("::tcl::dict::for") == ("dict", "for")
+        assert resolve_rewrite_alias("::tcl::dict::map") == ("dict", "map")
+
+    def test_rewrite_alias_is_derived_from_subcommand_property(self):
+        from core.commands.registry import REGISTRY
+        from core.commands.registry.runtime import resolve_rewrite_alias
+
+        # The rewrite alias is derived from ``SubCommand.cfg_rewrite_name``
+        # on the source spec, not a hardcoded table in ``runtime.py``.  The
+        # corresponding subcommand entry must declare the qualified name
+        # explicitly so a future ensemble rewrite is automatically visible
+        # to every registry-driven query.
+        dict_spec = REGISTRY.get_any("dict")
+        assert dict_spec is not None
+        for_sub = dict_spec.subcommands["for"]
+        map_sub = dict_spec.subcommands["map"]
+        assert for_sub.cfg_rewrite_name == "::tcl::dict::for"
+        assert map_sub.cfg_rewrite_name == "::tcl::dict::map"
+        # And those declarations must drive the runtime resolver.
+        assert resolve_rewrite_alias(for_sub.cfg_rewrite_name) == ("dict", "for")
+        assert resolve_rewrite_alias(map_sub.cfg_rewrite_name) == ("dict", "map")
+
+    def test_exported_short_name_resolves_via_registry_property(self):
+        from core.commands.registry import REGISTRY
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # The bare ``test`` name only resolves to ``tcltest::test`` because
+        # the latter declares it is exported from its source namespace.
+        # The bare-name itself is derived from the qualified spec name —
+        # not duplicated as a separate field — so a future spec at
+        # ``foo::bar`` exporting ``bar`` automatically participates.
+        spec = REGISTRY.get_any("tcltest::test")
+        assert spec is not None
+        assert spec.is_namespace_exported is True
+        # ``body_kind_for_command`` resolves through the over-approximation
+        # alias map built from ``is_namespace_exported`` declarations.
+        assert (
+            body_kind_for_command("test", ["name", "desc", "-body", "body"]) is BodyKind.STRUCTURAL
+        )
+
+    def test_rewrite_alias_unrecognised_returns_none(self):
+        from core.commands.registry.runtime import resolve_rewrite_alias
+
+        assert resolve_rewrite_alias("dict") is None
+        assert resolve_rewrite_alias("::my::for") is None
+        assert resolve_rewrite_alias("foreach") is None
+
+    def test_loop_var_list_role_resolves_via_rewrite_alias(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # Rewritten name: subcommand word already consumed, so the role
+        # index returned matches the original argument layout 1-for-1.
+        assert arg_indices_for_role(
+            "::tcl::dict::for", ["k v", "$d", "body"], ArgRole.LOOP_VAR_LIST
+        ) == {0}
+        assert arg_indices_for_role(
+            "::tcl::dict::map", ["k v", "$d", "body"], ArgRole.LOOP_VAR_LIST
+        ) == {0}
+
+    def test_body_role_resolves_via_rewrite_alias(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        assert arg_indices_for_role("::tcl::dict::for", ["k v", "$d", "body"], ArgRole.BODY) == {2}
+        assert arg_indices_for_role("::tcl::dict::map", ["k v", "$d", "body"], ArgRole.BODY) == {2}
+
+    def test_ensemble_form_and_rewrite_yield_matching_body_indices(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # The ensemble-form ``dict for`` index is offset by one (subcommand
+        # word at args[0]); the rewritten form has no subcommand word so
+        # the body index decrements by one.  Both must reach the same
+        # ``args`` element after applying the natural offset.
+        ensemble_body = arg_indices_for_role("dict", ["for", "k v", "$d", "body"], ArgRole.BODY)
+        rewritten_body = arg_indices_for_role(
+            "::tcl::dict::for", ["k v", "$d", "body"], ArgRole.BODY
+        )
+        assert ensemble_body == {3}
+        assert rewritten_body == {2}
+        # In each case the body argument is the same final word.
+
+    def test_unknown_qualified_name_does_not_alias(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        # ``::my::for`` is a user-defined namespaced proc — it must not
+        # accidentally pick up ``dict for`` semantics.  This is the
+        # specific failure mode the suffix-test approach (now removed)
+        # would have triggered.
+        assert (
+            arg_indices_for_role("::my::for", ["k v", "$d", "body"], ArgRole.LOOP_VAR_LIST) == set()
+        )
+        assert arg_indices_for_role("::my::for", ["k v", "$d", "body"], ArgRole.BODY) == set()
+
+
+class TestVarReadWriteSubsumption:
+    """Issue #246 — ``VAR_READ_WRITE`` subsumes ``VAR_READ`` and ``VAR_WRITE``.
+
+    ``dict with`` / ``dict update`` arg 0 carries a variable name that
+    is both written (the dict is rewritten when the body returns) and
+    read (the body sees keys unpacked into local variables of the same
+    name).  The combined :class:`ArgRole.VAR_READ_WRITE` lets a single
+    declaration satisfy queries for either narrower role.
+    """
+
+    def test_dict_with_var_arg_is_read_and_written(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        args = ["with", "myDict", "body"]
+        assert arg_indices_for_role("dict", args, ArgRole.VAR_READ) == {1}
+        assert arg_indices_for_role("dict", args, ArgRole.VAR_WRITE) == {1}
+
+    def test_dict_update_var_arg_is_read_and_written(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        args = ["update", "myDict", "k", "v", "body"]
+        assert arg_indices_for_role("dict", args, ArgRole.VAR_READ) == {1}
+        assert arg_indices_for_role("dict", args, ArgRole.VAR_WRITE) == {1}
+
+    def test_dict_with_body_index_unaffected_by_var_role(self):
+        from core.commands.registry.runtime import ArgRole, arg_indices_for_role
+
+        args = ["with", "myDict", "body"]
+        assert arg_indices_for_role("dict", args, ArgRole.BODY) == {2}
+
+
+class TestBodyKind:
+    """Issue #246 — :class:`BodyKind` distinguishes structural from inline bodies.
+
+    ``proc`` / ``when`` / ``tcltest::test`` bodies are *structural* — the
+    body is analysed as its own scope/handler and must not be scanned by
+    SSA as part of the calling block's data flow.  ``catch`` / ``while``
+    / ``dict for`` bodies are *inline* — they share variables with the
+    caller and their references must be visible to the enclosing scan.
+
+    :func:`body_kind_for_command` resolves through the same
+    ``cfg_rewrite_name`` and ``is_namespace_exported`` maps used by role
+    queries so SSA has one consistent answer per call site.
+    """
+
+    def test_proc_body_is_structural(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        assert body_kind_for_command("proc", ["name", "args", "body"]) is BodyKind.STRUCTURAL
+
+    def test_when_body_is_structural(self):
+        from core.commands.registry import REGISTRY
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # ``when`` is iRules-only; ensure the dialect is loaded so the
+        # spec is visible to ``REGISTRY.get_any``.
+        REGISTRY.load_dialect_specs("f5-irules")
+        assert body_kind_for_command("when", ["HTTP_REQUEST", "body"]) is BodyKind.STRUCTURAL
+
+    def test_tcltest_test_body_is_structural(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        assert (
+            body_kind_for_command("tcltest::test", ["name", "desc", "-body", "body"])
+            is BodyKind.STRUCTURAL
+        )
+
+    def test_namespace_imported_test_resolves_to_structural(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # ``test`` after ``namespace import ::tcltest::test`` shares the
+        # source spec's body kind.
+        assert (
+            body_kind_for_command("test", ["name", "desc", "-body", "body"]) is BodyKind.STRUCTURAL
+        )
+
+    def test_dict_iteration_bodies_are_inline(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # The dict iter body shares the caller's scope — variable
+        # references inside it must be visible to the enclosing function.
+        assert body_kind_for_command("::tcl::dict::for", ["k v", "$d", "body"]) is BodyKind.INLINE
+        assert body_kind_for_command("::tcl::dict::map", ["k v", "$d", "body"]) is BodyKind.INLINE
+
+    def test_unregistered_command_defaults_to_inline(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # Defensive default: unknown commands don't get treated as
+        # structural bodies and have their args silently dropped.
+        assert body_kind_for_command("::my::custom::cmd", ["body"]) is BodyKind.INLINE
+
+    def test_extra_command_registration_shadows_exported_alias(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+            configure_signatures,
+        )
+
+        # A user-defined ``test`` command (registered via extra_commands)
+        # must shadow the ``test`` → ``tcltest::test`` static over-
+        # approximation.  Otherwise CFG/SSA/check passes would
+        # misclassify a user proc named ``test`` as a structural-body
+        # tcltest test.
+        try:
+            configure_signatures(dialect="tcl8.6", extra_commands=["test"])
+            # Direct registration → no body, no alias spillover.
+            assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.INLINE
+            assert arg_indices_for_role("test", ["a", "b", "-body", "x"], ArgRole.BODY) == set()
+            # And the qualified ``tcltest::test`` is unaffected.
+            assert (
+                body_kind_for_command("tcltest::test", ["a", "b", "-body", "x"])
+                is BodyKind.STRUCTURAL
+            )
+        finally:
+            configure_signatures(dialect="tcl8.6", extra_commands=[])
+
+    def test_bare_test_resolves_to_alias_when_no_direct_registration(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # With no ``extra_commands`` registration, the static alias still
+        # applies — preserving the behaviour for tcltest-style packages
+        # where the bare name is the conventional spelling.
+        assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL

@@ -675,15 +675,26 @@ class _CFGBuilder:
                     if stmt.is_dict_iteration and stmt.raw_args:
                         # dict for/map: Tcl 9.0 compiles as a generic
                         # invoke to the ensemble implementation, not an
-                        # inlined loop.  Rewrite to qualified name and
-                        # drop the subcommand arg.
+                        # inlined loop.  Rewrite to the qualified name
+                        # declared on the source ``SubCommand`` and drop
+                        # the subcommand arg.  Reading the name from the
+                        # registry keeps it as the single source of truth
+                        # — the runtime alias map and downstream queries
+                        # (``::tcl::dict::for`` → ``dict for``) all
+                        # resolve through the same field.
                         sub = stmt.raw_args[0]  # "for" or "map"
-                        qual_cmd = f"::tcl::dict::{sub}"
+                        dict_spec = REGISTRY.get_any("dict")
+                        sub_spec = dict_spec.subcommands.get(sub) if dict_spec is not None else None
+                        if sub_spec is None or sub_spec.cfg_rewrite_name is None:
+                            raise RuntimeError(
+                                f"dict iteration ``dict {sub}`` has no cfg_rewrite_name "
+                                "in the registry — declare it on the SubCommand spec"
+                            )
                         block.statements.append(
                             IRBarrier(
                                 range=stmt.range,
                                 reason="dict for/map",
-                                command=qual_cmd,
+                                command=sub_spec.cfg_rewrite_name,
                                 args=stmt.raw_args[1:],  # skip subcommand
                                 tokens=None,
                             )
