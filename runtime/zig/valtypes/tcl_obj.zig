@@ -57,6 +57,11 @@ pub const OBJ_STR_LEN: u32 = 20;
 // the runtime grow the buffer geometrically (doubling) instead of
 // reallocating on every append.
 pub const OBJ_STR_CAP: u32 = 24;
+// OBJ_DICT_EXT: pointer to a hash side-cache for dict objects (see
+// :file:`tcl_dict.zig`).  Zero on every other obj type.  Co-located
+// with the existing 32-byte header — bytes 28..31 were padding
+// before the dict cache was introduced.
+pub const OBJ_DICT_EXT: u32 = 28;
 pub const OBJ_SIZE: u32 = 32;
 
 // S6.4 — Tagged-immediate small integers.
@@ -374,6 +379,7 @@ pub fn obj_alloc() u32 {
     // owning paths (obj_new_string_copy, the in-place append grower)
     // overwrite this with the actual allocation size.
     write_i32(ptr + OBJ_STR_CAP, 0);
+    write_i32(ptr + OBJ_DICT_EXT, 0);
     return ptr;
 }
 
@@ -623,6 +629,20 @@ var pending_free_count: u32 = 0;
 
 fn release_now(addr: u32) void {
     if (build_options.leak_check) g_alloc_count -= 1;
+    // Free any dict hash side-cache before the obj header is freed —
+    // the cache holds retained value handles that need draining
+    // through ``tcl_obj_release`` so they reach refcount 0 with the
+    // dict.  Done first because ``dict_destroy_ext`` may trigger a
+    // chain of releases that recursively land in ``release_now`` for
+    // the value handles, and the obj header bytes must still be
+    // valid (not freed) for those recursive releases to read the
+    // ``OBJ_DICT_EXT`` field correctly during their own cleanup.
+    const ext: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+    if (ext != 0) {
+        const tcl_dict = @import("tcl_dict.zig");
+        write_i32(addr + OBJ_DICT_EXT, 0);
+        tcl_dict.dict_destroy_ext(ext);
+    }
     const cap: u32 = @bitCast(read_i32(addr + OBJ_STR_CAP));
     if (cap > 0) {
         const sp: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
