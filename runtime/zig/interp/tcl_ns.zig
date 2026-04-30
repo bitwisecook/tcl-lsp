@@ -1345,12 +1345,50 @@ fn strip_global_prefix(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
     return .{ .ptr = ptr, .len = len };
 }
 
+/// Re-entry guard for the scalar/array conflict check below.  Set
+/// while ``global_set`` is calling ``stubs.raise`` so the error-
+/// stamping path's recursive ``global_set("::errorInfo", …)`` calls
+/// don't re-trigger the conflict probe (and stack-overflow if the
+/// probe itself happens to find a match in the array directory).
+var conflict_check_active: bool = false;
+
 pub export fn global_set(name: i32, value: i32) i32 {
     const sn = obj.obj_ensure_string(name);
     const k = strip_global_prefix(sn.ptr, sn.len);
+    // Scalar/array name-conflict detection.  Real Tcl raises
+    // ``can't set "<name>": variable is array`` if the user tries to
+    // store a scalar under a name that's currently shaped as an
+    // array.  ``array_exists`` returns a *boxed* TclObj 0 / 1, not a
+    // raw bool — must unbox via ``obj_get_int`` to get the actual
+    // truth value.  ``conflict_check_active`` suppresses the probe
+    // inside the ``stubs.raise → tcl_cmd_error → stamp_error_globals``
+    // chain, which recursively writes ``::errorInfo`` / ``::errorCode``
+    // and would otherwise infinite-loop here.
+    if (!conflict_check_active and obj.obj_get_int(tcl_array.array_exists(name)) != 0) {
+        conflict_check_active = true;
+        defer conflict_check_active = false;
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("can't set: variable is array");
+        return 0;
+    }
     const v = ns_var_create(ns_root(), k.ptr, k.len);
     var_set_scalar(v, @bitCast(value));
     return value;
+}
+
+/// Probe used by ``tcl_array.find_or_create`` to detect a
+/// scalar-shaped variable already living under the requested array
+/// name.  Returns 1 iff a scalar exists with a non-null value, 0
+/// otherwise.  Strips the leading ``::`` if present (the array side
+/// passes the *normalised* name; the var side does not strip on
+/// lookup, so we mirror what ``global_get`` does).
+pub export fn ns_scalar_exists(name_ptr: u32, name_len: u32) i32 {
+    const k = strip_global_prefix(name_ptr, name_len);
+    const v = ns_var_find(ns_root(), k.ptr, k.len);
+    if (v == 0) return 0;
+    if ((@as(*const Var, @ptrFromInt(v)).flags & VAR_ARRAY) != 0) return 0;
+    const val = var_get_scalar(v);
+    return if (val != 0) 1 else 0;
 }
 
 /// Get a global variable.  Returns 0 (a NULL TclObj handle) if the
