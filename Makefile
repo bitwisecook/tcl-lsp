@@ -346,8 +346,24 @@ prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck
 test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX) + Zig WASM runtime tests
 	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke test-zig
 
-test-zig: ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/)
-	@echo "==> Running Zig WASM runtime tests"
+test-zig: ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/) — set SKIP_TEST_ZIG=1 to skip
+	@set -eu; \
+	if [ -n "$${SKIP_TEST_ZIG:-}" ]; then \
+		echo "==> SKIP_TEST_ZIG set — skipping Zig WASM runtime tests"; \
+		exit 0; \
+	fi; \
+	echo "==> Running Zig WASM runtime tests"; \
+	if ! command -v zig >/dev/null 2>&1; then \
+		echo "ERROR: 'zig' not found on PATH (need Zig 0.16+; the SessionStart hook installs it at /opt/zig-0.16.0)."; \
+		echo "       Set SKIP_TEST_ZIG=1 to skip this target."; \
+		exit 1; \
+	fi; \
+	if ! command -v wasmtime >/dev/null 2>&1; then \
+		echo "ERROR: 'wasmtime' not found on PATH — required because the runtime tests are wasm32-wasi binaries."; \
+		echo "       The SessionStart hook installs it at /opt/wasmtime-43.0.1; outside Claude Code, install from https://wasmtime.dev/."; \
+		echo "       Set SKIP_TEST_ZIG=1 to skip this target."; \
+		exit 1; \
+	fi; \
 	cd $(ROOT)runtime/zig && zig build test
 
 test-opt: $(UV_STAMP) ## Run optimiser coverage tests (not part of standard CI)
