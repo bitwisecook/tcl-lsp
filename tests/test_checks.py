@@ -2987,3 +2987,53 @@ class TestOrphanedKeyword:
         assert len(diags) == 2
         codes = {d.message.split('"')[1] for d in diags}
         assert codes == {"elseif", "else"}
+
+
+class TestStructuralBodyDoesNotLeakIntoOuterScope:
+    """Issue #250 — OO / snit / uri::register bodies are STRUCTURAL.
+
+    A structural body must not contribute reads/writes to the enclosing
+    proc's data flow.  These tests use a deliberately ambiguous proc
+    that, if the body bled through, would silence W210 (read before
+    set), W211 (set but never used), and W214 (unused parameter) — so
+    the presence of all three confirms the body was excluded from the
+    outer scope's SSA scan.
+    """
+
+    @staticmethod
+    def _outer_with_structural_body(structural_call: str) -> str:
+        return f"proc outer {{p}} {{\n    set x 1\n    puts $y\n    {structural_call}\n}}\n"
+
+    def _assert_outer_diagnostics_fire(self, structural_call: str) -> None:
+        source = self._outer_with_structural_body(structural_call)
+        result = analyse(source)
+        codes = {d.code for d in result.diagnostics}
+        assert "W210" in codes, f"missing W210 for outer $y; got {sorted(codes)}"
+        assert "W211" in codes, f"missing W211 for outer set x; got {sorted(codes)}"
+        assert "W214" in codes, f"missing W214 for outer param p; got {sorted(codes)}"
+
+    def test_oo_class_body_does_not_leak(self):
+        self._assert_outer_diagnostics_fire(
+            "oo::class create C { method m {} { puts $x; set y 1; set p 2 } }"
+        )
+
+    def test_oo_define_body_does_not_leak(self):
+        self._assert_outer_diagnostics_fire(
+            "oo::define C { method m {} { puts $x; set y 1; set p 2 } }"
+        )
+
+    def test_oo_objdefine_method_does_not_leak(self):
+        self._assert_outer_diagnostics_fire(
+            "oo::objdefine C method m {} { puts $x; set y 1; set p 2 }"
+        )
+
+    def test_snit_type_body_does_not_leak(self):
+        self._assert_outer_diagnostics_fire(
+            "snit::type T { method m {} { puts $x; set y 1; set p 2 } }"
+        )
+
+    def test_snit_method_body_does_not_leak(self):
+        self._assert_outer_diagnostics_fire("snit::method T m {} { puts $x; set y 1; set p 2 }")
+
+    def test_uri_register_body_does_not_leak(self):
+        self._assert_outer_diagnostics_fire("uri::register demo { puts $x; set y 1; set p 2 }")
