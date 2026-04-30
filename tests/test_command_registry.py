@@ -674,14 +674,17 @@ class TestRewriteAliasResolution:
         assert arg_indices_for_role("::my::for", ["k v", "$d", "body"], ArgRole.BODY) == set()
 
 
-class TestVarReadWriteSubsumption:
-    """Issue #246 — ``VAR_READ_WRITE`` subsumes ``VAR_READ`` and ``VAR_WRITE``.
+class TestMultiRoleArguments:
+    """Issues #246 / #252 — an argument can carry multiple roles at once.
 
-    ``dict with`` / ``dict update`` arg 0 carries a variable name that
-    is both written (the dict is rewritten when the body returns) and
-    read (the body sees keys unpacked into local variables of the same
-    name).  The combined :class:`ArgRole.VAR_READ_WRITE` lets a single
-    declaration satisfy queries for either narrower role.
+    ``dict with`` / ``dict update`` arg 0 names a variable that is both
+    written (the dict is rewritten when the body returns) and read (the
+    body sees keys unpacked into local variables of the same name).  The
+    resolver attaches both :class:`ArgRole.VAR_READ` and
+    :class:`ArgRole.VAR_WRITE` to the same index as a ``frozenset``, so a
+    query for either role hits.  An earlier design used a combined
+    ``VAR_READ_WRITE`` role plus a subsumption table; this is now
+    expressed directly by the frozenset value.
     """
 
     def test_dict_with_var_arg_is_read_and_written(self):
@@ -703,6 +706,53 @@ class TestVarReadWriteSubsumption:
 
         args = ["with", "myDict", "body"]
         assert arg_indices_for_role("dict", args, ArgRole.BODY) == {2}
+
+    def test_var_read_write_deprecated_alias(self):
+        """``VAR_READ_WRITE`` is preserved as a frozenset alias for back-compat."""
+        from core.commands.registry.signatures import VAR_READ_WRITE, ArgRole
+
+        assert VAR_READ_WRITE == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
+
+
+class TestResolveArgRoleMap:
+    """``resolve_arg_role_map`` matches ``arg_indices_for_role`` semantics.
+
+    The map shape lets callers see every role on every annotated index
+    without four separate registry lookups, and includes the same
+    special-case logic ``arg_indices_for_role`` applies (TclOO body
+    detection and regexp/regsub PATTERN index).
+    """
+
+    def test_dict_with_returns_multi_role_set(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        roles = resolve_arg_role_map("dict", ["with", "myDict", "body"])
+        assert roles[1] == frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
+        assert roles[2] == frozenset({ArgRole.BODY})
+
+    def test_subcommand_offset_is_applied(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        roles = resolve_arg_role_map("dict", ["update", "d", "k", "v", "body"])
+        # arg 0 is "update" (subcommand word); the variable is at arg 1.
+        assert ArgRole.VAR_WRITE in roles[1]
+        assert ArgRole.BODY in roles[4]
+
+    def test_regexp_pattern_index_is_included(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        # ``regexp pat string matchVar`` -- arg 0 is the pattern.
+        roles = resolve_arg_role_map("regexp", ["pat", "string", "m"])
+        assert ArgRole.PATTERN in roles.get(0, frozenset())
+        # Capture variable role from the resolver still applies.
+        assert ArgRole.VAR_WRITE in roles.get(2, frozenset())
+
+    def test_oo_method_body_index_is_included(self):
+        from core.commands.registry.runtime import ArgRole, resolve_arg_role_map
+
+        # ``oo::define cls method name args body`` -- body is the last arg.
+        roles = resolve_arg_role_map("oo::define", ["cls", "method", "m", "{}", "{body}"])
+        assert ArgRole.BODY in roles.get(4, frozenset())
 
 
 class TestBodyKind:

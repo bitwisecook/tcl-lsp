@@ -54,7 +54,7 @@ class AppendCommand(CommandDef):
             assigns_variable_at=0,
             reads_variable_before_write=True,
             safe_on_uninit=frozenset(),
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             return_type=TclType.STRING,
             arg_types={0: ArgTypeHint(expected=TclType.STRING, shimmers=True)},
             side_effect_hints=(

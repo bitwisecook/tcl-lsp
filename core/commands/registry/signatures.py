@@ -20,7 +20,6 @@ class ArgRole(Enum):
     EXPR = auto()  # Expression (expr sub-language)
     VAR_WRITE = auto()  # A variable name written by the command (set, regexp, scan, lassign)
     VAR_READ = auto()  # A variable name read without modification (info exists, array get)
-    VAR_READ_WRITE = auto()  # A variable name read and written (dict with/update — body reads keys, dict is updated after)
     LOOP_VAR_LIST = (
         auto()
     )  # Whitespace-separated list of loop variable names (dict for/map ``{key val}``)
@@ -33,6 +32,14 @@ class ArgRole(Enum):
     OPTION_TERMINATOR = auto()  # The "--" option terminator
     CHANNEL = auto()  # Channel identifier (stdout, stdin, channelId)
     INDEX = auto()  # List/string index expression
+
+
+# Deprecated module-level alias for the combined VAR_READ + VAR_WRITE role.
+# Prefer assembling the frozenset inline at the declaration site
+# (``frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})``) — this name remains
+# only as a convenience for ``dict with`` / ``dict update``-style decls and
+# may be removed in a future release.
+VAR_READ_WRITE: frozenset[ArgRole] = frozenset({ArgRole.VAR_READ, ArgRole.VAR_WRITE})
 
 
 class BodyKind(Enum):
@@ -84,13 +91,16 @@ class CommandSig:
 
     Attributes:
         arity: Argument count bounds for the command.
-        arg_roles: Maps argument index (0-based, after command name) to role.
-                   Unlisted args default to VALUE.
+        arg_roles: Maps argument index (0-based, after command name) to a
+                   ``frozenset`` of roles.  An argument can carry multiple
+                   roles at once (e.g. ``dict with`` arg 0 is both
+                   ``VAR_READ`` and ``VAR_WRITE``).  Unlisted args default to
+                   VALUE.
     """
 
     arity: Arity = field(default_factory=Arity)
-    arg_roles: dict[int, ArgRole] = field(default_factory=dict)
-    arg_role_resolver: Callable[[list[str]], dict[int, ArgRole]] | None = field(
+    arg_roles: dict[int, frozenset[ArgRole]] = field(default_factory=dict)
+    arg_role_resolver: Callable[[list[str]], dict[int, frozenset[ArgRole]]] | None = field(
         default=None, hash=False, compare=False
     )
     leading_options: frozenset[str] = field(default_factory=frozenset)

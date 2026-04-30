@@ -46,7 +46,7 @@ class GetsCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 2),
             ),
-            arg_roles={0: ArgRole.CHANNEL, 1: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.CHANNEL}), 1: frozenset({ArgRole.VAR_WRITE})},
             assigns_variable_at=1,
             return_type=TclType.STRING,
             side_effect_hints=(

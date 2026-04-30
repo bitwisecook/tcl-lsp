@@ -11,21 +11,14 @@ See ``docs/design/runtime/rename-alias.md`` for the contract +
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
 
-_ZIG_RUNTIME_PATH = (
-    Path(__file__).resolve().parent.parent.parent
-    / "runtime"
-    / "zig"
-    / "zig-out"
-    / "bin"
-    / "tcl_runtime.wasm"
-)
+from core.runtime_wasm import runtime_wasm_path  # noqa: E402
+
+_ZIG_RUNTIME_PATH = runtime_wasm_path()
 
 
 # Match the ``RenameResult`` enum in tcl_rename.zig.

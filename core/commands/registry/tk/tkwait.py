@@ -38,5 +38,5 @@ class TkwaitCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2, 2),
             ),
-            arg_roles={1: ArgRole.VAR_READ},
+            arg_roles={1: frozenset({ArgRole.VAR_READ})},
         )

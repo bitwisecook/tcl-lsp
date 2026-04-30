@@ -45,7 +45,7 @@ class FblockedCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 1),
             ),
-            arg_roles={0: ArgRole.CHANNEL},
+            arg_roles={0: frozenset({ArgRole.CHANNEL})},
             return_type=TclType.BOOLEAN,
             side_effect_hints=(
                 SideEffect(

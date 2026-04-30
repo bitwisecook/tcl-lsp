@@ -40,7 +40,7 @@ class SharedvarCommand(CommandDef):
                     synopsis="sharedvar VARIABLE",
                 ),
             ),
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             validation=ValidationSpec(
                 arity=Arity(),
             ),

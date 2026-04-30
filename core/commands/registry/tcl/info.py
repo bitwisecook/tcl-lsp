@@ -290,14 +290,14 @@ class InfoCommand(CommandDef):
                 "default": SubCommand(
                     name="default",
                     arity=Arity(3, 3),
-                    arg_roles={2: ArgRole.VAR_WRITE},
+                    arg_roles={2: frozenset({ArgRole.VAR_WRITE})},
                     return_type=TclType.BOOLEAN,
                 ),
                 "exists": SubCommand(
                     name="exists",
                     arity=Arity(1, 1),
                     pure=True,
-                    arg_roles={0: ArgRole.VAR_READ},
+                    arg_roles={0: frozenset({ArgRole.VAR_READ})},
                     return_type=TclType.BOOLEAN,
                 ),
                 "frame": SubCommand(

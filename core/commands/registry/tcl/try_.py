@@ -13,19 +13,22 @@ from ._base import register
 _SOURCE = "Tcl man page try.n"
 
 
-def _try_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _try_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY roles for try/on/trap/finally."""
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
     if args:
-        roles[0] = ArgRole.BODY
+        roles[0] = _BODY
     i = 1
     while i < len(args):
         kw = args[i]
         if kw == "finally" and i + 1 < len(args):
-            roles[i + 1] = ArgRole.BODY
+            roles[i + 1] = _BODY
             i += 2
         elif kw in ("on", "trap") and i + 3 < len(args):
-            roles[i + 3] = ArgRole.BODY
+            roles[i + 3] = _BODY
             i += 4
         else:
             i += 1
