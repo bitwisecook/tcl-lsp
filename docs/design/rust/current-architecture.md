@@ -23,7 +23,8 @@
    | tcl-compiler  |   | tcl-lsp-core  |   | tcl-lsp-server  |
    |  IR/CFG/SSA   |   | folding,      |   | tower-lsp       |
    |  analyses,    |   | symbols,      |   | binary +        |
-   |  codegen      |   | diagnostics   |   | folding wired   |
+   |  codegen      |   | diagnostics   |   | folding +       |
+   |               |   |               |   | document symbols|
    +---------------+   +---------------+   +-----------------+
                           ^
                           |
@@ -84,6 +85,7 @@ Python is either retired or kept only as a one-release fallback.
 | IR / CFG / SSA | `tcl-compiler` | `ir` / `cfg` / `ssa` | authoritative |
 | Analyser | `tcl-compiler` | `analyser` | default-on Python-supplemented |
 | Folding ranges | `tcl-lsp-core` | `folding` | authoritative (Python wraps via shim) |
+| Document symbols | `tcl-lsp-core` | `document_symbols` | authoritative (Python wraps via shim; native server wires the same provider) |
 
 ## Default-on, Python-supplemented paths
 
@@ -131,9 +133,10 @@ chunk above has flipped.
   PyO3 binding link against this crate so the algorithm has one
   canonical home.
 - **`tcl-lsp-server`** — `tower-lsp` binary serving folding
-  ranges over stdio. ARCH8 lands the bootstrap; future `S*` chunks
-  extend the provider set (document symbols, hover, completion,
-  semantic tokens, diagnostics).
+  ranges and document symbols over stdio. ARCH8 lands the
+  bootstrap; `S-document-symbols` adds the second provider; future
+  `S*` chunks extend the set further (hover, completion, semantic
+  tokens, diagnostics).
 - **`tcl-lsp-py`** — canonical public PyO3 binding crate. ARCH9
   lands it as the new home for every `#[pyclass]` / `#[pyfunction]`
   surface.
