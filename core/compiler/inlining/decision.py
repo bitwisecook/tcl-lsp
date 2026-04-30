@@ -116,47 +116,71 @@ def _count_one(stmt: object) -> int:
     return 1
 
 
-def _walk_calls(script: IRScript | None) -> Iterable[IRCall]:
-    """Yield every :class:`IRCall` reachable from ``script``."""
+def _walk_calls(
+    script: IRScript | None,
+    *,
+    enclosing_ns: str = "::",
+) -> Iterable[tuple[IRCall, str]]:
+    """Yield every ``(IRCall, namespace)`` pair reachable from
+    ``script``.
+
+    ``namespace`` is the qualified namespace the call resolves
+    against — typically the same as ``enclosing_ns`` but
+    overridden when the walker descends through an :class:`IRBlock`
+    that was lowered from ``namespace eval ::ns { … }``.  Inside
+    such a block, an unqualified call resolves first against
+    ``::ns`` (the block's namespace), not the caller's outer
+    namespace.
+
+    PR #237 review fix: previously the walker yielded only the
+    call and the caller's outer qname was used for every
+    resolution, so calls inside a ``namespace eval`` block that
+    targeted a same-namespace helper missed the lookup.
+    """
 
     if script is None:
         return
-    stack: list[object] = list(script.statements)
+    # Stack of (node, current_namespace).  ``current_namespace``
+    # propagates through control-flow nodes and is overwritten
+    # only when descending through ``IRBlock`` (which carries an
+    # explicit ``namespace`` field).
+    stack: list[tuple[object, str]] = [(s, enclosing_ns) for s in script.statements]
     while stack:
-        node = stack.pop()
+        node, ns = stack.pop()
         if isinstance(node, IRCall):
-            yield node
+            yield node, ns
             continue
         if isinstance(node, IRBlock):
-            stack.extend(node.body.statements)
+            inner_ns = node.namespace or "::"
+            stack.extend((s, inner_ns) for s in node.body.statements)
             continue
         if isinstance(node, IRIf):
             for clause in node.clauses:
-                stack.extend(clause.body.statements)
+                stack.extend((s, ns) for s in clause.body.statements)
             if node.else_body is not None:
-                stack.extend(node.else_body.statements)
+                stack.extend((s, ns) for s in node.else_body.statements)
             continue
         if isinstance(node, IRFor):
-            stack.extend(node.init.statements)
-            stack.extend(node.next.statements)
-            stack.extend(node.body.statements)
+            stack.extend((s, ns) for s in node.init.statements)
+            stack.extend((s, ns) for s in node.next.statements)
+            stack.extend((s, ns) for s in node.body.statements)
             continue
         if isinstance(node, (IRWhile, IRForeach, IRCatch, IRUpFrame)):
-            stack.extend(node.body.statements)
+            stack.extend((s, ns) for s in node.body.statements)
             continue
         if isinstance(node, IRTry):
-            stack.extend(node.body.statements)
+            stack.extend((s, ns) for s in node.body.statements)
             for handler in node.handlers:
-                stack.extend(handler.body.statements)
+                stack.extend((s, ns) for s in handler.body.statements)
             if node.finally_body is not None:
-                stack.extend(node.finally_body.statements)
+                stack.extend((s, ns) for s in node.finally_body.statements)
             continue
         if isinstance(node, IRSwitch):
             for arm in node.arms:
                 if arm.body is not None:
-                    stack.extend(arm.body.statements)
+                    stack.extend((s, ns) for s in arm.body.statements)
             if node.default_body is not None:
-                stack.extend(node.default_body.statements)
+                stack.extend((s, ns) for s in node.default_body.statements)
             continue
 
 
@@ -181,8 +205,28 @@ def count_static_calls(
     def tally(caller_qname: str, script: IRScript | None) -> None:
         if script is None:
             return
-        for call in _walk_calls(script):
-            target = _resolve_callee(call.command, caller_qname, summaries)
+        # ``_walk_calls`` propagates the current namespace through
+        # ``IRBlock`` (``namespace eval``) so a same-namespace
+        # helper call inside such a block resolves correctly.
+        # When the script *itself* came from a proc body, the
+        # caller's qname's namespace is the appropriate root.
+        if "::" in caller_qname[2:]:
+            # ``::ns::helper`` → ``::ns``
+            root_ns = caller_qname[: caller_qname.rindex("::")]
+            if not root_ns:
+                root_ns = "::"
+        elif caller_qname.startswith("::"):
+            root_ns = "::"
+        else:
+            root_ns = "::"
+        for call, call_ns in _walk_calls(script, enclosing_ns=root_ns):
+            # Resolve against the actual nesting namespace, then
+            # fall back to the original caller namespace for
+            # backwards-compat with callers that don't carry
+            # block-level info on every node.
+            target = _resolve_callee(call.command, call_ns, summaries)
+            if target is None and call_ns != caller_qname:
+                target = _resolve_callee(call.command, caller_qname, summaries)
             if target is not None and target in counts:
                 counts[target] += 1
 

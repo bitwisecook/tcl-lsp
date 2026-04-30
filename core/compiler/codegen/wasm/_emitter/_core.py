@@ -534,7 +534,18 @@ class _WasmEmitterBase:
         # those slots so they enter this emitter pre-set.  Treat
         # params as "already written" too via a seed at the start
         # of the body.
-        first_write = idx not in self._first_writes_seen
+        #
+        # **PR #237 review**: the "first emit-time write" check is
+        # unsound when the emit site is inside a loop body — the
+        # same wasm code runs once per iteration, so the
+        # *runtime*-first iteration has prior=0 (correct) but
+        # subsequent iterations carry the previous iteration's
+        # value (must release).  When ``_loop_depth > 0`` we
+        # force the release-prior path even for the first
+        # compile-time emission, leaving the optimisation only on
+        # straight-line "this slot truly hasn't been touched yet"
+        # writes.
+        first_write = idx not in self._first_writes_seen and self._loop_depth == 0
         self._first_writes_seen.add(idx)
 
         if source is Ownership.OWNED:
