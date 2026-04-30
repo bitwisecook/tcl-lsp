@@ -36,6 +36,14 @@ pub export fn dict_get(dict: i32, key: i32) i32 {
 }
 
 // Exported: dict set — set a key in a dict, return the updated dict.
+//
+// Fast path mirrors ``tcl_cmd_lappend``: when the dict is non-empty,
+// we own the byte buffer (refcount == 1 with a recorded capacity),
+// and the key is new, append ``" key value"`` in place with
+// geometric capacity growth.  This converts a ``for {} {<N>} {dict
+// set d k$i $i}`` builder loop from O(N) per call (full buffer copy
+// on every append) to O(1) amortised.  The slow path retains the
+// previous full-rebuild behaviour for shared dicts and key replace.
 pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
     const sd = obj_ensure_string(dict);
     const sk = obj_ensure_string(key);
@@ -46,6 +54,38 @@ pub export fn dict_set(dict: i32, key: i32, value: i32) i32 {
         const k = list_element_at(sd.ptr, sd.len, idx);
         if (str_cmp(sd.ptr + k.start, k.len, sk.ptr, sk.len) == 0) {
             return dict_rebuild_with_value(sd.ptr, sd.len, n, idx, sv.ptr, sv.len);
+        }
+    }
+    // Key absent — try the in-place geometric append fast path.
+    if (sd.len > 0 and dict != 0) {
+        const addr: u32 = @intCast(dict);
+        const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
+        const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
+        const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
+        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
+            const tail_max: u32 = 1 + sk.len * 2 + 1 + sv.len * 2 + 8;
+            const want: u32 = sd.len + tail_max;
+            var buf: u32 = sd.ptr;
+            var new_cap: u32 = cap;
+            if (cap < want) {
+                new_cap = if (cap == 0) 16 else cap * 2;
+                while (new_cap < want) new_cap *= 2;
+                const nbuf = obj.alloc(new_cap);
+                if (nbuf == 0) return dict;
+                memcpy(nbuf, sd.ptr, sd.len);
+                obj.free_sized(sd.ptr, cap);
+                buf = nbuf;
+                obj.write_i32(addr + obj.OBJ_STR_PTR, @bitCast(nbuf));
+                obj.write_i32(addr + obj.OBJ_STR_CAP, @bitCast(new_cap));
+            }
+            const d: [*]u8 = @ptrFromInt(buf + sd.len);
+            d[0] = ' ';
+            var off = list_elem_quote_nth(buf, sd.len + 1, sk.ptr, sk.len);
+            const d2: [*]u8 = @ptrFromInt(buf + off);
+            d2[0] = ' ';
+            off = list_elem_quote_nth(buf, off + 1, sv.ptr, sv.len);
+            obj.write_i32(addr + obj.OBJ_STR_LEN, @bitCast(off));
+            return dict;
         }
     }
     return dict_append_pair(sd.ptr, sd.len, sk.ptr, sk.len, sv.ptr, sv.len);
@@ -155,7 +195,14 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
 }
 
 fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32) i32 {
-    const buf = alloc(sd_len + kl * 2 + vl * 2 + 16);
+    // Round the allocation up to a known size class so the returned
+    // dict can take the in-place fast path on the *next* ``dict_set``
+    // — without recording ``OBJ_STR_CAP``, the rc==1 fast-path check
+    // sees cap=0 and falls back to this rebuild every time.
+    const max_buf: u32 = sd_len + kl * 2 + vl * 2 + 16;
+    const cap = obj.round_up_to_class((max_buf + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     if (sd_len > 0) {
         memcpy(buf, sd_ptr, sd_len);
@@ -172,7 +219,11 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, vp, vl);
-    return obj_new_string(@intCast(buf), @intCast(off));
+    const new_obj = obj_new_string(@intCast(buf), @intCast(off));
+    if (new_obj != 0) {
+        obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    }
+    return new_obj;
 }
 
 // Exported: dict merge — merge *source* into *target*; for duplicate
