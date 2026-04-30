@@ -566,6 +566,54 @@ numeric/string coercion."
         });
     }
 
+    /// **W302.** Emit "catch without result variable" hint when a
+    /// `catch BODY` invocation omits the optional `RESULTVAR`
+    /// argument, silently swallowing any error the body raises.
+    ///
+    /// Mirrors the `IRCatch` arm of ``_check_statement`` in
+    /// ``core/compiler/compiler_checks.py:491-504``.  Python only
+    /// emits W302 for `IRCatch` (not `IRBarrier`) — the lowerer
+    /// falls back to `IRBarrier` when the body argument is multi-token
+    /// (e.g. ``catch $body``), so this Rust emit gates on
+    /// ``arg_single[0]`` to mirror that suppression.  The
+    /// diagnostic anchors at the full command span (catch keyword
+    /// through the last argument's end), matching Python's
+    /// ``stmt.range``.
+    pub(super) fn emit_w302_catch_no_result_var(
+        &mut self,
+        args: &[String],
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        // Only fires when a result variable is absent.  Empty args
+        // is "malformed catch" in Python's lowerer (IRBarrier path,
+        // no W302).  ≥2 args means a result variable is present.
+        if args.len() != 1 {
+            return;
+        }
+        // Mirror Python's "catch with dynamic body" IRBarrier
+        // suppression: a multi-token body word can't be statically
+        // resolved to a script, so the lowerer drops it before
+        // ``_check_statement`` ever sees it.
+        if arg_single.first().copied() != Some(true) {
+            return;
+        }
+        let Some(body_tok) = arg_tokens.first().copied() else {
+            return;
+        };
+        let span = tcl_lexer::Span::new(cmd_tok.span.start(), body_tok.span.end());
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W302".to_string(),
+            span,
+            message: "catch without a result variable silently swallows errors. \
+Consider capturing the result: catch {\u{2026}} result"
+                .to_string(),
+            severity: Severity::Hint,
+            fixes: Vec::new(),
+        });
+    }
+
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in
