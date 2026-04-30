@@ -1,0 +1,19 @@
+[package]
+name = "tcl-compiler"
+description = "IR, CFG, SSA, and codegen for the Tcl compiler pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+bitflags = "2"
+regex = "1"
+thiserror = "1.0"
+
+[lints]
+workspace = true

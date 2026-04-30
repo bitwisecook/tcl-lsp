@@ -11,6 +11,19 @@ from ..compilation_unit import CompilationUnit, ensure_compilation_unit
 from ..execution_intent import FunctionExecutionIntent
 from ..interprocedural import InterproceduralAnalysis
 from ..ir import IRAssignConst, IRBarrier, IRCall, IRModule, IRScript
+from ..rust_spans import rust_shim_enabled
+
+# Optional Rust delegation (C32). When the `tcl_lsp_rust` wheel is
+# importable AND `TCL_LSP_RUST_OPTIMISER=1` is set in the
+# environment, `find_optimisations` forwards to the Rust pass
+# manager. Default is off: the Python pipeline still runs so
+# existing tests observe the exact diagnostic shapes they expect.
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        optimiser_find_optimisations as _rust_find_optimisations,
+    )
+except ImportError:
+    _rust_find_optimisations = None
 from . import (
     _branch_folding,
     _code_sinking,
@@ -372,11 +385,59 @@ class _CompilerOptimiser:
         _structure_elimination.optimise_structure_elimination(ctx, ir_script, cfg, ssa, analysis)
 
 
+def _materialise_rust_optimisations(
+    source: str,
+    tuples: list[tuple[str, str, int, int, str, int | None, bool]],
+) -> list[Optimisation]:
+    """Convert Rust ``(code, message, start, end, replacement, group, hint_only)``
+    tuples into Python :class:`Optimisation` dataclasses with proper
+    :class:`Range` positions computed from *source*.
+
+    Rust produces UTF-8 byte offsets; Python's string is a Unicode
+    string. The shared
+    :func:`core.compiler.rust_spans.build_position_resolver` handles
+    the UTF-8 byte → UTF-16 column conversion so this materialiser
+    and the GVN one in ``core/compiler/gvn.py`` stay in lockstep —
+    see ``rust_spans.py`` for the conversion contract.
+    """
+    from ..rust_spans import build_position_resolver
+
+    _, range_at = build_position_resolver(source)
+
+    return [
+        Optimisation(
+            code=code,
+            message=message,
+            range=range_at(start, end),
+            replacement=replacement,
+            group=group,
+            hint_only=hint_only,
+        )
+        for code, message, start, end, replacement, group, hint_only in tuples
+    ]
+
+
 def find_optimisations(
     source: str,
     cu: CompilationUnit | None = None,
 ) -> list[Optimisation]:
-    """Find static optimisation opportunities in source order."""
+    """Find static optimisation opportunities in source order.
+
+    Set ``TCL_LSP_RUST_OPTIMISER=1`` in the environment to delegate
+    to the Rust implementation (experimental — diagnostic messages /
+    overlap arbitration may differ from the Python pipeline).
+    The Python pipeline is the default.
+    """
+    if _rust_find_optimisations is not None and rust_shim_enabled("TCL_LSP_RUST_OPTIMISER"):
+        try:
+            from ...common.dialect import active_dialect
+
+            dialect = active_dialect()
+            return _materialise_rust_optimisations(
+                source, _rust_find_optimisations(source, dialect)
+            )
+        except Exception:
+            log.debug("Rust optimiser delegation failed, falling back", exc_info=True)
     selected = _select_non_overlapping_optimisations(
         _CompilerOptimiser().run(source, cu=cu),
     )

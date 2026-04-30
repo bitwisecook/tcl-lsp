@@ -40,6 +40,21 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from ..analysis.semantic_model import Range
+
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        gvn_loop_invariants as _rust_gvn_loop_invariants,
+    )
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        gvn_partial_redundancies as _rust_gvn_partial_redundancies,
+    )
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        gvn_redundancies as _rust_gvn_redundancies,
+    )
+except ImportError:
+    _rust_gvn_redundancies = None
+    _rust_gvn_partial_redundancies = None
+    _rust_gvn_loop_invariants = None
 from ..commands.registry import REGISTRY
 from ..commands.registry.runtime import loop_list_header_commands
 from ..common.codes import opt
@@ -60,6 +75,7 @@ from .ir import (
     IRCall,
 )
 from .irules_flow import _find_when_bodies, _walk_body_commands
+from .rust_spans import rust_shim_enabled
 from .side_effects import EffectRegion, classify_side_effects
 from .ssa import BlockName, SSAFunction, SSAVersion
 from .var_refs import VarReferenceScanner, VarScanOptions
@@ -1442,6 +1458,35 @@ def _scan_when_bodies(
 # Public API
 
 
+def _materialise_rust_gvn_tuples(
+    source: str,
+    tuples: list[tuple[str, int, int, int, int, str, str]],
+) -> list[RedundantComputation]:
+    """Convert Rust GVN tuples to Python ``RedundantComputation`` dataclasses.
+
+    Tuple shape:
+    ``(code, span_start, span_end, first_start, first_end, expr_text, message)``.
+    Rust spans are UTF-8 byte offsets (exclusive-end); this helper
+    uses the shared ``rust_spans.build_position_resolver`` so the
+    UTF-8/UTF-16 conversion stays in lockstep with the optimiser
+    materialiser in ``_manager._materialise_rust_optimisations``.
+    """
+    from .rust_spans import build_position_resolver
+
+    _, range_at = build_position_resolver(source)
+
+    return [
+        RedundantComputation(
+            range=range_at(start, end),
+            first_range=range_at(first_start, first_end),
+            expression_text=expr,
+            code=code,
+            message=msg,
+        )
+        for code, start, end, first_start, first_end, expr, msg in tuples
+    ]
+
+
 def find_redundant_computations(
     source: str,
     *,
@@ -1451,7 +1496,28 @@ def find_redundant_computations(
 
     Follows the same pattern as ``find_shimmer_warnings`` and
     ``find_taint_warnings``.
+
+    When ``TCL_LSP_RUST_GVN=1`` is set and the ``tcl_lsp_rust``
+    wheel is importable, delegates to the Rust implementation.
+    Opt-in by default; falls back to the Python pipeline on
+    ``ImportError`` / runtime failure.
     """
+    if (
+        _rust_gvn_redundancies is not None
+        and _rust_gvn_partial_redundancies is not None
+        and _rust_gvn_loop_invariants is not None
+        and rust_shim_enabled("TCL_LSP_RUST_GVN")
+    ):
+        try:
+            dialect = active_dialect()
+            combined: list[tuple] = []
+            combined.extend(_rust_gvn_redundancies(source, dialect))
+            combined.extend(_rust_gvn_partial_redundancies(source, dialect))
+            combined.extend(_rust_gvn_loop_invariants(source, dialect))
+            return _deduplicate(_materialise_rust_gvn_tuples(source, combined))
+        except Exception:
+            log.debug("Rust GVN delegation failed, falling back", exc_info=True)
+
     cu = ensure_compilation_unit(source, cu, logger=log, context="gvn")
     if cu is None:
         return []
