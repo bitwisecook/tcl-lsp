@@ -1,5 +1,6 @@
 //! `upvar` — create link to variable in a different stack frame.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `upvar`.
@@ -20,6 +21,7 @@ pub fn spec() -> CommandSpec {
             &["upvar ?level? otherVar myVar ?otherVar myVar ...?"],
             "Tcl upvar(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Upvar),
         ..CommandSpec::DEFAULT
     }
 }

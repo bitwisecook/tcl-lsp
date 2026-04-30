@@ -51,6 +51,15 @@ See [compiler/README.md](compiler/README.md) for the compiler design-doc
 index — pipeline stages, analyses, codegen, optimisation passes, and
 ownership matrices.
 
+## Rust workspace
+
+- [rust/current-architecture.md](rust/current-architecture.md) —
+  post-cleanup snapshot of the Rust crate graph, ownership rules,
+  authoritative paths, default-on / default-off shims, and the
+  intended `tcl-lsp-core` / `tcl-lsp-server` / `tcl-lsp-py`
+  boundaries. Read this before adding a new Rust crate, hook, or
+  registry fact.
+
 ## Runtime internals
 
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for

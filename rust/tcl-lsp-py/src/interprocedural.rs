@@ -99,15 +99,10 @@ fn summary_to_dict<'py>(py: Python<'py>, s: &ProcSummary) -> PyResult<Bound<'py,
 }
 
 fn constant_return_to_py(cr: Option<&ConstantReturn>) -> Option<(String, String)> {
-    match cr {
-        None => None,
-        Some(ConstantReturn::Int(i)) => Some(("int".into(), i.to_string())),
-        Some(ConstantReturn::Float(f)) => Some(("float".into(), f.to_string())),
-        Some(ConstantReturn::Bool(b)) => {
-            Some(("bool".into(), if *b { "1".into() } else { "0".into() }))
-        }
-        Some(ConstantReturn::Str(s)) => Some(("str".into(), s.clone())),
-    }
+    cr.map(|c| {
+        let (kind, text) = c.as_kind_text();
+        (kind.to_owned(), text)
+    })
 }
 
 fn param_traits_to_dict<'py>(
@@ -116,20 +111,11 @@ fn param_traits_to_dict<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new_bound(py);
     for (name, set) in traits {
-        let mut names: Vec<&'static str> = set.iter().copied().map(proc_arg_trait_name).collect();
+        let mut names: Vec<&'static str> = set.iter().map(|t| t.as_str()).collect();
         names.sort_unstable();
         d.set_item(name, PyList::new_bound(py, &names))?;
     }
     Ok(d)
-}
-
-const fn proc_arg_trait_name(t: ProcArgTrait) -> &'static str {
-    match t {
-        ProcArgTrait::Passthrough => "passthrough",
-        ProcArgTrait::UsedInCondition => "used_in_condition",
-        ProcArgTrait::ForwardedToCallee => "forwarded_to_callee",
-        ProcArgTrait::Unused => "unused",
-    }
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

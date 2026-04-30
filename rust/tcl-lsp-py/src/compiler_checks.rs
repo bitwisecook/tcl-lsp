@@ -22,7 +22,7 @@
 use pyo3::prelude::*;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::compiler_checks::{run_all_checks, Severity};
+use tcl_compiler::compiler_checks::run_all_checks;
 
 /// Run every landed compiler check against `source` and return a
 /// flat list of diagnostic tuples:
@@ -31,7 +31,8 @@ use tcl_compiler::compiler_checks::{run_all_checks, Severity};
 ///   replacement_or_none)`
 ///
 /// - `severity` is one of `"hint"`, `"suggestion"`, `"warning"`,
-///   `"error"` — matching Python's `Severity` enum string values.
+///   `"error"` — the wire form returned by
+///   `tcl_compiler::compiler_checks::Severity::as_str`.
 /// - `start_offset` / `end_offset` are absolute byte offsets into
 ///   `source`; the Python caller resolves them through its own
 ///   line index to build `SourcePosition` / `Range` values.
@@ -49,14 +50,13 @@ pub fn compiler_checks_run_all(
     let registry = crate::registry::default_registry();
     let cu =
         CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);
-    let diagnostics = run_all_checks(&cu, registry, dialect);
-    diagnostics
+    run_all_checks(&cu, registry, dialect)
         .into_iter()
         .map(|d| {
             (
                 d.code,
                 d.category,
-                severity_as_str(d.severity).to_owned(),
+                d.severity.as_str().to_owned(),
                 d.message,
                 d.span.start(),
                 d.span.end(),
@@ -64,15 +64,6 @@ pub fn compiler_checks_run_all(
             )
         })
         .collect()
-}
-
-fn severity_as_str(severity: Severity) -> &'static str {
-    match severity {
-        Severity::Hint => "hint",
-        Severity::Suggestion => "suggestion",
-        Severity::Warning => "warning",
-        Severity::Error => "error",
-    }
 }
 
 pub(crate) fn register_with(m: &Bound<'_, PyModule>) -> PyResult<()> {

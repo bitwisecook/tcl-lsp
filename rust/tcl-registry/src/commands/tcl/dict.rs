@@ -1,5 +1,6 @@
 //! `dict` — dictionary operations.
 
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
@@ -296,6 +297,7 @@ pub fn spec() -> CommandSpec {
             &["dict subcommand ?arg ...?"],
             "Tcl dict(1)",
         )),
+        codegen_hook: Some(CodegenHookId::Dict),
         ..CommandSpec::DEFAULT
     }
 }

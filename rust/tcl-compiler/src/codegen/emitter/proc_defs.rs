@@ -26,7 +26,7 @@ pub fn is_static_proc(p: &IrProcedure) -> bool {
     true
 }
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Emit a single proc definition call.
     ///
     /// tclsh emits each `proc` definition at top level as:
@@ -99,6 +99,7 @@ mod tests {
     use crate::codegen::CodegenCtx;
     use crate::ir::{Procedure, Script};
     use tcl_lexer::Span;
+    use tcl_registry::CommandRegistry;
 
     fn dummy_proc(name: &str, params: &str, body: &str) -> Procedure {
         Procedure {
@@ -128,7 +129,8 @@ mod tests {
 
     #[test]
     fn emit_one_proc_def_shape() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let p = dummy_proc("foo", "x y", "set x 1");
         ctx.emit_one_proc_def(&p);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();

@@ -1,0 +1,27 @@
+[package]
+name = "tcl-lsp-server"
+description = "Native LSP server for Tcl, built on tower-lsp + tcl-lsp-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tcl-lsp-server"
+path = "src/main.rs"
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
+tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros"] }
+tower-lsp = "0.20"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time", "sync"] }
+
+[lints]
+workspace = true

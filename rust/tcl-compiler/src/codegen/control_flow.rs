@@ -45,7 +45,7 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
 // CodegenCtx methods
 // ---------------------------------------------------------------------------
 
-impl CodegenCtx {
+impl CodegenCtx<'_> {
     /// Emit inline `beginCatch4`/`endCatch` bytecodes for `catch`.
     ///
     /// Compiles the body as a single command inline, then emits the
@@ -642,10 +642,12 @@ impl CodegenCtx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::CommandRegistry;
 
     #[test]
     fn catch_inline_emits_begin_end_catch() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_inline("set x 1", Some("result"), None);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::BEGIN_CATCH4));
@@ -654,7 +656,8 @@ mod tests {
 
     #[test]
     fn catch_inline_stores_result_var() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_inline("set x 1", Some("res"), None);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::STORE_SCALAR1));
@@ -662,7 +665,8 @@ mod tests {
 
     #[test]
     fn catch_inline_with_options_var() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_inline("set x 1", Some("res"), Some("opts"));
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::PUSH_RETURN_OPTS));
@@ -673,7 +677,8 @@ mod tests {
 
     #[test]
     fn catch_return_simple() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_return(&[("hello".into(), false)]);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::RETURN_IMM));
@@ -681,7 +686,8 @@ mod tests {
 
     #[test]
     fn catch_return_with_code() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_return(&[
             ("-code".into(), false),
             ("error".into(), false),
@@ -693,7 +699,8 @@ mod tests {
 
     #[test]
     fn catch_error_emits_return_imm() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_error(&[("oops".into(), false)]);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::RETURN_IMM));

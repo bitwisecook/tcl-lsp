@@ -1,6 +1,6 @@
 [package]
 name = "tcl-lsp-rust"
-description = "PyO3 bindings exposing the tcl-lsp Rust crates to Python"
+description = "Transitional alias for tcl-lsp-py — re-exports the public PyO3 surface under the legacy `tcl_lsp_rust` module name. Retires in vNext."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,9 +14,7 @@ authors.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-tcl-lexer = { path = "../tcl-lexer" }
-tcl-registry = { path = "../tcl-registry" }
-tcl-compiler = { path = "../tcl-compiler" }
+tcl-lsp-py = { path = "../tcl-lsp-py" }
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
 
 [lints]

@@ -12,6 +12,7 @@ use tcl_compiler::codegen::{codegen_function, codegen_module, Op};
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{Module as IrModule, Script, Statement};
 use tcl_lexer::Span;
+use tcl_registry::CommandRegistry;
 
 fn sp() -> Span {
     Span::new(0, 0)
@@ -55,7 +56,8 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
 #[test]
 fn empty_toplevel_has_done_or_return_imm() {
     let cfg = toplevel_with(vec![]);
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &[], false, &registry);
     assert_eq!(asm.name, "::top");
     let last = asm.instructions.last().unwrap().op;
     assert!(matches!(last, Op::DONE | Op::RETURN_IMM));
@@ -68,7 +70,8 @@ fn set_const_toplevel() {
         name: "x".into(),
         value: "42".into(),
     }]);
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::PUSH1));
     assert!(ops.contains(&Op::STORE_STK));
@@ -88,7 +91,8 @@ fn multiple_statements_numbered() {
             value: "2".into(),
         },
     ]);
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &[], false, &registry);
     // Second statement should get a startCommand (or generic peephole path)
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::STORE_STK));
@@ -109,7 +113,8 @@ fn call_generates_invoke() {
         safe_on_uninit: false,
         tokens: None,
     }]);
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::INVOKE_STK1));
 }
@@ -121,7 +126,8 @@ fn call_generates_invoke() {
 #[test]
 fn empty_proc_pushes_empty_and_dones() {
     let cfg = proc_with("::foo", &[], vec![]);
-    let asm = codegen_function(&cfg, &[], true);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &[], true, &registry);
     // The peephole pass collapses the trailing pop into done, so we
     // should end with DONE.
     assert_eq!(asm.instructions.last().unwrap().op, Op::DONE);
@@ -136,7 +142,8 @@ fn proc_return_param_loads_and_dones() {
         expr: None,
         braced: false,
     });
-    let asm = codegen_function(&cfg, &["x"], true);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_function(&cfg, &["x"], true, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::LOAD_SCALAR1));
     assert_eq!(asm.instructions.last().unwrap().op, Op::DONE);
@@ -201,7 +208,9 @@ fn if_else_diamond_emits_conditional_jump() {
         braced: false,
     });
 
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     // Should include a conditional jump (possibly shrunk)
     assert!(
@@ -244,7 +253,9 @@ fn if_const_true_dead_branch_eliminated() {
         braced: false,
     });
 
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     // No conditional jump for a constant-true branch
     assert!(
@@ -326,7 +337,9 @@ fn switch_dispatch_emits_jump_table() {
         braced: false,
     });
 
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(
         ops.contains(&Op::JUMP_TABLE),
@@ -391,7 +404,9 @@ fn foreach_emits_native_opcodes() {
         braced: false,
     });
 
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(
         ops.contains(&Op::FOREACH_START),
@@ -502,7 +517,9 @@ fn complex_foreach_body_emits_step_at_end() {
         braced: false,
     });
 
-    let asm = codegen_function(&cfg, &[], false);
+    let registry = CommandRegistry::build_default();
+
+    let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(
         ops.contains(&Op::FOREACH_START),
@@ -585,7 +602,9 @@ fn while_in_proc_emits_start_cmd() {
         braced: false,
     });
 
-    let asm = codegen_function(&cfg, &[], true);
+    let registry = CommandRegistry::build_default();
+
+    let asm = codegen_function(&cfg, &[], true, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(
         ops.contains(&Op::START_CMD),
@@ -611,7 +630,8 @@ fn codegen_module_with_no_procs() {
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
     };
-    let asm = codegen_module(&cfg_mod, &ir_mod);
+    let registry = CommandRegistry::build_default();
+    let asm = codegen_module(&cfg_mod, &ir_mod, &registry);
     assert_eq!(asm.top_level.name, "::top");
     assert!(asm.procedures.is_empty());
 }

@@ -2,13 +2,17 @@
 //!
 //! Commands with compiled bytecode forms (beyond what
 //! `cmd_subst::emit_inline_cmd_subst` already handles) are routed
-//! through this dispatcher. For the initial C21 landing we match on
-//! command name directly — mirroring the Rust lowering-hook
-//! dispatch pattern in `lowering_hooks::try_lower_hook`. A future
-//! chunk may migrate this to an ID-based table that reads
-//! `CommandSpec::codegen_hook` from the registry.
+//! through this dispatcher. ARCH2 made hook selection
+//! registry-driven; ARCH5 finished the threading by reading the
+//! active [`CommandRegistry`] from `ctx.registry` so dialect-loaded
+//! specs (iRules, Tk, EDA) drive codegen-hook resolution. The
+//! compiler still owns the per-variant emitter; the registry
+//! decides which variant applies.
 //!
 //! Ported from `core/compiler/codegen/_bytecoded.py` (C21).
+
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::hooks::CodegenHookId;
 
 use super::super::values::is_qualified;
 use super::super::CodegenCtx;
@@ -30,15 +34,38 @@ pub fn try_bytecoded(
     args: &[String],
     used_generic_invoke: &mut bool,
 ) -> bool {
-    match cmd {
-        "lassign" => lassign(ctx, args),
-        "llength" => llength(ctx, args),
-        "lrange" => lrange(ctx, args),
-        "linsert" => linsert(ctx, args),
-        "lset" => lset(ctx, args),
-        "dict" => dict(ctx, args),
-        "array" => array(ctx, args, used_generic_invoke),
-        _ => false,
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(resolved) = ctx
+        .registry
+        .resolve_call(cmd, &arg_refs, DialectSet::empty())
+    else {
+        return false;
+    };
+    let Some(hook) = resolved.codegen_hook else {
+        return false;
+    };
+    dispatch_codegen_hook(hook, ctx, args, used_generic_invoke)
+}
+
+/// Dispatch a typed [`CodegenHookId`] to its emitter.
+///
+/// Public so external pipelines (tests, future LSP feature
+/// providers) can reuse the per-hook implementations without
+/// duplicating the table.
+pub fn dispatch_codegen_hook(
+    hook: CodegenHookId,
+    ctx: &mut CodegenCtx,
+    args: &[String],
+    used_generic_invoke: &mut bool,
+) -> bool {
+    match hook {
+        CodegenHookId::Lassign => lassign(ctx, args),
+        CodegenHookId::Llength => llength(ctx, args),
+        CodegenHookId::Lrange => lrange(ctx, args),
+        CodegenHookId::Linsert => linsert(ctx, args),
+        CodegenHookId::Lset => lset(ctx, args),
+        CodegenHookId::Dict => dict(ctx, args),
+        CodegenHookId::Array => array(ctx, args, used_generic_invoke),
     }
 }
 
@@ -338,10 +365,12 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::CommandRegistry;
 
     #[test]
     fn lassign_rejects_wrong_arity() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let mut used = false;
         // 0 args
         assert!(!try_bytecoded(&mut ctx, "lassign", &[], &mut used));
@@ -352,7 +381,8 @@ mod tests {
 
     #[test]
     fn lassign_emits_expected_sequence() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["${lst}".to_string(), "a".to_string(), "b".to_string()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "lassign", &args, &mut used));
@@ -369,7 +399,8 @@ mod tests {
 
     #[test]
     fn llength_single_arg() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["${lst}".to_string()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "llength", &args, &mut used));
@@ -379,7 +410,8 @@ mod tests {
 
     #[test]
     fn llength_wrong_arity_rejects() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "llength", &[], &mut used));
         let args = vec!["a".into(), "b".into()];
@@ -388,7 +420,8 @@ mod tests {
 
     #[test]
     fn array_names_emits_fq_invoke() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["names".into(), "${arr}".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "array", &args, &mut used));
@@ -403,7 +436,8 @@ mod tests {
 
     #[test]
     fn array_in_proc_context_rejects() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["names".into(), "${arr}".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "array", &args, &mut used));
@@ -413,7 +447,8 @@ mod tests {
 
     #[test]
     fn lrange_constant_indices() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["${lst}".to_string(), "0".into(), "end".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "lrange", &args, &mut used));
@@ -423,7 +458,8 @@ mod tests {
 
     #[test]
     fn lrange_non_constant_indices_rejects() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["${lst}".to_string(), "$i".into(), "end".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "lrange", &args, &mut used));
@@ -431,7 +467,8 @@ mod tests {
 
     #[test]
     fn linsert_emits_lreplace4_with_op2() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["${lst}".to_string(), "2".into(), "hello".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "linsert", &args, &mut used));
@@ -441,7 +478,8 @@ mod tests {
 
     #[test]
     fn lset_proc_single_index_uses_lset_list() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["lst".to_string(), "1".into(), "new".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "lset", &args, &mut used));
@@ -453,7 +491,8 @@ mod tests {
 
     #[test]
     fn lset_proc_multi_index_uses_lset_flat() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["lst".to_string(), "0".into(), "2".into(), "new".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "lset", &args, &mut used));
@@ -463,7 +502,8 @@ mod tests {
 
     #[test]
     fn lset_toplevel_uses_stk_form() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["lst".to_string(), "1".into(), "new".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "lset", &args, &mut used));
@@ -476,7 +516,8 @@ mod tests {
 
     #[test]
     fn lset_rejects_too_few_args() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["lst".to_string(), "new".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
@@ -486,7 +527,8 @@ mod tests {
 
     #[test]
     fn dict_set_proc_uses_dict_set_opcode() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["set".into(), "d".into(), "k".into(), "v".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -496,7 +538,8 @@ mod tests {
 
     #[test]
     fn dict_incr_with_default_amount() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["incr".into(), "d".into(), "k".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -506,7 +549,8 @@ mod tests {
 
     #[test]
     fn dict_incr_with_explicit_amount() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["incr".into(), "d".into(), "k".into(), "5".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -514,7 +558,8 @@ mod tests {
 
     #[test]
     fn dict_incr_rejects_non_integer_amount() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["incr".into(), "d".into(), "k".into(), "$amt".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -522,7 +567,8 @@ mod tests {
 
     #[test]
     fn dict_unset_uses_dict_unset_opcode() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["unset".into(), "d".into(), "k".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -532,7 +578,8 @@ mod tests {
 
     #[test]
     fn dict_append_uses_dict_append_opcode() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["append".into(), "d".into(), "k".into(), "v".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -542,7 +589,8 @@ mod tests {
 
     #[test]
     fn dict_lappend_uses_dict_lappend_opcode() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["lappend".into(), "d".into(), "k".into(), "v".into()];
         let mut used = false;
         assert!(try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -552,7 +600,8 @@ mod tests {
 
     #[test]
     fn dict_in_non_proc_context_rejects() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["set".into(), "d".into(), "k".into(), "v".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -560,7 +609,8 @@ mod tests {
 
     #[test]
     fn dict_with_qualified_name_rejects() {
-        let mut ctx = CodegenCtx::new(true, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["set".into(), "::global::d".into(), "k".into(), "v".into()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "dict", &args, &mut used));
@@ -568,8 +618,110 @@ mod tests {
 
     #[test]
     fn unknown_command_returns_false() {
-        let mut ctx = CodegenCtx::new(false, &[]);
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "foobar", &[], &mut used));
+    }
+
+    /// Registry-side hook ID for `llength` is the canonical source
+    /// of truth for codegen routing.
+    #[test]
+    fn registry_llength_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("llength").expect("llength is registered");
+        assert_eq!(spec.codegen_hook, Some(CodegenHookId::Llength));
+    }
+
+    /// Registry-side hook ID for `dict` covers all dict subcommand
+    /// emissions through one hook.
+    #[test]
+    fn registry_dict_spec_carries_codegen_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("dict").expect("dict is registered");
+        assert_eq!(spec.codegen_hook, Some(CodegenHookId::Dict));
+    }
+
+    /// Resolving the `dict set` subcommand call yields the parent
+    /// `dict` command's `Dict` codegen hook.
+    #[test]
+    fn resolve_call_routes_dict_set_subcommand_to_dict_hook() {
+        let registry = CommandRegistry::build_default();
+        let resolved = registry
+            .resolve_call(
+                "dict",
+                &["set", "d", "k", "v"],
+                tcl_registry::dialects::DialectSet::TCL86,
+            )
+            .expect("dict set resolves");
+        assert_eq!(resolved.codegen_hook, Some(CodegenHookId::Dict));
+        assert_eq!(
+            resolved.sub.expect("dict set has a subcommand entry").name,
+            "set",
+        );
+    }
+
+    /// Resolving an iRules command form: the `HTTP::header` command
+    /// must come back from the registry (after loading the iRules
+    /// dialect) so the resolved-call API can drive iRules-aware
+    /// pipelines without command-name dispatch tables in the
+    /// compiler.
+    #[test]
+    fn resolve_call_irules_http_header_form() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let resolved = registry
+            .resolve_call(
+                "HTTP::header",
+                &["names"],
+                tcl_registry::dialects::DialectSet::IRULES,
+            )
+            .expect("HTTP::header resolves under iRules");
+        assert_eq!(resolved.spec.name, "HTTP::header");
+    }
+
+    /// ARCH5 — `try_bytecoded` reads its registry from `ctx.registry`,
+    /// not from a private static. Loading the iRules dialect into the
+    /// registry passed into the context must therefore make
+    /// dialect-only specs visible to codegen-hook resolution. Today
+    /// no iRules command carries a `codegen_hook`, so the visible
+    /// proof is that the dialect-only spec resolves; coupled with
+    /// the absence of any `OnceLock<CommandRegistry>` static, this
+    /// is the registry-threading contract.
+    #[test]
+    fn ctx_registry_drives_codegen_hook_resolution() {
+        // Plain default registry: an iRules-only command is unknown,
+        // so resolve_call returns None and try_bytecoded would skip
+        // the hook path even if one existed.
+        let default = CommandRegistry::build_default();
+        assert!(default
+            .resolve_call(
+                "HTTP::header",
+                &["names"],
+                tcl_registry::dialects::DialectSet::IRULES,
+            )
+            .is_none());
+
+        // A registry with iRules loaded sees the same name. The
+        // CodegenCtx built from this registry would see whatever
+        // codegen_hook the iRules spec carries (currently None,
+        // since no iRules command has a registry-side codegen
+        // hook yet). The point is `ctx.registry` is what drives
+        // resolution, not a hardcoded default.
+        let mut irules = CommandRegistry::build_default();
+        irules.load_irules();
+        let resolved = irules
+            .resolve_call(
+                "HTTP::header",
+                &["names"],
+                tcl_registry::dialects::DialectSet::IRULES,
+            )
+            .expect("HTTP::header resolves once iRules is loaded");
+
+        // Wire it through CodegenCtx: the ctx's registry field is
+        // what try_bytecoded reads.
+        let ctx = CodegenCtx::new(true, &[], &irules);
+        assert!(std::ptr::eq(ctx.registry, &irules));
+        assert_eq!(resolved.spec.name, "HTTP::header");
     }
 }

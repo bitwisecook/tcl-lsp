@@ -1,4 +1,5 @@
 //! `lassign` — assign list elements to variables.
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,6 +19,7 @@ pub fn spec() -> CommandSpec {
             &["lassign list ?varName ...?"],
             "Tcl lassign(1)",
         )),
+        codegen_hook: Some(CodegenHookId::Lassign),
         ..CommandSpec::DEFAULT
     }
 }

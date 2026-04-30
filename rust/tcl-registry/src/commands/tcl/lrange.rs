@@ -1,4 +1,5 @@
 //! `lrange` — return a range of list elements.
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,6 +19,7 @@ pub fn spec() -> CommandSpec {
             &["lrange list first last"],
             "Tcl lrange(1)",
         )),
+        codegen_hook: Some(CodegenHookId::Lrange),
         ..CommandSpec::DEFAULT
     }
 }

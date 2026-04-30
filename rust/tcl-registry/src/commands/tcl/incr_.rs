@@ -1,6 +1,28 @@
 //! `incr` — increment a variable.
+//
+// VERIFIED: Tcl 9.0.3 manpage incr(n) (man3/incr.n).
 
+use crate::forms::CommandForm;
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+
+/// `incr varName` — implicit increment of 1.
+const INCR_IMPLICIT: CommandForm = CommandForm {
+    name: "implicit",
+    arity: Arity::exact(1),
+    arg_roles: &[(0, ArgRole::VarWrite)],
+    lowering_hook: Some(LoweringHookId::Incr),
+    ..CommandForm::DEFAULT
+};
+
+/// `incr varName increment` — explicit increment.
+const INCR_EXPLICIT: CommandForm = CommandForm {
+    name: "explicit",
+    arity: Arity::exact(2),
+    arg_roles: &[(0, ArgRole::VarWrite)],
+    lowering_hook: Some(LoweringHookId::Incr),
+    ..CommandForm::DEFAULT
+};
 
 /// Command spec for `incr`.
 pub fn spec() -> CommandSpec {
@@ -33,6 +55,8 @@ pub fn spec() -> CommandSpec {
             &["incr varName ?increment?"],
             "Tcl incr(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Incr),
+        command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         ..CommandSpec::DEFAULT
     }
 }

@@ -63,6 +63,23 @@ pub enum ProcArgTrait {
     Unused,
 }
 
+impl ProcArgTrait {
+    /// Stable lower-case wire form
+    /// (`"passthrough"`, `"used_in_condition"`,
+    /// `"forwarded_to_callee"`, `"unused"`). Consumers (`PyO3`
+    /// bindings, native LSP server) materialise traits using this
+    /// form rather than re-implementing the mapping.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Passthrough => "passthrough",
+            Self::UsedInCondition => "used_in_condition",
+            Self::ForwardedToCallee => "forwarded_to_callee",
+            Self::Unused => "unused",
+        }
+    }
+}
+
 /// A proven-constant return value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConstantReturn {
@@ -74,6 +91,21 @@ pub enum ConstantReturn {
     Bool(bool),
     /// String.
     Str(String),
+}
+
+impl ConstantReturn {
+    /// Lower into the canonical `(kind, text)` wire form. `kind`
+    /// is one of `"int"`, `"float"`, `"bool"`, `"str"`; `text` is
+    /// the rendered value. Bools render as `"1"` / `"0"`.
+    #[must_use]
+    pub fn as_kind_text(&self) -> (&'static str, String) {
+        match self {
+            Self::Int(i) => ("int", i.to_string()),
+            Self::Float(f) => ("float", f.to_string()),
+            Self::Bool(b) => ("bool", if *b { "1".into() } else { "0".into() }),
+            Self::Str(s) => ("str", s.clone()),
+        }
+    }
 }
 
 /// Per-procedure summary of interprocedural facts.

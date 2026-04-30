@@ -8,8 +8,8 @@
 //! recurses through nested braced bodies.
 //!
 //! The result is a fully line-resolved `Vec<FoldingRange>`.  The
-//! `PyO3` binding (in `lib.rs`) emits these as plain dicts; the
-//! Python dispatcher in `lsp/features/folding.py` materialises
+//! `PyO3` binding (`super::folding_binding`) emits these as plain
+//! dicts; the Python dispatcher in `lsp/features/folding.py` materialises
 //! [`lsprotocol.types.FoldingRange`] values and runs
 //! `_normalise_overlaps` on them — keeping the overlap-normalisation
 //! algorithm in Python preserves the
@@ -22,7 +22,6 @@ use std::collections::HashSet;
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
 use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::{LineIndex, TokenType};
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
 /// LSP folding-range kind.  Mirrors `lsprotocol.types.FoldingRangeKind`.
@@ -67,23 +66,29 @@ pub struct FoldingRange {
 /// scope folds when `analysis is None` is unnecessary in Rust — the
 /// analyser itself is fast enough).
 ///
+/// `registry` is the [`CommandRegistry`] consulted for body-arg
+/// roles. The caller owns the registry — typically the LSP server's
+/// `Backend` builds and dialect-loads it once per session, and the
+/// `PyO3` binding caches a default instance — so this function never
+/// rebuilds it. `dialect` is forwarded to the analyser for
+/// dialect-specific scope semantics.
+///
 /// Overlap normalisation is left to the Python dispatcher so the
 /// `_normalise_overlaps` test surface in `tests/test_folding.py`
 /// keeps working unchanged; the cargo tests in this module validate
 /// the collector outputs directly.
 #[must_use]
-pub fn folding_ranges(source: &str, dialect: &str) -> Vec<FoldingRange> {
+pub fn folding_ranges(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> Vec<FoldingRange> {
     if source.is_empty() {
         return Vec::new();
     }
 
     let mut analyser = Analyser::new();
     let analysis = analyser.analyse(source, dialect);
-
-    let mut registry = CommandRegistry::build_default();
-    if let Some(d) = DialectSet::parse(dialect) {
-        registry.load_dialect(d);
-    }
 
     let line_index = LineIndex::new(source);
     let mut seen: HashSet<(u32, u32)> = HashSet::new();
@@ -99,11 +104,12 @@ pub fn folding_ranges(source: &str, dialect: &str) -> Vec<FoldingRange> {
     collect_comment_folds(source, &mut seen, &mut ranges);
     collect_body_folds(
         source,
-        &registry,
+        registry,
         &line_index,
         source,
         0,
         0,
+        false, // top-level body is not inside an OO definition
         &mut seen,
         &mut ranges,
     );
@@ -151,75 +157,69 @@ fn push_unique(
     }
 }
 
-/// Collect BODY indices for ``property`` / ``oo::define …
-/// property`` flag pairs (``-set BODY`` / ``-get BODY``).
-/// `start` is the index of the first option flag — `0` for the inner
-/// ``property`` command, `2` for the ``oo::define Target property``
-/// shape.
-fn collect_property_body_indices(args: &[&str], start: usize) -> Vec<usize> {
+/// Collect BODY indices for the inner `property` form's
+/// `-set BODY` / `-get BODY` flag pairs. Always called with
+/// `args` from an inner `property NAME ?-set BODY? ?-get BODY?`
+/// invocation.
+fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
     let n = args.len();
     if n == 0 {
         return Vec::new();
     }
     args.iter()
         .enumerate()
-        .skip(start)
-        .take(n.saturating_sub(start + 1))
+        .take(n.saturating_sub(1))
         .filter_map(|(i, &a)| ((a == "-set" || a == "-get") && i + 1 < n).then_some(i + 1))
         .collect()
 }
 
-/// Subcommands recognised by ``oo::define`` / ``oo::objdefine``.
-/// Used to disambiguate the script-form (``oo::define Target {body}``)
-/// from a subcommand call where ``args[1]`` is one of these words.
-const OO_DEFINE_SUBCOMMANDS: &[&str] = &[
-    "constructor",
-    "destructor",
-    "method",
-    "classmethod",
-    "initialise",
-    "initialize",
-    "private",
-    "self",
-    "property",
-    "filter",
-    "export",
-    "unexport",
-    "deletemethod",
-    "renamemethod",
-    "forward",
-    "mixin",
-    "superclass",
-    "variable",
-];
+/// Outer (context-free) OO definition commands — `oo::class` /
+/// `oo::define` / `oo::objdefine`. The bodies of these commands
+/// are OO definition bodies; recursing into one switches the
+/// walker into "inside OO body" mode where the inner-OO commands
+/// (`method`, `constructor`, …) become body-bearing.
+fn is_outer_oo_definition_command(name: &str) -> bool {
+    matches!(name, "oo::class" | "oo::define" | "oo::objdefine")
+}
 
-/// Return BODY argument indices for `TclOO` commands.
+/// Inner OO definition-script commands. These are
+/// context-sensitive: a top-level user proc named `method`
+/// outside an OO block must not be folded as if it were an OO
+/// `method` definition. The walker only consults
+/// [`inner_oo_body_indices`] when `inside_oo_body == true`.
 ///
-/// Mirrors three Python helpers that the Rust command registry
-/// hasn't yet absorbed: ``_oo_definition_body_indices``
-/// (inner-script commands — ``method``, ``constructor``, ``destructor``,
-/// ``self constructor``, ``property -set/-get``, …) in
-/// ``core/commands/registry/runtime.py``, plus the
-/// ``arg_role_resolver`` callbacks on ``oo::class`` (the
-/// ``create``/``new``/``createWithNamespace`` metaclass shapes) and
-/// ``oo::define`` / ``oo::objdefine`` (both the script form and the
-/// subcommand-driven shape) in
-/// ``core/commands/registry/tcl/oo_class.py`` and
-/// ``oo_define.py``.  These commands are context-sensitive — a user
-/// proc named ``method`` outside an OO block must not be
-/// misidentified — so they aren't regular registry entries; the
-/// body walker checks them as a priority before falling back to the
-/// registry.
+/// Recursing into one of these inner bodies takes us out of OO
+/// definition context — methods / constructors / destructors hold
+/// regular Tcl code, so the next recursion runs with
+/// `inside_oo_body = false`.
+fn is_inner_oo_definition_command(name: &str) -> bool {
+    matches!(
+        name,
+        "method"
+            | "classmethod"
+            | "constructor"
+            | "destructor"
+            | "initialise"
+            | "initialize"
+            | "private"
+            | "self"
+            | "property"
+    )
+}
+
+/// Return BODY argument indices for inner OO definition-script
+/// commands. Only consulted by the walker when
+/// `inside_oo_body == true` — i.e. we are recursing through the
+/// body of an `oo::class create … { … }` / `oo::define … { … }`
+/// block. Outside that context these commands are treated as
+/// regular calls (a user proc named `method` shadows nothing).
 //
 // `match_same_arms`: keeping each command word on its own arm
-// mirrors the Python helpers' shape and reads as a lookup table,
-// which is the point of the function — collapsing the
-// ``-> vec![0]`` arms together loses that reading.
+// reads as a lookup table, which is the point of the function.
 #[allow(clippy::match_same_arms)]
-fn oo_definition_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
+fn inner_oo_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
     let n = args.len();
     match command {
-        // Inner OO definition-script commands.
         "constructor" if n >= 2 => vec![1],
         "destructor" if n >= 1 => vec![0],
         "method" | "classmethod" if n >= 3 => vec![n - 1],
@@ -231,40 +231,7 @@ fn oo_definition_body_indices(command: &str, args: &[&str]) -> Vec<usize> {
             "method" | "classmethod" if n >= 4 => vec![n - 1],
             _ => Vec::new(),
         },
-        "property" => collect_property_body_indices(args, 0),
-        // Outer OO metaclass commands — ``oo::class create Foo
-        // {body}`` etc.  Mirrors ``_oo_metaclass_arg_roles``.
-        "oo::class" if n >= 2 => match args[0] {
-            "create" if n >= 3 => vec![2],
-            "new" if n >= 2 => vec![1],
-            "createWithNamespace" if n >= 4 => vec![3],
-            _ => Vec::new(),
-        },
-        // ``oo::define Target {body}`` script form, plus the
-        // subcommand-driven shape.  Mirrors ``_oo_define_arg_roles``.
-        "oo::define" | "oo::objdefine" => {
-            if n == 2 && !OO_DEFINE_SUBCOMMANDS.contains(&args[1]) {
-                return vec![1];
-            }
-            if n < 2 {
-                return Vec::new();
-            }
-            match args[1] {
-                "constructor" if n >= 4 => vec![3],
-                "destructor" if n >= 3 => vec![2],
-                "method" | "classmethod" if n >= 5 => vec![n - 1],
-                "initialise" | "initialize" if n >= 3 => vec![2],
-                "private" if n >= 3 => vec![2],
-                "self" if n >= 3 => match args[2] {
-                    "constructor" if n >= 5 => vec![4],
-                    "destructor" if n >= 4 => vec![3],
-                    "method" | "classmethod" if n >= 6 => vec![n - 1],
-                    _ => Vec::new(),
-                },
-                "property" => collect_property_body_indices(args, 2),
-                _ => Vec::new(),
-            }
-        }
+        "property" => collect_property_body_indices(args),
         _ => Vec::new(),
     }
 }
@@ -364,6 +331,13 @@ fn collect_comment_folds(
 /// Recursively segment commands and emit folds for every multi-line
 /// `BODY`-roled argument.  Mirrors `_collect_body_folds`.
 ///
+/// `inside_oo_body` tracks whether we are recursing through the
+/// body of an outer OO definition command (`oo::class create` /
+/// `oo::define` / `oo::objdefine`). The inner OO commands
+/// (`method`, `constructor`, …) are body-bearing only inside that
+/// context — outside it, a user proc named `method` must not be
+/// misidentified.
+///
 /// Recursion depth is capped at 20 to mirror the Python guard.
 #[allow(clippy::too_many_arguments)]
 fn collect_body_folds(
@@ -373,6 +347,7 @@ fn collect_body_folds(
     original_source: &str,
     base_offset: u32,
     depth: u32,
+    inside_oo_body: bool,
     seen: &mut HashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
@@ -385,20 +360,41 @@ fn collect_body_folds(
             continue;
         }
         let args_borrow: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        // TclOO definition-script commands (`method`, `constructor`,
-        // `destructor`, `self constructor`, `property -set/-get`, …)
-        // are context-sensitive — a user proc named ``method`` outside
-        // an OO block must not be misidentified — so they aren't
-        // regular registry entries.  Mirror Python's
-        // ``_oo_definition_body_indices`` priority in
-        // ``core/commands/registry/runtime.py`` so braced bodies in
-        // ``oo::define`` blocks still fold.
-        let oo_body = oo_definition_body_indices(cmd.name(), &args_borrow);
-        let body_indices: Vec<usize> = if oo_body.is_empty() {
-            registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body)
+
+        // Outer OO definition commands (`oo::class`, `oo::define`,
+        // `oo::objdefine`) carry their body-arg shapes in the
+        // registry now — `arg_indices_for_role` returns the right
+        // index. Inner OO commands (`method`, `constructor`,
+        // `destructor`, `self`, `property`, …) are
+        // context-sensitive and only count when we are walking
+        // through an outer OO body; their indices come from
+        // [`inner_oo_body_indices`].
+        let body_indices: Vec<usize> =
+            if inside_oo_body && is_inner_oo_definition_command(cmd.name()) {
+                inner_oo_body_indices(cmd.name(), &args_borrow)
+            } else {
+                registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body)
+            };
+
+        // What "inside_oo_body" should the recursion into THIS
+        // command's bodies see?
+        //
+        //  - Outer OO commands (`oo::class create Foo {...}`):
+        //    the body IS the OO definition body → set true.
+        //  - Inner OO commands inside an OO body
+        //    (`method foo {} {...}`): the body is plain Tcl code
+        //    → set false.
+        //  - Anything else (`if`, `while`, `for`, …): inherit the
+        //    current flag — control-flow nesting inside an OO
+        //    body keeps us in OO context.
+        let next_inside_oo_body = if is_outer_oo_definition_command(cmd.name()) {
+            true
+        } else if inside_oo_body && is_inner_oo_definition_command(cmd.name()) {
+            false
         } else {
-            oo_body
+            inside_oo_body
         };
+
         for idx in body_indices {
             let arg_tokens = cmd.arg_tokens();
             if idx >= arg_tokens.len() {
@@ -441,6 +437,7 @@ fn collect_body_folds(
                 original_source,
                 u32::try_from(content_start).expect("content offset fits u32"),
                 depth + 1,
+                next_inside_oo_body,
                 seen,
                 ranges,
             );
@@ -451,6 +448,22 @@ fn collect_body_folds(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Build a fresh registry for a test.
+    ///
+    /// Tests build a per-test registry rather than caching one
+    /// statically — `CommandRegistry::build_default()` is cheap
+    /// (~118 specs of `&'static` data) and avoids a static
+    /// `OnceLock` in this crate.
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    /// Convenience wrapper for the original two-argument test
+    /// signature; threads a fresh registry through the new API.
+    fn folding_ranges_default(source: &str, dialect: &str) -> Vec<FoldingRange> {
+        folding_ranges(source, dialect, &registry())
+    }
 
     fn fold_lines(ranges: &[FoldingRange], kind: FoldKind) -> Vec<(u32, u32)> {
         let mut out: Vec<(u32, u32)> = ranges
@@ -470,13 +483,13 @@ mod tests {
 
     #[test]
     fn empty_source_yields_no_folds() {
-        assert!(folding_ranges("", "tcl8.6").is_empty());
+        assert!(folding_ranges_default("", "tcl8.6").is_empty());
     }
 
     #[test]
     fn single_line_proc_has_no_fold() {
         // Mirrors `test_single_line_no_fold` in tests/test_folding.py.
-        let ranges = folding_ranges("proc foo {} { return 1 }\n", "tcl8.6");
+        let ranges = folding_ranges_default("proc foo {} { return 1 }\n", "tcl8.6");
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
@@ -484,7 +497,7 @@ mod tests {
     fn proc_body_folds_to_close_brace_minus_one() {
         // Mirrors `test_proc_body`.
         let source = "proc greet {name} {\n    puts \"Hello\"\n    puts \"$name\"\n}\n";
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert!(!regions.is_empty(), "expected a region fold for the proc");
         assert!(
@@ -497,7 +510,7 @@ mod tests {
     fn namespace_body_emits_fold_at_line_zero() {
         // Mirrors `test_namespace_body`.
         let source = "namespace eval myns {\n    proc helper {} { return }\n}\n";
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let starts: HashSet<u32> = ranges
             .iter()
             .filter(|r| r.kind == FoldKind::Region)
@@ -513,7 +526,7 @@ mod tests {
     fn comment_block_of_three_lines_folds() {
         // Mirrors `test_comment_block`.
         let source = "# This is a comment block\n# that spans multiple lines\n# explaining something important\nproc foo {} { return }\n";
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let comments = fold_lines(&ranges, FoldKind::Comment);
         assert_eq!(comments, vec![(0, 2)]);
     }
@@ -521,7 +534,7 @@ mod tests {
     #[test]
     fn single_comment_line_does_not_fold() {
         // Mirrors `test_single_comment_no_fold`.
-        let ranges = folding_ranges("# Just one comment\n", "tcl8.6");
+        let ranges = folding_ranges_default("# Just one comment\n", "tcl8.6");
         assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
     }
 
@@ -529,7 +542,7 @@ mod tests {
     fn if_body_emits_at_least_one_region_fold() {
         // Mirrors `test_if_body`.
         let source = "if {1} {\n    puts \"yes\"\n    puts \"really\"\n}\n";
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
@@ -537,7 +550,7 @@ mod tests {
     fn while_body_emits_at_least_one_region_fold() {
         // Mirrors `test_while_body`.
         let source = "while {1} {\n    puts \"loop\"\n    puts \"again\"\n}\n";
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
@@ -554,7 +567,7 @@ mod tests {
             "    puts \"nope\"\n",
             "}\n",
         );
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let mut bodies: Vec<(u32, u32)> = ranges
             .iter()
             .filter(|r| r.kind == FoldKind::Region && (r.start_line == 0 || r.start_line == 3))
@@ -579,7 +592,7 @@ mod tests {
         // proc body should still be foldable so the fold doesn't
         // flicker off mid-edit.
         let source = "proc foo {} {\n    puts hi\n    puts there\n";
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert!(
             !regions.is_empty(),
@@ -605,7 +618,7 @@ mod tests {
             "    puts d\n",
             "}\n",
         );
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert_eq!(
             regions.len(),
@@ -642,7 +655,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         for (i, a) in ranges.iter().enumerate() {
             for b in &ranges[i + 1..] {
                 if a.start_line == b.start_line && a.end_line == b.end_line {
@@ -655,7 +668,7 @@ mod tests {
                     continue;
                 }
                 let overlaps = a.end_line >= b.start_line && a.start_line <= b.end_line;
-                assert!(!overlaps, "non-nested overlap between {a:?} and {b:?}",);
+                assert!(!overlaps, "non-nested overlap between {a:?} and {b:?}");
             }
         }
     }
@@ -678,7 +691,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let regions = fold_lines(&ranges, FoldKind::Region);
         // Method body (``method greet … { … }``): start line 1, body
         // spans through line 3 — the closing ``}`` sits on line 4.
@@ -694,79 +707,147 @@ mod tests {
     }
 
     #[test]
-    fn oo_definition_body_indices_table() {
+    fn inner_oo_body_indices_table() {
+        // Inner OO definition-script commands (only consulted when
+        // `inside_oo_body == true`).
         assert_eq!(
-            oo_definition_body_indices("constructor", &["{}", "body"]),
+            inner_oo_body_indices("constructor", &["{}", "body"]),
             vec![1]
         );
-        assert_eq!(oo_definition_body_indices("destructor", &["body"]), vec![0]);
+        assert_eq!(inner_oo_body_indices("destructor", &["body"]), vec![0]);
         assert_eq!(
-            oo_definition_body_indices("method", &["name", "{}", "body"]),
+            inner_oo_body_indices("method", &["name", "{}", "body"]),
             vec![2],
         );
         assert_eq!(
-            oo_definition_body_indices("classmethod", &["name", "{args}", "body"]),
+            inner_oo_body_indices("classmethod", &["name", "{args}", "body"]),
             vec![2],
         );
         assert_eq!(
-            oo_definition_body_indices("self", &["constructor", "{}", "body"]),
+            inner_oo_body_indices("self", &["constructor", "{}", "body"]),
             vec![2],
         );
         assert_eq!(
-            oo_definition_body_indices("self", &["destructor", "body"]),
+            inner_oo_body_indices("self", &["destructor", "body"]),
             vec![1],
         );
         assert_eq!(
-            oo_definition_body_indices("self", &["method", "name", "{}", "body"]),
+            inner_oo_body_indices("self", &["method", "name", "{}", "body"]),
             vec![3],
         );
         assert_eq!(
-            oo_definition_body_indices("property", &["name", "-set", "setter", "-get", "getter"]),
+            inner_oo_body_indices("property", &["name", "-set", "setter", "-get", "getter"]),
             vec![2, 4],
         );
-        // Non-OO command: empty.
-        assert!(oo_definition_body_indices("set", &["x", "1"]).is_empty());
+        // Non-OO command: empty (the walker never even consults this
+        // function for non-inner-OO commands, but the helper itself
+        // is still defensive).
+        assert!(inner_oo_body_indices("set", &["x", "1"]).is_empty());
         // Too few args: empty.
-        assert!(oo_definition_body_indices("method", &["name"]).is_empty());
-        // ``oo::class create Foo {body}`` — body at index 2.
+        assert!(inner_oo_body_indices("method", &["name"]).is_empty());
+    }
+
+    /// Top-level OO body shapes are now driven by registry
+    /// `arg_role_resolver` callbacks on `oo::class` / `oo::define` /
+    /// `oo::objdefine` rather than by a hardcoded helper inside the
+    /// folding provider. Pin the registry-side resolver so the
+    /// folding walker keeps working off authoritative metadata.
+    #[test]
+    fn outer_oo_body_indices_resolve_via_registry() {
+        let reg = registry();
+
+        // `oo::class create Foo body` — body at index 2.
         assert_eq!(
-            oo_definition_body_indices("oo::class", &["create", "Foo", "body"]),
+            reg.arg_indices_for_role("oo::class", &["create", "Foo", "body"], ArgRole::Body,),
             vec![2],
         );
         assert_eq!(
-            oo_definition_body_indices("oo::class", &["new", "body"]),
+            reg.arg_indices_for_role("oo::class", &["new", "body"], ArgRole::Body),
             vec![1],
         );
         assert_eq!(
-            oo_definition_body_indices(
+            reg.arg_indices_for_role(
                 "oo::class",
                 &["createWithNamespace", "Foo", "::Foo::ns", "body"],
+                ArgRole::Body,
             ),
             vec![3],
         );
-        // ``oo::define Target {body}`` script form — body at 1 only
-        // when arg 1 is not a recognised subcommand.
+
+        // `oo::define Target body` script form — body at 1 only when
+        // arg 1 is not a recognised subcommand.
         assert_eq!(
-            oo_definition_body_indices("oo::define", &["Foo", "body"]),
+            reg.arg_indices_for_role("oo::define", &["Foo", "body"], ArgRole::Body),
             vec![1],
         );
-        // ``oo::define Foo method ...`` — body resolution falls
+        // `oo::define Foo method ...` — body resolution falls
         // through to the subcommand shape.
         assert_eq!(
-            oo_definition_body_indices("oo::define", &["Foo", "method", "name", "{}", "body"]),
+            reg.arg_indices_for_role(
+                "oo::define",
+                &["Foo", "method", "name", "{}", "body"],
+                ArgRole::Body,
+            ),
             vec![4],
         );
         assert_eq!(
-            oo_definition_body_indices("oo::define", &["Foo", "constructor", "{}", "body"]),
+            reg.arg_indices_for_role(
+                "oo::define",
+                &["Foo", "constructor", "{}", "body"],
+                ArgRole::Body,
+            ),
             vec![3],
         );
         assert_eq!(
-            oo_definition_body_indices(
+            reg.arg_indices_for_role(
                 "oo::define",
                 &["Foo", "self", "method", "name", "{}", "body"],
+                ArgRole::Body,
             ),
             vec![5],
         );
+
+        // `oo::objdefine` shares the resolver with `oo::define`.
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "oo::objdefine",
+                &["$obj", "method", "name", "{}", "body"],
+                ArgRole::Body,
+            ),
+            vec![4],
+        );
+    }
+
+    /// Context-sensitivity guard: a top-level user proc named
+    /// `method` must NOT be treated as an OO method definition.
+    /// The body walker only consults [`inner_oo_body_indices`] when
+    /// `inside_oo_body == true` — at top level it falls through to
+    /// the registry, which has no `method` entry. Regression for
+    /// the architecture review on PR #231.
+    #[test]
+    fn top_level_method_is_not_an_oo_definition() {
+        let source = concat!(
+            "proc method {a b c} {\n",
+            "    puts \"shadow attempt\"\n",
+            "    puts \"second line\"\n",
+            "}\n",
+            // A bare invocation of the user proc — args don't
+            // form a valid `method name args body` shape.
+            "method 1 2 3\n",
+        );
+        let ranges = folding_ranges_default(source, "tcl8.6");
+        let regions = fold_lines(&ranges, FoldKind::Region);
+        // The proc body fold (line 0..2) is fine — that comes from
+        // `proc`, not from misidentifying `method`. But there must
+        // be no spurious fold attributable to `method 1 2 3`
+        // (it has no braced body, so even if we erroneously
+        // applied OO rules, no STR token would match — but the
+        // assertion documents the intent).
+        for (s, _e) in &regions {
+            // `method 1 2 3` is on line 4; no fold should start
+            // there.
+            assert_ne!(*s, 4, "method 1 2 3 must not produce a fold");
+        }
     }
 
     #[test]
@@ -781,7 +862,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges(source, "tcl8.6");
+        let ranges = folding_ranges_default(source, "tcl8.6");
         let proc_folds: Vec<&FoldingRange> = ranges
             .iter()
             .filter(|r| r.kind == FoldKind::Region && r.start_line == 0)
