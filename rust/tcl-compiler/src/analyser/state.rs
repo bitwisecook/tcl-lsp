@@ -1423,6 +1423,92 @@ mod tests {
         assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
     }
 
+    // -- ``postpass`` chunk: W302 catch-without-result-var emitter
+    //
+    // Mirrors the IRCatch arm of ``_check_statement`` in
+    // ``core/compiler/compiler_checks.py:491-504`` against the Rust
+    // port so the W302 path retires from the Python
+    // ``run_compiler_checks`` post-pass.
+
+    #[test]
+    fn analyse_emits_w302_for_catch_without_result_var() {
+        let mut a = Analyser::new();
+        let r = a.analyse("catch { puts hi }\n", "tcl");
+        let w302: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W302").collect();
+        assert_eq!(w302.len(), 1, "got {:?}", r.diagnostics);
+        assert!(
+            w302[0].message.contains("silently swallows errors"),
+            "got {:?}",
+            w302[0].message
+        );
+        assert!(matches!(w302[0].severity, crate::analyser::Severity::Hint));
+    }
+
+    #[test]
+    fn analyse_no_w302_when_catch_has_result_var() {
+        // ``catch BODY result`` — result variable is present, so
+        // errors aren't silently swallowed.
+        let mut a = Analyser::new();
+        let r = a.analyse("catch { puts hi } result\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w302_when_catch_has_options_var() {
+        // ``catch BODY result options`` — both optional vars
+        // present.  Still no W302.
+        let mut a = Analyser::new();
+        let r = a.analyse("catch { puts hi } result options\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_no_w302_for_multi_token_catch_body() {
+        // ``catch pre$x`` — multi-token-word body lands on
+        // Python's ``IRBarrier`` "catch with dynamic body" path
+        // in ``_lower_catch`` (``arg_single[0]`` is false), so no
+        // IRCatch is built and W302 never fires.  The Rust
+        // emitter mirrors that suppression by gating on
+        // ``arg_single[0]``.
+        let mut a = Analyser::new();
+        let r = a.analyse("catch pre$x\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W302"),
+            "got {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn analyse_w302_anchors_at_command_range() {
+        // The W302 span runs from the catch keyword through (at
+        // least) the body argument's content, mirroring Python's
+        // ``stmt.range`` (the IRCatch's full source range).  The
+        // closing brace's inclusion depends on the lexer's
+        // ``Str``-token end convention; what matters for the LSP
+        // UX is that the span starts at ``catch`` and covers the
+        // body text rather than just the catch keyword.
+        let mut a = Analyser::new();
+        let src = "catch { puts hi }\n";
+        let r = a.analyse(src, "tcl");
+        let w302: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W302").collect();
+        assert_eq!(w302.len(), 1);
+        let span = w302[0].span;
+        let start = span.start() as usize;
+        let end = span.end() as usize;
+        let text = &src[start..end];
+        assert!(text.starts_with("catch"), "span starts at {text:?}");
+        assert!(text.contains("puts hi"), "span text {text:?}");
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry
