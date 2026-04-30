@@ -463,7 +463,10 @@ def wasm_codegen_module(
         from ...cfg import build_cfg as _build_cfg3
         from ...passes.dce import dce_module as _dce
 
-        cleaned = _dce(ir_module)
+        # Pass the post-fixpoint summaries so DCE can use the
+        # precise ``safe_to_dce`` predicate (PR #237 review)
+        # rather than piggybacking on the inline catalogue tag.
+        cleaned = _dce(ir_module, escape_summaries)
         if cleaned is not ir_module:
             ir_module = cleaned
             cfg_module = _build_cfg3(ir_module)

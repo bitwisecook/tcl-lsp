@@ -352,6 +352,44 @@ class TestParameterisedInline:
         # appended.
         assert any(isinstance(s, IRReturn) for s in new_module.top_level.statements)
 
+    def test_implicit_trailing_return_with_early_irreturn_captured(self):
+        # PR #237 review: ``proc f {x} { if {$x} { return 1 }; set y 2 }``
+        # has a non-trailing IRReturn (in the if clause) and an
+        # implicit-trailing-value statement (``set y 2`` returns 2).
+        # The wrap path must capture that implicit value so the
+        # synthesised ``return $__result`` forwards it on the
+        # if-false fallthrough.  Otherwise the inlined site
+        # silently returns "" instead of 2.
+        module, summaries = _prepare("proc f {x} { if {$x} { return 1 }; set y 2 }\nf 5\n")
+        new_module = inline_module(module, summaries)
+        # Inlined.
+        assert _calls_to(new_module.top_level, "f") == 0
+        # Look inside the wrap loop for a ``set __inline_..__RESULT 2``
+        # capture statement on the fall-through path.
+        from core.compiler.ir import IRAssignValue, IRWhile
+
+        loop = next(s for s in new_module.top_level.statements if isinstance(s, IRWhile))
+        captures = [
+            s
+            for s in loop.body.statements
+            if isinstance(s, IRAssignValue) and s.name.endswith("__RESULT") and s.value == "2"
+        ]
+        assert captures, (
+            "wrap path did not capture the implicit trailing return value "
+            "(set y 2 should produce __RESULT=2 on the fall-through)"
+        )
+
+    def test_implicit_trailing_call_declines(self):
+        # When the trailing statement is a *call* (not an
+        # IRAssignConst/Value), capturing the implicit return
+        # would need command-substitution rewriting that we don't
+        # do today.  Decline so the runtime path produces correct
+        # implicit-return semantics.
+        module, summaries = _prepare("proc f {x} { if {$x} { return 1 }; puts ok }\nf 5\n")
+        new_module = inline_module(module, summaries)
+        # NOT inlined — call site survives as IRCall.
+        assert _calls_to(new_module.top_level, "f") == 1
+
     def test_irreturn_inside_loop_declines(self):
         # ``proc f {} { for {set i 0} {$i < 10} {incr i} { if {$i == 5} { return $i } } }``
         # has IRReturn inside a for body.  ``break`` rewriting
@@ -490,6 +528,26 @@ class TestDeadProcElimination:
         new_module = inline_module(module, summaries)
         assert "::opaque" in new_module.procedures
 
+    def test_compiler_synthetic_proc_dropped_after_inlining(self):
+        # When a proc is flagged ``compiler_synthetic=True``, the
+        # dead-proc-removal pass IS allowed to drop it after every
+        # static call site has been inlined.  Synthetic procs are
+        # passes-introduced helpers with no external observers.
+        from dataclasses import replace as dc_replace
+
+        module, summaries = _prepare("proc helper {} {}\nhelper\n")
+        # Lowering can't synthesise the marker (yet) — patch it on
+        # for this test to exercise the gate without a real pass.
+        proc = module.procedures["::helper"]
+        synthetic_proc = dc_replace(proc, compiler_synthetic=True)
+        module = dc_replace(
+            module,
+            procedures={**module.procedures, "::helper": synthetic_proc},
+        )
+        new_module = inline_module(module, summaries)
+        # Synthetic + inlinable + every static site spliced → drop.
+        assert "::helper" not in new_module.procedures
+
 
 class TestSingleCallWrapperSplice:
     """v1: zero-param wrapper procs whose body is a single IRCall."""
@@ -613,3 +671,18 @@ class TestResolution:
         new_module = inline_module(module, summaries)
         caller_body = new_module.procedures["::ns::caller"].body
         assert _calls_to(caller_body, "noop") == 0
+
+    def test_unqualified_call_in_irblock_namespace(self):
+        # PR #237 review: a call sitting inside the *top-level
+        # IRBlock* (the ``namespace eval ::ns { … }`` body itself,
+        # not inside a proc body) must also resolve against ``::ns``
+        # — previously the inliner used ``::`` as the resolution
+        # context for IRBlock children and missed ``::ns::noop``.
+        module, summaries = _prepare("namespace eval ::ns {\n  proc noop {} {}\n  noop\n}\n")
+        new_module = inline_module(module, summaries)
+        # Find the IRBlock and confirm the noop call inside it
+        # got inlined away.
+        from core.compiler.ir import IRBlock
+
+        block = next(s for s in new_module.top_level.statements if isinstance(s, IRBlock))
+        assert _calls_to(block.body, "noop") == 0
