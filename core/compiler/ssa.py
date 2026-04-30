@@ -22,7 +22,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from ..commands.registry.runtime import ArgRole, arg_indices_for_role
+from ..commands.registry.runtime import (
+    ArgRole,
+    BodyKind,
+    arg_indices_for_role,
+    body_kind_for_command,
+)
 from ..common.naming import normalise_var_name as _normalise_var_name
 from .cfg import CFGBranch, CFGFunction, CFGGoto, CFGReturn, CFGTerminator
 from .expr_ast import ExprNode, vars_in_expr_node
@@ -77,16 +82,18 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
     if isinstance(stmt, IRBarrier) and stmt.command == "trace" and len(stmt.args) >= 3:
         if stmt.args[0] == "add" and stmt.args[1] == "variable":
             return (_normalise_var_name(stmt.args[2]),)
-    # dict for/map barriers: extract iteration variable names from the
-    # varList arg so SSA sees them as definitions.  Match the rewritten
-    # command names exactly; a suffix test would also fire for unrelated
-    # commands like ``::my::for``.
-    if isinstance(stmt, IRBarrier) and stmt.command in (
-        "::tcl::dict::for",
-        "::tcl::dict::map",
-    ):
-        if stmt.args:
-            return tuple(stmt.args[0].split())
+    # Loop-variable lists (``dict for``/``dict map`` arg 0): the registry
+    # marks them with ``ArgRole.LOOP_VAR_LIST``; split each into individual
+    # iteration variables so SSA sees them as definitions.  The rewrite-alias
+    # map (``::tcl::dict::for`` → ``dict for``) makes the role visible on
+    # the CFG-rewritten name without re-deriving it here.
+    if isinstance(stmt, IRBarrier):
+        defs: list[str] = []
+        for idx in arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.LOOP_VAR_LIST):
+            if 0 <= idx < len(stmt.args):
+                defs.extend(stmt.args[idx].split())
+        if defs:
+            return tuple(defs)
     return ()
 
 
@@ -128,9 +135,6 @@ def _vars_in_body_script(source: str) -> frozenset[str]:
     return _DEEP_VAR_REF_SCANNER.scan_script(source)
 
 
-_TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
-
-
 def _is_braced_arg(tokens: CommandTokens | None, arg_index: int) -> bool:
     """Return True when argument *arg_index* is a braced literal (STR token).
 
@@ -155,44 +159,24 @@ def _structural_body_indices(
 ) -> set[int]:
     """Return BODY arg indices that should be excluded from local statement uses.
 
-    We only exclude handler-style bodies that are lowered/analysed separately.
-    Dynamic evaluation commands like ``eval`` still need their args treated as
-    ordinary dataflow inputs (for taint and read-before-set tracking).
-
-    ``tcltest::test`` (and bare ``test`` after ``namespace import``) bodies
-    are excluded because the LSP does not inline them — variable references
-    inside the braced scripts would otherwise appear as top-level
-    reads-before-set (false W210).
+    We only exclude handler-style bodies that are lowered/analysed separately
+    — the registry marks these via :class:`BodyKind.STRUCTURAL` on the source
+    spec (``proc``, ``when``, ``tcltest::test``, …).  Dynamic-evaluation
+    commands like ``eval`` keep their args as ordinary dataflow inputs (for
+    taint and read-before-set tracking) because their body kind is
+    :class:`BodyKind.INLINE`.
 
     To avoid dropping real top-level reads when the body is passed via
     substitution (e.g. ``-body $script``), we only exclude arguments that
     are literal/braced script words.  Non-literal body arguments are still
     scanned for substitutions.
     """
-    if command in ("when", "proc"):
-        candidate_indices = arg_indices_for_role(command, list(args), ArgRole.BODY)
-        return {
-            idx for idx in candidate_indices if 0 <= idx < len(args) and _is_braced_arg(tokens, idx)
-        }
-    if command in ("test", "tcltest::test"):
-        # Option form: test name description ?option value ...?
-        indices: set[int] = set()
-        has_body_option = False
-        i = 2
-        while i < len(args) - 1:
-            if args[i] in _TCLTEST_BODY_OPTIONS:
-                value_idx = i + 1
-                has_body_option = True
-                if _is_braced_arg(tokens, value_idx):
-                    indices.add(value_idx)
-            i += 2
-        # Legacy positional form: test name desc ?constraints? body result
-        if not has_body_option and len(args) >= 4:
-            body_index = len(args) - 2
-            if _is_braced_arg(tokens, body_index):
-                indices.add(body_index)
-        return indices
-    return set()
+    if body_kind_for_command(command, list(args)) is not BodyKind.STRUCTURAL:
+        return set()
+    candidate_indices = arg_indices_for_role(command, list(args), ArgRole.BODY)
+    return {
+        idx for idx in candidate_indices if 0 <= idx < len(args) and _is_braced_arg(tokens, idx)
+    }
 
 
 def _uses(stmt: IRStatement) -> tuple[str, ...]:
@@ -245,29 +229,38 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
         case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
             body_indices = _structural_body_indices(command, args, barrier_tokens)
-            # ``dict for/map`` barriers carry the loop body as args[-1] and
-            # the body never enters the CFG, so its variable references
-            # must be discovered here (recursing into nested braced bodies).
-            # Match the rewritten command names exactly — a suffix test
-            # would also catch unrelated namespaced commands like
-            # ``::my::for`` and silently scan their last arg as a script.
-            # See issues #234, #236.
-            is_dict_iter_barrier = (
-                command in ("::tcl::dict::for", "::tcl::dict::map") and len(args) >= 3
-            )
+            # Inline-body indices on a barrier carry a script that never
+            # enters the CFG (e.g. ``dict for``/``dict map`` lowered as
+            # ``::tcl::dict::for``/``::tcl::dict::map``).  We must
+            # discover variable references inside such bodies here,
+            # recursing into nested braced bodies; otherwise references
+            # like ``$count`` inside ``dict for {k v} $d {... $count ...}``
+            # would be invisible to the enclosing function's analysis
+            # (false W214 / W210 — see issues #234, #236).
+            inline_body_indices = {
+                idx
+                for idx in arg_indices_for_role(command, list(args), ArgRole.BODY)
+                if 0 <= idx < len(args) and idx not in body_indices
+            }
             for idx, arg in enumerate(args):
                 if idx in body_indices:
                     continue
-                if is_dict_iter_barrier and idx == len(args) - 1:
+                if idx in inline_body_indices:
                     vars_found |= _vars_in_body_script(arg)
                 else:
                     vars_found |= _vars_in_word(arg)
-            # dict with/update: the dict variable name is a plain string,
-            # not a $-substitution, so _vars_in_word misses it.
-            if command == "dict" and len(args) >= 2 and args[0] in ("with", "update"):
-                dict_var = _normalise_var_name(args[1])
-                if dict_var:
-                    vars_found.add(dict_var)
+            # ``dict with`` / ``dict update`` arg 0 is the dict variable: it
+            # is read as well as written (the body sees the keys unpacked
+            # into local variables of the same name), but the variable name
+            # is a plain string, not a $-substitution, so ``_vars_in_word``
+            # misses it.  The registry marks the arg as
+            # ``ArgRole.VAR_READ_WRITE``; ``arg_indices_for_role`` reports
+            # it under ``VAR_READ`` via the role-subsumption table.
+            for idx in arg_indices_for_role(command, list(args), ArgRole.VAR_READ):
+                if 0 <= idx < len(args):
+                    name = _normalise_var_name(args[idx])
+                    if name:
+                        vars_found.add(name)
         case _:
             pass
 
