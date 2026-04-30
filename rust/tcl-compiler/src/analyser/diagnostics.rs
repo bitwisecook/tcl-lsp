@@ -414,6 +414,90 @@ fn rewrite_string_compare_ops(text: &str) -> String {
     out
 }
 
+/// Scan `args` for the first positional argument that lacks a
+/// preceding `--` terminator.  Mirrors
+/// `core/analysis/checks/_helpers.py::_first_positional_without_terminator`.
+///
+/// Skips option words (text starts with `-`); skips an additional
+/// argument when an option name appears in
+/// [`tcl_registry::ResolvedTerminator::options_with_values`].
+/// Returns `None` when a `--` is encountered (positional arguments
+/// after `--` are explicitly terminated).
+fn first_positional_without_terminator(
+    args: &[String],
+    profile: &tcl_registry::ResolvedTerminator,
+) -> Option<usize> {
+    let mut i = profile.scan_start;
+    while i < args.len() {
+        let arg = args[i].as_str();
+        if arg == "--" {
+            return None;
+        }
+        if arg.starts_with('-') {
+            i += 1;
+            if profile.options_with_values.contains(arg) && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        return Some(i);
+    }
+    None
+}
+
+/// Locate the most-recent literal `set var value` assignment whose
+/// command-head precedes `before_offset`.  Mirrors
+/// `core/analysis/checks/_helpers.py::_last_literal_set_value_for_var`.
+///
+/// Returns `Some((value_text, value_span, var_text))` when the
+/// nearest preceding `set` is a fully-literal three-arg form.
+/// Returns `None` when the latest assignment is dynamic / multi-
+/// token (the runtime value cannot be proven statically).
+fn last_literal_set_value_for_var(
+    source: &str,
+    var_name: &str,
+    before_offset: u32,
+) -> Option<(String, tcl_lexer::Span, String)> {
+    if var_name.is_empty() || before_offset == 0 {
+        return None;
+    }
+    let head = before_offset as usize;
+    if head > source.len() {
+        return None;
+    }
+    let prefix = &source[..head];
+    let segments = crate::segmenter::segment_commands(prefix);
+
+    for cmd in segments.iter().rev() {
+        if cmd.texts.first().map(String::as_str) != Some("set") {
+            continue;
+        }
+        if cmd.texts.len() < 3 {
+            continue;
+        }
+        if cmd.texts[1] != var_name {
+            continue;
+        }
+        // Most recent assignment wins.  If it's dynamic, the
+        // runtime value can't be proven statically.
+        if cmd.single_token_word.get(2).copied() != Some(true) {
+            return None;
+        }
+        if cmd.argv.len() < 3 {
+            return None;
+        }
+        let value_tok = cmd.argv[2];
+        if !matches!(
+            value_tok.kind,
+            tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str
+        ) {
+            return None;
+        }
+        return Some((cmd.texts[2].clone(), value_tok.span, var_name.to_string()));
+    }
+    None
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -838,6 +922,221 @@ Consider capturing the result: catch {\u{2026}} result"
             // ``if not clauses`` check in ``_lower_if``.
             push_malformed(self);
         }
+    }
+
+    /// **W304.** Emit "Missing option terminator (`--`)" diagnostics
+    /// for option-bearing commands whose first positional argument
+    /// could be misinterpreted as an option.
+    ///
+    /// Mirrors `core/analysis/checks/_style.py::check_missing_option_terminator`
+    /// (`_style.py:516-679`).  Resolves the command's option-
+    /// terminator profile via
+    /// [`tcl_registry::CommandRegistry::resolve_option_terminator`],
+    /// scans for the first positional argument that lacks a
+    /// preceding `--`, and emits a tristate-severity diagnostic:
+    ///
+    /// - **OFF** (no diagnostic) — the value is provably non-`-`-
+    ///   prefixed (a non-dynamic literal whose representative token
+    ///   isn't a `Var`/`Cmd` and whose text doesn't start with `-`).
+    /// - **INFO** — dynamic value (`Var` / `Cmd` token) with no
+    ///   proof of starting with `-`.  When the value is a single-
+    ///   token `Var` whose most recent literal `set` resolves to a
+    ///   non-`-`-prefixed value, an additional "origin" diagnostic
+    ///   is emitted at the resolution site to explain the INFO
+    ///   downgrade.
+    /// - **WARNING** — the value is known to start with `-`: either
+    ///   a literal whose first character is `-`, or a `Var` whose
+    ///   constant-propagated value starts with `-`.
+    ///
+    /// The diagnostic carries a code-fix that prepends `"-- "` to
+    /// the positional-argument span (with a one-byte extension for
+    /// `Cmd` tokens whose lexer span excludes the closing `]`).
+    ///
+    /// **Note on `warn_without_terminator`:** the registry's
+    /// `Traits::WARN_WITHOUT_TERMINATOR` flag (set on `regexp` only
+    /// today) is plumbed onto [`tcl_registry::ResolvedTerminator`]
+    /// for API parity with Python, but Python's analyser-side
+    /// `_style.py` doesn't actually consume it.  The OFF gate
+    /// fires uniformly for non-dynamic, non-`-`-prefixed values
+    /// regardless of the trait — see `_style.py:558-563`.
+    pub(super) fn emit_w304_missing_option_terminator(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        use tcl_registry::prelude::DialectSet;
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        if args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some(profile) = registry.resolve_option_terminator(cmd_name, &arg_strs, dialect) else {
+            return;
+        };
+
+        let Some(positional_idx) = first_positional_without_terminator(args, &profile) else {
+            return;
+        };
+        if positional_idx >= arg_tokens.len() {
+            return;
+        }
+
+        let tok = arg_tokens[positional_idx];
+        let text = &args[positional_idx];
+
+        let is_dynamic = matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        );
+        let looks_like_option = text.starts_with('-');
+
+        // OFF — non-dynamic value that does not start with `-` can
+        // never be confused with an option.
+        if !is_dynamic && !looks_like_option {
+            return;
+        }
+
+        let command_label = match profile.subcommand {
+            Some(sub) => format!("{cmd_name} {sub}"),
+            None => cmd_name.to_string(),
+        };
+
+        let (severity, message, origin) =
+            self.classify_w304(tok, is_dynamic, looks_like_option, &command_label);
+
+        // Build the code-fix span.  For ``Cmd`` (`[…]`) tokens the
+        // lexer span covers ``[inner`` but excludes the closing
+        // ``]``; extend by one byte when the byte after ``span.end``
+        // is ``]`` so the replacement encompasses the bracket pair.
+        let (fix_span, diag_end) = self.compute_w304_fix_span(tok);
+        let fix_text = format!(
+            "-- {}",
+            &self.source[fix_span.start() as usize..fix_span.end() as usize]
+        );
+        let fixes = vec![super::types::CodeFix {
+            span: fix_span,
+            new_text: fix_text,
+            description: "Insert '--' option terminator".to_string(),
+        }];
+        let diag_span = tcl_lexer::Span::new(tok.span.start(), diag_end);
+        // Suppress unused-warning on the rare path where `cmd_tok`
+        // isn't needed (the diagnostic anchors at the positional
+        // arg's span, not the command head).
+        let _ = cmd_tok;
+
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W304".to_string(),
+            span: diag_span,
+            message,
+            severity,
+            fixes,
+        });
+        if let Some(origin_diag) = origin {
+            self.result.diagnostics.push(origin_diag);
+        }
+    }
+
+    /// Classify the positional value for W304: tristate severity,
+    /// human-readable message, and an optional "origin" diagnostic
+    /// for the constant-propagated INFO path.  Split out of
+    /// [`Self::emit_w304_missing_option_terminator`] to keep that
+    /// method's body within the clippy `too_many_lines` budget;
+    /// mirrors the severity tree at ``_style.py:565-627``.
+    fn classify_w304(
+        &self,
+        tok: tcl_lexer::Token,
+        is_dynamic: bool,
+        looks_like_option: bool,
+        command_label: &str,
+    ) -> (Severity, String, Option<super::types::Diagnostic>) {
+        if is_dynamic && !looks_like_option {
+            if matches!(tok.kind, tcl_lexer::TokenType::Var) {
+                let var_name = self.var_name_from_token(tok);
+                let resolved = var_name.and_then(|name| {
+                    last_literal_set_value_for_var(&self.source, &name, tok.span.start())
+                });
+                if let Some((resolved_text, resolved_span, var_text)) = resolved {
+                    if resolved_text.starts_with('-') {
+                        let message = format!(
+                            "'{command_label}' parses leading '-' as options. \
+This value currently resolves to '{resolved_text}', so add '--' to force \
+data parsing."
+                        );
+                        return (Severity::Warning, message, None);
+                    }
+                    let message = format!(
+                        "'{command_label}' parses leading '-' as options. \
+This value is reported at INFO because '{var_text}' currently resolves to \
+static literal '{resolved_text}'. Keep '--' to guard against future \
+option-injection regressions if the variable changes."
+                    );
+                    let origin = super::types::Diagnostic {
+                        code: "W304".to_string(),
+                        span: resolved_span,
+                        message: format!(
+                            "'{var_text}' is currently assigned static \
+literal '{resolved_text}' here; this is why the diagnostic is INFO."
+                        ),
+                        severity: Severity::Suggestion,
+                        fixes: Vec::new(),
+                    };
+                    return (Severity::Suggestion, message, Some(origin));
+                }
+            }
+            // Command substitution / unresolved variable — INFO
+            // with the substituted-input message.
+            let message = format!(
+                "'{command_label}' parses leading '-' as options. \
+Insert '--' before substituted input to reduce option-injection risk."
+            );
+            return (Severity::Suggestion, message, None);
+        }
+        // ALWAYS: literal value that starts with `-`.
+        let message = format!(
+            "'{command_label}' argument starts with '-'. Add '--' \
+before this value so it is treated as data, not an option."
+        );
+        (Severity::Warning, message, None)
+    }
+
+    /// Extract the variable-name slice for a `Var` token from
+    /// `self.source`.  The token's span starts at the leading `$`
+    /// (or `${`); `content_offset` shifts past those delimiter
+    /// bytes.  Returns `None` when the slice is empty or out of
+    /// bounds.
+    fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
+        let start = tok.span.start() as usize + tok.content_offset as usize;
+        let end = tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return None;
+        }
+        Some(self.source[start..end].to_string())
+    }
+
+    /// Compute the W304 code-fix span and diagnostic end position.
+    ///
+    /// For `Cmd` tokens (`[…]`) the lexer span excludes the closing
+    /// `]`; we extend the span by one byte when the next character
+    /// is `]` so the prepended ``-- `` doesn't split the bracket
+    /// pair.  All other token kinds use the lexer span directly.
+    fn compute_w304_fix_span(&self, tok: tcl_lexer::Token) -> (tcl_lexer::Span, u32) {
+        let span_start = tok.span.start();
+        let span_end = tok.span.end();
+        if matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
+            let after = span_end as usize;
+            if after < self.source.len() && self.source.as_bytes()[after] == b']' {
+                let extended = span_end + 1;
+                return (tcl_lexer::Span::new(span_start, extended), extended);
+            }
+        }
+        (tcl_lexer::Span::new(span_start, span_end), span_end)
     }
 
     /// CFG/SSA-backed diagnostic orchestrator.

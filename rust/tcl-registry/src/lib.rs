@@ -66,7 +66,7 @@ pub mod prelude {
 // Re-export key types at crate root.
 pub use arg_role::ArgRole;
 pub use arity::Arity;
-pub use registry::CommandRegistry;
+pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{CommandSpec, SubCommand};
 pub use traits::Traits;
 pub use types::TclType;
