@@ -1022,12 +1022,16 @@ class TestBatch6WasmIgnoresMissingVar:
 
     @pytest.mark.parametrize("seed", SEEDS)
     def test_wasm_errors_on_missing_var(self, seed: int) -> None:
-        """WASM should not silently return 0 / empty for unset variables.
+        """WASM should surface a Tcl-level error, not silently return.
 
-        The minimum bar is that the WASM run completes with a non-OK
-        return code (error or trap, not OK); the precise error text
-        is allowed to drift from the VM's because some seeds chain
-        into secondary errors after the first missing-variable read.
+        The bar is ``return_code == 1`` — a Tcl-level error matching
+        the VM's behaviour.  ``return_code == 2`` (host-side trap or
+        timeout) does NOT count: under the original bug the WASM run
+        timed out on a runaway loop driven by a 0-default unset read,
+        which is exactly the symptom this fix is meant to remove.
+        The precise error text is allowed to drift from the VM's
+        because some seeds chain into secondary errors after the
+        first missing-variable read.
         """
         from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
 
