@@ -1379,6 +1379,11 @@ pub export fn global_set(name: i32, value: i32) i32 {
     }
     const v = ns_var_create(ns_root(), k.ptr, k.len);
     var_set_scalar(v, @bitCast(value));
+    // Notify the scheduler so an active ``vwait`` waiting on this
+    // variable wakes up.  Cheap fast-path inside the hook when no
+    // vwait is active.
+    const sched = @import("../sched/tcl_sched.zig");
+    sched.note_var_write(k.ptr, k.len);
     return value;
 }
 

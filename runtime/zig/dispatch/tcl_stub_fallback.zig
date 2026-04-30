@@ -39,18 +39,20 @@ const stubs = @import("../stubs/tcl_stubs.zig");
 const STUB_TRAP: []const []const u8 = &.{
     // I/O + channel — fconfigure / flush / open / close / read /
     // gets / eof / fblocked / tell / seek / fcopy have real impls
-    // dispatched by BUILTINS (cmds/io.zig + io/tcl_chan.zig).  Only
-    // ``chan`` (top-level ensemble) and the event-loop-bound
-    // ``fileevent`` / ``socket`` remain trapping stubs here.
-    "chan", "fileevent", "socket",
+    // dispatched by BUILTINS (cmds/io.zig + io/tcl_chan.zig).
+    // ``fileevent`` is now a real BUILTIN (cmds/fileevent.zig) too.
+    // Only ``chan`` (top-level ensemble) and ``socket`` remain
+    // trapping stubs here.
+    "chan", "socket",
     // Filesystem / process — file/pwd/cd have real impls in BUILTINS.
     "glob", "exec", "load", "unload",
     // Format / pattern matching — scan/binary are in BUILTINS.
     "regexp",
-    // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``
-    // are all handled by BUILTINS (``cmds/stubs.zig``) before we
-    // reach this table, so they are intentionally absent.
-    "coroutine", "yield", "yieldto",
+    // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``,
+    // ``fileevent``, ``coroutine`` / ``yield`` / ``yieldto`` are all
+    // handled by BUILTINS (``cmds/after.zig``, ``cmds/event.zig``,
+    // ``cmds/fileevent.zig``, ``cmds/coroutine.zig``, ``cmds/stubs.zig``)
+    // before we reach this table, so they are intentionally absent.
     // Environment / metadata — ``package`` is in BUILTINS
     // (cmds/stubs.zig); ``trace`` / ``namespace`` / ``subst`` /
     // ``auto_*`` are in BUILTINS with real implementations.
