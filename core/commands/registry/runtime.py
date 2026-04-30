@@ -1001,6 +1001,16 @@ def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, ArgRole
 
     Returns ``({}, 0)`` for unregistered or unmatched commands; callers
     should treat the empty role map as "no roles known" and skip output.
+
+    Resolution order matters: a direct registry hit on *command* always
+    wins over a namespace-export alias entry — so an explicit
+    ``configure_signatures(extra_commands=["test"])`` registration (or
+    any other dialect/extra-command spec for the bare name) shadows the
+    static ``test`` → ``tcltest::test`` over-approximation.  Only when
+    no spec exists for the user-written name does the alias map come
+    into play.  CFG-rewritten names (``::tcl::dict::for``) sit outside
+    this rule because they're qualified internal spellings that never
+    have a direct spec of their own.
     """
     alias = _REWRITE_ALIASES.get(command)
     if alias is not None:
@@ -1012,10 +1022,11 @@ def _resolve_arg_roles(command: str, args: list[str]) -> tuple[dict[int, ArgRole
                 return _resolved_role_map(sub_sig, args), 0
         return {}, 0
 
-    canonical = _canonicalise_command_name(command)
-    sig = SIGNATURES.get(canonical)
+    sig = SIGNATURES.get(command) or _ROLE_HINTS.get(command)
     if sig is None:
-        sig = _ROLE_HINTS.get(canonical)
+        canonical = _canonicalise_command_name(command)
+        if canonical != command:
+            sig = SIGNATURES.get(canonical) or _ROLE_HINTS.get(canonical)
     if isinstance(sig, SubcommandSig):
         if not args:
             return {}, 1
@@ -1070,8 +1081,17 @@ def body_kind_for_command(command: str, args: list[str]) -> BodyKind:
                 return sub.body_kind
         return BodyKind.INLINE
 
-    canonical = _canonicalise_command_name(command)
-    spec = REGISTRY.get_any(canonical)
+    # If the user-written name has any direct registration — a real
+    # spec, a role hint, or an ``extra_commands`` stub in SIGNATURES —
+    # commit to that name and never fall through to the namespace-export
+    # alias.  Otherwise an explicit ``configure_signatures(extra_commands=
+    # ["test"])`` would silently get tcltest::test's structural body kind.
+    if command in SIGNATURES or command in _ROLE_HINTS:
+        target = command
+    else:
+        target = _canonicalise_command_name(command)
+
+    spec = REGISTRY.get_any(target)
     if spec is None:
         return BodyKind.INLINE
     if spec.subcommands and args:
