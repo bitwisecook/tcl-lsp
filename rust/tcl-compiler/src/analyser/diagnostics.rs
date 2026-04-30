@@ -614,6 +614,100 @@ Consider capturing the result: catch {\u{2026}} result"
         });
     }
 
+    /// **W001.** Emit "Unknown subcommand" warning for commands
+    /// whose registry signature is a [`SubcommandSig`](super::dispatch::SubcommandSig)
+    /// when the first argument doesn't resolve to a known subcommand.
+    ///
+    /// Mirrors the `SubcommandSig` branch of `_check_arity` in
+    /// ``core/compiler/compiler_checks.py:580-643``.  Skips:
+    ///
+    /// - commands the registry doesn't know (no signature),
+    /// - simple-command signatures (no subcommand dispatch),
+    /// - signatures with `allow_unknown == true` (generated
+    ///   dialect packs),
+    /// - first-arg values containing ``$`` / ``[`` (dynamic
+    ///   substitution — runtime-resolved),
+    /// - empty arg lists (handled by the E001 emitter, deferred).
+    ///
+    /// When emission is warranted, includes a "did you mean…?"
+    /// suffix using [`crate::text::suggest_similar`] over the
+    /// known subcommand set (max 1 suggestion within edit
+    /// distance 3).
+    ///
+    /// **Known minor parity gap:** Python additionally skips when
+    /// the subcommand position is ``{*}``-expanded
+    /// (``arg_expand[0]``).  The Rust ``process_command`` does not
+    /// currently thread the expansion flag through; the literal-
+    /// text ``$`` / ``[`` gate covers the dynamic-substitution
+    /// case, and ``{*}LITERAL`` for an unknown subcommand is rare
+    /// enough in practice that the divergence is acceptable until
+    /// expand-flag plumbing lands as its own chunk.
+    pub(super) fn emit_w001_unknown_subcommand(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        cmd_tok: tcl_lexer::Token,
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        use super::dispatch::{signature_for_command, CommandSignature};
+        use tcl_registry::prelude::DialectSet;
+
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let Some(first_arg) = args.first() else {
+            // Empty arg list — Python's E001 path; not in scope here.
+            return;
+        };
+        // Dynamic-value subcommand position — can't resolve statically.
+        if first_arg.contains('$') || first_arg.contains('[') {
+            return;
+        }
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        let Some(CommandSignature::WithSubcommands(sig)) =
+            signature_for_command(registry, cmd_name, dialect)
+        else {
+            return;
+        };
+        if sig.allow_unknown {
+            return;
+        }
+        if sig.subcommands.contains_key(first_arg) {
+            return;
+        }
+        let mut message = format!("Unknown subcommand '{first_arg}' for '{cmd_name}'");
+        let candidates: Vec<&str> = sig.subcommands.keys().map(String::as_str).collect();
+        let suggestions = crate::text::suggest_similar(first_arg, candidates.iter().copied(), 1, 3);
+        let mut fixes: Vec<super::types::CodeFix> = Vec::new();
+        if let Some(best) = suggestions.first() {
+            use std::fmt::Write as _;
+            let _ = write!(message, "; did you mean '{best}'?");
+            if let Some(sub_tok) = arg_tokens.first() {
+                fixes.push(super::types::CodeFix {
+                    span: sub_tok.span,
+                    new_text: (*best).to_string(),
+                    description: format!("Replace with '{best}'"),
+                });
+            }
+        }
+        // Anchor at the command-head + subcommand-name range so
+        // the squiggle covers ``cmd subname`` rather than the
+        // entire invocation.  Mirrors Python's ``cmd_token_range``
+        // which combines the command token with the subcommand
+        // arg token.
+        let span = match arg_tokens.first() {
+            Some(sub_tok) => tcl_lexer::Span::new(cmd_tok.span.start(), sub_tok.span.end()),
+            None => cmd_tok.span,
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W001".to_string(),
+            span,
+            message,
+            severity: Severity::Warning,
+            fixes,
+        });
+    }
+
     /// CFG/SSA-backed diagnostic orchestrator.
     ///
     /// Mirrors `_emit_cfg_ssa_diagnostics` in

@@ -237,6 +237,16 @@ impl Analyser {
             self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
         }
 
+        // **C41-default-on-followups-postpass.**  W001 — unknown
+        // subcommand on a registry-known SubcommandSig command
+        // (``string``, ``dict``, ``info``, ``namespace`` …).
+        // Mirrors the SubcommandSig branch of ``_check_arity``
+        // in ``core/compiler/compiler_checks.py:580-643``.  Run
+        // before the early-returning handlers (notably
+        // ``handle_namespace_eval_command``) so ``namespace foo``
+        // for an unknown ``foo`` still gets flagged.
+        self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
