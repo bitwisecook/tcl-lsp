@@ -675,13 +675,16 @@ class TestRewriteAliasResolution:
 
 
 class TestVarReadWriteSubsumption:
-    """Issue #246 — ``VAR_READ_WRITE`` subsumes ``VAR_READ`` and ``VAR_WRITE``.
+    """Issues #246 / #252 — multi-role args satisfy both ``VAR_READ`` and ``VAR_WRITE``.
 
     ``dict with`` / ``dict update`` arg 0 carries a variable name that
     is both written (the dict is rewritten when the body returns) and
     read (the body sees keys unpacked into local variables of the same
-    name).  The combined :class:`ArgRole.VAR_READ_WRITE` lets a single
-    declaration satisfy queries for either narrower role.
+    name).  The resolver attaches both :class:`ArgRole.VAR_READ` and
+    :class:`ArgRole.VAR_WRITE` to the same index as a ``frozenset``, so
+    a query for either role hits.  The previous design used a combined
+    :class:`ArgRole.VAR_READ_WRITE` plus a subsumption table; this is
+    now expressed directly via the frozenset.
     """
 
     def test_dict_with_var_arg_is_read_and_written(self):

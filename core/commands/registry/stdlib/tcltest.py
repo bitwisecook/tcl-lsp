@@ -24,7 +24,7 @@ _SOURCE_V1 = "Tcl stdlib tcltest package (v1 compat)"
 _TCLTEST_BODY_OPTIONS = frozenset({"-setup", "-body", "-cleanup"})
 
 
-def _test_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _test_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve argument roles for ``tcltest::test``.
 
     Syntax:
@@ -33,13 +33,14 @@ def _test_arg_roles(args: list[str]) -> dict[int, ArgRole]:
 
     Options whose values are Tcl script bodies: -setup, -body, -cleanup.
     """
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
+    body = frozenset({ArgRole.BODY})
     # Skip name (0) and description (1), then scan option-value pairs.
     has_body_option = False
     i = 2
     while i < len(args) - 1:
         if args[i] in _TCLTEST_BODY_OPTIONS:
-            roles[i + 1] = ArgRole.BODY
+            roles[i + 1] = body
             has_body_option = True
         i += 2
     # Legacy positional form: test name description ?constraints? body result
@@ -47,7 +48,7 @@ def _test_arg_roles(args: list[str]) -> dict[int, ArgRole]:
     if not has_body_option and len(args) >= 4:
         # In the positional form, the body is always the penultimate argument.
         body_index = len(args) - 2
-        roles[body_index] = ArgRole.BODY
+        roles[body_index] = body
     return roles
 
 

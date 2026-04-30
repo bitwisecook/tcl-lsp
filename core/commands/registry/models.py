@@ -153,8 +153,12 @@ class WasmRuntimeImport:
         return key
 
 
-ArgRoleResolver = Callable[[list[str]], dict[int, ArgRole]]
-"""Maps actual argument values to {index: ArgRole} for variable-layout commands."""
+ArgRoleResolver = Callable[[list[str]], dict[int, frozenset[ArgRole]]]
+"""Maps actual argument values to {index: frozenset[ArgRole]} for variable-layout commands.
+
+The frozenset shape lets a single argument carry several roles at once
+(e.g. ``dict with`` arg 0 is both ``VAR_READ`` and ``VAR_WRITE``) without
+any subsumption table at the query layer."""
 
 ArgTypeResolver = Callable[[tuple[str, ...]], dict[int, "ArgTypeHint"]]
 """Maps actual argument values to {index: ArgTypeHint} for variable-layout commands."""

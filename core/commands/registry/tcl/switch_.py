@@ -21,7 +21,10 @@ _SOURCE = "Tcl switch(1)"
 _SWITCH_VALUE_OPTIONS = frozenset({"-matchvar", "-indexvar"})
 
 
-def _switch_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+_BODY = frozenset({ArgRole.BODY})
+
+
+def _switch_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY roles for switch command."""
     # Skip option flags.
     i = 0
@@ -41,15 +44,15 @@ def _switch_arg_roles(args: list[str]) -> dict[int, ArgRole]:
         i += 1
     if i >= len(args):
         return {}
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
     # Braced list form: single trailing argument.
     if i == len(args) - 1:
-        roles[i] = ArgRole.BODY
+        roles[i] = _BODY
         return roles
     # List form: pattern body pairs.
     while i + 1 < len(args):
         if args[i + 1] != "-":
-            roles[i + 1] = ArgRole.BODY
+            roles[i + 1] = _BODY
         i += 2
     return roles
 

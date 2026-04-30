@@ -55,8 +55,15 @@ def _extract_var_name(text: str) -> str | None:
     return None
 
 
-def _resolve_arg_roles(command: str, args: list[str]) -> dict[int, ArgRole]:
-    """Get arg roles for a command from the registry."""
+def _resolve_arg_roles(command: str, args: list[str]) -> dict[int, frozenset[ArgRole]]:
+    """Get arg roles for a command from the registry.
+
+    Returns a ``dict[int, frozenset[ArgRole]]``: each argument index maps
+    to the set of roles it carries, mirroring the
+    :data:`core.commands.registry.models.ArgRoleResolver` shape.  Static
+    ``arg_roles`` entries are wrapped in a single-element ``frozenset`` at
+    this boundary so callers don't have to handle two shapes.
+    """
     spec = REGISTRY.get_any(command)
     if spec is None:
         return {}
@@ -65,12 +72,15 @@ def _resolve_arg_roles(command: str, args: list[str]) -> dict[int, ArgRole]:
         return spec.arg_role_resolver(args)
 
     if spec.arg_roles:
-        return dict(spec.arg_roles)
+        return {k: frozenset({v}) for k, v in spec.arg_roles.items()}
 
     if spec.subcommands and args:
         sub = spec.subcommands.get(args[0])
-        if sub is not None and sub.arg_roles:
-            return {k + 1: v for k, v in sub.arg_roles.items()}
+        if sub is not None:
+            if sub.arg_role_resolver is not None:
+                return {k + 1: roles for k, roles in sub.arg_role_resolver(args[1:]).items()}
+            if sub.arg_roles:
+                return {k + 1: frozenset({v}) for k, v in sub.arg_roles.items()}
 
     return {}
 
@@ -114,15 +124,15 @@ def _scan_commands(
             if source_param is None:
                 continue
 
-            role = arg_roles.get(idx)
+            roles = arg_roles.get(idx, frozenset())
 
-            if role is ArgRole.BODY:
+            if ArgRole.BODY in roles:
                 traits[source_param].add(ProcArgTrait.BODY)
-            elif role is ArgRole.EXPR:
+            if ArgRole.EXPR in roles:
                 traits[source_param].add(ProcArgTrait.EXPR)
-            elif role is ArgRole.VAR_WRITE:
+            if ArgRole.VAR_WRITE in roles:
                 traits[source_param].add(ProcArgTrait.VAR_WRITE)
-            elif role is ArgRole.VAR_READ:
+            if ArgRole.VAR_READ in roles:
                 traits[source_param].add(ProcArgTrait.VAR_READ)
 
         # Commands that evaluate code (eval, uplevel, subst, etc.)

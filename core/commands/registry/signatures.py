@@ -20,7 +20,6 @@ class ArgRole(Enum):
     EXPR = auto()  # Expression (expr sub-language)
     VAR_WRITE = auto()  # A variable name written by the command (set, regexp, scan, lassign)
     VAR_READ = auto()  # A variable name read without modification (info exists, array get)
-    VAR_READ_WRITE = auto()  # A variable name read and written (dict with/update — body reads keys, dict is updated after)
     LOOP_VAR_LIST = (
         auto()
     )  # Whitespace-separated list of loop variable names (dict for/map ``{key val}``)
@@ -90,7 +89,7 @@ class CommandSig:
 
     arity: Arity = field(default_factory=Arity)
     arg_roles: dict[int, ArgRole] = field(default_factory=dict)
-    arg_role_resolver: Callable[[list[str]], dict[int, ArgRole]] | None = field(
+    arg_role_resolver: Callable[[list[str]], dict[int, frozenset[ArgRole]]] | None = field(
         default=None, hash=False, compare=False
     )
     leading_options: frozenset[str] = field(default_factory=frozenset)
