@@ -2740,9 +2740,7 @@ class TestChannelIO:
         """Regression for codex P2: ``read $fd abc`` must error,
         not silently treat the bad arg as 'read to EOF'."""
         (tmp_path / "f.txt").write_text("xyz")
-        wasm, _ = _compile_tcl_with_diag(
-            "set fd [open /f.txt r]\nread $fd abc\n", "t.tcl"
-        )
+        wasm, _ = _compile_tcl_with_diag("set fd [open /f.txt r]\nread $fd abc\n", "t.tcl")
         try:
             _run_wasm(
                 wasm,
@@ -2757,9 +2755,7 @@ class TestChannelIO:
     def test_read_rejects_negative_numchars(self, tmp_path):
         """Regression for codex P2: ``read $fd -2`` must error."""
         (tmp_path / "f.txt").write_text("xyz")
-        wasm, _ = _compile_tcl_with_diag(
-            "set fd [open /f.txt r]\nread $fd -2\n", "t.tcl"
-        )
+        wasm, _ = _compile_tcl_with_diag("set fd [open /f.txt r]\nread $fd -2\n", "t.tcl")
         try:
             _run_wasm(
                 wasm,
@@ -2775,11 +2771,7 @@ class TestChannelIO:
         """Regression for codex P2: ``fcopy a b -foo 1`` must error."""
         (tmp_path / "src.bin").write_text("abc")
         wasm, _ = _compile_tcl_with_diag(
-            (
-                "set in [open /src.bin r]\n"
-                "set out [open /dst.bin w]\n"
-                "fcopy $in $out -foo 1\n"
-            ),
+            ("set in [open /src.bin r]\nset out [open /dst.bin w]\nfcopy $in $out -foo 1\n"),
             "t.tcl",
         )
         try:
@@ -2797,11 +2789,7 @@ class TestChannelIO:
         """Regression for codex P2: ``fcopy a b -size abc`` must error."""
         (tmp_path / "src.bin").write_text("abc")
         wasm, _ = _compile_tcl_with_diag(
-            (
-                "set in [open /src.bin r]\n"
-                "set out [open /dst.bin w]\n"
-                "fcopy $in $out -size abc\n"
-            ),
+            ("set in [open /src.bin r]\nset out [open /dst.bin w]\nfcopy $in $out -size abc\n"),
             "t.tcl",
         )
         try:
