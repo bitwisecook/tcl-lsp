@@ -633,6 +633,24 @@ pub export fn tcl_obj_retain(obj: i32) void {
     if (is_immediate(obj)) return;
     const addr: u32 = @intCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
+    // PR #237 second-pass review: refuse to retain a deferred-free-
+    // queued obj (rc == 0 marker).  Without this guard, the sequence
+    //
+    //     release(A)  → rc 1→0, queue A
+    //     retain(A)   → rc 0→1 (resurrects A on the queue)
+    //     release(A)  → rc 1→0, queue A AGAIN
+    //     drain       → free A twice → free-list double-entry
+    //
+    // gives a duplicated free-list slab that two future ``alloc``
+    // calls receive as the same address.  The release path already
+    // guards rc==0 (records double-release in leakcheck); make
+    // retain symmetric so the resurrection-into-second-queue path
+    // is impossible.  A retain after a defer is itself a refcount-
+    // discipline violation; record it for leakcheck visibility.
+    if (rc == 0) {
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     write_i32(addr + OBJ_REFCOUNT, rc + 1);
 }
 
