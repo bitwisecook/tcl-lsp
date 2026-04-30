@@ -17,6 +17,12 @@ _DEFAULT_CACHE_SIZE = 512
 class VarScanOptions:
     include_var_read_roles: bool = False
     recurse_cmd_substitutions: bool = True
+    # When set, recursively scan BODY-role and EXPR-role argument words
+    # (as scripts) for nested variable references.  Driven by the command
+    # registry, so plain braced data words (e.g. ``set msg {$lit}``) are
+    # left alone — only argument positions known to be scripts/expressions
+    # are descended into.
+    recurse_into_script_roles: bool = False
 
 
 class VarReferenceScanner:
@@ -76,7 +82,73 @@ class VarReferenceScanner:
         if self._options.include_var_read_roles:
             vars_found |= self._scan_var_read_role_names(source)
 
+        if self._options.recurse_into_script_roles:
+            vars_found |= self._scan_script_role_args(source)
+
         return frozenset(vars_found)
+
+    def _scan_script_role_args(self, source: str) -> set[str]:
+        """Walk *source* command-by-command and recurse into BODY/EXPR args.
+
+        Only argument positions registered as ``ArgRole.BODY`` (Tcl scripts)
+        or ``ArgRole.EXPR`` (expressions) are descended into.  Plain braced
+        data words are left alone, so this does not introduce false reads
+        for literals like ``set msg {$unused}``.
+        """
+        result: set[str] = set()
+        lexer = TclLexer(source)
+        words: list[str] = []
+        prev_type = TokenType.EOL
+
+        def flush_command() -> None:
+            if not words:
+                return
+            cmd_name = words[0]
+            args = words[1:]
+            recurse_indices = arg_indices_for_role(
+                cmd_name, args, ArgRole.BODY
+            ) | arg_indices_for_role(cmd_name, args, ArgRole.EXPR)
+            for virtual_idx in sorted(recurse_indices):
+                if virtual_idx >= len(args):
+                    continue
+                inner = args[virtual_idx]
+                # Strip a single layer of outer braces so the inner text is
+                # tokenised as a script (TclLexer would otherwise emit STR
+                # for the whole word and skip its contents).
+                if len(inner) >= 2 and inner[0] == "{" and inner[-1] == "}":
+                    inner = inner[1:-1]
+                if inner:
+                    result.update(self.scan_script(inner))
+
+        for tok in lexer.tokenise_all():
+            if tok.type in (TokenType.EOL, TokenType.EOF):
+                flush_command()
+                words = []
+                prev_type = tok.type
+                continue
+            if tok.type is TokenType.SEP:
+                prev_type = tok.type
+                continue
+            # Reconstruct the original word text including braces so that
+            # ``arg_indices_for_role`` and the brace-strip below see the
+            # word exactly as it appeared in source.
+            text = tok.text
+            if tok.type is TokenType.STR:
+                text = "{" + tok.text + "}"
+            elif tok.type is TokenType.CMD:
+                text = "[" + tok.text + "]"
+            elif tok.type is TokenType.VAR:
+                text = "$" + tok.text
+            if prev_type in (TokenType.SEP, TokenType.EOL):
+                words.append(text)
+            else:
+                if words:
+                    words[-1] += text
+                else:
+                    words.append(text)
+            prev_type = tok.type
+        flush_command()
+        return result
 
     def _scan_var_read_role_names(self, source: str) -> set[str]:
         result: set[str] = set()

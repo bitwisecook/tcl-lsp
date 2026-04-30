@@ -263,6 +263,13 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
         analysis: FunctionAnalysis,
     ) -> None:
         """W214: flag proc parameters that are never read in the body."""
+        # Procs registered as ``trace`` callbacks must accept the fixed
+        # trailing signature dictated by Tcl's trace API
+        # (e.g. ``name1 name2 op``); the body legitimately may not use
+        # those arguments, so suppress W214 entirely for them.
+        proc_def = self.result.all_procs.get(ir_proc.qualified_name)
+        if proc_def is not None and proc_def.is_trace_callback:
+            return
         for param_name in analysis.unused_params:
             self.result.diagnostics.append(
                 Diagnostic(
