@@ -84,13 +84,18 @@ class _AnalyserBase:
         # command name.  The post-analysis pass checks the type lattice to
         # determine whether the variable holds a TclOO object (suppress W307)
         # or not (emit W307).
-        # Each entry: (var_name, method_name_or_None, cmd_token_range).
-        self._var_command_sites: list[tuple[str, str | None, Range, bool]] = []
+        # Each entry: (var_name, method_name_or_None, cmd_token_range,
+        # in_method, is_single_token_word).  ``is_single_token_word`` is
+        # True only when the command word consists of just ``$var`` —
+        # composite words like ``${cmd}x`` (where the runtime command
+        # is the *concatenation*, not the variable's value) are False.
+        self._var_command_sites: list[tuple[str, str | None, Range, bool, bool]] = []
         # Command-substitution-as-command sites: records where [cmd] is used
         # as a command name (e.g. ``[Dog new] bark``).  The post-pass checks
         # if the command returns a TclOO object and suppresses W307.
-        # Each entry: (cmd_text, method_name_or_None, cmd_token_range, in_method).
-        self._cmd_command_sites: list[tuple[str, str | None, Range, bool]] = []
+        # Each entry: (cmd_text, method_name_or_None, cmd_token_range,
+        # in_method, is_single_token_word).
+        self._cmd_command_sites: list[tuple[str, str | None, Range, bool, bool]] = []
         # Cache: id(scope) -> namespace string, for _namespace_from_scope.
         self._ns_cache: dict[int, str] = {}
         # Namespace ensembles: namespaces where ``namespace ensemble create``

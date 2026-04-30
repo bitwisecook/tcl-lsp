@@ -51,6 +51,15 @@ def check_disabled_command(
     if not cmd_name or not all_tokens:
         return []
 
+    # Variable- or command-substitution as the command name (``$obj method``,
+    # ``[lookup] arg``) cannot be resolved statically to any built-in. The
+    # variable's name happens to coincide with a registry entry (e.g. a Tk
+    # widget handle named ``$table`` versus the iRules ``table`` command),
+    # but the actual command dispatched at runtime is whatever string the
+    # variable holds. W307 already flags non-literal command names.
+    if all_tokens[0].type in (TokenType.VAR, TokenType.CMD):
+        return []
+
     qualified = normalise_qualified_name(cmd_name)
     def_offset = user_procs.get(qualified)
     call_offset = all_tokens[0].start.offset
