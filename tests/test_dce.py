@@ -119,7 +119,7 @@ class TestSideEffects:
         # ``set tmp [some_cmd]`` — RHS is a command substitution.
         # tmp is unread by the rest of the body, but the command
         # has side effects.
-        module, _ = _prepare('proc f {} {\n  set tmp [info commands]\n  puts ok\n}\n')
+        module, _ = _prepare("proc f {} {\n  set tmp [info commands]\n  puts ok\n}\n")
         new_module = dce_module(module)
         assert _proc_writes(new_module, "::f", "tmp") == 1, (
             "set tmp [info commands] must stay — command-subst side effects "
@@ -133,6 +133,7 @@ class TestSideEffects:
         # IRAssignExpr (used in unrelated tests above), so we
         # inspect the body shape directly here.
         from core.compiler.ir import IRAssignExpr
+
         module, _ = _prepare(
             'proc f {} {\n  set x [expr {[string length "hello"]}]\n  puts ok\n}\n'
         )
@@ -148,7 +149,7 @@ class TestSideEffects:
         # ``set tmp 5`` has no side effects — DCE still fires on
         # the no-RHS-side-effect case (sanity check that the gate
         # didn't go too wide).
-        module, _ = _prepare('proc f {} {\n  set tmp 5\n  puts ok\n}\n')
+        module, _ = _prepare("proc f {} {\n  set tmp 5\n  puts ok\n}\n")
         new_module = dce_module(module)
         assert _proc_writes(new_module, "::f", "tmp") == 0
 
