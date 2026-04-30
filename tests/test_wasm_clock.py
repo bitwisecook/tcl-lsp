@@ -302,6 +302,119 @@ class TestClockScan:
         assert stdout.strip() == "12345"
 
 
+class TestClockScanFreeform:
+    """``clock scan`` — free-form date / time inputs.
+
+    These exercise the porting of a pragmatic subset of Tcl's
+    ``library/clock.tcl::GetDate`` grammar.  Full coverage of every
+    edge case in the C grammar is out of scope; the suite checks
+    the constructs that real scripts use.
+    """
+
+    def test_now_returns_base(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "now" -base 1234567890 -gmt 1]\n'
+        )
+        assert stdout.strip() == "1234567890"
+
+    def test_today_returns_midnight_of_base(self):
+        # 2025-07-15 12:34:56 UTC = epoch 1752597296.
+        # ``today`` should return midnight of the same date = 1752537600.
+        stdout = _run_for_stdout(
+            'puts [clock scan "today" -base 1752597296 -gmt 1]\n'
+        )
+        assert stdout.strip() == "1752537600"
+
+    def test_yesterday(self):
+        # 2025-07-15 12:34:56 UTC base; yesterday = 2025-07-14 midnight.
+        stdout = _run_for_stdout(
+            'puts [clock scan "yesterday" -base 1752597296 -gmt 1]\n'
+        )
+        assert stdout.strip() == str(1752537600 - 86400)
+
+    def test_tomorrow(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "tomorrow" -base 1752597296 -gmt 1]\n'
+        )
+        assert stdout.strip() == str(1752537600 + 86400)
+
+    def test_epoch_keyword(self):
+        stdout = _run_for_stdout('puts [clock scan "epoch"]\n')
+        assert stdout.strip() == "0"
+
+    def test_relative_days(self):
+        # base = 1000000000; +5 days = +432000.
+        stdout = _run_for_stdout(
+            'puts [clock scan "+5 days" -base 1000000000 -gmt 1]\n'
+        )
+        assert stdout.strip() == str(1000000000 + 5 * 86400)
+
+    def test_relative_negative_hours(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "-3 hours" -base 1000000000 -gmt 1]\n'
+        )
+        assert stdout.strip() == str(1000000000 - 3 * 3600)
+
+    def test_relative_unsigned(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "2 weeks" -base 1000000000 -gmt 1]\n'
+        )
+        assert stdout.strip() == str(1000000000 + 2 * 7 * 86400)
+
+    def test_relative_ago_suffix(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "10 minutes ago" -base 1000000000 -gmt 1]\n'
+        )
+        assert stdout.strip() == str(1000000000 - 10 * 60)
+
+    def test_month_day_year_full_name(self):
+        # "January 15, 2025" -> 2025-01-15 midnight UTC.
+        stdout = _run_for_stdout(
+            'puts [clock scan "January 15, 2025" -gmt 1]\n'
+        )
+        assert stdout.strip() == "1736899200"
+
+    def test_month_day_year_abbreviated(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "Jan 15, 2025" -gmt 1]\n'
+        )
+        assert stdout.strip() == "1736899200"
+
+    def test_day_month_year(self):
+        # "15 Jan 2025" -> 2025-01-15.
+        stdout = _run_for_stdout(
+            'puts [clock scan "15 Jan 2025" -gmt 1]\n'
+        )
+        assert stdout.strip() == "1736899200"
+
+    def test_us_slash_date(self):
+        # 01/15/2025 -> 2025-01-15.
+        stdout = _run_for_stdout(
+            'puts [clock scan "01/15/2025" -gmt 1]\n'
+        )
+        assert stdout.strip() == "1736899200"
+
+    def test_relative_months_calendar(self):
+        # base = 2025-01-15 midnight UTC = 1736899200.
+        # +1 month -> 2025-02-15 midnight = 1739577600.
+        stdout = _run_for_stdout(
+            'puts [clock scan "+1 month" -base 1736899200 -gmt 1]\n'
+        )
+        assert stdout.strip() == "1739577600"
+
+    def test_relative_years_calendar(self):
+        stdout = _run_for_stdout(
+            'puts [clock scan "+1 year" -base 1736899200 -gmt 1]\n'
+        )
+        # 2026-01-15 midnight UTC.
+        # 1736899200 + 365 * 86400 (2025 is non-leap).
+        assert stdout.strip() == str(1736899200 + 365 * 86400)
+
+    def test_unknown_form_returns_zero(self):
+        stdout = _run_for_stdout('puts [clock scan "garbage tokens here"]\n')
+        assert stdout.strip() == "0"
+
+
 # ---- clock add --------------------------------------------------------------
 
 
