@@ -135,9 +135,11 @@ class TestWasmLinkSources:
         # called once at top level (in mod_b).
         assert tagged.procedures["::helper"].static_call_count == 1
 
-        # End-to-end through the linker: helper inlines into main
-        # and gets dropped; the resulting module has no helper
-        # function.
+        # End-to-end through the linker: helper's call site in
+        # ``main_entry`` is inlined.  Per PR #237 review the proc
+        # itself stays in the module (Tcl procs are externally
+        # observable commands; the inliner can't prove the host
+        # won't reach helper through eval / namespace-import).
         mod = wasm_link_sources(
             [
                 ("helper.tcl", "proc helper {x} { puts $x }\n"),
@@ -145,7 +147,7 @@ class TestWasmLinkSources:
             ]
         )
         names = {f.name for f in mod.functions}
-        assert "::helper" not in names
+        assert "::helper" in names
         assert "::main_entry" in names
 
     def test_cross_file_proc_call(self):

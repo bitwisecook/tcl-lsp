@@ -154,6 +154,40 @@ class TestSideEffects:
         assert _proc_writes(new_module, "::f", "tmp") == 0
 
 
+class TestImplicitReturn:
+    """PR #237 review: the value of a Tcl proc's last command is
+    the proc's implicit return value.  ``proc p {} {set y 42}``
+    returns ``42`` because ``set`` returns the value it stored.
+    DCE must not delete the terminal statement even when the
+    target is unread."""
+
+    def test_terminal_set_kept_as_implicit_return(self):
+        # Single-statement body: ``set y 42`` is both the only
+        # write to y AND the proc's implicit return.  DCE must
+        # keep it.
+        module, _ = _prepare("proc p {} { set y 42 }\n")
+        new_module = dce_module(module)
+        assert _proc_writes(new_module, "::p", "y") == 1, (
+            "set y 42 must stay — it's the proc's implicit return value"
+        )
+
+    def test_non_terminal_dead_set_still_removed(self):
+        # Earlier-statement dead store still gets removed.  The
+        # terminal protection only covers the LAST statement.
+        module, _ = _prepare("proc p {} {\n  set tmp 5\n  set y 42\n}\n")
+        new_module = dce_module(module)
+        assert _proc_writes(new_module, "::p", "tmp") == 0
+        # Terminal ``set y 42`` stays.
+        assert _proc_writes(new_module, "::p", "y") == 1
+
+    def test_terminal_set_with_side_effect_kept(self):
+        # The new terminal-protection rule subsumes the existing
+        # side-effect rule — both gates keep the assignment.
+        module, _ = _prepare("proc p {} {\n  set y [info commands]\n}\n")
+        new_module = dce_module(module)
+        assert _proc_writes(new_module, "::p", "y") == 1
+
+
 class TestPurity:
     def test_input_module_unchanged(self):
         module, _ = _prepare('proc f {} {\n  set tmp 5\n  puts "hi"\n}\n')
