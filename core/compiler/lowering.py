@@ -44,6 +44,7 @@ from ..parsing.lexer import TclLexer, TclParseError
 from ..parsing.tokens import Token, TokenType
 from .ir import (
     CommandTokens,
+    CommandTrace,
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -337,6 +338,13 @@ class _Lowerer:
         # the import filter, so the worst case is the pre-fix
         # behaviour (runtime would correctly reject the import).
         self._namespace_exports: list[tuple[str, str]] = []
+        # ``trace add execution`` / ``trace remove execution`` directives
+        # captured at lowering time.  See ``IRModule.command_traces``.
+        # Both adds and removes are recorded in source order so the net
+        # active set can be derived later (also reused by future
+        # interprocedural passes that need to know *where* a trace is
+        # installed).
+        self._command_traces: list[CommandTrace] = []
         # Per-script const-map stack: each scope tracks proc-local
         # variables assigned a braced-literal value.  Populated at
         # ``set var {literal}`` sites and consulted by the
@@ -400,6 +408,7 @@ class _Lowerer:
         self.module.top_level = self._lower_script(source, namespace="::")
         self.module.namespace_exports = tuple(self._namespace_exports)
         self.module.namespace_imports = tuple(self._namespace_imports)
+        self.module.command_traces = tuple(self._command_traces)
         return self.module
 
     def lower_commands(
@@ -1621,6 +1630,65 @@ class _Lowerer:
                 # current namespace.
                 self._namespace_exports.append((namespace, pat))
 
+        # Capture ``trace add execution cmdName ops body`` and the
+        # matching ``remove`` form.  Execution traces install a Tcl
+        # body that runs around every call to ``cmdName``, so the
+        # traced command's effective side-effects are no longer just
+        # whatever the registry declares — the trace body's effects
+        # compose in.  Side-effect classification consults
+        # :meth:`IRModule.traced_commands` to drop purity / CSE for
+        # any command with a net active execution trace.
+        # Out of scope here: ``trace add command`` (fires only on
+        # rename/delete; doesn't compose into the command's per-call
+        # effects) and ``trace add variable`` (handled separately —
+        # its effect is on the named variable, not on a command).
+        # Subscriptions on dialect-aliased ``::trace`` spellings are
+        # captured too because the rewrite-alias resolver normalises
+        # them to ``trace`` before the lowering hook runs.
+        if (
+            cmd_name in ("trace", "::trace")
+            and len(args) >= 5
+            and args[0] in ("add", "remove")
+            and args[1] == "execution"
+            and (cmd.expand_word is None or not any(cmd.expand_word))
+            and self._dead_code_depth == 0
+        ):
+            target_arg_tok = arg_tokens[2] if len(arg_tokens) > 2 else None
+            ops_arg_tok = arg_tokens[3] if len(arg_tokens) > 3 else None
+            body_arg_tok = arg_tokens[4] if len(arg_tokens) > 4 else None
+            target_dynamic = target_arg_tok is None or target_arg_tok.type not in (
+                TokenType.STR,
+                TokenType.ESC,
+            )
+            target_name = "" if target_dynamic else args[2]
+            ops_dynamic = ops_arg_tok is None or ops_arg_tok.type not in (
+                TokenType.STR,
+                TokenType.ESC,
+            )
+            if ops_dynamic:
+                ops_tuple: tuple[str, ...] = ()
+            else:
+                # The ops list is a Tcl list of {enter, leave, enterstep,
+                # leavestep}.  Splitting on whitespace covers the common
+                # literal form; non-literal ops fall through as ``()``
+                # which the consumer treats as "all ops".
+                ops_tuple = tuple(args[3].split())
+            body_literal = body_arg_tok is not None and body_arg_tok.type is TokenType.STR
+            body_text: str | None = args[4] if body_literal else None
+            body_range: Range | None = None
+            if body_arg_tok is not None:
+                body_range = Range(start=body_arg_tok.start, end=body_arg_tok.end)
+            self._command_traces.append(
+                CommandTrace(
+                    target=target_name,
+                    ops=ops_tuple,
+                    body=body_text,
+                    body_range=body_range,
+                    action=args[0],
+                    target_dynamic=target_dynamic,
+                )
+            )
+
         # Check for a registered lowering hook first.
         spec = REGISTRY.get_any(cmd_name)
         # If the command itself has no lowering hook, try the alias target.
@@ -2092,6 +2160,7 @@ def lower_to_ir(
     lowerer.module.top_level = IRScript(statements=tuple(all_stmts))
     lowerer.module.namespace_imports = tuple(lowerer._namespace_imports)
     lowerer.module.namespace_exports = tuple(lowerer._namespace_exports)
+    lowerer.module.command_traces = tuple(lowerer._command_traces)
     inline_uplevel_passthrough(lowerer.module)
     return lowerer.module
 
