@@ -115,6 +115,18 @@ PRIMITIVES = {
         "proc f {} { return 42 }\nfor {set i 0} {$i < $N} {incr i} { f }",
         20_000,
     ),
+    "proc call (opaque, observes frame)": (
+        # ``info level`` flips the frame-observation flag on this proc
+        # so the S4 inliner refuses to splice it into the loop body —
+        # that's what we want here, otherwise the inliner elides the
+        # workload entirely and the bench reports 0 ns/op.  The body
+        # still does cheap work so the per-op number reflects raw call
+        # overhead (frame push/pop, arg marshalling, return-rc balance)
+        # rather than ``info level``'s lookup cost.
+        "proc f {x} { set _ [info level]; return $x }\n"
+        "set t 0\nfor {set i 0} {$i < $N} {incr i} { set t [f $i] }",
+        10_000,
+    ),
     "proc call (3 args, expr)": (
         "proc add3 {a b c} { return [expr {$a + $b + $c}] }\n"
         "set t 0\nfor {set i 0} {$i < $N} {incr i} { set t [add3 $i $t 1] }",
