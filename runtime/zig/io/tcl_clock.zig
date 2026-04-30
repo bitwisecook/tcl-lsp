@@ -12,10 +12,21 @@
 
 const std = @import("std");
 const obj = @import("../valtypes/tcl_obj.zig");
+const tz = @import("tcl_tz.zig");
 const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 const alloc = obj.alloc;
+
+comptime {
+    // Force the linker to keep tcl_tz.zig's symbols even though
+    // nothing calls into them yet — the resolver wave (next commit)
+    // hooks them up.  Without this comptime tickle the runtime
+    // build would happily drop the entire module.
+    _ = &tz.resolve;
+    _ = &tz.resolve_default;
+    _ = &tz.utc;
+}
 
 const NS_PER_SECOND: i64 = 1_000_000_000;
 const NS_PER_USEC: i64 = 1_000;
