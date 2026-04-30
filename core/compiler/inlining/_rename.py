@@ -345,36 +345,103 @@ def _rewrite_value_string(text: str, rename: dict[str, str]) -> str:
     array indices are evaluated as Tcl values at runtime and the
     rewrite never moves an array binding into the inlined scope
     (we conservatively decline to inline procs that touch arrays).
+
+    **PR #237 review — backslash protection.**  A naive regex
+    walk would rewrite ``\\$x`` as ``\\$<renamed>``, but ``\\$``
+    is the Tcl escape for a literal ``$`` — the original ``$x``
+    was *not* a substitution.  We track backslash state byte-by-
+    byte: an unescaped ``\\`` consumes the next char as a
+    literal, so a ``$`` right after counts as escaped.  Repeated
+    backslashes follow Tcl's pair-counting rule (``\\\\$x`` IS a
+    substitution because the first ``\\`` escapes the second).
+
+    The brace-form ``${name}`` is itself never escaped by Tcl
+    semantics — Tcl's ``\\${`` is a literal ``$`` followed by
+    ``{`` — so we still treat ``${...}`` as a substitution boundary
+    when the preceding backslash count is even.
     """
     if not text or not rename:
         return text
 
-    def repl(m: re.Match[str]) -> str:
-        full = m.group(0)
-        if m.group(1) is not None:
-            # ${name} form
-            name = m.group(1)
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    changed = False
+    while i < n:
+        ch = text[i]
+        if ch == "\\" and i + 1 < n:
+            # Consume the backslash escape verbatim.  This includes
+            # ``\\$`` (literal ``$``), ``\\\\`` (literal backslash),
+            # ``\\n`` etc.  The escape is two source chars; both
+            # propagate without rename touching them.
+            out.append(text[i])
+            out.append(text[i + 1])
+            i += 2
+            continue
+        if ch != "$":
+            out.append(ch)
+            i += 1
+            continue
+        # Unescaped ``$`` — try to recognise a substitution.
+        if i + 1 < n and text[i + 1] == "{":
+            # ``${name}`` form.  Find the matching ``}``; Tcl's
+            # ``${...}`` doesn't allow nested braces, so a plain
+            # ``find`` is sufficient.
+            j = text.find("}", i + 2)
+            if j < 0:
+                # Malformed ``${`` — emit verbatim.
+                out.append(ch)
+                i += 1
+                continue
+            name = text[i + 2 : j]
             paren = name.find("(")
             base = name[:paren] if paren >= 0 else name
             tail = name[paren:] if paren >= 0 else ""
             if base in rename:
                 if tail:
-                    return f"${{{rename[base]}{tail}}}"
-                return f"${{{rename[base]}}}"
-            return full
-        # $name form
-        name = m.group(2)
+                    out.append(f"${{{rename[base]}{tail}}}")
+                else:
+                    out.append(f"${{{rename[base]}}}")
+                changed = True
+            else:
+                out.append(text[i : j + 1])
+            i = j + 1
+            continue
+        # ``$name`` form: greedy match of identifier + optional
+        # ``(...)`` array index.
+        j = i + 1
+        while j < n:
+            c = text[j]
+            if c.isalnum() or c == "_":
+                j += 1
+                continue
+            break
+        if j == i + 1:
+            # Bare ``$`` followed by non-identifier — leave verbatim.
+            out.append(ch)
+            i += 1
+            continue
+        name_end = j
+        if j < n and text[j] == "(":
+            close = text.find(")", j + 1)
+            if close >= 0:
+                j = close + 1
+        full_match = text[i:j]
+        name = text[i + 1 : j]
         paren = name.find("(")
         base = name[:paren] if paren >= 0 else name
         tail = name[paren:] if paren >= 0 else ""
+        _ = name_end
         if base in rename:
-            return f"${rename[base]}{tail}"
-        return full
+            out.append(f"${rename[base]}{tail}")
+            changed = True
+        else:
+            out.append(full_match)
+        i = j
 
-    new_text = _VAR_REF_RE.sub(repl, text)
-    if new_text == text:
+    if not changed:
         return text
-    return new_text
+    return "".join(out)
 
 
 def _rewrite_expr(node, rename: dict[str, str]):

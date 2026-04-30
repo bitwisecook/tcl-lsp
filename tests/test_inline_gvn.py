@@ -72,11 +72,27 @@ class TestRedundantExprElimination:
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]
 
-    def test_intervening_call_clears_table(self):
-        # An ``IRCall`` between the two expressions might side-
-        # effect via eval / upvar — clear the table to be safe.
+    def test_intervening_pure_call_keeps_table(self):
+        # PR #237 review: previously the GVN pass cleared its value
+        # table on *every* IRCall, killing the match across pure
+        # builtins like ``puts``.  ``puts`` cannot mutate any local
+        # frame slot — it's in the inliner's splice-safe allow-list
+        # for exactly this property.  GVN now reuses that allow-list
+        # so the second ``[expr {$x + 1}]`` collapses to ``$y``.
         module = _module(
             'proc f {x} {\n  set y [expr {$x + 1}]\n  puts "between"\n  set z [expr {$x + 1}]\n}\n'
+        )
+        new_module = gvn_module(module)
+        assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignValue"]
+
+    def test_intervening_unsafe_call_clears_table(self):
+        # An ``IRCall`` to a command outside the splice-safe allow-
+        # list (here a user-defined helper) is conservatively
+        # treated as potentially mutating any local — table
+        # clears, second expr stays as IRAssignExpr.
+        module = _module(
+            "proc helper {} { return 0 }\n"
+            "proc f {x} {\n  set y [expr {$x + 1}]\n  helper\n  set z [expr {$x + 1}]\n}\n"
         )
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]

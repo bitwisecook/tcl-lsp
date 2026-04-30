@@ -1,12 +1,26 @@
 // TclObj value type, memory management, and string helpers for WASM.
 //
-// Memory layout of a TclObj:
-//   offset 0: refcount  (i32)
-//   offset 4: type_tag  (i32)  0=string, 1=int, 2=list
-//   offset 8: int_cache (i64)  cached integer representation
-//   offset 16: str_ptr  (i32)  pointer to UTF-8 data in linear memory
-//   offset 20: str_len  (i32)  byte length of the string representation
-//   Total: 24 bytes per TclObj
+// Memory layout of a TclObj (32 bytes; ``OBJ_SIZE``):
+//   offset 0:  refcount  (i32)
+//   offset 4:  type_tag  (i32)  0=string, 1=int, 2=list, 3=dict,
+//                                4=float, 5=inline-string
+//   offset 8:  int_cache (i64)  cached integer / float bits, OR
+//                                ≤ 8-byte inline string payload
+//                                when type_tag == TYPE_INLINE_STRING
+//   offset 16: str_ptr   (i32)  pointer to UTF-8 string-rep buffer
+//                                (or to the inline payload at +8 for
+//                                TYPE_INLINE_STRING)
+//   offset 20: str_len   (i32)  byte length of the string rep
+//   offset 24: str_cap   (i32)  size-class-rounded capacity of the
+//                                buffer pointed to by ``str_ptr``;
+//                                non-zero ⇒ obj owns the buffer and
+//                                ``release_now`` will ``free_sized``
+//                                it.  Zero ⇒ borrowed (interned
+//                                literal in the data segment, or the
+//                                inline payload at +8).
+//   offset 28: dict_ext  (i32)  pointer to a dict hash side-cache
+//                                (see ``tcl_dict.zig``); zero on
+//                                every other obj type
 //
 // Layering: character classification and byte-span comparison are in
 // ``tcl_chars.zig``; list-quoting / list-parsing / backslash decoding
@@ -834,14 +848,30 @@ var itoa_buf: [21]u8 = undefined;
 // must produce a fresh-looking buffer.  The single ``itoa_buf``
 // would be overwritten by any nested rendering (consider
 // ``format "%d-%d" $a $b`` where both args are immediates), so
-// we rotate through a small ring.  ``IMMEDIATE_RING_SIZE`` is
-// sized to comfortably exceed the deepest nesting any current
-// caller produces — bumping it is cheap if a future caller
-// exposes a deeper chain.
-const IMMEDIATE_RING_SIZE: u32 = 8;
+// we rotate through a ring.
+//
+// **PR #237 review**: previously ``IMMEDIATE_RING_SIZE = 8`` with
+// no overflow protection — a caller producing 9+ simultaneously-
+// live renders silently corrupted earlier outputs by wrapping
+// back into in-use slots.  The size has been bumped to 32 to
+// comfortably exceed every current caller's deepest nesting
+// (``format`` with up to 16 ``%d`` substitutions, ``lappend``
+// chains, ``regsub`` capture interpolation).  The ring's running
+// total is exposed via ``tcl_immediate_ring_total_renders`` so
+// tests can detect a regression in nesting headroom.
+//
+// Production builds keep the silent wrap (correctness still
+// degrades to "earliest renders may be stale" rather than to
+// random memory corruption — the ring storage is module-static
+// and bounded), with much more generous headroom than before.
+const IMMEDIATE_RING_SIZE: u32 = 32;
 const IMMEDIATE_BUF_BYTES: u32 = 24;
 var immediate_string_ring: [IMMEDIATE_RING_SIZE][IMMEDIATE_BUF_BYTES]u8 = undefined;
 var immediate_ring_cursor: u32 = 0;
+pub var immediate_ring_total_renders: u64 = 0;
+pub export fn tcl_immediate_ring_total_renders() i64 {
+    return @bitCast(immediate_ring_total_renders);
+}
 
 pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     var v = value;
@@ -898,6 +928,7 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         const result = itoa(immediate_unbox(obj));
         const slot = immediate_ring_cursor;
         immediate_ring_cursor = (immediate_ring_cursor + 1) % IMMEDIATE_RING_SIZE;
+        immediate_ring_total_renders += 1;
         const dst_ptr: u32 = @intFromPtr(&immediate_string_ring[slot]);
         memcpy(dst_ptr, @intFromPtr(result.ptr), result.len);
         return .{ .ptr = dst_ptr, .len = result.len };
@@ -929,18 +960,35 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     if (tag == TYPE_FLOAT) {
         const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
         const result = ftoa(fval);
-        const buf = alloc(result.len);
+        // PR #237 review: also set ``OBJ_STR_CAP`` so the buffer
+        // can be reclaimed by ``release_now`` (which gates the
+        // free on ``cap > 0``).  Use the same size-class rounding
+        // the recycler expects on the free side — the free path
+        // matches ``alloc(cap)`` only when ``cap`` is the class-
+        // rounded size.  Without recording the cap, the rendered
+        // buffer leaks once per TYPE_FLOAT obj that's ever been
+        // stringified.
+        const cap = round_up_to_class((result.len + 7) & ~@as(u32, 7));
+        const buf = alloc(cap);
+        if (buf == 0) return .{ .ptr = 0, .len = 0 };
         memcpy(buf, @intFromPtr(result.ptr), result.len);
         write_i32(addr + OBJ_STR_PTR, @intCast(buf));
         write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+        write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
         return .{ .ptr = buf, .len = result.len };
     }
     const val = read_i64(addr + OBJ_INT_CACHE);
     const result = itoa(val);
-    const buf = alloc(result.len);
+    // Same OBJ_STR_CAP discipline as the float path — see comment
+    // above.  Pre-fix, the rendered buffer leaked once per
+    // TYPE_INT obj that was ever stringified.
+    const cap = round_up_to_class((result.len + 7) & ~@as(u32, 7));
+    const buf = alloc(cap);
+    if (buf == 0) return .{ .ptr = 0, .len = 0 };
     memcpy(buf, @intFromPtr(result.ptr), result.len);
     write_i32(addr + OBJ_STR_PTR, @intCast(buf));
     write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+    write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
     return .{ .ptr = buf, .len = result.len };
 }
 

@@ -57,6 +57,7 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 
+from ...parsing.tokens import TokenType as _ParseTokenType
 from ..expr_ast import ExprLiteral
 from ..ir import (
     InlineDecision,
@@ -86,6 +87,11 @@ from ..ir import (
 from ..var_escape import ProcEscapeSummary
 from ..var_escape._interprocedural import _resolve_callee
 from ._rename import rewrite_script as _rewrite_with_rename
+
+# Cache the braced-literal token sentinel so the inliner's
+# per-call ``_arg_is_braced_literal`` check is an ``is``
+# comparison rather than a string-name fallback (PR #237 review).
+_TOKEN_TYPE_STR = _ParseTokenType.STR
 
 
 class _InlineKind(Enum):
@@ -1146,6 +1152,77 @@ def _substitute_irreturn_stmt(stmt, result_var: str, range_):
     return stmt
 
 
+def _list_clean_for_splice(text: str) -> bool:
+    """Return True iff ``text`` can be safely spliced verbatim into
+    a Tcl ``[list <e1> <e2> …]`` synth as a single element.
+
+    The variadic-``args`` packing path (PR #237 review) builds
+    ``[list <extras>…]`` by space-joining post-parse word texts.
+    For substitution-bearing tokens (``$x``, ``${arr(idx)}``,
+    ``[cmd]``) the post-parse text is compact at the top level —
+    splicing produces the right number of runtime words.  Quoted
+    literals (``"hello world"``) lose their quotes at parse time
+    so the post-parse text *contains* embedded whitespace at the
+    top level; splicing would re-tokenise the value into multiple
+    ``list`` words and inflate the variadic slot.
+
+    We allow whitespace inside ``${…}`` brace-substitution and
+    inside ``[cmd …]`` command-substitution — those parse as
+    single Tcl words on re-tokenisation.  Top-level whitespace
+    declines.  Backslash escapes consume the next char so a
+    literal ``\\<space>`` doesn't trigger the whitespace rule.
+    """
+
+    if not text:
+        return True
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\" and i + 1 < n:
+            # ``\<char>`` consumes both bytes as a single literal
+            # — the post-tokenise word is unchanged in arity.
+            i += 2
+            continue
+        if ch == "$" and i + 1 < n and text[i + 1] == "{":
+            # ``${...}`` brace-substitution.  Skip to the matching
+            # ``}`` (Tcl's ``${...}`` doesn't nest braces).
+            j = text.find("}", i + 2)
+            if j < 0:
+                return False  # unbalanced ${ — malformed
+            i = j + 1
+            continue
+        if ch == "[":
+            # ``[cmd ...]`` command substitution.  Skip with brace-
+            # aware nesting so an embedded ``[`` doesn't terminate
+            # us early.  A ``\\]`` inside the command body is the
+            # caller's problem; we stay conservative.
+            depth = 1
+            j = i + 1
+            while j < n and depth > 0:
+                c2 = text[j]
+                if c2 == "\\" and j + 1 < n:
+                    j += 2
+                    continue
+                if c2 == "[":
+                    depth += 1
+                elif c2 == "]":
+                    depth -= 1
+                j += 1
+            if depth != 0:
+                return False  # unbalanced ``[`` — malformed
+            i = j
+            continue
+        if ch.isspace():
+            return False
+        # Top-level brace / bracket-close / quote outside of any
+        # subst would re-parse with different tokenisation.
+        if ch in '{}"':
+            return False
+        i += 1
+    return True
+
+
 def _build_param_bindings(
     call: IRCall,
     proc: IRProcedure,
@@ -1224,11 +1301,13 @@ def _build_param_bindings(
         if idx >= len(call.tokens.argv):
             return False
         token = call.tokens.argv[idx]
-        # TokenType.STR is the type assigned to braced single-
-        # token words.  Importing the enum would tangle this
-        # module with parsing internals; comparing the type's
-        # name is sufficient.
-        return token.type.name == "STR"
+        # PR #237 review: previously compared ``token.type.name ==
+        # "STR"``, which silently breaks if ``TokenType.STR`` is
+        # renamed (every braced-literal call arg falls through to
+        # ``IRAssignValue`` and ``f {literal-$y}`` re-substitutes
+        # ``$y`` from the caller frame).  Use the imported enum
+        # value directly so a rename is a hard import failure.
+        return token.type is _TOKEN_TYPE_STR
 
     if has_variadic:
         positional_count = len(params) - 1
@@ -1243,19 +1322,34 @@ def _build_param_bindings(
             bound.append(args[i])
             bound_is_literal.append(_arg_is_braced_literal(i))
         # Remaining args pack into the ``args`` list literal.
-        # ``list a b c`` is a clean Tcl idiom that produces a
-        # well-formed list regardless of element content.
+        # We synthesise ``[list <e1> <e2> …]`` by space-joining
+        # the post-parse arg texts.  This is only sound when each
+        # extras word is "list-clean" — no internal whitespace,
+        # no unbalanced braces, no embedded ``[`` / ``]`` / ``"``.
+        #
+        # Counter-example (PR #237 review): for ``f a "hello world"
+        # c`` the post-parse args are ``("a", "hello world", "c")``
+        # and ``[list a hello world c]`` parses as a 4-element list
+        # — the variadic ``args`` slot would observe 4 elements
+        # instead of 3.
+        #
+        # Decline whenever any extras word contains a character that
+        # would change the splice's parse meaning vs the original
+        # call.  Substitution-bearing words (``$x``, ``${arr(idx)}``,
+        # ``[cmd]``) are *not* whitespace-bearing in their post-
+        # parse form (the lowering keeps them as compact tokens),
+        # so they pass the check naturally and substitute correctly
+        # at runtime.  Braced literals were already declined above.
         extras = args[positional_count:]
         if not extras:
             bound.append("")
             bound_is_literal.append(True)  # empty literal
         else:
-            # Build ``[list <e1> <e2> …]``.  Decline for now if any
-            # extras came from a braced-literal source — synthesising
-            # a literal-preserving list would need per-element brace-
-            # quoting, which the current synth can't do safely.
             for i in range(positional_count, len(args)):
                 if _arg_is_braced_literal(i):
+                    return None
+            for w in extras:
+                if not _list_clean_for_splice(w):
                     return None
             list_call = "[list " + " ".join(extras) + "]"
             bound.append(list_call)
@@ -1423,16 +1517,31 @@ def _drop_dead_procs(
 ) -> IRModule:
     """Remove dead inlinable procs from the module.
 
-    **Eligibility (PR #237 review).**  Only procs flagged
-    ``compiler_synthetic`` on :class:`IRProcedure` are eligible
-    for removal.  User-defined Tcl ``proc`` definitions register
-    externally observable commands — host eval, ``info procs``,
-    ``namespace import`` from another compilation unit, ``rename``
-    — and must survive inlining unconditionally.  The synthetic
-    flag is set explicitly by passes that *introduce* procs (no
-    such pass exists today, hence this function is a no-op in
-    practice for current modules).  All other gates from the
-    earlier version still apply on top of the synthetic check:
+    .. warning::
+
+       **Currently dormant** (PR #237 review): this function
+       returns the input module unchanged for *every* compilation
+       starting from real Tcl source code.  Eligibility requires
+       :attr:`IRProcedure.compiler_synthetic` to be ``True``, and
+       no current pass sets that flag — the lowering path always
+       leaves it ``False``.  The body below is preserved as
+       infrastructure for future passes that *introduce* helper
+       procs (e.g. an extract-common-prefix optimisation) which
+       would set the flag on the procs they synthesise.
+
+       The PR description's claim that "inlined procs with zero
+       remaining static calls are dropped from the module" is
+       therefore aspirational today — the call sites are spliced,
+       but the proc bodies stay in the WASM binary.  This is
+       correct (Tcl ``proc`` registers a public command,
+       observable via host eval / ``info procs`` /
+       ``namespace import`` / ``rename``); the alternative
+       ("drop user procs whose static calls were inlined") would
+       silently break those external observers.
+
+    **Eligibility.**  Only procs flagged ``compiler_synthetic`` on
+    :class:`IRProcedure` are eligible for removal.  All other
+    gates apply on top of the synthetic check:
 
     * The proc must be in ``candidates`` (the catalogue's
       inlinable set — already proved pure_leaf, so no observable
@@ -1452,6 +1561,15 @@ def _drop_dead_procs(
     at the call AND as the standalone wasm function).  We keep
     the perf benefit at the call site (no call overhead, no
     frame pop/push) while preserving the proc's observability.
+
+    Implementation note: ``_strip_proc_defs`` (the helper that
+    removes the top-level ``proc <name> …`` IRCall when a synth
+    proc is dropped) walks IRBlock children but does *not*
+    recurse into IRIf / IRFor / IRSwitch bodies.  A future
+    synthesising pass that places ``proc`` definitions inside
+    nested control flow would need to extend the strip walker;
+    today every synthesised proc lands at the top level so the
+    restriction doesn't bite.
     """
     if not candidates:
         return module

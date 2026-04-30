@@ -33,6 +33,18 @@
 // frame's cursor is already past the inner allocations so its
 // restore is a no-op for them.
 //
+// **Libc-fallback bulk cleanup (PR #237 review).**  Earlier
+// versions of ``arena_restore`` reset only the bump cursor — when
+// the arena saturated and a few allocations went to libc, those
+// libc buffers persisted past the scope's end and leaked under
+// any long-running workload that hit saturation more than once.
+// We track libc-fallback allocations in a singly-linked list
+// keyed off ``LibcRec`` and walk-and-free everything appended
+// since the matching ``arena_save``.  ``arena_save`` snapshots
+// the list head; ``arena_restore`` frees every entry strictly
+// above the snapshot.  Cost per fallback alloc: one list-head
+// update + one 12-byte ``LibcRec`` from libc itself.
+//
 // **Soundness.**  The arena's bytes must NOT outlive the scope
 // that allocated them.  Anything that escapes (e.g. a buffer
 // stored as a TclObj's heap-owned ``str_ptr``) must come from
@@ -60,26 +72,62 @@ pub const Allocation = struct {
     from_arena: bool,
 };
 
-/// Save the current arena cursor.  Pair with ``arena_restore``
-/// at the end of the scratch scope.
-pub fn arena_save() u32 {
-    return arena_cursor;
+/// Bookkeeping record for a single libc-fallback allocation.
+/// Stored in a singly-linked list rooted at ``libc_head`` so
+/// ``arena_restore`` can free every libc allocation made since
+/// the matching ``arena_save``.  The record itself is allocated
+/// from libc (small fixed size, freed in lockstep with the buffer
+/// it tracks).
+const LibcRec = extern struct {
+    addr: u32,
+    size: u32,
+    next: u32,
+};
+
+const LIBC_REC_SIZE: u32 = @sizeOf(LibcRec);
+
+var libc_head: u32 = 0;
+
+/// Composite save token — captures both the arena cursor and the
+/// libc-fallback list head so ``arena_restore`` can roll back
+/// both axes atomically.
+pub const Saved = struct {
+    cursor: u32,
+    libc_head: u32,
+};
+
+/// Save the current arena cursor and libc-fallback list head.
+/// Pair with ``arena_restore`` at the end of the scratch scope.
+pub fn arena_save() Saved {
+    return .{ .cursor = arena_cursor, .libc_head = libc_head };
 }
 
 /// Restore the arena cursor to ``saved``, releasing every arena
-/// allocation made since the matching ``arena_save``.  Libc
-/// fallback allocations made in the same scope are not affected
-/// — those need their own ``arena_free`` calls.
-pub fn arena_restore(saved: u32) void {
-    arena_cursor = saved;
+/// allocation made since the matching ``arena_save``.  Also walks
+/// the libc-fallback list and frees every entry appended after
+/// the saved snapshot — fixes the leak the previous version had
+/// when the arena saturated and overflow allocations went to
+/// libc (PR #237 review).
+pub fn arena_restore(saved: Saved) void {
+    while (libc_head != saved.libc_head) {
+        const rec_ptr = libc_head;
+        const rec: *const LibcRec = @ptrFromInt(rec_ptr);
+        const next = rec.next;
+        const addr = rec.addr;
+        const size = rec.size;
+        if (addr != 0) obj.free_sized(addr, size);
+        obj.free_sized(rec_ptr, LIBC_REC_SIZE);
+        libc_head = next;
+    }
+    arena_cursor = saved.cursor;
 }
 
 /// Allocate ``size`` bytes from the arena, with libc fallback.
 ///
 /// The returned ``Allocation`` records the address and whether
 /// the allocation came from the arena.  Pass it to ``arena_free``
-/// (or just rely on ``arena_restore`` to drop the arena bytes
-/// in bulk).
+/// (or just rely on ``arena_restore`` to drop both arena and
+/// libc-fallback bytes in bulk).
 pub fn arena_alloc_or_libc(size: u32) Allocation {
     if (size == 0) return .{ .addr = 0, .size = 0, .from_arena = true };
     const aligned: u32 = (size + 7) & ~@as(u32, 7);
@@ -89,9 +137,21 @@ pub fn arena_alloc_or_libc(size: u32) Allocation {
         arena_cursor += aligned;
         return .{ .addr = addr, .size = aligned, .from_arena = true };
     }
-    // Arena is full — fall back to libc.  The caller's
-    // ``arena_free`` handles the cleanup.
+    // Arena is full — fall back to libc and register the allocation
+    // on the libc-fallback list so ``arena_restore`` can free it
+    // even if the caller doesn't explicitly call ``arena_free``.
     const addr = obj.alloc(aligned);
+    if (addr == 0) {
+        return .{ .addr = 0, .size = aligned, .from_arena = false };
+    }
+    const rec_addr = obj.alloc(LIBC_REC_SIZE);
+    if (rec_addr != 0) {
+        const rec: *LibcRec = @ptrFromInt(rec_addr);
+        rec.addr = addr;
+        rec.size = aligned;
+        rec.next = libc_head;
+        libc_head = rec_addr;
+    }
     return .{ .addr = addr, .size = aligned, .from_arena = false };
 }
 
@@ -99,7 +159,9 @@ pub fn arena_alloc_or_libc(size: u32) Allocation {
 ///
 /// For arena allocations this is a no-op — the matching
 /// ``arena_restore`` reclaims them in bulk.  For libc-fallback
-/// allocations this routes to ``free_sized``.  Calling
+/// allocations this routes to ``free_sized`` and unlinks the
+/// matching ``LibcRec`` from the bookkeeping list (so
+/// ``arena_restore`` doesn't double-free).  Calling
 /// ``arena_free`` even on arena allocations is safe and lets
 /// callers use the same cleanup path regardless of where the
 /// allocation came from.
@@ -107,6 +169,24 @@ pub fn arena_free(a: Allocation) void {
     if (a.from_arena) return;
     if (a.addr == 0) return;
     obj.free_sized(a.addr, a.size);
+    var prev: u32 = 0;
+    var cur: u32 = libc_head;
+    while (cur != 0) {
+        const rec: *const LibcRec = @ptrFromInt(cur);
+        if (rec.addr == a.addr) {
+            const next = rec.next;
+            if (prev == 0) {
+                libc_head = next;
+            } else {
+                const prev_rec: *LibcRec = @ptrFromInt(prev);
+                prev_rec.next = next;
+            }
+            obj.free_sized(cur, LIBC_REC_SIZE);
+            return;
+        }
+        prev = cur;
+        cur = rec.next;
+    }
 }
 
 /// Diagnostic counter — number of bytes currently in use in the

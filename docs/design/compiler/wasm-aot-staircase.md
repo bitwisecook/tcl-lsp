@@ -148,8 +148,11 @@ paths, test plan, rollback path, and acceptance gate.
 
 - **S6.1** Re-enable size-class free-lists for the four most-common classes
   (32, 48, 64, 96) — recover most of the libc-malloc cost.
-- **S6.2** Inline-string optimisation: ≤ 23-byte strings live in the
-  TclObj header (`OBJ_INT_CACHE` + `OBJ_STR_PTR`), no separate buffer.
+- **S6.2** Inline-string optimisation: ≤ 8-byte strings (``MAX_INLINE_STR``)
+  live in the TclObj header's ``OBJ_INT_CACHE`` slot via the
+  ``TYPE_INLINE_STRING`` tag, no separate buffer.  (Original design
+  spec'd ≤ 23 bytes; the landed cap is 8 — see s6.md S6.2 for the
+  rationale.)
 - **S6.3** Per-statement arena for parser scratch + regex intermediates,
   reset on `eval_command` boundary.
 - **S6.4** Tagged-immediate small ints (high bit set on the i32 means

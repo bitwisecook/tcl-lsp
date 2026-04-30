@@ -76,29 +76,56 @@ neutral.
 
 ### S6.2 — Inline-string optimisation
 
-**Goal**: TclObjs whose string data fits in ≤ 23 bytes store
-the bytes inline (in `OBJ_INT_CACHE` + `OBJ_STR_PTR` fields)
-instead of allocating a separate buffer.
+**Goal**: TclObjs whose string data fits in the obj header
+store the bytes inline instead of allocating a separate buffer.
+
+**Implementation note (PR #237 review)**: the original design
+proposed using `OBJ_INT_CACHE + OBJ_STR_PTR + OBJ_STR_LEN` to
+cover ≤ 23-byte strings.  The landed implementation stores
+**only ≤ 8 bytes** inline (in the `OBJ_INT_CACHE` 8-byte slot,
+gated by a new `TYPE_INLINE_STRING` tag), leaving `OBJ_STR_PTR`
+free to point at the inline payload (so readers don't need a
+special-case branch).  Expanding to 23 bytes would mean
+spreading a single payload across three header fields, which
+complicates every reader and the str_cap-driven free path —
+the simpler 8-byte cap covers integer-string conversion
+results (the common case for tagged-int → string fall-through)
+and short identifiers (`set x …`, `puts foo`).
+
+The 8-byte cap is recorded as `MAX_INLINE_STR = 8` in
+`runtime/zig/valtypes/tcl_obj.zig`.  Re-opening the 23-byte
+target is a future S6.x sub-plan; the 8-byte landing is the
+shipping baseline.
 
 **Why it matters**: A typical Tcl workload allocates many short
 strings (identifiers, command names, integer-string conversion
 results). Inline storage halves the alloc count for that
 population.
 
-**Tasks**:
+**Tasks** (landed):
 
-- [ ] Reserve a flag bit in `OBJ_TYPE_TAG` (or steal a high bit
-  of `OBJ_STR_LEN`) to mark "inline string".
-- [ ] When `obj_new_string_copy(src, len)` is called with len
-  ≤ 23, set the inline flag and copy bytes into the obj
-  header instead of allocating.
-- [ ] Update every reader (`obj_str_ptr`, `obj_str_len`,
-  `obj_ensure_string`) to handle the inline case.
-- [ ] Update `release_now` to skip the `free_sized` call for
-  inline-string TclObjs (no buffer to free).
-- [ ] Update the in-place mutation fast paths (`tcl_cmd_append`,
-  `tcl_cmd_lappend`) to handle inline → owned-buffer
+- [x] New type tag `TYPE_INLINE_STRING = 5` for the inline case.
+- [x] `obj_new_string_copy(src, len)` with `len ≤
+  MAX_INLINE_STR` copies bytes into the obj's
+  `OBJ_INT_CACHE`-aligned slot and sets `OBJ_STR_PTR` to point
+  at that inline buffer.
+- [x] Every reader (`obj_str_ptr`, `obj_str_len`,
+  `obj_ensure_string`) sees the inline payload through
+  `OBJ_STR_PTR` without a special-case branch.
+- [x] `release_now` skips `free_sized` for inline-string
+  TclObjs (no separate buffer to free; `OBJ_STR_CAP` stays 0).
+- [x] In-place mutation fast paths (`tcl_cmd_append`,
+  `tcl_cmd_lappend`) detect the inline → owned-buffer
   transition when the inline cap is exceeded.
+
+**Hazard / unenforced invariant**: the comment on
+`MAX_INLINE_STR` warns "readers must not hold the pointer past
+the obj's lifetime".  A `(ptr, len)` pair captured by a long-
+lived structure (interp result, parse cache entry) and the obj
+subsequently released would alias a recycled obj header with
+silent corruption.  The deferred-free queue makes the common
+adjacent-buffer case safe but doesn't protect the obj header
+itself.  See review thread on `tcl_obj.zig:41`.
 
 **Files**:
 

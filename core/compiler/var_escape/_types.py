@@ -145,19 +145,42 @@ class ProcEscapeSummary:
 
         Required: the proc's locals must be inaccessible to anything
         outside the body — no caller can read them through ``upvar``,
-        no eval-fallback can introspect them through
-        ``info locals``, no callee can reach into the frame.
+        no eval-fallback can introspect them through ``info``
+        commands or arbitrary script (``[eval {set b}]`` reads our
+        ``b`` slot through Tcl's frame resolution), no callee can
+        reach into the frame.
 
-        Today this is the same as ``pure_leaf`` because every
-        contributing flag (``frame_needed``, ``has_fallback``,
-        ``unbounded_upvar_source``) gets unioned into pure_leaf.
-        Future tightening can drop the inlining-specific clauses
-        (e.g. "callees pure_leaf") since DCE doesn't care about
-        what callees do — only whether they reach back into our
-        locals, which is captured by ``frame_needed``.
+        **PR #237 review — real relaxation.**  Previously this
+        returned ``pure_leaf`` verbatim, which over-constrained DCE
+        with the inlining-specific "every direct callee is itself
+        pure_leaf" clause from the interprocedural fixpoint.  DCE
+        doesn't care about *what* the callees do — only whether
+        any observer (eval-fallback, upvar source, callee reaching
+        through the frame) can read our locals.  The relaxation
+        drops the IPA "callees pure_leaf" requirement but keeps
+        every gate that protects locals from external observation:
+
+        * ``not frame_needed`` — no var is FRAME-tagged (caller
+          can't ``upvar`` into our frame, no callee triggered the
+          dynamic_barrier downgrade).
+        * ``not has_fallback`` — no static dispatch falls through
+          to runtime eval, which would read locals by name.
+        * ``not has_call_fallback`` — no compiled-proc dispatch
+          could escape into a runtime path that introspects.
+        * ``not unbounded_upvar_source`` — this proc doesn't
+          itself ``upvar`` from a dynamically-named caller (which
+          would alias one of the caller's slots to our writes).
+        * ``not upvar_source_names`` — no ``upvar`` source set
+          escapes our locals to a caller.
         """
 
-        return self.pure_leaf
+        return (
+            not self.frame_needed
+            and not self.has_fallback
+            and not self.has_call_fallback
+            and not self.upvar_source_names
+            and not self.unbounded_upvar_source
+        )
 
     @property
     def safe_for_frame_elision(self) -> bool:
