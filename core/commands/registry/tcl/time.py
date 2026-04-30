@@ -39,7 +39,7 @@ class TimeCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(1, 2),
             ),
-            arg_roles={0: ArgRole.BODY},
+            arg_roles={0: frozenset({ArgRole.BODY})},
             arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
             return_type=TclType.STRING,
             side_effect_hints=(

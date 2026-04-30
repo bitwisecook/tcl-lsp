@@ -186,7 +186,7 @@ class UriRegisterCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="uri::register schemeList script"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
-            arg_roles={1: ArgRole.BODY},
+            arg_roles={1: frozenset({ArgRole.BODY})},
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,

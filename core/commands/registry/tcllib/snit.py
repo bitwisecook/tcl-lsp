@@ -166,7 +166,7 @@ class SnitCompileCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::compile which name body"),),
             validation=ValidationSpec(arity=Arity(3, 3)),
-            arg_roles={2: ArgRole.BODY},
+            arg_roles={2: frozenset({ArgRole.BODY})},
             creates_dynamic_barrier=True,
             never_inline_body=True,
             side_effect_hints=(
@@ -195,7 +195,7 @@ class SnitMacroCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::macro name arglist body"),),
             validation=ValidationSpec(arity=Arity(3, 3)),
-            arg_roles={2: ArgRole.BODY},
+            arg_roles={2: frozenset({ArgRole.BODY})},
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,

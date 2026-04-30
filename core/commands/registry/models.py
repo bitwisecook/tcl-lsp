@@ -412,7 +412,8 @@ class SubCommand:
     hover: HoverSnippet | None = None
 
     # Arg roles (replaces role_hints() -> SubcommandSig).
-    arg_roles: dict[int, ArgRole] = field(default_factory=dict)
+    # Each argument index maps to a ``frozenset`` of roles.
+    arg_roles: dict[int, frozenset[ArgRole]] = field(default_factory=dict)
     arg_role_resolver: ArgRoleResolver | None = None
 
     # Body kind for any ``ArgRole.BODY`` arguments on this subcommand.
@@ -676,7 +677,9 @@ class CommandSpec:
 
     # Static arg roles and type info for commands WITHOUT subcommands.
     # Replaces role_hints() -> CommandSig and type_hints() -> CommandTypeHint.
-    arg_roles: dict[int, ArgRole] = field(default_factory=dict)
+    # Each argument index maps to a ``frozenset`` of roles so a single
+    # argument can carry multiple roles at once.
+    arg_roles: dict[int, frozenset[ArgRole]] = field(default_factory=dict)
     return_type: TclType | None = None
     arg_types: dict[int, ArgTypeHint] = field(default_factory=dict)
 

@@ -219,7 +219,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
             never_inline_body=True,
             has_loop_body=True,
             loop_list_header=True,
-            arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.BODY},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE}), 2: frozenset({ArgRole.BODY})},
             hover=HoverSnippet(
                 summary="Iterate over objects in a collection.",
                 synopsis=("foreach_in_collection var collection body",),
@@ -248,7 +248,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
         CommandSpec(
             name="append_to_collection",
             dialects=_SDC_DIALECTS,
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             hover=HoverSnippet(
                 summary="Append objects to a collection variable.",
                 synopsis=("append_to_collection collection ?-unique? objects",),
@@ -265,7 +265,7 @@ def sdc_base_command_specs() -> tuple[CommandSpec, ...]:
         CommandSpec(
             name="remove_from_collection",
             dialects=_SDC_DIALECTS,
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             hover=HoverSnippet(
                 summary="Remove objects from a collection variable.",
                 synopsis=("remove_from_collection collection objects",),
