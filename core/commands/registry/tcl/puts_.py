@@ -48,10 +48,16 @@ class PutsCommand(CommandDef):
             ),
             validation=ValidationSpec(
                 # ``puts ?-nonewline? ?channelId? string`` accepts
-                # 1, 2, or 3 args.  The 3-arg form is the
-                # ``puts -nonewline $chan msg`` shape, dispatched
-                # to ``tcl_cmd_puts_chan`` from the codegen path.
-                arity=Arity(1, 3),
+                # 1, 2, or 3 raw args, but the static arity is
+                # ``Arity(1, 2)`` *positional* — the analyser strips
+                # the leading ``-nonewline`` flag (declared on
+                # ``CommandSig.options``) before counting, so
+                # ``puts -nonewline $chan msg`` (3 raw / 2 positional)
+                # passes while ``puts a b c`` (3 positional) is
+                # rejected as too many.  The Zig handler accepts the
+                # 3-arg shape internally regardless of this static
+                # bound; the runtime doesn't enforce ``arity_max``.
+                arity=Arity(1, 2),
             ),
             wasm_runtime_import=WasmRuntimeImport(
                 import_key="tcl_puts",

@@ -224,7 +224,14 @@ fn eval_format(words: []const i32) i32 {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "puts", .arity_min = 1, .arity_max = 3, .handler = &eval_puts },
+    // ``puts`` declares ``arity_max = 2`` to match the Python
+    // registry's positional-arity bound — the static analyser strips
+    // the leading ``-nonewline`` flag before counting, so
+    // ``puts -nonewline $chan msg`` (3 raw / 2 positional) passes
+    // there.  The handler itself accepts the 3-arg shape; the
+    // runtime doesn't enforce ``arity_max`` so this declaration is
+    // metadata-only for the parity gate.
+    .{ .name = "puts", .arity_min = 1, .arity_max = 2, .handler = &eval_puts },
     .{ .name = "flush", .arity_min = 0, .arity_max = 1, .handler = &eval_flush },
     .{ .name = "append", .arity_min = 1, .arity_max = null, .handler = &eval_append },
     .{ .name = "format", .arity_min = 1, .arity_max = null, .handler = &eval_format },
