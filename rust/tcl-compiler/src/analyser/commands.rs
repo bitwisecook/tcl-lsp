@@ -296,6 +296,68 @@ impl Analyser {
         // walk so race-detection diagnostics see the event
         // name, mirroring the Python behaviour.
         self.dispatch_body_arguments(cmd_name, args, arg_tokens, scope_path);
+
+        // Generic EXPR-argument walk via the command registry's
+        // ``ArgRole::Expr``.  Picks up the condition arg of
+        // ``if`` / ``elseif`` / ``while`` / the cond+next slots
+        // of ``for`` / the body of ``expr`` / etc.  Currently
+        // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
+        // emitter; future EXPR-role checks slot in here.
+        self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
+    }
+
+    /// Generic EXPR-argument walk via the command registry's
+    /// `ArgRole::Expr`.  Mirrors the EXPR slice of
+    /// `iter_body_arguments` plus the explicit per-check
+    /// dispatchers in `core/analysis/checks/_style.py`.
+    /// Currently invokes the W110 emitter on each EXPR-role
+    /// argument.  For `expr`, multi-arg invocations are joined
+    /// with spaces before the W110 walk — matches Python's
+    /// `expr_text = " ".join(args)` special-case.
+    fn dispatch_expr_arguments(&mut self, cmd_name: &str, args: &[String], arg_tokens: &[Token]) {
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let mut indices = registry.arg_indices_for_role(
+            cmd_name,
+            &arg_strs,
+            tcl_registry::arg_role::ArgRole::Expr,
+        );
+        if indices.is_empty() {
+            return;
+        }
+        indices.sort_unstable();
+
+        // Special-case ``expr ...``: when the user wrote multiple
+        // arguments (``expr 1 + 2`` instead of the more common
+        // ``expr {1 + 2}``), Python anchors the diagnostic at
+        // the full argument token range and parses the source
+        // slice — substituted arg values strip ``"..."`` quote
+        // delimiters, so joining ``args`` would lose the
+        // ``ExprString`` literals.  Falls back to the joined arg
+        // text when the source slice is out of bounds.
+        if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
+            let span = tcl_lexer::Span::new(
+                arg_tokens[0].span.start(),
+                arg_tokens[arg_tokens.len() - 1].span.end(),
+            );
+            let start = span.start() as usize;
+            let end = span.end() as usize;
+            let expr_text = if end <= self.source.len() && start <= end {
+                self.source[start..end].to_string()
+            } else {
+                args.join(" ")
+            };
+            self.emit_w110_string_eq_ne(&expr_text, span);
+            return;
+        }
+
+        for idx in indices {
+            if let (Some(text), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) {
+                self.emit_w110_string_eq_ne(text, tok.span);
+            }
+        }
     }
 
     /// Generic body recursion via the command registry's

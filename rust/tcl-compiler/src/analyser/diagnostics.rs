@@ -83,6 +83,7 @@ use tcl_lexer::SourceMap;
 
 use super::state::Analyser;
 use super::types::Severity;
+use crate::expr_ast::{BinOp, ExprNode};
 
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
@@ -286,6 +287,133 @@ fn is_ident_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
 }
 
+/// Walk `node` and collect every `==`/`!=` operator whose at least
+/// one operand is a string literal ([`ExprNode::String`]).
+///
+/// Mirrors `_find_string_eq_ne` in
+/// `core/analysis/checks/_style.py:685-713`.  Comparisons between
+/// two variables (`$x == $y`) are intentionally *not* collected —
+/// the variables may hold integer values, making `==` correct.
+fn find_string_eq_ne_ops(node: &ExprNode) -> Vec<BinOp> {
+    let mut found = Vec::new();
+    walk_string_eq_ne(node, &mut found);
+    found
+}
+
+fn walk_string_eq_ne(node: &ExprNode, found: &mut Vec<BinOp>) {
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            walk_string_eq_ne(left, found);
+            walk_string_eq_ne(right, found);
+            if matches!(op, BinOp::Eq | BinOp::Ne)
+                && (matches!(**left, ExprNode::String { .. })
+                    || matches!(**right, ExprNode::String { .. }))
+            {
+                found.push(*op);
+            }
+        }
+        ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, found),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            walk_string_eq_ne(condition, found);
+            walk_string_eq_ne(true_branch, found);
+            walk_string_eq_ne(false_branch, found);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                walk_string_eq_ne(arg, found);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Count the total number of `==`/`!=` operators in the expression
+/// tree.  Mirrors `_count_eq_ne_ops` in
+/// `core/analysis/checks/_style.py:716-731`.
+fn count_eq_ne_ops(node: &ExprNode) -> usize {
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            let mut n = count_eq_ne_ops(left) + count_eq_ne_ops(right);
+            if matches!(op, BinOp::Eq | BinOp::Ne) {
+                n += 1;
+            }
+            n
+        }
+        ExprNode::Unary { operand, .. } => count_eq_ne_ops(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            count_eq_ne_ops(condition)
+                + count_eq_ne_ops(true_branch)
+                + count_eq_ne_ops(false_branch)
+        }
+        ExprNode::Call { args, .. } => args.iter().map(count_eq_ne_ops).sum(),
+        _ => 0,
+    }
+}
+
+/// Rewrite `==`/`!=` operators to ` eq `/` ne ` for use in a code
+/// fix's replacement text.  Mirrors `_rewrite_string_compare_ops`
+/// in `core/analysis/checks/_helpers.py:82-88`.
+///
+/// Implements the Python regex semantics manually:
+/// * `(?<![=!])==(?!=)`  → ` eq `
+/// * `!=`                → ` ne `
+/// * `[ \t]{2,}`         → ` `  (collapse runs of 2+ ws)
+fn rewrite_string_compare_ops(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut step1 = String::with_capacity(text.len() + 8);
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        // !=  →  " ne "
+        if c == '!' && i + 1 < chars.len() && chars[i + 1] == '=' {
+            step1.push_str(" ne ");
+            i += 2;
+            continue;
+        }
+        // ==  →  " eq "  (with negative look-around)
+        if c == '=' && i + 1 < chars.len() && chars[i + 1] == '=' {
+            let prev_ok = i == 0 || (chars[i - 1] != '=' && chars[i - 1] != '!');
+            let next_ok = i + 2 >= chars.len() || chars[i + 2] != '=';
+            if prev_ok && next_ok {
+                step1.push_str(" eq ");
+                i += 2;
+                continue;
+            }
+        }
+        step1.push(c);
+        i += 1;
+    }
+    // Collapse runs of 2+ space/tab into a single space.  Single
+    // whitespace characters are preserved (matches Python's
+    // ``re.sub(r"[ \t]{2,}", " ", ...)``).
+    let chars: Vec<char> = step1.chars().collect();
+    let mut out = String::with_capacity(step1.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if (chars[i] == ' ' || chars[i] == '\t')
+            && i + 1 < chars.len()
+            && (chars[i + 1] == ' ' || chars[i + 1] == '\t')
+        {
+            out.push(' ');
+            while i < chars.len() && (chars[i] == ' ' || chars[i] == '\t') {
+                i += 1;
+            }
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
 impl Analyser {
     /// Scope-tree-driven variable diagnostic emitter.
     ///
@@ -368,6 +496,73 @@ Use braces: {{ \u{2026} }}"
                 new_text,
                 description: "Wrap code block in braces".to_string(),
             }],
+        });
+    }
+
+    /// **W110.** Emit "use `eq`/`ne` instead of `==`/`!=` for
+    /// string comparison" hints on the EXPR-role argument of
+    /// commands like `if`, `while`, `for`, `expr`.
+    ///
+    /// Mirrors ``check_string_compare_in_expr`` in
+    /// ``core/analysis/checks/_style.py:740-834``.  Fires when at
+    /// least one operand of a `==` / `!=` comparison is a string
+    /// literal (`ExprString`, e.g. `"foo"`, `"1"`, `"true"`);
+    /// comparisons between variables (`$x == $y`) are left alone.
+    ///
+    /// `expr_text` is the post-substitution body of the EXPR-role
+    /// argument (already brace-stripped) — the caller is
+    /// responsible for joining multi-arg `expr` invocations with
+    /// spaces before calling.  `diag_span` is the source span the
+    /// diagnostic anchors to (the source range of the argument
+    /// token, or the full token range for `expr`).
+    pub(super) fn emit_w110_string_eq_ne(&mut self, expr_text: &str, diag_span: tcl_lexer::Span) {
+        // Quick bail-out: no equality operator at all.
+        if !expr_text.contains("==") && !expr_text.contains("!=") {
+            return;
+        }
+        let parsed = crate::parse_expr(expr_text.trim(), Some(self.dialect.as_str()));
+        // ``ExprNode::Raw`` means the expression was unparseable —
+        // mirror Python's ``isinstance(parsed, ExprRaw): continue``.
+        if matches!(parsed, ExprNode::Raw { .. }) {
+            return;
+        }
+        let matched_ops = find_string_eq_ne_ops(&parsed);
+        if matched_ops.is_empty() {
+            return;
+        }
+        let first_op = matched_ops[0];
+        let (op_text, replacement) = match first_op {
+            BinOp::Eq => ("==", "eq"),
+            BinOp::Ne => ("!=", "ne"),
+            _ => unreachable!("find_string_eq_ne_ops only returns Eq/Ne"),
+        };
+        // Only offer the regex-based code fix when every ``==``/
+        // ``!=`` in the expression has a string-literal operand;
+        // otherwise the blanket rewrite would incorrectly change
+        // non-string comparisons too.
+        let total = count_eq_ne_ops(&parsed);
+        let mut fixes = Vec::new();
+        if matched_ops.len() >= total {
+            let rewritten = rewrite_string_compare_ops(expr_text);
+            if rewritten != expr_text {
+                fixes.push(super::types::CodeFix {
+                    span: diag_span,
+                    new_text: rewritten,
+                    description: format!("Use '{replacement}' for string comparison"),
+                });
+            }
+        }
+        let message = format!(
+            "Use '{replacement}' instead of '{op_text}' for string \
+comparison in expressions to avoid ambiguous \
+numeric/string coercion."
+        );
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W110".to_string(),
+            span: diag_span,
+            message,
+            severity: Severity::Hint,
+            fixes,
         });
     }
 
