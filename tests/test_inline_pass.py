@@ -231,14 +231,32 @@ class TestParameterisedInline:
             for s in new_module.top_level.statements
         )
 
-    def test_proc_with_return_not_inlined(self):
-        # Procs with any IRReturn keep the proc-call boundary —
-        # the inliner doesn't yet have IR labels / break primitives
-        # to safely route the return value.  The whole proc stays
-        # opaque rather than risk mis-routing results.
+    def test_proc_with_trailing_return_inlines_at_terminal_position(self):
+        # ``proc f {x} { puts $x; return $x }`` called at terminal
+        # position of the top-level body: v3 keeps the trailing
+        # IRReturn intact, so the renamed return becomes the
+        # caller's effective return value.
         module, summaries = _prepare(
             'proc f {x} { puts $x; return $x }\n'
             "f 5\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        # An IRReturn ends up at the top level.
+        from core.compiler.ir import IRReturn
+
+        assert any(
+            isinstance(s, IRReturn) for s in new_module.top_level.statements
+        )
+
+    def test_proc_with_trailing_return_not_inlined_at_non_terminal(self):
+        # Same proc but the call is NOT in terminal position —
+        # there's a statement after.  Keeping the IRReturn would
+        # short-circuit ``set marker after``; v3 declines.
+        module, summaries = _prepare(
+            'proc f {x} { puts $x; return $x }\n'
+            "f 5\n"
+            "set marker after\n"
         )
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 1
@@ -254,13 +272,91 @@ class TestParameterisedInline:
         new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 1
 
-    def test_variadic_args_declines(self):
+    def test_variadic_args_inlines_with_list_pack(self):
+        # ``proc f {args} { puts $args }`` called as ``f 1 2 3``:
+        # v3 binds ``__inline_<n>__args`` to ``[list 1 2 3]`` and
+        # inlines the body.
         module, summaries = _prepare(
             'proc f {args} { puts $args }\n'
             "f 1 2 3\n"
         )
         new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        # The bound ``args`` slot's value is a ``[list …]`` literal.
+        from core.compiler.ir import IRAssignValue
+
+        args_binding = next(
+            s
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignValue) and s.name.endswith("__args")
+        )
+        assert "[list" in args_binding.value
+        assert "1" in args_binding.value
+        assert "3" in args_binding.value
+
+    def test_variadic_args_with_zero_extras_inlines_to_empty(self):
+        # ``proc f {a args} { ... }`` called as ``f 1`` — no extras.
+        module, summaries = _prepare(
+            'proc f {a args} { puts $a }\n'
+            "f 1\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        from core.compiler.ir import IRAssignValue
+
+        args_binding = next(
+            s
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignValue) and s.name.endswith("__args")
+        )
+        assert args_binding.value == ""
+
+    def test_default_arg_inlines(self):
+        # ``proc f {x {y 5}} { puts $x }`` called with one arg —
+        # the default ``5`` fills in for ``y``.
+        module, summaries = _prepare(
+            'proc f {x {y 5}} { puts $x }\n'
+            "f 3\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        from core.compiler.ir import IRAssignValue
+
+        y_binding = next(
+            s
+            for s in new_module.top_level.statements
+            if isinstance(s, IRAssignValue) and s.name.endswith("__y")
+        )
+        assert y_binding.value == "5"
+
+    def test_missing_arg_no_default_declines(self):
+        # ``proc f {x y}`` called with only one arg — no default
+        # for ``y`` so v3 declines and lets the runtime raise the
+        # standard "wrong # args" error.
+        module, summaries = _prepare(
+            'proc f {x y} { puts $x }\n'
+            "f 1\n"
+        )
+        new_module = inline_module(module, summaries)
         assert _calls_to(new_module.top_level, "f") == 1
+
+    def test_nested_control_flow_inlines(self):
+        # The body has an IRIf with a nested ``puts`` — v3 now
+        # accepts nested control flow and the rewriter handles
+        # the iterator vars / nested bodies.
+        module, summaries = _prepare(
+            'proc f {x} {\n'
+            '  if {$x > 0} { puts "positive" }\n'
+            '}\n'
+            "f 5\n"
+        )
+        new_module = inline_module(module, summaries)
+        assert _calls_to(new_module.top_level, "f") == 0
+        # The IRIf survives the inline; the bound x is referenced
+        # inside the renamed condition.
+        from core.compiler.ir import IRIf
+
+        assert any(isinstance(s, IRIf) for s in new_module.top_level.statements)
 
     def test_two_call_sites_get_distinct_mangling(self):
         # Each call site gets a unique mangling counter so the two

@@ -140,13 +140,18 @@ def inline_module(
     # parameterised inline generates a unique mangled-name suffix.
     counter = [0]
 
+    # Top-level and proc-body walks both pass ``parent_is_terminal=True``
+    # so the LAST statement of each body is recognised as terminal
+    # — that's where keeping a callee's trailing IRReturn is sound.
     new_top = _rewrite_script(
-        module.top_level, "::", inlinable, summaries, counter
+        module.top_level, "::", inlinable, summaries, counter,
+        parent_is_terminal=True,
     )
     new_procs: dict[str, IRProcedure] = {}
     for qname, proc in module.procedures.items():
         new_body = _rewrite_script(
-            proc.body, qname, inlinable, summaries, counter
+            proc.body, qname, inlinable, summaries, counter,
+            parent_is_terminal=True,
         )
         if new_body is proc.body:
             new_procs[qname] = proc
@@ -236,28 +241,47 @@ def _v3_eligible(
 ) -> bool:
     """Return True iff ``proc`` qualifies for parameterised inlining.
 
-    Each restriction below corresponds to an IR feature the v3
-    rewriter doesn't yet handle.  Lifting any of them is a
-    follow-up slice; for now we conservatively bail.
+    The gates accepted in v3:
+
+    * **Variadic ``args``** — handled at the call site by packing
+      trailing words into a list literal bound to the mangled
+      ``args`` slot.  An empty trailing slice produces ``""``.
+    * **Parameter defaults** — when the call site passes fewer
+      args than the proc has params, missing positions are
+      filled from the defaults parsed out of ``params_raw``.  A
+      missing-without-default position declines the inline.
+    * **Nested control flow** — :class:`IRBlock` / :class:`IRIf`
+      / :class:`IRFor` / :class:`IRWhile` / :class:`IRForeach`
+      / :class:`IRCatch` / :class:`IRTry` / :class:`IRSwitch` /
+      :class:`IRUpFrame` are accepted; the α-rename rewriter
+      already walks every nested body and substitutes locals.
+    * **Trailing :class:`IRReturn`** — accepted **only** at the
+      body's top level (last position).  At inline time, the
+      ``IRReturn`` is preserved verbatim — it exits the caller's
+      proc with the renamed value, which matches the call's
+      original return-value semantics ONLY when the call site
+      is in terminal position of the caller's proc body.  The
+      call-site walker tracks this; non-terminal sites of procs
+      with trailing IRReturn decline.
+
+    What still declines:
+
+    * IRReturn at any non-trailing position (early-exit inside
+      the body or inside nested control flow).  Without IR
+      labels / break primitives we can't safely cancel the rest
+      of the inlined body.
+    * Array writes (``arr(idx)``) — partial-write semantics
+      need alias-aware reasoning.
     """
-    # Variadic ``args`` parameter — would need to gather extra
-    # call-site words into a list literal.
-    if proc.params and proc.params[-1] == "args":
-        return False
-    # IRReturn handling is intentionally out of scope.  The
-    # safe transform depends on whether the call site's result
-    # is consumed (last statement of caller body → caller
-    # returns it; otherwise → discarded).  The inliner doesn't
-    # have that context, and getting it wrong silently mis-routes
-    # a return value (observed during development as
-    # ``proc identity {x} { return $x }; caller {n} { identity $n }``
-    # returning 0 instead of n).  Procs with any IRReturn keep
-    # the proc-call boundary; lifting this restriction needs IR
-    # labels / break primitives we don't have yet.
     body_stmts = proc.body.statements
-    for stmt in body_stmts:
+    for i, stmt in enumerate(body_stmts):
+        is_trailing = (i == len(body_stmts) - 1)
         if isinstance(stmt, IRReturn):
-            return False
+            if not is_trailing:
+                return False
+            # Trailing IRReturn — accepted; the call-site
+            # rewriter will keep it intact.
+            continue
         if not _v3_stmt_eligible(stmt, qname, summaries):
             return False
     return True
@@ -270,13 +294,11 @@ def _v3_stmt_eligible(
 ) -> bool:
     """Per-statement eligibility for v3 inlining.
 
-    Allowed: pure value computation (IRAssignConst / IRAssignValue
-    / IRAssignExpr / IRIncr / IRExprEval) plus splice-safe
-    :class:`IRCall`s (same gates as v1/v2 — no frame observers,
-    no ``[cmd]`` in args, no defs that escape).  Nested control
-    flow is intentionally rejected: the rewriter handles it but
-    the soundness audit for nested loops + early-return + α-
-    renamed iterator vars is out of v3 scope.
+    Accepts pure value computation (IRAssignConst / IRAssignValue
+    / IRAssignExpr / IRIncr / IRExprEval), splice-safe
+    :class:`IRCall`s, and nested control flow whose bodies
+    contain only the same allowed shapes (recursively).
+    Rejects any :class:`IRReturn` at non-trailing positions.
     """
     if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
         # Array writes (``arr(idx)``) — partial-write semantics
@@ -289,7 +311,74 @@ def _v3_stmt_eligible(
         return _stmt_is_splice_eligible(stmt, callee_qname, summaries)
     if isinstance(stmt, IRExprEval):
         return True
+    if isinstance(stmt, IRBlock):
+        return _v3_script_eligible(stmt.body, callee_qname, summaries)
+    if isinstance(stmt, IRIf):
+        for clause in stmt.clauses:
+            if not _v3_script_eligible(clause.body, callee_qname, summaries):
+                return False
+        if stmt.else_body is not None:
+            if not _v3_script_eligible(stmt.else_body, callee_qname, summaries):
+                return False
+        return True
+    if isinstance(stmt, IRFor):
+        return (
+            _v3_script_eligible(stmt.init, callee_qname, summaries)
+            and _v3_script_eligible(stmt.next, callee_qname, summaries)
+            and _v3_script_eligible(stmt.body, callee_qname, summaries)
+        )
+    if isinstance(stmt, IRWhile):
+        return _v3_script_eligible(stmt.body, callee_qname, summaries)
+    if isinstance(stmt, IRForeach):
+        return _v3_script_eligible(stmt.body, callee_qname, summaries)
+    if isinstance(stmt, IRCatch):
+        return _v3_script_eligible(stmt.body, callee_qname, summaries)
+    if isinstance(stmt, IRTry):
+        if not _v3_script_eligible(stmt.body, callee_qname, summaries):
+            return False
+        for handler in stmt.handlers:
+            if not _v3_script_eligible(handler.body, callee_qname, summaries):
+                return False
+        if stmt.finally_body is not None:
+            if not _v3_script_eligible(stmt.finally_body, callee_qname, summaries):
+                return False
+        return True
+    if isinstance(stmt, IRSwitch):
+        for arm in stmt.arms:
+            if arm.body is not None:
+                if not _v3_script_eligible(arm.body, callee_qname, summaries):
+                    return False
+        if stmt.default_body is not None:
+            if not _v3_script_eligible(stmt.default_body, callee_qname, summaries):
+                return False
+        return True
+    if isinstance(stmt, IRUpFrame):
+        return _v3_script_eligible(stmt.body, callee_qname, summaries)
     return False
+
+
+def _v3_script_eligible(
+    script: IRScript | None,
+    callee_qname: str,
+    summaries: dict[str, ProcEscapeSummary],
+) -> bool:
+    """Reject IRReturn at non-trailing positions inside a nested
+    script.  Trailing IRReturn anywhere besides the body's outer
+    top level is also rejected — the call-site rewriter only
+    handles the body-level trailing case.
+    """
+    if script is None:
+        return True
+    for stmt in script.statements:
+        if isinstance(stmt, IRReturn):
+            # Inside a nested control-flow script, ANY IRReturn
+            # would short-circuit the caller's proc — only the
+            # outer body's trailing IRReturn is allowed (handled
+            # by ``_v3_eligible``).
+            return False
+        if not _v3_stmt_eligible(stmt, callee_qname, summaries):
+            return False
+    return True
 
 
 def _stmt_is_splice_eligible(
@@ -429,21 +518,37 @@ def _rewrite_script(
     inlinable: dict[str, _InlineSpec],
     summaries: dict[str, ProcEscapeSummary],
     counter: list[int],
+    parent_is_terminal: bool = False,
 ) -> IRScript:
     """Return ``script`` with eligible top-level calls dropped.
+
+    ``parent_is_terminal`` is True only when this script itself
+    sits in terminal position of its own enclosing structure (a
+    proc body, the top-level script, or recursively the trailing
+    branch of a script in a caller already known to be terminal).
+    The flag propagates to the LAST statement of this script so
+    a v3 inline of a proc with a trailing IRReturn can keep the
+    return intact when (and only when) its execution would
+    naturally have produced the proc's return value.
 
     Recurses into every nested control-flow body so calls inside
     ``if`` / ``for`` / ``foreach`` / ``while`` / ``catch`` / ``try``
     / ``switch`` arms are also subject to the splice.  Returns the
-    original instance unchanged when no rewrites are needed (cheap
-    structural sharing for non-affected scripts).
+    original instance unchanged when no rewrites are needed.
     """
 
     new_stmts: list = []
     changed = False
-    for stmt in script.statements:
+    n = len(script.statements)
+    for i, stmt in enumerate(script.statements):
+        is_last = (i == n - 1)
         replacements = _rewrite_stmt(
-            stmt, caller_qname, inlinable, summaries, counter
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            is_terminal=parent_is_terminal and is_last,
         )
         if replacements is None:
             new_stmts.append(stmt)
@@ -461,6 +566,7 @@ def _rewrite_stmt(
     inlinable: dict[str, _InlineSpec],
     summaries: dict[str, ProcEscapeSummary],
     counter: list[int],
+    is_terminal: bool = False,
 ) -> list | None:
     """Return a replacement statement list, or ``None`` to keep ``stmt``.
 
@@ -473,7 +579,7 @@ def _rewrite_stmt(
         target = _resolve_callee(stmt.command, caller_qname, summaries)
         if target is not None and target in inlinable:
             spec = inlinable[target]
-            return _splice_call_site(stmt, spec, counter)
+            return _splice_call_site(stmt, spec, counter, is_terminal)
         return None
 
     if isinstance(stmt, IRBlock):
@@ -576,13 +682,16 @@ def _splice_call_site(
     call: IRCall,
     spec: _InlineSpec,
     counter: list[int],
+    is_terminal: bool,
 ) -> list | None:
     """Produce the inlined statement list for a single call site.
 
-    Returns ``None`` if the call site doesn't match the spec's
-    requirements (so the caller keeps the original IRCall),
-    ``[]`` if the call vanishes (v0), or a list of replacement
-    statements (v1 / v2 / v3).
+    ``is_terminal`` is True when the call appears at the very last
+    position of its enclosing script AND the chain of enclosing
+    statements is itself terminal — i.e., the call's value would
+    naturally become the proc's return value.  Used by v3 to
+    decide whether a callee's trailing ``IRReturn`` may be kept
+    intact.
     """
     kind = spec.kind
     if kind is _InlineKind.EMPTY:
@@ -605,19 +714,16 @@ def _splice_call_site(
         proc = spec.proc
         if proc is None:
             return None
-        # Strict-arity match: the call site must pass exactly as
-        # many args as the proc has params.  Default-application
-        # and variadic (``args``) handling is left for follow-up
-        # slices.
-        if len(call.args) != len(proc.params):
-            return None
 
-        counter[0] += 1
-        cid = counter[0]
-        rename: dict[str, str] = {}
-        # Mangle every parameter name.
-        for p in proc.params:
-            rename[p] = f"__inline_{cid}__{p}"
+        # Bind call-site arg strings to mangled parameter slots,
+        # accounting for parameter defaults (missing trailing
+        # args filled from ``params_raw``) and variadic ``args``
+        # (extra trailing call args packed into a list literal).
+        bindings_or_decline = _build_param_bindings(call, proc, counter)
+        if bindings_or_decline is None:
+            return None
+        cid, rename, bindings = bindings_or_decline
+
         # Mangle every locally-written variable too — without this
         # the body's own ``set y …`` would resolve to the caller's
         # ``y`` slot.
@@ -625,21 +731,153 @@ def _splice_call_site(
             if name not in rename:
                 rename[name] = f"__inline_{cid}__{name}"
 
-        bindings: list = []
-        for p, arg_text in zip(proc.params, call.args):
-            bindings.append(
-                IRAssignValue(
-                    range=call.range,
-                    name=rename[p],
-                    value=arg_text,
-                )
-            )
+        # Trailing-IRReturn handling: keep the IRReturn iff the
+        # call site is in terminal position; otherwise the
+        # eligibility gate already declined this proc.  The
+        # check below is defensive — if we ever expanded the
+        # eligibility set we'd want an explicit guard here.
+        body_stmts = list(proc.body.statements)
+        body_has_trailing_return = (
+            body_stmts and isinstance(body_stmts[-1], IRReturn)
+        )
+        if body_has_trailing_return and not is_terminal:
+            # Non-terminal call site of a proc with a trailing
+            # IRReturn — keeping the return would short-circuit
+            # the rest of the caller's body.  Decline.
+            return None
 
         renamed_body = _rewrite_with_rename(proc.body, rename)
-        body_stmts = list(renamed_body.statements)
-
-        return bindings + body_stmts
+        return bindings + list(renamed_body.statements)
     return None
+
+
+def _build_param_bindings(
+    call: IRCall,
+    proc: IRProcedure,
+    counter: list[int],
+) -> tuple[int, dict[str, str], list] | None:
+    """Build the parameter-binding statement list for a v3 call.
+
+    Returns ``(cid, rename, bindings)`` on success, or ``None`` to
+    decline (arity mismatch with no defaults, or other case the
+    binder doesn't yet handle).
+
+    Behaviour:
+
+    * **Variadic ``args``** — the trailing parameter named
+      ``args`` is bound to a list literal containing the surplus
+      call words.  Zero surplus words bind it to ``""``.
+    * **Defaults** — when the call passes fewer args than the
+      proc has positional parameters, missing slots are filled
+      from ``params_raw``-parsed defaults.  A missing slot
+      without a default declines.
+    """
+    counter[0] += 1
+    cid = counter[0]
+    rename: dict[str, str] = {}
+    for p in proc.params:
+        rename[p] = f"__inline_{cid}__{p}"
+
+    params = proc.params
+    args = call.args
+    has_variadic = bool(params) and params[-1] == "args"
+
+    # Resolve each parameter's bound value.  ``bound[i]`` is the
+    # source string for the IRAssignValue going into
+    # ``__inline_<cid>__<params[i]>``.
+    bound: list[str] = []
+    if has_variadic:
+        positional_count = len(params) - 1
+        if len(args) < positional_count:
+            # Variadic doesn't help when caller is short on
+            # required positionals — fall through to default
+            # handling below as if the proc had ``positional_count``
+            # required params.
+            return _build_with_defaults(
+                cid, rename, proc, args, positional_count, has_variadic
+            )
+        # First ``positional_count`` args bind to required params.
+        bound.extend(args[:positional_count])
+        # Remaining args pack into the ``args`` list literal.
+        # ``list a b c`` is a clean Tcl idiom that produces a
+        # well-formed list regardless of element content.
+        extras = args[positional_count:]
+        if not extras:
+            bound.append("")
+        else:
+            # Build ``[list <e1> <e2> …]``.  Each extra is
+            # already a call-site arg string (possibly with $-
+            # subst, [cmd] subst, or literal); ``list`` is
+            # responsible for quoting at runtime.
+            list_call = "[list " + " ".join(extras) + "]"
+            bound.append(list_call)
+    else:
+        if len(args) > len(params):
+            # Too many args — Tcl error normally; we decline so
+            # the runtime surfaces the error from the call site.
+            return None
+        if len(args) < len(params):
+            return _build_with_defaults(
+                cid, rename, proc, args, len(params), False
+            )
+        bound.extend(args)
+
+    bindings: list = [
+        IRAssignValue(
+            range=call.range,
+            name=rename[p],
+            value=v,
+        )
+        for p, v in zip(params, bound)
+    ]
+    return cid, rename, bindings
+
+
+def _build_with_defaults(
+    cid: int,
+    rename: dict[str, str],
+    proc: IRProcedure,
+    args: tuple[str, ...],
+    positional_count: int,
+    has_variadic: bool,
+) -> tuple[int, dict[str, str], list] | None:
+    """Try to fill missing positional args from declared defaults.
+
+    Returns ``None`` if any missing slot lacks a default.  When
+    ``has_variadic`` is True, the final ``args`` parameter is
+    always bound to ``""`` (no trailing call words to pack).
+    """
+    if not proc.params_raw:
+        return None
+    from ..lowering import _parse_params_with_defaults
+
+    parsed = _parse_params_with_defaults(proc.params_raw)
+    if len(parsed) != len(proc.params):
+        return None  # parse drift — bail safely
+
+    bound: list[str] = []
+    for i in range(positional_count):
+        if i < len(args):
+            bound.append(args[i])
+            continue
+        # Missing slot — need a default.
+        _, default = parsed[i]
+        if default is None:
+            return None
+        bound.append(default)
+
+    if has_variadic:
+        bound.append("")  # empty trailing args
+
+    bindings: list = [
+        IRAssignValue(
+            range=proc.range,
+            name=rename[p],
+            value=v,
+        )
+        for p, v in zip(proc.params, bound)
+    ]
+    return cid, rename, bindings
 
 
 def _collect_local_names(script: IRScript) -> set[str]:
