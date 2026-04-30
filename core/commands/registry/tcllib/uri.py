@@ -6,7 +6,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "tcllib uri package"
@@ -187,6 +187,11 @@ class UriRegisterCommand(CommandDef):
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="uri::register schemeList script"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
             arg_roles={1: ArgRole.BODY},
+            # The registered script becomes a scheme handler that runs
+            # later inside ``uri::split``'s dispatch — it does not share
+            # the caller's scope.  STRUCTURAL keeps the body out of the
+            # enclosing block's data flow.
+            body_kind=BodyKind.STRUCTURAL,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,
