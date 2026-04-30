@@ -211,6 +211,44 @@ class TestDialectProfiles:
         assert len(w002) == 1
         assert "'log' is disabled" in w002[0].message
 
+    def test_w002_skipped_for_variable_as_command(self):
+        # Issue #233: ``$table item style ...`` is variable-as-command
+        # (a Tk widget handle, TclOO object, etc.). The literal name
+        # ``table`` happens to be an iRules built-in (DISALLOWED in
+        # plain Tcl), but the runtime command is whatever string the
+        # variable holds. W002 must not fire on such substitution sites.
+        configure_signatures(dialect="tcl8.6")
+        src = (
+            "proc compareRows {table item col} {\n"
+            "    set s [$table item style set $item $col]\n"
+            "    return $s\n"
+            "}\n"
+        )
+        result = analyse(src)
+        assert all(d.code != "W002" for d in result.diagnostics)
+
+    def test_w002_skipped_for_command_substitution_as_command(self):
+        # ``[lookup] arg`` is command-substitution-as-command. The
+        # actual dispatched command is the substitution's runtime
+        # value, not the inner command name. W002 must not fire on
+        # the outer call site.
+        configure_signatures(dialect="f5-irules")
+        src = "proc helper {} { return puts }\n[helper] hello\n"
+        result = analyse(src)
+        assert all(d.code != "W002" for d in result.diagnostics)
+
+    def test_w002_fires_for_lattice_resolved_disabled_command(self):
+        # When the lattice statically resolves ``$cmd`` to a literal
+        # disabled command name, W002 still fires — variable-as-command
+        # is suppressed, but only when the dispatched command cannot
+        # be statically pinned.
+        configure_signatures(dialect="f5-irules")
+        src = 'set cmd open\n$cmd /tmp/x\n'
+        result = analyse(src)
+        w002 = [d for d in result.diagnostics if d.code == "W002"]
+        assert len(w002) == 1
+        assert "'open' is disabled" in w002[0].message
+
     def test_w002_fires_for_fully_qualified_disallowed_command(self):
         # The command registry is keyed without a leading ``::``; W002
         # must strip it so ``::open`` under the iRules dialect is

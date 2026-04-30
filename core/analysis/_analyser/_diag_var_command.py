@@ -29,13 +29,24 @@ class _AnalyserDiagVarCommandMixin(_Base):
         - If the variable has a ``CONSTSET`` (or ``CONST``) SCCP value whose
           elements are all resolvable to known commands, procs, or TclOO
           objects, suppress W307 (the set of command names is statically known).
+          When all resolved names are also disabled in the active dialect,
+          emit W002 against the resolved literal name(s).
         - Otherwise emit W307 (non-literal command name).
         """
         if not self._var_command_sites and not self._cmd_command_sites:
             return
-        if "W307" in self._disabled_diagnostics and "W308" in self._disabled_diagnostics:
+        if (
+            "W307" in self._disabled_diagnostics
+            and "W308" in self._disabled_diagnostics
+            and "W002" in self._disabled_diagnostics
+        ):
             return
 
+        from ...commands.registry import REGISTRY
+        from ...commands.registry.models import DialectStatus
+        from ...common.dialect import active_dialect
+        from ...common.naming import normalise_qualified_name
+        from ...compiler.compiler_checks import _collect_unconditional_top_level_procs
         from ...compiler.core_analyses import (
             _extract_foreach_elements,
             _parse_literal_value,
@@ -45,6 +56,60 @@ class _AnalyserDiagVarCommandMixin(_Base):
         )
         from ...compiler.types import TclType, TypeKind
         from ..class_hierarchy import build_class_hierarchy
+
+        _w002_enabled = "W002" not in self._disabled_diagnostics
+        _dialect = active_dialect() if _w002_enabled else None
+        _user_procs = (
+            _collect_unconditional_top_level_procs(cu.ir_module) if _w002_enabled else {}
+        )
+
+        def _maybe_emit_w002(values: frozenset[object], site_range) -> None:
+            """Emit W002 when every resolved literal command name is disabled.
+
+            Only runs when ``_w002_enabled``. Each value must be a string;
+            we accept the resolution only if **all** possible names are
+            DISALLOWED in the active dialect and none is shadowed by a
+            user proc whose unconditional definition precedes the call.
+            Conservative on purpose: a CONSTSET that mixes allowed and
+            disallowed names cannot fire W002 without false positives.
+            """
+            if not _w002_enabled or not values:
+                return
+            disabled_names: list[str] = []
+            for v in values:
+                if not isinstance(v, str) or not v:
+                    return
+                qualified = normalise_qualified_name(v)
+                offset = _user_procs.get(qualified)
+                if offset is not None and offset < site_range.start.offset:
+                    return
+                lookup = qualified.lstrip(":")
+                if REGISTRY.command_status(lookup, _dialect) is not DialectStatus.DISALLOWED:
+                    return
+                disabled_names.append(v)
+            if not disabled_names:
+                return
+            if len(disabled_names) == 1:
+                msg = f"'{disabled_names[0]}' is disabled in the active dialect profile"
+            else:
+                quoted = ", ".join(f"'{n}'" for n in sorted(set(disabled_names)))
+                msg = (
+                    f"command may resolve to {quoted}, all disabled in the active dialect profile"
+                )
+            if any(
+                REGISTRY.command_status(normalise_qualified_name(n).lstrip(":"), "f5-irules")
+                is DialectStatus.EXISTS
+                for n in disabled_names
+            ):
+                msg += " (available in the iRules dialect)"
+            self.result.diagnostics.append(
+                Diagnostic(
+                    range=site_range,
+                    message=msg,
+                    severity=Severity.WARNING,
+                    code="W002",
+                )
+            )
 
         # Collect all SSA type entries across top-level and procedures.
         all_types: dict[str, set[str]] = {}  # var_name → set of class_names
@@ -276,7 +341,9 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     for v in constset_vals
                 ):
                     # All possible command names are statically known —
-                    # suppress W307.
+                    # suppress W307. If every resolved name happens to be
+                    # disabled in the active dialect, fire W002 instead.
+                    _maybe_emit_w002(constset_vals, site_range)
                     continue
 
                 # Emit W307 unless inside a method body or a function with
