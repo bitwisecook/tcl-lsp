@@ -80,7 +80,14 @@ zero-instruction body) firing on the typical proc-local pattern.  See
 ## Regression coverage
 
 [`fuzzing/tests/test_fuzz_findings.py`](../../fuzzing/tests/test_fuzz_findings.py)
-`TestBatch6WasmIgnoresMissingVar` parametrises the seven seed scripts
-from the original finding batch and asserts the WASM run no longer
-returns `OK` on a script the VM rejects with
-`'no such variable'`.
+`TestBatch6WasmIgnoresMissingVar` parametrises the four seed scripts
+(`1774200012`, `1774200028`, `1774200037`, `1774200068`) whose
+mismatch was directly the missing-variable behaviour and asserts
+the WASM run now surfaces a Tcl-level error matching the VM's
+return code.
+
+Three other seeds the original issue listed (`1774200067`,
+`1774200082`, `1774200094`) turn out to surface independent
+`wasm-timeout` bugs once the missing-variable signal stops
+short-circuiting the runaway loop; those need their own follow-up
+fixes and stay `"fixed": false` for now.
