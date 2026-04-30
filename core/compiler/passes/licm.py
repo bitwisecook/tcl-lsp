@@ -57,9 +57,8 @@ every iteration, so reads inside don't observe any difference.
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import re
+from dataclasses import replace
 
 from ..expr_ast import BinOp, ExprBinary, ExprLiteral, ExprVar, vars_in_expr_node
 from ..ir import (

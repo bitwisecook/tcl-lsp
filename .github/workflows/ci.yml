@@ -66,6 +66,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Zig (needed for runtime auto-build)
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
       - name: Sync Python environment
         run: uv sync --extra dev
 

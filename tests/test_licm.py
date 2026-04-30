@@ -240,18 +240,13 @@ class TestNestedLoops:
         # ``x``, and after the hoist every iteration would see
         # ``new`` instead.
         module = _module(
-            "set x outer\n"
-            "for {set i 0} {$i < 3} {incr i} {\n"
-            '  puts $x\n'
-            '  set x "new"\n'
-            "}\n"
+            'set x outer\nfor {set i 0} {$i < 3} {incr i} {\n  puts $x\n  set x "new"\n}\n'
         )
         new_module = licm_module(module)
         for_node = _find_first(new_module.top_level, IRFor)
         assert for_node is not None
         assert _find_assign(for_node.body, "x") is not None, (
-            "set x must stay in body when an earlier read of x "
-            "could observe the pre-loop value"
+            "set x must stay in body when an earlier read of x could observe the pre-loop value"
         )
 
     def test_inner_loop_invariant_hoisted_to_outer_then_outer(self):

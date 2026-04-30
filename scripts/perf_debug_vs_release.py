@@ -48,14 +48,19 @@ def _ensure_artefacts() -> None:
         return
     if not DEBUG_RT.exists():
         subprocess.run(
-            ["zig", "build", "-Doptimize=Debug"], cwd=str(ZIG_DIR), check=True,
+            ["zig", "build", "-Doptimize=Debug"],
+            cwd=str(ZIG_DIR),
+            check=True,
         )
         shutil.copy2(ZIG_OUT, DEBUG_RT)
     if not RELEASE_RT.exists():
         subprocess.run(
-            ["zig", "build", "-Doptimize=ReleaseFast"], cwd=str(ZIG_DIR), check=True,
+            ["zig", "build", "-Doptimize=ReleaseFast"],
+            cwd=str(ZIG_DIR),
+            check=True,
         )
         shutil.copy2(ZIG_OUT, RELEASE_RT)
+
 
 WORKLOADS = {
     "set+incr (50k)": ("set x 0\nfor {set i 0} {$i < 50000} {incr i} { incr x }\n"),
