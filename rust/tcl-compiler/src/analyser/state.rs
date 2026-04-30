@@ -1645,6 +1645,46 @@ mod tests {
         );
     }
 
+    #[test]
+    fn analyse_w001_fix_replaces_wrapped_literal_subcommand() {
+        // Wrapper tokens (``Str`` braced ``{lenght}`` / ``Esc``
+        // quoted ``"lenght"``) carry the opening delimiter via
+        // ``content_offset`` and the lexer span excludes the
+        // closing delimiter; the W001 code-fix targets the
+        // content range so the replacement preserves the
+        // wrapping ``}`` / ``"`` rather than leaving a stray
+        // trailing delimiter behind.
+        for (src, expected) in [
+            ("string {lenght} $x\n", "string {length} $x\n"),
+            ("string \"lenght\" $x\n", "string \"length\" $x\n"),
+            ("string lenght $x\n", "string length $x\n"),
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "tcl");
+            let w001: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W001").collect();
+            assert_eq!(w001.len(), 1, "src={src:?} got {:?}", r.diagnostics);
+            assert!(
+                w001[0].message.contains("did you mean 'length'"),
+                "src={src:?} got {:?}",
+                w001[0].message
+            );
+
+            let fix = w001[0]
+                .fixes
+                .iter()
+                .find(|f| f.new_text == "length")
+                .expect("expected replacement fix to 'length'");
+
+            let mut fixed = src.to_string();
+            let start = fix.span.start() as usize;
+            let end = fix.span.end() as usize;
+            fixed.replace_range(start..end, &fix.new_text);
+
+            assert_eq!(fixed, expected, "src={src:?} fixes={:?}", w001[0].fixes);
+            assert!(!fixed.contains("lenght"), "src={src:?} fixed={fixed:?}");
+        }
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry

@@ -683,8 +683,22 @@ Consider capturing the result: catch {\u{2026}} result"
             use std::fmt::Write as _;
             let _ = write!(message, "; did you mean '{best}'?");
             if let Some(sub_tok) = arg_tokens.first() {
+                // Target the *content* range of the subcommand
+                // token rather than its full span.  Wrapper tokens
+                // (`Str` braced, `Esc` quoted) carry the opening
+                // delimiter via ``content_offset`` and intentionally
+                // exclude the closing delimiter from ``span.end``;
+                // replacing the full span would leave a stray
+                // ``}`` / ``"`` behind (e.g. ``string {lenght}`` →
+                // ``string length}``).  Using the content range
+                // ([span.start + content_offset, span.end)) gives
+                // ``{length}`` / ``"length"`` for the wrapped forms
+                // and remains identical to the full span for bare
+                // ``Esc`` words (``content_offset == 0``).
+                let content_start = sub_tok.span.start() + u32::from(sub_tok.content_offset);
+                let fix_span = tcl_lexer::Span::new(content_start, sub_tok.span.end());
                 fixes.push(super::types::CodeFix {
-                    span: sub_tok.span,
+                    span: fix_span,
                     new_text: (*best).to_string(),
                     description: format!("Replace with '{best}'"),
                 });
