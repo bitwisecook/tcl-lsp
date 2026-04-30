@@ -51,7 +51,7 @@ class UnsetCommand(CommandDef):
             ),
             assigns_variable_at=0,
             destroys_variable=True,
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

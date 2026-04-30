@@ -41,7 +41,12 @@ class ForCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(4, 4),
             ),
-            arg_roles={0: ArgRole.BODY, 1: ArgRole.EXPR, 2: ArgRole.BODY, 3: ArgRole.BODY},
+            arg_roles={
+                0: frozenset({ArgRole.BODY}),
+                1: frozenset({ArgRole.EXPR}),
+                2: frozenset({ArgRole.BODY}),
+                3: frozenset({ArgRole.BODY}),
+            },
             return_type=TclType.STRING,
             arg_types={1: ArgTypeHint(expected=TclType.BOOLEAN, shimmers=True)},
             side_effect_hints=(

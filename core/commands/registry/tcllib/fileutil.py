@@ -129,11 +129,11 @@ def _fileutil_se(
     )
 
 
-def _update_in_place_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _update_in_place_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Last argument is the body script."""
     if not args:
         return {}
-    return {len(args) - 1: ArgRole.BODY}
+    return {len(args) - 1: frozenset({ArgRole.BODY})}
 
 
 def _fu(name: str, summary: str, synopsis: str, arity: Arity, **kw: object) -> type:
@@ -161,7 +161,7 @@ _fu(
     "Iterate over each line of a file.",
     "fileutil::foreachLine var filename cmd",
     Arity(3, 3),
-    arg_roles={0: ArgRole.VAR_WRITE, 2: ArgRole.BODY},
+    arg_roles={0: frozenset({ArgRole.VAR_WRITE}), 2: frozenset({ArgRole.BODY})},
     side_effect_hints=_fileutil_se(reads=True),
 )
 _fu(
@@ -197,7 +197,7 @@ _fu(
     "Test file properties.",
     "fileutil::test path codes ?msgvar? ?label?",
     Arity(2, 4),
-    arg_roles={2: ArgRole.VAR_WRITE},
+    arg_roles={2: frozenset({ArgRole.VAR_WRITE})},
 )
 _fu(
     "updateInPlace",

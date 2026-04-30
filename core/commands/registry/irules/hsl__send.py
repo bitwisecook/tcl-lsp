@@ -42,7 +42,7 @@ class HslSendCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(),
             ),
-            arg_roles={0: ArgRole.CHANNEL},
+            arg_roles={0: frozenset({ArgRole.CHANNEL})},
             event_requires=EventRequires(),
             side_effect_hints=(
                 SideEffect(

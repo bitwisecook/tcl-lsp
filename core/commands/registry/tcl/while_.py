@@ -42,7 +42,7 @@ class WhileCommand(CommandDef):
             validation=ValidationSpec(
                 arity=Arity(2, 2),
             ),
-            arg_roles={0: ArgRole.EXPR, 1: ArgRole.BODY},
+            arg_roles={0: frozenset({ArgRole.EXPR}), 1: frozenset({ArgRole.BODY})},
             return_type=TclType.STRING,
             arg_types={0: ArgTypeHint(expected=TclType.BOOLEAN, shimmers=True)},
             side_effect_hints=(

@@ -10,9 +10,10 @@ from ._base import _EXPECT_ONLY, register
 _SOURCE = "Expect interact(1)"
 
 
-def _interact_arg_roles(args: list[str]) -> dict[int, ArgRole]:
+def _interact_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     """Resolve BODY arg roles for interact string/body pairs."""
-    roles: dict[int, ArgRole] = {}
+    roles: dict[int, frozenset[ArgRole]] = {}
+    body = frozenset({ArgRole.BODY})
     i = 0
     while i < len(args):
         arg = args[i]
@@ -40,7 +41,7 @@ def _interact_arg_roles(args: list[str]) -> dict[int, ArgRole]:
             continue
         # pattern followed by body
         if i + 1 < len(args):
-            roles[i + 1] = ArgRole.BODY
+            roles[i + 1] = body
             i += 2
         else:
             i += 1
