@@ -1401,6 +1401,26 @@ def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:
 _PROC_NAME_WORD_RE = re.compile(r"(?<![A-Za-z0-9_:])(::[A-Za-z_][A-Za-z0-9_:]*|[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_:])")
 
 
+# Commands whose args are NOT proc-name references — the
+# textual scan would generate spurious matches (e.g. ``source
+# helper.tcl`` would match ``helper`` inside the filename).
+# Most of these wrap file paths, package names, or define-site
+# bindings rather than dispatching to a named proc at runtime.
+# ``rename`` / ``info procs`` / ``interp alias`` / ``namespace
+# import`` are deliberately NOT in this set — those DO take
+# proc-name args at runtime, so the scan must keep their
+# referenced procs alive.
+_ARGS_NOT_PROCS: frozenset[str] = frozenset(
+    {
+        "proc",  # defines, not uses (first arg is the proc being defined)
+        "source",  # arg is a file path, not a command name
+        "package",  # ``package require <name>`` — pkg name, not a proc
+        "load",  # arg is a shared-lib path
+        "puts",  # arg is the message text
+    }
+)
+
+
 def _scan_text_for_procs(
     text: str | None,
     name_index: dict[str, set[str]],
@@ -1437,12 +1457,13 @@ def _collect_referenced_procs(
             target = _resolve_callee(stmt.command, caller_qname, summaries)
             if target is not None:
                 out.add(target)
-            # ``proc <name> <args> <body>`` defines ``<name>`` —
-            # the first arg is the proc being defined, not a use
-            # of an existing one.  Skipping the scan here lets
-            # dead-proc elimination drop a proc whose only
-            # surviving reference is its own definition site.
-            if stmt.command == "proc":
+            # Some commands' args aren't proc-name references and
+            # would generate spurious matches in the textual scan
+            # (``source helper.tcl`` would otherwise keep
+            # ``::helper`` alive because the regex matches ``helper``
+            # inside ``helper.tcl``).  Skip arg scanning for the
+            # known command-arg-is-not-a-proc-name set.
+            if stmt.command in _ARGS_NOT_PROCS:
                 continue
             for arg in stmt.args:
                 _scan_text_for_procs(arg, name_index, out)
