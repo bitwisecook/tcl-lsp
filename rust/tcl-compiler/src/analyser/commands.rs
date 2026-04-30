@@ -225,6 +225,18 @@ impl Analyser {
         // recursion only), so this can't double-fire.
         self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
 
+        // **C41-default-on-followups-postpass.**  W302 — `catch`
+        // without result variable silently swallows errors.
+        // Mirrors the IRCatch arm of ``_check_statement`` in
+        // ``core/compiler/compiler_checks.py:491-504``.  Fires
+        // *before* the early-returning ``handle_catch_command``
+        // for the same reason as the EXPR-role dispatch above:
+        // the catch handler returns early and the diagnostic
+        // would otherwise be skipped.
+        if cmd_name == "catch" {
+            self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
+        }
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
