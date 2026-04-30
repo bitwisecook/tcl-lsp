@@ -558,7 +558,7 @@ def test_s52_counter_increments():
         counts.append(self._s52_alias_skipped)
         return result
 
-    _WasmEmitter.generate = spy
+    _WasmEmitter.generate = spy  # type: ignore[method-assign]
     try:
         ir = lower_to_ir("proc f {x} { set x $x; return $x }\n")
         cfg = build_cfg(ir)

@@ -81,6 +81,26 @@ class TestRedundantExprElimination:
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]
 
+    def test_rand_expr_call_not_cached(self):
+        # Codex P2 (PR #237): ``rand()`` is non-deterministic —
+        # caching it would collapse two distinct evaluations into
+        # the same value, changing program output.  Both writes
+        # must stay as ``IRAssignExpr``.
+        module = _module(
+            "proc f {} {\n  set a [expr {rand()}]\n  set b [expr {rand()}]\n}\n"
+        )
+        new_module = gvn_module(module)
+        assert _proc_assign_kinds(new_module, "::f", "b") == ["IRAssignExpr"]
+
+    def test_pure_expr_call_still_cached(self):
+        # Sanity: pure math functions like ``abs()`` ARE safely
+        # cacheable — same argument always returns the same result.
+        module = _module(
+            "proc f {x} {\n  set a [expr {abs($x)}]\n  set b [expr {abs($x)}]\n}\n"
+        )
+        new_module = gvn_module(module)
+        assert _proc_assign_kinds(new_module, "::f", "b") == ["IRAssignValue"]
+
 
 class TestPurity:
     def test_idempotent(self):

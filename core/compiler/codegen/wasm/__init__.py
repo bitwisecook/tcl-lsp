@@ -349,9 +349,18 @@ def wasm_codegen_module(
     Args:
         cfg_module: The control-flow-graph module to compile.
         ir_module: The IR module (for procedure metadata).
-        optimise: When ``True``, enable optimisation passes
-            (constant folding, peephole, dead-code elimination).
-            When ``False``, emit straightforward unoptimised code.
+        optimise: Toggles the *codegen-side* optimisations only —
+            constant folding, peephole, SSA-emit-time dead-code
+            elimination.  This flag does **not** affect the IR-
+            level passes (S4 inlining, S5 LICM / GVN / DCE);
+            those are sound semantics-preserving transforms and
+            run by default for every callsite that doesn't pass
+            ``inline=False`` / ``licm=False`` / ``dce=False`` /
+            ``gvn=False`` explicitly.  Pass ``optimise=False``
+            (the default) when emitting straightforward unoptimised
+            output for diff-friendly inspection; pair with
+            ``inline=False, licm=False, dce=False, gvn=False`` to
+            additionally suppress the IR passes.
         filename: Source filename recorded on every diag site.
             Passing this without a ``diag_map`` allocates a fresh
             map; passing neither disables diag instrumentation

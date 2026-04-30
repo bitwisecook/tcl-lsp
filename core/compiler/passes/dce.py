@@ -33,7 +33,14 @@ from __future__ import annotations
 import re
 from dataclasses import replace
 
-from ..expr_ast import vars_in_expr_node
+from ..expr_ast import (
+    ExprBinary,
+    ExprCall,
+    ExprCommand,
+    ExprTernary,
+    ExprUnary,
+    vars_in_expr_node,
+)
 from ..ir import (
     InlineDecision,
     IRAssignConst,
@@ -111,6 +118,7 @@ def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
             and target not in params
             and writes.get(target, 0) == 1
             and reads.get(target, 0) == 0
+            and not _stmt_has_side_effects(stmt)
         ):
             changed = True
             continue
@@ -118,6 +126,74 @@ def _dce_script(script: IRScript, *, params: set[str]) -> IRScript:
     if not changed:
         return script
     return IRScript(statements=tuple(new_stmts))
+
+
+def _stmt_has_side_effects(stmt: object) -> bool:
+    """True iff *stmt* may have observable side effects beyond
+    writing its target slot.
+
+    Codex P1 (PR #237): ``set x [expr {[puts hi]}]`` writes ``x`` and
+    *also* runs ``puts hi`` for its side effect.  Even if the body
+    never reads ``x``, removing the statement also removes the
+    ``puts`` call — which is observable.  The DCE pass must keep
+    such stores.
+
+    The check is conservative — false positives just decline a
+    deletion, never delete a side-effecting store.
+
+    * :class:`IRAssignConst` — value is a literal, no substitutions
+      possible, never side-effecting.
+    * :class:`IRAssignValue` — the raw string may contain ``[cmd]``
+      command substitutions.  A ``[`` anywhere in the string flags
+      it as side-effecting (we don't try to detect literal ``[`` in
+      braced contexts; the false-positive cost is "we keep the
+      assignment", which is fine).
+    * :class:`IRAssignExpr` — recurse the :class:`ExprNode` AST and
+      flag any embedded :class:`ExprCommand`.  Math ops, literals,
+      and var refs are pure.
+    * :class:`IRIncr` — the amount string can contain ``[cmd]``.
+    """
+
+    if isinstance(stmt, IRAssignConst):
+        return False
+    if isinstance(stmt, IRAssignValue):
+        return "[" in stmt.value
+    if isinstance(stmt, IRAssignExpr):
+        return _expr_has_command_subst(stmt.expr)
+    if isinstance(stmt, IRIncr):
+        return stmt.amount is not None and "[" in stmt.amount
+    # Other statement types aren't candidates for DCE here, so the
+    # answer is moot.
+    return False
+
+
+def _expr_has_command_subst(node: object) -> bool:
+    """True iff the :class:`ExprNode` tree contains an
+    :class:`ExprCommand` node anywhere.  Walks recursively through
+    binary / unary / ternary / call subtrees.  ``ExprLiteral`` /
+    ``ExprString`` / ``ExprVar`` are leaves that never carry a
+    command substitution."""
+
+    if isinstance(node, ExprCommand):
+        return True
+    if isinstance(node, ExprBinary):
+        return _expr_has_command_subst(node.left) or _expr_has_command_subst(node.right)
+    if isinstance(node, ExprUnary):
+        return _expr_has_command_subst(node.operand)
+    if isinstance(node, ExprTernary):
+        return (
+            _expr_has_command_subst(node.condition)
+            or _expr_has_command_subst(node.true_branch)
+            or _expr_has_command_subst(node.false_branch)
+        )
+    if isinstance(node, ExprCall):
+        # ``rand()`` / ``srand()`` are stateful but not command
+        # substitutions per se.  We only flag command-substitution
+        # side effects here; the GVN denylist is a separate axis.
+        # However, a function arg can itself be an ExprCommand, so
+        # walk arguments anyway.
+        return any(_expr_has_command_subst(a) for a in node.args)
+    return False
 
 
 def _is_dceable_name(name: str) -> bool:

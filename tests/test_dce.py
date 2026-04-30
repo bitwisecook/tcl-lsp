@@ -108,6 +108,51 @@ class TestDeadStoreElimination:
         assert _proc_writes(new_module, "::f", "x") == 1
 
 
+class TestSideEffects:
+    """Codex P1 (PR #237): DCE must not drop assignments whose RHS
+    has observable side effects, even when the target is unread.
+    A statement like ``set tmp [expr {[puts hi]}]`` writes ``tmp``
+    *and* runs ``puts hi``; deleting it removes the user-visible
+    output."""
+
+    def test_iassign_value_with_command_subst_kept(self):
+        # ``set tmp [some_cmd]`` — RHS is a command substitution.
+        # tmp is unread by the rest of the body, but the command
+        # has side effects.
+        module, _ = _prepare('proc f {} {\n  set tmp [info commands]\n  puts ok\n}\n')
+        new_module = dce_module(module)
+        assert _proc_writes(new_module, "::f", "tmp") == 1, (
+            "set tmp [info commands] must stay — command-subst side effects "
+            "are observable even though tmp is unread"
+        )
+
+    def test_iassign_expr_with_command_subst_kept(self):
+        # ``set x [expr {[string length "hello"]}]`` — the expr
+        # embeds a command substitution.  Removing the assignment
+        # would remove the call.  ``_proc_writes`` doesn't count
+        # IRAssignExpr (used in unrelated tests above), so we
+        # inspect the body shape directly here.
+        from core.compiler.ir import IRAssignExpr
+        module, _ = _prepare(
+            'proc f {} {\n  set x [expr {[string length "hello"]}]\n  puts ok\n}\n'
+        )
+        new_module = dce_module(module)
+        proc = new_module.procedures["::f"]
+        assigns = [s for s in proc.body.statements if isinstance(s, IRAssignExpr) and s.name == "x"]
+        assert len(assigns) == 1, (
+            "set x [expr {[...]}] must stay — the embedded command "
+            "substitution has observable side effects even though x is unread"
+        )
+
+    def test_pure_literal_assign_still_removed(self):
+        # ``set tmp 5`` has no side effects — DCE still fires on
+        # the no-RHS-side-effect case (sanity check that the gate
+        # didn't go too wide).
+        module, _ = _prepare('proc f {} {\n  set tmp 5\n  puts ok\n}\n')
+        new_module = dce_module(module)
+        assert _proc_writes(new_module, "::f", "tmp") == 0
+
+
 class TestPurity:
     def test_input_module_unchanged(self):
         module, _ = _prepare('proc f {} {\n  set tmp 5\n  puts "hi"\n}\n')

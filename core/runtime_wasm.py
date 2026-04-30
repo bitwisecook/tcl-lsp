@@ -54,16 +54,21 @@ def build_runtime(*, build_opts: list[str] | None = None) -> Path:
 
     Extra build flags can be passed via ``build_opts`` or the
     ``TCL_LSP_RUNTIME_BUILD_OPTS`` env var (whitespace-separated).
-    The latter wins when both are present (so a CI / leakcheck
-    invocation can force flags from the outside).
+    The env var **wins** when both are present — i.e. an outside
+    invocation that sets ``TCL_LSP_RUNTIME_BUILD_OPTS=...`` *replaces*
+    any programmatic ``build_opts`` argument, rather than the two
+    being concatenated.  This avoids the previous ambiguous
+    behaviour where conflicting ``-D...`` values from each source
+    would both reach ``zig build``.  When the env var is unset, the
+    caller-passed ``build_opts`` is used verbatim.
     """
     zig_dir = _REPO_ROOT / "runtime" / "zig"
     cmd = ["zig", "build"]
-    if build_opts:
-        cmd.extend(build_opts)
     env_opts = os.environ.get("TCL_LSP_RUNTIME_BUILD_OPTS", "").split()
     if env_opts:
         cmd.extend(env_opts)
+    elif build_opts:
+        cmd.extend(build_opts)
     subprocess.run(cmd, cwd=str(zig_dir), check=True)
     if not DEFAULT_PATH.exists():
         msg = f"build_runtime: zig build completed but {DEFAULT_PATH} was not produced"
