@@ -209,6 +209,22 @@ impl Analyser {
         // (``_commands.py:182-198``).
         self.record_var_or_cmd_command_site(cmd_tok, args);
 
+        // Generic EXPR-argument walk via the command registry's
+        // ``ArgRole::Expr``.  Picks up the condition arg of
+        // ``if`` / ``elseif`` / ``while`` / the cond+next slots
+        // of ``for`` / the body of ``expr`` / etc.  Currently
+        // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
+        // emitter; future EXPR-role checks slot in here.
+        //
+        // Run *before* the early-returning handlers
+        // (``handle_for_command`` / ``handle_foreach_command`` /
+        // ``handle_switch_command`` / ``handle_catch_command`` /
+        // ``handle_try_command``) so EXPR-role args on those
+        // commands aren't skipped — none of those handlers
+        // process EXPR args themselves (they own *body*
+        // recursion only), so this can't double-fire.
+        self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
@@ -296,14 +312,6 @@ impl Analyser {
         // walk so race-detection diagnostics see the event
         // name, mirroring the Python behaviour.
         self.dispatch_body_arguments(cmd_name, args, arg_tokens, scope_path);
-
-        // Generic EXPR-argument walk via the command registry's
-        // ``ArgRole::Expr``.  Picks up the condition arg of
-        // ``if`` / ``elseif`` / ``while`` / the cond+next slots
-        // of ``for`` / the body of ``expr`` / etc.  Currently
-        // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
-        // emitter; future EXPR-role checks slot in here.
-        self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
     }
 
     /// Generic EXPR-argument walk via the command registry's
