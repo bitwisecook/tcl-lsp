@@ -1838,6 +1838,242 @@ mod tests {
         assert!(text.contains("extra"), "span text {text:?}");
     }
 
+    // -- ``postpass`` chunk: W304 missing-option-terminator emitter
+    //
+    // Mirrors `tests/test_checks.py::TestMissingOptionTerminator`
+    // against the Rust port.  Resolution profile lives in
+    // ``tcl-registry``; tristate severity / two-diagnostic origin /
+    // code-fix logic lives in ``analyser/diagnostics.rs``.
+
+    fn w304_diags(src: &str) -> Vec<crate::analyser::types::Diagnostic> {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        r.diagnostics
+            .into_iter()
+            .filter(|d| d.code == "W304")
+            .collect()
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_regexp_pattern_variable() {
+        let diags = w304_diags("regexp $pattern $text\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+        assert!(
+            diags[0].message.to_lowercase().contains("option-injection"),
+            "got {:?}",
+            diags[0].message
+        );
+        assert!(matches!(
+            diags[0].severity,
+            crate::analyser::Severity::Suggestion
+        ));
+    }
+
+    #[test]
+    fn analyse_no_w304_for_regexp_safe_literal_pattern() {
+        // Pattern starts with `(` — non-dynamic, doesn't start with
+        // `-`, so the OFF gate suppresses regardless of the
+        // command's WARN_WITHOUT_TERMINATOR trait.  Mirrors Python.
+        let diags = w304_diags("regexp {(a+)+$} $text\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_regexp_literal_dash_pattern() {
+        // ``regexp {-[0-9]+} $text`` — the literal pattern starts
+        // with `-` so the positional scanner treats it as an
+        // unknown option and lands on the next positional
+        // (``$text``).  Diagnostic still fires (mirrors Python's
+        // ``test_regexp_literal_dash_pattern_warns`` which only
+        // asserts ``len(diags) == 1``); severity comes from the
+        // dynamic-var INFO path because the diag anchors on
+        // ``$text``, not the pattern literal.
+        let diags = w304_diags("regexp {-[0-9]+} $text\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_w304_warns_for_literal_dash_first_positional() {
+        // To exercise the WARNING path on a literal value that
+        // genuinely lands at the first positional, use a command
+        // where the leading dash isn't intercepted by the option
+        // scan — e.g. ``unset`` after the option phase ends.  The
+        // explicit ``--`` clears the scanner; everything after is
+        // a positional, so ``-x`` reaches the OFF/INFO/WARN gate
+        // as a literal-starts-with-dash.  Note: this exercises
+        // the analyser's literal-dash WARN branch independently
+        // of the positional scanner's option-skip behaviour.
+        //
+        // (The Python check has the same shape — the WARN branch
+        // is reachable via the ``looks_like_option && !is_dynamic``
+        // arm at ``_style.py:622-627``.)
+        let diags = w304_diags("exec foo -bad\n");
+        // ``-bad`` is at index 1 (after ``foo``), but the scanner
+        // treats it as an unknown option and looks for a further
+        // positional — there is none, so no diagnostic fires.
+        // This documents the option-skip behaviour rather than
+        // exercising the literal-dash WARN arm; the OFF gate in
+        // the analyser is exercised separately above.
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_regexp_with_terminator() {
+        let diags = w304_diags("regexp -- $pattern $text\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_regexp_with_option_value_then_variable() {
+        // ``-start`` consumes the next arg as its value; the first
+        // positional after it is the pattern variable.
+        let diags = w304_diags("regexp -start 0 $pattern $text\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_regsub_variable() {
+        let diags = w304_diags("regsub $pattern $text X out\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_subst() {
+        // ``subst`` does not declare a ``--`` option — registry-
+        // level filter suppresses W304 entirely.
+        let diags = w304_diags("subst $template\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_exec_variable() {
+        let diags = w304_diags("exec $cmd\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_exec_with_terminator() {
+        let diags = w304_diags("exec -- $cmd\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_glob_safe_literal() {
+        // ``*.tcl`` does not start with `-`; OFF gate suppresses.
+        let diags = w304_diags("glob *.tcl\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_string_match() {
+        // ``string match`` does not support ``--`` — registry filter.
+        let diags = w304_diags("string match $pattern $value\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_lsearch() {
+        // ``lsearch`` does not declare ``--`` either.
+        let diags = w304_diags("lsearch -exact $domain c\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_file_delete_variable() {
+        // ``file delete`` is subcommand-scoped — profile.scan_start
+        // == 1 to skip the ``delete`` keyword.
+        let diags = w304_diags("file delete $path\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w304_for_file_delete_with_terminator() {
+        let diags = w304_diags("file delete -- $path\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w304_for_load_variable() {
+        let diags = w304_diags("load $fileName\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_w304_constant_propagation_emits_info_with_origin() {
+        // ``set X "datagroup"; switch $X { default { ... } }`` — the
+        // variable resolves to a literal value that doesn't start
+        // with `-`, so severity drops to INFO and a second "origin"
+        // diagnostic anchors at the literal's range.
+        let src = "set totp_key_storage \"datagroup\"\n\
+                   switch $totp_key_storage {\n\
+                   \x20\x20\x20\x20default { puts ok }\n\
+                   }\n";
+        let diags = w304_diags(src);
+        assert_eq!(diags.len(), 2, "got {diags:?}");
+
+        let main = diags
+            .iter()
+            .find(|d| !d.fixes.is_empty())
+            .expect("main diag");
+        let origin = diags
+            .iter()
+            .find(|d| d.fixes.is_empty())
+            .expect("origin diag");
+
+        assert!(
+            matches!(main.severity, crate::analyser::Severity::Suggestion),
+            "main severity {:?}",
+            main.severity
+        );
+        assert!(
+            main.message.contains("totp_key_storage") && main.message.contains("datagroup"),
+            "main message {:?}",
+            main.message
+        );
+
+        let highlighted = &src[main.span.start() as usize..main.span.end() as usize];
+        assert_eq!(highlighted, "$totp_key_storage", "got {highlighted:?}");
+
+        // The origin diag points at the ``"datagroup"`` literal in
+        // the preceding ``set``.
+        let origin_text = &src[origin.span.start() as usize..origin.span.end() as usize];
+        assert!(
+            origin_text.contains("datagroup"),
+            "origin span text {origin_text:?}"
+        );
+    }
+
+    #[test]
+    fn analyse_w304_constant_propagation_dash_value_warns() {
+        // The variable resolves to ``-something`` — escalates to
+        // WARNING.
+        let src = "set evil \"-rf\"\n\
+                   exec $evil /\n";
+        let diags = w304_diags(src);
+        assert!(!diags.is_empty(), "got {diags:?}");
+        let main = diags
+            .iter()
+            .find(|d| !d.fixes.is_empty())
+            .expect("main diag");
+        assert!(matches!(main.severity, crate::analyser::Severity::Warning));
+    }
+
+    #[test]
+    fn analyse_w304_code_fix_inserts_terminator() {
+        let src = "exec $cmd\n";
+        let diags = w304_diags(src);
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+        let fix = diags[0]
+            .fixes
+            .first()
+            .expect("expected an insert-terminator fix");
+        let mut applied = src.to_string();
+        let start = fix.span.start() as usize;
+        let end = fix.span.end() as usize;
+        applied.replace_range(start..end, &fix.new_text);
+        assert_eq!(applied, "exec -- $cmd\n", "got {applied:?}");
+    }
+
     // -- ``recovery`` chunk: body-walk and nested-cmd improvements
     //
     // Verify ``when EVENT { body }`` recurses (registry

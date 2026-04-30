@@ -4,7 +4,7 @@
 //! every consumer. Supports dialect filtering and trait-membership
 //! queries.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
@@ -250,6 +250,71 @@ impl CommandRegistry {
         Some(resolved)
     }
 
+    /// Resolve the option-terminator profile for a command invocation.
+    ///
+    /// Mirrors [`core/commands/registry/command_registry.py::resolve_option_terminator`].
+    /// Matches the invocation's first argument against subcommands
+    /// that declare an [`OptionSpec`](crate::hover::OptionSpec) with
+    /// `name == "--"`, then falls back to form-level `--` declarations.
+    /// Returns `None` when the command does not declare a `--`
+    /// terminator at all (subcommand-scoped or form-scoped).
+    ///
+    /// Drives the W304 ("missing option terminator") diagnostic — the
+    /// returned `scan_start` index, `subcommand` label, and
+    /// `options_with_values` set tell the caller where to start
+    /// scanning for the first positional argument and which option
+    /// names consume a following value (so they're not mistaken for
+    /// positionals).  `warn_without_terminator` lifts the
+    /// [`Traits::WARN_WITHOUT_TERMINATOR`] flag from the matched
+    /// command spec — when true, W304 fires even for non-dynamic
+    /// positional values that don't start with `-` (e.g. `regexp`).
+    #[must_use]
+    pub fn resolve_option_terminator(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Option<ResolvedTerminator> {
+        let spec = if dialect.is_empty() {
+            self.get(name)?
+        } else {
+            self.get_for_dialect(name, dialect)?
+        };
+
+        let warn_flag = spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR);
+
+        // Subcommand-scoped first.
+        if let Some(first) = args.first() {
+            if let Some(sub) = spec.subcommand(first) {
+                if sub.options.iter().any(|o| o.name == "--") {
+                    let owv = collect_options_with_values(sub.options);
+                    return Some(ResolvedTerminator {
+                        scan_start: 1,
+                        subcommand: Some(sub.name),
+                        options_with_values: owv,
+                        warn_without_terminator: warn_flag,
+                    });
+                }
+            }
+        }
+
+        // Form-level fallback — Python iterates `spec.forms`; the
+        // Rust port stores option specs at the `CommandSpec.options`
+        // level (single set per spec) so we consult that directly
+        // when no subcommand match was found.
+        if spec.options.iter().any(|o| o.name == "--") {
+            let owv = collect_options_with_values(spec.options);
+            return Some(ResolvedTerminator {
+                scan_start: 0,
+                subcommand: None,
+                options_with_values: owv,
+                warn_without_terminator: warn_flag,
+            });
+        }
+
+        None
+    }
+
     /// Number of registered commands.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -261,6 +326,43 @@ impl CommandRegistry {
     pub fn is_empty(&self) -> bool {
         self.by_name.is_empty()
     }
+}
+
+/// Collect option names whose [`OptionSpec::takes_value`] is `true`.
+fn collect_options_with_values(
+    options: &'static [crate::hover::OptionSpec],
+) -> HashSet<&'static str> {
+    options
+        .iter()
+        .filter(|o| o.takes_value)
+        .map(|o| o.name)
+        .collect()
+}
+
+/// Resolved option-terminator profile for a command invocation.
+///
+/// Returned by [`CommandRegistry::resolve_option_terminator`].  Drives
+/// the W304 ("missing option terminator") diagnostic.
+#[derive(Debug, Clone)]
+pub struct ResolvedTerminator {
+    /// Index in the `args` slice where positional-argument scanning
+    /// begins.  `0` for form-level matches; `1` for subcommand-scoped
+    /// matches (the first arg is the subcommand keyword).
+    pub scan_start: usize,
+    /// Subcommand keyword that owns the `--` declaration, if the
+    /// match was subcommand-scoped.  `None` for form-level matches.
+    pub subcommand: Option<&'static str>,
+    /// Set of option names that consume a following value argument
+    /// (e.g. `-start <index>`).  Used by the positional-scan to skip
+    /// past option-value pairs when looking for the first positional.
+    pub options_with_values: HashSet<&'static str>,
+    /// Lifted from [`Traits::WARN_WITHOUT_TERMINATOR`] on the matched
+    /// command spec.  When true, W304 fires even for non-dynamic
+    /// positional values that don't start with `-` — e.g. `regexp`,
+    /// where the first positional is always interpreted as a regex
+    /// pattern and a literal regex-class that begins with `-` would
+    /// be mis-interpreted as an option.
+    pub warn_without_terminator: bool,
 }
 
 /// Outcome of [`CommandRegistry::resolve_call`].
@@ -562,6 +664,74 @@ mod tests {
             .resolve_call("lset", &["lst", "0", "1", "2", "value"], DialectSet::TCL86)
             .unwrap();
         assert_eq!(flat.form.unwrap().name, "flat_path");
+    }
+
+    // -- ``resolve_option_terminator`` (W304 driver)
+    //
+    // Mirrors ``core/commands/registry/command_registry.py::resolve_option_terminator``.
+    // Each W304 fixture in ``tests/test_checks.py::TestMissingOptionTerminator``
+    // is rooted in one of these resolver outcomes; the resolver tests
+    // here pin the per-command shape, the analyser tests pin the
+    // tristate-severity / two-diagnostic / code-fix behaviour.
+
+    #[test]
+    fn resolve_option_terminator_returns_none_for_unknown_command() {
+        let reg = CommandRegistry::build_default();
+        assert!(reg
+            .resolve_option_terminator("unknownthing", &[], DialectSet::empty())
+            .is_none());
+    }
+
+    #[test]
+    fn resolve_option_terminator_returns_none_for_command_without_terminator() {
+        let reg = CommandRegistry::build_default();
+        // ``set`` does not declare a ``--`` terminator option.
+        assert!(reg
+            .resolve_option_terminator("set", &["x", "1"], DialectSet::empty())
+            .is_none());
+    }
+
+    #[test]
+    fn resolve_option_terminator_form_level_for_regexp() {
+        let reg = CommandRegistry::build_default();
+        let profile = reg
+            .resolve_option_terminator("regexp", &[], DialectSet::empty())
+            .expect("regexp declares -- at the form level");
+        assert_eq!(profile.scan_start, 0);
+        assert!(profile.subcommand.is_none());
+        assert!(profile.warn_without_terminator);
+        // ``-start`` takes a value; ``-nocase`` does not.
+        assert!(profile.options_with_values.contains("-start"));
+        assert!(!profile.options_with_values.contains("-nocase"));
+    }
+
+    #[test]
+    fn resolve_option_terminator_subcommand_scoped_for_file_delete() {
+        let reg = CommandRegistry::build_default();
+        let profile = reg
+            .resolve_option_terminator("file", &["delete", "$path"], DialectSet::empty())
+            .expect("file delete declares -- at the subcommand level");
+        assert_eq!(profile.scan_start, 1);
+        assert_eq!(profile.subcommand, Some("delete"));
+    }
+
+    #[test]
+    fn resolve_option_terminator_subcommand_without_terminator_returns_none() {
+        let reg = CommandRegistry::build_default();
+        // ``file mtime`` has no ``--`` terminator.
+        let profile = reg.resolve_option_terminator("file", &["mtime", "$p"], DialectSet::empty());
+        assert!(profile.is_none(), "got {profile:?}");
+    }
+
+    #[test]
+    fn resolve_option_terminator_warn_flag_off_for_non_regexp() {
+        let reg = CommandRegistry::build_default();
+        // ``unset`` declares ``--`` but does not carry the
+        // ``WARN_WITHOUT_TERMINATOR`` trait — only ``regexp`` does.
+        let profile = reg
+            .resolve_option_terminator("unset", &["$x"], DialectSet::empty())
+            .expect("unset declares --");
+        assert!(!profile.warn_without_terminator);
     }
 
     #[test]

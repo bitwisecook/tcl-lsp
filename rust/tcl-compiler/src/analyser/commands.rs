@@ -262,6 +262,19 @@ impl Analyser {
             self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
         }
 
+        // **C41-default-on-followups-postpass.**  W304 — missing
+        // option terminator (``--``) on option-bearing commands.
+        // Mirrors ``check_missing_option_terminator`` in
+        // ``core/analysis/checks/_style.py:506-679``.  Driven by
+        // the registry's ``resolve_option_terminator`` profile, so
+        // commands that don't declare a ``--`` option (e.g.
+        // ``subst``, ``string match``, ``lsearch``) are filtered
+        // out at the registry layer — no analyser-side allow-list
+        // needed.  Run before the early-returning handlers
+        // (``handle_switch_command`` etc.) so option-bearing
+        // commands with their own handler still get checked.
+        self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
+
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The
         // void-returning handlers run unconditionally (their
