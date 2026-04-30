@@ -1,14 +1,17 @@
 //! Command registry — lookup facade.
 //!
 //! Built once at startup from command spec modules, then queried by
-//! every consumer. Supports dialect filtering and trait-indexed
+//! every consumer. Supports dialect filtering and trait-membership
 //! queries.
 
 use std::collections::HashMap;
 
 use crate::arg_role::ArgRole;
+use crate::arity::Arity;
 use crate::dialects::DialectSet;
-use crate::spec::CommandSpec;
+use crate::forms::CommandForm;
+use crate::hooks::{CodegenHookId, LoweringHookId};
+use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
 /// Lookup facade over command specs.
@@ -184,6 +187,69 @@ impl CommandRegistry {
             .collect()
     }
 
+    /// Resolve a concrete call to its registry-described form.
+    ///
+    /// Given the command head `name` and the literal argument words
+    /// `args`, returns a [`ResolvedCall`] describing which
+    /// [`CommandSpec`] / [`SubCommand`] / [`CommandForm`] the call
+    /// matches and which lowering / codegen hook applies. The
+    /// returned reference borrows from the registry, so callers must
+    /// not retain it across registry mutation.
+    ///
+    /// Returns `None` when the command is unknown to the registry.
+    #[must_use]
+    pub fn resolve_call<'r>(
+        &'r self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Option<ResolvedCall<'r>> {
+        let spec = if dialect.is_empty() {
+            self.get(name)?
+        } else {
+            self.get_for_dialect(name, dialect)?
+        };
+
+        let mut resolved = ResolvedCall {
+            spec,
+            sub: None,
+            form: None,
+            lowering_hook: spec.lowering_hook,
+            codegen_hook: spec.codegen_hook,
+        };
+
+        if !spec.subcommands.is_empty() {
+            if let Some(first) = args.first() {
+                if let Some(sub) = spec.subcommand(first) {
+                    // Re-slice rather than allocating a fresh `Vec<&str>`
+                    // — `resolve_call` is on the lowering / codegen /
+                    // analysis hot path.
+                    let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
+                    let form = pick_form(sub.subcommand_forms, sub_args, dialect);
+                    resolved.sub = Some(sub);
+                    resolved.lowering_hook = form
+                        .and_then(|f| f.lowering_hook)
+                        .or(sub.lowering_hook)
+                        .or(spec.lowering_hook);
+                    resolved.codegen_hook = form
+                        .and_then(|f| f.codegen_hook)
+                        .or(sub.codegen_hook)
+                        .or(spec.codegen_hook);
+                    resolved.form = form;
+                    return Some(resolved);
+                }
+            }
+        }
+
+        let form = pick_form(spec.command_forms, args, dialect);
+        if let Some(f) = form {
+            resolved.lowering_hook = f.lowering_hook.or(spec.lowering_hook);
+            resolved.codegen_hook = f.codegen_hook.or(spec.codegen_hook);
+            resolved.form = Some(f);
+        }
+        Some(resolved)
+    }
+
     /// Number of registered commands.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -195,6 +261,60 @@ impl CommandRegistry {
     pub fn is_empty(&self) -> bool {
         self.by_name.is_empty()
     }
+}
+
+/// Outcome of [`CommandRegistry::resolve_call`].
+///
+/// Carries borrowed references into the registry's spec table; the
+/// resolved call describes the matched command spec, optionally a
+/// matched subcommand and form, and the effective lowering / codegen
+/// hook identifiers (form-level wins over subcommand-level wins
+/// over command-level).
+#[derive(Debug, Clone, Copy)]
+pub struct ResolvedCall<'r> {
+    /// The matched top-level command spec.
+    pub spec: &'r CommandSpec,
+    /// The matched subcommand, if the call has one.
+    pub sub: Option<&'r SubCommand>,
+    /// The matched form descriptor, if any.
+    pub form: Option<&'r CommandForm>,
+    /// Effective lowering hook identifier.
+    pub lowering_hook: Option<LoweringHookId>,
+    /// Effective codegen hook identifier.
+    pub codegen_hook: Option<CodegenHookId>,
+}
+
+impl ResolvedCall<'_> {
+    /// Effective arity for this resolved call: the form arity if a
+    /// form matched, otherwise the subcommand arity, otherwise the
+    /// top-level [`CommandSpec`] arity.
+    #[must_use]
+    pub fn arity(&self) -> Arity {
+        if let Some(f) = self.form {
+            return f.arity;
+        }
+        if let Some(s) = self.sub {
+            return s.arity;
+        }
+        self.spec.arity
+    }
+}
+
+fn pick_form<'r>(
+    forms: &'r [CommandForm],
+    args: &[&str],
+    dialect: DialectSet,
+) -> Option<&'r CommandForm> {
+    let n = u16::try_from(args.len()).unwrap_or(u16::MAX);
+    forms.iter().find(|f| {
+        if !f.arity.accepts(n) {
+            return false;
+        }
+        match f.dialects {
+            Some(d) if !dialect.is_empty() => d.intersects(dialect),
+            _ => true,
+        }
+    })
 }
 
 impl std::fmt::Debug for CommandRegistry {
@@ -362,5 +482,117 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_dialect(DialectSet::SYNOPSYS);
         assert!(reg.len() > 100);
+    }
+
+    #[test]
+    fn resolve_call_unknown_command_returns_none() {
+        let reg = CommandRegistry::build_default();
+        assert!(reg
+            .resolve_call("no_such_cmd", &[], DialectSet::empty())
+            .is_none());
+    }
+
+    #[test]
+    fn resolve_call_top_level_command() {
+        let reg = CommandRegistry::build_default();
+        let resolved = reg
+            .resolve_call("set", &["x", "1"], DialectSet::empty())
+            .unwrap();
+        assert_eq!(resolved.spec.name, "set");
+        assert!(resolved.sub.is_none());
+    }
+
+    #[test]
+    fn resolve_call_subcommand() {
+        let reg = CommandRegistry::build_default();
+        let resolved = reg
+            .resolve_call("dict", &["create", "k", "v"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(resolved.spec.name, "dict");
+        let sub = resolved.sub.expect("dict create resolves to a subcommand");
+        assert_eq!(sub.name, "create");
+    }
+
+    #[test]
+    fn resolve_call_dialect_filter_blocks_tcl84_dict() {
+        let reg = CommandRegistry::build_default();
+        // dict is tcl8.5+; resolving against tcl8.4 must fail.
+        assert!(reg
+            .resolve_call("dict", &["create"], DialectSet::TCL84)
+            .is_none());
+    }
+
+    #[test]
+    fn resolve_call_picks_arity_matched_command_form_for_incr() {
+        let reg = CommandRegistry::build_default();
+        // `incr counter` — arity 1 → matches the implicit form.
+        let r1 = reg
+            .resolve_call("incr", &["counter"], DialectSet::empty())
+            .unwrap();
+        let f1 = r1.form.expect("incr should match a CommandForm");
+        assert_eq!(f1.name, "implicit");
+        assert_eq!(f1.arity, crate::arity::Arity::exact(1));
+
+        // `incr counter 5` — arity 2 → matches the explicit form.
+        let r2 = reg
+            .resolve_call("incr", &["counter", "5"], DialectSet::empty())
+            .unwrap();
+        let f2 = r2.form.expect("incr counter 5 should match a CommandForm");
+        assert_eq!(f2.name, "explicit");
+        assert_eq!(f2.arity, crate::arity::Arity::exact(2));
+    }
+
+    #[test]
+    fn resolve_call_picks_arity_matched_command_form_for_lset() {
+        let reg = CommandRegistry::build_default();
+        // `lset lst value` — arity 2 → replace form.
+        let replace = reg
+            .resolve_call("lset", &["lst", "value"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(replace.form.unwrap().name, "replace");
+
+        // `lset lst 0 value` — arity 3 → single_index form.
+        let single = reg
+            .resolve_call("lset", &["lst", "0", "value"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(single.form.unwrap().name, "single_index");
+
+        // `lset lst 0 1 2 value` — arity 5 → flat_path form.
+        let flat = reg
+            .resolve_call("lset", &["lst", "0", "1", "2", "value"], DialectSet::TCL86)
+            .unwrap();
+        assert_eq!(flat.form.unwrap().name, "flat_path");
+    }
+
+    #[test]
+    fn irules_sink_commands_carry_structural_options() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+
+        let respond = reg.get("HTTP::respond").expect("HTTP::respond loaded");
+        let opts: Vec<&str> = respond.options.iter().map(|o| o.name).collect();
+        assert!(
+            opts.contains(&"-version") && opts.contains(&"-status") && opts.contains(&"-noserver"),
+            "HTTP::respond options {opts:?} should include -version / -status / -noserver",
+        );
+        let noserver = respond
+            .options
+            .iter()
+            .find(|o| o.name == "-noserver")
+            .unwrap();
+        assert!(!noserver.takes_value);
+        let version = respond
+            .options
+            .iter()
+            .find(|o| o.name == "-version")
+            .unwrap();
+        assert!(version.takes_value);
+
+        let header = reg.get("HTTP::header").expect("HTTP::header loaded");
+        let header_opts: Vec<&str> = header.options.iter().map(|o| o.name).collect();
+        assert!(
+            header_opts.contains(&"-noupdate"),
+            "HTTP::header options {header_opts:?} should include -noupdate",
+        );
     }
 }

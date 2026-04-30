@@ -42,6 +42,22 @@ pub enum Severity {
     Error,
 }
 
+impl Severity {
+    /// Lower-case wire form (`"hint"`, `"suggestion"`, `"warning"`,
+    /// `"error"`). The Python LSP layer and the future native
+    /// `tcl-lsp-server` both consume this form, so it lives on the
+    /// type rather than being re-implemented in each binding.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Hint => "hint",
+            Self::Suggestion => "suggestion",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}
+
 /// A unified diagnostic emitted by the compiler-checks pipeline.
 ///
 /// Downstream consumers (LSP, CLI) lower this into their native
@@ -254,7 +270,9 @@ mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        let mut r = CommandRegistry::build_default();
+        r.load_irules();
+        r
     }
 
     #[test]

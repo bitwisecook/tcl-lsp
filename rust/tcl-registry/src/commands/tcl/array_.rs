@@ -1,5 +1,6 @@
 //! `array` — manipulate array variables.
 
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
 static SUBCOMMANDS: &[SubCommand] = &[
@@ -146,6 +147,7 @@ pub fn spec() -> CommandSpec {
             &["array option arrayName ?arg arg ...?"],
             "Tcl array(1)",
         )),
+        codegen_hook: Some(CodegenHookId::Array),
         ..CommandSpec::DEFAULT
     }
 }

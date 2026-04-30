@@ -35,12 +35,14 @@ pub mod arity;
 pub mod commands;
 pub mod dialects;
 pub mod events;
+pub mod forms;
 pub mod hooks;
 pub mod hover;
 pub mod profiles;
 pub mod registry;
 pub mod side_effects;
 pub mod spec;
+pub mod taint;
 pub mod traits;
 pub mod types;
 
@@ -52,7 +54,8 @@ pub mod prelude {
     pub use crate::arg_role::ArgRole;
     pub use crate::arity::Arity;
     pub use crate::dialects::DialectSet;
-    pub use crate::hooks::ArgTypeHint;
+    pub use crate::forms::{CommandForm, SubCommandForm};
+    pub use crate::hooks::{ArgTypeHint, CodegenHookId, LoweringHookId, WasmCodegenHookId};
     pub use crate::hover::{FormKind, FormSpec, HoverSnippet, OptionSpec};
     pub use crate::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
     pub use crate::spec::{CommandSpec, SubCommand};

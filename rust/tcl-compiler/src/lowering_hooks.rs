@@ -5,10 +5,18 @@
 //! fall through to the default `IRCall` path.
 //!
 //! Ports `core/compiler/lowering_hooks/_control.py` and `_var.py`.
+//! As of chunk **C43** the per-command logic is being split out into
+//! [`crate::lowering::hooks`] (one file per command); this module
+//! retains the dispatcher, the [`LoweringCommand`] context type, and
+//! the shared helpers (`make_call`, `extract_single_expr_arg`,
+//! `parse_decimal_int`).
 
 use std::collections::HashSet;
 
 use tcl_lexer::Span;
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::CommandRegistry;
 
 use crate::alias::{expr_alias_names, CommandAliasMap};
 use crate::expr_parser::parse_expr;
@@ -54,105 +62,75 @@ pub enum ArgTokenKind {
     Other,
 }
 
-/// Try to lower a command via a registered hook.
+/// Try to lower a command via a registry-described hook.
 ///
-/// Returns `Some(statement)` if the command was handled, `None` to
-/// fall through to the default `IRCall` path.
+/// Resolves `cmd` against the registry, looks up the lowering hook
+/// identifier on the matched [`tcl_registry::CommandSpec`] /
+/// [`tcl_registry::SubCommand`], and dispatches to the per-hook
+/// algorithm. Returns `Some(statement)` if a hook handled the
+/// command; `None` to fall through to the default `IRCall` path.
 #[must_use]
-pub fn try_lower_hook(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Option<Statement> {
-    match cmd.name {
-        "expr" => lower_expr(cmd),
-        "return" => Some(lower_return(cmd, aliases)),
-        "set" => Some(lower_set(cmd, aliases)),
-        "incr" => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
-        "append" | "lappend" => lower_append_lappend(cmd),
-        "unset" => Some(lower_unset(cmd)),
-        "global" => lower_global(cmd),
-        "variable" => Some(lower_variable(cmd)),
-        "upvar" => lower_upvar(cmd),
-        _ => None,
+pub fn try_lower_hook(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+) -> Option<Statement> {
+    let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
+    let resolved = registry.resolve_call(cmd.name, &arg_refs, DialectSet::empty())?;
+    let hook = resolved.lowering_hook?;
+    dispatch_lowering_hook(hook, cmd, aliases)
+}
+
+/// Dispatch a typed [`LoweringHookId`] to its implementation.
+///
+/// Public so external dispatchers (tests, future LSP feature
+/// providers, peephole experiments) can reuse the same per-hook
+/// implementations without duplicating the table. Per-command
+/// algorithms now live under [`crate::lowering::hooks`]; this
+/// function is the single point that maps registry-typed hook IDs
+/// to the implementation modules.
+#[must_use]
+pub fn dispatch_lowering_hook(
+    hook: LoweringHookId,
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+) -> Option<Statement> {
+    match hook {
+        LoweringHookId::Expr => crate::lowering::hooks::control::try_lower_expr(cmd),
+        LoweringHookId::Return => Some(crate::lowering::hooks::control::try_lower_return(
+            cmd, aliases,
+        )),
+        LoweringHookId::Set => Some(lower_set(cmd, aliases)),
+        LoweringHookId::Incr => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
+        LoweringHookId::AppendOrLappend => lower_append_lappend(cmd),
+        LoweringHookId::Unset => Some(lower_unset(cmd)),
+        LoweringHookId::Global => lower_global(cmd),
+        LoweringHookId::Variable => Some(lower_variable(cmd)),
+        LoweringHookId::Upvar => lower_upvar(cmd),
     }
 }
 
 /// Whether this command has `{*}` expansion on any argument.
-fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
+///
+/// `pub(crate)` so per-command hook modules under
+/// [`crate::lowering::hooks`] can share the single canonical
+/// expansion check rather than re-implementing it inline (which
+/// would drift over time as the `LoweringCommand` shape evolves).
+pub(crate) fn has_expansion(cmd: &LoweringCommand<'_>) -> bool {
     cmd.expand_word.is_some_and(|ew| ew.iter().any(|&e| e))
 }
 
 // ── expr ──────────────────────────────────────────────────────────
-
-fn lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
-    if has_expansion(cmd) {
-        return None;
-    }
-    if cmd.args.len() != 1 {
-        return None;
-    }
-    // Only specialise when the arg is a single token.
-    if cmd.single_token_word.len() < 2 || !cmd.single_token_word[1] {
-        return None;
-    }
-    let expr = parse_expr(&cmd.args[0], None);
-    Some(Statement::ExprEval {
-        span: cmd.span,
-        expr,
-    })
-}
+//
+// Moved to `crate::lowering::hooks::control::try_lower_expr` (chunk
+// **C43**). The dispatcher above delegates the `"expr"` case to
+// the per-hook module.
 
 // ── return ────────────────────────────────────────────────────────
-
-fn lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement {
-    if has_expansion(cmd) {
-        return Statement::Barrier {
-            span: cmd.span,
-            reason: "return with expansion".into(),
-            command: cmd.name.into(),
-            args: cmd.args.to_vec(),
-            tokens: cmd.tokens.clone(),
-        };
-    }
-    if !cmd.args.is_empty() && cmd.args[0].starts_with('-') {
-        return Statement::Barrier {
-            span: cmd.span,
-            reason: "return with options".into(),
-            command: cmd.name.into(),
-            args: cmd.args.to_vec(),
-            tokens: cmd.tokens.clone(),
-        };
-    }
-
-    let value = cmd.args.first().cloned();
-    let mut expr = None;
-    let mut braced = false;
-
-    if value.is_some()
-        && !cmd.arg_kinds.is_empty()
-        && cmd.single_token_word.len() >= 2
-        && cmd.single_token_word[1]
-    {
-        match cmd.arg_kinds[0] {
-            ArgTokenKind::Str => braced = true,
-            ArgTokenKind::Cmd => {
-                let inner = cmd.args[0]
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .unwrap_or(&cmd.args[0]);
-                let alias_names = expr_alias_names(aliases);
-                if let Some(expr_arg) = extract_single_expr_arg(inner, &alias_names) {
-                    expr = Some(parse_expr(&expr_arg, None));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    Statement::Return {
-        span: cmd.span,
-        value,
-        expr,
-        braced,
-    }
-}
+//
+// Moved to `crate::lowering::hooks::control::try_lower_return`
+// (chunk **C43**). The dispatcher above delegates the `"return"`
+// case to the per-hook module.
 
 // ── set ───────────────────────────────────────────────────────────
 
@@ -376,7 +354,14 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 ///
 /// Returns `Some(expr_text)` if the text is `expr <one-word>` (or an
 /// expr alias), `None` otherwise.
-fn extract_single_expr_arg(text: &str, expr_aliases: &HashSet<String>) -> Option<String> {
+///
+/// `pub(crate)` so per-command hook modules under
+/// [`crate::lowering::hooks`] (e.g. `control::try_lower_return`) can
+/// share the same single-arg-extraction logic as `lower_set` here.
+pub(crate) fn extract_single_expr_arg(
+    text: &str,
+    expr_aliases: &HashSet<String>,
+) -> Option<String> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);
@@ -494,27 +479,6 @@ mod tests {
     }
 
     #[test]
-    fn lower_expr_single_arg() {
-        let args = vec!["{1 + 2}".to_string()];
-        let single = vec![true, true];
-        let kinds = vec![ArgTokenKind::Str];
-        let cmd = LoweringCommand {
-            span: Span::new(0, 15),
-            name: "expr",
-            args: &args,
-            single_token_word: &single,
-            expand_word: None,
-            tokens: None,
-            arg_kinds: &kinds,
-        };
-        let result = lower_expr(&cmd);
-        assert!(
-            matches!(result, Some(Statement::ExprEval { .. })),
-            "expected ExprEval; got {result:?}"
-        );
-    }
-
-    #[test]
     fn lower_set_const() {
         let args = vec!["x".to_string(), "hello".to_string()];
         let single = vec![true, true, true];
@@ -579,22 +543,81 @@ mod tests {
         }
     }
 
+    // `lower_return_simple` lived here in pre-C43 layouts; origin/rust
+    // moved the algorithm to `crate::lowering::hooks::control` in
+    // chunk C43, where the per-hook module owns its own test surface.
+
+    /// Registry must drive the lowering-hook dispatch — `set`'s
+    /// hook ID must come from [`tcl_registry::CommandSpec`], not a
+    /// compiler-side name table.
     #[test]
-    fn lower_return_simple() {
-        let args = vec!["$result".to_string()];
-        let single = vec![true, true];
-        let kinds = vec![ArgTokenKind::Var];
+    fn registry_set_spec_carries_lowering_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("set").expect("set is registered");
+        assert_eq!(spec.lowering_hook, Some(LoweringHookId::Set));
+    }
+
+    /// Same check for `expr` — the registry-side hook ID must be
+    /// the canonical source of truth, not a compiler dispatch table.
+    #[test]
+    fn registry_expr_spec_carries_lowering_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("expr").expect("expr is registered");
+        assert_eq!(spec.lowering_hook, Some(LoweringHookId::Expr));
+    }
+
+    /// `incr`'s hook is also stamped on the registry side.
+    #[test]
+    fn registry_incr_spec_carries_lowering_hook() {
+        let registry = CommandRegistry::build_default();
+        let spec = registry.get("incr").expect("incr is registered");
+        assert_eq!(spec.lowering_hook, Some(LoweringHookId::Incr));
+    }
+
+    /// End-to-end: routing `set` through `try_lower_hook` returns
+    /// the typed `AssignConst` form via the registry-resolved hook.
+    #[test]
+    fn try_lower_hook_routes_set_via_registry() {
+        let registry = CommandRegistry::build_default();
         let aliases = CommandAliasMap::new();
+        let args = vec!["x".to_string(), "hello".to_string()];
+        let single = vec![true, true, true];
+        let kinds = vec![ArgTokenKind::Esc, ArgTokenKind::Str];
         let cmd = LoweringCommand {
-            span: Span::new(0, 15),
-            name: "return",
+            span: Span::new(0, 13),
+            name: "set",
             args: &args,
             single_token_word: &single,
             expand_word: None,
             tokens: None,
             arg_kinds: &kinds,
         };
-        let result = lower_return(&cmd, &aliases);
-        assert!(matches!(result, Statement::Return { value: Some(_), .. }));
+        let result = try_lower_hook(&cmd, &aliases, &registry);
+        assert!(
+            matches!(result, Some(Statement::AssignConst { .. })),
+            "expected AssignConst from registry-driven dispatch; got {result:?}",
+        );
+    }
+
+    /// A command with no `lowering_hook` must return `None` from
+    /// `try_lower_hook` so the caller falls through to the generic
+    /// `IRCall` path.
+    #[test]
+    fn try_lower_hook_returns_none_for_uncovered_command() {
+        let registry = CommandRegistry::build_default();
+        let aliases = CommandAliasMap::new();
+        let args = vec!["greetings".to_string()];
+        let single = vec![true, true];
+        let kinds = vec![ArgTokenKind::Esc];
+        let cmd = LoweringCommand {
+            span: Span::new(0, 4),
+            name: "puts",
+            args: &args,
+            single_token_word: &single,
+            expand_word: None,
+            tokens: None,
+            arg_kinds: &kinds,
+        };
+        assert!(try_lower_hook(&cmd, &aliases, &registry).is_none());
     }
 }

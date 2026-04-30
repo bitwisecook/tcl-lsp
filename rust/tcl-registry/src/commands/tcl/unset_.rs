@@ -1,5 +1,6 @@
 //! `unset` — delete variables.
 
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 /// Command spec for `unset`.
@@ -36,6 +37,7 @@ pub fn spec() -> CommandSpec {
             &["unset ?-nocomplain? ?--? ?name name name ...?"],
             "Tcl unset(1)",
         )),
+        lowering_hook: Some(LoweringHookId::Unset),
         ..CommandSpec::DEFAULT
     }
 }

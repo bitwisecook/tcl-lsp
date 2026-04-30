@@ -14,13 +14,15 @@ use pyo3::prelude::*;
 
 use tcl_lexer::{SourcePosition as CoreSourcePosition, TokenType as CoreTokenType};
 
-/// `enum.Enum`-style token kind exposed to Python as `tcl_lsp_rust.TokenType`.
+/// `enum.Enum`-style token kind exposed to Python as
+/// `tcl_lsp_py.TokenType` (also reachable via the legacy
+/// `tcl_lsp_rust.TokenType` alias for the transition window).
 ///
 /// Variants carry explicit discriminants matching the order of the
 /// original Python `auto()` declarations (1-indexed) so `TokenType.X.value`
 /// stays stable across the Rust port and any external scripts that
 /// happened to read it.
-#[pyclass(name = "TokenType", eq, hash, frozen, module = "tcl_lsp_rust")]
+#[pyclass(name = "TokenType", eq, hash, frozen, module = "tcl_lsp_py")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyTokenType {
     /// Plain string fragment.
@@ -113,8 +115,9 @@ impl From<PyTokenType> for CoreTokenType {
 }
 
 /// A position in source text. Exposed to Python as
-/// `tcl_lsp_rust.SourcePosition`.
-#[pyclass(name = "SourcePosition", eq, hash, frozen, module = "tcl_lsp_rust")]
+/// `tcl_lsp_py.SourcePosition` (also reachable via the legacy
+/// `tcl_lsp_rust.SourcePosition` alias for the transition window).
+#[pyclass(name = "SourcePosition", eq, hash, frozen, module = "tcl_lsp_py")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PySourcePosition {
     inner: CoreSourcePosition,
@@ -170,12 +173,13 @@ impl PySourcePosition {
 }
 
 /// A token: kind, text, source range, quoting context. Exposed to Python
-/// as `tcl_lsp_rust.Token`.
+/// as `tcl_lsp_py.Token` (also reachable via the legacy
+/// `tcl_lsp_rust.Token` alias for the transition window).
 ///
 /// Owns its text as `String`. The original Python dataclass was frozen
 /// (`@dataclass(frozen=True, slots=True)`) and Rust enforces the same
 /// invariant via `#[pyclass(frozen)]`.
-#[pyclass(name = "Token", eq, hash, frozen, module = "tcl_lsp_rust")]
+#[pyclass(name = "Token", eq, hash, frozen, module = "tcl_lsp_py")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PyToken {
     kind: PyTokenType,

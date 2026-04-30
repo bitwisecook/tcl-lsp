@@ -38,11 +38,8 @@ pub fn optimiser_find_optimisations(
     dialect: Option<&str>,
 ) -> Vec<(String, String, u32, u32, String, Option<u32>, bool)> {
     let registry = crate::registry::default_registry();
-    let opts = match dialect {
-        Some(d) => optimiser::optimise_with_dialect(source, registry, Some(d)),
-        None => optimiser::optimise(source, registry),
-    };
-    opts.into_iter()
+    optimiser::optimise_with_dialect(source, registry, dialect)
+        .into_iter()
         .map(|o| {
             (
                 o.code,

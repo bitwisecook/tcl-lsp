@@ -1,4 +1,6 @@
 //! `proc` — define a procedure.
+//
+// VERIFIED: Tcl 9.0.3 manpage proc(n) (man3/proc.n).
 
 use crate::prelude::*;
 

@@ -1,4 +1,5 @@
 //! `llength` — return the number of elements in a list.
+use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,6 +19,7 @@ pub fn spec() -> CommandSpec {
             &["llength list"],
             "Tcl llength(1)",
         )),
+        codegen_hook: Some(CodegenHookId::Llength),
         ..CommandSpec::DEFAULT
     }
 }

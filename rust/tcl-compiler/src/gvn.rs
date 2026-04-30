@@ -1447,6 +1447,66 @@ pub fn find_partial_redundancies(
     results
 }
 
+// ---------------------------------------------------------------------------
+// Compilation-unit-level convenience wrappers (ARCH7)
+// ---------------------------------------------------------------------------
+
+/// Run [`find_redundancies`] across every function in the
+/// compilation unit, concatenating the per-function findings in
+/// iteration order.
+///
+/// Convenience wrapper for callers (LSP, `PyO3` bindings, the future
+/// native server) that already hold a [`CompilationUnit`] and don't
+/// want to re-implement the per-function loop. The pure-crate
+/// version is the public API; `PyO3` binding code should call this
+/// rather than duplicating the iteration shape.
+#[must_use]
+pub fn find_redundancies_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        out.extend(find_redundancies(registry, &fu.cfg, &fu.ssa, dialect));
+    }
+    out
+}
+
+/// Run [`find_partial_redundancies`] across every function in the
+/// compilation unit. See [`find_redundancies_for_cu`] for the
+/// motivation.
+#[must_use]
+pub fn find_partial_redundancies_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        out.extend(find_partial_redundancies(
+            registry, &fu.cfg, &fu.ssa, dialect,
+        ));
+    }
+    out
+}
+
+/// Run [`find_loop_invariants`] across every function in the
+/// compilation unit. See [`find_redundancies_for_cu`] for the
+/// motivation.
+#[must_use]
+pub fn find_loop_invariants_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        out.extend(find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

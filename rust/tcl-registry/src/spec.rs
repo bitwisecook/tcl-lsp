@@ -7,7 +7,8 @@
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::dialects::DialectSet;
-use crate::hooks::{ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId};
+use crate::forms::{CommandForm, SubCommandForm};
+use crate::hooks::{ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, WasmCodegenHookId};
 use crate::hover::{FormSpec, HoverSnippet, OptionSpec};
 use crate::side_effects::{SideEffect, StorageType};
 use crate::traits::Traits;
@@ -70,6 +71,17 @@ pub struct CommandSpec {
     /// Invocation forms (for completion and arity-dependent lookup).
     pub forms: &'static [FormSpec],
 
+    /// Structured invocation-form descriptors.
+    ///
+    /// Each entry carries its own arity, argument roles, options,
+    /// dialect filter, and lowering / codegen hook IDs. The
+    /// registry's resolved-call API (see
+    /// [`crate::CommandRegistry::resolve_call`]) picks the matching
+    /// form for a concrete argument list. Empty means "no
+    /// form-specific routing — use the [`CommandSpec`] level
+    /// arity / hooks".
+    pub command_forms: &'static [CommandForm],
+
     /// Which argument index is a variable name assigned by the command.
     /// `None` = command does not assign a variable.
     pub assigns_variable_at: Option<u8>,
@@ -84,8 +96,18 @@ pub struct CommandSpec {
     /// Lowering hook ID (index into compiler's dispatch table).
     pub lowering_hook: Option<LoweringHookId>,
 
-    /// Codegen hook ID (index into compiler's dispatch table).
+    /// `TclVM` bytecode codegen hook ID — picks the per-command
+    /// emitter inside [`tcl_compiler::codegen::emitter::bytecoded`]
+    /// (the path that matches C Tcl 9's bytecode output).
+    /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,
+
+    /// WASM-runtime codegen hook ID — picks the per-command
+    /// emitter on the WASM target. Currently always `None`
+    /// (no WASM-specific emitters landed yet); the field exists so
+    /// the per-command coverage audit can track WASM hook stamping
+    /// without a follow-up registry refactor.
+    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
 
     /// Structured side-effect declarations.
     pub side_effects: &'static [SideEffect],
@@ -118,11 +140,13 @@ impl CommandSpec {
         allow_unknown_subcommands: false,
         hover: None,
         forms: &[],
+        command_forms: &[],
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
         lowering_hook: None,
         codegen_hook: None,
+        wasm_codegen_hook: None,
         side_effects: &[],
         inferred_storage_type: None,
         required_package: None,
@@ -165,6 +189,16 @@ pub struct SubCommand {
     /// Subcommand name (e.g. `"create"`, `"for"`, `"length"`).
     pub name: &'static str,
 
+    /// Behavioural trait flags.
+    ///
+    /// Subcommand-shaped facts (taint sources stamped on `chan gets`
+    /// rather than `chan`, side-effect categories specific to one
+    /// subcommand form, …) live here. The matched
+    /// [`crate::CommandRegistry::resolve_call`] consumer reads
+    /// `spec.traits | sub.traits` so subcommand traits compose with
+    /// command-level ones rather than replacing them.
+    pub traits: Traits,
+
     /// Argument count constraint (after the subcommand word).
     pub arity: Arity,
 
@@ -204,11 +238,23 @@ pub struct SubCommand {
     /// Lowering hook ID.
     pub lowering_hook: Option<LoweringHookId>,
 
-    /// Codegen hook ID.
+    /// `TclVM` bytecode codegen hook ID. See
+    /// [`CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
+
+    /// WASM-runtime codegen hook ID. See
+    /// [`CommandSpec::wasm_codegen_hook`].
+    pub wasm_codegen_hook: Option<WasmCodegenHookId>,
 
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
+
+    /// Structured invocation-form descriptors for the subcommand.
+    ///
+    /// Same shape as [`CommandSpec::command_forms`]; entries are
+    /// matched against the argument list *after* the subcommand
+    /// word.
+    pub subcommand_forms: &'static [SubCommandForm],
 
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub dialects: Option<DialectSet>,
@@ -230,6 +276,7 @@ impl SubCommand {
     /// Default value for all fields.
     pub const DEFAULT: Self = Self {
         name: "",
+        traits: Traits::empty(),
         arity: Arity::any(),
         detail: "",
         synopsis: "",
@@ -244,7 +291,9 @@ impl SubCommand {
         const_fold: None,
         lowering_hook: None,
         codegen_hook: None,
+        wasm_codegen_hook: None,
         options: &[],
+        subcommand_forms: &[],
         dialects: None,
         safe_on_uninit: None,
         loop_list_header: false,
