@@ -7,6 +7,13 @@ import threading
 
 from .tokens import SourcePosition, Token, TokenType
 
+try:
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        lexer_tokenise_with_config as _rust_lexer_tokenise_cfg,
+    )
+except ImportError:
+    _rust_lexer_tokenise_cfg = None
+
 _bisect_right = bisect.bisect_right
 
 # Pre-computed character class sets for O(1) membership testing in the
@@ -1059,13 +1066,49 @@ class TclLexer:
 
         Contract: on return the lexer cursor sits at end-of-source so that
         a subsequent ``get_token()`` returns ``None`` rather than re-reading
-        from offset 0. Today's loop satisfies this naturally — every
-        ``get_token()`` call advances ``self.pos`` / ``self._line`` /
-        ``self._col`` — but any future bulk-tokenise fast path (e.g. a
-        Rust-binding shortcut that bypasses ``get_token``) must finalise
-        cursor state explicitly so callers can mix ``tokenise_all`` and
-        ``get_token`` on the same instance without divergence.
+        from offset 0. The pure-Python loop below satisfies this naturally
+        because every ``get_token()`` call advances ``self.pos`` /
+        ``self._line`` / ``self._col``; the Rust fast-path bypasses
+        ``get_token`` so it finalises cursor state explicitly before
+        returning. Callers can mix ``tokenise_all`` and ``get_token`` on
+        the same instance without divergence.
+
+        When the Rust ``tcl_lsp_rust`` wheel is installed and this
+        lexer has no virtual insertions, this method dispatches to
+        the Rust implementation for a ~17× speedup. The Rust path
+        receives the current ``expand_syntax``,
+        ``irules_brace_separator``, strict-quoting mode, and base
+        position offsets, and surfaces its non-fatal warnings so
+        the Python ``self.warnings`` list stays in sync. The
+        ``get_token()`` incremental API continues to use the
+        Python lexer. The Python fallback is used when virtual
+        insertions are present or the Rust wheel is not available.
         """
+        if _rust_lexer_tokenise_cfg is not None and not self._has_virtuals and self.pos == 0:
+            try:
+                tokens, warnings = _rust_lexer_tokenise_cfg(
+                    self.text,
+                    TclLexer.expand_syntax,
+                    TclLexer.irules_brace_separator,
+                    _strict_quoting(),
+                    self._base_offset,
+                    self._base_line,
+                    self._base_col,
+                )
+            except ValueError as exc:
+                # The Rust lexer raises ValueError for strict-mode
+                # syntax errors. Re-raise as TclParseError so
+                # callers that catch TclParseError still work.
+                raise TclParseError(str(exc)) from exc
+            if warnings:
+                self.warnings.extend(warnings)
+            # Finalise cursor state so a subsequent ``get_token()``
+            # returns ``None`` instead of re-reading from offset 0.
+            # Mirrors the post-condition the pure-Python loop reaches
+            # naturally on EOF.  See ``tests/test_lexer_cursor_state.py``.
+            self.pos = self._len
+            self._type = TokenType.EOF
+            return tokens
         tokens: list[Token] = []
         while True:
             tok = self.get_token()

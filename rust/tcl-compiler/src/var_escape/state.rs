@@ -1,0 +1,291 @@
+//! Mutable per-proc escape accumulator (C33b2).
+//!
+//! Mirrors the `_EscapeState` class from
+//! `core/compiler/var_escape/_propagation.py`. The walker
+//! (C33b7) holds a `&mut EscapeState` while visiting an IR
+//! script body, calling the methods below as it sees relevant
+//! shapes.
+
+use std::collections::{BTreeSet, HashMap, HashSet};
+
+use crate::var_escape::helpers::is_dynamic_name;
+use crate::var_escape::types::EscapeTag;
+
+/// Tracked literal binding for the alias-inference path.
+///
+/// `Set(name, value)` records the most recent literal a variable
+/// was assigned. `Invalidated` marks the binding as untrustworthy
+/// once a second writer or a non-literal value appears — only the
+/// single-writer case is trusted.
+#[derive(Debug, Clone)]
+enum LiteralBinding {
+    Set(String),
+    Invalidated,
+}
+
+/// Mutable per-proc escape accumulator used during the IR walk.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Default)]
+pub struct EscapeState {
+    /// Per-name escape tags collected so far.
+    pub tags: HashMap<String, EscapeTag>,
+    /// Whole-proc pessimism marker.
+    pub dynamic_barrier: bool,
+    /// Names the compiler already knows about (params, assigns,
+    /// upvars). Used by the "spill all" branch of alias inference.
+    pub known_names: HashSet<String>,
+    /// Names in the caller's frame that this proc reaches by name
+    /// via `upvar <positive-level>`. Consumed by the
+    /// interprocedural pass to escape matching locals in callers.
+    pub upvar_source_names: BTreeSet<String>,
+    /// True if a dynamic-source `upvar` defeats enumeration.
+    pub unbounded_upvar_source: bool,
+    /// Statically-resolvable callees — qualified proc names this
+    /// proc invokes with a known command word.
+    pub direct_callees: BTreeSet<String>,
+    /// True if this proc definitely dispatches to the interpreter
+    /// at runtime regardless of what its callees look like.
+    pub has_fallback: bool,
+    /// True if a non-frameless `IRCall` (with a statically
+    /// resolvable command word) was seen.
+    pub has_call_fallback: bool,
+    /// Sequential single-literal alias tracking. Used by the
+    /// `set $n` alias inference to resolve `$n` back to the
+    /// literal when one writer was observed.
+    literal_assigns: HashMap<String, LiteralBinding>,
+}
+
+impl EscapeState {
+    /// Create a state seeded with the given known-name set.
+    #[must_use]
+    pub fn new<I: IntoIterator<Item = String>>(known_names: I) -> Self {
+        Self {
+            known_names: known_names.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Mark *name* as needing frame storage.
+    pub fn escape(&mut self, name: &str) {
+        if name.is_empty() {
+            return;
+        }
+        self.tags.insert(name.to_string(), EscapeTag::Frame);
+        self.known_names.insert(name.to_string());
+    }
+
+    /// Spill every known proc-local name (not proc-pessimistic).
+    pub fn escape_all_known(&mut self) {
+        let names: Vec<String> = self.known_names.iter().cloned().collect();
+        for n in names {
+            self.tags.insert(n, EscapeTag::Frame);
+        }
+    }
+
+    /// Mark the whole proc as needing a dynamic-barrier fallback.
+    pub fn mark_pessimistic(&mut self) {
+        self.dynamic_barrier = true;
+    }
+
+    /// Record a literal caller-frame name this proc accesses via
+    /// `upvar`.
+    pub fn record_upvar_source(&mut self, src: &str) {
+        if !src.is_empty() {
+            self.upvar_source_names.insert(src.to_string());
+        }
+    }
+
+    /// Record that the upvar source set cannot be statically
+    /// enumerated.
+    pub fn record_unbounded_upvar(&mut self) {
+        self.unbounded_upvar_source = true;
+    }
+
+    /// Record a statically-resolvable callee.
+    pub fn record_callee(&mut self, qname: &str) {
+        if !qname.is_empty() {
+            self.direct_callees.insert(qname.to_string());
+        }
+    }
+
+    /// Record a definite interpreter dispatch (barrier-shaped).
+    pub fn record_fallback(&mut self) {
+        self.has_fallback = true;
+    }
+
+    /// Record a non-frameless `IRCall` with a static command word.
+    /// Whether this really reaches the eval fallback is decided by
+    /// the interprocedural pass; if the callee resolves to a
+    /// compiled proc the downgrade there drops the flag.
+    pub fn record_call_fallback(&mut self) {
+        self.has_call_fallback = true;
+    }
+
+    /// Record that *name* was assigned *value* via
+    /// `Statement::AssignConst`. Invalidates the tracked literal
+    /// once a second writer appears: only the single-writer case
+    /// is trusted for alias inference.
+    pub fn note_literal_assign(&mut self, name: &str, value: &str) {
+        if name.is_empty() || is_dynamic_name(name) {
+            return;
+        }
+        match self.literal_assigns.get(name) {
+            Some(_) => {
+                // Second write — invalidate.
+                self.literal_assigns
+                    .insert(name.to_string(), LiteralBinding::Invalidated);
+            }
+            None => {
+                self.literal_assigns
+                    .insert(name.to_string(), LiteralBinding::Set(value.to_string()));
+            }
+        }
+    }
+
+    /// Mark *name*'s tracked literal invalid (subsequent writer).
+    pub fn invalidate_literal(&mut self, name: &str) {
+        if !name.is_empty() {
+            self.literal_assigns
+                .insert(name.to_string(), LiteralBinding::Invalidated);
+        }
+    }
+
+    /// Resolve a dynamic var-name token (`$n` / `${n}`) to the
+    /// literal it was assigned, if the single-writer rule holds.
+    ///
+    /// Returns `None` when *token* isn't a simple `$name`
+    /// reference, when the tracked literal has been invalidated,
+    /// or when the tracked value isn't a valid Tcl identifier.
+    #[must_use]
+    pub fn resolve_literal(&self, token: &str) -> Option<String> {
+        if token.is_empty() || !token.starts_with('$') {
+            return None;
+        }
+        let inner = if let Some(rest) = token.strip_prefix("${") {
+            rest.strip_suffix('}')?
+        } else {
+            &token[1..]
+        };
+        if inner.is_empty() || inner.contains('[') || inner.contains(']') || inner.contains('$') {
+            return None;
+        }
+        let binding = self.literal_assigns.get(inner)?;
+        let LiteralBinding::Set(literal) = binding else {
+            return None;
+        };
+        if literal.is_empty() {
+            return None;
+        }
+        // Guard: only plain identifiers (alphanumeric, underscore,
+        // colons).
+        if !literal
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':')
+        {
+            return None;
+        }
+        Some(literal.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escape_marks_name_as_frame() {
+        let mut s = EscapeState::default();
+        s.escape("x");
+        assert_eq!(s.tags.get("x"), Some(&EscapeTag::Frame));
+        assert!(s.known_names.contains("x"));
+    }
+
+    #[test]
+    fn escape_ignores_empty_name() {
+        let mut s = EscapeState::default();
+        s.escape("");
+        assert!(s.tags.is_empty());
+    }
+
+    #[test]
+    fn escape_all_known_spills_seeded_names() {
+        let mut s = EscapeState::new(["a".to_string(), "b".to_string()]);
+        s.escape_all_known();
+        assert_eq!(s.tags.get("a"), Some(&EscapeTag::Frame));
+        assert_eq!(s.tags.get("b"), Some(&EscapeTag::Frame));
+    }
+
+    #[test]
+    fn mark_pessimistic_sets_dynamic_barrier() {
+        let mut s = EscapeState::default();
+        s.mark_pessimistic();
+        assert!(s.dynamic_barrier);
+    }
+
+    #[test]
+    fn note_literal_assign_records_first_writer() {
+        let mut s = EscapeState::default();
+        s.note_literal_assign("n", "real_name");
+        assert_eq!(s.resolve_literal("$n"), Some("real_name".into()));
+        assert_eq!(s.resolve_literal("${n}"), Some("real_name".into()));
+    }
+
+    #[test]
+    fn note_literal_assign_invalidates_on_second_write() {
+        let mut s = EscapeState::default();
+        s.note_literal_assign("n", "first");
+        s.note_literal_assign("n", "second");
+        assert_eq!(s.resolve_literal("$n"), None);
+    }
+
+    #[test]
+    fn invalidate_literal_drops_tracking() {
+        let mut s = EscapeState::default();
+        s.note_literal_assign("n", "first");
+        s.invalidate_literal("n");
+        assert_eq!(s.resolve_literal("$n"), None);
+    }
+
+    #[test]
+    fn resolve_literal_rejects_dynamic_inside_braces() {
+        let mut s = EscapeState::default();
+        s.note_literal_assign("n", "real");
+        assert_eq!(s.resolve_literal("${$inner}"), None);
+        assert_eq!(s.resolve_literal("${[cmd]}"), None);
+    }
+
+    #[test]
+    fn resolve_literal_rejects_non_identifier_value() {
+        let mut s = EscapeState::default();
+        s.note_literal_assign("n", "has space");
+        assert_eq!(s.resolve_literal("$n"), None);
+    }
+
+    #[test]
+    fn record_upvar_source_collects_caller_names() {
+        let mut s = EscapeState::default();
+        s.record_upvar_source("caller_var");
+        s.record_upvar_source("");
+        assert!(s.upvar_source_names.contains("caller_var"));
+        assert_eq!(s.upvar_source_names.len(), 1);
+    }
+
+    #[test]
+    fn record_callee_collects_qualified_names() {
+        let mut s = EscapeState::default();
+        s.record_callee("::ns::helper");
+        s.record_callee("");
+        assert!(s.direct_callees.contains("::ns::helper"));
+        assert_eq!(s.direct_callees.len(), 1);
+    }
+
+    #[test]
+    fn fallback_flags_are_independent() {
+        let mut s = EscapeState::default();
+        s.record_fallback();
+        assert!(s.has_fallback);
+        assert!(!s.has_call_fallback);
+        s.record_call_fallback();
+        assert!(s.has_call_fallback);
+    }
+}
