@@ -1,0 +1,29 @@
+{
+  "seed": 1774200043,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "wasm crashed but vm did not",
+      "backend_a": "vm",
+      "backend_b": "wasm",
+      "detail_a": "expected integer but got \"-57.55\"",
+      "detail_b": "TIMEOUT"
+    },
+    {
+      "kind": "crash",
+      "description": "wasm crashed but vm_opt did not",
+      "backend_a": "vm_opt",
+      "backend_b": "wasm",
+      "detail_a": "expected integer but got \"-57.55\"",
+      "detail_b": "TIMEOUT"
+    }
+  ],
+  "kind": "crash",
+  "backends": [
+    "vm",
+    "vm_opt",
+    "wasm"
+  ],
+  "fixed": false,
+  "category": "wasm-timeout"
+}

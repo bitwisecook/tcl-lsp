@@ -31,6 +31,7 @@ class CampaignStats:
     crashes: int = 0
     bad_inputs: int = 0
     elapsed_seconds: float = 0.0
+    skipped_stubbed: int = 0  # filtered before run because they hit a WASM stub
 
 
 def run_campaign(
@@ -42,6 +43,8 @@ def run_campaign(
     tclsh_path: str | None = None,
     save_findings: bool = True,
     verbose: bool = False,
+    use_wasm: bool = False,
+    wasm_timeout: float = 5.0,
 ) -> tuple[CampaignStats, list[FuzzResult]]:
     """Run a fuzz campaign and return stats + any findings.
 
@@ -60,18 +63,46 @@ def run_campaign(
         Whether to save failing scripts to disk.
     verbose:
         Print progress to stderr.
+    use_wasm:
+        Include the Tcl→WASM codegen + Zig runtime backend.  Scripts
+        that exercise WASM-stubbed commands (per the parity baseline)
+        are skipped at corpus-load time so they don't pollute the
+        differential comparison.
+    wasm_timeout:
+        Per-script timeout passed to the WASM backend.
     """
     if base_seed is None:
         base_seed = int(time.time())
+
+    # Pre-import the stub-detector so we can filter inputs that depend
+    # on commands the WASM runtime stubs out.  Filtering at corpus
+    # load (rather than at compare time) keeps the WASM backend's
+    # results honest for everything that does run through it.
+    if use_wasm:
+        from .wasm_backend import uses_stubbed_command  # noqa: PLC0415
+    else:
+        uses_stubbed_command = None  # type: ignore[assignment]
 
     stats = CampaignStats()
     findings: list[FuzzResult] = []
     start = time.monotonic()
 
-    for i in range(iterations):
-        seed = base_seed + i
+    i = 0
+    seed_offset = 0
+    while i < iterations:
+        seed = base_seed + seed_offset
+        seed_offset += 1
         gen = TclGenerator(seed=seed, config=config)
         script = gen.generate()
+
+        # Skip inputs whose behaviour the WASM backend can't compare
+        # against — TRAPPING_STUB / SILENT_STUB commands diverge
+        # by design and would just spam findings.
+        if use_wasm and uses_stubbed_command is not None and uses_stubbed_command(script):
+            stats.skipped_stubbed += 1
+            continue
+
+        i += 1
 
         # Heuristic: if the script has unbalanced delimiters it was
         # intentionally corrupted by the generator's bad_input_pct path.
@@ -88,6 +119,8 @@ def run_campaign(
             use_tclsh=use_tclsh,
             tclsh_path=tclsh_path,
             bad_input=is_bad,
+            use_wasm=use_wasm,
+            wasm_timeout=wasm_timeout,
         )
 
         stats.total += 1
@@ -132,6 +165,11 @@ def _save_finding(result: FuzzResult) -> None:
     script_path = _FINDINGS_DIR / f"{stem}.tcl"
     script_path.write_text(result.script, encoding="utf-8")
 
+    backends = sorted(
+        {m.backend_a for m in result.mismatches} | {m.backend_b for m in result.mismatches}
+    )
+    kinds = sorted({m.kind for m in result.mismatches})
+
     meta_path = _FINDINGS_DIR / f"{stem}.json"
     meta: dict[str, object] = {
         "seed": result.seed,
@@ -146,6 +184,9 @@ def _save_finding(result: FuzzResult) -> None:
             }
             for m in result.mismatches
         ],
+        "kind": kinds[0] if len(kinds) == 1 else kinds,
+        "backends": backends,
+        "fixed": False,
     }
     if result.parse_error:
         meta["parse_error"] = result.parse_error
@@ -222,6 +263,17 @@ def main() -> None:
         help="replay a saved finding .tcl file",
     )
     parser.add_argument(
+        "--wasm",
+        action="store_true",
+        help="also run the WASM codegen + Zig runtime backend (slower)",
+    )
+    parser.add_argument(
+        "--wasm-timeout",
+        type=float,
+        default=5.0,
+        help="per-script timeout for the WASM backend (default: 5.0)",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -265,6 +317,8 @@ def main() -> None:
             use_tclsh=not args.no_tclsh,
             tclsh_path=args.tclsh,
             verbose=args.verbose,
+            use_wasm=args.wasm,
+            wasm_timeout=args.wasm_timeout,
         )
         print(f"\n{'=' * 60}")
         print(f"Fuzz campaign complete: {stats.total} scripts")
@@ -273,6 +327,8 @@ def main() -> None:
         print(f"  Parse errors: {stats.parse_errors}")
         print(f"  Crashes:      {stats.crashes}")
         print(f"  Bad inputs:   {stats.bad_inputs}")
+        if stats.skipped_stubbed:
+            print(f"  Skipped stub: {stats.skipped_stubbed}  (WASM-stubbed cmds)")
         print(f"  Time:         {stats.elapsed_seconds:.1f}s")
         print(f"  Rate:         {stats.total / max(stats.elapsed_seconds, 0.001):.0f} scripts/sec")
 
