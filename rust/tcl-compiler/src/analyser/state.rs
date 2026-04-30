@@ -2058,6 +2058,124 @@ mod tests {
         assert!(matches!(main.severity, crate::analyser::Severity::Warning));
     }
 
+    // -- ``postpass`` chunk: W101 eval-string-concat emitter
+    //
+    // Mirrors `tests/test_checks.py::TestEvalStringConcat` against
+    // the Rust port.  Canonical-list-idiom suppression lives in the
+    // registry (``is_canonical_list_command``); substitution-detection
+    // approximation lives in the analyser.
+
+    fn w101_diags(src: &str) -> Vec<crate::analyser::types::Diagnostic> {
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl");
+        r.diagnostics
+            .into_iter()
+            .filter(|d| d.code == "W101")
+            .collect()
+    }
+
+    #[test]
+    fn analyse_emits_w101_for_eval_with_variable() {
+        let diags = w101_diags("eval \"puts $x\"\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+        assert!(
+            diags[0].message.to_lowercase().contains("injection"),
+            "got {:?}",
+            diags[0].message
+        );
+        assert!(matches!(
+            diags[0].severity,
+            crate::analyser::Severity::Warning
+        ));
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_braced_script() {
+        let diags = w101_diags("eval {puts hello}\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_multiple_braced() {
+        let diags = w101_diags("eval {set x 1} {puts $x}\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w101_for_eval_with_command_subst() {
+        // ``eval [build_cmd]`` — single CMD token, but `build_cmd`
+        // isn't a canonical-list-producing command.
+        let diags = w101_diags("eval [build_cmd]\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_literal_no_substitution() {
+        // ``eval puts hello`` — both args are bare literals; no
+        // substitution at any level.
+        let diags = w101_diags("eval puts hello\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_list_idiom() {
+        // ``eval [list ...]`` — ``list`` produces a canonical list,
+        // safe re-parse.
+        let diags = w101_diags("eval [list set $varname $value]\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_linsert_idiom() {
+        // ``linsert`` returns TclType::List → canonical.
+        let diags = w101_diags("eval [linsert $cmdlist 0 extraarg]\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_split_idiom() {
+        let diags = w101_diags("eval [split $line :]\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_emits_w101_for_eval_concat_idiom() {
+        // ``concat`` is the explicit non-canonical exclusion —
+        // strips one level of grouping, not safe for re-parse.
+        let diags = w101_diags("eval [concat $script $args]\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_non_eval_commands() {
+        // The emitter is gated on ``cmd_name == "eval"`` — other
+        // substitution-bearing commands are out of scope (W301
+        // covers uplevel; W312 covers interp eval).
+        let diags = w101_diags("uplevel 1 \"puts $x\"\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_w101_anchors_at_first_arg_token() {
+        let src = "eval \"puts $x\"\n";
+        let diags = w101_diags(src);
+        assert_eq!(diags.len(), 1);
+        let span = diags[0].span;
+        let text = &src[span.start() as usize..span.end() as usize];
+        // First arg is the quoted string ``"puts $x"`` — the
+        // representative token's span anchors the diagnostic.
+        assert!(text.contains("puts") || text.contains("$x"), "got {text:?}");
+    }
+
+    #[test]
+    fn analyse_w101_rejects_multi_command_subscript() {
+        // ``[list a; set x $user]`` — multi-command script can't be
+        // proven safe (last command's result wins, and that's
+        // ``set``, not ``list``).
+        let diags = w101_diags("eval [list a\\; set x $user]\n");
+        assert_eq!(diags.len(), 1, "got {diags:?}");
+    }
+
     #[test]
     fn analyse_w304_code_fix_inserts_terminator() {
         let src = "exec $cmd\n";

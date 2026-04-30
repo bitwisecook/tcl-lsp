@@ -1043,6 +1043,125 @@ Consider capturing the result: catch {\u{2026}} result"
         }
     }
 
+    /// **W101.** Emit "eval with string concatenation" warning
+    /// when an `eval` invocation's argument list could be a
+    /// substitution-driven injection vector.
+    ///
+    /// Mirrors `core/analysis/checks/_security.py:19-73::check_eval_string_concat`.
+    /// Suppressed when:
+    ///
+    /// - every argument's representative token is `Str` (braced,
+    ///   `eval {script}` / `eval {a} {b}` — the safe form), or
+    /// - the single argument is a `Cmd` substitution whose inner
+    ///   command head produces a canonical list (per
+    ///   [`tcl_registry::CommandRegistry::is_canonical_list_command`]
+    ///   — `eval [list ...]`, `eval [linsert ...]`, etc.).
+    ///
+    /// Otherwise fires `Severity::Warning` when any argument's
+    /// representative token is `Var` / `Cmd` (substitution at the
+    /// word level), or any argument is a multi-token word
+    /// (substitution within the word — the single-token-word flag
+    /// is `false`).  This is a sound approximation of Python's
+    /// `all_tokens[1:]`-walk: `process_command` doesn't currently
+    /// thread the full token stream, but multi-token-word implies
+    /// inner substitution and the per-arg representative kind
+    /// covers the single-token VAR / CMD cases.
+    ///
+    /// Diagnostic anchors at the first argument's range.
+    pub(super) fn emit_w101_eval_string_concat(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
+    ) {
+        if cmd_name != "eval" || args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        // ``eval {script}`` / ``eval {a} {b}`` — every word is a
+        // braced literal, no substitution risk.
+        if arg_tokens
+            .iter()
+            .all(|tok| matches!(tok.kind, tcl_lexer::TokenType::Str))
+        {
+            return;
+        }
+        // ``eval [list ...]`` and similar canonical-list idioms —
+        // single-arg ``Cmd`` whose inner head produces a canonical
+        // list.
+        if arg_tokens.len() == 1 && self.is_canonical_list_substitution(arg_tokens[0]) {
+            return;
+        }
+        // Substitution detection: any ``Var`` / ``Cmd`` arg, or any
+        // multi-token-word arg (multi-token implies inner
+        // substitution — single-token Esc / Str literals are the
+        // only substitution-free word shapes after the all-braced
+        // gate above).
+        let has_substitution = arg_tokens.iter().enumerate().any(|(i, tok)| {
+            matches!(tok.kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
+                || arg_single.get(i).copied() != Some(true)
+        });
+        if !has_substitution {
+            return;
+        }
+        let first = arg_tokens[0];
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W101".to_string(),
+            span: first.span,
+            message: "eval with substituted arguments risks code injection. \
+Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
+                .to_string(),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// Helper for [`Self::emit_w101_eval_string_concat`].  Returns
+    /// true when `tok` is a `Cmd` token whose inner script's
+    /// command head (or `cmd subcmd` pair) produces a canonical
+    /// list per the registry — the W101 safe-idiom suppression.
+    ///
+    /// Conservative: rejects multi-command scripts (containing `;`
+    /// or newline) because `[list a b; set x $user]` returns the
+    /// last command's result, which isn't necessarily a safe list.
+    /// Mirrors `_security.py::_is_list_command_token`.
+    fn is_canonical_list_substitution(&self, tok: tcl_lexer::Token) -> bool {
+        if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
+            return false;
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return false;
+        };
+        let start = tok.span.start() as usize + tok.content_offset as usize;
+        let end = tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return false;
+        }
+        let script = self.source[start..end].trim();
+        if script.is_empty() || script.contains(';') || script.contains('\n') {
+            return false;
+        }
+        // ``parts[0]`` = command head; check both bare form and
+        // ``"head sub"`` compound form.
+        let mut iter = script.splitn(2, char::is_whitespace);
+        let Some(head) = iter.next() else {
+            return false;
+        };
+        if registry.is_canonical_list_command(head) {
+            return true;
+        }
+        if let Some(rest) = iter.next() {
+            let mut sub_iter = rest.trim_start().splitn(2, char::is_whitespace);
+            if let Some(sub) = sub_iter.next() {
+                let compound = format!("{head} {sub}");
+                if registry.is_canonical_list_command(&compound) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Classify the positional value for W304: tristate severity,
     /// human-readable message, and an optional "origin" diagnostic
     /// for the constant-propagated INFO path.  Split out of
