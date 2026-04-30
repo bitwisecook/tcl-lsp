@@ -1,79 +1,89 @@
 {
   "baseline": {
-    "tclsh_noop_ns": 122490112,
-    "wasm_noop_ns": 8622955
+    "have_tclsh": false,
+    "tclsh_noop_ns": 0,
+    "wasm_noop_ns": 6836274
   },
   "benchmarks": [
     {
       "label": "set+read variable",
-      "n": 100000,
-      "ratio": 0.61,
-      "tclsh_per_op_ns": 380,
-      "wasm_per_op_ns": 232
+      "n": 20000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 3186.62085,
+      "wasm_total_ns": 70568691,
+      "wasm_work_ns": 63732417
     },
     {
       "label": "incr loop",
-      "n": 200000,
-      "ratio": 0.27,
-      "tclsh_per_op_ns": 445,
-      "wasm_per_op_ns": 120
+      "n": 50000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 2408.6556,
+      "wasm_total_ns": 127269054,
+      "wasm_work_ns": 120432780
     },
     {
       "label": "expr arithmetic (braced)",
-      "n": 100000,
-      "wasm_status": "trap"
-    },
-    {
-      "label": "list append + lindex",
       "n": 20000,
-      "wasm_status": "trap"
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 2927.6736,
+      "wasm_total_ns": 65389746,
+      "wasm_work_ns": 58553472
     },
     {
       "label": "string operations",
-      "n": 5000,
-      "ratio": 0,
-      "tclsh_per_op_ns": 0,
-      "wasm_per_op_ns": 2568
+      "n": 1000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 6622.784,
+      "wasm_total_ns": 13459058,
+      "wasm_work_ns": 6622784
     },
     {
       "label": "proc call (no args)",
-      "n": 50000,
-      "ratio": 3.19,
-      "tclsh_per_op_ns": 48,
-      "wasm_per_op_ns": 153
+      "n": 20000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 0.0,
+      "wasm_total_ns": 6452469,
+      "wasm_work_ns": 0
     },
     {
       "label": "proc call (3 args, expr)",
-      "n": 50000,
-      "ratio": 0.79,
-      "tclsh_per_op_ns": 320,
-      "wasm_per_op_ns": 252
+      "n": 10000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 3204.5607,
+      "wasm_total_ns": 38881881,
+      "wasm_work_ns": 32045607
     },
     {
       "label": "if/else branch",
-      "n": 100000,
-      "ratio": 0.52,
-      "tclsh_per_op_ns": 423,
-      "wasm_per_op_ns": 222
+      "n": 20000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 2854.9286,
+      "wasm_total_ns": 63934846,
+      "wasm_work_ns": 57098572
     },
     {
       "label": "foreach over list",
-      "n": 20000,
-      "ratio": 0.04,
-      "tclsh_per_op_ns": 2724,
-      "wasm_per_op_ns": 106
+      "n": 5000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 1588.5892,
+      "wasm_total_ns": 14779220,
+      "wasm_work_ns": 7942946
     },
     {
       "label": "dict set+get",
-      "n": 5000,
-      "wasm_status": "trap"
+      "n": 500,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 5736780.306,
+      "wasm_total_ns": 2875226427,
+      "wasm_work_ns": 2868390153
     },
     {
       "label": "namespace+proc lookup",
-      "n": 20000,
-      "ratio": 0,
-      "tclsh_per_op_ns": 0,
-      "wasm_per_op_ns": 261
+      "n": 5000,
+      "tclsh_status": "missing",
+      "wasm_per_op_ns": 2930.1682,
+      "wasm_total_ns": 21487115,
+      "wasm_work_ns": 14650841
     }
   ]
 }
