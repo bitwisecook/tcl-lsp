@@ -184,17 +184,34 @@ class _AnalyserCommandsMixin(_Base):
         # whether ``obj`` holds a TclOO object and validates the method name.
         # Use cmd_tok.text (raw var name "obj") not cmd_name ("${obj}").
         cmd_tok = all_tokens[0] if all_tokens else None
+        # The command word is a single atomic token only when ``argv[0]``
+        # was flagged in ``single_token_word``.  Composite words like
+        # ``${cmd}x`` start with a VAR/CMD token but dispatch to the
+        # concatenated string, not the substitution's value.
+        cmd_word_single = bool(single_token_word[0]) if single_token_word else False
         if cmd_tok is not None and cmd_tok.type is TokenType.VAR:
             method_name = args[0] if args else None
             in_method = self._scope_is_method(scope)
             self._var_command_sites.append(
-                (cmd_tok.text, method_name, range_from_token(cmd_tok), in_method)
+                (
+                    cmd_tok.text,
+                    method_name,
+                    range_from_token(cmd_tok),
+                    in_method,
+                    cmd_word_single,
+                )
             )
         elif cmd_tok is not None and cmd_tok.type is TokenType.CMD:
             method_name = args[0] if args else None
             in_method = self._scope_is_method(scope)
             self._cmd_command_sites.append(
-                (cmd_tok.text, method_name, range_from_token(cmd_tok), in_method)
+                (
+                    cmd_tok.text,
+                    method_name,
+                    range_from_token(cmd_tok),
+                    in_method,
+                    cmd_word_single,
+                )
             )
 
         # IRULE5005: direct proc invocation without ``call`` in iRules.

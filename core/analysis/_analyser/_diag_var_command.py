@@ -246,7 +246,13 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     # Top-level: covers entire source.
                     dict_with_ranges.append((0, 2**31))
 
-        for var_name, method_name, site_range, in_method in self._var_command_sites:
+        for (
+            var_name,
+            method_name,
+            site_range,
+            in_method,
+            cmd_word_single,
+        ) in self._var_command_sites:
             class_names = all_types.get(var_name)
             if class_names:
                 # Variable is a TclOO object — validate the method if we have
@@ -338,8 +344,13 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 ):
                     # All possible command names are statically known —
                     # suppress W307. If every resolved name happens to be
-                    # disabled in the active dialect, fire W002 instead.
-                    _maybe_emit_w002(constset_vals, site_range)
+                    # disabled in the active dialect, fire W002 instead —
+                    # but only when the entire command word is just the
+                    # variable. ``${cmd}x`` dispatches to ``<value>x``,
+                    # not the literal value, so the disabled-name lookup
+                    # would not apply.
+                    if cmd_word_single:
+                        _maybe_emit_w002(constset_vals, site_range)
                     continue
 
                 # Emit W307 unless inside a method body or a function with
@@ -370,7 +381,13 @@ class _AnalyserDiagVarCommandMixin(_Base):
                     w307_indices[(d.range.start.offset, d.range.end.offset)] = i
 
             remove_indices: list[int] = []
-            for cmd_text, method_name, site_range, in_method in self._cmd_command_sites:
+            for (
+                cmd_text,
+                method_name,
+                site_range,
+                in_method,
+                _cmd_word_single,
+            ) in self._cmd_command_sites:
                 # Parse the command substitution: [Dog new] → ("Dog", ("new",))
                 inner = cmd_text.strip()
                 if inner.startswith("[") and inner.endswith("]"):
