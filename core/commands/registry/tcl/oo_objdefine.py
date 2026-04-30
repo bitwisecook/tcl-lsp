@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import Arity, BodyKind
 from ._base import register
 from .oo_define import _oo_define_arg_roles
 
@@ -115,6 +115,13 @@ class OoObjdefineCommand(CommandDef):
                 arity=Arity(1),
             ),
             arg_role_resolver=_oo_define_arg_roles,
+            # Per-instance counterpart of ``oo::define``: body forms
+            # (``method``, ``forward``, ``private``, ``property
+            # -get/-set``, and the bare ``oo::objdefine $obj { defScript
+            # }`` form) all run in the object's own definition context,
+            # not the caller's scope.  STRUCTURAL keeps the body out of
+            # the enclosing block's data flow.
+            body_kind=BodyKind.STRUCTURAL,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(
