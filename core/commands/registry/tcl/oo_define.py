@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "Tcl man page define.n"
@@ -229,6 +229,14 @@ class OoDefineCommand(CommandDef):
                 arity=Arity(1),
             ),
             arg_role_resolver=_oo_define_arg_roles,
+            # ``oo::define`` body forms (``method``, ``classmethod``,
+            # ``constructor``, ``destructor``, ``initialise``, ``self``
+            # methods, ``private``, ``property -get/-set`` and the bare
+            # ``oo::define $cls { defScript }`` form) all run in the
+            # class's definition context, not the caller's scope.  The
+            # OO analyser (``_handle_oo_define_command``) recurses into
+            # those bodies separately.
+            body_kind=BodyKind.STRUCTURAL,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

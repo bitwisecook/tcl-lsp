@@ -5,7 +5,7 @@ from __future__ import annotations
 from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarget
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import register
 
 _SOURCE = "tcllib snit package"
@@ -39,6 +39,11 @@ class SnitTypeCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::type name definition"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
+            arg_roles={1: frozenset({ArgRole.BODY})},
+            # The definition body runs in snit's own definition context
+            # (it's reinterpreted by snit's parser into a class
+            # description), not the caller's scope.
+            body_kind=BodyKind.STRUCTURAL,
             creates_dynamic_barrier=True,
             never_inline_body=True,
             side_effect_hints=(
@@ -71,6 +76,10 @@ class SnitWidgetCommand(CommandDef):
             ),
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::widget name definition"),),
             validation=ValidationSpec(arity=Arity(2, 2)),
+            arg_roles={1: frozenset({ArgRole.BODY})},
+            # See ``snit::type`` — definition body runs in snit's own
+            # definition context.
+            body_kind=BodyKind.STRUCTURAL,
             creates_dynamic_barrier=True,
             never_inline_body=True,
         )
@@ -97,6 +106,10 @@ class SnitWidgetadaptorCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(2, 2)),
+            arg_roles={1: frozenset({ArgRole.BODY})},
+            # See ``snit::type`` — definition body runs in snit's own
+            # definition context.
+            body_kind=BodyKind.STRUCTURAL,
             creates_dynamic_barrier=True,
             never_inline_body=True,
         )
@@ -123,6 +136,11 @@ class SnitTypemethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
+            arg_roles={3: frozenset({ArgRole.BODY})},
+            # Type method bodies run in the type's own dispatch context,
+            # not the caller's scope — STRUCTURAL keeps the body out of
+            # the enclosing block's data flow.
+            body_kind=BodyKind.STRUCTURAL,
         )
 
 
@@ -147,6 +165,11 @@ class SnitMethodCommand(CommandDef):
                 ),
             ),
             validation=ValidationSpec(arity=Arity(4, 4)),
+            arg_roles={3: frozenset({ArgRole.BODY})},
+            # Instance method bodies run in the object's own dispatch
+            # context, not the caller's scope — STRUCTURAL keeps the
+            # body out of the enclosing block's data flow.
+            body_kind=BodyKind.STRUCTURAL,
         )
 
 
@@ -167,6 +190,10 @@ class SnitCompileCommand(CommandDef):
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::compile which name body"),),
             validation=ValidationSpec(arity=Arity(3, 3)),
             arg_roles={2: frozenset({ArgRole.BODY})},
+            # The body is a snit type definition — run through snit's
+            # compiler in its own definition context, not the caller's
+            # scope.
+            body_kind=BodyKind.STRUCTURAL,
             creates_dynamic_barrier=True,
             never_inline_body=True,
             side_effect_hints=(
@@ -196,6 +223,10 @@ class SnitMacroCommand(CommandDef):
             forms=(FormSpec(kind=FormKind.DEFAULT, synopsis="snit::macro name arglist body"),),
             validation=ValidationSpec(arity=Arity(3, 3)),
             arg_roles={2: frozenset({ArgRole.BODY})},
+            # Macro bodies are reinterpreted by snit during type
+            # definition processing — they don't share the caller's
+            # scope.
+            body_kind=BodyKind.STRUCTURAL,
             side_effect_hints=(
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE,

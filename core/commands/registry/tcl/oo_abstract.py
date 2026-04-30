@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from ....compiler.types import TclType
 from .._base import CommandDef, make_av
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
-from ..signatures import Arity
+from ..signatures import Arity, BodyKind
 from ._base import register
 from .oo_class import _oo_metaclass_arg_roles
 
@@ -62,6 +62,9 @@ class OoAbstractCommand(CommandDef):
                 arity=Arity(),
             ),
             arg_role_resolver=_oo_metaclass_arg_roles,
+            # See ``oo::class`` — the metaclass body runs in the class's
+            # own definition context, not the caller's scope.
+            body_kind=BodyKind.STRUCTURAL,
             return_type=TclType.STRING,
             side_effect_hints=(
                 SideEffect(

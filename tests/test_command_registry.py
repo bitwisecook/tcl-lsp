@@ -849,3 +849,233 @@ class TestBodyKind:
         # applies — preserving the behaviour for tcltest-style packages
         # where the bare name is the conventional spelling.
         assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL
+
+
+class TestOOAndSnitStructuralBodies:
+    """Issue #250 — TclOO and snit method bodies are structural.
+
+    ``oo::class`` (and the sister metaclasses ``oo::abstract``,
+    ``oo::singleton``, ``oo::configurable``), ``oo::define``,
+    ``snit::method`` / ``snit::typemethod`` and ``uri::register`` all
+    take body arguments that run in their own definition / dispatch
+    context — not in the caller's scope.  Marking them
+    :class:`BodyKind.STRUCTURAL` keeps SSA from scanning their bodies as
+    part of the enclosing block's data flow, mirroring ``proc`` /
+    ``when`` / ``tcltest::test``.
+    """
+
+    def test_oo_class_create_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["create", "FOO", "body"]
+        assert body_kind_for_command("oo::class", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::class", args, ArgRole.BODY) == {2}
+
+    def test_oo_class_new_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["new", "body"]
+        assert body_kind_for_command("oo::class", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::class", args, ArgRole.BODY) == {1}
+
+    def test_oo_class_create_with_namespace_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["createWithNamespace", "FOO", "ns", "body"]
+        assert body_kind_for_command("oo::class", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::class", args, ArgRole.BODY) == {3}
+
+    def test_sister_oo_metaclasses_match_oo_class(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # All four metaclasses share ``_oo_metaclass_arg_roles`` and must
+        # share the structural-body classification — otherwise the same
+        # ``cls create FOO { defScript }`` form would be analysed
+        # differently depending on the metaclass.
+        for cmd in ("oo::abstract", "oo::singleton", "oo::configurable"):
+            assert body_kind_for_command(cmd, ["create", "FOO", "body"]) is BodyKind.STRUCTURAL, cmd
+
+    def test_oo_define_method_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Cls", "method", "foo", "args", "body"]
+        assert body_kind_for_command("oo::define", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {4}
+
+    def test_oo_define_constructor_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Cls", "constructor", "args", "body"]
+        assert body_kind_for_command("oo::define", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {3}
+
+    def test_oo_define_destructor_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Cls", "destructor", "body"]
+        assert body_kind_for_command("oo::define", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {2}
+
+    def test_oo_define_bare_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        # ``oo::define Cls { defScript }`` — the 2-arg form.
+        args = ["Cls", "body"]
+        assert body_kind_for_command("oo::define", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::define", args, ArgRole.BODY) == {1}
+
+    def test_snit_method_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Type", "name", "arglist", "body"]
+        assert body_kind_for_command("snit::method", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::method", args, ArgRole.BODY) == {3}
+
+    def test_snit_typemethod_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Type", "name", "arglist", "body"]
+        assert body_kind_for_command("snit::typemethod", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::typemethod", args, ArgRole.BODY) == {3}
+
+    def test_uri_register_handler_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["scheme", "script"]
+        assert body_kind_for_command("uri::register", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("uri::register", args, ArgRole.BODY) == {1}
+
+    def test_oo_objdefine_method_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["$obj", "method", "foo", "args", "body"]
+        assert body_kind_for_command("oo::objdefine", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::objdefine", args, ArgRole.BODY) == {4}
+
+    def test_oo_objdefine_bare_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        # ``oo::objdefine $obj { defScript }`` — the 2-arg form.
+        args = ["$obj", "body"]
+        assert body_kind_for_command("oo::objdefine", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("oo::objdefine", args, ArgRole.BODY) == {1}
+
+    def test_snit_type_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["Dog", "body"]
+        assert body_kind_for_command("snit::type", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::type", args, ArgRole.BODY) == {1}
+
+    def test_snit_widget_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["MyW", "body"]
+        assert body_kind_for_command("snit::widget", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::widget", args, ArgRole.BODY) == {1}
+
+    def test_snit_widgetadaptor_definition_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["MyW", "body"]
+        assert body_kind_for_command("snit::widgetadaptor", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::widgetadaptor", args, ArgRole.BODY) == {1}
+
+    def test_snit_compile_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["type", "name", "body"]
+        assert body_kind_for_command("snit::compile", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::compile", args, ArgRole.BODY) == {2}
+
+    def test_snit_macro_body_is_structural(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+        )
+
+        args = ["name", "arglist", "body"]
+        assert body_kind_for_command("snit::macro", args) is BodyKind.STRUCTURAL
+        assert arg_indices_for_role("snit::macro", args, ArgRole.BODY) == {2}
