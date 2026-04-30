@@ -100,7 +100,7 @@ _DEEP_VAR_REF_SCANNER = VarReferenceScanner(
     VarScanOptions(
         include_var_read_roles=True,
         recurse_cmd_substitutions=True,
-        recurse_braced_strings=True,
+        recurse_into_script_roles=True,
     )
 )
 

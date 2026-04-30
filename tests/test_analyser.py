@@ -1567,6 +1567,27 @@ class TestInterpAlias:
         assert len(w214) == 1
         assert "unused" in w214[0].message
 
+    def test_dict_for_braced_data_word_not_a_use(self):
+        """Braced data words inside ``dict for`` bodies must not count as uses.
+
+        ``{$unused}`` is a literal — Tcl braces inhibit substitution.  The
+        deep body scanner only descends into argument positions registered
+        as ``ArgRole.BODY``/``EXPR`` so plain data words are left alone.
+        """
+        source = textwrap.dedent("""\
+            proc foo {used unused} {
+                set d [dict create]
+                dict for {k v} $d {
+                    set msg {$unused}
+                    puts $used
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "unused" in w214[0].message
+
 
 class TestW123UnresolvedCommand:
     """W123: Unresolved command detection and unknown proc analysis."""
