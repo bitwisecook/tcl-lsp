@@ -22,19 +22,9 @@ from core.compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-_ZIG_RUNTIME_PATH = Path(
-    os.environ.get(
-        "TCL_LSP_RUNTIME_WASM",
-        str(
-            Path(__file__).resolve().parent.parent
-            / "runtime"
-            / "zig"
-            / "zig-out"
-            / "bin"
-            / "tcl_runtime.wasm"
-        ),
-    )
-)
+from core.runtime_wasm import runtime_wasm_path
+
+_ZIG_RUNTIME_PATH = runtime_wasm_path()
 
 _SNIPPETS_DIR = Path(__file__).resolve().parent / "bytecode_snippets"
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"

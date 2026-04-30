@@ -51,7 +51,8 @@ sys.path.insert(0, str(REPO))
 # ``make build-runtime-leakcheck`` writes to, so this is a no-op in
 # the common workflow; the env var lets a contributor point at a
 # saved binary for offline analysis.
-LEAKCHECK_WASM = REPO / "runtime" / "zig" / "zig-out" / "bin" / "tcl_runtime.wasm"
+from core.runtime_wasm import DEFAULT_PATH as LEAKCHECK_WASM  # noqa: E402
+
 os.environ.setdefault("TCL_LSP_RUNTIME_WASM", str(LEAKCHECK_WASM))
 
 from tests.external.run_tcl9_tests import _IN_SCOPE, _bundle  # noqa: E402

@@ -20,15 +20,11 @@ from core.compiler.lowering import lower_to_ir
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-# Path to the pre-built Zig WASM runtime
-_ZIG_RUNTIME_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "runtime"
-    / "zig"
-    / "zig-out"
-    / "bin"
-    / "tcl_runtime.wasm"
-)
+# Path to the pre-built Zig WASM runtime — the helper auto-builds
+# on a fresh checkout where the artefact isn't yet on disk.
+from core.runtime_wasm import runtime_wasm_path
+
+_ZIG_RUNTIME_PATH = runtime_wasm_path()
 
 # Shared wasmtime engine (expensive to create — reuse across tests)
 _engine: wasmtime.Engine | None = None
