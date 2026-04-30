@@ -1487,6 +1487,107 @@ class TestInterpAlias:
         assert len(w214) == 1
         assert "y" in w214[0].message
 
+    def test_dict_for_body_uses_no_w214(self):
+        """Issue #234: params used inside ``dict for`` body must not trigger W214."""
+        source = textwrap.dedent("""\
+            proc foo {targetKey} {
+                set d [dict create]
+                dict for {k v} $d {
+                    if {[dict exists $v $targetKey]} { puts hi }
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_issue_234_dict_prune(self):
+        """Full ``dictPrune`` example from issue #234 — no W214 false positives."""
+        source = textwrap.dedent("""\
+            proc dictPrune {tree targetKey maxDepth retainRules skipRules {cutBelow 0} {level 0}} {
+                set result [dict create]
+                dict for {k v} $tree {
+                    if {[dict exists $retainRules $level]
+                        && [lsearch -exact [dict get $retainRules $level] $k] < 0} {
+                        continue
+                    }
+                    if {[dict exists $skipRules $level]
+                        && [lsearch -exact [dict get $skipRules $level] $k] >= 0} {
+                        continue
+                    }
+                    if {$level == $maxDepth} {
+                        if {[dict exists $v $targetKey]} {
+                            if {$cutBelow} {
+                                dict set result $k [dict create]
+                            } else {
+                                dict set result $k $v
+                            }
+                        }
+                    } else {
+                        set sub [dictPrune $v $targetKey $maxDepth $retainRules $skipRules $cutBelow [expr {$level+1}]]
+                        if {[dict size $sub] > 0} {
+                            dict set result $k $sub
+                        }
+                    }
+                }
+                return $result
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_dict_map_body_uses_no_w214(self):
+        """``dict map`` body usage tracked the same as ``dict for``."""
+        source = textwrap.dedent("""\
+            proc foo {threshold} {
+                set d [dict create]
+                dict map {k v} $d {
+                    if {$v > $threshold} { set v $threshold }
+                    set v
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 0
+
+    def test_dict_for_body_truly_unused_still_warns(self):
+        """Param not referenced in ``dict for`` body still triggers W214."""
+        source = textwrap.dedent("""\
+            proc foo {used unused} {
+                set d [dict create]
+                dict for {k v} $d {
+                    puts $used
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "unused" in w214[0].message
+
+    def test_dict_for_braced_data_word_not_a_use(self):
+        """Braced data words inside ``dict for`` bodies must not count as uses.
+
+        ``{$unused}`` is a literal — Tcl braces inhibit substitution.  The
+        deep body scanner only descends into argument positions registered
+        as ``ArgRole.BODY``/``EXPR`` so plain data words are left alone.
+        """
+        source = textwrap.dedent("""\
+            proc foo {used unused} {
+                set d [dict create]
+                dict for {k v} $d {
+                    set msg {$unused}
+                    puts $used
+                }
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert len(w214) == 1
+        assert "unused" in w214[0].message
+
 
 class TestW123UnresolvedCommand:
     """W123: Unresolved command detection and unknown proc analysis."""
