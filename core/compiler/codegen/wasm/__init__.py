@@ -341,6 +341,7 @@ def wasm_codegen_module(
     frame_elision: bool = True,
     inline: bool = True,
     licm: bool = True,
+    dce: bool = True,
 ) -> WasmModule:
     """Generate a complete WASM module from a CFG module.
 
@@ -438,6 +439,26 @@ def wasm_codegen_module(
                 cfg_module = _build_cfg2(ir_module)
                 escape_summaries = analyse_var_escape(ir_module=ir_module)
         except Exception:  # noqa: BLE001 — LICM is opportunistic
+            pass
+
+    # Phase 0.7: S5.4 — dead-store elimination.  Removes
+    # ``IRAssignConst`` / ``IRAssignValue`` / ``IRAssignExpr`` /
+    # ``IRIncr`` whose target is only written once and never read.
+    # Only fires on ``ALWAYS``-tagged (pure_leaf) procs since
+    # other procs may read vars dynamically through eval / upvar /
+    # info.  Subtractive at the script level — rebuilds the CFG
+    # and var-escape after changes.
+    if dce:
+        try:
+            from ...passes.dce import dce_module as _dce
+            from ...cfg import build_cfg as _build_cfg3
+
+            cleaned = _dce(ir_module)
+            if cleaned is not ir_module:
+                ir_module = cleaned
+                cfg_module = _build_cfg3(ir_module)
+                escape_summaries = analyse_var_escape(ir_module=ir_module)
+        except Exception:  # noqa: BLE001 — DCE is opportunistic
             pass
 
     module = WasmModule()
