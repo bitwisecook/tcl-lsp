@@ -764,3 +764,38 @@ class TestBodyKind:
         # Defensive default: unknown commands don't get treated as
         # structural bodies and have their args silently dropped.
         assert body_kind_for_command("::my::custom::cmd", ["body"]) is BodyKind.INLINE
+
+    def test_extra_command_registration_shadows_exported_alias(self):
+        from core.commands.registry.runtime import (
+            ArgRole,
+            BodyKind,
+            arg_indices_for_role,
+            body_kind_for_command,
+            configure_signatures,
+        )
+
+        # A user-defined ``test`` command (registered via extra_commands)
+        # must shadow the ``test`` → ``tcltest::test`` static over-
+        # approximation.  Otherwise CFG/SSA/check passes would
+        # misclassify a user proc named ``test`` as a structural-body
+        # tcltest test.
+        try:
+            configure_signatures(dialect="tcl8.6", extra_commands=["test"])
+            # Direct registration → no body, no alias spillover.
+            assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.INLINE
+            assert arg_indices_for_role("test", ["a", "b", "-body", "x"], ArgRole.BODY) == set()
+            # And the qualified ``tcltest::test`` is unaffected.
+            assert (
+                body_kind_for_command("tcltest::test", ["a", "b", "-body", "x"])
+                is BodyKind.STRUCTURAL
+            )
+        finally:
+            configure_signatures(dialect="tcl8.6", extra_commands=[])
+
+    def test_bare_test_resolves_to_alias_when_no_direct_registration(self):
+        from core.commands.registry.runtime import BodyKind, body_kind_for_command
+
+        # With no ``extra_commands`` registration, the static alias still
+        # applies — preserving the behaviour for tcltest-style packages
+        # where the bare name is the conventional spelling.
+        assert body_kind_for_command("test", ["a", "b", "-body", "x"]) is BodyKind.STRUCTURAL
