@@ -249,6 +249,17 @@ class TestDialectProfiles:
         assert len(w002) == 1
         assert "'open' is disabled" in w002[0].message
 
+    def test_w002_skipped_for_composite_substitution_command_word(self):
+        # ``${cmd}x`` dispatches to ``<value>x`` at runtime, not the
+        # variable's value. Even when the lattice resolves ``$cmd`` to
+        # a disabled command name like ``open``, W002 must not fire on
+        # the composite word because the actual concatenated command
+        # (``openx``) is unknown.
+        configure_signatures(dialect="f5-irules")
+        src = "set cmd open\n${cmd}x /tmp/x\n"
+        result = analyse(src)
+        assert all(d.code != "W002" for d in result.diagnostics)
+
     def test_w002_fires_for_fully_qualified_disallowed_command(self):
         # The command registry is keyed without a leading ``::``; W002
         # must strip it so ``::open`` under the iRules dialect is
