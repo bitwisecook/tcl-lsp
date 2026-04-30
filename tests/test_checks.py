@@ -1300,7 +1300,7 @@ class TestLiteralExpected:
         diags = _diag_with_code("regexp -- ${ns::pattern} $text", "W306")
         assert len(diags) == 0
 
-    def test_regexp_bare_cmd_pattern_warns(self):
+    def test_regsub_bare_cmd_pattern_warns(self):
         # ``[cmd]`` patterns must still be flagged: a literal like ``[a-z]``
         # looks like a regex character class but is parsed by Tcl as a
         # command substitution.  Catching that confusion is exactly what
@@ -1312,6 +1312,32 @@ class TestLiteralExpected:
         # Classic Tcl foot-gun: ``[a-z]`` parses as command substitution.
         diags = _diag_with_code("regexp -- [a-z] $text", "W306")
         assert len(diags) == 1
+
+    def test_regexp_bare_var_in_dict_filter_body_clean(self):
+        # Issue #235 reproducer: the bare-var suppression must apply when
+        # the pattern is inside a nested braced script body (the analyser
+        # recursively checks bodies of ``dict filter ... script ... body``).
+        diags = _diag_with_code(
+            "set out [dict filter $d script {key value}"
+            " {regexp $pattern $value}]",
+            "W306",
+        )
+        assert len(diags) == 0
+
+    def test_regexp_bare_var_in_proc_body_clean(self):
+        # Suppression must also apply deep inside proc/if/foreach bodies,
+        # which use absolute base-offsets when re-lexed.
+        source = (
+            "proc f {} {\n"
+            "    if {1} {\n"
+            "        foreach x [list a b] {\n"
+            "            regexp $pattern $x\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+        diags = _diag_with_code(source, "W306")
+        assert len(diags) == 0
 
     def test_regexp_concatenated_var_pattern_warns(self):
         # Concatenation like ``$a$b`` is not a single bare substitution
