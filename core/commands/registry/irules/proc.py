@@ -7,7 +7,7 @@ from ....compiler.side_effects import ConnectionSide, SideEffect, SideEffectTarg
 from .._base import CommandDef
 from ..models import CommandSpec, FormKind, FormSpec, HoverSnippet, ValidationSpec
 from ..namespace_models import EventRequires
-from ..signatures import ArgRole, Arity
+from ..signatures import ArgRole, Arity, BodyKind
 from ._base import _IRULES_ONLY, register
 
 _SOURCE = "https://clouddocs.f5.com/api/irules/proc.html"
@@ -45,6 +45,7 @@ class ProcCommand(CommandDef):
             ),
             event_requires=EventRequires(),
             arg_roles={0: ArgRole.NAME, 1: ArgRole.PARAM_LIST, 2: ArgRole.BODY},
+            body_kind=BodyKind.STRUCTURAL,
             defines_procedure=True,
             side_effect_hints=(
                 SideEffect(

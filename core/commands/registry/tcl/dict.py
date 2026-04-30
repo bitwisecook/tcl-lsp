@@ -33,9 +33,15 @@ _SOURCE = "Tcl man page dict.n"
 
 
 def _dict_last_arg_body(args: list[str]) -> dict[int, ArgRole]:
-    """Last argument is a body script (for dict update/with)."""
+    """Last argument is a body script (for dict update/with).
+
+    Argument 0 is the dict variable: it is both *written* (the dict is
+    rewritten when the body returns) and *read* (its keys are unpacked
+    into local variables of the same name for the body's duration), so
+    it carries the combined :class:`ArgRole.VAR_READ_WRITE` role.
+    """
     if len(args) >= 2:
-        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_WRITE}
+        return {len(args) - 1: ArgRole.BODY, 0: ArgRole.VAR_READ_WRITE}
     return {}
 
 
@@ -231,9 +237,10 @@ class DictCommand(CommandDef):
                     arity=Arity(3, 3),
                     detail="This command takes three arguments, the first a two-element list of variable names (for the key and value respectively of each mapping in the dictionary), the second the dictionary value to iterate across, and the third…",
                     synopsis="dict for {keyVariable valueVariable} dictionaryValue body",
-                    arg_roles={2: ArgRole.BODY},
+                    arg_roles={0: ArgRole.LOOP_VAR_LIST, 2: ArgRole.BODY},
                     arg_types={1: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     loop_list_header=True,
+                    cfg_rewrite_name="::tcl::dict::for",
                 ),
                 "get": SubCommand(
                     name="get",
@@ -302,9 +309,10 @@ class DictCommand(CommandDef):
                     arity=Arity(3, 3),
                     detail="This command applies a transformation to each element of a dictionary, returning a new dictionary.",
                     synopsis="dict map {keyVariable valueVariable} dictionaryValue body",
-                    arg_roles={2: ArgRole.BODY},
+                    arg_roles={0: ArgRole.LOOP_VAR_LIST, 2: ArgRole.BODY},
                     arg_types={1: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     loop_list_header=True,
+                    cfg_rewrite_name="::tcl::dict::map",
                 ),
                 "merge": SubCommand(
                     name="merge",
