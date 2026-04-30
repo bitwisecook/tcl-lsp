@@ -159,11 +159,7 @@ class _WasmEmitterValuesMixin(_Base):
                 # ``_resolve_var_name``'s upstream check, and the
                 # const-map itself is invalidated on any non-
                 # const write to the slot.
-                if (
-                    self._optimise
-                    and var not in self._aliases
-                    and var in self._const_map
-                ):
+                if self._optimise and var not in self._aliases and var in self._const_map:
                     immediate = _try_tagged_immediate(self._const_map[var])
                     if immediate is not None:
                         self._emit_i32_const(immediate)
@@ -180,11 +176,7 @@ class _WasmEmitterValuesMixin(_Base):
             if value in self._aliases:
                 self._emit_var_read_obj(value)
                 return Ownership.BORROWED
-            if (
-                self._optimise
-                and value not in self._aliases
-                and value in self._const_map
-            ):
+            if self._optimise and value not in self._aliases and value in self._const_map:
                 immediate = _try_tagged_immediate(self._const_map[value])
                 if immediate is not None:
                     self._emit_i32_const(immediate)

@@ -79,8 +79,7 @@ def main() -> int:
 
     if missing:
         print(
-            f"WARNING: {len(missing)} runtime exports missing from "
-            f"{CONTRACT.relative_to(REPO)}:",
+            f"WARNING: {len(missing)} runtime exports missing from {CONTRACT.relative_to(REPO)}:",
             file=sys.stderr,
         )
         for name in missing:
@@ -106,8 +105,7 @@ def main() -> int:
         )
         return 0
     print(
-        f"OK: every runtime export has a contract row "
-        f"({len(exports)} exports / {len(rows)} rows).",
+        f"OK: every runtime export has a contract row ({len(exports)} exports / {len(rows)} rows).",
         file=sys.stderr,
     )
     return 0

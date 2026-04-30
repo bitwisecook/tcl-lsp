@@ -30,19 +30,14 @@ class TestRedundantExprElimination:
         # the second computation is redundant.  GVN replaces it
         # with ``set z $y``.
         module = _module(
-            'proc f {x} {\n'
-            '  set y [expr {$x + 1}]\n'
-            '  set z [expr {$x + 1}]\n'
-            '  return $z\n'
-            '}\n'
+            "proc f {x} {\n  set y [expr {$x + 1}]\n  set z [expr {$x + 1}]\n  return $z\n}\n"
         )
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "y") == ["IRAssignExpr"]
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignValue"]
         proc = new_module.procedures["::f"]
         z_stmt = next(
-            s for s in proc.body.statements
-            if isinstance(s, IRAssignValue) and s.name == "z"
+            s for s in proc.body.statements if isinstance(s, IRAssignValue) and s.name == "z"
         )
         assert z_stmt.value == "$y"
 
@@ -51,23 +46,19 @@ class TestRedundantExprElimination:
         # 1}]`` — the source var ``x`` was rebound, so the second
         # expr is NOT equivalent.  GVN keeps both IRAssignExpr.
         module = _module(
-            'proc f {x} {\n'
-            '  set y [expr {$x + 1}]\n'
-            '  set x 99\n'
-            '  set z [expr {$x + 1}]\n'
-            '  return $z\n'
-            '}\n'
+            "proc f {x} {\n"
+            "  set y [expr {$x + 1}]\n"
+            "  set x 99\n"
+            "  set z [expr {$x + 1}]\n"
+            "  return $z\n"
+            "}\n"
         )
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]
 
     def test_distinct_expressions_kept(self):
         module = _module(
-            'proc f {x} {\n'
-            '  set y [expr {$x + 1}]\n'
-            '  set z [expr {$x + 2}]\n'
-            '  return $z\n'
-            '}\n'
+            "proc f {x} {\n  set y [expr {$x + 1}]\n  set z [expr {$x + 2}]\n  return $z\n}\n"
         )
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]
@@ -76,10 +67,7 @@ class TestRedundantExprElimination:
         # ``[cmd]`` has unknown side effects — GVN must not
         # cache its result.  Both writes stay.
         module = _module(
-            'proc f {x} {\n'
-            '  set y [expr {$x + [foo]}]\n'
-            '  set z [expr {$x + [foo]}]\n'
-            '}\n'
+            "proc f {x} {\n  set y [expr {$x + [foo]}]\n  set z [expr {$x + [foo]}]\n}\n"
         )
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]
@@ -88,11 +76,7 @@ class TestRedundantExprElimination:
         # An ``IRCall`` between the two expressions might side-
         # effect via eval / upvar — clear the table to be safe.
         module = _module(
-            'proc f {x} {\n'
-            '  set y [expr {$x + 1}]\n'
-            '  puts "between"\n'
-            '  set z [expr {$x + 1}]\n'
-            '}\n'
+            'proc f {x} {\n  set y [expr {$x + 1}]\n  puts "between"\n  set z [expr {$x + 1}]\n}\n'
         )
         new_module = gvn_module(module)
         assert _proc_assign_kinds(new_module, "::f", "z") == ["IRAssignExpr"]
@@ -100,19 +84,12 @@ class TestRedundantExprElimination:
 
 class TestPurity:
     def test_idempotent(self):
-        module = _module(
-            'proc f {x} {\n'
-            '  set y [expr {$x + 1}]\n'
-            '  set z [expr {$x + 1}]\n'
-            '}\n'
-        )
+        module = _module("proc f {x} {\n  set y [expr {$x + 1}]\n  set z [expr {$x + 1}]\n}\n")
         once = gvn_module(module)
         twice = gvn_module(once)
-        assert _proc_assign_kinds(once, "::f", "z") == _proc_assign_kinds(
-            twice, "::f", "z"
-        )
+        assert _proc_assign_kinds(once, "::f", "z") == _proc_assign_kinds(twice, "::f", "z")
 
     def test_no_change_when_no_duplicates(self):
-        module = _module('proc f {x} { set y [expr {$x + 1}] }\n')
+        module = _module("proc f {x} { set y [expr {$x + 1}] }\n")
         new_module = gvn_module(module)
         assert new_module is module

@@ -35,6 +35,7 @@ from dataclasses import replace
 
 from ..expr_ast import vars_in_expr_node
 from ..ir import (
+    InlineDecision,
     IRAssignConst,
     IRAssignExpr,
     IRAssignValue,
@@ -54,9 +55,7 @@ from ..ir import (
     IRTry,
     IRUpFrame,
     IRWhile,
-    InlineDecision,
 )
-
 
 # Matches both ``$name`` and ``${name}`` substitutions.  Tcl
 # variable names are alphanumeric + underscore + ``::`` for fully

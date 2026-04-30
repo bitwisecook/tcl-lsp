@@ -51,8 +51,7 @@ def main() -> int:
 
     if not new:
         print(
-            f"no fresh results at {RESULTS.relative_to(REPO)}; "
-            "run scripts/leak_sweep.py first.",
+            f"no fresh results at {RESULTS.relative_to(REPO)}; run scripts/leak_sweep.py first.",
             file=sys.stderr,
         )
         return 1
@@ -93,21 +92,13 @@ def main() -> int:
             improvements.append(f"{stem}  NEW ({na} alloc, {nd} df)")
             continue
         if na > ba:
-            regressions.append(
-                f"{stem}  alloc {ba:>8d} -> {na:>8d}  (+{na - ba})"
-            )
+            regressions.append(f"{stem}  alloc {ba:>8d} -> {na:>8d}  (+{na - ba})")
         elif na < ba:
-            improvements.append(
-                f"{stem}  alloc {ba:>8d} -> {na:>8d}  ({na - ba})"
-            )
+            improvements.append(f"{stem}  alloc {ba:>8d} -> {na:>8d}  ({na - ba})")
         if nd > bd:
-            regressions.append(
-                f"{stem}  double-free {bd} -> {nd}  (+{nd - bd})"
-            )
+            regressions.append(f"{stem}  double-free {bd} -> {nd}  (+{nd - bd})")
         elif nd < bd:
-            improvements.append(
-                f"{stem}  double-free {bd} -> {nd}  ({nd - bd})"
-            )
+            improvements.append(f"{stem}  double-free {bd} -> {nd}  ({nd - bd})")
 
     if improvements:
         print(f"IMPROVEMENTS ({len(improvements)}):")

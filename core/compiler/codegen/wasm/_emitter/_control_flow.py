@@ -249,9 +249,7 @@ class _WasmEmitterCtrlMixin(_Base):
             # Both branches produce a fresh TclObj (tcl_list_index
             # returns obj_new_string_copy, the fallback boxes a fresh
             # int).  S2.3 migration.
-            self._emit_owned_local_write(
-                var_local, Ownership.OWNED, keep_on_stack=False
-            )
+            self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1

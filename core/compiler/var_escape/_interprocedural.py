@@ -223,6 +223,7 @@ def solve_interprocedural_escape(
     # only if all of its direct callees are themselves pure_leaf.
     # Iterate until stable.  Bounded by len(summaries) iterations.
     from dataclasses import replace as _replace
+
     from ._propagation import _FRAMELESS_RUNTIME_COMMANDS
 
     changed = True

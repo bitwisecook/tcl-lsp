@@ -7,7 +7,6 @@ import textwrap
 from core.compiler.inlining import (
     SMALL_BODY_THRESHOLD,
     apply_inline_catalogue,
-    classify_proc,
     count_statements,
     count_static_calls,
 )
@@ -30,22 +29,12 @@ class TestStatementCount:
         assert count_statements(proc.body) == 0
 
     def test_flat_body_counts_top_level(self):
-        module = lower_to_ir(
-            "proc foo {} {\n"
-            "  set a 1\n"
-            "  set b 2\n"
-            "  set c 3\n"
-            "}\n"
-        )
+        module = lower_to_ir("proc foo {} {\n  set a 1\n  set b 2\n  set c 3\n}\n")
         proc = module.procedures["::foo"]
         assert count_statements(proc.body) == 3
 
     def test_nested_if_counts_inner(self):
-        module = lower_to_ir(
-            "proc foo {x} {\n"
-            "  if {$x} { set a 1 }\n"
-            "}\n"
-        )
+        module = lower_to_ir("proc foo {x} {\n  if {$x} { set a 1 }\n}\n")
         proc = module.procedures["::foo"]
         # IRIf contributes (1 for the clause + nested set)
         assert count_statements(proc.body) >= 1
@@ -53,20 +42,14 @@ class TestStatementCount:
 
 class TestStaticCallCount:
     def test_top_level_call_counted(self):
-        module = lower_to_ir(
-            "proc add {a b} { return [expr {$a + $b}] }\n"
-            "add 1 2\n"
-        )
+        module = lower_to_ir("proc add {a b} { return [expr {$a + $b}] }\nadd 1 2\n")
         summaries = analyse_var_escape(ir_module=module)
         counts = count_static_calls(module, summaries)
         assert counts.get("::add", 0) == 1
 
     def test_multiple_calls_counted(self):
         module = lower_to_ir(
-            "proc add {a b} { return [expr {$a + $b}] }\n"
-            "add 1 2\n"
-            "add 3 4\n"
-            "add 5 6\n"
+            "proc add {a b} { return [expr {$a + $b}] }\nadd 1 2\nadd 3 4\nadd 5 6\n"
         )
         summaries = analyse_var_escape(ir_module=module)
         counts = count_static_calls(module, summaries)
@@ -81,9 +64,7 @@ class TestStaticCallCount:
 
 class TestClassify:
     def test_small_pure_leaf_is_always(self):
-        module, summaries = _catalogue(
-            "proc add {a b} { return [expr {$a + $b}] }\n"
-        )
+        module, summaries = _catalogue("proc add {a b} { return [expr {$a + $b}] }\n")
         proc = module.procedures["::add"]
         # Small + pure_leaf → ALWAYS regardless of call count.
         assert proc.inline_decision is InlineDecision.ALWAYS
@@ -91,20 +72,14 @@ class TestClassify:
     def test_non_pure_leaf_is_never(self):
         # ``upvar`` makes the proc non-pure_leaf.
         module, summaries = _catalogue(
-            "proc setter {name val} {\n"
-            "  upvar 1 $name v\n"
-            "  set v $val\n"
-            "}\n"
+            "proc setter {name val} {\n  upvar 1 $name v\n  set v $val\n}\n"
         )
         proc = module.procedures["::setter"]
         assert proc.inline_decision is InlineDecision.NEVER
 
     def test_large_pure_leaf_with_one_caller_is_if_single_call(self):
         body_lines = "\n".join(f"  set v{i} {i}" for i in range(SMALL_BODY_THRESHOLD + 2))
-        source = (
-            f"proc big {{}} {{\n{body_lines}\n}}\n"
-            "big\n"
-        )
+        source = f"proc big {{}} {{\n{body_lines}\n}}\nbig\n"
         module, _ = _catalogue(source)
         proc = module.procedures["::big"]
         assert proc.static_call_count == 1
@@ -112,11 +87,7 @@ class TestClassify:
 
     def test_large_pure_leaf_with_two_callers_is_never(self):
         body_lines = "\n".join(f"  set v{i} {i}" for i in range(SMALL_BODY_THRESHOLD + 2))
-        source = (
-            f"proc big {{}} {{\n{body_lines}\n}}\n"
-            "big\n"
-            "big\n"
-        )
+        source = f"proc big {{}} {{\n{body_lines}\n}}\nbig\nbig\n"
         module, _ = _catalogue(source)
         proc = module.procedures["::big"]
         assert proc.static_call_count == 2

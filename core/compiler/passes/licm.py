@@ -153,11 +153,7 @@ def _licm_stmt(stmt: object) -> tuple[list, object] | None:
             # Recurse into the body for nested loops, but don't
             # hoist out of THIS loop.
             recursed_body = _licm_script(stmt.body)
-            if (
-                new_init is stmt.init
-                and new_next is stmt.next
-                and recursed_body is stmt.body
-            ):
+            if new_init is stmt.init and new_next is stmt.next and recursed_body is stmt.body:
                 return None
             return (
                 [],
@@ -236,9 +232,7 @@ def _licm_stmt(stmt: object) -> tuple[list, object] | None:
             else_changed = new_else is not stmt.else_body
         if not clauses_changed and not else_changed:
             return None
-        return [], replace(
-            stmt, clauses=tuple(new_clauses), else_body=new_else
-        )
+        return [], replace(stmt, clauses=tuple(new_clauses), else_body=new_else)
 
     if isinstance(stmt, IRCatch):
         new_body = _licm_script(stmt.body)
@@ -262,11 +256,7 @@ def _licm_stmt(stmt: object) -> tuple[list, object] | None:
         if stmt.finally_body is not None:
             new_finally = _licm_script(stmt.finally_body)
             finally_changed = new_finally is not stmt.finally_body
-        if (
-            new_body is stmt.body
-            and not handlers_changed
-            and not finally_changed
-        ):
+        if new_body is stmt.body and not handlers_changed and not finally_changed:
             return None
         return [], replace(
             stmt,
@@ -344,11 +334,7 @@ def _hoist_from_loop_body(
     keep: list = []
     for stmt in after_inner.statements:
         target = _assign_target(stmt)
-        if (
-            _is_hoistable(stmt)
-            and target not in forbidden
-            and write_counts.get(target, 0) == 1
-        ):
+        if _is_hoistable(stmt) and target not in forbidden and write_counts.get(target, 0) == 1:
             hoisted.append(stmt)
         else:
             keep.append(stmt)

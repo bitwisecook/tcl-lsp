@@ -35,10 +35,6 @@ from dataclasses import replace
 from ..expr_ast import (
     ExprBinary,
     ExprCall,
-    ExprCommand,
-    ExprLiteral,
-    ExprRaw,
-    ExprString,
     ExprTernary,
     ExprUnary,
     ExprVar,
@@ -54,18 +50,14 @@ from ..ir import (
     IRFor,
     IRForeach,
     IRIf,
-    IRIfClause,
     IRIncr,
     IRReturn,
     IRScript,
     IRSwitch,
-    IRSwitchArm,
     IRTry,
-    IRTryHandler,
     IRUpFrame,
     IRWhile,
 )
-
 
 # ``$name`` and ``${name}`` substitutions.  Same regex used by
 # the DCE read scanner — kept consistent so both passes agree on
@@ -153,11 +145,7 @@ def rewrite_stmt(stmt: object, rename: dict[str, str]) -> object:
         new_args = tuple(_rewrite_value_string(a, rename) for a in stmt.args)
         new_defs = tuple(_rename_var_name(d, rename) for d in stmt.defs)
         new_reads = tuple(_rename_var_name(r, rename) for r in stmt.reads)
-        if (
-            new_args == stmt.args
-            and new_defs == stmt.defs
-            and new_reads == stmt.reads
-        ):
+        if new_args == stmt.args and new_defs == stmt.defs and new_reads == stmt.reads:
             return stmt
         return replace(stmt, args=new_args, defs=new_defs, reads=new_reads)
 
@@ -301,11 +289,7 @@ def rewrite_stmt(stmt: object, rename: dict[str, str]) -> object:
         if stmt.finally_body is not None:
             new_finally = rewrite_script(stmt.finally_body, rename)
             finally_changed = new_finally is not stmt.finally_body
-        if (
-            new_body is stmt.body
-            and not handlers_changed
-            and not finally_changed
-        ):
+        if new_body is stmt.body and not handlers_changed and not finally_changed:
             return stmt
         return replace(
             stmt,
@@ -333,11 +317,7 @@ def rewrite_stmt(stmt: object, rename: dict[str, str]) -> object:
         if stmt.default_body is not None:
             new_default = rewrite_script(stmt.default_body, rename)
             default_changed = new_default is not stmt.default_body
-        if (
-            new_subject is stmt.subject
-            and not arms_changed
-            and not default_changed
-        ):
+        if new_subject is stmt.subject and not arms_changed and not default_changed:
             return stmt
         return replace(
             stmt,
@@ -432,11 +412,7 @@ def _rewrite_expr(node, rename: dict[str, str]):
         new_c = _rewrite_expr(node.condition, rename)
         new_t = _rewrite_expr(node.true_branch, rename)
         new_f = _rewrite_expr(node.false_branch, rename)
-        if (
-            new_c is node.condition
-            and new_t is node.true_branch
-            and new_f is node.false_branch
-        ):
+        if new_c is node.condition and new_t is node.true_branch and new_f is node.false_branch:
             return node
         return replace(
             node,
