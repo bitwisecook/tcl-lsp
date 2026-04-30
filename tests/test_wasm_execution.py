@@ -4,8 +4,9 @@ These tests compile Tcl source to WASM, link with the Zig value
 runtime (also compiled to WASM), and execute the resulting module
 natively in wasmtime — no Python↔WASM FFI stubs.
 
-Requires: ``wasmtime`` Python package (listed in dev dependencies)
-and the pre-built Zig runtime at ``runtime/zig/zig-out/bin/tcl_runtime.wasm``.
+Requires: ``wasmtime`` Python package (listed in dev dependencies).
+The Zig runtime is built on demand by ``core.runtime_wasm`` — no
+prebuilt binary needs to be present in the working tree.
 """
 
 from __future__ import annotations
