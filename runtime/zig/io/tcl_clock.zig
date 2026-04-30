@@ -505,11 +505,323 @@ fn parse_iso(s: []const u8) ?ScanResult {
     return .{ .epoch = epoch_local - zone_offset, .has_zone = has_zone };
 }
 
+// -- Free-form clock scan ----------------------------------------------------
+//
+// A pragmatic subset of Tcl's free-form date grammar covering the
+// inputs that real scripts actually hand to ``clock scan`` (the
+// full ``GetDate.y`` is ~3 KSLOC of yacc and doesn't earn its keep
+// at this layer).  Recognised forms:
+//
+//   now                            -> base
+//   today                          -> midnight of base, in target zone
+//   yesterday / tomorrow           -> ±86400 from today's midnight
+//   epoch                          -> 0 (Unix epoch)
+//   +N unit / -N unit / N unit     -> base ± N units
+//   N unit ago                     -> base - N units
+//   Month Day, Year                -> calendar date, midnight UTC
+//   Day Month Year                 -> calendar date, midnight UTC
+//   MM/DD/YYYY                     -> US-style calendar date
+//   DD/MM/YYYY                     -> Tcl's ambiguous form; we map
+//                                     to MM/DD when month <= 12, else
+//                                     fall through (matches Tcl 9
+//                                     where MDY is the default
+//                                     except in en_GB locale).
+//
+// Parsing is case-insensitive for English month / weekday / unit
+// names.  Whitespace is consumed liberally — the parser doesn't
+// care about commas, multiple spaces, or trailing punctuation.
+
+const MONTH_NAMES_FULL = [_][]const u8{
+    "january", "february", "march",     "april",   "may",      "june",
+    "july",    "august",   "september", "october", "november", "december",
+};
+const MONTH_NAMES_ABBR = [_][]const u8{
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+};
+
+fn ascii_lower(b: u8) u8 {
+    return if (b >= 'A' and b <= 'Z') b + 32 else b;
+}
+
+/// Case-insensitive equality between two byte slices.
+fn ieq(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |x, y| {
+        if (ascii_lower(x) != ascii_lower(y)) return false;
+    }
+    return true;
+}
+
+/// Match ``s`` against the full + abbreviated month-name table.
+/// Returns the 1-based month number on hit, null on miss.
+fn match_month(s: []const u8) ?u32 {
+    for (MONTH_NAMES_FULL, 0..) |m, i| {
+        if (ieq(s, m)) return @intCast(i + 1);
+    }
+    for (MONTH_NAMES_ABBR, 0..) |m, i| {
+        if (ieq(s, m)) return @intCast(i + 1);
+    }
+    return null;
+}
+
+/// Tokeniser context — splits ``s`` into whitespace / punctuation
+/// separated tokens.  ``next()`` skips ``,`` and ``.`` after each
+/// token so ``Jan 1, 2025`` reads as three tokens.
+const Tokens = struct {
+    s: []const u8,
+    i: usize = 0,
+
+    fn done(self: *const Tokens) bool {
+        return self.i >= self.s.len;
+    }
+    fn peek(self: *Tokens) ?[]const u8 {
+        const save = self.i;
+        const t = self.next();
+        self.i = save;
+        return t;
+    }
+    fn next(self: *Tokens) ?[]const u8 {
+        // Skip whitespace + structural punctuation.
+        while (self.i < self.s.len) : (self.i += 1) {
+            const b = self.s[self.i];
+            if (b != ' ' and b != '\t' and b != ',' and b != '.') break;
+        }
+        if (self.i >= self.s.len) return null;
+        const start = self.i;
+        const b0 = self.s[start];
+        if ((b0 >= '0' and b0 <= '9') or b0 == '+' or b0 == '-') {
+            // Numeric token (possibly signed).  Consumes digits +
+            // optional ``:`` for clock times so ``12:34:56`` is one
+            // token rather than three.
+            self.i += 1;
+            while (self.i < self.s.len) : (self.i += 1) {
+                const b = self.s[self.i];
+                if (!((b >= '0' and b <= '9') or b == ':' or b == '/' or b == '-')) break;
+            }
+        } else {
+            // Word token — letters only.
+            while (self.i < self.s.len) : (self.i += 1) {
+                const b = self.s[self.i];
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) break;
+            }
+        }
+        return self.s[start..self.i];
+    }
+};
+
+/// Map an English unit name to a (count, secs) pair for the
+/// fixed-second units.  Calendar units (``month``, ``year``) are
+/// signalled via a separate path because their length depends on
+/// the target date.
+const UnitKind = enum { seconds, minutes, hours, days, weeks, months, years };
+
+fn match_unit(s: []const u8) ?UnitKind {
+    if (ieq(s, "second") or ieq(s, "seconds") or ieq(s, "sec")) return .seconds;
+    if (ieq(s, "minute") or ieq(s, "minutes") or ieq(s, "min")) return .minutes;
+    if (ieq(s, "hour") or ieq(s, "hours") or ieq(s, "hr")) return .hours;
+    if (ieq(s, "day") or ieq(s, "days")) return .days;
+    if (ieq(s, "week") or ieq(s, "weeks")) return .weeks;
+    if (ieq(s, "month") or ieq(s, "months")) return .months;
+    if (ieq(s, "year") or ieq(s, "years")) return .years;
+    return null;
+}
+
+fn unit_to_secs(u: UnitKind) ?i64 {
+    return switch (u) {
+        .seconds => 1,
+        .minutes => SECS_PER_MINUTE,
+        .hours => SECS_PER_HOUR,
+        .days => SECS_PER_DAY,
+        .weeks => SECS_PER_DAY * 7,
+        .months, .years => null,
+    };
+}
+
+/// Apply ``count units`` to ``base``, returning a new epoch.  Used
+/// for the relative-form parser; calendar-relative add reuses
+/// :func:`clock_add_pair`'s logic.
+fn apply_unit(base: i64, count: i64, u: UnitKind) i64 {
+    if (unit_to_secs(u)) |s| return base + count * s;
+    const t = break_down(base);
+    switch (u) {
+        .months => {
+            var year = t.year;
+            var month: i64 = @as(i64, @intCast(t.month)) + count;
+            while (month < 1) {
+                year -= 1;
+                month += 12;
+            }
+            while (month > 12) {
+                year += 1;
+                month -= 12;
+            }
+            const dim = days_in_month(year, @intCast(month));
+            const day = if (t.day > dim) dim else t.day;
+            return pack_epoch(
+                year,
+                @intCast(month),
+                day,
+                t.hour,
+                t.minute,
+                t.second,
+            );
+        },
+        .years => {
+            const year: i32 = @intCast(@as(i64, t.year) + count);
+            const dim = days_in_month(year, t.month);
+            const day = if (t.day > dim) dim else t.day;
+            return pack_epoch(year, t.month, day, t.hour, t.minute, t.second);
+        },
+        else => unreachable,
+    }
+}
+
+/// Parse a leading signed integer from a token.  ``"+5"`` / ``"-5"``
+/// / ``"5"`` all return 5 / -5 / 5 with consumed_all=true.  Returns
+/// null on miss.
+fn token_signed_int(tok: []const u8) ?i64 {
+    if (tok.len == 0) return null;
+    var i: usize = 0;
+    var neg = false;
+    if (tok[0] == '+') {
+        i = 1;
+    } else if (tok[0] == '-') {
+        neg = true;
+        i = 1;
+    }
+    if (i >= tok.len) return null;
+    var v: i64 = 0;
+    while (i < tok.len and tok[i] >= '0' and tok[i] <= '9') : (i += 1) {
+        v = v * 10 + (@as(i64, tok[i] - '0'));
+    }
+    if (i != tok.len) return null;
+    return if (neg) -v else v;
+}
+
+/// Free-form scan attempt.  Returns a UTC epoch on hit.  The
+/// timezone-naive forms (calendar dates, ``today``-style) treat
+/// the result as midnight UTC of the named day; callers apply the
+/// resolver offset like the ISO path does.
+fn parse_freeform(s: []const u8, base: i64) ?ScanResult {
+    var t = Tokens{ .s = s };
+    const tok0 = t.peek() orelse return null;
+    if (ieq(tok0, "now")) {
+        _ = t.next();
+        if (!t.done()) return null;
+        return .{ .epoch = base, .has_zone = true };
+    }
+    if (ieq(tok0, "today")) {
+        _ = t.next();
+        if (!t.done()) return null;
+        const bt = break_down(base);
+        return .{ .epoch = pack_epoch(bt.year, bt.month, bt.day, 0, 0, 0), .has_zone = false };
+    }
+    if (ieq(tok0, "yesterday")) {
+        _ = t.next();
+        if (!t.done()) return null;
+        const bt = break_down(base - SECS_PER_DAY);
+        return .{ .epoch = pack_epoch(bt.year, bt.month, bt.day, 0, 0, 0), .has_zone = false };
+    }
+    if (ieq(tok0, "tomorrow")) {
+        _ = t.next();
+        if (!t.done()) return null;
+        const bt = break_down(base + SECS_PER_DAY);
+        return .{ .epoch = pack_epoch(bt.year, bt.month, bt.day, 0, 0, 0), .has_zone = false };
+    }
+    if (ieq(tok0, "epoch")) {
+        _ = t.next();
+        if (!t.done()) return null;
+        return .{ .epoch = 0, .has_zone = true };
+    }
+
+    // ``Month Day, Year`` — Jan 1 2025 / January 1 2025
+    if (match_month(tok0)) |m| {
+        _ = t.next();
+        const day_tok = t.next() orelse return null;
+        const day = token_signed_int(day_tok) orelse return null;
+        if (day < 1 or day > 31) return null;
+        const year_tok = t.next() orelse return null;
+        const year_v = token_signed_int(year_tok) orelse return null;
+        if (year_v < 1 or year_v > 9999) return null;
+        if (!t.done()) return null;
+        return .{
+            .epoch = pack_epoch(@intCast(year_v), m, @intCast(day), 0, 0, 0),
+            .has_zone = false,
+        };
+    }
+
+    // Numeric leading token — ``+N unit`` / ``N unit`` / ``N unit ago``
+    // / ``MM/DD/YYYY`` / ``Day Month Year``.
+    if (token_signed_int(tok0)) |n| {
+        _ = t.next();
+        const tok1 = t.peek() orelse return null;
+        if (match_unit(tok1)) |u| {
+            _ = t.next();
+            // Optional ``ago`` suffix flips the sign.
+            var count = n;
+            if (t.peek()) |tok2| {
+                if (ieq(tok2, "ago")) {
+                    _ = t.next();
+                    count = -count;
+                }
+            }
+            if (!t.done()) return null;
+            return .{ .epoch = apply_unit(base, count, u), .has_zone = true };
+        }
+        if (match_month(tok1)) |m| {
+            _ = t.next();
+            const tok2 = t.next() orelse return null;
+            const year_v = token_signed_int(tok2) orelse return null;
+            if (n < 1 or n > 31) return null;
+            if (year_v < 1 or year_v > 9999) return null;
+            if (!t.done()) return null;
+            return .{
+                .epoch = pack_epoch(@intCast(year_v), m, @intCast(n), 0, 0, 0),
+                .has_zone = false,
+            };
+        }
+    }
+
+    // ``MM/DD/YYYY`` — slash-separated US date.
+    if (parse_slash_date(tok0)) |r| {
+        _ = t.next();
+        if (!t.done()) return null;
+        return .{ .epoch = r, .has_zone = false };
+    }
+
+    return null;
+}
+
+/// Parse ``MM/DD/YYYY``.  Returns the epoch (midnight UTC) or null.
+fn parse_slash_date(s: []const u8) ?i64 {
+    var i: usize = 0;
+    const m = read_uint(s, i, 2) orelse return null;
+    if (m.i >= s.len or s[m.i] != '/') return null;
+    i = m.i + 1;
+    const d = read_uint(s, i, 2) orelse return null;
+    if (d.i >= s.len or s[d.i] != '/') return null;
+    i = d.i + 1;
+    const y = read_uint(s, i, 4) orelse return null;
+    if (y.i != s.len) return null;
+    if (m.v < 1 or m.v > 12) return null;
+    if (d.v < 1 or d.v > 31) return null;
+    return pack_epoch(@intCast(y.v), @intCast(m.v), @intCast(d.v), 0, 0, 0);
+}
+
 /// clock_scan_obj — parse a date/time string into Unix epoch
 /// seconds.  ``zone_obj`` is consulted only when the input doesn't
 /// carry its own zone (no ``Z`` / no ``±HHMM``).  ``gmt_flag``
-/// non-zero forces UTC and overrides ``zone_obj``.
-pub export fn clock_scan_obj(text_obj: i32, zone_obj: i32, gmt_flag: i32) i32 {
+/// non-zero forces UTC and overrides ``zone_obj``.  ``base_obj``
+/// supplies the reference timestamp for relative forms (``now`` /
+/// ``+N unit`` / ``yesterday``); pass ``0`` to use the current
+/// wall-clock epoch.
+pub export fn clock_scan_obj(
+    text_obj: i32,
+    zone_obj: i32,
+    gmt_flag: i32,
+    base_obj: i32,
+) i32 {
     if (text_obj == 0) return obj_new_int(0);
     const t = obj_ensure_string(text_obj);
     if (t.ptr == 0 or t.len == 0) return obj_new_int(0);
@@ -520,7 +832,14 @@ pub export fn clock_scan_obj(text_obj: i32, zone_obj: i32, gmt_flag: i32) i32 {
     while (end > start and (ts0[end - 1] == ' ' or ts0[end - 1] == '\t')) : (end -= 1) {}
     const ts = ts0[start..end];
 
-    if (parse_iso(ts)) |r| {
+    const base: i64 = blk: {
+        if (base_obj != 0) break :blk obj.obj_get_int(base_obj);
+        const ns = clock_ns(.REALTIME);
+        break :blk @divTrunc(ns, NS_PER_SECOND);
+    };
+
+    const result: ?ScanResult = parse_iso(ts) orelse parse_freeform(ts, base);
+    if (result) |r| {
         if (r.has_zone) return obj_new_int(r.epoch);
         if (gmt_flag != 0) return obj_new_int(r.epoch);
         const zone_slice: []const u8 = blk: {

@@ -115,6 +115,7 @@ fn eval_clock(words: []const i32) i32 {
         // Form: clock scan TEXT ?-base T? ?-format F? ?-gmt 0|1? ?-timezone Z?
         if (words.len < 3) return rt.obj_new_int(0);
         var zone_obj: i32 = 0;
+        var base_obj: i32 = 0;
         var gmt: i32 = 0;
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
@@ -123,6 +124,8 @@ fn eval_clock(words: []const i32) i32 {
                 @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
             if (std.mem.eql(u8, op, "-timezone")) {
                 zone_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-base")) {
+                base_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-gmt")) {
                 const v = rt.obj_ensure_string(words[ai + 1]);
                 if (v.ptr != 0 and v.len > 0) {
@@ -133,12 +136,11 @@ fn eval_clock(words: []const i32) i32 {
                         std.mem.eql(u8, vs, "no")) 0 else 1;
                 }
             }
-            // ``-base`` / ``-format`` / ``-locale`` ignored — the
-            // ISO-ish parser is format-agnostic and ``-base`` only
-            // matters for relative inputs (``+1 day``) which this
-            // implementation doesn't yet support.
+            // ``-format`` / ``-locale`` ignored — the parser
+            // auto-detects ISO vs free-form and locale modifiers
+            // map to the same English month-name table.
         }
-        return clock.clock_scan_obj(words[2], zone_obj, gmt);
+        return clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj);
     }
     if (std.mem.eql(u8, sp, "format")) {
         // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1? ?-timezone Z?
