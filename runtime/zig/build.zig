@@ -143,23 +143,23 @@ pub fn build(b: *std.Build) void {
         "Run all WASM runtime unit tests (test_*.zig under valtypes/, parse/, ...)",
     );
 
-    const TestSpec = struct { name: []const u8, file: []const u8 };
-    const test_specs = [_]TestSpec{
-        .{ .name = "tcl_chars", .file = "valtypes/test_tcl_chars.zig" },
-        .{ .name = "tcl_bs", .file = "valtypes/test_tcl_bs.zig" },
-        .{ .name = "tcl_list_quote", .file = "valtypes/test_tcl_list_quote.zig" },
-        .{ .name = "tcl_list_parse", .file = "valtypes/test_tcl_list_parse.zig" },
-        .{ .name = "tcl_parse", .file = "parse/test_tcl_parse.zig" },
+    // Auto-discover ``test_*.zig`` files under the build root — drop
+    // a new test file under ``valtypes/`` / ``parse/`` / ``cmds/`` /
+    // etc. and ``zig build test`` picks it up without a build.zig
+    // edit.  ``vendor/`` and ``regex_include/`` are skipped: we don't
+    // own those trees and they will never contain our tests.
+    const test_files = collectTestFiles(b) catch |err| {
+        std.debug.panic("failed to enumerate test_*.zig files: {s}", .{@errorName(err)});
     };
 
-    for (test_specs) |spec| {
+    for (test_files) |file| {
         const t_module = b.createModule(.{
-            .root_source_file = b.path(spec.file),
+            .root_source_file = b.path(file),
             .target = test_target,
             .optimize = optimize,
         });
         const t_exe = b.addTest(.{
-            .name = spec.name,
+            .name = testNameFromPath(b, file),
             .root_module = t_module,
         });
         const run = b.addRunArtifact(t_exe);
@@ -169,4 +169,73 @@ pub fn build(b: *std.Build) void {
         run.skip_foreign_checks = true;
         test_step.dependOn(&run.step);
     }
+}
+
+/// Walk the build root looking for ``test_*.zig`` files.  Returns
+/// the matched paths as build-root-relative slices, sorted so the
+/// build graph is deterministic across hosts (filesystem walk order
+/// otherwise depends on inode ordering).
+fn collectTestFiles(b: *std.Build) ![][]const u8 {
+    const io = b.graph.io;
+    const build_root = b.build_root.path orelse ".";
+    var dir = try std.Io.Dir.openDirAbsolute(io, build_root, .{ .iterate = true });
+    defer dir.close(io);
+
+    var walker = try dir.walk(b.allocator);
+    defer walker.deinit();
+
+    var list: std.ArrayList([]const u8) = .empty;
+    while (try walker.next(io)) |entry| {
+        if (entry.kind != .file) continue;
+        const base = std.fs.path.basename(entry.path);
+        if (!std.mem.startsWith(u8, base, "test_")) continue;
+        if (!std.mem.endsWith(u8, base, ".zig")) continue;
+        // Skip vendored / dependency trees — they won't contain our
+        // tests and walking into them slows discovery on cold caches.
+        if (std.mem.startsWith(u8, entry.path, "vendor/") or
+            std.mem.startsWith(u8, entry.path, "regex_include/") or
+            std.mem.startsWith(u8, entry.path, ".zig-cache/") or
+            std.mem.indexOf(u8, entry.path, "/.zig-cache/") != null)
+        {
+            continue;
+        }
+        // ``walker.next`` reuses its internal buffer — dupe the path
+        // so it survives the rest of the walk.  Normalise to forward
+        // slashes so ``b.path`` works identically on Windows.
+        const dup = try b.allocator.dupe(u8, entry.path);
+        std.mem.replaceScalar(u8, dup, std.fs.path.sep, '/');
+        try list.append(b.allocator, dup);
+    }
+
+    const slice = try list.toOwnedSlice(b.allocator);
+    std.mem.sort([]const u8, slice, {}, struct {
+        fn lessThan(_: void, a: []const u8, c: []const u8) bool {
+            return std.mem.lessThan(u8, a, c);
+        }
+    }.lessThan);
+    return slice;
+}
+
+/// Derive a short, unique test-step name from a discovered file
+/// path.  ``valtypes/test_tcl_bs.zig`` → ``valtypes-tcl_bs`` so the
+/// build summary is readable and Zig 0.16's
+/// "looks-like-a-file-path" name validator stays happy.
+fn testNameFromPath(b: *std.Build, file: []const u8) []const u8 {
+    const without_ext = if (std.mem.endsWith(u8, file, ".zig"))
+        file[0 .. file.len - ".zig".len]
+    else
+        file;
+    const buf = b.allocator.dupe(u8, without_ext) catch @panic("OOM");
+    // ``test_`` prefix on the basename is implied by the discovery
+    // filter, so strip it for brevity.  Convert directory separators
+    // to dashes.
+    std.mem.replaceScalar(u8, buf, '/', '-');
+    const marker = "test_";
+    if (std.mem.lastIndexOf(u8, buf, marker)) |idx| {
+        const tail = buf[idx + marker.len ..];
+        const dir_prefix = if (idx == 0) "" else buf[0 .. idx - 1]; // trim trailing '-'
+        if (dir_prefix.len == 0) return tail;
+        return std.fmt.allocPrint(b.allocator, "{s}-{s}", .{ dir_prefix, tail }) catch @panic("OOM");
+    }
+    return buf;
 }
