@@ -32,6 +32,7 @@ const rt = @import("../tcl_runtime.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const obj = @import("tcl_obj.zig");
+const arena = @import("tcl_arena.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int = rt.obj_new_int;
 const obj_new_string = rt.obj_new_string;
@@ -157,18 +158,15 @@ fn regfree_safe(re: *anyopaque) void {
     TclReFree(re);
 }
 
-/// Decode UTF-8 bytes into a fresh UniChar (i32 codepoint) array
-/// on the bump allocator.  Invalid sequences are replaced with
-/// U+FFFD.  Returns the buffer's WASM address + length in
-/// codepoints.
-fn decode_utf8(src_ptr: u32, src_len: u32) struct { ptr: u32, len: usize } {
-    // Worst case: every byte is its own codepoint (ASCII path),
-    // so reserve len * 4 bytes up front.  Over-allocation is
-    // free in a bump allocator.
-    const buf_addr = alloc(src_len * 4);
-    if (src_len == 0) {
-        return .{ .ptr = buf_addr, .len = 0 };
-    }
+/// Decode UTF-8 bytes into a pre-allocated UniChar (i32 codepoint)
+/// array.  Invalid sequences are replaced with U+FFFD.  Returns
+/// the number of codepoints decoded.  ``buf_addr`` must point to
+/// at least ``src_len * 4`` writable bytes — callers typically
+/// allocate the buffer themselves so they can choose between the
+/// arena (for short-lived scratch) and libc (for buffers that
+/// must outlive the calling scope).
+fn decode_utf8_into(buf_addr: u32, src_ptr: u32, src_len: u32) usize {
+    if (src_len == 0) return 0;
     const src: [*]const u8 = @ptrFromInt(src_ptr);
     const buf: [*]i32 = @ptrFromInt(buf_addr);
     var out: usize = 0;
@@ -211,7 +209,25 @@ fn decode_utf8(src_ptr: u32, src_len: u32) struct { ptr: u32, len: usize } {
         out += 1;
         i += nbytes;
     }
-    return .{ .ptr = buf_addr, .len = out };
+    return out;
+}
+
+/// Decode UTF-8 bytes into a freshly-allocated buffer (arena-backed
+/// where possible).  Returns the buffer's :class:`Allocation` plus
+/// the codepoint count.  Caller is responsible for either calling
+/// :func:`arena.arena_free` or relying on a surrounding
+/// ``arena_save`` / ``arena_restore`` bracket to reclaim the bytes.
+fn decode_utf8(src_ptr: u32, src_len: u32) struct {
+    alloc: arena.Allocation,
+    ptr: u32,
+    len: usize,
+} {
+    // Worst case: every byte is its own codepoint (ASCII path),
+    // so reserve len * 4 bytes up front.
+    const cap: u32 = if (src_len == 0) 4 else src_len * 4;
+    const a = arena.arena_alloc_or_libc(cap);
+    const decoded_len = decode_utf8_into(a.addr, src_ptr, src_len);
+    return .{ .alloc = a, .ptr = a.addr, .len = decoded_len };
 }
 
 /// Compile ``pattern`` and test whether it matches ``subject``.
@@ -222,10 +238,20 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
     const pat_s = obj_ensure_string(pattern);
     const sub_s = obj_ensure_string(subject);
 
+    // S6.3 v1: scratch allocations (decoded codepoint buffers, the
+    // ``regex_t`` struct) are routed through the per-scope arena.
+    // ``arena_restore`` reclaims them in O(1) on every exit path,
+    // including the early-trap branch that the previous code
+    // leaked through.  Allocations that overflow the arena fall
+    // back to libc; ``arena_free`` routes the cleanup correctly.
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
     const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
     const sub_u = decode_utf8(sub_s.ptr, sub_s.len);
 
-    const re_addr = alloc(REGEX_T_SIZE);
+    const re_alloc = arena.arena_alloc_or_libc(REGEX_T_SIZE);
+    const re_addr = re_alloc.addr;
     const re_ptr: *anyopaque = @ptrFromInt(re_addr);
 
     const comp_rc = TclReComp(
@@ -243,6 +269,9 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
         // surfaces as a normal error return; otherwise it traps
         // with the diag site prefix so the user can locate the
         // offending pattern.
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
         stubs.raise("regexp: couldn't compile regular expression pattern");
         return false;
     }
@@ -262,16 +291,13 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
     );
 
     regfree_safe(re_ptr);
-    // Release per-call scratch alloc'd via wasi-libc malloc.
-    // Without this, every regex invocation leaks ``pat_len*4 +
-    // sub_len*4 + 64`` bytes; on a tcltest-sized run with hundreds
-    // of regex calls (constraint matching, SubstArguments, etc.)
-    // the leak compounds enough to OOM the wasi-libc heap mid-
-    // suite — observed as a malloc trap in newnfa during
-    // lseq.test.
-    obj.free_sized(pat_u.ptr, @intCast(pat_s.len * 4));
-    obj.free_sized(sub_u.ptr, @intCast(sub_s.len * 4));
-    obj.free_sized(re_addr, REGEX_T_SIZE);
+    // Scratch reclamation: ``arena_free`` is a no-op for the
+    // common arena-backed case (the deferred ``arena_restore``
+    // handles it in bulk) but still ``free_sized``-s the libc
+    // fallback when the arena ran out of room.
+    arena.arena_free(re_alloc);
+    arena.arena_free(sub_u.alloc);
+    arena.arena_free(pat_u.alloc);
     return exec_rc == REG_OKAY;
 }
 
@@ -327,26 +353,41 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     const str_s = obj_ensure_string(string);
     const sub_s = obj_ensure_string(subspec);
 
+    // S6.3 v1: arena bracket reclaims every scratch allocation
+    // (decoded codepoints, ``regex_t`` struct, pmatch positions)
+    // on every exit path.  ``result_buf`` becomes the returned
+    // TclObj's payload so it stays on libc.
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
     const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
     const str_u = decode_utf8(str_s.ptr, str_s.len);
 
-    const re_addr = alloc(REGEX_T_SIZE);
+    const re_alloc = arena.arena_alloc_or_libc(REGEX_T_SIZE);
+    const re_addr = re_alloc.addr;
     const re_ptr: *anyopaque = @ptrFromInt(re_addr);
     const comp_flags: c_int = REG_ADVANCED | (if (nocase) REG_ICASE else @as(c_int, 0));
     const comp_rc = TclReComp(re_ptr, @ptrFromInt(pat_u.ptr), pat_u.len, comp_flags);
     if (comp_rc != REG_OKAY) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(str_u.alloc);
+        arena.arena_free(pat_u.alloc);
         stubs.raise("regsub: couldn't compile regular expression pattern");
         return rt.obj_new_string(0, 0);
     }
 
     // Allocate result buffer — worst case: every char triggers a full subspec.
+    // ``result_buf`` is NOT routed through the arena because it
+    // becomes the returned TclObj's str_ptr and outlives this
+    // function's arena scope.
     const sub_len: u32 = sub_s.len;
     const max_result: u32 = str_s.len * (sub_len + 2) + 256;
     const result_buf = alloc(max_result);
     var result_off: u32 = 0;
 
     const nmatch: usize = 10; // whole match + up to 9 capture groups
-    const pmatch_buf = alloc(@intCast(nmatch * REGMATCH_T_SIZE));
+    const pmatch_alloc = arena.arena_alloc_or_libc(@intCast(nmatch * REGMATCH_T_SIZE));
+    const pmatch_buf = pmatch_alloc.addr;
 
     const str_bytes: [*]const u8 = @ptrFromInt(str_s.ptr);
     const sub_bytes: [*]const u8 = if (sub_s.len > 0) @ptrFromInt(sub_s.ptr) else undefined;
@@ -443,6 +484,15 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     }
 
     regfree_safe(re_ptr);
+    // S6.3 v1: free libc-fallback scratch (if any).  Arena-backed
+    // allocations are reclaimed by the deferred ``arena_restore``.
+    // Pre-arena code leaked these unconditionally; the arena
+    // bracket fixes the leak by construction for the common case
+    // and these explicit frees catch the overflow case.
+    arena.arena_free(pmatch_alloc);
+    arena.arena_free(re_alloc);
+    arena.arena_free(str_u.alloc);
+    arena.arena_free(pat_u.alloc);
 
     // Append remaining unmatched tail.
     const tail_len = str_s.len - pos_byte;
@@ -510,12 +560,21 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     const subject = words[i + 1];
     const var_words: []const i32 = words[i + 2 ..];
 
+    // S6.3 v1: arena bracket reclaims the decoded buffers, the
+    // ``regex_t`` struct, and the pmatch positions on every exit
+    // path.  ``inline_buf`` is NOT routed through the arena
+    // because in ``-inline`` mode it becomes the returned TclObj's
+    // payload and outlives this function's arena scope.
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
     // Compile pattern once.
     const pat_s = obj_ensure_string(pattern);
     const sub_s = obj_ensure_string(subject);
     const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
     const sub_u = decode_utf8(sub_s.ptr, sub_s.len);
-    const re_addr = alloc(REGEX_T_SIZE);
+    const re_alloc = arena.arena_alloc_or_libc(REGEX_T_SIZE);
+    const re_addr = re_alloc.addr;
     const re_ptr: *anyopaque = @ptrFromInt(re_addr);
     const comp_rc = TclReComp(
         re_ptr,
@@ -524,6 +583,9 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         REG_ADVANCED | flags,
     );
     if (comp_rc != REG_OKAY) {
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
         stubs.raise("regexp: couldn't compile regular expression pattern");
         return obj_new_int(0);
     }
@@ -533,7 +595,8 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     // do_regsub's ordering, which is the reference for correct
     // run_match_cap usage.  Always alloc (even outside -inline) so the
     // bump-allocator state matches do_regsub regardless of the option
-    // mix.
+    // mix.  Stays on libc because inline_mode hands ``inline_buf`` to
+    // the returned TclObj.
     var inline_buf: u32 = 0;
     var inline_off: u32 = 0;
     var inline_cap: u32 = 0;
@@ -546,7 +609,8 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     // -indices, matchVar / subMatchVar) need up to 10 slots.
     const wants_captures = inline_mode or indices_mode or var_words.len > 0;
     const nmatch: usize = if (wants_captures) 10 else 1;
-    const pmatch_buf = alloc(@intCast(nmatch * REGMATCH_T_SIZE));
+    const pmatch_alloc = arena.arena_alloc_or_libc(@intCast(nmatch * REGMATCH_T_SIZE));
+    const pmatch_buf = pmatch_alloc.addr;
     // Zero-init so the Spencer engine doesn't read stale bump-allocator
     // bytes during DFA cache lookup with nmatch > 1.  do_regsub gets
     // away with skipping this because its hot loop uses nmatch=1; here
@@ -619,13 +683,15 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     }
 
     regfree_safe(re_ptr);
-    // Release scratch allocs (see run_match's matching free for
-    // rationale).  pmatch_buf is freed too.  Caller-owned obj
-    // results — already heap-allocated separately — survive.
-    obj.free_sized(pat_u.ptr, @intCast(pat_s.len * 4));
-    obj.free_sized(sub_u.ptr, @intCast(sub_s.len * 4));
-    obj.free_sized(re_addr, REGEX_T_SIZE);
-    if (pmatch_buf != 0) obj.free_sized(pmatch_buf, @intCast(nmatch * REGMATCH_T_SIZE));
+    // S6.3 v1: arena-backed scratch is reclaimed by the deferred
+    // ``arena_restore``; ``arena_free`` only does work for the
+    // libc-overflow case.  ``inline_buf`` stays on libc and only
+    // gets ``free_sized`` when not handed off to the returned
+    // TclObj.
+    arena.arena_free(pmatch_alloc);
+    arena.arena_free(re_alloc);
+    arena.arena_free(sub_u.alloc);
+    arena.arena_free(pat_u.alloc);
     if (!inline_mode and inline_buf != 0) obj.free_sized(inline_buf, inline_cap);
 
     if (inline_mode) {
@@ -870,6 +936,14 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     const has_var  = (i + 3 < words.len);
     const varname  = if (has_var) words[i + 3] else 0;
 
+    // S6.3 v1: arena bracket reclaims decoded buffers and the
+    // ``regex_t`` struct on every exit path, including the eight
+    // early-return error branches below that the pre-arena code
+    // leaked through.  ``out_addr`` becomes the returned TclObj's
+    // payload so it stays on libc.
+    const arena_saved = arena.arena_save();
+    defer arena.arena_restore(arena_saved);
+
     const pat_s  = obj_ensure_string(pattern);
     const sub_s  = obj_ensure_string(subject);
     const repl_s = obj_ensure_string(repl_obj);
@@ -878,7 +952,8 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     const sub_u = decode_utf8(sub_s.ptr, sub_s.len);
 
     // Compile the regular expression.
-    const re_addr = alloc(REGEX_T_SIZE);
+    const re_alloc = arena.arena_alloc_or_libc(REGEX_T_SIZE);
+    const re_addr = re_alloc.addr;
     const re_ptr: *anyopaque = @ptrFromInt(re_addr);
     const comp_rc = TclReComp(
         re_ptr,
