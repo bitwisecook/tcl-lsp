@@ -18,15 +18,6 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 const alloc = obj.alloc;
 
-comptime {
-    // Force the linker to keep tcl_tz.zig's symbols even though
-    // nothing calls into them yet — the resolver wave (next commit)
-    // hooks them up.  Without this comptime tickle the runtime
-    // build would happily drop the entire module.
-    _ = &tz.resolve;
-    _ = &tz.resolve_default;
-    _ = &tz.utc;
-}
 
 const NS_PER_SECOND: i64 = 1_000_000_000;
 const NS_PER_USEC: i64 = 1_000;
@@ -170,31 +161,34 @@ fn write_str(out: [*]u8, off: u32, s: []const u8) u32 {
     return o;
 }
 
-/// clock_format — format Unix epoch seconds via a strftime-like
-/// pattern.  Always uses UTC (no timezone DB shipped in WASM).
-/// Supports the subset of conversion specs Tcl test suites and
-/// the project samples use:
-///   %Y %y %m %d %H %M %S %j %A %a %B %b %e %p %u %w %z
-/// Plus literal ``%%`` and pass-through of non-format bytes.
-/// Unknown specs are emitted verbatim (``%X`` -> ``%X``) so no
-/// trap regardless of what the caller wrote.
-pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
-    const default_fmt = "%a %b %e %H:%M:%S %z %Y";
-    var fmt_ptr: u32 = undefined;
-    var fmt_len: u32 = undefined;
-    if (fmt_obj == 0) {
-        fmt_ptr = @intCast(@intFromPtr(default_fmt.ptr));
-        fmt_len = default_fmt.len;
-    } else {
-        const f = obj_ensure_string(fmt_obj);
-        fmt_ptr = f.ptr;
-        fmt_len = f.len;
-    }
-    const epoch: i64 = if (seconds_obj == 0) 0 else obj.obj_get_int(seconds_obj);
-    const t = break_down(epoch);
+/// Render a numeric ``%z`` offset (``±HHMM``) into ``out``.
+fn write_offset(out: [*]u8, off_in: u32, utoff_secs: i32) u32 {
+    var off = off_in;
+    const sign: u8 = if (utoff_secs < 0) '-' else '+';
+    const abs: u32 = if (utoff_secs < 0)
+        @intCast(-@as(i32, utoff_secs))
+    else
+        @intCast(utoff_secs);
+    const hh = abs / 3600;
+    const mm = (abs % 3600) / 60;
+    out[off] = sign;
+    off += 1;
+    off = write_pad_int(out, off, hh, 2, '0');
+    off = write_pad_int(out, off, mm, 2, '0');
+    return off;
+}
+
+/// Strftime over a caller-supplied broken-down time + offset/abbr.
+/// Shared between ``clock_format`` (the WASM-export entry, default
+/// UTC) and ``clock_format_tz`` (timezone-aware via the resolver).
+fn render_format(
+    fmt_ptr: u32,
+    fmt_len: u32,
+    t: BrokenDown,
+    utoff: i32,
+    abbr: []const u8,
+) i32 {
     const fp: [*]const u8 = @ptrFromInt(fmt_ptr);
-    // Generously sized buffer — 8x format length covers the worst
-    // case where every %x expands to a multi-byte month/weekday name.
     const cap: u32 = fmt_len * 8 + 32;
     const buf = alloc(cap);
     if (buf == 0) return obj_new_string(0, 0);
@@ -218,13 +212,17 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
         const spec = fp[i];
         i += 1;
         switch (spec) {
-            '%' => { out[off] = '%'; off += 1; },
+            '%' => {
+                out[off] = '%';
+                off += 1;
+            },
             'Y' => off = write_pad_int(out, off, @intCast(t.year), 4, '0'),
             'y' => off = write_pad_int(out, off, @intCast(@mod(t.year, 100)), 2, '0'),
             'm' => off = write_pad_int(out, off, t.month, 2, '0'),
             'd' => off = write_pad_int(out, off, t.day, 2, '0'),
             'e' => off = write_pad_int(out, off, t.day, 2, ' '),
             'H' => off = write_pad_int(out, off, t.hour, 2, '0'),
+            'k' => off = write_pad_int(out, off, t.hour, 2, ' '),
             'M' => off = write_pad_int(out, off, t.minute, 2, '0'),
             'S' => off = write_pad_int(out, off, t.second, 2, '0'),
             'j' => off = write_pad_int(out, off, t.yday, 3, '0'),
@@ -233,13 +231,65 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
             'A' => off = write_str(out, off, WEEKDAY_FULL[t.weekday]),
             'a' => off = write_str(out, off, WEEKDAY_ABBR[t.weekday]),
             'B' => off = write_str(out, off, MONTH_FULL[t.month - 1]),
-            'b' => off = write_str(out, off, MONTH_ABBR[t.month - 1]),
+            'b', 'h' => off = write_str(out, off, MONTH_ABBR[t.month - 1]),
             'p' => off = write_str(out, off, if (t.hour < 12) "AM" else "PM"),
-            'z' => off = write_str(out, off, "+0000"),
+            'P' => off = write_str(out, off, if (t.hour < 12) "am" else "pm"),
+            'z' => off = write_offset(out, off, utoff),
+            'Z' => off = write_str(out, off, abbr),
+            'n' => {
+                out[off] = '\n';
+                off += 1;
+            },
+            't' => {
+                out[off] = '\t';
+                off += 1;
+            },
             'I' => {
                 var hr12 = t.hour % 12;
                 if (hr12 == 0) hr12 = 12;
                 off = write_pad_int(out, off, hr12, 2, '0');
+            },
+            'l' => {
+                var hr12 = t.hour % 12;
+                if (hr12 == 0) hr12 = 12;
+                off = write_pad_int(out, off, hr12, 2, ' ');
+            },
+            'D' => {
+                // %m/%d/%y
+                off = write_pad_int(out, off, t.month, 2, '0');
+                out[off] = '/';
+                off += 1;
+                off = write_pad_int(out, off, t.day, 2, '0');
+                out[off] = '/';
+                off += 1;
+                off = write_pad_int(out, off, @intCast(@mod(t.year, 100)), 2, '0');
+            },
+            'R' => {
+                // %H:%M
+                off = write_pad_int(out, off, t.hour, 2, '0');
+                out[off] = ':';
+                off += 1;
+                off = write_pad_int(out, off, t.minute, 2, '0');
+            },
+            'T' => {
+                // %H:%M:%S
+                off = write_pad_int(out, off, t.hour, 2, '0');
+                out[off] = ':';
+                off += 1;
+                off = write_pad_int(out, off, t.minute, 2, '0');
+                out[off] = ':';
+                off += 1;
+                off = write_pad_int(out, off, t.second, 2, '0');
+            },
+            'F' => {
+                // %Y-%m-%d
+                off = write_pad_int(out, off, @intCast(t.year), 4, '0');
+                out[off] = '-';
+                off += 1;
+                off = write_pad_int(out, off, t.month, 2, '0');
+                out[off] = '-';
+                off += 1;
+                off = write_pad_int(out, off, t.day, 2, '0');
             },
             else => {
                 out[off] = '%';
@@ -262,3 +312,64 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
     obj.write_i32(@as(u32, @intCast(out_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
     return out_obj;
 }
+
+/// Helper: pull (ptr, len) out of a TclObj, falling back to the
+/// supplied default when the obj is null / empty.
+fn fmt_or_default(fmt_obj: i32, default_fmt: []const u8) struct { ptr: u32, len: u32 } {
+    if (fmt_obj == 0) {
+        return .{
+            .ptr = @intCast(@intFromPtr(default_fmt.ptr)),
+            .len = default_fmt.len,
+        };
+    }
+    const f = obj_ensure_string(fmt_obj);
+    if (f.len == 0) {
+        return .{
+            .ptr = @intCast(@intFromPtr(default_fmt.ptr)),
+            .len = default_fmt.len,
+        };
+    }
+    return .{ .ptr = f.ptr, .len = f.len };
+}
+
+/// clock_format — format Unix epoch seconds via a strftime-like
+/// pattern.  Backwards-compatible UTC-only entry kept so existing
+/// compiled imports (``WasmRuntimeImport(export_name="clock_format")``)
+/// keep working.  New callers should prefer
+/// :func:`clock_format_tz` which honours ``-gmt`` / ``-timezone``.
+pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
+    const default_fmt = "%a %b %e %H:%M:%S %z %Y";
+    const f = fmt_or_default(fmt_obj, default_fmt);
+    const epoch: i64 = if (seconds_obj == 0) 0 else obj.obj_get_int(seconds_obj);
+    const t = break_down(epoch);
+    return render_format(f.ptr, f.len, t, 0, "UTC");
+}
+
+/// clock_format_tz — timezone-aware ``clock format``.  ``zone_obj``
+/// is a TclObj holding the zone name (``UTC``, ``:America/New_York``,
+/// …); when it's zero / empty the resolver falls through to
+/// ``$TZ`` / ``/etc/localtime`` / UTC, in that order.
+pub export fn clock_format_tz(
+    seconds_obj: i32,
+    fmt_obj: i32,
+    zone_obj: i32,
+) i32 {
+    const default_fmt = "%a %b %e %H:%M:%S %Z %Y";
+    const f = fmt_or_default(fmt_obj, default_fmt);
+    const epoch: i64 = if (seconds_obj == 0) 0 else obj.obj_get_int(seconds_obj);
+    const zone_slice: []const u8 = blk: {
+        if (zone_obj == 0) break :blk &[_]u8{};
+        const s = obj_ensure_string(zone_obj);
+        if (s.ptr == 0 or s.len == 0) break :blk &[_]u8{};
+        const p: [*]const u8 = @ptrFromInt(s.ptr);
+        break :blk p[0..s.len];
+    };
+    const z: *const tz.TimeZone = if (zone_slice.len == 0)
+        tz.resolve_default()
+    else
+        tz.resolve(zone_slice);
+    const off_info = z.offset_at(epoch);
+    const local = break_down(epoch + @as(i64, off_info.utoff));
+    return render_format(f.ptr, f.len, local, off_info.utoff, off_info.abbr);
+}
+
