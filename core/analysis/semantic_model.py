@@ -109,6 +109,11 @@ class ProcDef:
     # Per-parameter traits inferred from body analysis.
     # Maps parameter name to the set of traits detected.
     param_traits: dict[str, frozenset[ProcArgTrait]] = field(default_factory=dict)
+    # True when this proc is registered as a ``trace`` callback.  Tcl's
+    # trace API requires the callback to accept a fixed trailing argument
+    # signature (e.g. ``name1 name2 op``); the body legitimately may not
+    # use those arguments, so W214 is suppressed for the whole proc.
+    is_trace_callback: bool = False
 
 
 # OO method definition
@@ -519,6 +524,7 @@ class AnalysisResult:
                 v.body_range,
                 v.doc,
                 v.param_traits.copy(),
+                v.is_trace_callback,
             )
             for k, v in self.all_procs.items()
         }
