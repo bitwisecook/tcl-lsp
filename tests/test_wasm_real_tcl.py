@@ -557,7 +557,9 @@ def _define_host_spawn(
         if isinstance(result, str):
             result = result.encode("utf-8")
         if not isinstance(result, (bytes, bytearray)):
-            raise TypeError(f"host_spawn callback returned {type(result)!r}, expected str/bytes/None")
+            raise TypeError(
+                f"host_spawn callback returned {type(result)!r}, expected str/bytes/None"
+            )
         # Stage the bytes into linear memory via the runtime's
         # ``alloc`` + ``obj_new_string`` pair so the returned TclObj
         # is shaped the way the rest of the runtime expects.
