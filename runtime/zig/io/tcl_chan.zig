@@ -317,11 +317,16 @@ fn parse_uint(p: [*]const u8, len: u32) ?u32 {
 // having to special-case our wording.
 
 /// Concatenate a list of byte slices into a single heap buffer and
-/// raise it through the standard error path.
+/// raise it through the standard error path.  ``stubs.raise``
+/// internally copies the message into its own ``obj_new_string``-
+/// backed buffer, so we reclaim the scratch we built here once the
+/// call returns — otherwise every dynamic channel error in a long-
+/// running session leaked one slab (Codex review on PR #305).
 fn raise_parts(parts: []const []const u8) void {
     var total: u32 = 0;
     for (parts) |p| total += @intCast(p.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return; // OOM — caller's diagnostic is already truncated.
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: u32 = 0;
     for (parts) |p| {
@@ -332,6 +337,7 @@ fn raise_parts(parts: []const []const u8) void {
     }
     const slice = @as([*]const u8, @ptrFromInt(buf_addr))[0..total];
     stubs.raise(slice);
+    obj.free_sized(buf_addr, total);
 }
 
 /// Render the bytes of a channel-name TclObj as an unowned slice.

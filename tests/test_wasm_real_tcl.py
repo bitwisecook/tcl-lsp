@@ -3154,37 +3154,27 @@ class TestChannelErrorWording:
         assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
 
     def test_open_couldnt_open(self, tmp_path):
-        stderr = self._trap_stderr(
-            "open /no-such-file r\n", preopen=str(tmp_path)
-        )
+        stderr = self._trap_stderr("open /no-such-file r\n", preopen=str(tmp_path))
         assert 'couldn\'t open "/no-such-file"' in stderr, f"stderr: {stderr!r}"
 
     def test_open_illegal_access_mode(self, tmp_path):
         (tmp_path / "f.txt").write_text("hi")
-        stderr = self._trap_stderr(
-            "open /f.txt zzz\n", preopen=str(tmp_path)
-        )
+        stderr = self._trap_stderr("open /f.txt zzz\n", preopen=str(tmp_path))
         assert 'illegal access mode "zzz"' in stderr, f"stderr: {stderr!r}"
 
     def test_read_on_write_only_channel(self, tmp_path):
         # ``stdout`` is a write-only channel in our preset.
         stderr = self._trap_stderr("read stdout\n")
-        assert 'channel "stdout" wasn\'t opened for reading' in stderr, (
-            f"stderr: {stderr!r}"
-        )
+        assert 'channel "stdout" wasn\'t opened for reading' in stderr, f"stderr: {stderr!r}"
 
     def test_puts_on_read_only_channel(self, tmp_path):
         # ``stdin`` is a read-only channel.
         stderr = self._trap_stderr("puts stdin hello\n")
-        assert 'channel "stdin" wasn\'t opened for writing' in stderr, (
-            f"stderr: {stderr!r}"
-        )
+        assert 'channel "stdin" wasn\'t opened for writing' in stderr, f"stderr: {stderr!r}"
 
     def test_gets_on_write_only_channel(self, tmp_path):
         stderr = self._trap_stderr("gets stdout\n")
-        assert 'channel "stdout" wasn\'t opened for reading' in stderr, (
-            f"stderr: {stderr!r}"
-        )
+        assert 'channel "stdout" wasn\'t opened for reading' in stderr, f"stderr: {stderr!r}"
 
 
 class TestEncoding:
@@ -3244,7 +3234,10 @@ class TestEncoding:
             # koi8-r: cyrillic 'А' (U+0410) → 0xE1.
             ("encoding convertto koi8-r \\u0410", "e1"),
             # koi8-r: 'Русский' → 0xF2 0xD5 0xD3 0xD3 0xCB 0xC9 0xCA.
-            ("encoding convertto koi8-r \\u0420\\u0443\\u0441\\u0441\\u043A\\u0438\\u0439", "f2d5d3d3cbc9ca"),
+            (
+                "encoding convertto koi8-r \\u0420\\u0443\\u0441\\u0441\\u043A\\u0438\\u0439",
+                "f2d5d3d3cbc9ca",
+            ),
         ],
     )
     def test_convertto_real_codec(self, script, expected_hex):
