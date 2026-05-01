@@ -505,6 +505,46 @@ def _define_call_compiled_proc(
             # Linker rejects redefinitions — only relevant if the test
             # harness runs the same function across runs in one Store.
             pass
+
+    # ``env.coro_yield_unwind`` — host-side router for the asyncify
+    # coroutine yield boundary (issue #282).  ``signal_yield`` calls
+    # this import; the asyncify pass treats it as an unwinding boundary
+    # via ``--pass-arg=asyncify-imports@env.coro_yield_unwind`` in
+    # ``runtime/zig/build.zig``.  We route on the asyncify state:
+    #
+    #   * ``NORMAL``    → ``asyncify_start_unwind(buf)`` — begin the
+    #     unwind back to the coroutine driver.
+    #   * ``REWINDING`` → ``asyncify_stop_rewind()`` — the rewind
+    #     dispatch reached us; flip state to ``NORMAL`` and return so
+    #     the caller continues past the original ``yield`` to the
+    #     next one (or terminal return).
+    #
+    # Calling ``asyncify_start_unwind`` directly from ``signal_yield``
+    # (without this trampoline) would loop on resume because the rewind
+    # dispatch lands on the saved call site and re-fires the unwind.
+    def _coro_yield_unwind(buf: int) -> None:
+        inst = rt_instance_box[0]
+        if inst is None:
+            raise RuntimeError("coro_yield_unwind: rt_instance not yet wired")
+        exp = inst.exports(store)
+        state = exp["asyncify_get_state"](store)
+        if state == 0:  # NORMAL
+            exp["asyncify_start_unwind"](store, buf)
+        elif state == 2:  # REWINDING
+            exp["asyncify_stop_rewind"](store)
+        else:
+            # ``UNWINDING`` (1) and ``REWIND_DONE`` (3) shouldn't
+            # reach this trampoline: the asyncify pass only
+            # dispatches into us from NORMAL or via a rewind, never
+            # re-entrantly during an active unwind.  Surface the
+            # unexpected state loudly so a state-machine bug can't
+            # silently hang or corrupt the coroutine.
+            raise RuntimeError(f"coro_yield_unwind: unexpected asyncify state {state}")
+
+    try:
+        linker.define_func("env", "coro_yield_unwind", _arg_i32, _coro_yield_unwind)
+    except wasmtime.WasmtimeError:
+        pass
     return tcl_instance_box, memory_box, rt_instance_box
 
 
