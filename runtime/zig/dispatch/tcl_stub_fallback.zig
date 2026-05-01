@@ -40,10 +40,10 @@ const STUB_TRAP: []const []const u8 = &.{
     // I/O + channel — fconfigure / flush / open / close / read /
     // gets / eof / fblocked / tell / seek / fcopy have real impls
     // dispatched by BUILTINS (cmds/io.zig + io/tcl_chan.zig).
-    // ``fileevent`` is now a real BUILTIN (cmds/fileevent.zig) too.
-    // Only ``chan`` (top-level ensemble) and ``socket`` remain
-    // trapping stubs here.
-    "chan", "socket",
+    // ``fileevent`` and the ``chan`` ensemble are now real BUILTINs
+    // too (cmds/fileevent.zig, cmds/chan.zig).  Only ``socket``
+    // remains a trapping stub here.
+    "socket",
     // Filesystem / process — file/pwd/cd/glob/exec have real impls
     // in BUILTINS (cmds/fs.zig + cmds/exec.zig).  ``glob`` and
     // ``exec`` are capability-gated through interp/tcl_caps.zig and
