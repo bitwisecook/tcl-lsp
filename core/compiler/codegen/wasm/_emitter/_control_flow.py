@@ -538,23 +538,40 @@ class _WasmEmitterCtrlMixin(_Base):
                 # ``m2 == ""``.
                 self._emit_catch(inner_body, inner_result_var, keep_on_stack=True)
             case IRIncr(name=name, amount=amount):
-                # Mimic the incr emitter (keep value on stack)
-                self._emit_var_read_obj(name)
-                self._emit_unbox_int()
-                amt: int | None = 1
-                if amount is not None:
-                    try:
-                        amt = int(amount)
-                    except ValueError:
-                        self._emit_value(amount)
-                        self._emit_unbox_int()
+                # Issue #262: route through ``tcl_incr`` for the
+                # strict-integer guard (rejects float strings).
+                incr_idx = self._shared_imports.get("tcl_incr")
+                if incr_idx is not None:
+                    self._emit_var_read_obj(name)
+                    if amount is None:
+                        self._emit_i64_const(1)
+                        self._emit_box_int()
+                    else:
+                        try:
+                            self._emit_i64_const(int(amount))
+                            self._emit_box_int()
+                        except ValueError:
+                            self._emit_value(amount)
+                    self._emit_call(incr_idx)
+                    self._emit_var_write_obj_keep(name)
+                else:
+                    # Mimic the incr emitter (keep value on stack)
+                    self._emit_var_read_obj(name)
+                    self._emit_unbox_int()
+                    amt: int | None = 1
+                    if amount is not None:
+                        try:
+                            amt = int(amount)
+                        except ValueError:
+                            self._emit_value(amount)
+                            self._emit_unbox_int()
+                            self._emit(WasmOp.I64_ADD)
+                            amt = None  # signal: already handled
+                    if amt is not None:
+                        self._emit_i64_const(amt)
                         self._emit(WasmOp.I64_ADD)
-                        amt = None  # signal: already handled
-                if amt is not None:
-                    self._emit_i64_const(amt)
-                    self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()
-                self._emit_var_write_obj_keep(name)
+                    self._emit_box_int()
+                    self._emit_var_write_obj_keep(name)
             case IRAssignConst(name=name, value=value):
                 # ``set x 42`` in tail position — store + keep the
                 # assigned object on the stack so ``catch_set_ok_result``

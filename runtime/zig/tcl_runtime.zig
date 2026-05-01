@@ -416,6 +416,12 @@ comptime {
     _ = &tcl_arith.tcl_arith_mul;
     _ = &tcl_arith.tcl_arith_div;
     _ = &tcl_arith.tcl_arith_mod;
+    _ = &tcl_arith.tcl_arith_lshift;
+    _ = &tcl_arith.tcl_arith_rshift;
+    _ = &tcl_arith.tcl_arith_band;
+    _ = &tcl_arith.tcl_arith_bor;
+    _ = &tcl_arith.tcl_arith_bxor;
+    _ = &tcl_arith.tcl_arith_bnot;
     _ = &tcl_arith.tcl_math_double;
     _ = &tcl_arith.tcl_math_int;
     _ = &tcl_arith.tcl_math_round;

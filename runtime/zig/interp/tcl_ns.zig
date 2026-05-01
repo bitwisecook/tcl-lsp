@@ -1470,10 +1470,94 @@ pub export fn global_exists(name: i32) i32 {
 /// imports it under ``tcl_incr``); not a great architectural fit
 /// long-term but moving it is out of scope for the namespace-tree
 /// rework.
+///
+/// ``incr`` is a strict-integer command — Tcl rejects any value
+/// whose string form spells a float (decimal point or exponent) or
+/// is a boolean keyword with ``expected integer but got "X"``.  See
+/// issue #262 (and the regression battery in
+/// ``fuzzing/tests/test_fuzz_findings.py::TestIncrStrictParsing``).
+/// The previous implementation called ``obj_get_int`` directly,
+/// which silently truncates ``"52.60"`` to ``52`` and lets the
+/// counter advance — surfacing as either a wasm/vm divergence (the
+/// fuzzer's ``wasm-accepts-float-as-integer`` category) or a
+/// runaway loop when the float is the loop counter.
 pub export fn tcl_incr(o: i32, amount: i32) i32 {
+    if (!incr_is_strict_int(o)) {
+        raise_expected_integer(o);
+        return obj_new_int_pub(0);
+    }
+    if (!incr_is_strict_int(amount)) {
+        raise_expected_integer(amount);
+        return obj_new_int_pub(0);
+    }
     const val = obj_get_int_pub(o);
     const amt = obj_get_int_pub(amount);
     return obj_new_int_pub(val + amt);
+}
+
+fn incr_is_strict_int(o: i32) bool {
+    if (o == 0) return true;
+    const tag = obj.obj_type(o);
+    if (tag == obj.TYPE_INT) return true;
+    if (tag == obj.TYPE_FLOAT) return false;
+    // String / inline string — peek the bytes; reject if any
+    // ``.`` / ``e`` / ``E`` appears (Tcl's strict parser only
+    // accepts decimal/hex/octal/binary integers).  An empty
+    // string parses as 0 in Tcl strict-integer contexts.
+    const s = obj.obj_ensure_string(o);
+    if (s.len == 0) return true;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    var i: u32 = 0;
+    // Skip leading whitespace + optional sign for the digit check.
+    while (i < s.len) : (i += 1) {
+        const c = sp[i];
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == '\x0b' or c == '\x0c') continue;
+        break;
+    }
+    if (i < s.len and (sp[i] == '+' or sp[i] == '-')) i += 1;
+    while (i < s.len) : (i += 1) {
+        const c = sp[i];
+        if (c == '.' or c == 'e' or c == 'E') return false;
+        if (c >= '0' and c <= '9') continue;
+        // Allow hex/octal/binary prefix tail (``0x...``, ``0o...``, ``0b...``)
+        // — every char accepted by Tcl's integer parser.
+        if (c == 'x' or c == 'X' or c == 'o' or c == 'O' or c == 'b' or c == 'B') continue;
+        if ((c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F')) continue;
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == '\x0b' or c == '\x0c') continue;
+        // Anything else (alpha / punctuation) — let the int parser
+        // raise its own error via ``obj_get_int`` (we still return
+        // false here so ``raise_expected_integer`` produces the
+        // canonical message).
+        return false;
+    }
+    return true;
+}
+
+fn raise_expected_integer(o: i32) void {
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "expected integer but got \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    @import("tcl_catch.zig").tcl_cmd_error(msg);
 }
 
 // -- Test scaffolding -------------------------------------------------------
