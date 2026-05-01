@@ -63,6 +63,23 @@ extern fn rename(old: [*:0]const u8, new: [*:0]const u8) c_int;
 extern fn symlink(target: [*:0]const u8, linkpath: [*:0]const u8) c_int;
 extern fn readlink(path: [*:0]const u8, buf: [*]u8, bufsiz: usize) isize;
 
+// Directory iteration for ``glob``.  wasi-libc translates
+// ``opendir`` / ``readdir`` / ``closedir`` to ``path_open`` +
+// ``fd_readdir`` under the hood.  ``opendir`` returns a ``DIR*``
+// cookie we treat as opaque.  ``readdir`` returns a pointer to a
+// statically-allocated ``struct dirent`` whose layout is documented
+// at the call site.
+extern fn opendir(path: [*:0]const u8) ?*anyopaque;
+extern fn readdir(dir: *anyopaque) ?*anyopaque;
+extern fn closedir(dir: *anyopaque) c_int;
+
+// ``struct dirent`` layout from
+// ``zig/lib/libc/include/wasm-wasi-musl/__struct_dirent.h``:
+//   ino_t  d_ino   (u64) [0..8)
+//   u8     d_type        [8..9)
+//   char[] d_name        [9..)   NUL-terminated
+const DIRENT_OFF_NAME: u32 = 9;
+
 // File I/O for ``file copy`` — POSIX open/read/write/close.
 // ``extern`` imports don't collide with our Tcl-command WASM
 // exports (those are exports from our module; these are imports
@@ -887,6 +904,222 @@ fn file_readlink(path: i32) i32 {
         return 0;
     }
     return obj.obj_new_string(@intCast(buf_addr), @intCast(n));
+}
+
+// --- glob ---
+//
+// Capability-gated; refuses with ``permission denied: glob requires
+// CAP_FS_GLOB`` until the embedder grants the bit.  See
+// :module:`interp/tcl_caps.zig`.
+//
+// Pattern shape: a single component (no embedded ``/``) matched
+// against the cwd, *or* a multi-component path where the directory
+// portion is taken literally and only the trailing basename is
+// matched.  ``glob ./*.tcl`` and ``glob foo/bar/*.txt`` both work;
+// recursive ``**`` patterns and ``-directory`` / ``-tails`` /
+// ``-types`` switches are not yet wired (the BUILTIN handler in
+// :module:`cmds/fs.zig` raises ``unsupported`` for those forms so
+// scripts see a clear diagnostic rather than a silent miss).
+//
+// The fnmatch port supports ``*`` (any-non-slash run, including
+// empty), ``?`` (any single non-slash char), ``[abc]`` /
+// ``[a-z]`` / ``[!abc]`` character classes, and backslash escapes
+// (``\*`` is a literal asterisk).  This is a subset of csh-style
+// glob — Tcl's full grammar adds brace expansion and group
+// alternations which a follow-up patch can layer on top.
+
+const caps = @import("../interp/tcl_caps.zig");
+
+/// Match a single basename against a glob pattern.  Returns ``true``
+/// on a successful match.  Recursive (no allocations); the depth is
+/// bounded by the number of ``*`` segments in the pattern.
+fn fnmatch_basename(pattern: [*]const u8, plen: u32, name: [*]const u8, nlen: u32) bool {
+    return fnmatch_at(pattern, plen, 0, name, nlen, 0);
+}
+
+fn fnmatch_at(
+    pattern: [*]const u8,
+    plen: u32,
+    pi_in: u32,
+    name: [*]const u8,
+    nlen: u32,
+    ni_in: u32,
+) bool {
+    var pi = pi_in;
+    var ni = ni_in;
+    while (pi < plen) {
+        const pc = pattern[pi];
+        if (pc == '*') {
+            // Collapse adjacent stars and recurse on every possible
+            // suffix split.  Empty match is the base case (`pi+1`
+            // against the current `ni`).
+            var px = pi + 1;
+            while (px < plen and pattern[px] == '*') : (px += 1) {}
+            if (px >= plen) return true;
+            var nx: u32 = ni;
+            while (true) {
+                if (fnmatch_at(pattern, plen, px, name, nlen, nx)) return true;
+                if (nx >= nlen) return false;
+                nx += 1;
+            }
+        }
+        if (ni >= nlen) return false;
+        if (pc == '?') {
+            ni += 1;
+            pi += 1;
+            continue;
+        }
+        if (pc == '[') {
+            // Character class.  Empty class (``[]``) matches nothing.
+            var cx = pi + 1;
+            var negate = false;
+            if (cx < plen and pattern[cx] == '!') {
+                negate = true;
+                cx += 1;
+            }
+            var matched = false;
+            while (cx < plen and pattern[cx] != ']') {
+                const lo = pattern[cx];
+                if (cx + 2 < plen and pattern[cx + 1] == '-' and pattern[cx + 2] != ']') {
+                    const hi = pattern[cx + 2];
+                    if (name[ni] >= lo and name[ni] <= hi) matched = true;
+                    cx += 3;
+                } else {
+                    if (name[ni] == lo) matched = true;
+                    cx += 1;
+                }
+            }
+            if (cx >= plen) return false; // unterminated class — fail safe
+            if (matched == negate) return false;
+            ni += 1;
+            pi = cx + 1;
+            continue;
+        }
+        if (pc == '\\' and pi + 1 < plen) {
+            if (pattern[pi + 1] != name[ni]) return false;
+            pi += 2;
+            ni += 1;
+            continue;
+        }
+        if (pc != name[ni]) return false;
+        pi += 1;
+        ni += 1;
+    }
+    return ni == nlen;
+}
+
+/// Returns ``true`` if *pattern* contains any unescaped glob
+/// metacharacter.  Used to short-circuit the directory-walk when a
+/// glob pattern is in fact a literal path.
+fn pattern_has_meta(pattern: []const u8) bool {
+    var i: usize = 0;
+    while (i < pattern.len) : (i += 1) {
+        const c = pattern[i];
+        if (c == '\\' and i + 1 < pattern.len) {
+            i += 1;
+            continue;
+        }
+        if (c == '*' or c == '?' or c == '[') return true;
+    }
+    return false;
+}
+
+/// Split *pattern* at the last ``/``.  Returns ``(dir_len, basename_off)``
+/// where dir_len is the number of bytes (including the trailing
+/// slash) belonging to the directory portion, and basename_off is
+/// the offset of the first basename byte.
+fn split_dir_basename(pattern: []const u8) struct { dir_len: u32, base_off: u32 } {
+    var i: u32 = @intCast(pattern.len);
+    while (i > 0 and pattern[i - 1] != '/') : (i -= 1) {}
+    return .{ .dir_len = i, .base_off = i };
+}
+
+/// Build a NUL-terminated bump-allocator copy of *src*.  Mirrors
+/// :func:`path_cstr` but takes raw bytes so callers can pass a
+/// dir-prefix slice carved out of the pattern.
+fn cstr_from_bytes(src: []const u8) [*:0]const u8 {
+    const buf_addr = obj.alloc(@intCast(src.len + 1));
+    const out: [*]u8 = @ptrFromInt(buf_addr);
+    for (src, 0..) |c, i| out[i] = c;
+    out[src.len] = 0;
+    return @ptrCast(out);
+}
+
+/// Append a single result string to a Tcl-list accumulator and
+/// return the new accumulator.  Wraps :func:`tcl_list` so the
+/// caller doesn't have to construct intermediate TclObj wrappers.
+fn list_append(acc: i32, s_ptr: u32, s_len: u32) i32 {
+    const list_mod = @import("../valtypes/tcl_list.zig");
+    const elem = obj_new_string(@intCast(s_ptr), @intCast(s_len));
+    return list_mod.tcl_list(acc, elem);
+}
+
+/// ``glob pattern`` — list filesystem entries matching *pattern*.
+///
+/// Single-pattern shape — the BUILTIN handler in :module:`cmds/fs.zig`
+/// peels switches and chains multi-pattern forms by calling this
+/// helper once per pattern.  Always returns a Tcl-list TclObj; the
+/// BUILTIN decides whether an empty result is silent
+/// (``-nocomplain``) or raises (default).  Not exported — there is
+/// no Python ``wasm_runtime_import`` for ``glob`` because the
+/// variadic shape doesn't fit a fixed-arity import descriptor.
+pub fn tcl_cmd_glob(pattern: i32) i32 {
+    if (!caps.check(caps.CAP_FS_GLOB, "glob", "FS_GLOB")) return 0;
+    if (pattern == 0) return obj_new_string(0, 0);
+    const s = obj_ensure_string(pattern);
+    if (s.len == 0) return obj_new_string(0, 0);
+    const pat_bytes: []const u8 = (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
+
+    // Literal path with no metas — return as-is iff it exists.
+    if (!pattern_has_meta(pat_bytes)) {
+        if (access(path_cstr(pattern), F_OK) != 0) return obj_new_string(0, 0);
+        return list_append(obj_new_string(0, 0), s.ptr, s.len);
+    }
+
+    const split = split_dir_basename(pat_bytes);
+    const dir_bytes: []const u8 = pat_bytes[0..split.dir_len];
+    const base_bytes: []const u8 = pat_bytes[split.base_off..];
+
+    // wasi-libc's ``opendir(".")`` translates to a relative-cwd
+    // ``path_open`` which the wasi-libc preopen scanner resolves
+    // against the embedder-granted preopens; an explicit dir prefix
+    // resolves the same way.  Empty prefix → cwd.
+    const dir_path: [*:0]const u8 = if (dir_bytes.len == 0)
+        cstr_from_bytes(".")
+    else
+        cstr_from_bytes(dir_bytes);
+    const dir_handle = opendir(dir_path);
+    if (dir_handle == null) return obj_new_string(0, 0);
+
+    var acc: i32 = obj_new_string(0, 0);
+    while (true) {
+        const ent = readdir(dir_handle.?);
+        if (ent == null) break;
+        const ent_addr: u32 = @intFromPtr(ent.?);
+        const name_ptr: [*]const u8 = @ptrFromInt(ent_addr + DIRENT_OFF_NAME);
+        // Compute name length by NUL scan — the trailing NUL sits
+        // inside the libc-owned struct so we don't include it.
+        var nlen: u32 = 0;
+        while (name_ptr[nlen] != 0) : (nlen += 1) {}
+        if (nlen == 0) continue;
+        // Skip ``.`` and ``..`` unless the pattern explicitly starts
+        // with a ``.``.  Matches csh / Tcl / fnmatch convention so
+        // ``glob *`` doesn't return them silently.
+        if (name_ptr[0] == '.' and (base_bytes.len == 0 or base_bytes[0] != '.')) continue;
+        const name_slice: []const u8 = name_ptr[0..nlen];
+        if (!fnmatch_basename(base_bytes.ptr, @intCast(base_bytes.len), name_slice.ptr, @intCast(name_slice.len))) continue;
+        // Glue the dir prefix back onto the matched basename.
+        const out_len: u32 = split.dir_len + nlen;
+        const out_buf = obj.alloc(out_len);
+        const out: [*]u8 = @ptrFromInt(out_buf);
+        if (split.dir_len > 0) {
+            for (0..split.dir_len) |i| out[i] = dir_bytes[i];
+        }
+        for (0..nlen) |i| out[split.dir_len + i] = name_ptr[i];
+        acc = list_append(acc, out_buf, out_len);
+    }
+    _ = closedir(dir_handle.?);
+    return acc;
 }
 
 /// ``file link ?-type? linkName target`` — create a link.  Tcl's

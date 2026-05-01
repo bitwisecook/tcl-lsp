@@ -242,7 +242,7 @@ pub fn round_up_to_class(aligned: u32) u32 {
     return aligned; // larger than the largest class — return as-is
 }
 
-pub fn alloc(size: u32) callconv(.c) u32 {
+pub export fn alloc(size: u32) callconv(.c) u32 {
     const requested = (size + 7) & ~@as(u32, 7);
     const aligned = if (requested <= 2048) round_up_to_class(requested) else requested;
     // S6.1: recycle from the per-class free-list if it has a slab

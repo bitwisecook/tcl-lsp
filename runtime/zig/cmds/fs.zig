@@ -1,4 +1,4 @@
-// ``file``, ``pwd``, ``cd`` — filesystem commands.
+// ``file``, ``pwd``, ``cd``, ``glob`` — filesystem commands.
 
 const fs_mod      = @import("../io/tcl_fs.zig");
 const obj         = @import("../valtypes/tcl_obj.zig");
@@ -56,11 +56,109 @@ fn is_dash_encoding(o: i32) bool {
     return true;
 }
 
+/// ``glob ?-nocomplain? ?--? pattern ?pattern ...?``
+///
+/// Capability-gated through :func:`fs_mod.tcl_cmd_glob`.  Walks each
+/// pattern in turn, concatenating the per-pattern result lists into
+/// one combined Tcl list.  Without ``-nocomplain`` an empty result
+/// raises (per the man page); with the switch we silently return
+/// the empty list.
+///
+/// Switches not yet wired (``-directory`` / ``-tails`` / ``-types``
+/// / ``-path`` / ``-join``) raise ``unsupported`` so scripts get
+/// a clear diagnostic — adding them is purely a parsing job; the
+/// underlying readdir machinery already supports the work.
+fn eval_glob(words: []const i32) i32 {
+    var idx: usize = 1;
+    var nocomplain = false;
+    while (idx < words.len) : (idx += 1) {
+        const w = words[idx];
+        const s = obj.obj_ensure_string(w);
+        if (s.len == 0 or s.len > 32) break;
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        if (sp[0] != '-') break;
+        if (s.len == 2 and sp[1] == '-') {
+            idx += 1;
+            break;
+        }
+        if (eq_lit(sp, s.len, "-nocomplain")) {
+            nocomplain = true;
+            continue;
+        }
+        if (eq_lit(sp, s.len, "-directory") or
+            eq_lit(sp, s.len, "-tails") or
+            eq_lit(sp, s.len, "-types") or
+            eq_lit(sp, s.len, "-path") or
+            eq_lit(sp, s.len, "-join"))
+        {
+            stubs.unsupported_sub("glob", sp[0..s.len]);
+            return 0;
+        }
+        // Unknown switch — let it through as a literal pattern,
+        // matching the lenient behaviour of stock Tcl.
+        break;
+    }
+    if (idx >= words.len) {
+        if (nocomplain) return obj.obj_new_string(0, 0);
+        stubs.raise("wrong # args: should be \"glob ?switches? pattern ?pattern ...?\"");
+        return 0;
+    }
+    var acc: i32 = obj.obj_new_string(0, 0);
+    var any_matched = false;
+    while (idx < words.len) : (idx += 1) {
+        const result = fs_mod.tcl_cmd_glob(words[idx]);
+        if (result == 0) return 0; // capability-denied or fatal — error already raised
+        const r = obj.obj_ensure_string(result);
+        if (r.len == 0) continue;
+        any_matched = true;
+        // Concatenate result lists by pasting raw bytes with a single
+        // separator — both sides are already canonical list strings.
+        if (obj.obj_ensure_string(acc).len == 0) {
+            acc = result;
+        } else {
+            acc = list_concat(acc, result);
+        }
+    }
+    if (!any_matched and !nocomplain) {
+        stubs.raise("no files matched glob pattern");
+        return 0;
+    }
+    return acc;
+}
+
+fn eq_lit(p: [*]const u8, len: u32, lit: []const u8) bool {
+    if (len != lit.len) return false;
+    for (0..lit.len) |i| if (p[i] != lit[i]) return false;
+    return true;
+}
+
+/// Glue two canonical list strings together, separated by a single
+/// space.  Both inputs are assumed to be the result of a glob walk
+/// (so already-quoted) — we don't re-quote elements.  This sidesteps
+/// the per-element TclObj allocation that ``list_mod.tcl_list``
+/// would do for each element across the second input.
+fn list_concat(a: i32, b: i32) i32 {
+    const sa = obj.obj_ensure_string(a);
+    const sb = obj.obj_ensure_string(b);
+    if (sa.len == 0) return b;
+    if (sb.len == 0) return a;
+    const total: u32 = sa.len + 1 + sb.len;
+    const buf = obj.alloc(total);
+    const out: [*]u8 = @ptrFromInt(buf);
+    const ap: [*]const u8 = @ptrFromInt(sa.ptr);
+    const bp: [*]const u8 = @ptrFromInt(sb.ptr);
+    for (0..sa.len) |i| out[i] = ap[i];
+    out[sa.len] = ' ';
+    for (0..sb.len) |i| out[sa.len + 1 + i] = bp[i];
+    return obj.obj_new_string(@intCast(buf), @intCast(total));
+}
+
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "file", .arity_min = 1, .arity_max = null, .handler = &eval_file },
     .{ .name = "pwd", .arity_min = 0, .arity_max = 0, .handler = &eval_pwd },
     .{ .name = "cd", .arity_min = 0, .arity_max = 1, .handler = &eval_cd },
     .{ .name = "source", .arity_min = 1, .arity_max = 3, .handler = &eval_source },
+    .{ .name = "glob", .arity_min = 1, .arity_max = null, .handler = &eval_glob },
 };
 
 // ``file <sub>`` sub-commands — mirrors

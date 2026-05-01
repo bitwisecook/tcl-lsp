@@ -44,8 +44,12 @@ const STUB_TRAP: []const []const u8 = &.{
     // Only ``chan`` (top-level ensemble) and ``socket`` remain
     // trapping stubs here.
     "chan", "socket",
-    // Filesystem / process — file/pwd/cd have real impls in BUILTINS.
-    "glob", "exec", "load", "unload",
+    // Filesystem / process — file/pwd/cd/glob/exec have real impls
+    // in BUILTINS (cmds/fs.zig + cmds/exec.zig).  ``glob`` and
+    // ``exec`` are capability-gated through interp/tcl_caps.zig and
+    // raise ``permission denied: <cmd> requires CAP_<NAME>`` on
+    // sandboxed builds; ``load`` / ``unload`` remain trap-only.
+    "load", "unload",
     // Format / pattern matching — scan/binary are in BUILTINS.
     "regexp",
     // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``,
@@ -70,9 +74,10 @@ const STUB_TRAP: []const []const u8 = &.{
     // dynamic ``switch`` string — acceptable to trap until a runtime
     // evaluator lands.
     "switch",
-    // ``exit`` terminates the interpreter; in the sandbox we trap
-    // rather than silently exit (callers can catch).
-    "exit",
+    // ``exit`` is a capability-gated BUILTIN in cmds/exit.zig;
+    // intentionally absent from STUB_TRAP so the BUILTIN dispatch
+    // wins.  Without ``CAP_EXIT`` granted the BUILTIN raises
+    // ``permission denied`` instead of trapping.
     // Debug-only / host-machine commands.
     "memory", "bgerror",
     // Tcl 9.0 additions missing in the WASM runtime.

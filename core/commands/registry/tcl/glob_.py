@@ -13,7 +13,6 @@ from ..models import (
     HoverSnippet,
     OptionSpec,
     ValidationSpec,
-    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ._base import register
@@ -65,10 +64,10 @@ class GlobCommand(CommandDef):
                     target=SideEffectTarget.FILE_IO, reads=True, connection_side=ConnectionSide.NONE
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(
-                import_key="tcl_glob",
-                argc=1,
-                params=("i32",),
-                results=("i32",),
-            ),
+            # No ``wasm_runtime_import`` — ``glob`` is variadic
+            # (``glob -nocomplain *.tcl *.h``) and the codegen's
+            # argc=N truncation would silently drop the trailing
+            # patterns.  Eval-fallback dispatches to the BUILTIN
+            # handler in ``runtime/zig/cmds/fs.zig`` which owns
+            # switch parsing and capability enforcement.
         )

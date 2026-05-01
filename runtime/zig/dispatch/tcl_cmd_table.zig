@@ -43,6 +43,8 @@ const after_cmd     = @import("../cmds/after.zig");
 const event_cmd     = @import("../cmds/event.zig");
 const coroutine_cmd = @import("../cmds/coroutine.zig");
 const fileevent_cmd = @import("../cmds/fileevent.zig");
+const exec_cmd      = @import("../cmds/exec.zig");
+const exit_cmd      = @import("../cmds/exit.zig");
 
 const BUILTINS: []const reg.CmdEntry = &(
     [_]reg.CmdEntry{string_cmd.registration} ++
@@ -71,7 +73,9 @@ const BUILTINS: []const reg.CmdEntry = &(
     after_cmd.registrations ++
     event_cmd.registrations ++
     coroutine_cmd.registrations ++
-    fileevent_cmd.registrations
+    fileevent_cmd.registrations ++
+    exec_cmd.registrations ++
+    exit_cmd.registrations
 );
 
 /// Look up a command by name.  Returns the handler function pointer on
