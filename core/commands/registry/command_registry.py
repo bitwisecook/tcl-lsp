@@ -434,8 +434,15 @@ class CommandRegistry:
         emitter import time.  Dialect packs loaded after that point add new
         specs with empty ``codegens`` dicts; the hook is still present on the
         earlier spec and this method finds it.
+
+        Accepts both bare (``upvar``) and canonical (``::upvar``,
+        ``::HTTP::respond``) command forms — hooks are registered on
+        bare-name specs at emitter import time, so the canonical form
+        strips its leading ``::`` to recover the bare name.  See issue #246.
         """
         specs = self.specs_by_name.get(name)
+        if specs is None and name.startswith("::"):
+            specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return None
         for spec in specs:
