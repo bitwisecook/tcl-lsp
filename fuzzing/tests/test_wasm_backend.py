@@ -3,23 +3,31 @@
 Verifies the WASM backend integrates with the harness — compiles +
 runs a tiny script, classifies a Tcl-level error, and filters out
 inputs that depend on WASM-stubbed commands.
+
+The stub-filter tests are pure regex over the parity baseline JSON
+and run independently of wasmtime / the Zig runtime — they must
+still execute in CI environments without those installed, since
+that's where stub-filter regressions would otherwise slip through
+unnoticed.
 """
 
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
-pytest.importorskip("wasmtime", reason="wasmtime not installed")
+import pytest
 
 from fuzzing.harness import run_differential
 from fuzzing.wasm_backend import is_available, run_wasm, uses_stubbed_command
 
 pytestmark = pytest.mark.slow
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-@pytest.fixture(scope="module", autouse=True)
+
 def _require_wasm_runtime() -> None:
-    """Skip the whole module if the Zig runtime isn't buildable here."""
+    """Skip if wasmtime + the Zig runtime aren't available."""
+    pytest.importorskip("wasmtime", reason="wasmtime not installed")
     if not is_available():
         pytest.skip("WASM runtime not available")
 
@@ -86,9 +94,27 @@ class TestStubFilter:
         # in the pattern must keep this from matching.
         assert not uses_stubbed_command("my_switch_proc arg1\n")
 
+    def test_seed_1774200003_is_filtered(self) -> None:
+        # Direct regression for issue #265.  The seed contains
+        # ``switch`` (TRAPPING_STUB) inside ``namespace eval util {…}``
+        # and again inside an ``if`` body — both nested in braced
+        # bodies.  The earlier lexer-walk filter treated the body as a
+        # single ESC token and missed every ``switch`` inside, so this
+        # script slipped past the corpus-load gate and the WASM
+        # backend then trapped on the stub, polluting other findings'
+        # categories.  ``uses_stubbed_command`` must return ``True``.
+        seed = _REPO_ROOT / "fuzzing" / "findings" / "seed_1774200003.tcl"
+        if not seed.exists():
+            pytest.skip(f"seed file not present: {seed}")
+        assert uses_stubbed_command(seed.read_text(encoding="utf-8"))
+
 
 class TestRunWasm:
     """The WASM backend must produce harness-compatible RunResult shapes."""
+
+    @pytest.fixture(autouse=True)
+    def _runtime_required(self) -> None:
+        _require_wasm_runtime()
 
     def test_simple_puts(self) -> None:
         r = run_wasm("puts hello\n")
@@ -123,6 +149,10 @@ class TestHarnessIntegration:
     """``run_differential(use_wasm=True)`` must wire the new backend in
     alongside ``vm`` / ``vm_opt`` and produce no spurious mismatches on
     a trivially-correct script."""
+
+    @pytest.fixture(autouse=True)
+    def _runtime_required(self) -> None:
+        _require_wasm_runtime()
 
     def test_wasm_appears_in_results(self) -> None:
         r = run_differential(
