@@ -120,6 +120,12 @@ def did_close(params: types.DidCloseTextDocumentParams) -> None:
     uri = params.text_document.uri
     log.info("Closed %s", uri)
     _state.diagnostic_scheduler.cancel(uri)
+    # Drop cached hover entries so a reopen-with-version-reset (clients
+    # commonly reset to ``1``) cannot serve stale entries from the
+    # previous session keyed on a matching ``(uri, version, line, char)``.
+    from lsp.server import _invalidate_hover_cache
+
+    _invalidate_hover_cache(uri)
     if _dp._is_bigip_conf(uri):
         _state.background_scanner.remove_bigip_config(uri)
         _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
