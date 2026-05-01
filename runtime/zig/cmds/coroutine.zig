@@ -49,15 +49,17 @@ fn build_invocation_script(ws: []const i32) i32 {
     return obj.obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
-fn build_coro_command(coro_ptr: u32, name_ptr: u32, name_len: u32) u32 {
+/// Build the dispatch ``Command`` struct.  ``fqn_ptr`` / ``fqn_len``
+/// is the heap-copied fully-qualified name (``::ns::name``) the
+/// Command's name slot stores — matches the shape ``proc_register``
+/// uses so introspection (``info procs``, ``namespace which``)
+/// reports the same FQN for coroutines as for procs.
+fn build_coro_command(coro_ptr: u32, fqn_ptr: u32, fqn_len: u32) u32 {
     const cmd = obj.alloc(procs.COMMAND_SIZE);
     const slice: [*]u8 = @ptrFromInt(cmd);
     @memset(slice[0..procs.COMMAND_SIZE], 0);
-    // Name slot.
-    const nbuf = obj.alloc(name_len);
-    if (name_len > 0) obj.memcpy(nbuf, name_ptr, name_len);
-    write_i32(cmd, @bitCast(nbuf));
-    write_i32(cmd + 4, @bitCast(name_len));
+    write_i32(cmd, @bitCast(fqn_ptr));
+    write_i32(cmd + 4, @bitCast(fqn_len));
     // Flags + params_obj = *Coro.
     write_i32(cmd + procs.OFF_FLAGS, @bitCast(procs.CMD_COROUTINE));
     write_i32(cmd + procs.OFF_PARAMS_OBJ, @bitCast(coro_ptr));
@@ -105,8 +107,18 @@ fn eval_coroutine(words: []const i32) i32 {
     const name = obj.obj_ensure_string(words[1]);
     const c = coro_mod.create(name.ptr, name.len, body) orelse {
         stubs.raise("coroutine table full or name already in use");
+        // ``create`` retains body on success; on failure the +1
+        // from build_invocation_script / obj_new_string_copy is the
+        // caller's, so release it here.
+        if (body != 0) obj.tcl_obj_release(body);
         return 0;
     };
+    // ``create`` retains body — drop our +1 from the build step
+    // above so the coroutine slot is the sole owner.  Without this
+    // the body's refcount stays artificially high for the
+    // coroutine's lifetime (Copilot review on PR #284).
+    obj.tcl_obj_release(body);
+
     // Register the coroutine as a CMD_COROUTINE command in the
     // current namespace.
     const r = tcl_ns.ns_resolve_qualified_creating(
@@ -116,12 +128,15 @@ fn eval_coroutine(words: []const i32) i32 {
         stubs.raise("invalid coroutine name");
         return 0;
     }
+    // Build the FQN once — used both as the Command's name slot
+    // (for introspection consistency with ``proc_register``) and
+    // as the ``[c]`` return value.  Real Tcl returns the FQN of
+    // the new coroutine command, not just the simple name.
+    const fqn = tcl_ns.ns_build_fqn(r.target_ns, r.simple_ptr, r.simple_len);
     const coro_addr: u32 = @intCast(@intFromPtr(c));
-    const cmd = build_coro_command(coro_addr, r.simple_ptr, r.simple_len);
+    const cmd = build_coro_command(coro_addr, fqn.ptr, fqn.len);
     _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, cmd);
     procs.proc_count_bump();
-    // Record the dispatch-command location so :func:`coro_mod.cleanup_terminated`
-    // can clear it when the coroutine body returns or errors.
     coro_mod.record_registration(c, r.target_ns, r.simple_ptr, r.simple_len);
     // First-time invocation: real Tcl calls the body once before
     // returning the coroutine name.  Our segment-based model does
@@ -129,8 +144,7 @@ fn eval_coroutine(words: []const i32) i32 {
     // user — for simplicity v1 returns the FQN now and lets the
     // user invoke ``[name]`` to start the body.  This is a v1
     // semantic deviation; documented as such.
-    // Construct ``::ns::name`` for the result.
-    return obj.obj_new_string(@bitCast(r.simple_ptr), @bitCast(r.simple_len));
+    return obj.obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
 }
 
 fn eval_yield(words: []const i32) i32 {
@@ -142,9 +156,17 @@ fn eval_yield(words: []const i32) i32 {
         stubs.raise("yield can only be called in a coroutine");
         return 0;
     }
-    const value: i32 = if (words.len == 2) words[1] else obj.obj_new_string(0, 0);
+    // Pass ``words[1]`` (a parser-owned TclObj — no extra retain)
+    // when present, else the sentinel ``0`` so ``signal_yield``
+    // doesn't allocate a new empty TclObj that would never be
+    // released.  The yielded value is carried back to the [c]
+    // caller via ``yield_value``; eval_yield's own return is
+    // unused (yield always unwinds to ``tcl_coro_drive``), so
+    // returning ``0`` avoids a phantom +1 ownership on the
+    // caller.  Codex / Copilot review on PR #284.
+    const value: i32 = if (words.len == 2) words[1] else 0;
     _ = coro_mod.signal_yield(value);
-    return value;
+    return 0;
 }
 
 fn eval_yieldto(words: []const i32) i32 {
@@ -157,13 +179,17 @@ fn eval_yieldto(words: []const i32) i32 {
         return 0;
     }
     // Invoke the target command as ``[command args...]`` and yield
-    // its result.
+    // its result.  ``concat_words`` returns ``ws[0]`` borrowed when
+    // there is a single word and a fresh +1 TclObj otherwise; track
+    // ownership so we release the temporary in the multi-word case.
     const interp = @import("../interp/tcl_interp.zig");
+    const multi_word = words[1..].len > 1;
     const concat = interp.concat_words(words[1..]);
     const cs = obj.obj_ensure_string(concat);
     const result = interp.eval_script(cs.ptr, cs.len);
+    if (multi_word) obj.tcl_obj_release(concat);
     _ = coro_mod.signal_yield(result);
-    return result;
+    return 0;
 }
 
 pub const registrations = [_]reg.CmdEntry{

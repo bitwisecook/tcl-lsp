@@ -33,12 +33,17 @@ fn eval_fileevent(words: []const i32) i32 {
         return 0;
     }
     if (words.len == 3) {
-        // Query form.
+        // Query form.  The dispatcher contract is "+1 for caller" on
+        // command results; the scheduler returns its stored handle
+        // without bumping refcount, so retain before returning to
+        // avoid the caller's eventual release dropping the handle
+        // out from under the still-registered fileevent table.
         const cur = if (is_read)
             sched.fileevent_get_readable(chan.ptr, chan.len)
         else
             sched.fileevent_get_writable(chan.ptr, chan.len);
         if (cur == 0) return obj.obj_new_string(0, 0);
+        obj.tcl_obj_retain(cur);
         return cur;
     }
     // Set form — empty script deregisters.
