@@ -42,6 +42,10 @@
       "summary": "division"
     },
     {
+      "name": "::tcl::build-info",
+      "summary": "Return compile-time build metadata for the Tcl runtime."
+    },
+    {
       "name": "<",
       "summary": "numeric less-than"
     },
@@ -1075,6 +1079,11 @@
       "pure": true
     },
     {
+      "name": "lseq",
+      "summary": "Generate a list of numeric values in a range.",
+      "pure": true
+    },
+    {
       "name": "lset",
       "summary": "Change an element in a list"
     },
@@ -1652,6 +1661,10 @@
       "summary": "Escape regex metacharacters in a string."
     },
     {
+      "name": "registry",
+      "summary": "Windows registry manipulation (Windows-only)."
+    },
+    {
       "name": "regsub",
       "summary": "Perform substitutions based on regular expression matching."
     },
@@ -1898,6 +1911,10 @@
     {
       "name": "tcl::OptProcArgGiven",
       "summary": "Return 1 if the named option was explicitly given, 0 otherwise."
+    },
+    {
+      "name": "tcl::build-info",
+      "summary": "Return compile-time build metadata for the Tcl runtime."
     },
     {
       "name": "tcl::idna::decode",
@@ -2767,6 +2784,10 @@
     {
       "name": "yieldto",
       "summary": "Create and produce values from coroutines"
+    },
+    {
+      "name": "zlib",
+      "summary": "Compression / decompression using zlib."
     },
     {
       "name": "|",

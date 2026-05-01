@@ -390,8 +390,39 @@ fn find_table(name: i32) u32 {
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
         return @bitCast(read_i32(bucket + 12));
     }
+    // Namespace-aware fallback: when *name* is unqualified and a
+    // non-root namespace is active, retry as ``<ns_full>::<name>``.
+    // The compiled writer side (``_emit_array_name_obj`` in
+    // _variables.py) already qualifies array names inside a
+    // ``namespace eval`` block, so the read side has to mirror it
+    // — otherwise an interpreted ``array exists path`` from inside
+    // an upleveled body misses the qualified array the compiled
+    // ``set path(test1) …`` deposited.  Fully-qualified names that
+    // already start with ``::`` skip this branch.
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') return 0;
+    const ns_ptr = current_ns_full_ptr();
+    const ns_len = current_ns_full_len();
+    if (ns_len <= 2) return 0; // root or unset — no extra prefix to try
+    const total: u32 = ns_len + 2 + sn.len;
+    const buf = obj.alloc(total);
+    if (buf == 0) return 0;
+    defer obj.free_sized(buf, total);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const ns_p: [*]const u8 = @ptrFromInt(ns_ptr);
+    for (0..ns_len) |i| dst[i] = ns_p[i];
+    dst[ns_len] = ':';
+    dst[ns_len + 1] = ':';
+    for (0..sn.len) |i| dst[ns_len + 2 + i] = sp[i];
+    const qhash = fnv1a(buf, total);
+    if (dir_find(buf, total, qhash)) |bucket| {
+        return @bitCast(read_i32(bucket + 12));
+    }
     return 0;
 }
+
+extern fn current_ns_full_ptr() u32;
+extern fn current_ns_full_len() u32;
 
 // --- Public exports ----------------------------------------------------
 

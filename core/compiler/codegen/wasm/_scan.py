@@ -155,6 +155,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         # pick it up.  Cheap (one import slot) and
                         # avoids a second scan.
                         needed.add("tcl_puts_nonewline")
+                        # ``puts $chan …`` and ``puts -nonewline $chan …``
+                        # route through ``tcl_cmd_puts_chan`` so the
+                        # message lands on the right fd.  Adding the
+                        # import unconditionally is cheap and lets the
+                        # emitter pick the channel form without a
+                        # second scan over the AST.
+                        needed.add("tcl_puts_chan")
                     elif cmd == "lreplace" and len(full_parts) > 5:
                         # ``[lreplace list first last v1 v2 …]`` —
                         # more than 4 args triggers the multi-value
@@ -519,9 +526,11 @@ def _scan_needed_imports(
                 if rimp is not None:
                     needed.add(rimp.import_key)
                     if command == "puts":
-                        # Include the -nonewline helper alongside tcl_puts
-                        # so the dispatch path can choose between them.
+                        # Include the -nonewline and channel-form
+                        # helpers alongside tcl_puts so the emitter can
+                        # pick the right shape without a second scan.
                         needed.add("tcl_puts_nonewline")
+                        needed.add("tcl_puts_chan")
                     elif command == "lreplace" and len(args) > 4:
                         # Multi-value ``lreplace list first last v1 v2 …``
                         # chains successive ``tcl_list_insert`` calls at

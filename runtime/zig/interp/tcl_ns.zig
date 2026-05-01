@@ -1388,6 +1388,21 @@ pub export fn global_set(name: i32, value: i32) i32 {
 /// otherwise.  Strips the leading ``::`` if present (the array side
 /// passes the *normalised* name; the var side does not strip on
 /// lookup, so we mirror what ``global_get`` does).
+/// Raw accessor used by ``tcl_array.find_table`` to retry an
+/// unqualified array lookup as ``<current_ns_full>::<name>``.
+/// Returns the bump-allocator pointer of the cached name; the
+/// matching length comes from :func:`current_ns_full_len`.
+/// Returns 0/0 when the current namespace is root or unset.
+pub export fn current_ns_full_ptr() u32 {
+    if (current_ns == 0) return 0;
+    return ns_full_name(current_ns).ptr;
+}
+
+pub export fn current_ns_full_len() u32 {
+    if (current_ns == 0) return 0;
+    return ns_full_name(current_ns).len;
+}
+
 pub export fn ns_scalar_exists(name_ptr: u32, name_len: u32) i32 {
     const k = strip_global_prefix(name_ptr, name_len);
     const v = ns_var_find(ns_root(), k.ptr, k.len);
