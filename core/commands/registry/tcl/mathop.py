@@ -49,6 +49,9 @@ _OPERATORS: list[tuple[str, str, Arity | None]] = [
     ("||", "logical OR", None),
     # List index
     ("@", "list index operator", Arity(2, 2)),
+    # Min / max
+    ("min", "minimum of arguments", Arity(1)),
+    ("max", "maximum of arguments", Arity(1)),
 ]
 
 
@@ -83,3 +86,14 @@ def _make_op_class(op_name: str, summary: str, arity: Arity | None) -> type[Comm
 
 for _name, _summary, _arity in _OPERATORS:
     _REGISTRY.append(_make_op_class(_name, _summary, _arity))
+    # Also register the fully-qualified spellings.  The bare names
+    # are used by the expression compiler (prefix-form codegen);
+    # the namespace-qualified spellings are needed when scripts
+    # invoke the operators as ordinary commands, e.g.
+    # ``[::tcl::mathop::== $a $b $c]`` in upstream tcltest fixtures
+    # and the chained-comparison idiom.  The Zig runtime registers
+    # both spellings in ``runtime/zig/cmds/tcl_mathop.zig``; pairing
+    # them here keeps the WASM parity gate (``orphan_builtins``)
+    # green.
+    _REGISTRY.append(_make_op_class(f"::tcl::mathop::{_name}", _summary, _arity))
+    _REGISTRY.append(_make_op_class(f"tcl::mathop::{_name}", _summary, _arity))

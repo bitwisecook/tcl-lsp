@@ -6,6 +6,7 @@ const frames = @import("../interp/tcl_frames.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 const stubs             = @import("../stubs/tcl_stubs.zig");
+const catch_mod         = @import("../interp/tcl_catch.zig");
 const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int       = rt.obj_new_int;
@@ -42,7 +43,7 @@ fn eval_return(words: []const i32) i32 {
         result_obj = words[wi];
     }
     if (is_error) {
-        const catch_mod = @import("../interp/tcl_catch.zig");
+
         catch_mod.tcl_cmd_error(result_obj);
         return 0;
     }
@@ -75,7 +76,16 @@ fn eval_continue(words: []const i32) i32 {
 }
 
 fn eval_error(words: []const i32) i32 {
-    if (words.len >= 2) rt.tcl_cmd_error(words[1]);
+    // ``error msg ?info? ?code?`` — populate ``::errorInfo`` /
+    // ``::errorCode`` from the optional 2nd / 3rd args.  Without
+    // this, ``catch ... opt; dict get $opt -errorcode`` always
+    // saw ``NONE`` because the upstream ``error -code FOO`` form
+    // never made it into the global.
+    if (words.len < 2) return 0;
+    const msg = words[1];
+    const info: i32 = if (words.len >= 3) words[2] else 0;
+    const code: i32 = if (words.len >= 4) words[3] else 0;
+    catch_mod.tcl_cmd_error_full(msg, info, code);
     return 0;
 }
 
@@ -98,6 +108,15 @@ fn eval_catch(words: []const i32) i32 {
         const code = rt.catch_leave();
         const catch_val = rt.catch_result();
         if (words.len >= 3) _ = frames.var_set(words[2], catch_val);
+        // 4-arg ``catch BODY result opt`` — populate ``$opt`` with the
+        // standard return-options dict so ``dict get $opt -errorcode``
+        // observes the error class set by ``error msg ?info? ?code?``
+        // (or by a runtime ``raise`` such as ``CLOCK dateTooLarge``).
+        // Mirrors the wasm-codegen path in
+        // ``_emitter/_control_flow.py::_emit_catch``.
+        if (words.len >= 4) {
+            _ = frames.var_set(words[3], catch_mod.catch_options());
+        }
         return code;
     }
     return obj_new_int(0);
@@ -109,7 +128,7 @@ fn eval_throw(words: []const i32) i32 {
         stubs.raise("wrong # args: should be \"throw type message\"");
         return 0;
     }
-    const catch_mod = @import("../interp/tcl_catch.zig");
+
     catch_mod.tcl_cmd_error_full(words[2], 0, words[1]);
     return 0;
 }
@@ -118,7 +137,7 @@ fn eval_throw(words: []const i32) i32 {
 fn eval_try(words: []const i32) i32 {
     if (words.len < 2) return obj_new_string(0, 0);
     const interp    = @import("../interp/tcl_interp.zig");
-    const catch_mod = @import("../interp/tcl_catch.zig");
+
 
     rt.catch_enter();
     const body_s    = obj_ensure_string(words[1]);

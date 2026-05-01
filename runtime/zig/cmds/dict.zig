@@ -28,6 +28,12 @@ pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "filter", .arity_min = 2, .arity_max = null, .handler = &eval },
     .{ .name = "for", .arity_min = 3, .arity_max = 3, .handler = &eval },
     .{ .name = "get", .arity_min = 1, .arity_max = null, .handler = &eval },
+    // ``dict getd`` is a Tcl 9 synonym for ``dict getdef`` /
+    // ``dict getwithdefault``.  Reference Tcl matches it via the
+    // command-prefix abbreviation rules; we register it explicitly
+    // so the matcher doesn't trip on the ``getdef`` / ``getwithdefault``
+    // ambiguity at the byte level.
+    .{ .name = "getd", .arity_min = 3, .arity_max = null, .handler = &eval },
     .{ .name = "getdef", .arity_min = 3, .arity_max = null, .handler = &eval },
     .{ .name = "getwithdefault", .arity_min = 3, .arity_max = null, .handler = &eval },
     .{ .name = "incr", .arity_min = 2, .arity_max = 3, .handler = &eval },
@@ -51,6 +57,28 @@ pub fn eval(words: []const i32) i32 {
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     if (str_eq(sp, sub.len, "get") and words.len >= 4) return rt.dict_get(words[2], words[3]);
+    // ``dict getd DICT KEY ?KEY ...? DEFAULT`` — Tcl 9's
+    // default-value lookup form.  Returns the existing value when
+    // the key chain resolves; otherwise returns the trailing
+    // ``DEFAULT`` argument.  ``getdef`` / ``getwithdefault`` are
+    // synonyms for the same operation; matched here for the same
+    // arity (2 args = dict + key + default at minimum).
+    if ((str_eq(sp, sub.len, "getd") or
+        str_eq(sp, sub.len, "getdef") or
+        str_eq(sp, sub.len, "getwithdefault")) and words.len >= 5)
+    {
+        // Walk nested keys: dict, key1, key2, ..., default.
+        const default_obj = words[words.len - 1];
+        var cur: i32 = words[2];
+        var ki: u32 = 3;
+        while (ki + 1 < words.len) : (ki += 1) {
+            if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
+                return default_obj;
+            }
+            cur = rt.dict_get(cur, words[ki]);
+        }
+        return cur;
+    }
     if (str_eq(sp, sub.len, "set") and words.len >= 5) {
         const cur = frames.var_resolve(words[2]);
         const result = rt.dict_set(cur, words[3], words[4]);

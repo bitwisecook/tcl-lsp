@@ -121,10 +121,13 @@ class TestClockFormatGmt:
         assert stdout.strip() == "1970-01-01T00:00:00"
 
     def test_unix_epoch_weekday_and_zone_abbr(self):
-        # Thursday 1970-01-01 in UTC.  ``%Z`` should expand to the
-        # synthetic UTC zone's abbreviation.
+        # Thursday 1970-01-01 with ``-gmt 1``.  Reference Tcl's
+        # ``-gmt`` resolves to a synthetic ``GMT`` zone (not ``UTC``)
+        # so ``%Z`` renders ``GMT`` to match the upstream tcltest
+        # ``clock-2.*`` baseline.  ``-timezone UTC`` keeps the
+        # ``UTC`` abbreviation.
         stdout = _run_for_stdout('puts [clock format 0 -gmt 1 -format "%a %b %d %H:%M:%S %Z %Y"]\n')
-        assert stdout.strip() == "Thu Jan 01 00:00:00 UTC 1970"
+        assert stdout.strip() == "Thu Jan 01 00:00:00 GMT 1970"
 
     def test_known_y2k(self):
         # 946684800 = 2000-01-01 00:00:00 UTC.

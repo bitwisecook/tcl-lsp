@@ -341,9 +341,18 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
-                # Recurse into the command text for nested substitutions
+                    needed.add("tcl_catch_options")
+                # Recurse into the command text for nested
+                # substitutions.  Scanning ``parts[-1]`` alone misses
+                # nested brackets that landed in earlier split slots
+                # (``list [catch …] $r [dict …]`` splits into 3 with
+                # the inner ``[catch`` stuck mid-token of parts[1] /
+                # parts[2]); use the whole tail-of-cmd_text so every
+                # ``[…]`` group is rescanned regardless of where the
+                # ``split(None, 2)`` boundary fell.
                 if len(parts) > 1:
-                    _scan_text_for_cmd_subst(parts[-1], needed)
+                    rest = cmd_text[len(parts[0]) :]
+                    _scan_text_for_cmd_subst(rest, needed)
             i = j
         else:
             i += 1
@@ -755,6 +764,17 @@ def _scan_needed_imports(
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_catch_options")
+                    needed.add("tcl_error_full")
+                elif command == "error" and len(args) >= 2:
+                    # 3-arg ``error msg ?info? ?code?`` form — the
+                    # bespoke ``cmds/error_.py`` emitter routes
+                    # through ``tcl_cmd_error_full``.  Pure-math
+                    # modules without an ``error`` site shouldn't
+                    # pull this import, so it's conditional on the
+                    # arity here (not added in the always-on
+                    # block lower down).
+                    needed.add("tcl_error_full")
                 # Scan all arguments for command substitutions.  For
                 # body-taking commands (``proc``, ``namespace eval``,
                 # ``catch``, etc.) the args are source text re-parsed
@@ -888,6 +908,8 @@ def _scan_needed_imports(
                 needed.add("tcl_catch_result")
                 needed.add("tcl_catch_has_error")
                 needed.add("tcl_catch_set_ok_result")
+                needed.add("tcl_catch_options")
+                needed.add("tcl_error_full")
                 _scan_script(body)
             case IRTry(body=body, finally_body=finally_body):
                 _scan_script(body)
