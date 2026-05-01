@@ -268,7 +268,15 @@ def on_initialized(params: types.InitializedParams) -> None:
     # multi-root workspaces, plus the workspace fallback for files outside
     # any folder.
     ws = _server.workspace  # type: ignore[union-attr]
-    folders = getattr(ws, "workspace_folders", None) or []
+    # pygls 2.x exposes folders as ``Workspace.folders`` (dict keyed by URI);
+    # older releases used ``workspace_folders`` (list).  Support both.
+    _folders_attr = getattr(ws, "folders", None)
+    if _folders_attr is None:
+        _folders_attr = getattr(ws, "workspace_folders", None) or []
+    if isinstance(_folders_attr, dict):
+        folders = list(_folders_attr.values())
+    else:
+        folders = list(_folders_attr)
     folder_paths: list[tuple[str, str]] = []
     for folder in folders:
         folder_uri = getattr(folder, "uri", "")
@@ -295,10 +303,17 @@ def on_initialized(params: types.InitializedParams) -> None:
             project_settings = get_all_settings(load_project_config(ws.root_path))
         _state.project_config_settings = project_settings
 
-    # Editor settings arrive later via ``workspace/didChangeConfiguration``;
-    # apply the current (global + project) layers now so server state is
+    # Apply the current (global + project) layers so server state is
     # populated before the first analysis pass.
     _apply_merged_settings_now()
+
+    # Pull the initial editor settings from the client per workspace
+    # folder.  Without this, per-folder ``.vscode/settings.json`` values
+    # only land after the client sends its first
+    # ``workspace/didChangeConfiguration`` notification — which some
+    # clients delay or batch, leaving formatting/diagnostics on initial
+    # requests using stale (default) configuration (issue #230).
+    _pull_and_apply_configuration()
 
     process_start = getattr(_server, "_process_start_time", None)
     if process_start is not None:

@@ -560,11 +560,22 @@ def _apply_merged_settings_now() -> None:
 
 
 def _workspace_folder_uris_from_server() -> list[str]:
-    """List workspace folder URIs from the pygls server (empty if none)."""
+    """List workspace folder URIs from the pygls server (empty if none).
+
+    pygls 2.x stores workspace folders in ``Workspace.folders`` as a
+    ``dict[str, WorkspaceFolder]`` keyed by URI.
+    """
     if _server is None:
         return []
-    folders = getattr(_server.workspace, "workspace_folders", None) or []
-    return [getattr(f, "uri", "") for f in folders if getattr(f, "uri", "")]
+    folders = getattr(_server.workspace, "folders", None)
+    if folders is None:
+        # Fall back to legacy attribute names from older pygls releases.
+        folders = getattr(_server.workspace, "workspace_folders", None) or []
+    if isinstance(folders, dict):
+        iterable = folders.values()
+    else:
+        iterable = folders
+    return [getattr(f, "uri", "") for f in iterable if getattr(f, "uri", "")]
 
 
 def _pull_and_apply_configuration() -> None:
