@@ -214,9 +214,15 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
             (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
         { pos.* += 1; }
         const name = obj_new_string(@bitCast(ptr + vs), @bitCast(pos.* - vs));
+        // Issue #303 — release the per-atom name temp.
+        // ``var_resolve`` returns a borrowed handle to the variable
+        // storage; the lookup-only name TclObj is ours to free.
+        // Without the release, every ``$var`` reference inside an
+        // expression leaks one obj header per iteration.
         const val = frames.var_resolve(name);
-        if (val != 0) return obj_get_int(val);
-        return 0;
+        const v: i64 = if (val != 0) obj_get_int(val) else 0;
+        obj_mod.tcl_obj_release(name);
+        return v;
     }
     if (src[pos.*] == '[') {
         pos.* += 1;
@@ -233,6 +239,17 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         // require us to avoid.
         if (skip) return 0;
         const result = eval_script(ptr + cs, pos.* - 1 - cs);
+        // Codex review on PR #319 (issue #303): do NOT release
+        // ``result`` here — ``eval_script`` can return a *borrowed*
+        // handle into a variable's live storage (``[set x]`` read
+        // mode goes through ``frames.var_resolve`` and forwards
+        // that handle directly), and a release would decrement the
+        // var slot's live refcount and free the value still stored
+        // there.  The intermediate-result discipline can only run
+        // at sites that are guaranteed to see +1-owned returns.
+        // The narrow ``$var`` ``name`` release a few lines up is
+        // safe because that name TclObj is freshly allocated by
+        // this function, not borrowed.
         if (result != 0) return obj_get_int(result);
         return 0;
     }
