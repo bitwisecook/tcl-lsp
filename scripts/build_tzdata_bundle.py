@@ -28,14 +28,23 @@ the index without a hash table.
 Trimming policy
 ---------------
 
-Today the script bundles the on-disk TZif files verbatim — modern
-``/usr/share/zoneinfo`` files are already small (3-4 KB each, ~80
-zones × 4 KB = ~320 KB total).  The decade ± 5 years trimmer
-sketched in
-``docs/design/compiler/wasm-runtime-primitives.md`` is the planned
-follow-up; bundling untrimmed first lets us land the resolver
-plumbing on a known-working blob and shrink it later without
-re-litigating the header layout.
+By default the script bundles the on-disk TZif files verbatim —
+modern ``/usr/share/zoneinfo`` files are already small (3-4 KB
+each, ~80 zones × 4 KB = ~320 KB total).  Pass ``--trim-from`` /
+``--trim-to`` (Unix epoch seconds) to enable the decade ± 5 years
+trimmer sketched in
+``docs/design/compiler/wasm-runtime-primitives.md``.  The trimmer
+drops transitions whose timestamp falls outside the window while
+preserving at least the last pre-window transition so
+:func:`offset_at` lookups for in-window dates resolve to the
+correct rule.  Leap-second tables are dropped unconditionally
+(POSIX time pretends they don't exist, and Tcl follows).
+
+The trimmer only touches the v1 body — the v2/v3 64-bit body and
+TZ-string footer are stripped entirely.  ``offset_at`` only needs
+the historical transition list, and the v1 record set covers
+1901-12-13 to 2038-01-19 in 32-bit-signed seconds (a comfortable
+superset of any decade window we'd realistically pick).
 
 Curated zone list
 -----------------
@@ -194,8 +203,104 @@ _CURATED_ZONES: dict[str, str] = {
 _MAGIC = b"TZBL"
 _VERSION = 1
 
+_TZIF_MAGIC = b"TZif"
 
-def build_bundle(zoneinfo: Path) -> bytes:
+
+def _trim_tzif(blob: bytes, trim_from: int | None, trim_to: int | None) -> bytes:
+    """Drop transitions outside ``[trim_from, trim_to]`` from a TZif blob.
+
+    Returns a re-packed v1-only TZif blob.  Leap-second tables are
+    stripped unconditionally.  When the input is malformed (bad magic,
+    truncated header) the original bytes are returned unchanged so
+    we never produce an unparseable output — the resolver's existing
+    "unknown TZif → fall back to UTC" path stays sound.
+
+    The trimmer keeps at least one pre-window transition (the last
+    one whose timestamp is ``< trim_from``) so callers querying a
+    timestamp at the very start of the window still see the correct
+    historical rule rather than the type-0 default.  Symmetric
+    treatment on the upper end isn't necessary — the post-window
+    transitions only matter if the caller is reading a date *after*
+    ``trim_to``, which is what the bound is meant to forbid.
+    """
+    if trim_from is None and trim_to is None:
+        return blob
+    if not blob.startswith(_TZIF_MAGIC) or len(blob) < 44:
+        return blob
+
+    # v1 header: magic(4) + version(1) + reserved(15) + 6×u32be counts.
+    counts = struct.unpack_from(">6I", blob, 20)
+    ttisutcnt, ttisstdcnt, leapcnt, timecnt, typecnt, charcnt = counts
+    pos = 44
+    times_raw = blob[pos : pos + 4 * timecnt]
+    pos += 4 * timecnt
+    type_idx_raw = blob[pos : pos + timecnt]
+    pos += timecnt
+    ttinfo_raw = blob[pos : pos + 6 * typecnt]
+    pos += 6 * typecnt
+    abbr_raw = blob[pos : pos + charcnt]
+    pos += charcnt
+    # Leap / std / utc tables follow; we drop the leap section
+    # entirely and preserve std/utc bits because they classify the
+    # ttinfo entries (which we keep).
+    pos += 8 * leapcnt
+    std_raw = blob[pos : pos + ttisstdcnt]
+    pos += ttisstdcnt
+    utc_raw = blob[pos : pos + ttisutcnt]
+    pos += ttisutcnt
+    if pos > len(blob):
+        return blob  # truncated — bail.
+
+    times = list(struct.unpack(f">{timecnt}i", times_raw)) if timecnt else []
+    type_indices = list(type_idx_raw) if timecnt else []
+
+    keep_times: list[int] = []
+    keep_indices: list[int] = []
+    last_pre_idx: int | None = None
+    last_pre_t: int | None = None
+    for t, ti in zip(times, type_indices, strict=True):
+        if trim_from is not None and t < trim_from:
+            last_pre_idx = ti
+            last_pre_t = t
+            continue
+        if trim_to is not None and t > trim_to:
+            continue
+        keep_times.append(t)
+        keep_indices.append(ti)
+
+    # Anchor the start with the last dropped pre-window transition so
+    # ``offset_at(t == trim_from)`` resolves to the correct rule.
+    if last_pre_idx is not None and (not keep_times or keep_times[0] != last_pre_t):
+        keep_times.insert(0, last_pre_t)  # type: ignore[arg-type]
+        keep_indices.insert(0, last_pre_idx)
+
+    # Re-emit a v1-only TZif blob.  Header counts: leapcnt = 0,
+    # timecnt = trimmed; typecnt / charcnt / ttisutcnt / ttisstdcnt
+    # carry through unchanged so the ttinfo entries / abbr table
+    # don't need re-numbering.
+    new_timecnt = len(keep_times)
+    out = bytearray()
+    out.extend(_TZIF_MAGIC)
+    out.append(0)  # version 0 (v1).
+    out.extend(b"\x00" * 15)
+    out.extend(struct.pack(">6I", ttisutcnt, ttisstdcnt, 0, new_timecnt, typecnt, charcnt))
+    if new_timecnt:
+        out.extend(struct.pack(f">{new_timecnt}i", *keep_times))
+        out.extend(bytes(keep_indices))
+    out.extend(ttinfo_raw)
+    out.extend(abbr_raw)
+    # leap section omitted (leapcnt = 0).
+    out.extend(std_raw)
+    out.extend(utc_raw)
+    return bytes(out)
+
+
+def build_bundle(
+    zoneinfo: Path,
+    *,
+    trim_from: int | None = None,
+    trim_to: int | None = None,
+) -> bytes:
     """Read the curated zones from *zoneinfo* and pack into a bundle blob."""
     if not zoneinfo.is_dir():
         msg = f"{zoneinfo} is not a directory; pass --zoneinfo /usr/share/zoneinfo"
@@ -212,7 +317,7 @@ def build_bundle(zoneinfo: Path) -> bytes:
             skipped.append(f"{alias} → {rel}")
             continue
         if rel not in payloads:
-            payloads[rel] = path.read_bytes()
+            payloads[rel] = _trim_tzif(path.read_bytes(), trim_from, trim_to)
         entries.append((alias, rel))
 
     if skipped:
@@ -301,8 +406,31 @@ def main() -> None:
         required=True,
         help="path to write the packed bundle (e.g. runtime/zig/data/tzdata.bin)",
     )
+    p.add_argument(
+        "--trim-from",
+        type=int,
+        default=None,
+        metavar="EPOCH",
+        help=(
+            "drop TZif transitions strictly before this Unix epoch "
+            "second (default: keep all).  The last pre-window "
+            "transition is preserved so offset_at() at the lower "
+            "bound still resolves to the correct historical rule."
+        ),
+    )
+    p.add_argument(
+        "--trim-to",
+        type=int,
+        default=None,
+        metavar="EPOCH",
+        help="drop TZif transitions strictly after this Unix epoch second",
+    )
     args = p.parse_args()
-    blob = build_bundle(args.zoneinfo)
+    blob = build_bundle(
+        args.zoneinfo,
+        trim_from=args.trim_from,
+        trim_to=args.trim_to,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(blob)
     sys.stderr.write(
