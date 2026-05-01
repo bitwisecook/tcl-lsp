@@ -167,15 +167,19 @@ fn op_div(args: []const i32) i32 {
         stubs.raise("wrong # args: should be \"/ arg ?arg ...?\"");
         return obj_new_int(0);
     }
-    if (any_float(args)) {
-        if (args.len == 1) {
-            const v = obj_get_float(args[0]);
-            if (v == 0.0) {
-                stubs.raise("divide by zero");
-                return obj_new_int(0);
-            }
-            return obj_new_float(1.0 / v);
+    // Unary ``/`` is ALWAYS the floating reciprocal regardless of the
+    // operand's source type.  ``mathop.n``: "With one argument, the
+    // result is the reciprocal of that value (i.e. 1.0/x)."  An int
+    // input still produces a float — ``[/ 5]`` is ``0.2``, not ``0``.
+    if (args.len == 1) {
+        const v = obj_get_float(args[0]);
+        if (v == 0.0) {
+            stubs.raise("divide by zero");
+            return obj_new_int(0);
         }
+        return obj_new_float(1.0 / v);
+    }
+    if (any_float(args)) {
         var acc: f64 = obj_get_float(args[0]);
         for (args[1..]) |a| {
             const v = obj_get_float(a);
@@ -186,17 +190,6 @@ fn op_div(args: []const i32) i32 {
             acc /= v;
         }
         return obj_new_float(acc);
-    }
-    if (args.len == 1) {
-        const v = obj_get_int(args[0]);
-        if (v == 0) {
-            stubs.raise("divide by zero");
-            return obj_new_int(0);
-        }
-        // Integer reciprocal: matches Tcl which returns floor(1/v) — for
-        // v != ±1 that's 0.  Tcl's ``[/ 5]`` returns 0; ``[/ 1]`` is 1;
-        // ``[/ -1]`` is -1.  Use ``@divFloor`` to match.
-        return obj_new_int(@divFloor(@as(i64, 1), v));
     }
     var acc: i64 = obj_get_int(args[0]);
     for (args[1..]) |a| {
@@ -315,7 +308,58 @@ fn op_rshift(args: []const i32) i32 {
 
 const CmpKind = enum { eq, ne, lt, le, gt, ge };
 
+/// Inspect *o*'s string representation: returns whether the value is
+/// usable as a number (TYPE_INT / TYPE_FLOAT, or TYPE_STRING that
+/// parses cleanly through ``try_parse_int`` / ``try_parse_float``).
+/// Used by the comparison ops to decide whether to compare
+/// numerically or fall back to lexical-string semantics.
+fn is_numeric(o: i32) bool {
+    if (o == 0) return true; // null / empty obj — defaults to 0 numerically
+    const tag = obj.obj_type(o);
+    if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT) return true;
+    const s = obj_ensure_str(o);
+    if (s.len == 0) return true;
+    if (obj.try_parse_int(s.ptr, s.len) != null) return true;
+    if (obj.try_parse_float(s.ptr, s.len) != null) return true;
+    return false;
+}
+
+/// Lexical-string comparison for the ``a < b`` family.  Returns
+/// ``-1`` / ``0`` / ``1`` per ``memcmp`` semantics with shorter-
+/// string-first tie-breaking.
+fn str_cmp_lex(a: i32, b: i32) i32 {
+    const sa = obj_ensure_str(a);
+    const sb = obj_ensure_str(b);
+    const pa: [*]const u8 = if (sa.ptr == 0) undefined else @ptrFromInt(sa.ptr);
+    const pb: [*]const u8 = if (sb.ptr == 0) undefined else @ptrFromInt(sb.ptr);
+    var i: u32 = 0;
+    while (i < sa.len and i < sb.len) : (i += 1) {
+        if (pa[i] != pb[i]) return if (pa[i] < pb[i]) -1 else 1;
+    }
+    if (sa.len < sb.len) return -1;
+    if (sa.len > sb.len) return 1;
+    return 0;
+}
+
 fn cmp_pair_num(a: i32, b: i32, k: CmpKind) bool {
+    // Tcl's mathop comparison ops use *numeric* semantics when both
+    // operands are numbers (or parse cleanly as numbers), otherwise
+    // fall back to *lexical-string* comparison — ``::tcl::mathop::==
+    // a b`` is false (string ``"a" != "b"``), not true (collapsed to
+    // the integer-coerce of ``0 == 0``).  Codex P1 review caught the
+    // missing fallback; ``tclMathOp.c::ChainedRelOpCmd`` does the
+    // same numeric-vs-string dispatch.
+    if (!is_numeric(a) or !is_numeric(b)) {
+        const c = str_cmp_lex(a, b);
+        return switch (k) {
+            .eq => c == 0,
+            .ne => c != 0,
+            .lt => c < 0,
+            .le => c <= 0,
+            .gt => c > 0,
+            .ge => c >= 0,
+        };
+    }
     if (is_float(a) or is_float(b)) {
         const af = obj_get_float(a);
         const bf = obj_get_float(b);
