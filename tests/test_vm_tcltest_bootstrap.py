@@ -154,7 +154,7 @@ class TestLrepeatHostExceptions:
         interp = TclInterp()
         with pytest.raises(TclError) as exc:
             interp.eval("lrepeat -1 a")
-        assert 'must be integer >= 0' in str(exc.value)
+        assert "must be integer >= 0" in str(exc.value)
 
     def test_zero_count_returns_empty(self) -> None:
         interp = TclInterp()
