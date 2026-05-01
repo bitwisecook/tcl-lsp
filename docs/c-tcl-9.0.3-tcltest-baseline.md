@@ -19,9 +19,9 @@ combiner is [`scripts/tcl9_baseline_to_csv.py`](../scripts/tcl9_baseline_to_csv.
 | Metric                                                          | C tclsh 9.0.3 | WASM runtime |
 |----------------------------------------------------------------:|--------------:|-------------:|
 | Bundles in scope                                                |          100  |         100  |
-| Bundles that ran to a tcltest summary line                      |           99  |          63  |
-| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 9,323 / 38,065 (24.5 %) |
-| Coverage vs native                                              |         100 % |         27 % |
+| Bundles that ran to a tcltest summary line                      |           99  |          72  |
+| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,511 / 38,065 (27.6 %) |
+| Coverage vs native                                              |         100 % |         28 % |
 | Sum of bundle interpreter time (`c_wall_ms` vs `wasm_run_ms`)   |          86 s |        53 s  |
 | Per-bundle median slowdown (`wasm_run_ms / c_wall_ms`)          |             — |       5.8 ×  |
 | Per-bundle mean slowdown                                        |             — |       5.9 ×  |
@@ -65,18 +65,18 @@ rest).
 
 The 100 bundles split this way under WASM:
 
-- **18 pass** (every assertion green)
-- **45 fail** (bundle finishes, tcltest reports `Failed > 0`)
-- **31 trap** (bundle aborts before reaching a tcltest summary)
+- **21 pass** (every assertion green)
+- **51 fail** (bundle finishes, tcltest reports `Failed > 0`)
+- **22 trap** (bundle aborts before reaching a tcltest summary)
 - **3 timeout** (30 s / per-bundle budget, hard SIGKILL)
 - **3 no_summary** (bundle ran but emitted no summary line)
 
-The 31 + 3 + 3 = 37 bundles that fail to reach a summary line account
-for **~22,000 individual tests** that we don't even get a chance to
+The 22 + 3 + 3 = 28 bundles that fail to reach a summary line account
+for **~21,000 individual tests** that we don't even get a chance to
 score. Fixing the bundle-level failures is by far the highest-leverage
 work — the actual per-test pass rate inside the bundles that DO reach
 a summary is decent (e.g. `lset` 95%, `lpop` 100%, `dict` 71%, `oo`
-81%, `ooProp` 100%).
+81%, `ooProp` 100%, `proc` 95%, `nre` 100%).
 
 ## Trap categories ranked by leverage
 
@@ -85,9 +85,19 @@ are bundles in the bucket; the **"unlocked tests"** column is the
 sum of `c_passed` across those bundles — i.e. what we'd start
 scoring against on the day we fix the underlying issue.
 
-### 1. `braced-cmdsubst-leak` (8 bundles, ~2,400 unlocked tests)
+### 1. `braced-cmdsubst-leak` — **FIXED** (was 8 bundles, +1,188 individual tests after fix)
 
 `basic, compExpr, interp, namespace, proc, string, tailcall, var`
+
+Fixed in commit `<hash>` by extending the `case IRBarrier(...)`
+match in `core/compiler/codegen/wasm/_emitter/_statements.py` to
+also unpack the `tokens` field and pass it through to
+`_emit_eval_fallback`. The barrier path was previously discarding
+the parsed-token information, so per-arg brace flags were lost and
+the eval-fallback's `a.startswith("[")` heuristic treated braced
+descriptions like `{[Bug 1234] foo}` as command substitutions.
+
+Original analysis is preserved below for reference.
 
 The trap surface is `tcl trap: unknown command: <hex>` or
 `unknown command: Bug` — the tcltest test description (a braced

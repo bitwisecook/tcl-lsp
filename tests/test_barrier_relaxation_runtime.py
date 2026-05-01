@@ -48,3 +48,57 @@ class TestUplevelBracedLiteralRuntime:
         wasm, _ = _compile_tcl_with_diag(source)
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "42\n"
+
+
+class TestBarrierBracedBracketArg:
+    """Per-arg brace info must survive the IRBarrier → eval-fallback path.
+
+    A user proc with a variadic ``args`` tail compiles to an
+    :class:`IRBarrier` (the args-tail packing defeats the
+    static-call analysis).  When the codegen reassembles the call
+    into a script for ``tcl_eval``, each arg's brace flag must come
+    from the parsed ``CommandTokens`` — without it, an arg whose IR
+    text starts with ``[`` (a braced description like
+    tcltest's ``{[Bug 1234] foo}``) is mistaken for a command-
+    substitution word and passed unquoted; the runtime then tries
+    to invoke ``Bug 1234`` (or ``<hex>``) as a command and traps
+    with ``unknown command: …``.
+
+    Repro that previously failed::
+
+        proc test {a b args} { puts "ok desc=$b" }
+        test x {[abc123] description text} -setup foo
+        # → tcl trap: unknown command: abc123
+
+    Fix is in
+    :mod:`core.compiler.codegen.wasm._emitter._statements`'s
+    ``case IRBarrier(...)`` arm: extract ``tokens`` from the match
+    and pass it to ``_emit_eval_fallback``.
+    """
+
+    def test_args_tail_proc_preserves_braced_bracket(self):
+        # Hex-id form (the basic.test / namespace.test / proc.test /
+        # string.test / var.test style: a fossil-tracker hash inside
+        # a braced description).
+        source = (
+            'proc test {a b args} { puts "name=$a desc=$b args=$args" }\n'
+            "test basic-50.1 {[586e71dce4] EvalObjv level} -setup foo\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == (
+            "name=basic-50.1 desc=[586e71dce4] EvalObjv level args=-setup foo\n"
+        )
+
+    def test_args_tail_proc_preserves_braced_bug_marker(self):
+        # ``[Bug NNN]`` form (the compExpr.test / interp.test /
+        # tailcall.test pattern).  Same root cause as the hex form
+        # but exercises a description that starts with a literal
+        # word inside the brackets.
+        source = (
+            'proc test {a b args} { puts "desc=$b" }\n'
+            "test compExpr-7.2 {[Bug 1869989]: expr parser memleak} -setup foo\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "desc=[Bug 1869989]: expr parser memleak\n"
