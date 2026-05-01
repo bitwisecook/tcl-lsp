@@ -49,12 +49,34 @@ const caps = @import("../interp/tcl_caps.zig");
 /// ``CAP_EXEC`` — the WASM linker rejects the module otherwise.  A
 /// stub that raises ``host_spawn: not configured`` is the
 /// recommended posture for sandboxed deployments.
-extern "env" fn host_spawn(
-    argv_ptr: u32,
-    argv_len: u32,
-    stdin_ptr: u32,
-    stdin_len: u32,
-) i32;
+///
+/// For unit-test builds (``builtin.is_test``) the import is
+/// replaced with a Zig-side stub that returns 0: tests reach
+/// ``cmds/exec.zig`` only transitively (via ``tcl_runtime`` →
+/// ``tcl_dispatch`` → command table) and never actually invoke
+/// ``exec``, so the stub satisfies the link without forcing every
+/// test-binary embedder (wasmtime in this case) to wire a real
+/// subprocess primitive.
+const builtin = @import("builtin");
+const env_host_spawn = if (builtin.is_test) struct {
+    pub fn host_spawn(
+        argv_ptr: u32,
+        argv_len: u32,
+        stdin_ptr: u32,
+        stdin_len: u32,
+    ) i32 {
+        _ = .{ argv_ptr, argv_len, stdin_ptr, stdin_len };
+        return 0;
+    }
+} else struct {
+    pub extern "env" fn host_spawn(
+        argv_ptr: u32,
+        argv_len: u32,
+        stdin_ptr: u32,
+        stdin_len: u32,
+    ) i32;
+};
+const host_spawn = env_host_spawn.host_spawn;
 
 fn eval_exec(words: []const i32) i32 {
     if (!caps.check(caps.CAP_EXEC, "exec", "EXEC")) return 0;

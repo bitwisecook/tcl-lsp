@@ -28,8 +28,17 @@
  * ``main`` symbol.  Provide a trivial stub so the link closes.
  * Never invoked: reactors don't run startup; ``__main_void.o`` is
  * dead code in the final binary past DCE.
+ *
+ * ``__attribute__((weak))`` so the unit-test build (which links
+ * the same C objects but is a regular WASI command, not a
+ * reactor) can override this with Zig's test-runner ``main`` and
+ * have ``_start`` actually run the tests.  Without ``weak`` the
+ * stub wins the multiple-definition resolution, ``_start`` calls
+ * it, and the test binary exits with code 0 having executed zero
+ * tests — the ``zig build test`` runner then reports the silent
+ * exit as a "test process unexpectedly exited" failure.
  */
-int main(void)
+__attribute__((weak)) int main(void)
 {
     return 0;
 }
