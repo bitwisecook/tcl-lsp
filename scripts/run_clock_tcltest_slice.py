@@ -325,6 +325,97 @@ def _looks_like_constraints(s: str) -> bool:
     return True
 
 
+def _eval_expected(expected: str) -> str:
+    """Evaluate simple ``[list ...]`` / ``[lrepeat N ...]`` substitutions.
+
+    The slice driver compares verbatim text against the captured
+    runtime result.  When the upstream expected field is itself a
+    Tcl construction (``[list -1 -2 -3]`` / ``[lrepeat 4 1 ...]``)
+    a verbatim compare fails because the runtime emits the
+    *substituted* value.  Recognise the two common patterns at
+    parse time and pre-evaluate them in Python — anything else
+    falls through unchanged.
+    """
+    s = expected.strip()
+    if not (s.startswith("[") and s.endswith("]")):
+        return expected
+    inner = s[1:-1].strip()
+    parts = inner.split(None, 1)
+    if not parts:
+        return expected
+    cmd = parts[0]
+    rest = parts[1] if len(parts) > 1 else ""
+    if cmd == "list":
+        elems = _split_tcl_words(rest)
+        return " ".join(_list_quote(e) for e in elems)
+    if cmd == "lrepeat":
+        words = _split_tcl_words(rest)
+        if len(words) < 2:
+            return expected
+        try:
+            n = int(words[0])
+        except ValueError:
+            return expected
+        body = words[1:]
+        return " ".join(_list_quote(e) for e in body * n)
+    return expected
+
+
+def _list_quote(s: str) -> str:
+    """Re-quote *s* as a single Tcl list element when it needs braces.
+
+    Mirrors Tcl's ``Tcl_ConvertElement`` minimal form: an empty
+    string becomes ``{}``, a string containing whitespace or special
+    list-quoting characters gets brace-wrapped, otherwise the bare
+    text is returned.  This is the exact transform the runtime
+    applies when rendering a list, so pre-substituting expected
+    text matches the captured stdout.
+    """
+    if not s:
+        return "{}"
+    if any(c in s for c in " \t\n\r{}\\$[];\""):
+        return "{" + s + "}"
+    return s
+
+
+def _split_tcl_words(text: str) -> list[str]:
+    """Split *text* into Tcl words, stripping outer braces from each."""
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i >= len(text):
+            break
+        if text[i] == "{":
+            depth = 1
+            j = i + 1
+            while j < len(text) and depth > 0:
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                j += 1
+            out.append(text[i + 1 : j - 1])
+            i = j
+        elif text[i] == '"':
+            j = i + 1
+            while j < len(text) and text[j] != '"':
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                j += 1
+            out.append(text[i + 1 : j])
+            i = j + 1
+        else:
+            j = i
+            while j < len(text) and not text[j].isspace():
+                j += 1
+            out.append(text[i:j])
+            i = j
+    return out
+
+
 def _matches(want: str, got: str, kind: str) -> bool:
     """Apply tcltest ``-match`` semantics."""
     if kind == "glob":
@@ -355,15 +446,15 @@ def _normalise_body(body: str) -> str:
     return s
 
 
-def make_runner(bodies: list[tuple[str, str]]) -> str:
-    """Build a Tcl program that runs every ``(name, body)`` and prints
+def make_runner(blocks: list["TestBlock"]) -> str:
+    """Build a Tcl program that runs each ``TestBlock`` and prints
     ``NAME\tRESULT\n`` (errors prefixed with ``!``).
     """
     src_parts: list[str] = []
-    for name, body in bodies:
+    for blk in blocks:
         src_parts.append(
-            "set _name {" + name + "}\n"
-            "if {[catch {" + _normalise_body(body) + "} _r]} {\n"
+            "set _name {" + blk.name + "}\n"
+            "if {[catch {" + _normalise_body(blk.body) + "} _r]} {\n"
             '    puts "$_name\\t!$_r"\n'
             "} else {\n"
             '    puts "$_name\\t$_r"\n'
@@ -383,11 +474,10 @@ def run_slice(name_pattern: str, label: str, *, max_tests: int = 0) -> dict:
         return {"label": label, "matched": 0}
     print(f"  matched {len(blocks)} two-arg test blocks")
 
-    bodies = [(blk.name, blk.body) for blk in blocks]
     expected: dict[str, tuple[str, str]] = {
         blk.name: (blk.expected, blk.match_kind) for blk in blocks
     }
-    src = make_runner(bodies)
+    src = make_runner(blocks)
     t0 = time.time()
     try:
         wasm = _compile_tcl(src)
@@ -427,6 +517,10 @@ def run_slice(name_pattern: str, label: str, *, max_tests: int = 0) -> dict:
             if len(mismatches) < 10:
                 mismatches.append((name, want, got))
             continue
+        # Pre-evaluate ``[list …]`` / ``[lrepeat …]`` expected texts
+        # so the comparison sees the substituted value (matching what
+        # tcltest's ``-result`` does internally).
+        want = _eval_expected(want)
         if _matches(want, got, kind):
             passed += 1
         else:
@@ -434,7 +528,7 @@ def run_slice(name_pattern: str, label: str, *, max_tests: int = 0) -> dict:
             if len(mismatches) < 10:
                 mismatches.append((name, want, got))
 
-    missing = [n for n, _ in bodies if n not in seen]
+    missing = [blk.name for blk in blocks if blk.name not in seen]
     if missing:
         # Tests beyond the trap point — count as fail.
         failed += len(missing)

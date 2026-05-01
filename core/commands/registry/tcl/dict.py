@@ -421,6 +421,16 @@ class DictCommand(CommandDef):
                     arg_types={0: ArgTypeHint(expected=TclType.DICT, shimmers=True)},
                     mutator=True,
                 ),
+                "getd": SubCommand(
+                    name="getd",
+                    dialects=frozenset({"tcl9.0"}),
+                    arity=Arity(3),
+                    detail="Synonym for ``dict getdef`` — returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
+                    synopsis="dict getd dictionaryValue ?key ...? key default",
+                    pure=True,
+                    return_type=TclType.STRING,
+                    arg_types={0: ArgTypeHint(expected=TclType.DICT)},
+                ),
                 "getdef": SubCommand(
                     name="getdef",
                     dialects=frozenset({"tcl9.0"}),

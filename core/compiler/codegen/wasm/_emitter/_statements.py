@@ -548,8 +548,8 @@ class _WasmEmitterStmtMixin(_Base):
             case IRSwitch(subject=subject, arms=arms, default_body=default_body, mode=mode):
                 self._emit_switch(subject, arms, default_body, mode=mode)
 
-            case IRCatch(body=body, result_var=result_var):
-                self._emit_catch(body, result_var)
+            case IRCatch(body=body, result_var=result_var, options_var=options_var):
+                self._emit_catch(body, result_var, options_var=options_var)
 
             case IRTry(body=body, handlers=handlers, finally_body=finally_body):
                 self._emit_try(body, handlers, finally_body)

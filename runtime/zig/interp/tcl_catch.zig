@@ -6,6 +6,7 @@
 // ``unsupported command: <name>`` through :func:`tcl_stubs.unsupported`.
 
 const obj = @import("../valtypes/tcl_obj.zig");
+const dict_mod = @import("../valtypes/tcl_dict.zig");
 const io = @import("../io/tcl_io.zig");
 const diag = @import("../dispatch/tcl_diag.zig");
 const globals = @import("tcl_ns.zig"); // global_set lives in tcl_ns post-P3.4
@@ -108,6 +109,54 @@ pub export fn catch_leave() i32 {
 pub export fn catch_result() i32 {
     if (last_catch_had_error != 0) return error_msg;
     return catch_ok_result;
+}
+
+// Exported: build a Tcl options dict for the most recent ``catch``.
+// Compiled 3-arg ``catch BODY result opt`` calls this after
+// ``catch_leave`` to populate ``$opt`` with the standard
+// ``-code`` / ``-level`` / ``-errorcode`` / ``-errorinfo`` keys.
+//
+// The dict mirrors ``tclResult.c::Tcl_GetReturnOptions``:
+//
+//   * ``-code`` — TCL return code (0 = OK, 1 = ERROR; we don't
+//     surface RETURN / BREAK / CONTINUE / 5+).
+//   * ``-level`` — 0 (always; we don't track ``return -level``).
+//   * ``-errorcode`` — last ``::errorCode`` global (defaults to
+//     ``NONE`` when no error occurred or no explicit code was
+//     given).
+//   * ``-errorinfo`` — last ``::errorInfo`` global.
+//
+// Caller assumes ownership of the returned TclObj.
+pub export fn catch_options() i32 {
+    var d: i32 = dict_mod.dict_create();
+    const code_val: i32 = @intCast(last_catch_had_error);
+    d = dict_set_str(d, "-code", obj_new_int(code_val));
+    d = dict_set_str(d, "-level", obj_new_int(0));
+    const ec_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
+    const ec_val = globals.global_get(ec_name);
+    if (ec_val != 0) {
+        d = dict_set_str(d, "-errorcode", ec_val);
+    } else {
+        d = dict_set_str(d, "-errorcode", obj_new_string_copy(
+            @intFromPtr("NONE".ptr), 4,
+        ));
+    }
+    const ei_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+    const ei_val = globals.global_get(ei_name);
+    if (ei_val != 0) {
+        d = dict_set_str(d, "-errorinfo", ei_val);
+    } else if (last_catch_had_error != 0 and error_msg != 0) {
+        d = dict_set_str(d, "-errorinfo", error_msg);
+    }
+    return d;
+}
+
+/// Helper: ``dict set`` with a string-literal key.  The key is copied
+/// out of the data segment into a fresh TclObj since ``dict_set``
+/// expects a TclObj.
+fn dict_set_str(d: i32, key: []const u8, value: i32) i32 {
+    const k = obj_new_string_copy(@intCast(@intFromPtr(key.ptr)), @intCast(key.len));
+    return dict_mod.dict_set(d, k, value);
 }
 
 // Exported: check if an error is pending (for early exit from catch body).

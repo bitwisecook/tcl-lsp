@@ -2185,13 +2185,31 @@ pub export fn clock_scan_format(
         return obj_new_int(0);
     };
 
-    // ``%J`` must reject inputs that would overflow the calendar
-    // window — clock-7.6 (``5373485``) and 7.7 (``2147483648``)
-    // expect the dateTooLarge error.
+    // ``%J`` / ``%EJ`` / ``%Ej`` must reject inputs that would
+    // overflow the calendar window.  clock-7.6 (``5373485``),
+    // 7.7 (``2147483648``), and 7.16 (``%Ej`` astronomical
+    // overflow with both integer and fractional inputs above
+    // 5373484) expect the dateTooLarge error.
+    const jd_max: i64 = 5373484; // last representable Gregorian day
+    const jd_min: i64 = -1095;   // far past the proleptic horizon
     if (st.have_julian) {
-        const jd_max: i64 = 5373484; // last representable Gregorian day
-        const jd_min: i64 = -1095;   // far past the proleptic horizon
         if (st.julian > jd_max or st.julian < jd_min) {
+            raise_clock_error("requested date too large to represent", "CLOCK dateTooLarge");
+            return obj_new_int(0);
+        }
+    }
+    if (st.have_astro_julian) {
+        // Astronomical convention shifts ``.0`` from midnight to noon,
+        // so the half-day at ``5373484.5`` (=``Ej`` for 9999-12-31
+        // 00:00) is at the boundary.  Anything strictly greater is
+        // beyond the representable range and must raise.
+        if (st.aj_day > jd_max or st.aj_day < jd_min) {
+            raise_clock_error("requested date too large to represent", "CLOCK dateTooLarge");
+            return obj_new_int(0);
+        }
+        // Boundary day with a non-zero offset that would push past
+        // the end of 9999-12-31 also overflows.
+        if (st.aj_day == jd_max and st.aj_secs > @divFloor(SECS_PER_DAY, 2)) {
             raise_clock_error("requested date too large to represent", "CLOCK dateTooLarge");
             return obj_new_int(0);
         }
