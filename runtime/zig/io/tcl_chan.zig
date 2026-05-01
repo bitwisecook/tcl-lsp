@@ -111,6 +111,7 @@ pub const MODE_READ: u32 = 1;
 pub const MODE_WRITE: u32 = 2;
 
 const READ_BUF_SIZE: u32 = 4096;
+const WRITE_BUF_SIZE: u32 = 4096;
 const MAX_CHANNELS: u32 = 64;
 
 const Channel = struct {
@@ -127,6 +128,15 @@ const Channel = struct {
     buf_addr: u32,
     buf_pos: u32,
     buf_end: u32,
+    // Push-side buffer for puts/flush.  Allocated lazily on first
+    // write; sized by ``-buffersize`` (default 4096).  ``out_buf_pos``
+    // counts post-translation bytes accumulated so far.  CRLF/CR
+    // translation is applied byte-by-byte on the way in, so a ``\n``
+    // arriving when only one slot remains is split across two
+    // buffers (the ``savedLF > 0`` case from upstream io-2.2).
+    out_buf_addr: u32,
+    out_buf_size: u32,
+    out_buf_pos: u32,
 };
 
 var channels: [MAX_CHANNELS]Channel = init: {
@@ -145,6 +155,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
             .buf_addr = 0,
             .buf_pos = 0,
             .buf_end = 0,
+            .out_buf_addr = 0,
+            .out_buf_size = WRITE_BUF_SIZE,
+            .out_buf_pos = 0,
         };
     }
     // Slots 0/1/2 are pre-populated for stdin/stdout/stderr so
@@ -161,6 +174,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
+        .out_buf_addr = 0,
+        .out_buf_size = WRITE_BUF_SIZE,
+        .out_buf_pos = 0,
     };
     arr[1] = .{
         .in_use = true,
@@ -174,6 +190,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
+        .out_buf_addr = 0,
+        .out_buf_size = WRITE_BUF_SIZE,
+        .out_buf_pos = 0,
     };
     arr[2] = .{
         .in_use = true,
@@ -187,6 +206,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
+        .out_buf_addr = 0,
+        .out_buf_size = WRITE_BUF_SIZE,
+        .out_buf_pos = 0,
     };
     break :init arr;
 };
@@ -373,17 +395,20 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
+        .out_buf_addr = 0,
+        .out_buf_size = WRITE_BUF_SIZE,
+        .out_buf_pos = 0,
     };
     return slot_name(slot);
 }
 
-/// ``close channelId`` — flush nothing (no per-channel write
-/// buffer), close the underlying fd, and free the slot.  Returns
-/// the empty string on success.  Closing stdin/stdout/stderr is
-/// silently treated as a no-op: the WASI host owns those fds, and
-/// shutting them mid-script would surprise the embedder.  This
-/// diverges from real tclsh (which would close the host stream)
-/// in the conservative direction.
+/// ``close channelId`` — flush any buffered output, close the
+/// underlying fd, and free the slot.  Returns the empty string on
+/// success.  Closing stdin/stdout/stderr is silently treated as a
+/// flush-only no-op: the WASI host owns those fds, and shutting
+/// them mid-script would surprise the embedder.  This diverges
+/// from real tclsh (which would close the host stream) in the
+/// conservative direction.
 pub export fn tcl_cmd_close(chan: i32) i32 {
     const slot = resolve(chan) orelse {
         stubs.raise("close: unknown channel");
@@ -392,13 +417,19 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
     if (slot < 3) {
         // Per Tcl, closing stdin/stdout/stderr is permitted but
         // would shut the host stream — surprising for a sandbox.
-        // Treat as no-op.
+        // We still drain the per-channel write buffer so anything
+        // queued via ``-buffering full`` lands on the host stream.
+        _ = flush_chan(&channels[slot]);
         return obj_new_string(0, 0);
     }
     const c = &channels[slot];
+    _ = flush_chan(c);
     _ = close_fn(c.fd);
     if (c.buf_addr != 0) {
         obj.free_sized(c.buf_addr, READ_BUF_SIZE);
+    }
+    if (c.out_buf_addr != 0) {
+        obj.free_sized(c.out_buf_addr, c.out_buf_size);
     }
     c.* = .{
         .in_use = false,
@@ -412,6 +443,9 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
+        .out_buf_addr = 0,
+        .out_buf_size = WRITE_BUF_SIZE,
+        .out_buf_pos = 0,
     };
     return obj_new_string(0, 0);
 }
@@ -651,6 +685,13 @@ pub export fn tcl_cmd_seek(chan: i32, offset: i32, origin: i32) i32 {
             if (eq(rp, rs.len, "start")) whence = SEEK_SET;
         }
     }
+    // Drain pending writes before moving the fd offset; otherwise
+    // the buffered bytes would land at the new position rather than
+    // the position they were intended for.
+    if (!flush_chan(c)) {
+        stubs.raise("seek: write failed");
+        return 0;
+    }
     if (do_seek(c.fd, off_val, whence) == null) {
         stubs.raise("seek: fd_seek failed");
         return 0;
@@ -735,6 +776,15 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
     // bytes (or return them out of order).  We forward the buffer's
     // pending span verbatim — translation already happened on the
     // way into ``in_c.buf_*``.
+    // Drain anything still queued on the destination's write
+    // buffer first.  fcopy writes raw bytes straight to ``out_c.fd``
+    // (no per-byte translation here — that already happened on the
+    // input pull side), so any pending buffered output has to land
+    // first or it would appear *after* the freshly copied bytes.
+    if (!flush_chan(out_c)) {
+        stubs.raise("fcopy: write failed");
+        return 0;
+    }
     if (in_c.buf_pos < in_c.buf_end) {
         const pending: u32 = in_c.buf_end - in_c.buf_pos;
         var take: u32 = pending;
@@ -792,24 +842,88 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
     return obj_new_int(copied);
 }
 
-// Output translation — emits ``msg`` (followed optionally by a
-// trailing newline) onto ``c.fd``.  Currently honours TR_CRLF by
-// expanding LF → CRLF; everything else is byte-for-byte.  Returns
-// false on a write failure so the caller can raise.
-fn write_translated(c: *Channel, ptr: [*]const u8, len: u32) bool {
-    if (c.translation == TR_CRLF) {
-        var i: u32 = 0;
-        while (i < len) : (i += 1) {
-            if (ptr[i] == '\n') {
-                if (write_fn(c.fd, "\r\n", 2) < 0) return false;
-            } else {
-                if (write_fn(c.fd, @ptrCast(&ptr[i]), 1) < 0) return false;
-            }
-        }
+// Drain the per-channel write buffer to the underlying fd.  Returns
+// false on a write failure (caller raises).  Idempotent and safe to
+// call when no buffer has been allocated.
+pub fn flush_chan(c: *Channel) bool {
+    if (c.out_buf_addr == 0 or c.out_buf_pos == 0) {
+        c.out_buf_pos = 0;
         return true;
     }
-    if (len == 0) return true;
-    return write_fn(c.fd, ptr, len) >= 0;
+    const ptr: [*]const u8 = @ptrFromInt(c.out_buf_addr);
+    var off: usize = 0;
+    var rem: usize = c.out_buf_pos;
+    while (rem > 0) {
+        const w = write_fn(c.fd, ptr + off, rem);
+        if (w <= 0) return false;
+        off += @intCast(w);
+        rem -= @intCast(w);
+    }
+    c.out_buf_pos = 0;
+    return true;
+}
+
+// Append a single post-translation byte to the channel's write
+// buffer, flushing on a full buffer or when line-buffering hits a
+// newline.  Returns false on a write failure.  Allocates the buffer
+// lazily on first use.
+fn emit_byte(c: *Channel, byte: u8) bool {
+    if (c.out_buf_addr == 0) {
+        if (c.out_buf_size == 0) c.out_buf_size = WRITE_BUF_SIZE;
+        c.out_buf_addr = obj.alloc(c.out_buf_size);
+        c.out_buf_pos = 0;
+    }
+    const dst: [*]u8 = @ptrFromInt(c.out_buf_addr);
+    dst[c.out_buf_pos] = byte;
+    c.out_buf_pos += 1;
+    if (c.out_buf_pos >= c.out_buf_size) {
+        if (!flush_chan(c)) return false;
+    } else if (c.buffering == BUF_LINE and byte == '\n') {
+        if (!flush_chan(c)) return false;
+    }
+    return true;
+}
+
+// Output translation — append ``len`` bytes starting at ``ptr`` to
+// the channel's write buffer.  TR_CRLF expands LF → CRLF; TR_CR
+// rewrites LF → CR; everything else is byte-for-byte.  When the
+// channel is unbuffered (``BUF_NONE``) the call ends with a flush so
+// each ``puts`` lands on the fd immediately.  Returns false on a
+// write failure so the caller can raise.
+fn write_translated(c: *Channel, ptr: [*]const u8, len: u32) bool {
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        const b = ptr[i];
+        if (c.translation == TR_CRLF and b == '\n') {
+            if (!emit_byte(c, '\r')) return false;
+            if (!emit_byte(c, '\n')) return false;
+        } else if (c.translation == TR_CR and b == '\n') {
+            if (!emit_byte(c, '\r')) return false;
+        } else {
+            if (!emit_byte(c, b)) return false;
+        }
+    }
+    if (c.buffering == BUF_NONE) {
+        return flush_chan(c);
+    }
+    return true;
+}
+
+/// Resolve a channel id and flush its write buffer.  Used by
+/// ``tcl_cmd_flush`` (the runtime entry point) and indirectly by
+/// the ``flush`` eval shim.  Returns the empty string on success
+/// or 0 with a raised error on failure.
+pub fn flush_chan_id(chan_id: i32) i32 {
+    if (chan_id == 0) return obj_new_string(0, 0);
+    const slot = resolve(chan_id) orelse {
+        stubs.raise("flush: unknown channel");
+        return 0;
+    };
+    if (!flush_chan(&channels[slot])) {
+        stubs.raise("flush: write failed");
+        return 0;
+    }
+    return obj_new_string(0, 0);
 }
 
 /// Channel-aware puts.  ``chan`` is a TclObj channel id;
@@ -836,11 +950,8 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
         }
     }
     if (nonewline == 0) {
-        const nl_ok = if (c.translation == TR_CRLF)
-            write_fn(c.fd, "\r\n", 2) >= 0
-        else
-            write_fn(c.fd, "\n", 1) >= 0;
-        if (!nl_ok) {
+        const nl: [1]u8 = .{'\n'};
+        if (!write_translated(c, &nl, 1)) {
             stubs.raise("puts: write failed");
             return 0;
         }
@@ -891,6 +1002,25 @@ fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const
     }
     if (eq(name_p, name_len, "-encoding")) {
         c.encoding_binary = eq(val_p, val_len, "binary");
+        return;
+    }
+    if (eq(name_p, name_len, "-buffersize")) {
+        const n = parse_uint(val_p, val_len) orelse return;
+        // Tcl clamps -buffersize to ``[1, 1_000_000]``; mirror that
+        // so a hostile script can't request a 4 GiB allocation.
+        if (n == 0) return;
+        const clamped: u32 = if (n > 1_000_000) 1_000_000 else n;
+        if (clamped == c.out_buf_size) return;
+        // Drain any pending bytes at the old size before swapping
+        // the buffer; otherwise a partial write straddles the
+        // resize and the second flush would point at freed memory.
+        _ = flush_chan(c);
+        if (c.out_buf_addr != 0) {
+            obj.free_sized(c.out_buf_addr, c.out_buf_size);
+            c.out_buf_addr = 0;
+        }
+        c.out_buf_size = clamped;
+        c.out_buf_pos = 0;
         return;
     }
 }
