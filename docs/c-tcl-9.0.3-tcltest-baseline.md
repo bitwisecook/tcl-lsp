@@ -16,16 +16,50 @@ combiner is [`scripts/tcl9_baseline_to_csv.py`](../scripts/tcl9_baseline_to_csv.
 
 ## Headline
 
-| Metric                                       | C tclsh 9.0.3 | WASM runtime |
-|---------------------------------------------:|--------------:|-------------:|
-| Bundles in scope                             |          100  |         100  |
-| Bundles that ran to a tcltest summary line   |           99  |          63  |
-| Individual tcltest tests passing             |   33,944 / 38,065 (89.2%) | 9,323 / 38,065 (24.5%) |
-| Coverage vs native                           |         100%  |         27%  |
-| Total wall-clock for the sweep               |          86 s |  308 s (3.6×) — of which 50 s WASM compile + 53 s WASM run + ~205 s subprocess+harness |
+| Metric                                                          | C tclsh 9.0.3 | WASM runtime |
+|----------------------------------------------------------------:|--------------:|-------------:|
+| Bundles in scope                                                |          100  |         100  |
+| Bundles that ran to a tcltest summary line                      |           99  |          63  |
+| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 9,323 / 38,065 (24.5 %) |
+| Coverage vs native                                              |         100 % |         27 % |
+| Sum of bundle interpreter time (`c_wall_ms` vs `wasm_run_ms`)   |          86 s |        53 s  |
+| Per-bundle median slowdown (`wasm_run_ms / c_wall_ms`)          |             — |       5.8 ×  |
+| Per-bundle mean slowdown                                        |             — |       5.9 ×  |
+| Worst bundle slowdown                                           |             — |      17 ×    |
 
-The 38,065 individual-test denominator is what C tclsh exercised on this
-host (constraints like `win`, `mac`, `nonPortable` skip the rest).
+**The slowdown column in the CSV (`slowdown_x`) compares
+`wasm_run_ms / c_wall_ms`** — both measure "interpreter ran the
+script end-to-end". WASM compile time is excluded because it is a
+one-time build cost paid before any test runs, not a per-call cost
+the running interpreter pays. For reference, sweep-wide WASM
+compile total is 50 s (~500 ms / bundle, invariant); subprocess +
+harness overhead in `wasm_wall_ms` adds another ~200 s on top.
+
+A handful of bundles run *faster* under WASM than under C tclsh —
+not because the interpreter is faster, but because they trap before
+reaching the expensive part of the script. `regexp.test` spends
+15 s under C tclsh (real regex compile + match work); under WASM it
+traps after 0.85 s, so the "ratio" looks great while actually
+hiding ~250 untested assertions.
+
+The 38,065 individual-test denominator is what C tclsh exercised on
+this host (constraints like `win`, `mac`, `nonPortable` skip the
+rest).
+
+### Slowest 10 bundles where both interpreters finish
+
+| bundle      | C wall | WASM run | ratio |
+|:------------|-------:|---------:|------:|
+| lrange      |  100 ms |  1696 ms |  17.0× |
+| lreplace    |  169 ms |  2748 ms |  16.3× |
+| expr-old    |   75 ms |   764 ms |  10.2× |
+| compile     |   97 ms |   882 ms |   9.1× |
+| oo          |   88 ms |   632 ms |   7.2× |
+| trace       |   81 ms |   516 ms |   6.4× |
+| cmdIL       |   71 ms |   444 ms |   6.3× |
+| execute     |   71 ms |   414 ms |   5.8× |
+| subst       |   57 ms |   326 ms |   5.7× |
+| dict        |  272 ms |   901 ms |   3.3× |
 
 ## What the WASM runtime gets wrong
 
@@ -243,21 +277,27 @@ when renamed-away.
 
 ## Where the WASM runtime is fast (or fast-enough)
 
-Per-bundle wall-time ratios (from CSV `slowdown_x`):
+With compile time excluded, the run-only picture is:
 
-- The **median** WASM/C ratio across passing bundles is ~25×.
-- Floor is dominated by **WASM compile time** (~500 ms / bundle,
-  invariant) plus subprocess startup. For a ~25 ms C tclsh run, the
-  ratio inflates fast.
-- Actual WASM execution time (`wasm_run_ms` minus `wasm_compile_ms`)
-  is comparable to native — `lset` runs in 240 ms (C) vs 90 ms WASM
-  *run-time* (compile is the rest of its 1.5 s wall).
+- **Per-bundle median slowdown is 5.8 ×** — the typical bundle takes
+  ~6× longer to *interpret* under WASM than under native tclsh.
+- **Worst bundle is 17 ×** (`lrange.test`).
+- A few bundles finish in WASM at 0.1-0.6 × the C wall time, but
+  these "wins" are almost always because the bundle traps before
+  reaching the expensive work — not a real speedup.
+- `c_wall_ms` includes a fixed ~25 ms tclsh startup; `wasm_run_ms`
+  is the in-process wasmtime call only. Subtracting the startup
+  shifts the median to closer to **8 ×** for short bundles, less
+  for longer ones.
+- The remaining columns (`wasm_compile_ms` ≈ 500 ms / bundle, fixed;
+  `wasm_wall_ms` includes ~700 ms of subprocess + Python harness
+  overhead) are kept for readers who care about end-to-end build
+  cost, but they're not what `slowdown_x` reports.
 
-So the slowdown story is: **compile-once-per-process is the largest
-single cost**, and the per-bundle subprocess wrapper used for crash
-isolation roughly doubles wall time. Both are sweep-harness costs;
-the underlying interpreter is within 2-3× of native on bundles that
-finish.
+So the runtime is a steady ~6 × slower than C tclsh on bundles that
+finish — well within range for an interpreter that doesn't yet have
+a JIT or a bytecode VM. The dominant work to close the gap is in
+the per-command dispatch, not the broad architecture.
 
 ## Suggested fix order (best ROI first)
 
