@@ -311,7 +311,11 @@ fn frame_grow_at_base(base: u32) u32 {
     // Rehash every populated bucket from the old buffer into the
     // new (larger) buffer.  Use the new table's ``try_insert_header``
     // — its probe chain is bounded by the new capacity, which is
-    // strictly larger than the old, so insertion always succeeds.
+    // strictly larger than the old, so the only way insertion can
+    // fail is an OOM on the per-key heap copy ``try_insert_header``
+    // makes.  Silently skipping a null return would drop a live
+    // frame-local during growth (state corruption); trap loudly so
+    // the partially-populated new buffer never replaces the old.
     var new_table: FrameTable = .{ .buf = new_base, .cap = new_cap, .count = 0 };
     // Bucket header layout (see hash_table.zig:63):
     //   [0..3]   name_ptr  (0 or TOMBSTONE means skip)
@@ -329,6 +333,10 @@ fn frame_grow_at_base(base: u32) u32 {
         const value = read_i32(old_bucket + OFF_VALUE);
         if (new_table.try_insert_header(name_ptr, name_len, hash)) |new_bucket| {
             write_i32(new_bucket + OFF_VALUE, value);
+        } else {
+            const errmsg = "frame_grow: OOM during rehash";
+            rt_fd_write_stderr(errmsg);
+            @trap();
         }
     }
 
