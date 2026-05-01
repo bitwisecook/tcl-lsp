@@ -422,6 +422,11 @@ class SubCommand:
     # separate procedure/handler.
     body_kind: BodyKind = BodyKind.INLINE
 
+    # Number of arguments the runtime appends to a ``ArgRole.BODY``
+    # argument when invoking it as a command prefix.  See the matching
+    # field on :class:`CommandSpec` for details.
+    body_arg_implicit_args: int = 0
+
     # CFG-lowered command name for ensemble subcommands that get rewritten.
     # When set, the CFG lowering pass replaces ``<command> <subname>`` with
     # this qualified name and drops the subcommand word from the argument
@@ -694,6 +699,14 @@ class CommandSpec:
     # Set to ``STRUCTURAL`` for commands whose body is analysed as a
     # separate procedure/handler (``proc``, ``when``, ``tcltest::test``).
     body_kind: BodyKind = BodyKind.INLINE
+
+    # Number of arguments the runtime appends to a ``ArgRole.BODY``
+    # argument when invoking it as a command prefix (e.g.
+    # ``fileutil::updateInPlace`` appends the file contents).  When
+    # non-zero, the body is treated as a callback/command-prefix: the
+    # arity check on the first top-level command in the body is
+    # relaxed by this many positional arguments.
+    body_arg_implicit_args: int = 0
 
     # Whether this command's source namespace exports it via
     # ``namespace export <bare>``, making it eligible for retrieval as a

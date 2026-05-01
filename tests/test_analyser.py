@@ -740,6 +740,57 @@ class TestDiagnostics:
         unreachable = [d for d in result.diagnostics if d.code == "I231"]
         assert len(unreachable) >= 1
 
+    def test_fileutil_update_in_place_command_prefix_no_e002(self):
+        """Regression test for issue #308.
+
+        ``fileutil::updateInPlace path cmd`` invokes *cmd* as a
+        command prefix with the file contents appended at runtime, so
+        the arity check on the proc passed by name must account for
+        that implicit appended argument and not fire E002 spuriously.
+        """
+        source = textwrap.dedent("""\
+            package require fileutil
+            proc processContents {contents} { return $contents }
+            fileutil::updateInPlace foo.html processContents
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code == "E002" and "::processContents" in d.message
+        ]
+        assert errors == [], f"unexpected E002 diagnostics: {errors}"
+
+    def test_fileutil_update_in_place_too_few_still_detected(self):
+        """The implicit-args relaxation must not mask a genuine arity
+        error: a callback that needs two extra parameters beyond the
+        appended contents argument should still fire E002."""
+        source = textwrap.dedent("""\
+            package require fileutil
+            proc processContents {a b contents} { return $contents }
+            fileutil::updateInPlace foo.html processContents
+        """)
+        result = analyse(source)
+        errors = [
+            d for d in result.diagnostics if d.code == "E002" and "::processContents" in d.message
+        ]
+        assert len(errors) == 1
+
+    def test_fileutil_update_in_place_builtin_callback_no_e002(self):
+        """A built-in command used as a command-prefix callback must
+        not produce a spurious arity diagnostic.  The built-in arity
+        checker (``_arity_checks`` in compiler_checks.py) currently
+        does not recurse into BODY arguments of unstructured commands
+        so no false positive fires today; this test guards against
+        regressions if the IR ever starts walking those bodies — at
+        that point ``body_arg_implicit_args`` should be threaded
+        through the IR-side arity check too."""
+        source = textwrap.dedent("""\
+            package require fileutil
+            fileutil::updateInPlace foo.html {string toupper}
+        """)
+        result = analyse(source)
+        arity_errors = [d for d in result.diagnostics if d.code in ("E001", "E002", "E003")]
+        assert arity_errors == [], f"unexpected arity diagnostics: {arity_errors}"
+
 
 class TestControlFlow:
     def test_if_body_analysed(self):
