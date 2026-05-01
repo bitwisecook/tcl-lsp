@@ -797,6 +797,19 @@ class _WasmEmitterOptMixin(_Base):
                 else:
                     # Generic barrier in tail position — eval fallback,
                     # result stays on stack.
+                    #
+                    # We deliberately do NOT special-case static parse
+                    # errors (e.g. malformed ``if`` shapes) here even
+                    # though :mod:`_statements` and :mod:`_control_flow`
+                    # do — the implicit-return position would force an
+                    # ``UNREACHABLE`` after ``tcl_cmd_error`` to satisfy
+                    # the WASM verifier, which would then trap
+                    # unconditionally even when the proc was called
+                    # from inside a runtime ``catch``.  The eval-fallback
+                    # path matches the pre-#259 behaviour for this rare
+                    # tail-position case (the script seeds in #259 hit
+                    # ``if`` barriers at non-tail positions where the
+                    # codegen-side trap is safe).
                     if barrier_cmd:
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
                     else:

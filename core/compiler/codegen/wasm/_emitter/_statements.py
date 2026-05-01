@@ -49,6 +49,72 @@ from .._ir import (
 from .._ownership import Ownership
 
 
+def _static_parse_error_message(
+    barrier_cmd: str | None,
+    reason: str | None,
+    args: tuple[str, ...],
+) -> str | None:
+    """Map an :class:`IRBarrier` *reason* to a canonical Tcl runtime error
+    message, or return ``None`` when the barrier is not a static parse
+    error the codegen can replay verbatim.
+
+    The lowering pass already detects malformed ``if`` shapes and emits an
+    ``IRBarrier`` whose ``reason`` describes the static problem (see
+    ``_lower_if`` in ``core/compiler/lowering.py``).  The Python VM and C
+    Tcl both raise specific ``wrong # args …`` messages for these shapes
+    *before* evaluating any branch; the WASM backend used to send the
+    script back through ``tcl_eval``, where the runtime parser silently
+    accepted the bad input (e.g. ``if {…} {…} else {…} elseif {…} {…}``
+    discarded the trailing ``elseif`` clause instead of erroring).  We
+    convert the barrier into a direct ``tcl_cmd_error`` call so the WASM
+    backend reports the same diagnostic.
+    """
+    if barrier_cmd != "if" or reason is None:
+        return None
+    if reason == 'extra words after "else" clause':
+        return 'wrong # args: extra words after "else" clause in "if" command'
+    if reason == "malformed if else clause":
+        return 'wrong # args: no script following "else" argument'
+    if reason == "malformed if":
+        if not args:
+            return 'wrong # args: no expression after "if" argument'
+        # ``no clauses after walking args`` — the only way to reach this
+        # arm with a non-empty arglist is something like ``if elseif`` or
+        # ``if then`` where the first word is itself a keyword.  Tcl
+        # reports "no script following" against the last keyword seen.
+        return f'wrong # args: no script following "{args[-1]}" argument'
+    if reason == "malformed if clause":
+        # Lowering reaches this when an ``if`` / ``elseif`` cond is
+        # present but the body is missing.  C Tcl reports the missing
+        # script against the keyword preceding the missing word; the
+        # static lowering only has the post-walk arg list, so look back
+        # to find which clause keyword (``if``, ``elseif``, ``then``)
+        # most recently introduced a missing body.
+        if not args:
+            return 'wrong # args: no script following "if" argument'
+        # ``args`` ends with the orphaned condition (no body).  Walk
+        # back through the keyword that preceded it.  We approximate
+        # ``objv[i-1]`` from the C implementation by inspecting the
+        # tail of ``args``; ``then`` may have been consumed without a
+        # body, in which case it is the last word before the missing
+        # script, otherwise the introducing keyword is the cond's
+        # predecessor (``if`` for the first clause, ``elseif`` later).
+        last = args[-1]
+        if last == "then":
+            return 'wrong # args: no script following "then" argument'
+        # Without an explicit ``then`` the missing script came right
+        # after the cond expression.  C Tcl uses ``objv[i-1]`` where
+        # ``i`` indexes the position past the cond — i.e. the cond
+        # itself.  But the user-facing message names the *keyword* that
+        # introduced the clause.  Find it by scanning the args for the
+        # nearest ``elseif``/``if``-equivalent before the cond.
+        for k in range(len(args) - 2, -1, -1):
+            if args[k] in ("elseif", "then"):
+                return f'wrong # args: no script following "{args[k]}" argument'
+        return 'wrong # args: no script following "if" argument'
+    return None
+
+
 class _WasmEmitterStmtMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterValuesMixin
@@ -223,6 +289,14 @@ class _WasmEmitterStmtMixin(_Base):
                 # etc.) that defeat static *analysis* but may still
                 # have concrete runtime implementations we can call
                 # directly.  Dispatch in priority order:
+                #   0. Static parse errors detected by the lowering (e.g.
+                #      ``if {…} else {…} elseif {…}``) are replayed as a
+                #      direct ``tcl_cmd_error`` so the WASM backend
+                #      surfaces the same ``wrong # args …`` message as
+                #      the VM and C Tcl.  Without this the eval-fallback
+                #      path would send the malformed script back through
+                #      the runtime parser, which silently accepts shapes
+                #      Tcl is supposed to reject (see #259).
                 #   1. ``uplevel`` has a dedicated emitter that shifts
                 #      the frame-depth around a tcl_eval call so the
                 #      body runs at a caller's scope.
@@ -234,7 +308,14 @@ class _WasmEmitterStmtMixin(_Base):
                 #      fallback that would lose arity info.
                 #   3. Anything else really is a black-box barrier:
                 #      fall back to the interpreter.
-                if barrier_cmd == "uplevel" and barrier_args:
+                parse_error_msg = _static_parse_error_message(
+                    barrier_cmd, reason, tuple(barrier_args)
+                )
+                if parse_error_msg is not None:
+                    self._emit_static_parse_error_trap(barrier_cmd or "", parse_error_msg)
+                    if self._optimise:
+                        self._const_map.clear()
+                elif barrier_cmd == "uplevel" and barrier_args:
                     self._emit_cmd_uplevel(barrier_args)
                     self._emit(WasmOp.DROP)
                 elif (
@@ -930,6 +1011,22 @@ class _WasmEmitterStmtMixin(_Base):
         if fidx is not None:
             msg = f"unsupported in WASM: {command}"
             self._emit_obj_literal(msg)
+            self._emit_call(fidx)
+        if self._catch_depth == 0:
+            self._emit(WasmOp.UNREACHABLE)
+
+    def _emit_static_parse_error_trap(self, command: str, message: str) -> None:
+        """Emit a ``tcl_cmd_error`` call carrying *message* — used by
+        :class:`IRBarrier` arms whose ``reason`` describes a static parse
+        error the lowering already classified (e.g. ``if`` with extra
+        words after ``else``).  Mirrors :meth:`_emit_unsupported_trap`
+        but takes the full Tcl-formatted message verbatim so the WASM
+        backend reports the same string the VM / C Tcl produce.
+        """
+        self._emit_diag_site(command, kind="parse_error")
+        fidx = self._shared_imports.get("tcl_error")
+        if fidx is not None:
+            self._emit_obj_literal(message)
             self._emit_call(fidx)
         if self._catch_depth == 0:
             self._emit(WasmOp.UNREACHABLE)
