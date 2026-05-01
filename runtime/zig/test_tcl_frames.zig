@@ -314,11 +314,17 @@ fn body_depth_stash_clamps_relative_up() void {
     // rather than wrap.  Without the clamp, an over-deep
     // ``uplevel #N`` would underflow ``frame_depth``.
     _ = frames.frame_push();
-    _ = frames.frame_depth_stash(99);
+    const saved = frames.frame_depth_stash(99);
+    // Inside the stash window: depth must be 0 (clamped).
     observed_int = @intCast(frames.frame_depth);
-    frames.frame_depth_restore(@intCast(frames.frame_depth));
-    // After restore we still need to drop the extra push.
-    if (frames.frame_depth > 1) frames.frame_pop();
+    // Restore using the saved value (the depth captured BEFORE
+    // ``frame_depth_stash`` ran), not the post-stash 0 — that's the
+    // contract ``uplevel`` relies on.
+    frames.frame_depth_restore(saved);
+    // After restore we're back at saved depth; drop the test's
+    // extra push so ``with_interp`` can teardown to its own entry
+    // depth without tripping the imbalance panic.
+    frames.frame_pop();
 }
 
 test "frame_depth_stash clamps over-deep relative_up to zero" {
