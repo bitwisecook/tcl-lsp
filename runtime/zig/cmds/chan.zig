@@ -65,7 +65,7 @@ pub fn eval_fconfigure(words: []const i32) i32 {
         const s = obj.obj_ensure_string(words[i]);
         off = list_quote.list_elem_quote_nth(buf, off, s.ptr, s.len);
     }
-    const args_obj = obj_new_string(@intCast(buf), @intCast(off));
+    const args_obj = obj_new_string(@bitCast(buf), @bitCast(off));
     return chan.tcl_cmd_fconfigure(fd, args_obj);
 }
 

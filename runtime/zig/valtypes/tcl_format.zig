@@ -156,7 +156,7 @@ pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
         );
     }
 
-    return obj_new_string(@intCast(buf_addr), @intCast(off));
+    return obj_new_string(@bitCast(buf_addr), @bitCast(off));
 }
 
 fn emit_conversion(

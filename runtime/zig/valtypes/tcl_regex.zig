@@ -500,7 +500,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     result_off += tail_len;
 
     if (n_subs_out) |p| p.* = n_subs;
-    return rt.obj_new_string(@intCast(result_buf), @intCast(result_off));
+    return rt.obj_new_string(@bitCast(result_buf), @bitCast(result_off));
 }
 
 /// Interpreter-side ``regexp`` command handler.  Called from
@@ -695,7 +695,7 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     if (!inline_mode and inline_buf != 0) obj.free_sized(inline_buf, inline_cap);
 
     if (inline_mode) {
-        return obj_new_string(@intCast(inline_buf), @intCast(inline_off));
+        return obj_new_string(@bitCast(inline_buf), @bitCast(inline_off));
     }
     if (all_mode) {
         return obj_new_int(match_count);
@@ -752,7 +752,7 @@ fn build_capture_value(
         for (0..start_len) |k| dst[k] = start_buf[k];
         dst[start_len] = ' ';
         for (0..end_str.len) |k| dst[start_len + 1 + k] = end_str.ptr[k];
-        return obj_new_string(@intCast(buf), @intCast(total));
+        return obj_new_string(@bitCast(buf), @bitCast(total));
     }
     // Substring mode: extract the bytes covering [start_cp, end_cp).
     const sb_start = codepoint_to_byte(sub_s.ptr, sub_s.len, start_cp);
@@ -763,7 +763,7 @@ fn build_capture_value(
     const dst: [*]u8 = @ptrFromInt(buf);
     const src: [*]const u8 = @ptrFromInt(sub_s.ptr + sb_start);
     for (0..len) |k| dst[k] = src[k];
-    return obj_new_string(@intCast(buf), @intCast(len));
+    return obj_new_string(@bitCast(buf), @bitCast(len));
 }
 
 /// Append one capture (already decoded into start/end codepoints) to
@@ -808,7 +808,7 @@ fn append_inline_capture(
 }
 
 fn obj_new_string_lit(comptime s: []const u8) i32 {
-    return obj_new_string(@intCast(@intFromPtr(s.ptr)), @intCast(s.len));
+    return obj_new_string(@bitCast(@intFromPtr(s.ptr)), @bitCast(s.len));
 }
 
 // ---------------------------------------------------------------------------
@@ -1123,7 +1123,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
 
     regfree_safe(re_ptr);
 
-    const result = obj_new_string(@intCast(out_addr), @intCast(out_len));
+    const result = obj_new_string(@bitCast(out_addr), @bitCast(out_len));
 
     if (has_var) {
         _ = frames.var_set(varname, result);

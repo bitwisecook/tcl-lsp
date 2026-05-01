@@ -929,9 +929,20 @@ pub export fn var_resolve(name: i32) i32 {
             // raw ``!= 0`` test always passed and we always returned
             // ``global_get(qname)`` even for non-existent names.  Check
             // the wrapped int.
-            if (obj.obj_get_int(globals.global_exists(qname)) != 0) {
-                return globals.global_get(qname);
+            const exists = obj.obj_get_int(globals.global_exists(qname)) != 0;
+            if (exists) {
+                const v = globals.global_get(qname);
+                // Reclaim the qname temp + its backing buffer.  Without
+                // this every ``$var`` read inside a namespace
+                // accumulated a small leak that pushed io.test past the
+                // 2 GiB linear-memory ceiling and tripped a u32→i32
+                // ``@intCast`` panic in ``obj_new_string``.
+                obj.tcl_obj_release(qname);
+                obj.free_sized(buf, total);
+                return v;
             }
+            obj.tcl_obj_release(qname);
+            obj.free_sized(buf, total);
         }
     }
     // Fall through to root global

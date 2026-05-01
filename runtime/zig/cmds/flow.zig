@@ -325,7 +325,7 @@ fn eval_time(words: []const i32) i32 {
         const d: [*]u8 = @ptrFromInt(buf + pi_s.len + k);
         d[0] = suffix[k];
     }
-    return rt.obj_new_string(@intCast(buf), @intCast(total));
+    return rt.obj_new_string(@bitCast(buf), @bitCast(total));
 }
 
 pub const registrations = [_]reg.CmdEntry{

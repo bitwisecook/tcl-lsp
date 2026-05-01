@@ -213,7 +213,7 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
             (src[pos.*] >= 'A' and src[pos.*] <= 'Z') or
             (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
         { pos.* += 1; }
-        const name = obj_new_string(@intCast(ptr + vs), @intCast(pos.* - vs));
+        const name = obj_new_string(@bitCast(ptr + vs), @bitCast(pos.* - vs));
         const val = frames.var_resolve(name);
         if (val != 0) return obj_get_int(val);
         return 0;
@@ -396,7 +396,7 @@ pub fn qualify_name(name: i32) i32 {
     buf[ns_full.len] = ':';
     buf[ns_full.len + 1] = ':';
     for (0..s.len) |i| buf[ns_full.len + 2 + i] = sp[i];
-    return obj_mod.obj_new_string(@intCast(buf_addr), @intCast(total));
+    return obj_mod.obj_new_string(@bitCast(buf_addr), @bitCast(total));
 }
 
 // -- upvar / uplevel helpers --
@@ -574,6 +574,12 @@ pub fn eval_while(words: []const i32) i32 {
     var result: i32 = 0;
     while (true) {
         if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        // Release the previous iteration's body result before
+        // overwriting (issue #303 — tight ``while`` loops on the
+        // interpreter path were leaking one TclObj per pass and
+        // pushing io.test past the wasm32 4 GiB linear-memory
+        // ceiling).
+        if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
@@ -588,16 +594,25 @@ pub fn eval_for(words: []const i32) i32 {
     const cond_s = obj_ensure_string(words[2]);
     const next_s = obj_ensure_string(words[3]);
     const body_s = obj_ensure_string(words[4]);
-    _ = eval_script(init_s.ptr, init_s.len);
+    // ``init`` and ``next`` clauses are evaluated for their side
+    // effects only — release any TclObj they produce so a tight
+    // ``for {set i 0} {$i < N} {incr i} {…}`` loop doesn't leak
+    // ``N`` per-iteration result objs.  Same handling for the
+    // body result on each subsequent overwrite (issue #303 root
+    // cause for the io.test 2 GiB cliff).
+    const init_res = eval_script(init_s.ptr, init_s.len);
+    if (init_res != 0) obj_mod.tcl_obj_release(init_res);
     if (has_signal()) return 0;
     var result: i32 = 0;
     while (true) {
         if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
+        if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; }
         if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
-        _ = eval_script(next_s.ptr, next_s.len);
+        const next_res = eval_script(next_s.ptr, next_s.len);
+        if (next_res != 0) obj_mod.tcl_obj_release(next_res);
     }
     return result;
 }
@@ -617,9 +632,13 @@ pub fn eval_foreach(words: []const i32) i32 {
         else blk: {
             const buf = alloc(elem.len);
             const out_len = copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-            break :blk obj_new_string(@intCast(buf), @intCast(out_len));
+            break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
         };
         _ = frames.var_set(var_name, elem_val);
+        // Release the prior body result before overwriting (issue
+        // #303 — same loop-leak pattern as ``eval_for`` /
+        // ``eval_while``).
+        if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
@@ -1079,7 +1098,7 @@ fn build_invocation_list(words: []const i32) i32 {
             off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 /// Internal: dispatch once the proc bucket is already resolved.
@@ -1809,6 +1828,13 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         pos = cmd.next;
         if (cmd.n_words == 0) continue;
 
+        // Release the previous command's result obj before
+        // overwriting (issue #303).  ``execute_parsed_command``
+        // hands the caller a +1-refcount handle — without this
+        // release, every script with N commands leaked N-1 result
+        // TclObjs and pushed long-lived test bundles past the
+        // wasm32 4 GiB linear-memory ceiling.
+        if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
         if (has_signal()) return result;
     }
@@ -1838,6 +1864,9 @@ fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
         // errors triggered inside the dispatched command.
         diag.current_eval_pos = if (i == 0) 0 else @bitCast(obj_mod.read_i32(parse_cache.command_record(slab, i - 1) + parse_cache.OFF_CR_NEXT_POS));
         const tokens_ptr = parse_cache.token_at(slab, tok_offset);
+        // Release prior command result before overwriting — same
+        // leak pattern as the cold path (issue #303).
+        if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(body_ptr, tokens_ptr, tok_len);
         if (has_signal()) return result;
         _ = next_pos;
@@ -1951,7 +1980,7 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                 } else {
                     const buf = alloc(elem.len);
                     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-                    expanded[ecount] = obj_new_string(@intCast(buf), @intCast(out_len));
+                    expanded[ecount] = obj_new_string(@bitCast(buf), @bitCast(out_len));
                 }
                 ecount += 1;
             }

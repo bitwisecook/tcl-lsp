@@ -91,9 +91,9 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     if (buf == 0) return obj_new_string(0, 0);
     if (a.len > 0) memcpy(buf, a.ptr, a.len);
     if (b.len > 0) memcpy(buf + a.len, b.ptr, b.len);
-    const new_obj = obj_new_string(@intCast(buf), @intCast(total));
+    const new_obj = obj_new_string(@bitCast(buf), @bitCast(total));
     if (new_obj != 0) {
-        obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
+        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
     }
     return new_obj;
 }
@@ -166,7 +166,7 @@ pub export fn string_index(value: i32, idx: i32) i32 {
     const buf = alloc(1);
     const dst: [*]u8 = @ptrFromInt(buf);
     dst[0] = src[pos];
-    return obj_new_string(@intCast(buf), 1);
+    return obj_new_string(@bitCast(buf), 1);
 }
 
 // Exported: string range — extract a substring [first..last] (inclusive).
@@ -248,7 +248,7 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
         out_len += 1;
         pos += 1;
     }
-    return obj_new_string(@intCast(buf), @intCast(out_len));
+    return obj_new_string(@bitCast(buf), @bitCast(out_len));
 }
 
 // Exported: string match — glob pattern matching (* and ? wildcards).
@@ -445,7 +445,7 @@ pub export fn string_repeat(value: i32, count: i32) i32 {
         memcpy(buf + off, sv.ptr, sv.len);
         off += sv.len;
     }
-    return obj_new_string(@intCast(buf), @intCast(total));
+    return obj_new_string(@bitCast(buf), @bitCast(total));
 }
 
 // Exported: string reverse — reverse a string.
@@ -459,7 +459,7 @@ pub export fn string_reverse(value: i32) i32 {
     while (i < sv.len) : (i += 1) {
         dst[i] = src[sv.len - 1 - i];
     }
-    return obj_new_string(@intCast(buf), @intCast(sv.len));
+    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
 
 // Exported: string toupper — convert to uppercase.
@@ -472,7 +472,7 @@ pub export fn string_toupper(value: i32) i32 {
     for (0..sv.len) |i| {
         dst[i] = if (src[i] >= 'a' and src[i] <= 'z') src[i] - 32 else src[i];
     }
-    return obj_new_string(@intCast(buf), @intCast(sv.len));
+    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
 
 // Exported: string tolower — convert to lowercase.
@@ -485,7 +485,7 @@ pub export fn string_tolower(value: i32) i32 {
     for (0..sv.len) |i| {
         dst[i] = if (src[i] >= 'A' and src[i] <= 'Z') src[i] + 32 else src[i];
     }
-    return obj_new_string(@intCast(buf), @intCast(sv.len));
+    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
 
 // Exported: string totitle — uppercase the first alphabetic byte and
@@ -511,7 +511,7 @@ pub export fn string_totitle(value: i32) i32 {
             dst[i] = c;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(sv.len));
+    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
 
 // Exported: string replace — replace characters in range [first..last] with new string.
@@ -533,7 +533,7 @@ pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i3
     if (fst > 0) memcpy(buf, sv.ptr, fst);
     if (sn.len > 0) memcpy(buf + fst, sn.ptr, sn.len);
     if (tail_len > 0) memcpy(buf + fst + sn.len, sv.ptr + tail_start, tail_len);
-    return obj_new_string(@intCast(buf), @intCast(total));
+    return obj_new_string(@bitCast(buf), @bitCast(total));
 }
 
 // Exported: string is integer — check if a string is a valid integer.
@@ -610,7 +610,7 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
             }
             out = list_quote_elem(buf, out, sv.ptr + @as(u32, @intCast(i)), 1);
         }
-        return obj_new_string(@intCast(buf), @intCast(out));
+        return obj_new_string(@bitCast(buf), @bitCast(out));
     }
 
     // Single-char separator (common case)
@@ -635,7 +635,7 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
                 start = i + 1;
             }
         }
-        return obj_new_string(@intCast(buf), @intCast(out));
+        return obj_new_string(@bitCast(buf), @bitCast(out));
     }
 
     // Multi-char separator: split on any char in splitChars
@@ -666,7 +666,7 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
             continue;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(out));
+    return obj_new_string(@bitCast(buf), @bitCast(out));
 }
 
 // Exported: join — join a Tcl list with a separator string.
@@ -701,7 +701,7 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
             out += elem.len;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(out));
+    return obj_new_string(@bitCast(buf), @bitCast(out));
 }
 
 // Exported: concat — concatenate two TclObj string representations with space.
@@ -736,5 +736,5 @@ pub export fn tcl_cmd_concat(a: i32, b: i32) i32 {
     const dst: [*]u8 = @ptrFromInt(buf + ta_len);
     dst[0] = ' ';
     memcpy(buf + ta_len + 1, sb.ptr + b_start, tb_len);
-    return obj_new_string(@intCast(buf), @intCast(total));
+    return obj_new_string(@bitCast(buf), @bitCast(total));
 }

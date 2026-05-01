@@ -249,5 +249,5 @@ fn build_args_list(words: []const i32, fixed: u32) i32 {
             off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj.obj_new_string(@intCast(buf), @intCast(off));
+    return obj.obj_new_string(@bitCast(buf), @bitCast(off));
 }

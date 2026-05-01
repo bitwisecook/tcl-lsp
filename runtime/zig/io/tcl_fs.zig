@@ -331,7 +331,7 @@ pub export fn tcl_cmd_source(path: i32) i32 {
     // bytes, then delegate to tcl_eval.  After eval returns, drop
     // our caller-owned reference; the deferred-free queue keeps
     // the buffer alive across any words still borrowing from it.
-    const script_obj = obj_new_string(@intCast(buf), @intCast(off));
+    const script_obj = obj_new_string(@bitCast(buf), @bitCast(off));
     if (script_obj == 0) {
         // Header alloc OOM — free the read buffer ourselves (without
         // a TclObj header to attach it to, ``tcl_obj_release`` would
@@ -341,7 +341,7 @@ pub export fn tcl_cmd_source(path: i32) i32 {
         stubs.raise("source: out of memory");
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(script_obj)) + obj.OBJ_STR_CAP, @bitCast(size));
+    obj.write_i32(@as(u32, @bitCast(script_obj)) + obj.OBJ_STR_CAP, @bitCast(size));
     const interp = @import("../interp/tcl_interp.zig");
     const result = interp.tcl_eval(script_obj);
     obj.tcl_obj_release(script_obj);
@@ -501,7 +501,7 @@ fn file_join(a: i32, b: i32) i32 {
     for (0..a_end) |i| buf[i] = ap[i];
     buf[a_end] = '/';
     for (0..bs.len) |i| buf[a_end + 1 + i] = bp[i];
-    return obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    return obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
 }
 
 fn file_dirname(a: i32) i32 {
@@ -516,7 +516,7 @@ fn file_dirname(a: i32) i32 {
     var end: u32 = i - 1;
     while (end > 0 and ap[end - 1] == '/') : (end -= 1) {}
     if (end == 0) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
-    return obj.obj_new_string(@intCast(as.ptr), @intCast(end));
+    return obj.obj_new_string(@bitCast(as.ptr), @bitCast(end));
 }
 
 fn file_tail(a: i32) i32 {
@@ -525,7 +525,7 @@ fn file_tail(a: i32) i32 {
     const ap: [*]const u8 = @ptrFromInt(as.ptr);
     var i: u32 = as.len;
     while (i > 0 and ap[i - 1] != '/') : (i -= 1) {}
-    return obj.obj_new_string(@intCast(as.ptr + i), @intCast(as.len - i));
+    return obj.obj_new_string(@bitCast(as.ptr + i), @bitCast(as.len - i));
 }
 
 fn file_rootname(a: i32) i32 {
@@ -536,7 +536,7 @@ fn file_rootname(a: i32) i32 {
     var i: u32 = as.len;
     while (i > 0 and ap[i - 1] != '/' and ap[i - 1] != '.') : (i -= 1) {}
     if (i == 0 or ap[i - 1] == '/') return a;
-    return obj.obj_new_string(@intCast(as.ptr), @intCast(i - 1));
+    return obj.obj_new_string(@bitCast(as.ptr), @bitCast(i - 1));
 }
 
 fn file_extension(a: i32) i32 {
@@ -547,7 +547,7 @@ fn file_extension(a: i32) i32 {
     while (i > 0 and ap[i - 1] != '/' and ap[i - 1] != '.') : (i -= 1) {}
     if (i == 0 or ap[i - 1] == '/') return obj.obj_new_string(0, 0);
     // Return ".ext" including the dot.
-    return obj.obj_new_string(@intCast(as.ptr + i - 1), @intCast(as.len - i + 1));
+    return obj.obj_new_string(@bitCast(as.ptr + i - 1), @bitCast(as.len - i + 1));
 }
 
 fn file_split(a: i32) i32 {
@@ -903,7 +903,7 @@ fn file_readlink(path: i32) i32 {
         stubs.raise("file readlink: path is not a symlink or is inaccessible");
         return 0;
     }
-    return obj.obj_new_string(@intCast(buf_addr), @intCast(n));
+    return obj.obj_new_string(@bitCast(buf_addr), @bitCast(n));
 }
 
 // --- glob ---
@@ -1078,7 +1078,7 @@ fn cstr_from_bytes(src: []const u8) [*:0]const u8 {
 /// caller doesn't have to construct intermediate TclObj wrappers.
 fn list_append(acc: i32, s_ptr: u32, s_len: u32) i32 {
     const list_mod = @import("../valtypes/tcl_list.zig");
-    const elem = obj_new_string(@intCast(s_ptr), @intCast(s_len));
+    const elem = obj_new_string(@bitCast(s_ptr), @bitCast(s_len));
     return list_mod.tcl_list(acc, elem);
 }
 
