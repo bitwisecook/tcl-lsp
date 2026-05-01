@@ -1477,3 +1477,21 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     }
     return obj_new_string(0, 0);
 }
+
+/// Total number of channel slots — exposed so ``chan names`` can walk
+/// the slot array.
+pub const channel_count: u32 = MAX_CHANNELS;
+
+/// Whether slot ``n`` is currently allocated (bound to a real fd).
+pub fn slot_in_use(n: u32) bool {
+    if (n >= MAX_CHANNELS) return false;
+    return channels[n].in_use;
+}
+
+/// Render a channel-name TclObj for slot ``n``.  Public wrapper
+/// around the private :func:`slot_name` so the ``chan names`` ensemble
+/// (in :file:`cmds/chan.zig`) can mint each name without duplicating
+/// the ``stdin`` / ``stdout`` / ``stderr`` / ``fileN`` rendering.
+pub fn channel_name(n: u32) i32 {
+    return slot_name(n);
+}

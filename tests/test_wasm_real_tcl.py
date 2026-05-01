@@ -3393,6 +3393,212 @@ class TestChannelTranslation:
         assert bytes_out == b"queued", f"got {bytes_out!r}"
 
 
+class TestChan:
+    """``chan <sub>`` ensemble — mirrors :class:`TestChannelIO` round-trips
+    using the ``chan`` ensemble form rather than the bare-command form.
+    Both forms route to the same handlers in ``cmds/io.zig`` /
+    ``cmds/chan.zig``, so this class exercises the dispatch wiring in
+    :func:`cmds/chan.zig:eval_chan`.
+    """
+
+    def _run(self, tmp_path, tcl_source):
+        wasm, _ = _compile_tcl_with_diag(tcl_source, "t.tcl")
+        _, stdout, _ = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            capture_stderr=True,
+            preopen_tmpdir=str(tmp_path),
+        )
+        return stdout
+
+    def test_chan_puts_then_chan_read(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /log.txt w]\n"
+                'chan puts $fd "hello"\n'
+                'chan puts $fd "world"\n'
+                "chan close $fd\n"
+                "set rfd [open /log.txt r]\n"
+                "set body [chan read $rfd]\n"
+                "chan close $rfd\n"
+                "puts $body\n"
+            ),
+        )
+        assert out == "hello\nworld\n\n", f"got {out!r}"
+        assert (tmp_path / "log.txt").read_text() == "hello\nworld\n"
+
+    def test_chan_gets_lines(self, tmp_path):
+        (tmp_path / "lines.txt").write_text("alpha\nbeta\ngamma\n")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /lines.txt r]\n"
+                "puts [chan gets $fd]\n"
+                "puts [chan gets $fd]\n"
+                "puts [chan gets $fd]\n"
+                "chan close $fd\n"
+            ),
+        )
+        assert out == "alpha\nbeta\ngamma\n", f"got {out!r}"
+
+    def test_chan_gets_with_var(self, tmp_path):
+        (tmp_path / "lines.txt").write_text("hi\nworld\n")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /lines.txt r]\n"
+                "set n [chan gets $fd line]\n"
+                "puts $n\n"
+                "puts $line\n"
+                "chan close $fd\n"
+            ),
+        )
+        assert out == "2\nhi\n", f"got {out!r}"
+
+    def test_chan_seek_and_tell(self, tmp_path):
+        (tmp_path / "data.bin").write_bytes(b"0123456789")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /data.bin r]\n"
+                "chan seek $fd 4\n"
+                "puts [chan tell $fd]\n"
+                "puts [chan read $fd 3]\n"
+                "chan seek $fd 0 start\n"
+                "puts [chan tell $fd]\n"
+                "puts [chan read $fd 2]\n"
+                "chan close $fd\n"
+            ),
+        )
+        assert out == "4\n456\n0\n01\n", f"got {out!r}"
+
+    def test_chan_eof_after_full_read(self, tmp_path):
+        (tmp_path / "f.txt").write_text("xyz")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /f.txt r]\n"
+                "puts [chan eof $fd]\n"
+                "puts [chan read $fd]\n"
+                "puts [chan eof $fd]\n"
+                "chan close $fd\n"
+            ),
+        )
+        lines = out.splitlines()
+        assert lines[0] == "0"
+        assert lines[1] == "xyz"
+        assert lines[2] == "1"
+
+    def test_chan_blocked_always_zero(self, tmp_path):
+        (tmp_path / "f.txt").write_text("data")
+        out = self._run(
+            tmp_path,
+            ("set fd [open /f.txt r]\nputs [chan blocked $fd]\nchan close $fd\n"),
+        )
+        assert out.strip() == "0"
+
+    def test_chan_copy_between_channels(self, tmp_path):
+        (tmp_path / "src.bin").write_bytes(b"copy-me-please")
+        out = self._run(
+            tmp_path,
+            (
+                "set in [open /src.bin r]\n"
+                "set out [open /dst.bin w]\n"
+                "set n [chan copy $in $out]\n"
+                "chan close $in\n"
+                "chan close $out\n"
+                "puts $n\n"
+            ),
+        )
+        assert out.strip() == "14"
+        assert (tmp_path / "dst.bin").read_bytes() == b"copy-me-please"
+
+    def test_chan_configure_translation(self, tmp_path):
+        # ``chan configure $fd -translation auto`` is the call
+        # ``chanio.test`` opens with — must not trap.
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /log.txt w]\n"
+                "chan configure $fd -translation auto\n"
+                'chan puts -nonewline $fd "hi"\n'
+                "chan close $fd\n"
+                "puts ok\n"
+            ),
+        )
+        assert out == "ok\n", f"got {out!r}"
+        assert (tmp_path / "log.txt").read_text() == "hi"
+
+    def test_chan_flush_is_noop(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /log.txt w]\n"
+                'chan puts $fd "buffered"\n'
+                "chan flush $fd\n"
+                "chan close $fd\n"
+                "puts ok\n"
+            ),
+        )
+        assert out == "ok\n", f"got {out!r}"
+        assert (tmp_path / "log.txt").read_text() == "buffered\n"
+
+    def test_chan_names_includes_stdio(self, tmp_path):
+        # Pre-populated slots are stdin / stdout / stderr.  ``chan
+        # names`` must report at least those three when no user
+        # channel is open.
+        out = self._run(
+            tmp_path,
+            ("set names [chan names]\nputs [lsort $names]\n"),
+        )
+        names = out.strip().split()
+        assert "stdin" in names, f"got {names!r}"
+        assert "stdout" in names, f"got {names!r}"
+        assert "stderr" in names, f"got {names!r}"
+
+    def test_chan_names_includes_open_file(self, tmp_path):
+        (tmp_path / "x.txt").write_text("x")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /x.txt r]\n"
+                "puts $fd\n"
+                "puts [chan names]\n"
+                "chan close $fd\n"
+            ),
+        )
+        # The freshly-opened channel name should appear in
+        # ``chan names`` alongside the standard streams.
+        lines = out.splitlines()
+        fd_name = lines[0]
+        names = lines[1].split()
+        assert fd_name in names, f"fd={fd_name!r} not in {names!r}"
+
+    def test_chan_names_with_pattern(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            ("puts [lsort [chan names std*]]\n"),
+        )
+        # Glob filter narrows to the std* slots.
+        assert out.strip().split() == ["stderr", "stdin", "stdout"]
+
+    def test_chan_unknown_subcommand_traps(self, tmp_path):
+        # Out-of-scope subcommand should trap with ``unsupported
+        # command: chan``.
+        wasm, _ = _compile_tcl_with_diag("chan create read foo\n", "t.tcl")
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on out-of-scope chan subcommand")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "chan" in stderr and "unsupported" in stderr, f"stderr: {stderr!r}"
+
+
 class TestExternalTcllibCounter:
     """Compile and run the real tcllib counter module (pure Tcl).
 
