@@ -22,6 +22,7 @@ from core.common.user_config import (
 from core.formatting import FormatterConfig
 
 from .workspace.scanner import path_to_uri
+from .workspace.scanner import uri_to_path as _uri_to_path
 from .workspace.workspace_index import EntrySource
 
 if TYPE_CHECKING:
@@ -263,12 +264,36 @@ def on_initialized(params: types.InitializedParams) -> None:
             _normalise_formatter_settings(formatting)
         )
 
-    # Discover the project-level config file at the workspace root.
+    # Discover project-level config files: one per workspace folder for
+    # multi-root workspaces, plus the workspace fallback for files outside
+    # any folder.
     ws = _server.workspace  # type: ignore[union-attr]
-    project_settings: dict = {}
-    if ws.root_path:
-        project_settings = get_all_settings(load_project_config(ws.root_path))
-    _state.project_config_settings = project_settings
+    folders = getattr(ws, "workspace_folders", None) or []
+    folder_paths: list[tuple[str, str]] = []
+    for folder in folders:
+        folder_uri = getattr(folder, "uri", "")
+        folder_path = _uri_to_path(folder_uri)
+        if folder_uri and folder_path:
+            folder_paths.append((folder_uri, folder_path))
+
+    if folder_paths:
+        for folder_uri, folder_path in folder_paths:
+            project_settings = get_all_settings(load_project_config(folder_path))
+            _state.project_config_settings_per_folder[folder_uri] = project_settings
+            # Initialise per-folder configs so later pulls and lookups have
+            # somewhere to write into.
+            _state.get_or_init_folder_feature_config(folder_uri)
+            _state.get_or_init_folder_formatter_config(folder_uri)
+        # Fallback (no scope) uses the first folder's project config so
+        # files outside any folder still get a sensible default.
+        _state.project_config_settings = (
+            _state.project_config_settings_per_folder[folder_paths[0][0]] if folder_paths else {}
+        )
+    else:
+        project_settings: dict = {}
+        if ws.root_path:
+            project_settings = get_all_settings(load_project_config(ws.root_path))
+        _state.project_config_settings = project_settings
 
     # Editor settings arrive later via ``workspace/didChangeConfiguration``;
     # apply the current (global + project) layers now so server state is

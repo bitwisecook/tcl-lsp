@@ -454,7 +454,7 @@ def on_completion(
         workspace_rule_init_vars=workspace_index.all_rule_init_var_names(),
         workspace_command_usage=workspace_index.command_usage_counts(),
         workspace_proc_usage=workspace_index.proc_usage_counts(),
-        formatter_config=_state.formatter_config,
+        formatter_config=_state.formatter_config_for_uri(uri),
         lines=state.lines if state else None,
         embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
     )
@@ -1221,7 +1221,10 @@ def on_formatting(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     edits = get_formatting(
-        source, params.options, _state.formatter_config, lines=state.lines if state else None
+        source,
+        params.options,
+        _state.formatter_config_for_uri(uri),
+        lines=state.lines if state else None,
     )
     return edits or None
 
@@ -1242,7 +1245,7 @@ def on_range_formatting(
         source,
         params.range,
         params.options,
-        _state.formatter_config,
+        _state.formatter_config_for_uri(uri),
         lines=state.lines if state else None,
     )
     return edits or None
@@ -1255,21 +1258,18 @@ def on_range_formatting(
 def on_will_save_wait_until(
     params: types.WillSaveTextDocumentParams,
 ) -> list[types.TextEdit] | None:
-    if not feature_config.will_save_wait_until_enabled:
-        return None
     uri = params.text_document.uri
+    cfg = _state.config_for_uri(uri)
+    if not cfg.will_save_wait_until_enabled:
+        return None
     state = workspace_state.get(uri)
     source = _get_doc_source(uri)
     from core.formatting.config import IndentStyle
 
+    fmt_cfg = _state.formatter_config_for_uri(uri)
     options = types.FormattingOptions(
-        tab_size=_state.formatter_config.indent_size,
-        insert_spaces=_state.formatter_config.indent_style == IndentStyle.SPACES,
+        tab_size=fmt_cfg.indent_size,
+        insert_spaces=fmt_cfg.indent_style == IndentStyle.SPACES,
     )
-    edits = get_formatting(
-        source,
-        options,
-        _state.formatter_config,
-        lines=state.lines if state else None,
-    )
+    edits = get_formatting(source, options, fmt_cfg, lines=state.lines if state else None)
     return edits or None

@@ -26,6 +26,8 @@ from core.formatting import FormatterConfig
 if TYPE_CHECKING:
     from pygls.lsp.server import LanguageServer
 
+    from .feature_config import FeatureConfig
+
 log = logging.getLogger(__name__)
 
 
@@ -179,20 +181,28 @@ def configure(server_instance: LanguageServer) -> None:
 # Feature settings application
 
 
-def _apply_feature_settings(tcl_settings: dict) -> bool:
-    """Apply feature toggles and diagnostic/optimiser filters.
+def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" = None) -> bool:
+    """Apply feature toggles and diagnostic/optimiser filters to ``target``.
 
-    Returns True if diagnostics need to be republished.
+    Mutates ``target`` (defaulting to the workspace-level ``feature_config``)
+    in place and returns True if any diagnostics need republishing.
+
+    ``set_non_ascii_mode`` is a process-global side effect — applied for
+    every target since it cannot be made per-folder without restructuring
+    ``core.analysis.checks._style``.
     """
+    if target is None:
+        target = _state.feature_config
+
     changed = False
 
     def _set_toggle(attr: str, val: object) -> bool:
         nonlocal changed
         if not isinstance(val, bool):
             return False
-        if val == getattr(_state.feature_config, attr):
+        if val == getattr(target, attr):
             return False
-        setattr(_state.feature_config, attr, val)
+        setattr(target, attr, val)
         if attr in _RESTART_REQUIRED_TOGGLES:
             log.warning(
                 "Feature toggle %r changed at runtime but takes effect only "
@@ -235,8 +245,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
                     new_disabled.add(code)
                 else:
                     new_disabled.discard(code)
-        if new_disabled != _state.feature_config.disabled_diagnostics:
-            _state.feature_config.disabled_diagnostics = new_disabled
+        if new_disabled != target.disabled_diagnostics:
+            target.disabled_diagnostics = new_disabled
             changed = True
 
         _DIAG_NON_CODE_KEYS = {"genericVariablePatterns", "generic_variable_patterns"}
@@ -254,8 +264,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     style_section = tcl_settings.get("style")
     if isinstance(style_section, dict):
         ll = style_section.get("lineLength")
-        if isinstance(ll, int) and ll > 0 and ll != _state.feature_config.line_length:
-            _state.feature_config.line_length = ll
+        if isinstance(ll, int) and ll > 0 and ll != target.line_length:
+            target.line_length = ll
             changed = True
         non_ascii = style_section.get("nonAscii")
         if isinstance(non_ascii, str) and non_ascii in ("strict", "confusables", "common", "off"):
@@ -268,44 +278,36 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
     shimmer_section = tcl_settings.get("shimmer")
     if isinstance(shimmer_section, dict):
         shimmer_master = shimmer_section.get("enabled")
-        if (
-            isinstance(shimmer_master, bool)
-            and shimmer_master != _state.feature_config.shimmer_enabled
-        ):
-            _state.feature_config.shimmer_enabled = shimmer_master
+        if isinstance(shimmer_master, bool) and shimmer_master != target.shimmer_enabled:
+            target.shimmer_enabled = shimmer_master
             changed = True
 
     # XC diagnostics toggle  (tclLsp.xcDiagnostics.enabled)
     xc_section = tcl_settings.get("xcDiagnostics")
     if isinstance(xc_section, dict):
         xc_enabled = xc_section.get("enabled")
-        if (
-            isinstance(xc_enabled, bool)
-            and xc_enabled != _state.feature_config.xc_diagnostics_enabled
-        ):
-            _state.feature_config.xc_diagnostics_enabled = xc_enabled
+        if isinstance(xc_enabled, bool) and xc_enabled != target.xc_diagnostics_enabled:
+            target.xc_diagnostics_enabled = xc_enabled
             changed = True
 
     # Optimiser master switch, profile, + per-code  (tclLsp.optimiser.*)
     optimiser_section = tcl_settings.get("optimiser")
     if isinstance(optimiser_section, dict):
         master = optimiser_section.get("enabled")
-        if isinstance(master, bool) and master != _state.feature_config.optimiser_enabled:
-            _state.feature_config.optimiser_enabled = master
+        if isinstance(master, bool) and master != target.optimiser_enabled:
+            target.optimiser_enabled = master
             changed = True
 
         profile_name = optimiser_section.get("profile")
         if isinstance(profile_name, str) and profile_name in PROFILE_NAMES:
-            if profile_name != _state.feature_config.optimiser_profile:
-                _state.feature_config.optimiser_profile = profile_name
+            if profile_name != target.optimiser_profile:
+                target.optimiser_profile = profile_name
                 changed = True
         elif isinstance(profile_name, str) and profile_name:
             log.warning("Unknown optimiser profile %r (ignored)", profile_name)
 
         try:
-            base_disabled = set(
-                profile_to_disabled(profile_from_name(_state.feature_config.optimiser_profile))
-            )
+            base_disabled = set(profile_to_disabled(profile_from_name(target.optimiser_profile)))
         except ValueError:
             base_disabled = set(profile_to_disabled(DEFAULT_EDITOR_PROFILE))
 
@@ -316,8 +318,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             elif val is False:
                 base_disabled.add(code)
 
-        if base_disabled != _state.feature_config.disabled_optimisations:
-            _state.feature_config.disabled_optimisations = base_disabled
+        if base_disabled != target.disabled_optimisations:
+            target.disabled_optimisations = base_disabled
             changed = True
 
         unknown_opt = {
@@ -341,8 +343,8 @@ def _apply_feature_settings(tcl_settings: dict) -> bool:
             patterns = diagnostics_section.get("generic_variable_patterns")
         if has_generic_patterns and isinstance(patterns, list):
             new_patterns = [str(p) for p in patterns if isinstance(p, str)]
-            if new_patterns != _state.feature_config.generic_variable_patterns:
-                _state.feature_config.generic_variable_patterns = new_patterns
+            if new_patterns != target.generic_variable_patterns:
+                target.generic_variable_patterns = new_patterns
                 changed = True
 
     return changed
@@ -354,39 +356,55 @@ _pending_apply_handle: asyncio.TimerHandle | None = None
 _SETTINGS_DEBOUNCE_S = 0.3
 
 
-def _merged_settings() -> dict:
-    """Merge all configuration layers in precedence order.
+def _merged_settings(folder_uri: str = "") -> dict:
+    """Merge all configuration layers for ``folder_uri`` in precedence order.
 
     Lowest to highest priority:
-      1. Global user config (``~/.config/tcl-lsp/config.ini``)
-      2. Editor settings (``workspace/didChangeConfiguration`` payload)
-      3. Project config (``<workspace>/.tcl-lsp.ini``)
+      1. Global user config (``~/.config/tcl-lsp/config.ini``) — applies
+         everywhere, not per-folder.
+      2. Editor settings (``workspace/configuration`` pull payload, per
+         workspace folder).
+      3. Project config (``<folder>/.tcl-lsp.ini``, per workspace folder).
+
+    ``folder_uri=""`` selects the workspace/user-level fallback layers.
+    Per-folder layers fall back to the workspace-level layers when not
+    explicitly populated.
 
     Inline ``# noqa`` and top-of-file ``# tcl-lsp: disable=`` directives are
     applied later, in the per-document diagnostics pipeline — they do not
     feed into server-level ``feature_config``.
     """
+    editor = _state.editor_config_settings_per_folder.get(folder_uri, _state.editor_config_settings)
+    project = _state.project_config_settings_per_folder.get(
+        folder_uri, _state.project_config_settings
+    )
     return merge_settings_layers(
         _state.global_config_settings,
-        _state.editor_config_settings,
-        _state.project_config_settings,
+        editor,
+        project,
     )
 
 
-def _apply_all_settings(tcl_settings: dict) -> None:
-    """Update the editor config layer and apply the merged settings (debounced)."""
-    _state.editor_config_settings = tcl_settings
+def _apply_all_settings(tcl_settings: dict, folder_uri: str = "") -> None:
+    """Update the editor-config layer for ``folder_uri`` and re-apply (debounced)."""
+    if folder_uri == "":
+        _state.editor_config_settings = tcl_settings
+    else:
+        _state.editor_config_settings_per_folder[folder_uri] = tcl_settings
     _schedule_apply_merged()
 
 
-def apply_project_settings(tcl_settings: dict) -> None:
-    """Update the project-config layer and apply the merged settings."""
-    _state.project_config_settings = tcl_settings
+def apply_project_settings(tcl_settings: dict, folder_uri: str = "") -> None:
+    """Update the project-config layer for ``folder_uri`` and re-apply."""
+    if folder_uri == "":
+        _state.project_config_settings = tcl_settings
+    else:
+        _state.project_config_settings_per_folder[folder_uri] = tcl_settings
     _schedule_apply_merged()
 
 
 def apply_global_settings(tcl_settings: dict) -> None:
-    """Update the global user-config layer and apply the merged settings."""
+    """Update the global user-config layer (not per-folder) and re-apply."""
     _state.global_config_settings = tcl_settings
     _schedule_apply_merged()
 
@@ -411,22 +429,44 @@ def _schedule_apply_merged() -> None:
     )
 
 
-def _apply_merged_settings_now() -> None:
-    """Apply the merged configuration layers (called after debounce timer)."""
-    global _pending_apply_handle
-    _pending_apply_handle = None
+def _apply_settings_to_target(folder_uri: str, tcl_settings: dict) -> bool:
+    """Apply ``tcl_settings`` to the FeatureConfig/FormatterConfig for ``folder_uri``.
 
-    tcl_settings = _merged_settings()
+    ``folder_uri=""`` targets the workspace/user-level fallback (the
+    ``feature_config`` / ``formatter_config`` module attributes).  Returns
+    True if any feature settings changed.
+    """
+    if folder_uri == "":
+        feature_target = _state.feature_config
+    else:
+        feature_target = _state.get_or_init_folder_feature_config(folder_uri)
 
     formatting = tcl_settings.get("formatting")
     if isinstance(formatting, dict) and formatting:
-        current = _state.formatter_config.to_dict()
+        if folder_uri == "":
+            current = _state.formatter_config.to_dict()
+        else:
+            current = _state.get_or_init_folder_formatter_config(folder_uri).to_dict()
         current.update(_normalise_formatter_settings(formatting))
-        _state.formatter_config = FormatterConfig.from_dict(current)
+        _state.set_folder_formatter_config(folder_uri, FormatterConfig.from_dict(current))
 
-    extra_commands_setting = tcl_settings.get("extraCommands")
+    return _apply_feature_settings(tcl_settings, target=feature_target)
+
+
+def _apply_merged_settings_now() -> None:
+    """Apply merged config layers — workspace fallback + every known folder."""
+    global _pending_apply_handle
+    _pending_apply_handle = None
+
+    fallback_settings = _merged_settings()
+
+    # Process-wide settings: signatures (dialect / extraCommands), library
+    # paths, scanner configuration.  These are read from the workspace
+    # fallback layer — multi-folder per-dialect support would require the
+    # signature registry to be folder-aware, which is a larger refactor.
+    extra_commands_setting = fallback_settings.get("extraCommands")
     if extra_commands_setting is None:
-        extra_commands_setting = tcl_settings.get("extra_commands")
+        extra_commands_setting = fallback_settings.get("extra_commands")
     if extra_commands_setting is None:
         extra_commands = None
     elif isinstance(extra_commands_setting, list):
@@ -434,9 +474,9 @@ def _apply_merged_settings_now() -> None:
     else:
         extra_commands = []
 
-    library_paths_setting = tcl_settings.get("libraryPaths")
+    library_paths_setting = fallback_settings.get("libraryPaths")
     if library_paths_setting is None:
-        library_paths_setting = tcl_settings.get("library_paths")
+        library_paths_setting = fallback_settings.get("library_paths")
     if isinstance(library_paths_setting, list):
         library_paths = [str(p) for p in library_paths_setting]
         _state.background_scanner.configure(library_paths=library_paths)
@@ -447,7 +487,7 @@ def _apply_merged_settings_now() -> None:
 
         threading.Thread(target=_wi._run_background_scan, daemon=True).start()
 
-    dialect_setting = tcl_settings.get("dialect")
+    dialect_setting = fallback_settings.get("dialect")
     if isinstance(dialect_setting, str) and dialect_setting:
         _state.feature_config.dialect_explicitly_set = True
     signatures_changed = configure_signatures(
@@ -463,8 +503,21 @@ def _apply_merged_settings_now() -> None:
             _state.feature_config.dialect_explicitly_set,
         )
 
+    # Per-folder + fallback feature/formatter application.
     diags_were_enabled = _state.feature_config.diagnostics_enabled
-    features_changed = _apply_feature_settings(tcl_settings)
+    features_changed = _apply_settings_to_target("", fallback_settings)
+
+    folder_uris = sorted(
+        set(_state.editor_config_settings_per_folder.keys())
+        | set(_state.project_config_settings_per_folder.keys())
+        | set(_state.workspace_folder_uris())
+    )
+    for folder_uri in folder_uris:
+        if folder_uri == "":
+            continue
+        folder_settings = _merged_settings(folder_uri)
+        if _apply_settings_to_target(folder_uri, folder_settings):
+            features_changed = True
 
     if not signatures_changed and not features_changed:
         return
@@ -506,17 +559,37 @@ def _apply_merged_settings_now() -> None:
                 _publish_diags_to_client(uri, [], doc_state.version)
 
 
+def _workspace_folder_uris_from_server() -> list[str]:
+    """List workspace folder URIs from the pygls server (empty if none)."""
+    if _server is None:
+        return []
+    folders = getattr(_server.workspace, "workspace_folders", None) or []
+    return [getattr(f, "uri", "") for f in folders if getattr(f, "uri", "")]
+
+
 def _pull_and_apply_configuration() -> None:
-    """Pull configuration from the client via ``workspace/configuration``."""
-    params = types.ConfigurationParams(items=[types.ConfigurationItem(section="tclLsp")])
+    """Pull tclLsp config per workspace folder + the workspace fallback."""
+    folder_uris = _workspace_folder_uris_from_server()
+    items: list[types.ConfigurationItem] = [
+        types.ConfigurationItem(scope_uri=uri, section="tclLsp") for uri in folder_uris
+    ]
+    # Always include the unscoped fallback (workspace/user settings) — used
+    # for files outside any workspace folder.
+    items.append(types.ConfigurationItem(section="tclLsp"))
+    params = types.ConfigurationParams(items=items)
 
     def _on_result(result: list[object] | None) -> None:
         if not result:
             return
-        item = result[0]
-        if not isinstance(item, dict):
-            return
-        _apply_all_settings(item)
+        # Result order matches request order: per-folder items first,
+        # then the fallback item last.
+        for folder_uri, item in zip(folder_uris, result, strict=False):
+            if isinstance(item, dict):
+                _apply_all_settings(item, folder_uri=folder_uri)
+        if len(result) > len(folder_uris):
+            fallback_item = result[len(folder_uris)]
+            if isinstance(fallback_item, dict):
+                _apply_all_settings(fallback_item, folder_uri="")
 
     try:
         _server.workspace_configuration(params, callback=_on_result)  # type: ignore[union-attr]
@@ -532,9 +605,14 @@ def register(server_instance: LanguageServer) -> None:
 
     @server_instance.feature(types.WORKSPACE_DID_CHANGE_CONFIGURATION)
     def did_change_configuration(params: types.DidChangeConfigurationParams) -> None:
+        # Always pull per-folder via workspace/configuration: the push
+        # payload (if any) is the workspace-merged value and cannot
+        # populate per-folder configs.  The pull also covers clients that
+        # send empty notifications as a "config changed" signal.
         settings = params.settings
-        if not settings:
-            _pull_and_apply_configuration()
-            return
-        tcl_settings = _extract_tcl_lsp_settings(settings)
-        _apply_all_settings(tcl_settings)
+        if isinstance(settings, dict) and settings:
+            # Apply the push payload to the fallback layer immediately
+            # (covers files outside every workspace folder), then pull
+            # for accurate per-folder values.
+            _apply_all_settings(_extract_tcl_lsp_settings(settings), folder_uri="")
+        _pull_and_apply_configuration()
