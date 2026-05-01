@@ -418,12 +418,21 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         // Per Tcl, closing stdin/stdout/stderr is permitted but
         // would shut the host stream — surprising for a sandbox.
         // We still drain the per-channel write buffer so anything
-        // queued via ``-buffering full`` lands on the host stream.
-        _ = flush_chan(&channels[slot]);
+        // queued via ``-buffering full`` lands on the host stream;
+        // a flush failure here is reported as an error so callers
+        // notice silent data loss (broken pipe, disk full, …).
+        if (!flush_chan(&channels[slot])) {
+            stubs.raise("close: write failed");
+            return 0;
+        }
         return obj_new_string(0, 0);
     }
     const c = &channels[slot];
-    _ = flush_chan(c);
+    // Drain pending writes before tearing the slot down.  If the
+    // flush fails the bytes are lost regardless — the fd has to be
+    // closed to reclaim the slot — but we still surface the error
+    // to the caller rather than masking it as a clean close.
+    const flush_ok = flush_chan(c);
     _ = close_fn(c.fd);
     if (c.buf_addr != 0) {
         obj.free_sized(c.buf_addr, READ_BUF_SIZE);
@@ -447,6 +456,10 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .out_buf_size = WRITE_BUF_SIZE,
         .out_buf_pos = 0,
     };
+    if (!flush_ok) {
+        stubs.raise("close: write failed");
+        return 0;
+    }
     return obj_new_string(0, 0);
 }
 
@@ -985,44 +998,53 @@ fn is_accepted_option(p: [*]const u8, len: u32) bool {
         eq(p, len, "-translation");
 }
 
-fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) void {
+// Apply a single ``-name value`` pair to ``c``.  Returns false on a
+// resize-time flush failure so the caller can stop walking the
+// remaining option list and surface a real error; success returns
+// true regardless of whether the option name was recognised (mirrors
+// the prior void-return behaviour for unknown values).
+fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) bool {
     if (eq(name_p, name_len, "-translation")) {
         if (eq(val_p, val_len, "auto")) c.translation = TR_AUTO;
         if (eq(val_p, val_len, "lf")) c.translation = TR_LF;
         if (eq(val_p, val_len, "cr")) c.translation = TR_CR;
         if (eq(val_p, val_len, "crlf")) c.translation = TR_CRLF;
         if (eq(val_p, val_len, "binary")) c.translation = TR_BINARY;
-        return;
+        return true;
     }
     if (eq(name_p, name_len, "-buffering")) {
         if (eq(val_p, val_len, "full")) c.buffering = BUF_FULL;
         if (eq(val_p, val_len, "line")) c.buffering = BUF_LINE;
         if (eq(val_p, val_len, "none")) c.buffering = BUF_NONE;
-        return;
+        return true;
     }
     if (eq(name_p, name_len, "-encoding")) {
         c.encoding_binary = eq(val_p, val_len, "binary");
-        return;
+        return true;
     }
     if (eq(name_p, name_len, "-buffersize")) {
-        const n = parse_uint(val_p, val_len) orelse return;
+        const n = parse_uint(val_p, val_len) orelse return true;
         // Tcl clamps -buffersize to ``[1, 1_000_000]``; mirror that
         // so a hostile script can't request a 4 GiB allocation.
-        if (n == 0) return;
+        if (n == 0) return true;
         const clamped: u32 = if (n > 1_000_000) 1_000_000 else n;
-        if (clamped == c.out_buf_size) return;
+        if (clamped == c.out_buf_size) return true;
         // Drain any pending bytes at the old size before swapping
         // the buffer; otherwise a partial write straddles the
         // resize and the second flush would point at freed memory.
-        _ = flush_chan(c);
+        // If the drain fails (broken pipe, ENOSPC, …) we must keep
+        // the old buffer intact so the queued bytes aren't silently
+        // discarded — the caller surfaces an error.
+        if (!flush_chan(c)) return false;
         if (c.out_buf_addr != 0) {
             obj.free_sized(c.out_buf_addr, c.out_buf_size);
             c.out_buf_addr = 0;
         }
         c.out_buf_size = clamped;
         c.out_buf_pos = 0;
-        return;
+        return true;
     }
+    return true;
 }
 
 /// ``fconfigure $fd ?option value …?`` — channel-option setter.
@@ -1085,7 +1107,10 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
             name_start = start;
             name_len = word_len;
         } else {
-            apply_option(c, ap + name_start, name_len, ap + start, word_len);
+            if (!apply_option(c, ap + name_start, name_len, ap + start, word_len)) {
+                stubs.raise("fconfigure: write failed");
+                return 0;
+            }
         }
         parity = 1 - parity;
     }
