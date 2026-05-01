@@ -20,6 +20,7 @@ callback with caller-supplied results.
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -204,7 +205,7 @@ class TestDidChangeConfigurationDispatch:
 
         # Build a minimal pygls-shaped server and grab the registered handler.
         server = MagicMock()
-        registered: dict[str, object] = {}
+        registered: dict[str, Callable] = {}
 
         def _feature(name, *_args, **_kwargs):
             def _decorator(fn):
@@ -230,7 +231,7 @@ class TestDidChangeConfigurationDispatch:
         monkeypatch.setattr(_lsp_settings, "_schedule_apply_merged", lambda: None)
 
         server = MagicMock()
-        registered: dict[str, object] = {}
+        registered: dict[str, Callable] = {}
 
         def _feature(name, *_args, **_kwargs):
             def _decorator(fn):
@@ -256,7 +257,9 @@ class TestDidChangeConfigurationDispatch:
 # on_did_change_workspace_folders
 
 
-def _folders_event(added: list[str] = None, removed: list[str] = None):
+def _folders_event(
+    added: list[str] | None = None, removed: list[str] | None = None
+) -> types.DidChangeWorkspaceFoldersParams:
     """Build a minimal DidChangeWorkspaceFoldersParams."""
     added_folders = [types.WorkspaceFolder(uri=u, name=u.rsplit("/", 1)[-1]) for u in (added or [])]
     removed_folders = [
