@@ -1350,3 +1350,84 @@ class TestBatch7WasmAcceptsFloatAsInteger:
         result = run_wasm("set i 5\nincr i\nputs $i\n")
         assert result.return_code == 0
         assert result.stdout.strip() == "6"
+
+    def test_incr_rejects_empty_string(self) -> None:
+        """Copilot review on PR #287: ``incr ""`` must reject.
+
+        The earlier char-whitelist parser returned ``true`` for empty
+        strings because the post-whitespace digit-check loop ran zero
+        iterations and fell through to ``return true``.  ``obj_get_int``
+        then silently returned 0 and ``incr`` advanced — masking the
+        canonical ``expected integer but got ""`` error.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm('set i ""\nincr i\n')
+        assert result.return_code == 1
+        assert 'expected integer but got ""' in (result.error_message or "")
+
+    def test_incr_rejects_alpha_string(self) -> None:
+        """Copilot review on PR #287: ``incr abc``/``incr deadbeef`` must reject.
+
+        The earlier char-whitelist accepted any byte in
+        ``[0-9a-fA-FxXoOb]`` unconditionally, so alpha-only strings
+        like ``"abc"`` and ``"deadbeef"`` (every byte is a hex digit)
+        slipped through and ``obj_get_int`` silently returned 0.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        for value in ("abc", "deadbeef", "xyz"):
+            result = run_wasm(f"set i {value}\nincr i\n")
+            assert result.return_code == 1, (
+                f"incr {value!r} did not error (rc={result.return_code}, "
+                f"err={result.error_message!r})"
+            )
+            assert f'expected integer but got "{value}"' in (result.error_message or "")
+
+    def test_incr_rejects_whitespace_only(self) -> None:
+        """Copilot review on PR #287: whitespace-only string must reject."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm('set i "   "\nincr i\n')
+        assert result.return_code == 1
+        assert "expected integer" in (result.error_message or "")
+
+    def test_incr_rejects_boolean(self) -> None:
+        """Copilot review on PR #287 (also issue #262 family): boolean strings must reject."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        for value in ("yes", "no", "true", "false"):
+            result = run_wasm(f"set i {value}\nincr i\n")
+            assert result.return_code == 1, (
+                f"incr {value!r} did not error (rc={result.return_code}, "
+                f"err={result.error_message!r})"
+            )
+            assert f'expected integer but got "{value}"' in (result.error_message or "")
+
+    def test_incr_accepts_int_with_whitespace(self) -> None:
+        """Non-regression: integer with leading/trailing whitespace still increments."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm('set i "  5  "\nincr i\nputs $i\n')
+        assert result.return_code == 0
+        assert result.stdout.strip() == "6"
+
+    def test_incr_accepts_negative_int_string(self) -> None:
+        """Non-regression: negative integer strings still increment."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set i -5\nincr i\nputs $i\n")
+        assert result.return_code == 0
+        assert result.stdout.strip() == "-4"

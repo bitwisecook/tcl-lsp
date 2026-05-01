@@ -1500,37 +1500,35 @@ fn incr_is_strict_int(o: i32) bool {
     const tag = obj.obj_type(o);
     if (tag == obj.TYPE_INT) return true;
     if (tag == obj.TYPE_FLOAT) return false;
-    // String / inline string — peek the bytes; reject if any
-    // ``.`` / ``e`` / ``E`` appears (Tcl's strict parser only
-    // accepts decimal/hex/octal/binary integers).  An empty
-    // string parses as 0 in Tcl strict-integer contexts.
+    // String / inline string — delegate to the canonical strict-decimal
+    // parser used by ``obj_get_int``.  Keeping the validation and the
+    // read in lock-step means anything we accept here will round-trip
+    // cleanly to an int when ``tcl_incr`` calls ``obj_get_int`` next.
+    //
+    //   * empty / whitespace-only   → null → reject
+    //   * floats (``"52.60"``, ``"1e5"``)        → null → reject (issue #262)
+    //   * boolean keywords (``"yes"``, ``"true"``) → null → reject
+    //   * alpha-only (``"abc"``, ``"deadbeef"``)   → null → reject
+    //
+    // The earlier hand-rolled char-class whitelist accepted any string
+    // containing only ``[0-9a-fA-FxXoOb B]`` (so ``"abc"`` and
+    // ``"deadbeef"`` slipped through and ``obj_get_int`` silently
+    // returned 0 — Copilot review on PR #287).  Empty strings also
+    // returned ``true`` and let ``incr ""`` succeed instead of raising
+    // ``expected integer but got ""``.
+    //
+    // Note: ``try_parse_int`` is currently decimal-only.  Hex / octal /
+    // binary integer literals (``"0xff"``, ``"0o17"``, ``"0b1010"``)
+    // therefore round-trip through this validator as ``expected
+    // integer …``.  That's tighter than reference Tcl, but
+    // ``obj_get_int`` can't extract those bases either, so accepting
+    // them here would silently miscompute (``incr i`` with
+    // ``i = "0xFF"`` would yield ``1``, not ``256``).  Extending
+    // ``try_parse_int`` to cover non-decimal bases is tracked
+    // separately and out of scope for the bitwise/shift/incr domain
+    // fixes covered by issues #260–#262.
     const s = obj.obj_ensure_string(o);
-    if (s.len == 0) return true;
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    var i: u32 = 0;
-    // Skip leading whitespace + optional sign for the digit check.
-    while (i < s.len) : (i += 1) {
-        const c = sp[i];
-        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == '\x0b' or c == '\x0c') continue;
-        break;
-    }
-    if (i < s.len and (sp[i] == '+' or sp[i] == '-')) i += 1;
-    while (i < s.len) : (i += 1) {
-        const c = sp[i];
-        if (c == '.' or c == 'e' or c == 'E') return false;
-        if (c >= '0' and c <= '9') continue;
-        // Allow hex/octal/binary prefix tail (``0x...``, ``0o...``, ``0b...``)
-        // — every char accepted by Tcl's integer parser.
-        if (c == 'x' or c == 'X' or c == 'o' or c == 'O' or c == 'b' or c == 'B') continue;
-        if ((c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F')) continue;
-        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == '\x0b' or c == '\x0c') continue;
-        // Anything else (alpha / punctuation) — let the int parser
-        // raise its own error via ``obj_get_int`` (we still return
-        // false here so ``raise_expected_integer`` produces the
-        // canonical message).
-        return false;
-    }
-    return true;
+    return obj.try_parse_int(s.ptr, s.len) != null;
 }
 
 fn raise_expected_integer(o: i32) void {
