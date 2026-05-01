@@ -1053,6 +1053,27 @@ return [sum_list {1 2 3 4 5}]
         assert ok, f"error: {err}"
         assert val == 1
 
+    def test_catch_inside_bracket_substitution(self):
+        """``[catch …]`` nested inside another bracket substitution must not
+        propagate the error past its own catch.  Regression for issue #302:
+        the import scanner only walked ``parts[-1]`` of an outer ``[cmd …]``,
+        so ``[list [catch {error fail} msg] $msg]`` never registered
+        ``tcl_catch_enter`` and the inner ``error`` saw ``catch_depth == 0``
+        at runtime — trapping past the surrounding catch.
+        """
+        cases = [
+            ("puts [list [catch {error fail} msg] $msg]\n", "1 fail\n"),
+            ("puts [list [catch {error fail} msg]]\n", "1\n"),
+            (
+                "proc f {} { return [list [catch {error fail} msg] $msg] }\nputs [f]\n",
+                "1 fail\n",
+            ),
+        ]
+        for source, expected in cases:
+            ok, stdout, err = _run_tcl_for_stdout(source)
+            assert ok, f"error for {source!r}: {err}"
+            assert stdout == expected, f"for {source!r} got {stdout!r}"
+
     def test_switch_dispatch(self):
         source = """\
 set x "hello"
