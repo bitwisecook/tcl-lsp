@@ -120,6 +120,9 @@ fn eval_coroutine(words: []const i32) i32 {
     const cmd = build_coro_command(coro_addr, r.simple_ptr, r.simple_len);
     _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, cmd);
     procs.proc_count_bump();
+    // Record the dispatch-command location so :func:`coro_mod.cleanup_terminated`
+    // can clear it when the coroutine body returns or errors.
+    coro_mod.record_registration(c, r.target_ns, r.simple_ptr, r.simple_len);
     // First-time invocation: real Tcl calls the body once before
     // returning the coroutine name.  Our segment-based model does
     // this implicitly the first time the coro is called by the

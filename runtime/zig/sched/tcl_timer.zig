@@ -149,9 +149,15 @@ pub const Heap = struct {
         return 0;
     }
 
+    /// Result of cancel-by-script: the removed entry's id (0 on miss)
+    /// plus its retained script TclObj so the caller can release it.
+    pub const CancelResult = struct { id: u32, script_obj: i32 };
+
     /// Remove the first entry whose script bytes equal ``s``.  Returns
-    /// the cancelled id, or 0 on miss.  ``after cancel <script>`` form.
-    pub fn cancel_by_script(self: *Heap, script_ptr: u32, script_len: u32) u32 {
+    /// ``{id, script_obj}`` for the removed entry or ``{0, 0}`` on miss.
+    /// Caller is responsible for releasing ``script_obj`` — it was
+    /// retained at schedule time.
+    pub fn cancel_by_script(self: *Heap, script_ptr: u32, script_len: u32) CancelResult {
         var i: u32 = 0;
         while (i < self.len) : (i += 1) {
             const e = self.slot(i);
@@ -166,16 +172,17 @@ pub const Heap = struct {
             }
             if (match) {
                 const id = e.id;
+                const script = e.script_obj;
                 self.len -= 1;
                 if (i != self.len) {
                     self.slot(i).* = self.slot(self.len).*;
                     self.sift_down(i);
                     self.sift_up(i);
                 }
-                return id;
+                return .{ .id = id, .script_obj = script };
             }
         }
-        return 0;
+        return .{ .id = 0, .script_obj = 0 };
     }
 
     /// Linear scan: return true if ``id`` is in the heap.

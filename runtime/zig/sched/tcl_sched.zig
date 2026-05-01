@@ -180,12 +180,20 @@ pub fn cancel_by_id(id: u32) bool {
 }
 
 /// Cancel by matching script bytes (any single matching pending
-/// entry).  Returns the cancelled id, or 0 on miss.
+/// entry).  Returns the cancelled id, or 0 on miss.  Releases the
+/// removed entry's retained script TclObj — the underlying timer
+/// and idle modules return the script handle alongside the id so
+/// the leak ``cancel_by_id`` already avoided is closed here too
+/// (Codex P2 on PR #284).
 pub fn cancel_by_script(script_ptr: u32, script_len: u32) u32 {
-    const tid = g_timers.cancel_by_script(script_ptr, script_len);
-    if (tid != 0) return tid;
-    const iid = g_idle.cancel_by_script(script_ptr, script_len);
-    return iid;
+    const tres = g_timers.cancel_by_script(script_ptr, script_len);
+    if (tres.id != 0) {
+        if (tres.script_obj != 0) tcl_obj_release(tres.script_obj);
+        return tres.id;
+    }
+    const ires = g_idle.cancel_by_script(script_ptr, script_len);
+    if (ires.id != 0 and ires.script_obj != 0) tcl_obj_release(ires.script_obj);
+    return ires.id;
 }
 
 /// Cancel by id-or-script: parses the input as ``after#N`` first,
@@ -277,21 +285,20 @@ pub fn info_one(token_ptr: u32, token_len: u32) i32 {
 
 fn build_info_pair(script_obj: i32, kind: []const u8) i32 {
     const s = obj_ensure_string(script_obj);
-    // Result shape: ``script type``.  Wrap the script in braces if
-    // it contains spaces; otherwise emit verbatim.  Real Tcl uses
-    // a list-quoted form — for v1 we use the simple "always brace
-    // the script" form that round-trips through ``lindex 0``.
-    const out_len = 1 + s.len + 1 + 1 + kind.len; // {script} type
-    const buf = obj.alloc(out_len);
-    const dst: [*]u8 = @ptrFromInt(buf);
+    // Result shape: ``script type`` rendered as a real Tcl list so
+    // ``lindex`` round-trips.  Naive ``{...}`` wrap broke for
+    // scripts with unmatched ``}`` bytes (e.g. ``after 100 "puts }"``)
+    // — Codex P1 on PR #284.  Use ``obj.list_elem_quote`` which
+    // brace-wraps when safe, escapes otherwise, and falls back to
+    // backslash-quoting when an unmatched brace would split the
+    // word.  Worst-case expansion for the script element is ~2x
+    // (every byte becomes ``\X``); plus 1 byte for the separator
+    // and ``kind.len`` for the trailing word.
+    const cap: u32 = s.len * 2 + 8 + 1 + @as(u32, @intCast(kind.len));
+    const buf = obj.alloc(cap);
     var off: u32 = 0;
-    dst[off] = '{'; off += 1;
-    if (s.len > 0) {
-        const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        var k: u32 = 0;
-        while (k < s.len) : (k += 1) { dst[off] = sp[k]; off += 1; }
-    }
-    dst[off] = '}'; off += 1;
+    off = obj.list_elem_quote(buf, off, s.ptr, s.len);
+    const dst: [*]u8 = @ptrFromInt(buf);
     dst[off] = ' '; off += 1;
     for (kind) |c| { dst[off] = c; off += 1; }
     return obj_new_string(@intCast(buf), @intCast(off));

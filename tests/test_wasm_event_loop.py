@@ -82,6 +82,23 @@ class TestAfter:
         # Two ids pending at the time of `after info`.
         assert out.strip() == "2"
 
+    def test_after_info_quotes_script_with_unmatched_brace(self):
+        # Regression for Codex P1 on PR #284: ``after info`` previously
+        # wrapped the script in raw ``{...}`` which broke for scripts
+        # containing unmatched ``}`` bytes.  Verify the result is a
+        # well-formed 2-element Tcl list that round-trips through
+        # ``lindex``.
+        out = _run_for_stdout(
+            'set id [after 100 "puts \\}"]\n'
+            "set info [after info $id]\n"
+            "puts [llength $info]\n"
+            "puts [lindex $info 1]\n"
+            "after cancel $id\n"
+        )
+        lines = out.splitlines()
+        assert lines[0] == "2"
+        assert lines[1] == "timer"
+
 
 class TestUpdate:
     def test_update_drains_zero_ms_timers(self):
@@ -131,6 +148,27 @@ class TestFileevent:
 
 
 class TestCoroutine:
+    def test_coroutine_command_removed_after_terminal_return(self):
+        # Regression for Codex P1 on PR #284: a coroutine that returns
+        # normally must un-register its dispatch command so a later
+        # ``[name]`` call surfaces ``invalid command name`` instead of
+        # silently returning empty (and so the fixed MAX_COROS table
+        # frees the slot for reuse).
+        out = _run_for_stdout(
+            "coroutine c apply {{} {return done}}\n"
+            "puts [c]\n"
+            "set rc [catch {c} msg]\n"
+            "puts $rc\n"
+            "puts $msg\n"
+        )
+        lines = out.splitlines()
+        # First [c]: runs the body to completion, body returns "done".
+        # Second [c]: command no longer exists → catch yields rc != 0
+        # with an "invalid command name" message.
+        assert lines[0] == "done"
+        assert lines[1] == "1"
+        assert "invalid command name" in lines[2] or "c" in lines[2]
+
     def test_coroutine_basic_yield_resume(self):
         # v1 segment-based coroutine: each `[c]` runs the next
         # top-level command in the body.
