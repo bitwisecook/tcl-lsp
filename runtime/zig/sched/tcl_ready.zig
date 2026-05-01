@@ -81,9 +81,15 @@ pub const Queue = struct {
         return 0;
     }
 
-    /// Remove the first entry whose script bytes match.  Returns the
-    /// cancelled id, or 0 on miss.
-    pub fn cancel_by_script(self: *Queue, script_ptr: u32, script_len: u32) u32 {
+    /// Result of cancel-by-script: the removed entry's id (0 on miss)
+    /// plus its retained script TclObj so the caller can release it.
+    pub const CancelResult = struct { id: u32, script_obj: i32 };
+
+    /// Remove the first entry whose script bytes match.  Returns
+    /// ``{id, script_obj}`` for the removed entry or ``{0, 0}`` on
+    /// miss.  Caller is responsible for releasing ``script_obj`` —
+    /// it was retained at schedule time.
+    pub fn cancel_by_script(self: *Queue, script_ptr: u32, script_len: u32) CancelResult {
         var prev: u32 = 0;
         var cur: u32 = self.head;
         while (cur != 0) {
@@ -101,14 +107,15 @@ pub const Queue = struct {
             };
             if (same) {
                 const removed_id = e.id;
+                const script = e.script_obj;
                 if (prev == 0) self.head = e.next else node(prev).next = e.next;
                 if (cur == self.tail) self.tail = prev;
-                return removed_id;
+                return .{ .id = removed_id, .script_obj = script };
             }
             prev = cur;
             cur = e.next;
         }
-        return 0;
+        return .{ .id = 0, .script_obj = 0 };
     }
 
     pub fn has_id(self: *const Queue, id: u32) bool {

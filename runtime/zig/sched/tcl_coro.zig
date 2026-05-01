@@ -51,10 +51,11 @@ const MAX_COROS: u32 = 32;
 const MAX_SEGMENTS: u32 = 64;
 
 const CoroState = enum(u8) {
-    PENDING = 0, // never been resumed
-    RUNNING = 1, // body in flight
-    SUSPENDED = 2, // yield raised; waiting for next resume
-    DEAD = 3, // body returned or errored
+    FREE = 0, // slot available for reuse (post-cleanup tombstone)
+    PENDING = 1, // created but never resumed
+    RUNNING = 2, // body in flight
+    SUSPENDED = 3, // yield raised; waiting for next resume
+    DEAD = 4, // body returned or errored, awaiting cleanup
 };
 
 const Segment = struct {
@@ -68,6 +69,15 @@ pub const Coro = struct {
     body_ptr: u32,
     body_len: u32,
     body_obj: i32, // retained TclObj backing body bytes
+    /// Namespace + simple-name span of the dispatch command we
+    /// registered in :func:`cmds.coroutine.eval_coroutine`.  Held
+    /// here so :func:`cleanup_terminated` can clear the
+    /// ``cmd_table`` entry without re-resolving the name (the
+    /// caller may be on a different namespace by then).  Zero on
+    /// FREE slots.
+    ns_addr: u32,
+    cmd_simple_ptr: u32,
+    cmd_simple_len: u32,
     // v1 segment state — unused under asyncify.
     segments: [MAX_SEGMENTS]Segment,
     n_segments: u32,
@@ -108,6 +118,7 @@ fn name_eq(c: *const Coro, ptr: u32, len: u32) bool {
 pub fn lookup(name_ptr: u32, name_len: u32) ?*Coro {
     var i: u32 = 0;
     while (i < g_n_coros) : (i += 1) {
+        if (g_coros[i].state == .FREE) continue;
         if (name_eq(&g_coros[i], name_ptr, name_len)) return &g_coros[i];
     }
     return null;
@@ -161,25 +172,39 @@ fn split_segments(c: *Coro) void {
     }
 }
 
+/// Find an unused slot — first a FREE tombstone, otherwise extend
+/// up to MAX_COROS.  Returns null when the table is full.
+fn alloc_slot() ?*Coro {
+    var i: u32 = 0;
+    while (i < g_n_coros) : (i += 1) {
+        if (g_coros[i].state == .FREE) return &g_coros[i];
+    }
+    if (g_n_coros >= MAX_COROS) return null;
+    const c = &g_coros[g_n_coros];
+    g_n_coros += 1;
+    return c;
+}
+
 /// Register a new coroutine.  ``name`` is the command name to
 /// register.  ``body`` is the script the dispatcher will run.
-/// Returns null on table overflow.
+/// Returns null on table overflow or duplicate-name.
 pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
-    if (g_n_coros >= MAX_COROS) return null;
     if (lookup(name_ptr, name_len)) |_| return null; // duplicate
+    const c = alloc_slot() orelse return null;
     const body_s = obj_ensure_string(body_obj);
     tcl_obj_retain(body_obj);
     // Heap-copy the name so the coroutine survives the caller's
     // word release.
     const nbuf = obj.alloc(name_len);
     if (name_len > 0) obj.memcpy(nbuf, name_ptr, name_len);
-    const c = &g_coros[g_n_coros];
-    g_n_coros += 1;
     c.name_ptr = nbuf;
     c.name_len = name_len;
     c.body_ptr = body_s.ptr;
     c.body_len = body_s.len;
     c.body_obj = body_obj;
+    c.ns_addr = 0;
+    c.cmd_simple_ptr = 0;
+    c.cmd_simple_len = 0;
     c.n_segments = 0;
     c.next_segment = 0;
     c.async_buf = 0;
@@ -187,6 +212,51 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     c.state = .PENDING;
     if (!tcl_async.ENABLED) split_segments(c);
     return c;
+}
+
+/// Record where the dispatch command is registered so
+/// :func:`cleanup_terminated` can clear it on terminal return.
+/// Called by the command-side wrapper right after ``ns_cmd_put``.
+/// Heap-copies the simple-name bytes — the caller's pointer is
+/// usually into a parser word buffer that gets released long
+/// before the coroutine terminates.
+pub fn record_registration(c: *Coro, ns_addr: u32, simple_ptr: u32, simple_len: u32) void {
+    c.ns_addr = ns_addr;
+    if (simple_len > 0) {
+        const buf = obj.alloc(simple_len);
+        obj.memcpy(buf, simple_ptr, simple_len);
+        c.cmd_simple_ptr = buf;
+    } else {
+        c.cmd_simple_ptr = 0;
+    }
+    c.cmd_simple_len = simple_len;
+}
+
+/// Tear down a DEAD coroutine: clear its namespace command so a
+/// later ``[name]`` call surfaces a clean ``invalid command name``
+/// error instead of returning empty, release the retained body
+/// TclObj, and mark the slot FREE so the next ``create`` can
+/// reuse it.  Codex P1 on PR #284: completed coros previously
+/// accumulated permanently in the fixed MAX_COROS table.
+pub fn cleanup_terminated(c: *Coro) void {
+    if (c.state != .DEAD) return;
+    if (c.ns_addr != 0 and c.cmd_simple_len != 0) {
+        const tcl_ns = @import("../interp/tcl_ns.zig");
+        _ = tcl_ns.ns_cmd_clear(c.ns_addr, c.cmd_simple_ptr, c.cmd_simple_len);
+        // ``proc_lookup`` caches the resolved Command pointer; the
+        // freshly-cleared bucket is fine but a previously-cached
+        // pointer to our dispatch Command would still survive.
+        // Drop the cache so the next ``[name]`` call re-resolves
+        // and sees the tombstone.
+        const tcl_procs = @import("../interp/tcl_procs.zig");
+        tcl_procs.lru_invalidate_all();
+    }
+    if (c.body_obj != 0) tcl_obj_release(c.body_obj);
+    c.body_obj = 0;
+    c.ns_addr = 0;
+    c.cmd_simple_ptr = 0;
+    c.cmd_simple_len = 0;
+    c.state = .FREE;
 }
 
 fn push_call(c: *Coro) bool {
@@ -332,10 +402,16 @@ fn resume_segments(c: *Coro) i32 {
 }
 
 /// Resume the coroutine.  Routes to the asyncify driver when
-/// available, segment driver otherwise.
+/// available, segment driver otherwise.  When the underlying
+/// driver flips state to DEAD (terminal return / error) we tear
+/// down the dispatch command and free the slot so subsequent
+/// ``[name]`` calls surface ``invalid command name`` instead of
+/// silently returning empty, and so the fixed MAX_COROS table
+/// doesn't accumulate tombstones forever (Codex P1 on PR #284).
 pub fn resume_one(c: *Coro) i32 {
-    if (tcl_async.ENABLED) return resume_async(c);
-    return resume_segments(c);
+    const result = if (tcl_async.ENABLED) resume_async(c) else resume_segments(c);
+    if (c.state == .DEAD) cleanup_terminated(c);
+    return result;
 }
 
 /// Called by the ``yield`` command.  Signals the coroutine driver
