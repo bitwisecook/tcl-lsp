@@ -3080,6 +3080,130 @@ class TestFconfigure:
             assert "unsupported command: fconfigure" in stderr, f"stderr: {stderr!r}"
 
 
+class TestChannelTranslation:
+    """Write-side translation + buffering edge cases.
+
+    Backs `runtime/zig/io/tcl_chan.zig` against the upstream
+    ``io-2.x`` scenarios (``WriteBytes: savedLF > 0`` and
+    ``WriteBytes: flush on line``).  Each case writes through a
+    real WASI fd into a host file under ``tmp_path`` and then
+    re-reads the bytes from the host side to bypass the
+    WASM-side translation that ``open ... r`` would apply.
+    """
+
+    def _run_then_read(self, tmp_path, tcl_source, target):
+        wasm, _ = _compile_tcl_with_diag(tcl_source, "t.tcl")
+        _run_wasm(
+            wasm,
+            capture_stdout=True,
+            capture_stderr=True,
+            preopen_tmpdir=str(tmp_path),
+        )
+        return (tmp_path / target).read_bytes()
+
+    def test_crlf_translation_basic(self, tmp_path):
+        """``-translation crlf`` expands LF → CRLF on flush/close."""
+        bytes_out = self._run_then_read(
+            tmp_path,
+            (
+                "set fd [open /out.txt w]\n"
+                "fconfigure $fd -translation crlf\n"
+                'puts -nonewline $fd "abc\ndef"\n'
+                "close $fd\n"
+            ),
+            "out.txt",
+        )
+        assert bytes_out == b"abc\r\ndef", f"got {bytes_out!r}"
+
+    def test_crlf_savedlf_boundary(self, tmp_path):
+        """The CRLF expansion must split cleanly across a buffer boundary.
+
+        Mirrors upstream ``io-2.2 {WriteBytes: savedLF > 0}``: the
+        ``\\r`` lands at the end of the first 16-byte buffer and the
+        ``\\n`` carries into the next refill.  Final bytes on disk
+        must still be the full 19-byte CRLF sequence.
+        """
+        bytes_out = self._run_then_read(
+            tmp_path,
+            (
+                "set fd [open /out.txt w]\n"
+                "fconfigure $fd -translation crlf -buffersize 16\n"
+                'puts -nonewline $fd "123456789012345\n12"\n'
+                "close $fd\n"
+            ),
+            "out.txt",
+        )
+        assert bytes_out == b"123456789012345\r\n12", f"got {bytes_out!r}"
+
+    def test_buffering_full_holds_until_close(self, tmp_path):
+        """``-buffering full`` keeps bytes in memory until flush/close."""
+        bytes_out = self._run_then_read(
+            tmp_path,
+            (
+                "set fd [open /out.txt w]\n"
+                "fconfigure $fd -translation lf -buffering full -buffersize 4096\n"
+                'puts -nonewline $fd "hello"\n'
+                # No flush here — close drains the buffer.
+                "close $fd\n"
+            ),
+            "out.txt",
+        )
+        assert bytes_out == b"hello", f"got {bytes_out!r}"
+
+    def test_buffering_line_flushes_on_newline(self, tmp_path):
+        """``-buffering line`` drains after each ``\\n``."""
+        # The script exits *without* closing the channel; the bytes
+        # before the ``\n`` must still reach disk because line
+        # buffering flushed them.  The ``\n`` itself flushes too;
+        # bytes after it stay buffered and are lost on exit (no
+        # atexit hook in the runtime), which is the difference
+        # between full and line buffering we're checking.
+        bytes_out = self._run_then_read(
+            tmp_path,
+            (
+                "set fd [open /out.txt w]\n"
+                "fconfigure $fd -translation lf -buffering line\n"
+                'puts $fd "first"\n'
+                'puts -nonewline $fd "tail"\n'
+                # Intentionally no close — the "first\n" line must
+                # have already landed on disk via the line flush.
+            ),
+            "out.txt",
+        )
+        assert bytes_out == b"first\n", f"got {bytes_out!r}"
+
+    def test_buffering_none_flushes_immediately(self, tmp_path):
+        """``-buffering none`` lands every ``puts`` straight on the fd."""
+        bytes_out = self._run_then_read(
+            tmp_path,
+            (
+                "set fd [open /out.txt w]\n"
+                "fconfigure $fd -translation lf -buffering none\n"
+                'puts -nonewline $fd "abc"\n'
+                # No close — nothing should be left to flush; the
+                # bytes already hit disk on the puts.
+            ),
+            "out.txt",
+        )
+        assert bytes_out == b"abc", f"got {bytes_out!r}"
+
+    def test_explicit_flush_drains_buffer(self, tmp_path):
+        """``flush $fd`` against a full-buffered channel drains it."""
+        bytes_out = self._run_then_read(
+            tmp_path,
+            (
+                "set fd [open /out.txt w]\n"
+                "fconfigure $fd -translation lf -buffering full\n"
+                'puts -nonewline $fd "queued"\n'
+                "flush $fd\n"
+                # Without close, the explicit flush is the only way
+                # for those bytes to reach disk.
+            ),
+            "out.txt",
+        )
+        assert bytes_out == b"queued", f"got {bytes_out!r}"
+
+
 class TestExternalTcllibCounter:
     """Compile and run the real tcllib counter module (pure Tcl).
 
