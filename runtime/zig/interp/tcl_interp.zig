@@ -214,9 +214,15 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
             (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
         { pos.* += 1; }
         const name = obj_new_string(@bitCast(ptr + vs), @bitCast(pos.* - vs));
+        // Issue #303 — release the per-atom name temp.
+        // ``var_resolve`` returns a borrowed handle to the variable
+        // storage; the lookup-only name TclObj is ours to free.
+        // Without the release, every ``$var`` reference inside an
+        // expression leaks one obj header per iteration.
         const val = frames.var_resolve(name);
-        if (val != 0) return obj_get_int(val);
-        return 0;
+        const v: i64 = if (val != 0) obj_get_int(val) else 0;
+        obj_mod.tcl_obj_release(name);
+        return v;
     }
     if (src[pos.*] == '[') {
         pos.* += 1;
@@ -233,8 +239,13 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         // require us to avoid.
         if (skip) return 0;
         const result = eval_script(ptr + cs, pos.* - 1 - cs);
-        if (result != 0) return obj_get_int(result);
-        return 0;
+        // Issue #303 — release the eval_script result after
+        // extracting its integer value; ``[cmd]`` substitution owns
+        // the result with +1 ref and the expression atom doesn't
+        // keep it alive.
+        const r: i64 = if (result != 0) obj_get_int(result) else 0;
+        if (result != 0) obj_mod.tcl_obj_release(result);
+        return r;
     }
     var negative = false;
     if (src[pos.*] == '+') pos.* += 1;
