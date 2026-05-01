@@ -118,6 +118,7 @@ class _WasmEmitterStmtMixin(_Base):
         def _intern_string(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_var_read_obj_lenient(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_write_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_frame_sync(self, *a: Any, **kw: Any) -> Any: ...
@@ -199,7 +200,11 @@ class _WasmEmitterStmtMixin(_Base):
                 # configs without the import).
                 incr_idx = self._shared_imports.get("tcl_incr")
                 if incr_idx is not None:
-                    self._emit_var_read_obj(name)  # current value (TclObj)
+                    # Lenient read so an unset scalar initialises to 0
+                    # — Tcl 8.5+ ``incr x`` (with x unset) returns 1,
+                    # doesn't raise ``no such variable``.  ``tcl_incr``
+                    # treats the null TclObj on a 0 initialisation.
+                    self._emit_var_read_obj_lenient(name)  # current value (TclObj)
                     if amount is None:
                         self._emit_i64_const(1)
                         self._emit_box_int()
