@@ -1024,6 +1024,34 @@ fn pattern_has_meta(pattern: []const u8) bool {
     return false;
 }
 
+/// Decode backslash escapes in *pattern*, returning a fresh slice
+/// on the bump allocator.  ``\X`` collapses to ``X`` for any byte;
+/// a trailing ``\`` is preserved as a literal backslash.  Used by
+/// the literal fast path so ``glob {\*}`` probes a file named
+/// ``*`` rather than the byte sequence ``\*``.  Patterns without
+/// any backslash escapes round-trip byte-for-byte (the helper
+/// always allocates so the caller can store the result without
+/// special-casing).
+fn unescape_pattern(pattern: []const u8) []const u8 {
+    if (pattern.len == 0) return pattern;
+    const buf_addr = obj.alloc(@intCast(pattern.len));
+    const out: [*]u8 = @ptrFromInt(buf_addr);
+    var src: usize = 0;
+    var dst: usize = 0;
+    while (src < pattern.len) {
+        if (pattern[src] == '\\' and src + 1 < pattern.len) {
+            out[dst] = pattern[src + 1];
+            dst += 1;
+            src += 2;
+            continue;
+        }
+        out[dst] = pattern[src];
+        dst += 1;
+        src += 1;
+    }
+    return out[0..dst];
+}
+
 /// Split *pattern* at the last ``/``.  Returns ``(dir_len, basename_off)``
 /// where dir_len is the number of bytes (including the trailing
 /// slash) belonging to the directory portion, and basename_off is
@@ -1070,10 +1098,22 @@ pub fn tcl_cmd_glob(pattern: i32) i32 {
     if (s.len == 0) return obj_new_string(0, 0);
     const pat_bytes: []const u8 = (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
 
-    // Literal path with no metas — return as-is iff it exists.
+    // Literal path with no *unescaped* metas — return as-is iff it
+    // exists.  Backslash escapes inside the pattern (e.g.
+    // ``glob {\*}`` to match a real file named ``*``) must be
+    // decoded into the bytes we actually probe; otherwise
+    // ``access()`` runs against the literal ``\*`` byte sequence
+    // and reports "doesn't exist" for files whose names a Tcl user
+    // would expect to match.
     if (!pattern_has_meta(pat_bytes)) {
-        if (access(path_cstr(pattern), F_OK) != 0) return obj_new_string(0, 0);
-        return list_append(obj_new_string(0, 0), s.ptr, s.len);
+        const lit = unescape_pattern(pat_bytes);
+        const lit_cstr = cstr_from_bytes(lit);
+        if (access(lit_cstr, F_OK) != 0) return obj_new_string(0, 0);
+        return list_append(
+            obj_new_string(0, 0),
+            @intCast(@intFromPtr(lit.ptr)),
+            @intCast(lit.len),
+        );
     }
 
     const split = split_dir_basename(pat_bytes);

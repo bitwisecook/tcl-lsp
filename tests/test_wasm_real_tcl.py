@@ -267,8 +267,17 @@ def _run_wasm(
     # matching ``host_spawn=`` callback (for ``CAP_EXEC``).
     if capabilities:
         set_caps_fn = rt_instance.exports(store).get("tcl_set_capabilities")
-        if set_caps_fn is not None:
-            set_caps_fn(store, capabilities)
+        if set_caps_fn is None:
+            # An old runtime build without the capability bitset
+            # would silently leave the sandboxed posture in place
+            # and the test would diagnose the resulting refusal as
+            # a Tcl-level capability denial — wrong root cause.
+            # Surface the runtime-mismatch directly.
+            raise RuntimeError(
+                "runtime does not export 'tcl_set_capabilities'; "
+                f"cannot apply requested capability mask {capabilities!r}"
+            )
+        set_caps_fn(store, capabilities)
 
     # WASI reactor initialisation — wasi-libc installs its ctors
     # (preopen-fd scanner, global locks, etc.) in ``_initialize``

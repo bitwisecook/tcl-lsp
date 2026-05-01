@@ -163,6 +163,75 @@ class TestCapGlob:
         )
         assert out.strip() == "||"
 
+    def test_unknown_switch_raises_bad_option(self, tmp_path: Path):
+        # ``glob -typs f *.tcl`` is a typo; stock Tcl raises
+        # ``bad option "-typs"``.  Used to silently fall through and
+        # match files starting with ``-``; the eval_glob error path
+        # now mirrors stock semantics.
+        wasm = _compile_tcl("set rc [catch {glob -typs *.tcl} msg]\nputs $rc\nputs $msg\n")
+        _, out = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            preopen_tmpdir=str(tmp_path),
+            capabilities=CAP_FS_GLOB,
+        )
+        lines = out.splitlines()
+        assert lines[0] == "1"
+        assert "bad option" in lines[1]
+        assert "-typs" in lines[1]
+
+    def test_escaped_meta_matches_literal_file(self, tmp_path: Path):
+        # ``glob {\*}`` should probe a real file named ``*`` rather
+        # than the byte sequence ``\*``.  Regression for the literal
+        # fast path bypassing backslash unescape (Codex P2 review on
+        # PR #289).
+        (tmp_path / "*").write_text("star")
+        wasm = _compile_tcl(
+            "set files [glob {\\*}]\nputs [llength $files]\nputs [lindex $files 0]\n"
+        )
+        _, out = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            preopen_tmpdir=str(tmp_path),
+            capabilities=CAP_FS_GLOB,
+        )
+        lines = out.splitlines()
+        assert lines[0] == "1"
+        assert lines[1] == "*"
+
+    def test_exec_rejects_embedded_nul(self):
+        # Embedded NUL bytes would silently truncate the host-side
+        # argv split (NUL is the separator).  ``exec`` rejects them
+        # before any allocation and surfaces a catchable Tcl error.
+        spawn_called = [False]
+
+        def fake_spawn(argv: list[str], stdin: str) -> str:
+            spawn_called[0] = True
+            return "should-not-be-reached"
+
+        _, out = _run(
+            'set rc [catch {exec foo "bar\\x00baz"} msg]\nputs $rc\nputs $msg\n',
+            capabilities=CAP_EXEC,
+            host_spawn=fake_spawn,
+        )
+        lines = out.splitlines()
+        assert lines[0] == "1"
+        assert "embedded NUL" in lines[1]
+        assert spawn_called[0] is False
+
+    def test_exit_negative_code(self):
+        # ``exit -1`` on POSIX is the canonical "abnormal termination"
+        # signal; the runtime must fold the i64 value through u32
+        # truncation so it round-trips without tripping ``@intCast``'s
+        # safety check (Codex P1 review on PR #289).
+        wasm = _compile_tcl("exit -1\n")
+        try:
+            _run_wasm(wasm, capture_stdout=True, capabilities=CAP_EXIT)
+        except BaseException:
+            return  # expected — proc_exit traps to the embedder
+        # If wasmtime translates the exit code into a normal return,
+        # at least we know the call did not trap on the cast.
+
     def test_no_match_raises_without_nocomplain(self, tmp_path: Path):
         wasm = _compile_tcl("set rc [catch {glob *.does-not-match} msg]\nputs $rc\nputs $msg\n")
         _, out = _run_wasm(

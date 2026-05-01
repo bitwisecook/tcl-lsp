@@ -36,7 +36,6 @@
 //                              match every Tcl 8.4–9.0 behaviour
 //                              the spec page calls out.
 
-const std = @import("std");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
@@ -66,9 +65,23 @@ fn eval_exec(words: []const i32) i32 {
 
     // Compute the serialised buffer size up front so we can allocate
     // a single span on the bump allocator and avoid a growth loop.
+    // Embedded NUL bytes inside an arg would silently truncate the
+    // host-side split (NUL is our argv separator), so we reject
+    // them with a Tcl error before any allocation — matches the
+    // shell semantics every Unix kernel enforces and gives ``catch``
+    // a clean diagnostic.
     var total: u32 = 0;
     for (words[1..]) |w| {
         const s = obj.obj_ensure_string(w);
+        if (s.len > 0) {
+            const src: [*]const u8 = @ptrFromInt(s.ptr);
+            for (0..s.len) |i| {
+                if (src[i] == 0) {
+                    stubs.raise("exec: argument contains embedded NUL byte");
+                    return 0;
+                }
+            }
+        }
         total += s.len + 1; // +1 for the inter-arg NUL separator
     }
     if (total == 0) {
