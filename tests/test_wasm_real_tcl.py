@@ -3065,8 +3065,8 @@ class TestFconfigure:
         [
             "fconfigure stdout -nonsense value\nputs ok\n",
             "fconfigure stdout -polarity reverse\nputs ok\n",
-            # Odd arg count (query) is also unsupported.
-            "fconfigure stdout -encoding\nputs ok\n",
+            # Single ``-option`` queries for unknown options also trap.
+            "fconfigure stdout -froboz\nputs ok\n",
         ],
     )
     def test_unknown_option_traps(self, source):
@@ -3078,6 +3078,142 @@ class TestFconfigure:
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
             assert "unsupported command: fconfigure" in stderr, f"stderr: {stderr!r}"
+
+
+class TestFconfigureQuery:
+    """fconfigure query forms — single-option and all-options.
+
+    Covers the three shapes real Tcl supports:
+      * ``fconfigure $fd``        → list of every -option/value pair.
+      * ``fconfigure $fd -opt``   → that single option's value.
+      * ``fconfigure $fd -o v …`` → setter (already covered above).
+
+    Each set→get round-trip lands on the WASM channel struct in
+    ``runtime/zig/io/tcl_chan.zig``; the renderers there map enum
+    state back to canonical Tcl strings.
+    """
+
+    @pytest.mark.parametrize(
+        "set_clause,opt,expected",
+        [
+            ("-translation lf", "-translation", "lf"),
+            ("-translation crlf", "-translation", "crlf"),
+            ("-buffering line", "-buffering", "line"),
+            ("-buffering none", "-buffering", "none"),
+            ("-buffersize 8192", "-buffersize", "8192"),
+            ("-blocking 0", "-blocking", "0"),
+            ("-blocking 1", "-blocking", "1"),
+            ("-encoding utf-16", "-encoding", "utf-16"),
+            ("-encoding binary", "-encoding", "binary"),
+            ("-profile tcl8", "-profile", "tcl8"),
+        ],
+    )
+    def test_set_get_round_trip(self, set_clause, opt, expected):
+        # Force translation to lf before the puts so the captured
+        # stdout doesn't pick up CRLF expansion when the test
+        # exercises a translation other than lf.
+        source = (
+            f"fconfigure stdout {set_clause}\n"
+            f"set v [fconfigure stdout {opt}]\n"
+            "fconfigure stdout -translation lf\n"
+            "puts $v\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == f"{expected}\n"
+
+    def test_query_all_options_dict_form(self):
+        source = (
+            "fconfigure stdout -translation lf -buffering line "
+            "-buffersize 4096 -encoding utf-8 -profile tcl8\n"
+            "puts [fconfigure stdout]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        out = result[1]
+        # Every accepted option is present as ``-name value`` pair.
+        for needle in (
+            "-blocking 1",
+            "-buffering line",
+            "-buffersize 4096",
+            "-encoding utf-8",
+            "-eofchar {}",
+            "-profile tcl8",
+            "-translation lf",
+        ):
+            assert needle in out, f"missing {needle!r} in {out!r}"
+
+    def test_dict_get_over_query_all(self):
+        # Real Tcl idiom: ``dict get [fconfigure $fd] -encoding`` —
+        # confirms the no-args query produces a well-formed dict.
+        source = (
+            "fconfigure stdout -encoding utf-16 -translation lf\n"
+            "puts [dict get [fconfigure stdout] -encoding]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "utf-16\n"
+
+    def test_eofchar_empty_round_trip(self):
+        # ``fconfigure $fd -eofchar {}`` must reach the runtime as a
+        # setter, not collapse to a bare ``-eofchar`` query.  The
+        # producer-side list-quoting in the codegen literal path
+        # and ``cmds/chan.zig:eval_fconfigure`` are responsible.
+        source = (
+            "fconfigure stdout -eofchar {} -translation lf\n"
+            "puts [dict get [fconfigure stdout] -eofchar]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        # Empty eofchar renders as ``{}`` inside the all-options
+        # list — that's the canonical Tcl list element for empty.
+        assert result[1] == "\n"
+
+    def test_eofchar_set_get_single_query(self):
+        # The single-option query form returns the raw value (not
+        # list-element-quoted).  An eofchar of ``Z`` should round-trip
+        # as ``Z``, not ``{Z}``.
+        source = "fconfigure stdout -eofchar Z -translation lf\nputs [fconfigure stdout -eofchar]\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "Z\n"
+
+    def test_encoding_with_space_round_trips_in_query_all(self):
+        # Hypothetical encoding name with a space — the all-options
+        # query must list-quote it so ``dict get`` recovers the
+        # original string.  Exercises the ``list_elem_quote_nth``
+        # path in ``render_option_value``.
+        source = (
+            "fconfigure stdout -encoding {utf 16} -translation lf\n"
+            "puts [dict get [fconfigure stdout] -encoding]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "utf 16\n"
+
+    def test_long_encoding_round_trips(self):
+        # Storing options via TclObj refs (not a fixed-size buffer)
+        # means long values round-trip without truncation.
+        long_name = "x" * 64
+        source = (
+            f"fconfigure stdout -encoding {long_name} -translation lf\n"
+            "puts [fconfigure stdout -encoding]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == long_name + "\n"
+
+    def test_buffersize_invalid_raises(self):
+        # Non-integer ``-buffersize`` must trap rather than silently
+        # ignoring the option.
+        source = "fconfigure stdout -buffersize abc\nputs ok\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "expected integer value for -buffersize" in stderr, f"stderr: {stderr!r}"
 
 
 class TestChannelTranslation:

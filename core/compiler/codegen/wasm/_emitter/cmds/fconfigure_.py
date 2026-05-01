@@ -3,13 +3,18 @@
 The Zig ``tcl_cmd_fconfigure`` export takes a 2-arg signature
 ``(fd, opts_obj)``; this hook packs a variadic ``-option value``
 sequence into one opts TclObj.  Fast path: all-literal options are
-pre-joined at compile time; mixed literal + ``$var`` / ``[cmd]``
-references fall back to a chained ``tcl_concat`` build.
+pre-joined at compile time as a canonical Tcl list (so empty
+values like ``-eofchar {}`` round-trip through the runtime
+``list_parse`` walk); mixed literal + ``$var`` / ``[cmd]``
+references fall through to the eval interpreter, where
+:func:`runtime/zig/cmds/chan.zig:eval_fconfigure` does the same
+list-element quoting against the live values.
 """
 
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
+from ..._encoding import _tcl_list_quote
 
 
 def _emit_fconfigure(
@@ -43,22 +48,23 @@ def _emit_fconfigure(
         if not rest:
             emitter._emit_i32_const(0)
         elif all(_is_lit(a) for a in rest):
-            emitter._emit_obj_literal(" ".join(rest))
+            # Quote each word as a canonical Tcl list element so the
+            # runtime parser (``tcl_list_parse``) recovers the
+            # original bytes.  Plain ``" ".join(rest)`` would drop
+            # empty values — ``fconfigure $fd -eofchar {}`` would
+            # otherwise be emitted as bare ``-eofchar`` and silently
+            # turn into a query at the runtime call.
+            quoted = [_tcl_list_quote(a, first=(i == 0)) for i, a in enumerate(rest)]
+            emitter._emit_obj_literal(" ".join(quoted))
         else:
-            concat_idx = emitter._shared_imports.get("tcl_concat")
-            if concat_idx is None:
-                # No concat import available — fall back to the
-                # interpreter so ``$var`` / ``[cmd]`` substitutions
-                # happen against the live frame instead of being
-                # frozen into a literal.
-                emitter._emit_eval_fallback("fconfigure", args)
-                return True
-            emitter._emit_value(rest[0])
-            for word in rest[1:]:
-                emitter._emit_obj_literal(" ")
-                emitter._emit_call(concat_idx)
-                emitter._emit_value(word)
-                emitter._emit_call(concat_idx)
+            # Mixed literal + dynamic — fall back to the eval
+            # interpreter so the values reach
+            # ``cmds/chan.zig:eval_fconfigure``, which list-quotes
+            # each live word.  The previous chained-``tcl_concat``
+            # build had the same empty-value-collapsing issue as the
+            # naive literal join.
+            emitter._emit_eval_fallback("fconfigure", args)
+            return True
     emitter._emit_call(func_idx)
     emitter._runtime_call_end(rimp, defs, context)
     return True
