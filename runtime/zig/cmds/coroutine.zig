@@ -105,7 +105,23 @@ fn eval_coroutine(words: []const i32) i32 {
         body = build_invocation_script(words[2..]);
     }
     const name = obj.obj_ensure_string(words[1]);
-    const c = coro_mod.create(name.ptr, name.len, body) orelse {
+    // Resolve the name BEFORE creating the coroutine record so the
+    // table dedup key is the resolved FQN, not the raw user name.
+    // Without this, ``coroutine b`` (inside ``namespace eval ::a``)
+    // and ``coroutine ::a::b`` would create two distinct coroutine
+    // records sharing the same ``::a::b`` ``cmd_table`` entry — the
+    // second registration would overwrite the first and leak the
+    // displaced coroutine + its body (Copilot review on PR #284).
+    const r = tcl_ns.ns_resolve_qualified_creating(
+        tcl_ns.ns_current(), name.ptr, name.len,
+    );
+    if (r.target_ns == 0 or r.simple_len == 0) {
+        stubs.raise("invalid coroutine name");
+        if (body != 0) obj.tcl_obj_release(body);
+        return 0;
+    }
+    const fqn = tcl_ns.ns_build_fqn(r.target_ns, r.simple_ptr, r.simple_len);
+    const c = coro_mod.create(fqn.ptr, fqn.len, body) orelse {
         stubs.raise("coroutine table full or name already in use");
         // ``create`` retains body on success; on failure the +1
         // from build_invocation_script / obj_new_string_copy is the
@@ -118,21 +134,6 @@ fn eval_coroutine(words: []const i32) i32 {
     // the body's refcount stays artificially high for the
     // coroutine's lifetime (Copilot review on PR #284).
     obj.tcl_obj_release(body);
-
-    // Register the coroutine as a CMD_COROUTINE command in the
-    // current namespace.
-    const r = tcl_ns.ns_resolve_qualified_creating(
-        tcl_ns.ns_current(), name.ptr, name.len,
-    );
-    if (r.target_ns == 0 or r.simple_len == 0) {
-        stubs.raise("invalid coroutine name");
-        return 0;
-    }
-    // Build the FQN once — used both as the Command's name slot
-    // (for introspection consistency with ``proc_register``) and
-    // as the ``[c]`` return value.  Real Tcl returns the FQN of
-    // the new coroutine command, not just the simple name.
-    const fqn = tcl_ns.ns_build_fqn(r.target_ns, r.simple_ptr, r.simple_len);
     const coro_addr: u32 = @intCast(@intFromPtr(c));
     const cmd = build_coro_command(coro_addr, fqn.ptr, fqn.len);
     _ = tcl_ns.ns_cmd_put(r.target_ns, r.simple_ptr, r.simple_len, cmd);

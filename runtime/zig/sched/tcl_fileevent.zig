@@ -66,12 +66,36 @@ pub const Table = struct {
         return e;
     }
 
+    /// Look up an existing entry without creating one.  Used by the
+    /// clear-on-empty-script path so probing/clearing arbitrary
+    /// channel names doesn't leak permanent table entries (Copilot
+    /// review on PR #284).
+    fn find(self: *const Table, name_ptr: u32, name_len: u32) ?*Entry {
+        var cur: u32 = self.head;
+        while (cur != 0) {
+            const e = node(cur);
+            if (name_eq(e, name_ptr, name_len)) return e;
+            cur = e.next;
+        }
+        return null;
+    }
+
     pub fn set_readable(self: *Table, name_ptr: u32, name_len: u32, script_obj: i32) void {
+        if (script_obj == 0) {
+            // Clearing: only update an existing entry; don't allocate
+            // a tombstone for a never-seen channel.
+            if (self.find(name_ptr, name_len)) |e| e.read_script = 0;
+            return;
+        }
         const e = self.find_or_create(name_ptr, name_len);
         e.read_script = script_obj;
     }
 
     pub fn set_writable(self: *Table, name_ptr: u32, name_len: u32, script_obj: i32) void {
+        if (script_obj == 0) {
+            if (self.find(name_ptr, name_len)) |e| e.write_script = 0;
+            return;
+        }
         const e = self.find_or_create(name_ptr, name_len);
         e.write_script = script_obj;
     }
