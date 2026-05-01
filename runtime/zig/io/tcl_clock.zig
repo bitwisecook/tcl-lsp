@@ -433,14 +433,19 @@ fn expand_format(
         var ext_E = false;
         var spec = fmt[i];
         i += 1;
-        if (spec == 'O') {
-            ext_O = true;
-            if (i >= fmt.len) break;
-            spec = fmt[i];
-            i += 1;
-        } else if (spec == 'E') {
-            ext_E = true;
-            if (i >= fmt.len) break;
+        // Locale modifier — only consumed when the next character is
+        // an actual spec letter.  A trailing bare ``%O`` / ``%E`` is
+        // emitted as the literal two characters so unterminated input
+        // doesn't silently drop the tail (Copilot review).
+        if (spec == 'O' or spec == 'E') {
+            if (i >= fmt.len) {
+                out[off] = '%';
+                off += 1;
+                out[off] = spec;
+                off += 1;
+                break;
+            }
+            if (spec == 'O') ext_O = true else ext_E = true;
             spec = fmt[i];
             i += 1;
         }
@@ -1271,14 +1276,17 @@ const tz_utc_zone: tz.TimeZone = tz.utc();
 //   %Z            zone name (best-effort: skipped over, not validated)
 //   %% / %n / %t  literal ``%`` / newline / tab
 //
-// Locale modifiers (``%O*`` / ``%E*``) are accepted by stripping the
-// leading ``O`` / ``E`` and treating the rest as plain.  The roman-
-// numeral interpretation that ``-locale en_US_roman`` would normally
-// trigger is *not* implemented — that's a separate locale-aware
-// parser layer we don't ship.  The slice driver currently runs every
-// ``en_US_roman`` test against this engine; those that use Arabic
-// numerals through ``%d`` / ``%e`` / ``%m`` work, those that use
-// roman numerals for ``%Od`` / ``%Oe`` produce a parse miss.
+// Locale modifiers (``%O*`` / ``%E*``) under ``-locale en_US_roman``
+// route through ``read_roman`` for ``%Od`` / ``%Oe`` / ``%Om`` /
+// ``%Oy`` / ``%OH`` / ``%OI`` / ``%OM`` / ``%OS`` and through
+// :func:`read_roman` (``%EC`` / ``%EY``) for the ``%E`` variants.
+// The 2-letter prefix path (``ja`` for January) handles
+// ``en_US_roman``'s ambiguous-prefix scan corpus via
+// ``scan_match_month_prefix``.  Composite specs (``%c`` / ``%x`` /
+// ``%X`` / ``%Ec`` / ``%Ex`` / ``%EX`` / ``%D`` / ``%R`` / ``%T`` /
+// ``%F`` / ``%r``) recurse with the locale's substitution string
+// at the same input position.  Unknown locale modifier specs (``%Ej``
+// for astronomical Julian, see below) get their own dispatch arm.
 
 const ScanFormatErr = enum {
     none,

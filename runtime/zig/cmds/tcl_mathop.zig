@@ -198,7 +198,11 @@ fn op_div(args: []const i32) i32 {
             stubs.raise("divide by zero");
             return obj_new_int(0);
         }
-        acc = @divFloor(acc, v);
+        // ``@divTrunc`` (toward zero) matches ``tcl_arith_div`` and
+        // the rest of the runtime.  Earlier ``@divFloor`` produced
+        // ``-3`` for ``[/ 5 -2]`` instead of the Tcl-correct ``-2``
+        // (Copilot review).
+        acc = @divTrunc(acc, v);
     }
     return obj_new_int(acc);
 }
@@ -210,11 +214,18 @@ fn op_mod(args: []const i32) i32 {
         stubs.raise("divide by zero");
         return obj_new_int(0);
     }
-    return obj_new_int(@mod(obj_get_int(args[0]), b));
+    // ``@rem`` (sign-of-dividend) matches ``tcl_arith_mod`` / ``expr``.
+    // Switching from ``@mod`` (Euclidean) avoids ``::tcl::mathop::%
+    // -7 3`` returning ``2`` while ``expr {-7 % 3}`` returns ``-1``
+    // (Copilot review).
+    return obj_new_int(@rem(obj_get_int(args[0]), b));
 }
 
 fn ipow(base: i64, exp_in: i64) i64 {
-    if (exp_in < 0) return 0;
+    // ``ipow`` is only called for non-negative exponents — the
+    // ``op_pow`` caller routes negative exponents to the float
+    // pathway since integer ``a**-n`` is ``1/(a**n)`` which is
+    // fractional and can't be represented in i64.
     var result: i64 = 1;
     var b: i64 = base;
     var e: i64 = exp_in;
@@ -225,13 +236,31 @@ fn ipow(base: i64, exp_in: i64) i64 {
     return result;
 }
 
+fn any_negative_int(args: []const i32) bool {
+    for (args) |a| {
+        if (!is_float(a) and obj_get_int(a) < 0) return true;
+    }
+    return false;
+}
+
 fn op_pow(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(1);
     if (args.len == 1) {
         if (is_float(args[0])) return obj_new_float(obj_get_float(args[0]));
         return obj_new_int(obj_get_int(args[0]));
     }
-    if (any_float(args)) {
+    // Negative exponents force the float pathway — integer ``a ** -n``
+    // is fractional (``1 / a**n``) and the documented Tcl semantics
+    // promote to a float.  ``ipow`` is integer-only, so check the
+    // exponents (every arg past the leftmost) before dispatching
+    // (Copilot review).
+    const has_neg_exp = blk: {
+        for (args[1..]) |a| {
+            if (!is_float(a) and obj_get_int(a) < 0) break :blk true;
+        }
+        break :blk false;
+    };
+    if (any_float(args) or has_neg_exp) {
         // Right-associative: a ** b ** c = a ** (b ** c).
         var acc: f64 = obj_get_float(args[args.len - 1]);
         var i: usize = args.len - 1;
@@ -456,18 +485,19 @@ fn op_ni(args: []const i32) i32 {
 
 fn truthy(o: i32) bool {
     if (o == 0) return false;
-    if (is_float(o)) return obj_get_float(o) != 0.0;
     const tag = obj.obj_type(o);
+    // Try the boolean-keyword path FIRST for string-shaped objs.
+    // ``is_float`` (used downstream by the numeric branch) classifies
+    // any string containing ``e`` / ``E`` as float, which would
+    // collapse ``"true"`` to ``obj_get_float() == 0.0`` and return
+    // false.  Boolean keywords have to win before the float heuristic
+    // sees them (Copilot review).
     if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
         const s = obj_ensure_str(o);
         if (s.len == 0) return false;
-        const p: [*]const u8 = @ptrFromInt(s.ptr);
-        // ``true`` / ``false`` / ``yes`` / ``no`` accepted (case-folded).
-        if (s.len == 4 and (p[0] == 't' or p[0] == 'T') and (p[1] == 'r' or p[1] == 'R')) return true;
-        if (s.len == 5 and (p[0] == 'f' or p[0] == 'F')) return false;
-        if (s.len == 3 and (p[0] == 'y' or p[0] == 'Y')) return true;
-        if (s.len == 2 and (p[0] == 'n' or p[0] == 'N') and (p[1] == 'o' or p[1] == 'O')) return false;
+        if (obj.try_parse_bool(s.ptr, s.len)) |v| return v != 0;
     }
+    if (is_float(o)) return obj_get_float(o) != 0.0;
     return obj_get_int(o) != 0;
 }
 
