@@ -50,7 +50,17 @@ def _emit_lappend(
 
     if use_var_path:
         for i, value_arg in enumerate(args[1:], start=1):
-            emitter._emit_var_read_obj(var_name)
+            # ``lappend`` auto-creates an unset variable with the
+            # appended values (``lappend missing a b`` ⇒ ``a b``), so
+            # the read must be lenient: a missing alias / namespace
+            # global must return null TclObj rather than raise
+            # ``can't read "<var>": no such variable``.  ``variable
+            # OptionControlledVariables; lappend
+            # OptionControlledVariables x`` inside ``::tcltest::Option``
+            # is the canonical case — the ``variable`` declaration
+            # registers the alias but does not initialise the slot,
+            # so the first ``lappend`` must initialise it itself.
+            emitter._emit_var_read_obj_lenient(var_name)
             emitter._emit_value(value_arg)
             emitter._emit_call(func_idx)
             # ``tcl_cmd_lappend`` returns either a freshly allocated
