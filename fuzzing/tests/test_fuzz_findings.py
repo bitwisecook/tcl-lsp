@@ -1017,7 +1017,12 @@ class TestBatch6WasmIgnoresMissingVar:
         1774200012,
         1774200028,
         1774200037,
-        1774200068,
+        # 1774200068 was originally part of this batch but the script
+        # also contains an ``if {…} else {…} elseif {…}`` malformed
+        # shape (issue #259); the codegen now traps on the static
+        # parse error before reaching the missing-var read, so this
+        # seed verifies the #259 fix instead — see
+        # ``TestBatchWasmAcceptsIfElseElseif``.
     )
 
     @pytest.mark.parametrize("seed", SEEDS)
@@ -1056,3 +1061,81 @@ class TestBatch6WasmIgnoresMissingVar:
             f"— issue #263 expects ``no such variable`` in the message "
             f"(rc={result.return_code}, err={result.error_message!r})"
         )
+
+
+class TestBatchWasmAcceptsIfElseElseif:
+    """WASM accepted ``if {…} else {…} elseif {…}`` instead of erroring.
+
+    Issue #259.  The lowering already classifies the malformed shape as
+    an :class:`IRBarrier` with ``reason='extra words after "else" clause'``,
+    but the WASM codegen used to fall through to the eval-fallback —
+    sending the script back through the runtime parser, which silently
+    discarded the trailing ``elseif`` clause and ran the if/else as
+    though the ``elseif`` was not there.  C Tcl, the Python VM, and the
+    analyser all reject the shape with
+    ``wrong # args: extra words after "else" clause in "if" command``.
+
+    The fix recognises static parse-error barriers in the codegen and
+    emits a direct ``tcl_cmd_error`` call carrying the canonical
+    message, so the WASM backend produces the same diagnostic as the
+    other two backends.
+    """
+
+    SEEDS = (1774200020, 1774200091, 1774200092)
+
+    EXPECTED_MSG = 'wrong # args: extra words after "else" clause in "if" command'
+
+    def test_repro_minimal(self) -> None:
+        """The minimal repro from issue #259 must error with the
+        canonical message under WASM."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        script = "if {1} { set x 1 } else { set x 2 } elseif {1} { set x 3 }"
+        result = run_wasm(script, timeout=5.0)
+        assert result.return_code == 1, (
+            f"wasm did not surface a Tcl-level error for the if/else/elseif "
+            f"repro (rc={result.return_code}, err={result.error_message!r})"
+        )
+        assert result.error_message == self.EXPECTED_MSG, (
+            f"wasm errored but not with the canonical message "
+            f"(got {result.error_message!r}, expected {self.EXPECTED_MSG!r})"
+        )
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_seed_no_longer_diverges(self, seed: int) -> None:
+        """Each seed must no longer report an ``error_status`` mismatch
+        between the VM and WASM backends.
+
+        We don't pin the exact WASM error message: seed 1774200092 has
+        a ``can't read "data": no such variable`` from an earlier
+        ``append`` that fires before the malformed ``if`` is reached.
+        That's an unrelated pre-existing divergence (see issue #263).
+        The acceptance bar for #259 is just that both backends
+        ``error`` instead of WASM accepting the malformed shape — the
+        differential harness compares ``ok``/``error`` status, not the
+        message.
+        """
+        from fuzzing.harness import run_differential  # noqa: PLC0415
+        from fuzzing.wasm_backend import is_available  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_differential(
+            source, seed=seed, use_tclsh=False, use_wasm=True, wasm_timeout=15.0
+        )
+        error_status_mismatches = [m for m in result.mismatches if m.kind == "error_status"]
+        assert not error_status_mismatches, (
+            f"seed {seed}: vm/wasm error-status mismatch resurfaced — "
+            f"issue #259 regression: {error_status_mismatches}"
+        )
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_seed_marked_fixed(self, seed: int) -> None:
+        """Each finding JSON must be flipped to ``fixed: true``."""
+        import json  # noqa: PLC0415
+
+        data = json.loads((FINDINGS_DIR / f"seed_{seed}.json").read_text())
+        assert data.get("fixed") is True, f"seed {seed}: finding JSON not marked fixed (issue #259)"
