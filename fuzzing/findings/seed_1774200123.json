@@ -1,12 +1,12 @@
 {
-  "seed": 1774200066,
+  "seed": 1774200123,
   "mismatches": [
     {
       "kind": "error_status",
       "description": "vm error vs wasm ok",
       "backend_a": "vm",
       "backend_b": "wasm",
-      "detail_a": "can't read \"acc\": no such variable",
+      "detail_a": "expected integer but got \"false\"",
       "detail_b": "(ok)"
     },
     {
@@ -14,7 +14,7 @@
       "description": "vm_opt error vs wasm ok",
       "backend_a": "vm_opt",
       "backend_b": "wasm",
-      "detail_a": "can't read \"acc\": no such variable",
+      "detail_a": "expected integer but got \"false\"",
       "detail_b": "(ok)"
     }
   ],
@@ -24,7 +24,6 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": true,
-  "category": "wasm-ignores-missing-var",
-  "fix": "drained by missing-variable fix in #263 (PR #279/#288); WASM now raises 'no such variable' instead of accepting empty/0"
+  "fixed": false,
+  "category": "incr-boolean"
 }

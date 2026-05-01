@@ -1,0 +1,29 @@
+{
+  "seed": 1774200236,
+  "mismatches": [
+    {
+      "kind": "crash",
+      "description": "vm crashed but wasm did not",
+      "backend_a": "vm",
+      "backend_b": "wasm",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable"
+    },
+    {
+      "kind": "crash",
+      "description": "vm_opt crashed but wasm did not",
+      "backend_a": "vm_opt",
+      "backend_b": "wasm",
+      "detail_a": "TIMEOUT",
+      "detail_b": "can't read \"flag\": no such variable"
+    }
+  ],
+  "kind": "crash",
+  "backends": [
+    "vm",
+    "vm_opt",
+    "wasm"
+  ],
+  "fixed": false,
+  "category": "vm-timeout-undefined-var"
+}
