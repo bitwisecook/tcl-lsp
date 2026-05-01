@@ -2995,7 +2995,13 @@ class TestExternalTcllibCounter:
             mem[scratch_off + i] = b
         tag_obj = obj_new_string(store, scratch_off, len(tag_bytes))
 
-        # counter::init {tag args} — 2 params
-        result = exports["::counter::init"](store, tag_obj, 0)
+        # counter::init {tag args} — 2 params.  ``args`` must be a real
+        # (possibly empty) list TclObj — issue #263 made bare ``0``
+        # (NULL TclObj) raise ``can't read "args": no such variable``
+        # the moment the proc body reads ``$args``.  Pass an empty
+        # string TclObj instead, which is the standard Tcl
+        # representation of an empty ``args`` list.
+        empty_args_obj = obj_new_string(store, scratch_off + len(tag_bytes), 0)
+        result = exports["::counter::init"](store, tag_obj, empty_args_obj)
         # Should return a non-trapping result (actual value depends on semantics)
         assert isinstance(result, int)

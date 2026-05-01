@@ -61,6 +61,7 @@ pub const copy_unbraced_elem = tcl_obj.copy_unbraced_elem;
 
 pub const global_set = tcl_globals.global_set;
 pub const global_get = tcl_globals.global_get;
+pub const global_get_or_error = tcl_globals.global_get_or_error;
 pub const global_exists = tcl_globals.global_exists;
 pub const tcl_incr = tcl_globals.tcl_incr;
 
@@ -122,6 +123,7 @@ pub const catch_result = tcl_catch.catch_result;
 pub const catch_has_error = tcl_catch.catch_has_error;
 pub const catch_set_ok_result = tcl_catch.catch_set_ok_result;
 pub const tcl_cmd_error = tcl_catch.tcl_cmd_error;
+pub const var_unset_error = tcl_catch.var_unset_error;
 pub const error_flag = &tcl_catch.error_flag;
 pub const return_flag = &tcl_catch.return_flag;
 pub const return_val = &tcl_catch.return_val;
@@ -145,6 +147,7 @@ pub const var_set = tcl_frames.var_set;
 pub const var_exists = tcl_frames.var_exists;
 pub const local_set = tcl_frames.local_set;
 pub const local_get = tcl_frames.local_get;
+pub const local_get_or_error = tcl_frames.local_get_or_error;
 
 // Procs
 pub const proc_register = tcl_procs.proc_register;
@@ -190,6 +193,7 @@ comptime {
     // tcl_globals exports
     _ = &tcl_globals.global_set;
     _ = &tcl_globals.global_get;
+    _ = &tcl_globals.global_get_or_error;
     _ = &tcl_globals.global_exists;
     _ = &tcl_globals.tcl_incr;
     // tcl_ns exports (P1.2 — no in-tree caller yet; comptime ref
@@ -287,6 +291,7 @@ comptime {
     _ = &tcl_catch.flow_consume_break;
     _ = &tcl_catch.flow_consume_continue;
     _ = &tcl_catch.tcl_cmd_error;
+    _ = &tcl_catch.var_unset_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than
     // a silent wrong answer.  Imports of these are wired up in
@@ -362,6 +367,7 @@ comptime {
     _ = &tcl_frames.frame_depth_restore;
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
+    _ = &tcl_frames.local_get_or_error;
     _ = &tcl_frames.local_exists;
     _ = &tcl_frames.var_resolve;
     _ = &tcl_frames.var_set;

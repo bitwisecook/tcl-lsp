@@ -28,15 +28,97 @@ class _WasmEmitterVarMixin(_Base):
         # From _WasmEmitterStmtMixin
         def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
 
+    def _emit_unset_check_with_alias(self, error_name: str) -> bool:
+        """Wrap a value already on the stack with an unset-variable check
+        that raises with the supplied *error_name* when the value is null.
+
+        Stack on entry: ``[value]``.  Stack on exit: ``[value]``.
+
+        Emits:
+        ::
+            local.tee tmp
+            i32.eqz
+            if
+              <error_name TclObj literal>
+              call tcl_var_unset_error
+            end
+            local.get tmp
+
+        Returns True when the wrap was emitted.  Returns False (with the
+        original value untouched on the stack) when ``tcl_var_unset_error``
+        is not imported — the caller should treat this as a degraded
+        mode and emit a plain read.
+
+        *error_name* is the user-facing name to surface in the error
+        message.  Aliased reads (``upvar #0 g x``) pass the local alias
+        name (``x``) here even though the lookup happens on the target
+        (``g``) — Tcl's error wording reports the alias identifier the
+        source code referenced, not the resolved target.
+
+        Catch-context limitation (shared by every compiled error path):
+        outside a catch, ``tcl_var_unset_error`` writes the diagnostic
+        to stderr and traps, so any later WASM ops in the same
+        statement never run.  Inside a catch, it sets ``error_flag``
+        and returns; the catch boundary's ``tcl_catch_has_error`` /
+        ``br_if`` probe only fires after the *current* statement
+        finishes emitting, so the (zero) value left on the stack here
+        can flow into a downstream operator (``set x [expr {$undef +
+        1}]`` would still attempt the ``set x``).  This is the same
+        behaviour as the existing ``tcl_arith_div`` divide-by-zero
+        and ``stubs.raise`` paths and is consistent across the
+        compiled error model — a post-error side-effect within the
+        same statement is observable but the catch sees the error
+        first and ``catch_result`` returns the diagnostic.  A real
+        fix needs a within-statement abort hook that's out of scope
+        for this issue; tracked in the wasm-codegen design doc.
+        """
+        unset_err_idx = self._shared_imports.get("tcl_var_unset_error")
+        if unset_err_idx is None:
+            return False
+        # Reuse a single per-function scratch slot for every unset
+        # peek.  Allocated lazily on first call so functions that
+        # never read a variable don't grow their locals section, and
+        # then reused so a proc with many reads doesn't accumulate one
+        # ``_var_check_<n>`` slot per read site.
+        if self._var_unset_check_scratch is None:
+            self._var_unset_check_scratch = self._add_extra_local(
+                prefix="_var_check", val_type=ValType.I32
+            )
+        tmp = self._var_unset_check_scratch
+        self._emit_local_tee(tmp)
+        self._emit(WasmOp.I32_EQZ)
+        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+        self._emit_obj_literal(error_name)
+        self._emit_call(unset_err_idx)
+        self._emit(WasmOp.END)
+        self._emit_local_get(tmp)
+        return True
+
     def _emit_var_read_obj(self, name: str) -> None:
         """Push the current TclObj value of local Tcl variable *name* on the stack.
 
         For aliased variables (``upvar``/``variable``), this reads through
-        ``tcl_global_get`` using the target name stashed at alias-setup time.
-        For ``::``-qualified names (e.g. ``::ns::var``), this reads the
-        global directly.  Array references (``arr(key)``) dispatch to
-        ``tcl_array_get`` with the element's stored value.  Otherwise
-        this is a plain WASM ``local.get`` of the interned local.
+        the lenient ``tcl_global_get`` using the target name stashed at
+        alias-setup time, then wraps the result with the inline unset
+        check so the error message reports the local alias name (the
+        identifier the source code referenced) rather than the resolved
+        target — matching reference Tcl's wording for ``upvar #0 g x;
+        set x``.  For ``::``-qualified names (e.g. ``::ns::var``), this
+        reads the global directly through the strict variant.  Array
+        references (``arr(key)``) dispatch to ``tcl_array_get`` with
+        the element's stored value.  Otherwise this is a plain WASM
+        ``local.get`` of the interned local, followed by a runtime check
+        that raises ``can't read "<name>": no such variable`` when the
+        slot was never assigned.
+
+        This is a user-visible variable read — every path raises the
+        standard Tcl missing-variable error when the lookup resolves to
+        the null TclObj handle (slot zero).  The lenient lookups
+        (``tcl_global_get`` / ``tcl_local_get``) remain in use by paths
+        that legitimately want the missing-is-fine behaviour:
+        ``info exists`` / ``unset -nocomplain`` / frame readback after an
+        eval-fallback / the ``global`` command's pre-load of a possibly-
+        uninitialised slot.
         """
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
@@ -46,13 +128,29 @@ class _WasmEmitterVarMixin(_Base):
         if binding is not None:
             kind, target_idx = binding
             if kind == "global":
-                gget_idx = self._shared_imports.get("tcl_global_get")
-                if gget_idx is not None:
+                # Aliased read — look up via the target name but
+                # surface the *local* alias in any unset error so the
+                # message matches reference Tcl (which reports the
+                # identifier the source code wrote, not the resolved
+                # target).
+                gget_lenient = self._shared_imports.get("tcl_global_get")
+                if gget_lenient is not None:
                     self._emit_local_get(target_idx)
-                    self._emit_call(gget_idx)
+                    self._emit_call(gget_lenient)
+                    if not self._emit_unset_check_with_alias(name):
+                        # Runtime helper missing — fall back to the
+                        # strict variant which surfaces the target
+                        # name; better than swallowing the unset.
+                        gget_strict = self._shared_imports.get("tcl_global_get_or_error")
+                        if gget_strict is not None:
+                            # Drop the lenient-fetched value and redo
+                            # via the strict path.
+                            self._emit(WasmOp.DROP)
+                            self._emit_local_get(target_idx)
+                            self._emit_call(gget_strict)
                     return
         if name.startswith("::"):
-            gget_idx = self._shared_imports.get("tcl_global_get")
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
             if gget_idx is not None:
                 self._emit_obj_literal(name)
                 self._emit_call(gget_idx)
@@ -61,22 +159,31 @@ class _WasmEmitterVarMixin(_Base):
         # ::ns { … }`` body, unqualified reads must look up the
         # ``::ns::<name>`` global rather than a bare local — because
         # we wrote it through the global table with the qualified
-        # name, and a bare-local read would find 0.
+        # name, and a bare-local read would find 0.  Surface the
+        # unqualified source-level name in any unset error so the
+        # message matches what the user wrote.
         if not self._is_proc and self._block_namespace and self._block_namespace != "::":
-            gget_idx = self._shared_imports.get("tcl_global_get")
-            if gget_idx is not None:
+            gget_lenient = self._shared_imports.get("tcl_global_get")
+            if gget_lenient is not None:
                 qname = f"{self._block_namespace}::{name}"
                 self._emit_obj_literal(qname)
-                self._emit_call(gget_idx)
+                self._emit_call(gget_lenient)
+                if not self._emit_unset_check_with_alias(name):
+                    gget_strict = self._shared_imports.get("tcl_global_get_or_error")
+                    if gget_strict is not None:
+                        self._emit(WasmOp.DROP)
+                        self._emit_obj_literal(qname)
+                        self._emit_call(gget_strict)
                 return
         # Var-escape FRAME branch: the escape analysis proved this
         # name is observed by the interpreter or a callee upvar, so
         # its authoritative value lives in the runtime frame.  Read
-        # through ``tcl_local_get`` (frame-scoped; does NOT fall through
-        # to globals — that would alias with top-level vars of the same
-        # name).
+        # through ``tcl_local_get_or_error`` (frame-scoped; does NOT
+        # fall through to globals — that would alias with top-level
+        # vars of the same name — and raises ``no such variable`` if
+        # the frame slot is unset).
         if self._is_frame_only_var(name):
-            lget_idx = self._shared_imports.get("tcl_local_get")
+            lget_idx = self._shared_imports.get("tcl_local_get_or_error")
             if lget_idx is not None:
                 self._emit_obj_literal(name)
                 self._emit_call(lget_idx)
@@ -90,13 +197,41 @@ class _WasmEmitterVarMixin(_Base):
         # the compiled read used the stale WASM-local seeded by the
         # original ``set v 1``.  Phase 4.5 finalisation.
         if not self._is_proc:
-            gget_idx = self._shared_imports.get("tcl_global_get")
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
             if gget_idx is not None:
                 self._emit_obj_literal(name)
                 self._emit_call(gget_idx)
                 return
+        # WASM-local-mirror read for proc-locals.  The slot defaults to 0
+        # (null TclObj) when never assigned, so emit an inline check that
+        # raises ``can't read "<name>": no such variable`` via
+        # ``tcl_var_unset_error`` when the slot is still zero.  The check
+        # is ``i32.eqz``-cheap on the hot path (taken slot is always
+        # non-null) and only allocates the error message TclObj on the
+        # cold (missing-variable) path.
+        #
+        # Eliding the check requires runtime — not just compile-time —
+        # certainty that the slot is bound.  The only such case is a
+        # proc parameter, which the call prologue stores the caller's
+        # arg into before the body runs.  ``self._first_writes_seen``
+        # is unsafe to use here: it tracks emission order, so a write
+        # inside an ``if`` branch flips the flag at compile time even
+        # when the runtime path skipped the branch.  ``if {$flag} {set
+        # x 1}; set x`` would then take the elision fast path on the
+        # second read and silently return 0 instead of erroring when
+        # ``$flag`` was false.  Keeping the check on every non-param
+        # read costs one ``i32.eqz``-cheap branch — worth it for the
+        # correctness guarantee.
         idx = self._intern_local(name)
+        if name in self._params:
+            self._emit_local_get(idx)
+            return
         self._emit_local_get(idx)
+        if not self._emit_unset_check_with_alias(name):
+            # Runtime helper unavailable — leave the read as plain
+            # ``local.get``.  Degraded mode, same shape as before the
+            # issue #263 fix.
+            return
 
     def _emit_var_write_obj(
         self,

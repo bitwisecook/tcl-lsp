@@ -840,6 +840,30 @@ pub export fn local_get(name: i32) i32 {
     return 0;
 }
 
+/// Strict variant of :func:`local_get` for codegen-emitted ``$x``
+/// substitutions / ``set x`` reads / ``expr {$x}`` operands.  When the
+/// frame slot resolves to 0 (variable never set in this scope) it
+/// raises ``can't read "<name>": no such variable`` through
+/// :func:`tcl_catch.var_unset_error` so the WASM backend matches the
+/// Python VM and reference Tcl.  ALIAS_GLOBAL / ALIAS_EXT slots that
+/// resolve to a 0-valued target trigger the same error path.  Lookups
+/// from ``info exists`` / ``unset -nocomplain`` / frame readback after
+/// an eval-fallback continue to use the lenient :func:`local_get`.
+///
+/// Lazy-imports ``tcl_catch`` to side-step the older "frame-overflow
+/// trap path can't reach the catch module" comment near
+/// :func:`rt_fd_write_stderr` — that constraint applied to the trap
+/// path's stderr write, not the var-read error which goes through the
+/// normal :func:`tcl_catch.tcl_cmd_error` route.
+pub export fn local_get_or_error(name: i32) i32 {
+    const v = local_get(name);
+    if (v == 0) {
+        const tcl_catch = @import("tcl_catch.zig");
+        tcl_catch.var_unset_error(name);
+    }
+    return v;
+}
+
 /// Check if a local variable exists in the current frame.
 /// Follows aliases to their final target for the existence check.
 pub export fn local_exists(name: i32) i32 {

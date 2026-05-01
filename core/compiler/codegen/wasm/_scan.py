@@ -845,6 +845,16 @@ def _scan_needed_imports(
     needed.add("tcl_diag_set")
     needed.add("tcl_global_set")
     needed.add("tcl_global_get")
+    # Strict variable-read variants — used by ``_emit_var_read_obj`` so
+    # that ``$x`` / ``set x`` / ``expr {$x}`` raise ``can't read
+    # "<name>": no such variable`` when the variable has never been
+    # set.  Without these the WASM backend silently returned 0 / empty
+    # string and any loop driven by a missing variable ran forever
+    # (issue #263 — wasm-ignores-missing-var).  ``tcl_var_unset_error``
+    # is the helper the WASM-local-mirror read path emits inline after
+    # a ``local.get`` returns 0.
+    needed.add("tcl_global_get_or_error")
+    needed.add("tcl_var_unset_error")
     # Register each compiled proc by name so the interpreter's
     # host-bridge dispatch can find it when an interpreted caller
     # (a Tcl-source proc body walked by eval_script) invokes a
@@ -874,6 +884,8 @@ def _scan_needed_imports(
         needed.add("tcl_frame_take_pending_argv0")
         needed.add("tcl_local_set")
         needed.add("tcl_local_get")
+        # Strict variant for compiled-proc var reads — see issue #263.
+        needed.add("tcl_local_get_or_error")
         # tcl_list is used by the compiled-proc prologue to build
         # the invocation argv list, element by element, before
         # stashing it via frame_set_argv.
