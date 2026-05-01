@@ -3065,8 +3065,8 @@ class TestFconfigure:
         [
             "fconfigure stdout -nonsense value\nputs ok\n",
             "fconfigure stdout -polarity reverse\nputs ok\n",
-            # Odd arg count (query) is also unsupported.
-            "fconfigure stdout -encoding\nputs ok\n",
+            # Single ``-option`` queries for unknown options also trap.
+            "fconfigure stdout -froboz\nputs ok\n",
         ],
     )
     def test_unknown_option_traps(self, source):
@@ -3078,6 +3078,81 @@ class TestFconfigure:
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
             assert "unsupported command: fconfigure" in stderr, f"stderr: {stderr!r}"
+
+
+class TestFconfigureQuery:
+    """fconfigure query forms — single-option and all-options.
+
+    Covers the three shapes real Tcl supports:
+      * ``fconfigure $fd``        → list of every -option/value pair.
+      * ``fconfigure $fd -opt``   → that single option's value.
+      * ``fconfigure $fd -o v …`` → setter (already covered above).
+
+    Each set→get round-trip lands on the WASM channel struct in
+    ``runtime/zig/io/tcl_chan.zig``; the renderers there map enum
+    state back to canonical Tcl strings.
+    """
+
+    @pytest.mark.parametrize(
+        "set_clause,opt,expected",
+        [
+            ("-translation lf", "-translation", "lf"),
+            ("-translation crlf", "-translation", "crlf"),
+            ("-buffering line", "-buffering", "line"),
+            ("-buffering none", "-buffering", "none"),
+            ("-buffersize 8192", "-buffersize", "8192"),
+            ("-blocking 0", "-blocking", "0"),
+            ("-blocking 1", "-blocking", "1"),
+            ("-encoding utf-16", "-encoding", "utf-16"),
+            ("-encoding binary", "-encoding", "binary"),
+            ("-profile tcl8", "-profile", "tcl8"),
+        ],
+    )
+    def test_set_get_round_trip(self, set_clause, opt, expected):
+        # Force translation to lf before the puts so the captured
+        # stdout doesn't pick up CRLF expansion when the test
+        # exercises a translation other than lf.
+        source = (
+            f"fconfigure stdout {set_clause}\n"
+            f"set v [fconfigure stdout {opt}]\n"
+            "fconfigure stdout -translation lf\n"
+            "puts $v\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == f"{expected}\n"
+
+    def test_query_all_options_dict_form(self):
+        source = (
+            "fconfigure stdout -translation lf -buffering line "
+            "-buffersize 4096 -encoding utf-8 -profile tcl8\n"
+            "puts [fconfigure stdout]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        out = result[1]
+        # Every accepted option is present as ``-name value`` pair.
+        for needle in (
+            "-blocking 1",
+            "-buffering line",
+            "-buffersize 4096",
+            "-encoding utf-8",
+            "-eofchar {}",
+            "-profile tcl8",
+            "-translation lf",
+        ):
+            assert needle in out, f"missing {needle!r} in {out!r}"
+
+    def test_dict_get_over_query_all(self):
+        # Real Tcl idiom: ``dict get [fconfigure $fd] -encoding`` —
+        # confirms the no-args query produces a well-formed dict.
+        source = (
+            "fconfigure stdout -encoding utf-16 -translation lf\n"
+            "puts [dict get [fconfigure stdout] -encoding]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "utf-16\n"
 
 
 class TestExternalTcllibCounter:

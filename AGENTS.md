@@ -492,7 +492,7 @@ runtime/zig/
 | `cmds/*.zig` | one file per command group — `var.zig` (`set`/`incr`/`unset`), `scope.zig` (`global`/`variable`/`upvar`), `flow.zig` (`return`/`break`/`continue`/`error`/`catch`), `loop.zig` (`if`/`while`/`for`/`foreach`), `eval.zig` (`eval`/`uplevel`), `proc.zig` (`proc`), `list.zig` (13 list commands), `io.zig` (`puts`/`append`/`format`/`scan`), `chan.zig` (`encoding`/`fconfigure`), `fs.zig` (`file`/`pwd`/`cd`), `subst.zig` (`subst`/`expr`), `regexp.zig` (`regexp`), `inspect.zig` (`info`/`trace`), `namespace.zig` (`namespace`), `interp.zig` (`rename`/`interp`), `stubs.zig` (`auto_*`/`package`) | `tclBasic.c` built-in table |
 | `stubs/tcl_stubs.zig` | `unsupported(name)` / `unsupported_sub(cmd, sub)` / `raise(msg)` — routes through the error path so inside `catch` it sets `error_flag` + `error_msg`, outside a catch it writes to stderr and traps | local shim |
 | `io/tcl_io.zig` | real `puts` implementation on WASI `fd_write` | `tclIO.c` |
-| `io/tcl_chan.zig` | `fconfigure` NOP accepting option-set, returning empty for queries | `tclIO.c` |
+| `io/tcl_chan.zig` | channel registry + `fconfigure` (set / single-option query / no-args dict query) | `tclIO.c` |
 | `io/tcl_fs.zig` | string-path manipulation `file` subcommands + WASI `pwd` / `cd` | `tclFileName.c` / `tclFCmd.c` |
 | `io/tcl_clock.zig` | `clock seconds` / `clock clicks` / `clock milliseconds` via WASI wall/monotonic clocks | `tclClock.c` |
 
