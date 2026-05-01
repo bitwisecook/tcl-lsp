@@ -644,7 +644,7 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
         obj.free_sized(buf, cap);
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
     return out;
 }
 
@@ -695,7 +695,7 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
         obj.free_sized(buf, cap);
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(cap));
     return out;
 }
 
@@ -726,7 +726,7 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     off = list_elem_quote_nth(buf, off, vp, vl);
     const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
     if (new_obj != 0) {
-        obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
+        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
     }
     return new_obj;
 }
