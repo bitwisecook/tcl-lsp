@@ -51,6 +51,8 @@ input module is left untouched (every IR node is frozen, so
 rebuilding via :func:`dataclasses.replace` is the only option).
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import re
@@ -1022,6 +1024,7 @@ def _wrap_with_irreturn_loop(
         IRCall(
             range=call.range,
             command="break",
+            canonical_command="::break",
             args=(),
         )
     )
@@ -1083,6 +1086,7 @@ def _substitute_irreturn(
                 IRCall(
                     range=stmt.range,
                     command="break",
+                    canonical_command="::break",
                     args=(),
                 )
             )
@@ -1631,7 +1635,7 @@ def _strip_proc_defs(script: IRScript, dropped: set[str]) -> IRScript:
     new_stmts: list = []
     changed = False
     for stmt in script.statements:
-        if isinstance(stmt, IRCall) and stmt.command == "proc" and stmt.args:
+        if isinstance(stmt, IRCall) and stmt.canonical_command == "::proc" and stmt.args:
             proc_name = stmt.args[0]
             qname = proc_name if proc_name.startswith("::") else "::" + proc_name
             if qname in dropped:

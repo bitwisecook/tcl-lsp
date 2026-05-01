@@ -6,6 +6,8 @@ is consumed by the ``/diagram`` VS Code chat command which forwards it to
 the LLM together with the original source for Mermaid + explanation generation.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from ..commands.registry import REGISTRY
@@ -151,37 +153,45 @@ def _walk_statement(
                 "body": child,
             }
 
-        case IRCall(command=command, args=args):
+        case IRCall(args=args) as ir_call:
+            # Match against the canonical form so qualified spellings,
+            # ``interp alias`` aliases, and namespace-imported builtins
+            # all hit; render the user's source spelling so the diagram
+            # shows what they wrote.  See issue #246.
+            canonical = ir_call.canonical_command
+            display = ir_call.command
             # Skip the top-level 'when' calls — their bodies are in procedures.
-            if command == "when":
+            if canonical == "::when":
                 return None
             # Procedure calls.
-            if command in proc_names:
+            if display in proc_names or canonical in proc_names:
                 return {
                     "kind": "proc_call",
-                    "label": f"call {command}",
-                    "command": command,
+                    "label": f"call {display}",
+                    "command": display,
                 }
             # Notable action commands.
-            if REGISTRY.is_diagram_action(command):
+            if REGISTRY.is_diagram_action(canonical):
                 arg_str = " ".join(_truncate(a) for a in args[:4])
-                label = f"{command} {arg_str}".strip() if arg_str else command
+                label = f"{display} {arg_str}".strip() if arg_str else display
                 return {
                     "kind": "action",
                     "label": _truncate(label, 80),
-                    "command": command,
+                    "command": display,
                     "args": [_truncate(a) for a in args[:4]],
                 }
             return None
 
-        case IRBarrier(command=command, args=args):
-            if REGISTRY.is_diagram_action(command):
+        case IRBarrier(args=args) as ir_barrier:
+            canonical = ir_barrier.canonical_command
+            display = ir_barrier.command
+            if REGISTRY.is_diagram_action(canonical):
                 arg_str = " ".join(_truncate(a) for a in args[:4])
-                label = f"{command} {arg_str}".strip() if arg_str else command
+                label = f"{display} {arg_str}".strip() if arg_str else display
                 return {
                     "kind": "action",
                     "label": _truncate(label, 80),
-                    "command": command,
+                    "command": display,
                     "args": [_truncate(a) for a in args[:4]],
                 }
             return None

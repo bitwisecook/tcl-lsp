@@ -1,3 +1,4 @@
+# canonicalisation: audited #246
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -180,7 +181,7 @@ class _AnalyserDiagVarLifecycleMixin(_Base):
                 continue
             if r is None:
                 continue
-            if isinstance(stmt, IRCall) and stmt.command == "unset":
+            if isinstance(stmt, IRCall) and stmt.canonical_command == "::unset":
                 # unset without -nocomplain on a possibly-undefined variable.
                 # Still warn even for cross-event vars — unset is explicit.
                 self.result.diagnostics.append(

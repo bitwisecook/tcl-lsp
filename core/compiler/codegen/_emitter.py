@@ -1,5 +1,7 @@
 """Composed _Emitter class and public API functions."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from ..cfg import (
@@ -402,9 +404,9 @@ class _Emitter(
                 _body = _blk.terminator.true_target
                 _end = _blk.terminator.false_target
                 for _st in _blk.statements:
-                    if isinstance(_st, IRCall) and _st.command in (
-                        "foreach",
-                        "lmap",
+                    if isinstance(_st, IRCall) and _st.canonical_command in (
+                        "::foreach",
+                        "::lmap",
                     ):
                         foreach_info[_bn] = (_body, _end, _st)
                         foreach_bodies.add(_body)
@@ -728,6 +730,10 @@ class _Emitter(
                         )
                     else:
                         self._emit_stmt_with_start_cmd(stmt)
+                # canonicalisation: bucket-iii — ``<cond>`` is a
+                # synthetic CFG node emitted by the CFG builder; never
+                # a user-source command, so canonical_command does not
+                # apply.  See issue #246.
                 elif isinstance(stmt, IRCall) and stmt.command == "<cond>":
                     # Synthetic condition placeholder: defer the end
                     # label so the startCommand spans the ExprCommand

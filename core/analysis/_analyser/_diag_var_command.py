@@ -1,3 +1,4 @@
+# canonicalisation: audited #246
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -171,7 +172,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 for stmt in block.statements:
                     if (
                         isinstance(stmt, IRCall)
-                        and stmt.command in ("foreach", "lmap")
+                        and stmt.canonical_command in ("::foreach", "::lmap")
                         and len(stmt.defs) == 1
                         and len(stmt.args) == 1
                     ):
@@ -242,7 +243,7 @@ class _AnalyserDiagVarCommandMixin(_Base):
                 for stmt in block.statements:
                     if (
                         isinstance(stmt, IRBarrier)
-                        and stmt.command == "dict"
+                        and stmt.canonical_command == "::dict"
                         and stmt.args
                         and stmt.args[0] in ("with", "update")
                     ):

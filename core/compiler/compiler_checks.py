@@ -7,6 +7,8 @@ It also implements IR-based arity checking (E001–E003, W001, W002) and
 proc-call arity validation.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import logging
@@ -504,7 +506,7 @@ def _arity_checks(ir_module: IRModule) -> list[Diagnostic]:
             )
 
         # E004: malformed control-flow structures detected by lowering
-        if isinstance(stmt, IRBarrier) and stmt.command == "if":
+        if isinstance(stmt, IRBarrier) and stmt.canonical_command == "::if":
             if "extra words" in stmt.reason:
                 diagnostics.append(
                     Diagnostic(
@@ -864,7 +866,11 @@ def _collect_unconditional_top_level_procs(ir_module: IRModule) -> dict[str, int
             if isinstance(stmt, IRBlock):
                 _walk(stmt.body, stmt.namespace)
                 continue
-            if isinstance(stmt, (IRCall, IRBarrier)) and stmt.command == "proc" and stmt.args:
+            if (
+                isinstance(stmt, (IRCall, IRBarrier))
+                and stmt.canonical_command == "::proc"
+                and stmt.args
+            ):
                 qualified = _qualify_proc_name(stmt.args[0], namespace)
                 if qualified and qualified not in offsets:
                     offsets[qualified] = stmt.range.start.offset

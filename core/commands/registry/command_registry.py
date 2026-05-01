@@ -434,8 +434,15 @@ class CommandRegistry:
         emitter import time.  Dialect packs loaded after that point add new
         specs with empty ``codegens`` dicts; the hook is still present on the
         earlier spec and this method finds it.
+
+        Accepts both bare (``upvar``) and canonical (``::upvar``,
+        ``::HTTP::respond``) command forms — hooks are registered on
+        bare-name specs at emitter import time, so the canonical form
+        strips its leading ``::`` to recover the bare name.  See issue #246.
         """
         specs = self.specs_by_name.get(name)
+        if specs is None and name.startswith("::"):
+            specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return None
         for spec in specs:
@@ -517,8 +524,22 @@ class CommandRegistry:
 
         Useful for checking whether a command exists at all (in any dialect)
         before performing a dialect-filtered lookup.
+
+        Qualified names (``::cmd``, ``::HTTP::respond``) for which only
+        a bare-name spec exists also resolve here — e.g. ``::unset``
+        returns the ``unset`` builtin spec, ``::HTTP::respond`` returns
+        the registered ``HTTP::respond`` iRules spec.  This mirrors
+        Tcl's command resolution: the global namespace form is just
+        an explicitly-qualified spelling of the same builtin.  See
+        issue #246.
+
+        The leading ``::`` is stripped only when no exact match exists,
+        so user-defined ``::ns::userproc`` does not accidentally pick
+        up a same-name builtin (the lookup falls through to ``None``).
         """
         specs = self.specs_by_name.get(name)
+        if specs is None and name.startswith("::"):
+            specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return None
         return specs[-1]  # prefer latest (most curated) spec
@@ -797,11 +818,26 @@ class CommandRegistry:
         return self.command_names(dialect, active_packages=packages)
 
     def _any_spec_has(self, name: str, attr: str) -> bool:
-        """Return True if any spec for *name* has a truthy value for *attr*."""
+        """Return True if any spec for *name* has a truthy value for *attr*.
+
+        Accepts both bare (``set``, ``HTTP::respond``) and canonical
+        (``::set``, ``::HTTP::respond``) command forms — the canonical
+        form is the spelling stamped on ``IRCall.canonical_command`` by
+        lowering, so passes that match on canonical can call this helper
+        without re-stripping.  Specs themselves are registered under
+        bare names (``set``, ``HTTP::respond``); the leading ``::`` is
+        stripped to recover the bare form.  See issue #246.
+        """
         trait_names = self._trait_indexes.get(attr)
         if trait_names is not None:
-            return name in trait_names
+            if name in trait_names:
+                return True
+            if name.startswith("::"):
+                return name[2:] in trait_names
+            return False
         specs = self.specs_by_name.get(name)
+        if specs is None and name.startswith("::"):
+            specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return False
         return any(getattr(spec, attr, False) for spec in specs)

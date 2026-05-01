@@ -18,6 +18,8 @@ This module operates *after* scalar SSA construction and inspects
 ``IRCall`` / ``IRBarrier`` nodes for aliasing commands.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -213,7 +215,7 @@ def _detect_global(stmt: IRStatement) -> list[str]:
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
-    if stmt.command != "global":
+    if stmt.canonical_command != "::global":
         return []
     return [stmt.args[i] for i in global_declaration_indices(stmt.args)]
 
@@ -225,7 +227,7 @@ def _detect_namespace_variable(stmt: IRStatement) -> list[str]:
     """
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return []
-    if stmt.command != "variable":
+    if stmt.canonical_command != "::variable":
         return []
     return [stmt.args[i] for i in variable_declaration_indices(stmt.args)]
 
@@ -251,7 +253,7 @@ def _is_clobber(stmt: IRStatement) -> bool:
             return True
     if isinstance(stmt, IRCall):
         # Commands that can modify arbitrary variables
-        if stmt.command in ("eval", "uplevel", "interp eval", "namespace eval"):
+        if stmt.canonical_command in ("::eval", "::uplevel", "::interp eval", "::namespace eval"):
             return True
     return False
 

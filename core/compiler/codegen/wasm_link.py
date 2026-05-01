@@ -16,6 +16,8 @@ lowers them to IR, and merges everything before WASM codegen.
 ``pkgIndex.tcl`` files in the search paths.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -80,7 +82,7 @@ def _extract_source_targets(ir_module: IRModule) -> list[str]:
         return target
 
     def _scan_stmt(stmt: IRStatement) -> None:
-        if isinstance(stmt, IRCall) and stmt.command == "source" and stmt.args:
+        if isinstance(stmt, IRCall) and stmt.canonical_command == "::source" and stmt.args:
             target = _source_file_arg(stmt.args)
             if target is not None:
                 targets.append(target)
@@ -126,7 +128,7 @@ def _extract_package_requires(ir_module: IRModule) -> list[str]:
     packages: list[str] = []
 
     def _scan_stmt(stmt: IRStatement) -> None:
-        if isinstance(stmt, IRCall) and stmt.command == "package" and stmt.args:
+        if isinstance(stmt, IRCall) and stmt.canonical_command == "::package" and stmt.args:
             if stmt.args[0] == "require":
                 # package require ?-exact? name ?version?
                 args = stmt.args[1:]
