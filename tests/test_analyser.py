@@ -774,6 +774,23 @@ class TestDiagnostics:
         ]
         assert len(errors) == 1
 
+    def test_fileutil_update_in_place_builtin_callback_no_e002(self):
+        """A built-in command used as a command-prefix callback must
+        not produce a spurious arity diagnostic.  The built-in arity
+        checker (``_arity_checks`` in compiler_checks.py) currently
+        does not recurse into BODY arguments of unstructured commands
+        so no false positive fires today; this test guards against
+        regressions if the IR ever starts walking those bodies — at
+        that point ``body_arg_implicit_args`` should be threaded
+        through the IR-side arity check too."""
+        source = textwrap.dedent("""\
+            package require fileutil
+            fileutil::updateInPlace foo.html {string toupper}
+        """)
+        result = analyse(source)
+        arity_errors = [d for d in result.diagnostics if d.code in ("E001", "E002", "E003")]
+        assert arity_errors == [], f"unexpected arity diagnostics: {arity_errors}"
+
 
 class TestControlFlow:
     def test_if_body_analysed(self):
