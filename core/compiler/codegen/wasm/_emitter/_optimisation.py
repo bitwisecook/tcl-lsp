@@ -50,6 +50,7 @@ class _WasmEmitterOptMixin(_Base):
         # From _WasmEmitterVarMixin
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_var_read_obj_lenient(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterValuesMixin
         def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
@@ -824,7 +825,9 @@ class _WasmEmitterOptMixin(_Base):
                 # strict-integer guard.
                 incr_idx = self._shared_imports.get("tcl_incr")
                 if incr_idx is not None:
-                    self._emit_var_read_obj(last.name)
+                    # Lenient read so an unset scalar initialises to 0
+                    # (Tcl 8.5+: ``incr x`` returns 1, doesn't raise).
+                    self._emit_var_read_obj_lenient(last.name)
                     if last.amount is None:
                         self._emit_i64_const(1)
                         self._emit_box_int()
