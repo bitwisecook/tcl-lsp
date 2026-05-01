@@ -503,6 +503,24 @@ def _apply_merged_settings_now() -> None:
             _state.feature_config.dialect_explicitly_set,
         )
 
+    # ``tclLsp.dialect`` is declared as ``language-overridable`` so VS Code
+    # accepts per-folder overrides, but the active dialect controls a
+    # process-global signature registry — only one dialect can be active
+    # at a time.  Warn the user when folder-level dialect overrides
+    # disagree with the workspace fallback so they understand why their
+    # folder setting "isn't applying".
+    for folder_uri in _state.editor_config_settings_per_folder:
+        folder_dialect = _state.editor_config_settings_per_folder[folder_uri].get("dialect")
+        if isinstance(folder_dialect, str) and folder_dialect and folder_dialect != dialect_setting:
+            log.warning(
+                "Folder %s configures tclLsp.dialect=%r but the workspace "
+                "dialect is %r — only the workspace value applies. "
+                "Per-folder dialects are not yet supported.",
+                folder_uri,
+                folder_dialect,
+                dialect_setting or "<auto>",
+            )
+
     # Per-folder + fallback feature/formatter application.
     diags_were_enabled = _state.feature_config.diagnostics_enabled
     features_changed = _apply_settings_to_target("", fallback_settings)
@@ -593,14 +611,23 @@ def _pull_and_apply_configuration() -> None:
         if not result:
             return
         # Result order matches request order: per-folder items first,
-        # then the fallback item last.
+        # then the fallback item last.  Update every editor layer in
+        # one batch so the merged-settings application runs once with
+        # all folders populated — calling ``_apply_all_settings`` per
+        # folder would fire the leading-edge debounce repeatedly and
+        # leave intermediate states briefly visible.
+        any_applied = False
         for folder_uri, item in zip(folder_uris, result, strict=False):
             if isinstance(item, dict):
-                _apply_all_settings(item, folder_uri=folder_uri)
+                _state.editor_config_settings_per_folder[folder_uri] = item
+                any_applied = True
         if len(result) > len(folder_uris):
             fallback_item = result[len(folder_uris)]
             if isinstance(fallback_item, dict):
-                _apply_all_settings(fallback_item, folder_uri="")
+                _state.editor_config_settings = fallback_item
+                any_applied = True
+        if any_applied:
+            _schedule_apply_merged()
 
     try:
         _server.workspace_configuration(params, callback=_on_result)  # type: ignore[union-attr]
