@@ -1540,9 +1540,35 @@ fn scan_skip_zone_name(s: []const u8, i_in: usize) usize {
 /// Drive the format string against the input, populating *st*.
 /// Returns ``no_match`` on any mismatch / unknown spec, ``overflow``
 /// for arithmetic blow-ups, ``none`` on success.
+/// Result of a partial scan: the error code plus the input cursor
+/// at the point the matcher stopped.  The top-level entry checks
+/// that the cursor lands on (whitespace-trimmed) end-of-input.
+const ScanPartialResult = struct {
+    err: ScanFormatErr,
+    ii: usize,
+};
+
 fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) ScanFormatErr {
+    const r = scan_drive_part(fmt, input, 0, st, loc);
+    if (r.err != .none) return r.err;
+    if (r.ii != input.len) {
+        // Trailing input that the format didn't consume.  Allow only
+        // trailing whitespace (Tcl's scan is lenient here).
+        const trail = scan_skip_ws(input, r.ii);
+        if (trail != input.len) return .no_match;
+    }
+    return .none;
+}
+
+fn scan_drive_part(
+    fmt: []const u8,
+    input: []const u8,
+    ii_in: usize,
+    st: *ScanState,
+    loc: Locale,
+) ScanPartialResult {
     var fi: usize = 0;
-    var ii: usize = 0;
+    var ii: usize = ii_in;
     while (fi < fmt.len) {
         const fc = fmt[fi];
         if (fc == ' ' or fc == '\t') {
@@ -1553,28 +1579,52 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
         }
         if (fc != '%') {
             // Literal char must match.
-            if (ii >= input.len or input[ii] != fc) return .no_match;
+            if (ii >= input.len or input[ii] != fc)
+                return .{ .err = .no_match, .ii = ii };
             fi += 1;
             ii += 1;
             continue;
         }
-        // ``%`` followed by spec.
+        // ``%`` followed by spec.  A trailing bare ``%`` (with no
+        // spec letter behind it) is treated as a literal ``%`` —
+        // matches reference Tcl's "no token parsing" behaviour
+        // (clock-6.19).
         fi += 1;
-        if (fi >= fmt.len) return .no_match;
+        if (fi >= fmt.len) {
+            if (ii >= input.len or input[ii] != '%')
+                return .{ .err = .no_match, .ii = ii };
+            ii += 1;
+            continue;
+        }
         var spec = fmt[fi];
         fi += 1;
         var ext_O = false;
         var ext_E = false;
-        if (spec == 'O') {
-            ext_O = true;
-            if (fi >= fmt.len) return .no_match;
-            spec = fmt[fi];
-            fi += 1;
-        } else if (spec == 'E') {
-            ext_E = true;
-            if (fi >= fmt.len) return .no_match;
-            spec = fmt[fi];
-            fi += 1;
+        if (spec == 'O' or spec == 'E') {
+            // Locale modifier — only consumed when the *next* char is
+            // an alphabetic spec letter.  Reference Tcl treats
+            // ``%E%`` / ``%O5`` etc. as a *literal* ``%E`` / ``%O``
+            // sequence (clock-6.19 ``no token parsing`` case): the
+            // ``%`` is the literal-percent escape, ``E`` / ``O`` the
+            // following character.  Without this guard our matcher
+            // would consume ``%`` as the "spec" and fall over.
+            const next_ok = fi < fmt.len and
+                ((fmt[fi] >= 'a' and fmt[fi] <= 'z') or
+                    (fmt[fi] >= 'A' and fmt[fi] <= 'Z'));
+            if (next_ok) {
+                if (spec == 'O') ext_O = true else ext_E = true;
+                spec = fmt[fi];
+                fi += 1;
+            } else {
+                // Treat as literal ``%`` followed by ``E`` / ``O``.
+                if (ii >= input.len or input[ii] != '%')
+                    return .{ .err = .no_match, .ii = ii };
+                ii += 1;
+                if (ii >= input.len or input[ii] != spec)
+                    return .{ .err = .no_match, .ii = ii };
+                ii += 1;
+                continue;
+            }
         }
         const roman_o = ext_O and loc == .en_us_roman;
         const roman_e = ext_E and loc == .en_us_roman;
@@ -1583,7 +1633,7 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
         // ``%t`` get the same treatment (any whitespace).
         switch (spec) {
             '%' => {
-                if (ii >= input.len or input[ii] != '%') return .no_match;
+                if (ii >= input.len or input[ii] != '%') return .{ .err = .no_match, .ii = ii };
                 ii += 1;
             },
             'n', 't' => {
@@ -1602,27 +1652,69 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                         st.last_epoch = .seconds;
                         ii = r.i;
                     },
-                    .over => return .overflow,
-                    .miss => return .no_match,
+                    .over => return .{ .err = .overflow, .ii = ii },
+                    .miss => return .{ .err = .no_match, .ii = ii },
                 }
             },
             'J' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 12, true) orelse return .no_match;
-                st.have_julian = true;
-                st.julian = r.v;
-                st.last_epoch = .julian;
-                ii = r.i;
+                if (ext_E) {
+                    // ``%EJ`` — signed calendar Julian day with
+                    // optional fractional part.  Anchored at
+                    // midnight (.0 = midnight of Gregorian day);
+                    // contrast ``%Ej`` which anchors at noon.
+                    // clock-7.20 covers both.
+                    const r = scan_read_int(input, ii, 12, true) orelse
+                        return .{ .err = .no_match, .ii = ii };
+                    var jdn = r.v;
+                    var aj_secs: i64 = 0;
+                    var ki = r.i;
+                    if (ki < input.len and input[ki] == '.') {
+                        ki += 1;
+                        var frac_num: i64 = 0;
+                        var frac_den: i64 = 1;
+                        var fdigits: usize = 0;
+                        while (ki < input.len and input[ki] >= '0' and
+                            input[ki] <= '9' and fdigits < 6) : (ki += 1)
+                        {
+                            frac_num = frac_num * 10 + (input[ki] - '0');
+                            frac_den *= 10;
+                            fdigits += 1;
+                        }
+                        while (ki < input.len and input[ki] >= '0' and input[ki] <= '9')
+                            : (ki += 1)
+                        {}
+                        const frac_secs = @divFloor(frac_num * SECS_PER_DAY, frac_den);
+                        var combined = frac_secs;
+                        while (combined >= SECS_PER_DAY) {
+                            combined -= SECS_PER_DAY;
+                            jdn += 1;
+                        }
+                        aj_secs = combined;
+                    }
+                    st.have_astro_julian = true;
+                    st.aj_day = jdn;
+                    st.aj_secs = aj_secs;
+                    st.last_epoch = .astro_julian;
+                    ii = ki;
+                } else {
+                    const r = scan_read_int(input, ii, 12, true) orelse
+                        return .{ .err = .no_match, .ii = ii };
+                    st.have_julian = true;
+                    st.julian = r.v;
+                    st.last_epoch = .julian;
+                    ii = r.i;
+                }
             },
             'Y' => {
                 ii = scan_skip_ws(input, ii);
                 if (roman_e) {
-                    const r = read_roman(input, ii) orelse return .no_match;
+                    const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_year = true;
                     st.year = @intCast(r.v);
                     ii = r.i;
                 } else {
-                    const r = scan_read_int(input, ii, 4, true) orelse return .no_match;
+                    const r = scan_read_int(input, ii, 4, true) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_year = true;
                     st.year = @intCast(r.v);
                     ii = r.i;
@@ -1631,28 +1723,40 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
             'y' => {
                 ii = scan_skip_ws(input, ii);
                 if (roman_o) {
-                    const r = read_roman(input, ii) orelse return .no_match;
+                    const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_year2 = true;
                     st.year2 = @intCast(r.v);
                     ii = r.i;
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    st.have_year2 = true;
-                    st.year2 = @intCast(r.v);
+                    // Reference Tcl's strptime is lenient on ``%y``:
+                    // accepts 1..4 digits, treating a 3-or-4 digit
+                    // run as the full year (``%Y`` semantics) and a
+                    // 1-or-2 digit run as the century-split short
+                    // form.  clock-8.50 ``%D`` against ``01/02/1970``
+                    // relies on this — ``%y`` consumes ``1970``
+                    // outright instead of stopping at ``19``.
+                    const r = scan_read_int(input, ii, 4, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v > 99) {
+                        st.have_year = true;
+                        st.year = @intCast(r.v);
+                    } else {
+                        st.have_year2 = true;
+                        st.year2 = @intCast(r.v);
+                    }
                     ii = r.i;
                 }
             },
             'C' => {
                 ii = scan_skip_ws(input, ii);
                 if (roman_e) {
-                    const r = read_roman(input, ii) orelse return .no_match;
+                    const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_century = true;
                     // ``%EC`` reads as a multiple of 100 (e.g. ``mdccc``
                     // → 1800), so divide before storing.
                     st.century = @intCast(@divFloor(r.v, 100));
                     ii = r.i;
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_century = true;
                     st.century = @intCast(r.v);
                     ii = r.i;
@@ -1661,14 +1765,14 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
             'm', 'N' => {
                 ii = scan_skip_ws(input, ii);
                 if (roman_o) {
-                    const r = read_roman(input, ii) orelse return .no_match;
-                    if (r.v < 1 or r.v > 12) return .no_match;
+                    const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 12) return .{ .err = .no_match, .ii = ii };
                     st.have_month = true;
                     st.month = @intCast(r.v);
                     ii = r.i;
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    if (r.v < 1 or r.v > 12) return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 12) return .{ .err = .no_match, .ii = ii };
                     st.have_month = true;
                     st.month = @intCast(r.v);
                     ii = r.i;
@@ -1687,25 +1791,25 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                     // ``ma`` matches Mar/May, ``a`` matches Apr/Aug)
                     // need ``-locale`` resolution that we don't ship;
                     // they fail the parse here instead of guessing.
-                    const r = scan_match_month_prefix(input, ii) orelse return .no_match;
+                    const r = scan_match_month_prefix(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_month = true;
                     st.month = r.m;
                     ii = r.i;
                 } else {
-                    return .no_match;
+                    return .{ .err = .no_match, .ii = ii };
                 }
             },
             'd', 'e' => {
                 ii = scan_skip_ws(input, ii);
                 if (roman_o) {
-                    const r = read_roman(input, ii) orelse return .no_match;
-                    if (r.v < 1 or r.v > 31) return .no_match;
+                    const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 31) return .{ .err = .no_match, .ii = ii };
                     st.have_day = true;
                     st.day = @intCast(r.v);
                     ii = r.i;
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    if (r.v < 1 or r.v > 31) return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 31) return .{ .err = .no_match, .ii = ii };
                     st.have_day = true;
                     st.day = @intCast(r.v);
                     ii = r.i;
@@ -1720,7 +1824,7 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                     // rounding error at large JDs.  Astronomical
                     // convention anchors noon at JD .0 (so .5
                     // = midnight of the next Gregorian day).
-                    const r = scan_read_int(input, ii, 12, true) orelse return .no_match;
+                    const r = scan_read_int(input, ii, 12, true) orelse return .{ .err = .no_match, .ii = ii };
                     var jdn = r.v;
                     var aj_secs: i64 = @divFloor(SECS_PER_DAY, 2);
                     var ki = r.i;
@@ -1751,8 +1855,8 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                     st.last_epoch = .astro_julian;
                     ii = ki;
                 } else {
-                    const r = scan_read_int(input, ii, 3, false) orelse return .no_match;
-                    if (r.v < 1 or r.v > 366) return .no_match;
+                    const r = scan_read_int(input, ii, 3, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 366) return .{ .err = .no_match, .ii = ii };
                     ii = r.i;
                     // day-of-year not currently fed into pack_epoch.
                 }
@@ -1766,16 +1870,16 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                         st.hour_is_12 = false;
                         st.hour = 0;
                     } else {
-                        const r = read_roman(input, ii) orelse return .no_match;
-                        if (r.v < 0 or r.v > 23) return .no_match;
+                        const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
+                        if (r.v < 0 or r.v > 23) return .{ .err = .no_match, .ii = ii };
                         st.have_hour = true;
                         st.hour_is_12 = false;
                         st.hour = @intCast(r.v);
                         ii = r.i;
                     }
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    if (r.v < 0 or r.v > 23) return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 0 or r.v > 23) return .{ .err = .no_match, .ii = ii };
                     st.have_hour = true;
                     st.hour_is_12 = false;
                     st.hour = @intCast(r.v);
@@ -1785,15 +1889,15 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
             'I', 'l' => {
                 ii = scan_skip_ws(input, ii);
                 if (roman_o) {
-                    const r = read_roman(input, ii) orelse return .no_match;
-                    if (r.v < 1 or r.v > 12) return .no_match;
+                    const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 12) return .{ .err = .no_match, .ii = ii };
                     st.have_hour = true;
                     st.hour_is_12 = true;
                     st.hour = @intCast(r.v);
                     ii = r.i;
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    if (r.v < 1 or r.v > 12) return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 1 or r.v > 12) return .{ .err = .no_match, .ii = ii };
                     st.have_hour = true;
                     st.hour_is_12 = true;
                     st.hour = @intCast(r.v);
@@ -1808,15 +1912,15 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                         st.have_minute = true;
                         st.minute = 0;
                     } else {
-                        const r = read_roman(input, ii) orelse return .no_match;
-                        if (r.v < 0 or r.v > 59) return .no_match;
+                        const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
+                        if (r.v < 0 or r.v > 59) return .{ .err = .no_match, .ii = ii };
                         st.have_minute = true;
                         st.minute = @intCast(r.v);
                         ii = r.i;
                     }
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    if (r.v < 0 or r.v > 59) return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 0 or r.v > 59) return .{ .err = .no_match, .ii = ii };
                     st.have_minute = true;
                     st.minute = @intCast(r.v);
                     ii = r.i;
@@ -1830,15 +1934,15 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                         st.have_second = true;
                         st.second = 0;
                     } else {
-                        const r = read_roman(input, ii) orelse return .no_match;
-                        if (r.v < 0 or r.v > 60) return .no_match;
+                        const r = read_roman(input, ii) orelse return .{ .err = .no_match, .ii = ii };
+                        if (r.v < 0 or r.v > 60) return .{ .err = .no_match, .ii = ii };
                         st.have_second = true;
                         st.second = @intCast(r.v);
                         ii = r.i;
                     }
                 } else {
-                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                    if (r.v < 0 or r.v > 60) return .no_match;
+                    const r = scan_read_int(input, ii, 2, false) orelse return .{ .err = .no_match, .ii = ii };
+                    if (r.v < 0 or r.v > 60) return .{ .err = .no_match, .ii = ii };
                     st.have_second = true;
                     st.second = @intCast(r.v);
                     ii = r.i;
@@ -1846,13 +1950,13 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
             },
             'p', 'P' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_match_am_pm(input, ii) orelse return .no_match;
+                const r = scan_match_am_pm(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                 st.pm = r.pm;
                 ii = r.i;
             },
             'a', 'A' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_match_weekday(input, ii) orelse return .no_match;
+                const r = scan_match_weekday(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                 ii = r.i;
             },
             'z' => {
@@ -1866,7 +1970,7 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                     st.zone_offset = 0;
                     ii += 1;
                 } else if (input[ii] == '+' or input[ii] == '-') {
-                    const r = scan_match_zone_offset(input, ii) orelse return .no_match;
+                    const r = scan_match_zone_offset(input, ii) orelse return .{ .err = .no_match, .ii = ii };
                     st.have_zone = true;
                     st.zone_offset = r.off;
                     ii = r.i;
@@ -1877,16 +1981,50 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) S
                 ii = scan_skip_ws(input, ii);
                 ii = scan_skip_zone_name(input, ii);
             },
-            else => return .no_match,
+            // Composite specs — recursively expand and re-scan.
+            // ``%c`` / ``%x`` / ``%X`` consult the locale table;
+            // ``%D`` / ``%R`` / ``%T`` / ``%F`` are fixed templates.
+            // ``%r`` is 12-hour AM/PM clock.  Each delegates to a
+            // nested ``scan_drive_part`` so the substitution string
+            // is matched at the same input cursor and the partial
+            // ``ScanState`` accumulates.
+            'c', 'x', 'X' => {
+                if (ext_O) return .{ .err = .no_match, .ii = ii };
+                const sub = locale_replace(loc, spec, ext_E) orelse "";
+                if (sub.len == 0) return .{ .err = .no_match, .ii = ii };
+                const sub_r = scan_drive_part(sub, input, ii, st, loc);
+                if (sub_r.err != .none) return sub_r;
+                ii = sub_r.ii;
+            },
+            'D' => {
+                const sub_r = scan_drive_part("%m/%d/%y", input, ii, st, loc);
+                if (sub_r.err != .none) return sub_r;
+                ii = sub_r.ii;
+            },
+            'R' => {
+                const sub_r = scan_drive_part("%H:%M", input, ii, st, loc);
+                if (sub_r.err != .none) return sub_r;
+                ii = sub_r.ii;
+            },
+            'T' => {
+                const sub_r = scan_drive_part("%H:%M:%S", input, ii, st, loc);
+                if (sub_r.err != .none) return sub_r;
+                ii = sub_r.ii;
+            },
+            'F' => {
+                const sub_r = scan_drive_part("%Y-%m-%d", input, ii, st, loc);
+                if (sub_r.err != .none) return sub_r;
+                ii = sub_r.ii;
+            },
+            'r' => {
+                const sub_r = scan_drive_part("%I:%M:%S %p", input, ii, st, loc);
+                if (sub_r.err != .none) return sub_r;
+                ii = sub_r.ii;
+            },
+            else => return .{ .err = .no_match, .ii = ii },
         }
     }
-    if (ii != input.len) {
-        // Trailing input that the format didn't consume.  Allow only
-        // trailing whitespace (Tcl's scan is lenient here).
-        const trail = scan_skip_ws(input, ii);
-        if (trail != input.len) return .no_match;
-    }
-    return .none;
+    return .{ .err = .none, .ii = ii };
 }
 
 /// Resolve the partial broken-down state into Unix epoch seconds.
