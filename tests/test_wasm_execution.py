@@ -4104,7 +4104,7 @@ set ::result $msg
 """,
             "::result",
         )
-        assert result.startswith(b"unknown command")
+        assert result.startswith(b"invalid command name")
 
     # --- Section 7: basic alias creation (child-as-command alias) ---------
 
@@ -4248,11 +4248,13 @@ set ::result $msg
 """,
             "::result",
         )
-        # Our runtime's alias-miss diagnostic is ``unknown command:
-        # <target>`` (see dispatch_alias in tcl_interp.zig).  tclsh
-        # uses ``invalid command name "<target>"`` after the unknown
-        # fallback; we pin our wording here.
-        assert result == b"unknown command: nonexistent"
+        # Our runtime's alias-miss diagnostic now matches reference
+        # Tcl's ``invalid command name "<target>"`` surface — see the
+        # rename-builtin work in ``tcl_catch.error_invalid_command_name``
+        # which unified the two formerly-divergent ``error_unknown_command``
+        # callers under one helper that mirrors tclsh's
+        # ``TclEvalObjvInternal``.
+        assert result == b'invalid command name "nonexistent"'
 
     def test_9_2_alias_late_bound_target(self):
         """interp-9.2: defining the target after the alias still

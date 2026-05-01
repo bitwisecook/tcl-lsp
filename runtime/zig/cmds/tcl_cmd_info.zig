@@ -162,11 +162,37 @@ pub export fn info_body(name: i32) i32 {
 }
 
 /// info args procName — returns the params TclObj for an
-/// interpreted proc.  Same error shape as ``info body``.
+/// interpreted proc.  Mirrors :func:`info_body`'s tolerance for
+/// compiled procs: when ``func_idx != 0`` the AOT path may have
+/// pre-registered the proc with ``params_obj == 0`` even though a
+/// later interpreted ``proc`` re-registration restored the params,
+/// or vice versa.  We accept any non-CMD_ALIAS bucket and return
+/// whatever ``params_obj`` holds, falling back to an empty list when
+/// the slot is null (matches ``info body``'s "return empty" branch).
+/// Used by ``rename.test`` 5.1 (``info args unknown.old``) and
+/// any ``test ... -body [list args [info args FOO]]`` shape.
 pub export fn info_args(name: i32) i32 {
-    const cmd = resolve_interpreted_proc(name);
-    if (cmd == 0) return obj_new_string(0, 0);
-    return procs.proc_get_params(@bitCast(cmd));
+    const sn = obj_ensure_string(name);
+    const bucket = procs.proc_lookup(name);
+    if (bucket == 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    const cmd: u32 = @bitCast(bucket);
+    const flags: u32 = @bitCast(read_i32(cmd + procs.OFF_FLAGS));
+    if ((flags & procs.CMD_ALIAS) != 0) {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    if ((flags & procs.CMD_BUILTIN_FORWARD) != 0 or
+        (flags & procs.CMD_BUILTIN_MASKED) != 0)
+    {
+        raise_not_a_procedure(sn.ptr, sn.len);
+        return 0;
+    }
+    const params = procs.proc_get_params(bucket);
+    if (params == 0) return obj_new_string(0, 0);
+    return params;
 }
 
 /// info complete script — returns 1 if the script has matched

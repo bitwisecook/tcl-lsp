@@ -1033,6 +1033,59 @@ puts $d
             f"unexpected dict result: {out!r}"
         )
 
+    def test_rename_builtin_round_trip(self):
+        # ``rename list l.new`` must mask ``list`` (so subsequent
+        # ``[list ...]`` calls surface ``invalid command name "list"``)
+        # while making ``[l.new ...]`` dispatch to the BUILTIN's
+        # handler.  ``rename l.new list`` must restore the BUILTIN.
+        # See rename.test rename-2.1.  This pins the FORWARD/MASKED
+        # mechanism added to ``runtime/zig/cmds/tcl_cmd_interp.zig``
+        # and ``runtime/zig/interp/tcl_procs.zig``.
+        source = """\
+rename list l.new
+set a [catch list msg1]
+set b [l.new x y z]
+rename l.new list
+set c [catch l.new msg2]
+set d [list 111 222]
+puts "$a|$msg1|$b|$c|$msg2|$d"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == (
+            '1|invalid command name "list"|x y z|'
+            '1|invalid command name "l.new"|111 222\n'
+        ), f"got {out!r}"
+
+    def test_rename_builtin_delete(self):
+        # ``rename BUILTIN ""`` is the deletion form — the BUILTIN
+        # becomes ``invalid command name`` and stays that way until
+        # the proc is reinstated.
+        source = """\
+rename llength ""
+set a [catch {llength {a b c}} m]
+puts "$a|$m"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == '1|invalid command name "llength"\n', f"got {out!r}"
+
+    def test_rename_protected_builtins_refused(self):
+        # ``return`` and ``error`` are hardcoded protected — a
+        # rename attempt must surface ``can't rename "X": built-in
+        # command`` rather than silently masking the dispatch.
+        source = """\
+catch {rename return foo} ret
+catch {rename error bar} err
+puts "$ret|$err"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == (
+            'can\'t rename "return": built-in command|'
+            'can\'t rename "error": built-in command\n'
+        ), f"got {out!r}"
+
     def test_dict_for_compiled_canonical_name(self):
         # ``dict for {k v} D body`` is canonicalised by the CFG to
         # ``::tcl::dict::for {k v} D body`` so static-foreach-like
@@ -2193,7 +2246,7 @@ class TestDiagMap:
             # "xabcdef" is 7 chars — previously the trap would have
             # written 6-char "xabcde" with the trailing 'f' lost to
             # the ``]``-consumed-by-next-word parse.
-            assert "unknown command: xabcdef" in stderr, f"stderr was: {stderr!r}"
+            assert 'invalid command name "xabcdef"' in stderr, f"stderr was: {stderr!r}"
 
     def test_runtime_trap_emits_site_prefix(self):
         # End-to-end: trigger an unknown command through the eval
@@ -2209,7 +2262,7 @@ class TestDiagMap:
             # The resolver must map the site back to our source file.
             resolved = _resolve_trap(trap, stderr, diag)
             assert "t.tcl:1:1" in resolved
-            assert "unknown command: definitely_not_a_command" in resolved
+            assert 'invalid command name "definitely_not_a_command"' in resolved
 
 
 class TestReturnCodeError:

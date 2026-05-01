@@ -127,6 +127,26 @@ array set ::tcl_platform {
     engine          "Tcl"
 }
 
+# ``unknown`` — real tclsh ships an ``::unknown`` proc that handles
+# auto-loading + tab completion + ``$auto_noexec`` exec dispatch.
+# Several test bundles (``rename.test`` 5.1, ``unknown.test``) rename
+# it away as part of their setup and re-instate it later with
+# ``info body unknown``.  Without a stub of our own ``info body
+# unknown.old`` traps with ``"unknown.old" isn't a procedure`` and
+# the bundle aborts before reaching its tcltest summary.
+#
+# The minimal ``unknown`` body emits the standard error string Tcl
+# would produce for any unknown command — same surface as
+# ``error_invalid_command_name`` in the runtime — so tests that
+# *invoke* unknown via a typo see the expected message.  Wrapped in
+# ``eval`` so it goes through the interpreted ``proc`` path; ``info
+# body`` only works on interpreted procs.
+eval {
+    proc ::unknown {args} {
+        return -code error "invalid command name \"[lindex $args 0]\""
+    }
+}
+
 # tcltest.tcl line 919 calls ``auto_load ::parray`` followed by
 # ``proc tcltest::parray {a {pattern *}} [info body ::parray]``.
 # Tcl's auto-loading machinery is not implemented here, so we

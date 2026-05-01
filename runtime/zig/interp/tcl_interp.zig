@@ -1208,6 +1208,26 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         const c: *tcl_coro.Coro = @ptrFromInt(rec_addr);
         return tcl_coro.resume_one(c);
     }
+    // ``CMD_BUILTIN_FORWARD`` Commands wrap a hardcoded BUILTIN's
+    // handler — set by ``rename BUILTIN newName`` so ``newName``
+    // dispatches the original handler with the caller's words[].
+    if ((cmd_flags & procs.CMD_BUILTIN_FORWARD) != 0) {
+        const handler_addr: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_PARAMS_OBJ));
+        const reg = @import("../dispatch/tcl_cmd_registry.zig");
+        const handler: reg.HandlerFn = @ptrFromInt(handler_addr);
+        return handler(words);
+    }
+    // ``CMD_BUILTIN_MASKED`` Commands are tombstones — set by
+    // ``rename BUILTIN ""`` so a subsequent ``[BUILTIN ...]`` call
+    // surfaces ``invalid command name "BUILTIN"`` instead of
+    // dispatching through the BUILTIN cmd_table.  Matches reference
+    // Tcl's ``TclEvalObjvInternal`` error verbatim — rename.test
+    // 1.2 / 2.1 grep for it explicitly.
+    if ((cmd_flags & procs.CMD_BUILTIN_MASKED) != 0) {
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.error_invalid_command_name(words[0]);
+        return 0;
+    }
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge
     // because pure WASM can't call across modules.  The bridge
