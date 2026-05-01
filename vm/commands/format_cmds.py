@@ -212,8 +212,10 @@ def _cmd_scan(interp: TclInterp, args: list[str]) -> TclResult:
             conv = fmt[fmt_pos]
             fmt_pos += 1
 
-            # All conversions except %c skip leading whitespace.
-            if conv != "c":
+            # All conversions except %c and %n skip leading whitespace.
+            # %c is character-exact; %n records position without consuming
+            # input, so neither should advance str_pos through whitespace.
+            if conv != "c" and conv != "n":
                 while str_pos < len(string) and string[str_pos].isspace():
                     str_pos += 1
 
