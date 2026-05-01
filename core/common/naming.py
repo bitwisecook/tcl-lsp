@@ -2,6 +2,35 @@
 
 from __future__ import annotations
 
+from typing import NewType
+
+# Typed wrappers (NewType, runtime-equivalent to ``str``) that distinguish
+# raw token text — what the user typed, with no resolution applied — from
+# resolved canonical names produced by the lowering-time canonicalisation
+# helpers.  Static type checkers (mypy, ty) flag accidental mixing; at
+# runtime both are plain strings, so existing string-typed APIs (e.g.
+# ``IRCall.canonical_command: str``) keep working without conversion.
+# Adopt incrementally — annotating a new helper with ``CanonicalCommand``
+# documents its contract to readers and to the type checker.
+# See issue #246 for the canonicalisation contract.
+CanonicalCommand = NewType("CanonicalCommand", str)
+"""``::ns::cmd`` form of a Tcl command name, post alias / namespace-import
+/ rename resolution.  Stamped on ``IRCall.canonical_command`` /
+``IRBarrier.canonical_command`` at lowering."""
+
+CanonicalVar = NewType("CanonicalVar", str)
+"""Canonical Tcl variable name — bare locals stay bare, qualified
+``::ns::v`` stays qualified.  The bare/qualified distinction is
+semantically meaningful (local vs global) and is preserved by
+:func:`to_canonical_var`; per-call-site scope resolution (``global`` /
+``variable`` / ``upvar`` declarations) is the analyser's job and is
+not folded into this form."""
+
+RawCommandText = NewType("RawCommandText", str)
+"""Raw command word as written at the call site.  Stamped on
+``IRCall.command`` / ``IRBarrier.command`` for diagnostic rendering and
+source-fidelity passes (formatter, refactor)."""
+
 
 def normalise_var_name(name: str) -> str:
     """Normalise Tcl variable forms to their base name."""
