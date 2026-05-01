@@ -39,13 +39,18 @@
 const obj = @import("../valtypes/tcl_obj.zig");
 const builtin = @import("builtin");
 
-// Test builds replace the host bridge with a Zig-side stub: the
-// unit-test binaries reach ``tcl_dispatch`` transitively (every
-// ``tcl_runtime`` import drags it in via the command table) but
-// never exercise the cross-context call path, so a no-op stub
-// satisfies the WASM link without making every test embedder wire
-// up an actual proc-dispatch import.  Production embedders
-// continue to provide the real ``env::call_compiled_proc``.
+// Test builds replace the host bridge with a Zig-side stub that
+// panics if invoked: the unit-test binaries reach
+// ``tcl_dispatch`` transitively (every ``tcl_runtime`` import
+// drags it in via the command table) but should never exercise
+// the cross-context call path.  Returning 0 silently would look
+// like a successful empty Tcl result — and the contract above
+// already documents that 0 is a valid result, so the host bridge
+// must trap on dispatch failure.  Mirror that here so any test
+// that accidentally walks into this path surfaces the missing
+// wiring instead of producing a false-positive pass.  Production
+// embedders continue to provide the real
+// ``env::call_compiled_proc``.
 const env_call_compiled = if (builtin.is_test) struct {
     pub fn call_compiled_proc(
         name_ptr: i32,
@@ -54,7 +59,7 @@ const env_call_compiled = if (builtin.is_test) struct {
         argc: i32,
     ) i32 {
         _ = .{ name_ptr, name_len, argv_ptr, argc };
-        return 0;
+        @panic("test build: call_compiled_proc invoked — proc dispatch is not wired in unit tests");
     }
 } else struct {
     pub extern "env" fn call_compiled_proc(
