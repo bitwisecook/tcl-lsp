@@ -3173,10 +3173,7 @@ class TestFconfigureQuery:
         # The single-option query form returns the raw value (not
         # list-element-quoted).  An eofchar of ``Z`` should round-trip
         # as ``Z``, not ``{Z}``.
-        source = (
-            "fconfigure stdout -eofchar Z -translation lf\n"
-            "puts [fconfigure stdout -eofchar]\n"
-        )
+        source = "fconfigure stdout -eofchar Z -translation lf\nputs [fconfigure stdout -eofchar]\n"
         wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
         result = _run_wasm(wasm, capture_stdout=True)
         assert result[1] == "Z\n"
@@ -3216,9 +3213,7 @@ class TestFconfigureQuery:
             pytest.fail("expected trap")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "expected integer value for -buffersize" in stderr, (
-                f"stderr: {stderr!r}"
-            )
+            assert "expected integer value for -buffersize" in stderr, f"stderr: {stderr!r}"
 
 
 class TestExternalTcllibCounter:

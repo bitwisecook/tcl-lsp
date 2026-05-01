@@ -54,9 +54,7 @@ def _emit_fconfigure(
             # empty values — ``fconfigure $fd -eofchar {}`` would
             # otherwise be emitted as bare ``-eofchar`` and silently
             # turn into a query at the runtime call.
-            quoted = [
-                _tcl_list_quote(a, first=(i == 0)) for i, a in enumerate(rest)
-            ]
+            quoted = [_tcl_list_quote(a, first=(i == 0)) for i, a in enumerate(rest)]
             emitter._emit_obj_literal(" ".join(quoted))
         else:
             # Mixed literal + dynamic — fall back to the eval
