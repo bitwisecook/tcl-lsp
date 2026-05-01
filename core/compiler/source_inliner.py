@@ -33,6 +33,9 @@ runtime ``source`` builtin unchanged):
   caller's filename so the join resolves to a sibling.
 """
 
+# canonicalisation: audited #246
+
+
 from __future__ import annotations
 
 import re
@@ -118,7 +121,7 @@ def _is_static_source_call(stmt: IRStatement) -> tuple[bool, str | None]:
     """
     if not isinstance(stmt, IRCall):
         return False, None
-    if stmt.command != "source":
+    if stmt.canonical_command != "::source":
         return False, None
     args = list(stmt.args)
     while args and args[0].startswith("-"):

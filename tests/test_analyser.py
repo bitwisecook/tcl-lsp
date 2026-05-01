@@ -2362,3 +2362,51 @@ class TestTclOOClassExtraction:
         """)
         result = analyse(source)
         assert "Dog" in result.global_scope.classes
+
+
+class TestCanonicalisationMatrix:
+    """Issue #246 — diagnostics that switch on a command name must hit
+    identically for bare, qualified, aliased, and namespace-imported
+    spellings of the same Tcl built-in.
+
+    Each test runs the analyser on a small fixture that exercises one
+    spelling variant of the same call shape and asserts that the
+    expected diagnostic code fires (or doesn't) the same number of
+    times as for the bare-name variant.
+    """
+
+    @staticmethod
+    def _w213_count(source: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "W213")
+
+    def test_w213_unset_bare(self):
+        # ``unset $x`` on a possibly-undefined ``x`` triggers W213.
+        # Bare form is the baseline.
+        n = self._w213_count("proc f {} { unset x }")
+        assert n == 1, f"expected one W213 for bare unset, got {n}"
+
+    def test_w213_unset_qualified(self):
+        # ``::unset`` is the qualified form of the same builtin —
+        # should fire the same diagnostic.
+        n = self._w213_count("proc f {} { ::unset x }")
+        assert n == 1, f"expected one W213 for ::unset, got {n}"
+
+    def test_w213_unset_via_interp_alias(self):
+        # ``interp alias {} myunset {} unset`` then ``myunset x`` is
+        # an aliased form — lowering rewrites the call to the alias's
+        # target so canonical_command becomes ``::unset`` and the
+        # W213 path fires identically.
+        source = "interp alias {} myunset {} unset\nproc f {} { myunset x }"
+        n = self._w213_count(source)
+        assert n == 1, f"expected one W213 for interp-aliased unset, got {n}"
+
+    def test_w213_unset_nocomplain_silenced(self):
+        # ``-nocomplain`` opts out of the read-before-set check — the
+        # canonicalisation work must not regress this silencer.
+        n = self._w213_count("proc f {} { unset -nocomplain x }")
+        assert n == 0, f"expected no W213 with -nocomplain, got {n}"
+
+    def test_w213_unset_qualified_nocomplain_silenced(self):
+        n = self._w213_count("proc f {} { ::unset -nocomplain x }")
+        assert n == 0, f"expected no W213 with ::unset -nocomplain, got {n}"

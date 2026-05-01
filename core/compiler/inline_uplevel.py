@@ -99,6 +99,8 @@ body into the caller's IR.  Downstream:
   can reclaim them in a separate step.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -251,7 +253,7 @@ def _is_param_body_passthrough(proc: IRProcedure) -> bool:
     stmt = stmts[0]
     if not isinstance(stmt, IRBarrier):
         return False
-    if stmt.command != "uplevel":
+    if stmt.canonical_command != "::uplevel":
         return False
     tokens = stmt.tokens
     if tokens is None:
@@ -293,9 +295,9 @@ def _body_has_frame_reach(script: IRScript) -> bool:
     for stmt in script.statements:
         if isinstance(stmt, IRUpFrame):
             return True
-        if isinstance(stmt, IRBarrier) and stmt.command in ("uplevel", "upvar"):
+        if isinstance(stmt, IRBarrier) and stmt.canonical_command in ("::uplevel", "::upvar"):
             return True
-        if isinstance(stmt, IRCall) and stmt.command in ("upvar",):
+        if isinstance(stmt, IRCall) and stmt.canonical_command == "::upvar":
             return True
         if _has_frame_reach_in_children(stmt):
             return True

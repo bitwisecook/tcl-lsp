@@ -1,9 +1,12 @@
 """Lowering hooks for expr and return."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
+from ...common.alias import CommandAliasMap
 from ..ir import (
     IRBarrier,
     IRExprEval,
@@ -14,7 +17,15 @@ if TYPE_CHECKING:
     from ..lowering import _Command
 
 
-def lower_expr(lowerer: object, cmd: _Command) -> object | None:
+class _LowererLike(Protocol):
+    """Minimal protocol for the lowerer interface used by hooks."""
+
+    _command_aliases: CommandAliasMap
+
+    def canonicalise_command(self, cmd_name: str) -> str: ...
+
+
+def lower_expr(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``expr`` with a single braced argument to IRExprEval."""
     from ...parsing.expr_parser import parse_expr as _parse_expr
 
@@ -30,9 +41,8 @@ def lower_expr(lowerer: object, cmd: _Command) -> object | None:
     return IRExprEval(range=cmd.range, expr=_parse_expr(args[0]))
 
 
-def lower_return(lowerer: object, cmd: _Command) -> object | None:
+def lower_return(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``return`` to IRReturn or IRBarrier for options."""
-    from ...common.alias import CommandAliasMap
     from ...common.alias import expr_alias_names as _expr_alias_names
     from ...parsing.command_shapes import extract_single_expr_argument
     from ...parsing.expr_parser import parse_expr as _parse_expr
@@ -47,6 +57,7 @@ def lower_return(lowerer: object, cmd: _Command) -> object | None:
             range=cmd.range,
             reason="return with expansion",
             command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
             args=tuple(args),
             tokens=cmd.cmd_tokens,
         )
@@ -55,6 +66,7 @@ def lower_return(lowerer: object, cmd: _Command) -> object | None:
             range=cmd.range,
             reason="return with options",
             command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
             args=tuple(args),
             tokens=cmd.cmd_tokens,
         )

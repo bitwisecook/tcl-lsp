@@ -88,3 +88,63 @@ def lookup_alias_for_word(
     """
     qualified = normalise_qualified_name(word)
     return aliases.get(qualified)
+
+
+def to_canonical_command(
+    name: str,
+    *,
+    namespace: str = "::",
+    aliases: CommandAliasMap | None = None,
+) -> str:
+    """Resolve a written command name to its canonical fully-qualified form.
+
+    The result is the namespace-qualified ``::ns::cmd`` form that downstream
+    analysis, optimiser, and registry queries should match against — every
+    consumer that today switches on a literal command-name string (e.g.
+    ``stmt.command == "unset"``) should compare against the canonical form
+    (``stmt.canonical_command == "::unset"``) so an explicitly qualified
+    spelling, an ``interp alias``, and a namespace-import all hit the same
+    branch.  See issue #246 for the full context.
+
+    Resolution steps:
+
+    1. **Alias resolution.**  If *name* matches an entry in *aliases* (via
+       :func:`resolve_alias`'s namespace-aware lookup), follow the alias
+       chain to its terminal target.  A self-referential alias breaks the
+       chain at the first repeat to avoid infinite loops.
+    2. **Qualified normalisation.**  The terminal name is normalised to
+       fully-qualified ``::ns::cmd`` form via
+       :func:`normalise_qualified_name`.  Bare names become global
+       (``::cmd``) — the conservative default that matches Tcl's
+       resolution when no namespace shadow exists.
+
+    What this *does not* do (yet — tracked under #246):
+
+    - Namespace shadowing: a bare call ``foo`` inside ``namespace eval ns``
+      may resolve to ``::ns::foo`` if defined, otherwise to ``::foo``.
+      Without a full module scan we cannot tell, so we conservatively pick
+      the global form.  Future per-call-site resolution that consults the
+      lowered procedure table will tighten this.
+    - Namespace-import shortcuts: ``namespace import ::other::foo``
+      followed by a bare ``foo`` should canonicalise to ``::other::foo``.
+      Captured imports live on ``IRModule.namespace_imports`` and need
+      module-level resolution; not threaded into this helper yet.
+    - ``rename old new``: a renamed command's identity changes at runtime;
+      static canonicalisation can only follow renames whose ``old``/``new``
+      are literal at the rename site, and the lowerer doesn't capture
+      rename state today.
+    """
+    if aliases:
+        seen: set[str] = set()
+        current = name
+        while current not in seen:
+            seen.add(current)
+            resolved = resolve_alias(current, aliases, namespace=namespace)
+            if resolved is None:
+                break
+            target, _prepended = resolved
+            if target == current:
+                break
+            current = target
+        name = current
+    return normalise_qualified_name(name)

@@ -20,6 +20,8 @@ The pass also generalises to **any** ``*::uri`` command that has
 sibling ``*::path`` and/or ``*::query`` commands in the registry.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -731,7 +733,7 @@ def _extract_split_info(
     Handles both ``IRCall`` (standalone ``split``) and ``IRAssignValue``
     (``set var [split ...]``).  Returns ``None`` if not a split call.
     """
-    if isinstance(stmt, IRCall) and stmt.command == "split":
+    if isinstance(stmt, IRCall) and stmt.canonical_command == "::split":
         if len(stmt.args) < 2:
             return None
         sep = _resolve_literal(stmt.args[1], sccp_values, ssa_stmt.uses)

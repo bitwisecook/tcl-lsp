@@ -1,5 +1,7 @@
 """Lowering hooks for variable-related commands: set, incr, append, lappend, unset, global, variable, upvar."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
@@ -25,6 +27,8 @@ class _LowererLike(Protocol):
     """Minimal protocol for the lowerer interface used by hooks."""
 
     _command_aliases: CommandAliasMap
+
+    def canonicalise_command(self, cmd_name: str) -> str: ...
 
 
 def _parse_expr(expr_text: str):  # noqa: ANN202
@@ -58,14 +62,32 @@ def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
     # through to a generic IRCall so arity checks and the expanded
     # codegen path see the full token list.
     if cmd.expand_word is not None and any(cmd.expand_word):
-        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
+        return IRCall(
+            range=cmd.range,
+            command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
     if not args:
-        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
+        return IRCall(
+            range=cmd.range,
+            command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
     name = args[0]
     if arg_tokens and arg_single[0] and arg_tokens[0].type is TokenType.ESC and "\\" in name:
         name = _tcl_backsubst(name)
     if len(args) < 2 or len(args) > 2:
-        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
+        return IRCall(
+            range=cmd.range,
+            command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
     value = args[1]
     value_needs_backsubst = False
     if len(arg_tokens) > 1 and len(arg_single) > 1 and arg_single[1]:
@@ -91,15 +113,27 @@ def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
     )
 
 
-def lower_incr(lowerer: object, cmd: _Command) -> object | None:
+def lower_incr(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``incr`` to IRIncr."""
     args = cmd.args
     # {*} expansion hides the real arg count — keep as a generic call
     # so the specialised IRIncr path isn't given wrong indices.
     if cmd.expand_word is not None and any(cmd.expand_word):
-        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
+        return IRCall(
+            range=cmd.range,
+            command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
     if not args or len(args) > 2:
-        return IRCall(range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens)
+        return IRCall(
+            range=cmd.range,
+            command=cmd.name,
+            canonical_command=lowerer.canonicalise_command(cmd.name),
+            args=tuple(args),
+            tokens=cmd.cmd_tokens,
+        )
     name = args[0]
     amount = args[1] if len(args) > 1 else None
     return IRIncr(
@@ -118,7 +152,7 @@ def _check_safe_on_uninit(command: str, subcommand: str | None = None) -> bool:
     return REGISTRY.is_safe_on_uninit(command, subcommand, active_dialect())
 
 
-def lower_append_lappend(lowerer: object, cmd: _Command) -> object | None:
+def lower_append_lappend(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``append``/``lappend`` to IRCall with defs."""
     args = cmd.args
     if not args:
@@ -127,6 +161,7 @@ def lower_append_lappend(lowerer: object, cmd: _Command) -> object | None:
     return IRCall(
         range=cmd.range,
         command=cmd.name,
+        canonical_command=lowerer.canonicalise_command(cmd.name),
         args=tuple(args),
         defs=(name,),
         reads_own_defs=True,
@@ -135,7 +170,7 @@ def lower_append_lappend(lowerer: object, cmd: _Command) -> object | None:
     )
 
 
-def lower_unset(lowerer: object, cmd: _Command) -> object | None:
+def lower_unset(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``unset`` to IRCall with defs."""
     args = cmd.args
     i = 0
@@ -151,6 +186,7 @@ def lower_unset(lowerer: object, cmd: _Command) -> object | None:
     return IRCall(
         range=cmd.range,
         command=cmd.name,
+        canonical_command=lowerer.canonicalise_command(cmd.name),
         args=tuple(args),
         defs=var_names,
         reads_own_defs=not nocomplain,
@@ -158,7 +194,7 @@ def lower_unset(lowerer: object, cmd: _Command) -> object | None:
     )
 
 
-def lower_global(lowerer: object, cmd: _Command) -> object | None:
+def lower_global(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``global`` to IRCall with defs."""
     args = cmd.args
     if not args:
@@ -167,26 +203,28 @@ def lower_global(lowerer: object, cmd: _Command) -> object | None:
     return IRCall(
         range=cmd.range,
         command=cmd.name,
+        canonical_command=lowerer.canonicalise_command(cmd.name),
         args=tuple(args),
         defs=var_names,
         tokens=cmd.cmd_tokens,
     )
 
 
-def lower_variable(lowerer: object, cmd: _Command) -> object | None:
+def lower_variable(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``variable`` to IRCall with defs."""
     args = cmd.args
     var_names = tuple(_normalise_var_name(args[i]) for i in range(0, len(args), 2))
     return IRCall(
         range=cmd.range,
         command=cmd.name,
+        canonical_command=lowerer.canonicalise_command(cmd.name),
         args=tuple(args),
         defs=var_names,
         tokens=cmd.cmd_tokens,
     )
 
 
-def lower_upvar(lowerer: object, cmd: _Command) -> object | None:
+def lower_upvar(lowerer: _LowererLike, cmd: _Command) -> object | None:
     """Lower ``upvar`` to IRCall with defs."""
     args = cmd.args
     if len(args) < 2:
@@ -196,6 +234,7 @@ def lower_upvar(lowerer: object, cmd: _Command) -> object | None:
     return IRCall(
         range=cmd.range,
         command=cmd.name,
+        canonical_command=lowerer.canonicalise_command(cmd.name),
         args=tuple(args),
         defs=my_vars,
         tokens=cmd.cmd_tokens,

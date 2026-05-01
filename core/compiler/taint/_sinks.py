@@ -1,5 +1,8 @@
 """Sink detection and warning generation for taint analysis."""
 
+# canonicalisation: audited #246
+
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -798,7 +801,7 @@ def _find_destructive_file_warnings(
 
             if not isinstance(stmt, IRCall):
                 continue
-            if stmt.command != "file":
+            if stmt.canonical_command != "::file":
                 continue
             if not stmt.args or stmt.args[0] not in destructive_subs:
                 continue
