@@ -51,10 +51,15 @@ fn eval_after(words: []const i32) i32 {
             return 0;
         }
         // Concatenate remaining words; either a single id or a
-        // multi-word script.
-        const arg = if (words.len == 3) words[2] else concat_scripts(words[2..]);
+        // multi-word script.  ``concat_scripts`` returns ``words[2]``
+        // verbatim for the 1-arg case (no allocation) and a fresh
+        // TclObj for the multi-arg case — release the latter once
+        // we're done so MM-B.4 word cleanup doesn't leak it.
+        const multi_word = words.len > 3;
+        const arg = if (multi_word) concat_scripts(words[2..]) else words[2];
         const ar = obj.obj_ensure_string(arg);
         _ = sched.cancel_by_token(ar.ptr, ar.len);
+        if (multi_word) obj.tcl_obj_release(arg);
         return obj.obj_new_string(0, 0);
     }
 
@@ -80,8 +85,16 @@ fn eval_after(words: []const i32) i32 {
             stubs.raise("wrong # args: should be \"after idle script ?script ...?\"");
             return 0;
         }
-        const body = concat_scripts(words[2..]);
-        return sched.schedule_idle(body);
+        // Multi-word form allocates a fresh concat TclObj.
+        // ``schedule_idle`` retains it; we release our +1 so the
+        // scheduler is the sole owner.  Single-word form passes
+        // ``words[2]`` straight through (parsed-array ref released
+        // by MM-B.4 word cleanup).
+        const multi_word = words.len > 3;
+        const body = if (multi_word) concat_scripts(words[2..]) else words[2];
+        const id = sched.schedule_idle(body);
+        if (multi_word) obj.tcl_obj_release(body);
+        return id;
     }
 
     // First arg is ms.  Either ``after MS`` (sleep) or ``after MS script...``.
@@ -101,8 +114,14 @@ fn eval_after(words: []const i32) i32 {
         sched.sleep_ms(ms);
         return obj.obj_new_string(0, 0);
     }
-    const body = concat_scripts(words[2..]);
-    return sched.schedule_after(ms, body);
+    // Same temp-TclObj ownership pattern as the idle / cancel
+    // branches above — release our +1 from concat_scripts so
+    // ``schedule_after``'s retain is the sole owner.
+    const multi_word = words.len > 3;
+    const body = if (multi_word) concat_scripts(words[2..]) else words[2];
+    const id = sched.schedule_after(ms, body);
+    if (multi_word) obj.tcl_obj_release(body);
+    return id;
 }
 
 pub const registrations = [_]reg.CmdEntry{

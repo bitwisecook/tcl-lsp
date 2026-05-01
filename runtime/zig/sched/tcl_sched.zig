@@ -62,11 +62,10 @@ pub fn reset() void {
     g_next_id = 1;
 }
 
-/// Number of pending entries across timers + idle + fileevent
-/// handlers.  The fileevent count is conservative: we count each
-/// channel that has any handler installed (Stage 1 never fires
-/// fileevents, but ``update`` should still see them as "events
-/// pending" to model the real Tcl shape.)
+/// Number of pending entries across the timer heap + idle queue.
+/// Fileevent handlers are intentionally NOT counted: Stage 1 never
+/// fires them so they're not "events pending" — the real Tcl shape
+/// folds them in once Stage 3 wires the WASI ``poll_oneoff`` path.
 pub fn pending_count() u32 {
     return g_timers.len + g_idle.count();
 }
@@ -310,19 +309,31 @@ fn run_script_obj(script_obj: i32) void {
     const interp = @import("../interp/tcl_interp.zig");
     const s = obj_ensure_string(script_obj);
     if (s.len == 0) return;
-    // Save / clear the four signal flags around the dispatch so an
-    // error inside one scheduled script doesn't poison subsequent
-    // events on the same drain.  Stage 4 will route errors through
-    // ``bgerror``; for v1 we just swallow them after writing to
-    // stderr.
+    // Save / clear the four signal flags AND their associated payload
+    // globals around the dispatch so an error / return raised inside
+    // a scheduled script doesn't poison subsequent events on the same
+    // drain.  Without snapshotting ``error_msg`` / ``return_val`` /
+    // ``yield_value`` alongside the flags, a payload TclObj produced
+    // by the scheduled script would leak (we'd overwrite the slot
+    // when restoring the flag without releasing).  Stage 4 will route
+    // errors through ``bgerror``; for v1 we just swallow them after
+    // writing to stderr.  Codex / Copilot review on PR #284.
     const saved_err = tcl_catch.error_flag;
+    const saved_err_msg = tcl_catch.error_msg;
     const saved_ret = tcl_catch.return_flag;
+    const saved_ret_val = tcl_catch.return_val;
     const saved_brk = tcl_catch.break_flag;
     const saved_cnt = tcl_catch.continue_flag;
+    const saved_yflag = tcl_catch.yield_flag;
+    const saved_yval = tcl_catch.yield_value;
     tcl_catch.error_flag = 0;
+    tcl_catch.error_msg = 0;
     tcl_catch.return_flag = 0;
+    tcl_catch.return_val = 0;
     tcl_catch.break_flag = 0;
     tcl_catch.continue_flag = 0;
+    tcl_catch.yield_flag = 0;
+    tcl_catch.yield_value = 0;
     _ = interp.eval_script(s.ptr, s.len);
     if (tcl_catch.error_flag != 0) {
         // Write a minimal background-error marker to stderr so the
@@ -337,10 +348,19 @@ fn run_script_obj(script_obj: i32) void {
         var written: usize = undefined;
         _ = std.os.wasi.fd_write(2, &iov, 1, &written);
     }
+    // Release any payload TclObjs the scheduled script left behind so
+    // they don't leak when we discard the signal.
+    if (tcl_catch.error_msg != 0) tcl_obj_release(tcl_catch.error_msg);
+    if (tcl_catch.return_val != 0) tcl_obj_release(tcl_catch.return_val);
+    if (tcl_catch.yield_value != 0) tcl_obj_release(tcl_catch.yield_value);
     tcl_catch.error_flag = saved_err;
+    tcl_catch.error_msg = saved_err_msg;
     tcl_catch.return_flag = saved_ret;
+    tcl_catch.return_val = saved_ret_val;
     tcl_catch.break_flag = saved_brk;
     tcl_catch.continue_flag = saved_cnt;
+    tcl_catch.yield_flag = saved_yflag;
+    tcl_catch.yield_value = saved_yval;
 }
 
 /// Drain one timer that's due (deadline ≤ now), if any.  Returns

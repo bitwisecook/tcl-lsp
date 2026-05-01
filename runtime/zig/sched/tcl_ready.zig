@@ -1,18 +1,14 @@
-// Idle queue + after-id pool for the WASM scheduler.
+// Idle queue for the WASM scheduler.
 //
 // The "ready queue" of expired timers is materialised on-the-fly by
 // the tick loop draining the timer heap; we don't store it
-// separately.  This module owns:
-//
-//   * the FIFO of ``after idle`` scripts (drained by ``update`` and
-//     ``update idletasks``), and
-//
-//   * the live-id table ``after cancel`` consults so an id known
-//     only to the user (not currently in the timer heap because it
-//     was a one-shot ms=0 timer that already ran) returns "no such
-//     id" rather than silently succeeding.  Real Tcl's contract is
-//     "after cancel of an unknown id is a silent no-op", which we
-//     match — the table is an internal invariant for ``after info``.
+// separately.  This module owns the FIFO of ``after idle`` scripts
+// (drained by ``update`` and ``update idletasks``) plus the
+// id/script-bytes lookups ``after cancel`` and ``after info``
+// consult.  It does NOT keep a separate "live-id" table for
+// already-fired one-shots: ``after cancel`` of an unknown id is a
+// silent no-op in real Tcl, which is what we get for free by
+// returning 0 when the queue (and the timer heap) miss.
 //
 // Storage is a singly-linked list anchored in the module's mutable
 // state.  Linked-list nodes are bump-allocated alongside the rest of

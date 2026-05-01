@@ -83,9 +83,12 @@ pub const Coro = struct {
     n_segments: u32,
     next_segment: u32,
     // Stage-2 asyncify state — buffer holds the saved call stack
-    // between yield and resume.  ``buf == 0`` until the first
-    // resume allocates it; thereafter it persists for the
-    // coroutine's lifetime.
+    // between yield and resume.  Allocated at fixed
+    // ``DEFAULT_BUFFER_SIZE`` (16 KB) on the first resume; the
+    // current driver does NOT grow the buffer on overflow — an
+    // unwind that exceeds the buffer would trap inside the
+    // asyncify-generated save code.  Tracked as a Stage 2.5
+    // follow-up alongside the multi-yield rewind issue.
     async_buf: u32,
     async_buf_size: u32,
     state: CoroState,

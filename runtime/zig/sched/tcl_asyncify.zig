@@ -36,10 +36,12 @@
 //        2 = REWINDING (replaying locals out of the buffer)
 //        3 = REWIND_DONE
 //
-// When the runtime is built without ``-Dasyncify=true`` these symbols
-// resolve as unsatisfied imports and the linker fails.  Guard every
-// call site behind ``build_options.asyncify`` so the standard build
-// stays self-contained.
+// When the runtime is built without ``-Dasyncify=true`` the
+// ``env_imports`` struct below switches to no-op stubs so call sites
+// link cleanly with no unsatisfied imports — there is no need to
+// gate individual callers on ``ENABLED``.  Coroutine code does
+// still gate on ``ENABLED`` to skip allocating an asyncify buffer
+// it won't use, but linking is unconditional.
 
 const build_options = @import("build_options");
 
