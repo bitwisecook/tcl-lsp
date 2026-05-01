@@ -906,11 +906,21 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
 /// stored cap is rounded symmetrically with ``alloc``'s own rounding so
 /// ``free_sized`` recycles the slab to the right free-list.
 pub fn obj_new_string_take(buf: u32, len: u32, alloc_size: u32) i32 {
-    const obj = obj_new_string(@bitCast(buf), @bitCast(len));
-    if (obj == 0) return 0;
-    if (buf == 0 or alloc_size == 0) return obj;
+    // Compute the symmetric size class up-front so the OOM cleanup
+    // path can hand ``buf`` back to ``free_sized`` with the same
+    // class the caller's ``alloc`` requested.  Without this the
+    // OOM exit (obj header alloc fails after we already own
+    // ``buf``) would leak the caller-provided buffer — defeating
+    // the whole point of the take-ownership helper (Copilot review
+    // on PR #322).
     const aligned = (alloc_size + 7) & ~@as(u32, 7);
     const cap = if (aligned <= 2048) round_up_to_class(aligned) else aligned;
+    const obj = obj_new_string(@bitCast(buf), @bitCast(len));
+    if (obj == 0) {
+        if (buf != 0 and alloc_size != 0) free_sized(buf, cap);
+        return 0;
+    }
+    if (buf == 0 or alloc_size == 0) return obj;
     write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
     return obj;
 }
