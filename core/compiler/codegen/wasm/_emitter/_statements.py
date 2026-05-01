@@ -321,7 +321,12 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_i32_const(0)
                 self._emit(WasmOp.RETURN)
 
-            case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
+            case IRBarrier(
+                canonical_command=barrier_cmd,
+                args=barrier_args,
+                reason=reason,
+                tokens=barrier_tokens,
+            ):
                 # Barriers are dynamic commands (eval, uplevel, trace,
                 # etc.) that defeat static *analysis* but may still
                 # have concrete runtime implementations we can call
@@ -429,7 +434,18 @@ class _WasmEmitterStmtMixin(_Base):
                         )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
                     else:
-                        self._emit_eval_fallback(barrier_cmd, barrier_args)
+                        # Pass barrier_tokens through so per-arg brace
+                        # information survives.  Without it, an arg
+                        # whose IR text starts with ``[`` (a braced
+                        # description containing brackets, e.g.
+                        # tcltest's ``{[Bug 1234] foo}``) would be
+                        # treated as a command-substitution word and
+                        # passed unquoted into the reassembled
+                        # script — at which point ``tcl_eval`` would
+                        # try to invoke ``Bug 1234`` as a command.
+                        self._emit_eval_fallback(
+                            barrier_cmd, barrier_args, tokens=barrier_tokens
+                        )
                     self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
