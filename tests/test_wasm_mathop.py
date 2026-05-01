@@ -93,3 +93,36 @@ def test_mathop_chain_under_one_arg_returns_true() -> None:
     # Tcl's chain-comparison ops return 1 vacuously for 0 / 1 args.
     assert _run("puts [::tcl::mathop::< 5]") == "1"
     assert _run("puts [::tcl::mathop::<]") == "1"
+
+
+def test_mathop_div_unary_returns_floating_reciprocal() -> None:
+    # ``mathop.n``: with one argument, ``/`` returns ``1.0/x``.  An
+    # integer input still produces a *float* — ``[/ 5]`` is ``0.2``,
+    # not ``0`` (integer floor).  Codex P1 review caught the
+    # earlier integer-floor implementation.
+    assert _run("puts [::tcl::mathop::/ 5]") == "0.2"
+    assert _run("puts [::tcl::mathop::/ 4]") == "0.25"
+    # Unary on a float input keeps the float path.
+    assert _run("puts [::tcl::mathop::/ 2.0]") == "0.5"
+    # Multi-arg integer division still floors as before.
+    assert _run("puts [::tcl::mathop::/ 100 5 2]") == "10"
+
+
+def test_mathop_compare_falls_back_to_string_for_non_numeric() -> None:
+    # ``mathop`` comparison ops compare numerically when both args
+    # are numeric, otherwise lexically.  Without this fallback,
+    # ``obj_get_int("a")`` collapsed every non-numeric string to
+    # ``0`` and every comparison returned vacuously true.
+    assert _run("puts [::tcl::mathop::== a b]") == "0"
+    assert _run("puts [::tcl::mathop::== abc abc]") == "1"
+    assert _run("puts [::tcl::mathop::!= a b]") == "1"
+    assert _run("puts [::tcl::mathop::< a b]") == "1"
+    assert _run("puts [::tcl::mathop::> b a]") == "1"
+    assert _run("puts [::tcl::mathop::<= ab ac]") == "1"
+    assert _run("puts [::tcl::mathop::>= ab ab]") == "1"
+    # Mixed numeric / string falls back to string compare too —
+    # ``"10"`` lexically precedes ``"9"`` because ``'1' < '9'``.
+    assert _run("puts [::tcl::mathop::< 10 9z]") == "1"
+    # Pure numeric still goes through the numeric path.
+    assert _run("puts [::tcl::mathop::== 1 1.0]") == "1"
+    assert _run("puts [::tcl::mathop::< 9 10]") == "1"
