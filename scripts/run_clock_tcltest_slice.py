@@ -91,9 +91,9 @@ def make_runner(bodies: list[tuple[str, str]]) -> str:
         src_parts.append(
             "set _name {" + name + "}\n"
             "if {[catch {" + body + "} _r]} {\n"
-            "    puts \"$_name\\t!$_r\"\n"
+            '    puts "$_name\\t!$_r"\n'
             "} else {\n"
-            "    puts \"$_name\\t$_r\"\n"
+            '    puts "$_name\\t$_r"\n'
             "}\n"
         )
     return "\n".join(src_parts)
@@ -166,7 +166,9 @@ def run_slice(name_pattern: str, label: str, *, max_tests: int = 0) -> dict:
 
     total = len(blocks)
     pct = 100.0 * passed / max(total, 1)
-    print(f"  {elapsed:.1f}s  Total {total} Passed {passed} Failed {failed} (errors {errored})  → {pct:.1f}%")
+    print(
+        f"  {elapsed:.1f}s  Total {total} Passed {passed} Failed {failed} (errors {errored})  → {pct:.1f}%"
+    )
     if mismatches:
         print("  first 10 mismatches:")
         for name, want, got in mismatches:
@@ -206,7 +208,9 @@ def main() -> None:
     grand_failed = sum(s.get("failed", 0) for s in summary)
     if grand_total:
         pct = 100.0 * grand_passed / grand_total
-        print(f"  grand total: {grand_passed}/{grand_total} pass ({grand_failed} fail)  → {pct:.1f}%")
+        print(
+            f"  grand total: {grand_passed}/{grand_total} pass ({grand_failed} fail)  → {pct:.1f}%"
+        )
     for s in summary:
         if "trap" in s:
             print(f"  {s['label']}: TRAPPED")
