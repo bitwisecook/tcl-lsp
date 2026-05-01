@@ -25,6 +25,8 @@ Tcl expression precedence (low → high), following the Tcl man page:
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from ..common.naming import normalise_var_name as _normalise_var_name
 from ..compiler.expr_ast import (
     BinOp,
@@ -280,7 +282,20 @@ def parse_expr(source: str, *, dialect: str | None = None) -> ExprNode:
 
     Returns :class:`ExprRaw` on any error, so the compiler pipeline
     never crashes on malformed expressions.
+
+    Memoised via :func:`_parse_expr_cached` keyed on
+    ``(source, dialect)``.  Hot loops (``for {…} {$i < 100} {…} { … }``)
+    re-evaluate the same condition expression on every iteration, and
+    the VM's ``eval_expr`` calls land here once per evaluation;
+    without the cache, the lexer + parser run thousands of times for
+    text we already parsed.  ``ExprNode`` subclasses are frozen
+    dataclasses, so the cached AST is safe to share across callers.
     """
+    return _parse_expr_cached(source, dialect)
+
+
+@lru_cache(maxsize=4096)
+def _parse_expr_cached(source: str, dialect: str | None) -> ExprNode:
     raw_tokens, has_unknown = tokenise_expr_checked(source, dialect=dialect)
     if has_unknown:
         # Source contained characters the lexer could not classify
