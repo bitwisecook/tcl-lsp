@@ -397,6 +397,12 @@ pub export fn tcl_test_finalize() i32 {
 // Allocate a new TclObj with refcount 1
 pub fn obj_alloc() u32 {
     const ptr = alloc(OBJ_SIZE);
+    // Out-of-memory at the slab layer surfaces as a 0 return.  The
+    // header writes below would panic on the null cast in debug
+    // builds; bail early so the caller's null-check (every
+    // ``obj_new_*`` site below) can convert the OOM into a
+    // catchable Tcl error rather than a hard trap.
+    if (ptr == 0) return 0;
     if (build_options.leak_check) g_alloc_count += 1;
     write_i32(ptr + OBJ_REFCOUNT, 1);
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_STRING);
@@ -417,45 +423,54 @@ pub export fn obj_new_int(value: i64) i32 {
     // and small literals (0, 1, -1, …) take this path.
     if (immediate_box(value)) |tagged| return tagged;
     const ptr = obj_alloc();
+    if (ptr == 0) return 0; // OOM — alloc() set oom_flag.
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_INT);
     write_i64(ptr + OBJ_INT_CACHE, value);
-    return @as(i32, @intCast(ptr));
+    // ``@bitCast`` (not ``@intCast``) — TclObj handles are opaque
+    // bit patterns; allocator addresses above 2 GiB are valid in
+    // wasm32 (4 GiB linear-memory range) and must round-trip
+    // through the i32 handle slot without a debug-build overflow
+    // panic.  Matches the reader sites which use ``@bitCast`` for
+    // ``i32 handle → u32 addr``.  See issue #303.
+    return @bitCast(ptr);
 }
 
 pub export fn obj_new_string(data_ptr: i32, length: i32) i32 {
     const ptr = obj_alloc();
+    if (ptr == 0) return 0; // OOM — alloc() set oom_flag.
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_STRING);
     write_i32(ptr + OBJ_STR_PTR, data_ptr);
     write_i32(ptr + OBJ_STR_LEN, length);
-    return @as(i32, @intCast(ptr));
+    return @bitCast(ptr);
 }
 
 pub export fn obj_new_float(value: f64) i32 {
     const ptr = obj_alloc();
+    if (ptr == 0) return 0; // OOM — alloc() set oom_flag.
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_FLOAT);
     write_i64(ptr + OBJ_INT_CACHE, @bitCast(value));
-    return @as(i32, @intCast(ptr));
+    return @bitCast(ptr);
 }
 
 pub export fn obj_get_float(obj: i32) f64 {
     if (obj == 0) return 0.0;
     // S6.4 — tagged immediate: convert int → float directly.
     if (is_immediate(obj)) return @floatFromInt(immediate_unbox(obj));
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_FLOAT) return @bitCast(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_INT) return @floatFromInt(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_STRING) {
-        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
-        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
     }
     // S6.2 — inline string parses the inline payload through the
     // obj-internal pointer in OBJ_STR_PTR.
     if (tag == TYPE_INLINE_STRING) {
-        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
-        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_float(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @floatFromInt(val);
     }
@@ -470,7 +485,7 @@ pub export fn obj_get_int(obj: i32) i64 {
     if (obj == 0) return 0;
     // S6.4 — tagged immediate: extract the value directly.
     if (is_immediate(obj)) return immediate_unbox(obj);
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
     if (tag == TYPE_FLOAT) {
@@ -478,8 +493,8 @@ pub export fn obj_get_int(obj: i32) i64 {
         return @intFromFloat(fval);
     }
     if (tag == TYPE_STRING) {
-        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
-        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_int(sptr, slen)) |val| {
             write_i32(addr + OBJ_TYPE_TAG, TYPE_INT);
             write_i64(addr + OBJ_INT_CACHE, val);
@@ -508,8 +523,8 @@ pub export fn obj_get_int(obj: i32) i64 {
     // clobber the string bytes the inline encoding shares the
     // OBJ_INT_CACHE slot with.
     if (tag == TYPE_INLINE_STRING) {
-        const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
-        const slen: u32 = @intCast(read_i32(addr + OBJ_STR_LEN));
+        const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+        const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_int(sptr, slen)) |val| return val;
         if (try_parse_float(sptr, slen)) |fval| return @intFromFloat(fval);
         if (try_parse_bool(sptr, slen)) |val| return val;
@@ -649,7 +664,7 @@ pub export fn tcl_obj_retain(obj: i32) void {
     if (obj == 0) return;
     // S6.4 — tagged immediates have no refcount header (immortal).
     if (is_immediate(obj)) return;
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     // PR #237 second-pass review: refuse to retain a deferred-free-
     // queued obj (rc == 0 marker).  Without this guard, the sequence
@@ -756,7 +771,7 @@ pub export fn tcl_obj_release(obj: i32) void {
     // S6.4 — tagged immediates have no refcount and no buffer
     // to free; release is a no-op.
     if (is_immediate(obj)) return;
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc == 0) {
         // Already on the deferred-free queue (rc==0 marker) or
@@ -804,23 +819,23 @@ pub fn obj_str_ptr(obj: i32) u32 {
     // S6.4 — tagged immediates have no string buffer; callers
     // expecting a buffer need ``obj_ensure_string`` first.
     if (is_immediate(obj)) return 0;
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     // S6.2 — inline strings populate ``OBJ_STR_PTR`` with the
     // inline buffer's address (= obj + OBJ_INT_CACHE), so this
     // path needs no special-casing.
-    return @intCast(read_i32(addr + OBJ_STR_PTR));
+    return @bitCast(read_i32(addr + OBJ_STR_PTR));
 }
 
 pub fn obj_str_len(obj: i32) u32 {
     if (is_immediate(obj)) return 0;
-    const addr: u32 = @intCast(obj);
-    return @intCast(read_i32(addr + OBJ_STR_LEN));
+    const addr: u32 = @bitCast(obj);
+    return @bitCast(read_i32(addr + OBJ_STR_LEN));
 }
 
 pub fn obj_type(obj: i32) i32 {
     // S6.4 — tagged immediates always represent integers.
     if (is_immediate(obj)) return TYPE_INT;
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     // S6.2 — inline-string encoding is a representational detail;
     // callers checking ``obj_type`` for ``TYPE_STRING`` shouldn't
@@ -858,9 +873,13 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
         // ``obj_str_ptr``) see a valid pointer transparently.
         // ``str_cap`` stays 0 so ``release_now`` doesn't try to
         // ``free`` an address that's part of the obj header.
-        write_i32(obj + OBJ_STR_PTR, @intCast(obj + OBJ_INT_CACHE));
-        write_i32(obj + OBJ_STR_LEN, @intCast(len));
-        return @intCast(obj);
+        // ``@bitCast`` rather than ``@intCast``: ``obj`` is a u32
+        // allocator address that we round-trip into the i32 obj
+        // handle slot.  Above 2 GiB the signed-narrow form panics in
+        // debug builds — see issue #303.
+        write_i32(obj + OBJ_STR_PTR, @bitCast(obj + OBJ_INT_CACHE));
+        write_i32(obj + OBJ_STR_LEN, @bitCast(len));
+        return @bitCast(obj);
     }
     // Round capacity up to the smallest size class so the recycler
     // can return the slab to the right free-list at end-of-life.
@@ -868,9 +887,9 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     const buf = alloc(cap);
     if (buf == 0) return 0;
     memcpy(buf, src, len);
-    const obj = obj_new_string(@intCast(buf), @intCast(len));
+    const obj = obj_new_string(@bitCast(buf), @bitCast(len));
     if (obj != 0) {
-        write_i32(@as(u32, @intCast(obj)) + OBJ_STR_CAP, @intCast(cap));
+        write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
     }
     return obj;
 }
@@ -979,12 +998,12 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         memcpy(dst_ptr, @intFromPtr(result.ptr), result.len);
         return .{ .ptr = dst_ptr, .len = result.len };
     }
-    const addr: u32 = @intCast(obj);
+    const addr: u32 = @bitCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_STRING) {
         return .{
-            .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
-            .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
+            .ptr = @bitCast(read_i32(addr + OBJ_STR_PTR)),
+            .len = @bitCast(read_i32(addr + OBJ_STR_LEN)),
         };
     }
     // S6.2 — inline strings populate OBJ_STR_PTR with the inline
@@ -992,15 +1011,15 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     // itself; callers must not hold it past the obj's lifetime.
     if (tag == TYPE_INLINE_STRING) {
         return .{
-            .ptr = @intCast(read_i32(addr + OBJ_STR_PTR)),
-            .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
+            .ptr = @bitCast(read_i32(addr + OBJ_STR_PTR)),
+            .len = @bitCast(read_i32(addr + OBJ_STR_LEN)),
         };
     }
-    const sptr: u32 = @intCast(read_i32(addr + OBJ_STR_PTR));
+    const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
     if (sptr != 0) {
         return .{
             .ptr = sptr,
-            .len = @intCast(read_i32(addr + OBJ_STR_LEN)),
+            .len = @bitCast(read_i32(addr + OBJ_STR_LEN)),
         };
     }
     if (tag == TYPE_FLOAT) {

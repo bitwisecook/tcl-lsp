@@ -33,7 +33,7 @@ pub fn unsupported(name: []const u8) void {
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (prefix, 0..) |c, i| buf[i] = c;
     for (name, 0..) |c, i| buf[prefix.len + i] = c;
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -51,7 +51,7 @@ pub fn raise(msg: []const u8) void {
     const buf_addr: u32 = obj.alloc(@intCast(msg.len));
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     for (msg, 0..) |c, i| buf[i] = c;
-    const msg_obj = obj.obj_new_string(@intCast(buf_addr), @intCast(msg.len));
+    const msg_obj = obj.obj_new_string(@bitCast(buf_addr), @bitCast(msg.len));
     catch_mod.tcl_cmd_error(msg_obj);
 }
 
@@ -82,6 +82,6 @@ pub fn unsupported_sub(cmd: []const u8, sub: []const u8) void {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     catch_mod.tcl_cmd_error(msg);
 }

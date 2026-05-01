@@ -142,7 +142,7 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
     } else {
         off = list_elem_quote(buf, off, sv_ptr, sv_len);
     }
-    const new_obj = obj_new_string(@intCast(buf), @intCast(off));
+    const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
     if (new_obj != 0) {
         obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
     }
@@ -167,7 +167,7 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     if (sa.len == 0) {
         const buf = alloc(sb.len * 2 + 4);
         const off = list_elem_quote(buf, 0, sb.ptr, sb.len);
-        return obj_new_string(@intCast(buf), @intCast(off));
+        return obj_new_string(@bitCast(buf), @bitCast(off));
     }
     const buf = alloc(sa.len + sb.len * 2 + 8);
     memcpy(buf, sa.ptr, sa.len);
@@ -176,7 +176,7 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, sb.ptr, sb.len);
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // Copy one list element into *buf* at offset *off*, re-adding the
@@ -250,7 +250,7 @@ pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     // Unbraced element: process backslash escapes.
     const buf = alloc(elem.len);
     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-    return obj_new_string(@intCast(buf), @intCast(out_len));
+    return obj_new_string(@bitCast(buf), @bitCast(out_len));
 }
 
 // Exported: list range — extract elements [first..last] (inclusive).
@@ -286,7 +286,7 @@ pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
             result_len += elem.len;
         }
     }
-    return obj_new_string(@intCast(result_buf), @intCast(result_len));
+    return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
 }
 
 // Exported: tail of a list — elements from *start* onwards.  Used by
@@ -350,7 +350,7 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
         memcpy(result_buf + result_len, e_ptr, e_len);
         result_len += e_len;
     }
-    return obj_new_string(@intCast(result_buf), @intCast(result_len));
+    return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
 }
 
 // Exported: list search — default Tcl ``lsearch`` semantics, which
@@ -415,7 +415,7 @@ pub export fn tcl_cmd_list_reverse(list: i32) i32 {
         // into siblings.
         result_len = append_list_element(result_buf, result_len, s.ptr, elem);
     }
-    return obj_new_string(@intCast(result_buf), @intCast(result_len));
+    return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
 }
 
 // Exported: list insert — ``linsert list index value1 ?value2 ...?``.
@@ -482,7 +482,7 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
         const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
         off = quoter(buf, off, sv.ptr, sv.len);
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // Exported: list replace — ``lreplace list first last ?value1 ...?``.
@@ -553,7 +553,7 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
         const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
         off = quoter(buf, off, sv_ptr, sv_len);
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // Exported: list set — ``lset varName ?index ...? newValue``.
@@ -672,7 +672,7 @@ fn lset_recurse(
             off = append_list_element(buf, off, src_ptr, elem);
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // Exported: list repeat — ``lrepeat count value1 ?value2 ...?``.
@@ -719,5 +719,5 @@ pub export fn tcl_cmd_list_repeat(count: i32, value: i32) i32 {
             off += next_len;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }

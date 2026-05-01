@@ -46,7 +46,7 @@ pub fn subst_flagged(
         if (src[i] == '\\') has_backslash = true;
     }
     if (!has_dollar and !has_bracket and (!do_bs or !has_backslash)) {
-        return obj_new_string(@intCast(wptr), @intCast(wlen));
+        return obj_new_string(@bitCast(wptr), @bitCast(wlen));
     }
     // S6.3: route the two per-piece scratch buffers and every
     // ``esc_ptr`` escape allocation through the arena.  The
@@ -121,8 +121,15 @@ pub fn subst_flagged(
                 while (i < wlen and src[i] != '}') i += 1;
                 const ve = i;
                 if (i < wlen) i += 1;
-                const name_obj = obj_new_string(@intCast(wptr + vs), @intCast(ve - vs));
+                const name_obj = obj_new_string(@bitCast(wptr + vs), @bitCast(ve - vs));
                 const val = frames.var_resolve(name_obj);
+                // Release the temp name TclObj immediately — its
+                // bytes were borrowed from the source script and
+                // the lookup machinery doesn't retain a reference.
+                // Issue #303: each ``${var}`` substitution leaked
+                // one obj header per evaluation and pushed long-
+                // running scripts past the wasm32 4 GiB ceiling.
+                obj_mod.tcl_obj_release(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
@@ -137,7 +144,7 @@ pub fn subst_flagged(
                 {
                     i += 1;
                 }
-                const name_obj = obj_new_string(@intCast(wptr + vstart), @intCast(i - vstart));
+                const name_obj = obj_new_string(@bitCast(wptr + vstart), @bitCast(i - vstart));
                 // Array-element form ``$arr(idx)``: when the next byte
                 // is ``(`` we consume up to the matching ``)``,
                 // recursively substitute the index span (so
@@ -155,6 +162,12 @@ pub fn subst_flagged(
                     if (i < wlen) i += 1; // consume ')'
                     const key_obj = subst_flagged(wptr + ks, ke - ks, do_vars, do_cmds, do_bs);
                     const elem = tcl_array.array_get(name_obj, key_obj);
+                    // Release the per-substitution temps — both
+                    // ``name_obj`` (built from the source span) and
+                    // ``key_obj`` (returned by the recursive
+                    // subst) are scratch.  Issue #303 leak fix.
+                    obj_mod.tcl_obj_release(name_obj);
+                    if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
                     if (elem != 0) {
                         const sv = obj_ensure_string(elem);
                         push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
@@ -164,6 +177,7 @@ pub fn subst_flagged(
                     }
                 } else {
                     const val = frames.var_resolve(name_obj);
+                    obj_mod.tcl_obj_release(name_obj);
                     if (val != 0) {
                         const sv = obj_ensure_string(val);
                         push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
@@ -264,5 +278,5 @@ pub fn subst_flagged(
     // retain the source or copy bytes, subst_flagged keeps the
     // bytes alive (treated as a literal buffer) — same contract
     // the implementation had before this OOM-hardening pass.
-    return obj_new_string(@intCast(buf), @intCast(out));
+    return obj_new_string(@bitCast(buf), @bitCast(out));
 }

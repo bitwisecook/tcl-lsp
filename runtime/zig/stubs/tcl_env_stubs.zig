@@ -76,7 +76,7 @@ pub export fn tcl_cmd_package_cmd(sub: i32, arg: i32) i32 {
             const buf = obj.alloc(1);
             const d: [*]u8 = @ptrFromInt(buf);
             d[0] = '1';
-            return obj.obj_new_string(@intCast(buf), 1);
+            return obj.obj_new_string(@bitCast(buf), 1);
         }
     }
     return obj.obj_new_string(0, 0);
@@ -117,7 +117,7 @@ pub export fn tcl_cmd_apply(lambda: i32, args: i32) i32 {
         else blk: {
             const buf = rt.alloc(elem.len + 4);
             const out_len = rt.copy_unbraced_elem(buf, args_s.ptr + elem.start, elem.len);
-            break :blk rt.obj_new_string(@intCast(buf), @intCast(out_len));
+            break :blk rt.obj_new_string(@bitCast(buf), @bitCast(out_len));
         };
         words_ptr[2 + ai] = elem_obj;
     }

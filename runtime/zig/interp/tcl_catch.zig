@@ -292,7 +292,7 @@ pub fn error_unknown_command(cmd_obj: i32) void {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
         for (0..s.len) |i| buf[prefix.len + i] = src[i];
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     tcl_cmd_error(msg);
 }
 
@@ -326,6 +326,6 @@ pub export fn var_unset_error(name_obj: i32) void {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     tcl_cmd_error(msg);
 }

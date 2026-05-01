@@ -617,12 +617,16 @@ fn render_format(
     if (buf == 0) return obj_new_string(0, 0);
     const out: [*]u8 = @ptrFromInt(buf);
     const off = expand_format(out, 0, fp[0..fmt_len], t, utoff, abbr, loc);
-    const out_obj = obj_new_string(@intCast(buf), @intCast(off));
+    // ``@bitCast`` (not ``@intCast``) — TclObj handles are opaque
+    // bit patterns; allocator addresses above 2 GiB are valid in
+    // wasm32 and would trip the saturating-narrow form's debug
+    // panic.  Issue #303.
+    const out_obj = obj_new_string(@bitCast(buf), @bitCast(off));
     if (out_obj == 0) {
         obj.free_sized(buf, cap);
         return 0;
     }
-    obj.write_i32(@as(u32, @intCast(out_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
+    obj.write_i32(@as(u32, @bitCast(out_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
     return out_obj;
 }
 

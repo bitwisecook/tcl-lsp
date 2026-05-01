@@ -639,7 +639,7 @@ fn dict_rebuild_without_pair(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64) 
     // Without this the rebuilt-dict buffer would leak on every
     // ``dict unset`` (or any caller that releases the returned
     // dict TclObj).
-    const out = obj_new_string(@intCast(buf), @intCast(off));
+    const out = obj_new_string(@bitCast(buf), @bitCast(off));
     if (out == 0) {
         obj.free_sized(buf, cap);
         return 0;
@@ -690,7 +690,7 @@ fn dict_rebuild_with_value(sd_ptr: u32, sd_len: u32, n: i64, target_idx: i64, vp
             }
         }
     }
-    const out = obj_new_string(@intCast(buf), @intCast(off));
+    const out = obj_new_string(@bitCast(buf), @bitCast(off));
     if (out == 0) {
         obj.free_sized(buf, cap);
         return 0;
@@ -724,7 +724,7 @@ fn dict_append_pair(sd_ptr: u32, sd_len: u32, kp: u32, kl: u32, vp: u32, vl: u32
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, vp, vl);
-    const new_obj = obj_new_string(@intCast(buf), @intCast(off));
+    const new_obj = obj_new_string(@bitCast(buf), @bitCast(off));
     if (new_obj != 0) {
         obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(cap));
     }
@@ -806,7 +806,7 @@ pub export fn dict_keys(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // Exported: dict values — return a list of all values in the dict.
@@ -838,7 +838,7 @@ pub export fn dict_values(dict: i32) i32 {
             off += elem.len;
         }
     }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // Exported: dict size — number of key-value pairs.

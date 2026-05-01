@@ -1,6 +1,7 @@
 // ``eval``, ``uplevel`` — script evaluation commands.
 
 const rt  = @import("../tcl_runtime.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 const alloc             = rt.alloc;
@@ -35,7 +36,15 @@ fn eval_eval(words: []const i32) i32 {
                 off += 1;
             }
         }
-        return interp.eval_script(buf, off);
+        // Reclaim the joined-script scratch after eval_script
+        // returns — the bytes only need to live during evaluation
+        // (parser copies tokens into its own structures).  Without
+        // this, every multi-arg ``eval`` leaks ``total`` bytes,
+        // which io.test's tcltest helpers exercised on every test
+        // body and contributed to the leak driving #303.
+        const result = interp.eval_script(buf, off);
+        obj.free_sized(buf, total);
+        return result;
     }
     return 0;
 }
