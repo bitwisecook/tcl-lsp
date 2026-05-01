@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
+from collections import OrderedDict
 
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
@@ -459,23 +461,148 @@ def on_completion(
 
 
 # Hover
+#
+# Eldoc-style clients (Eglot) issue ``textDocument/hover`` on every cursor
+# move, so the handler is structured to absorb bursts cheaply:
+#
+#   * a per-URI counter supersedes older requests when a newer one arrives
+#     for the same document — the older request returns ``None`` after a
+#     short debounce window without doing any work;
+#   * results are cached by ``(uri, version, line, character)`` so repeated
+#     requests at the same point return immediately;
+#   * the actual hover computation runs in a worker thread so a slow hover
+#     does not block the event loop;
+#   * if the cached analysis is not yet ready (fresh ``didChange`` still
+#     analysing in the process pool) we return ``None`` rather than running
+#     a duplicate synchronous parse on the request path.
+
+_HOVER_DEBOUNCE_S = 0.03
+_HOVER_CACHE_MAX = 256
+_hover_seq: dict[str, int] = {}
+_hover_cache: OrderedDict[tuple[str, int | None, int, int], types.Hover | None] = OrderedDict()
+_hover_lock = threading.Lock()
+
+
+def _hover_cache_get(
+    key: tuple[str, int | None, int, int],
+) -> tuple[bool, types.Hover | None]:
+    with _hover_lock:
+        if key in _hover_cache:
+            _hover_cache.move_to_end(key)
+            return True, _hover_cache[key]
+    return False, None
+
+
+def _hover_cache_put(key: tuple[str, int | None, int, int], value: types.Hover | None) -> None:
+    with _hover_lock:
+        _hover_cache[key] = value
+        _hover_cache.move_to_end(key)
+        while len(_hover_cache) > _HOVER_CACHE_MAX:
+            _hover_cache.popitem(last=False)
 
 
 @server.feature(types.TEXT_DOCUMENT_HOVER)
-def on_hover(params: types.HoverParams) -> types.Hover | None:
+async def on_hover(params: types.HoverParams) -> types.Hover | None:
     if not feature_config.hover_enabled:
         return None
+    t0 = time.perf_counter()
     uri = params.text_document.uri
-    source = _get_doc_source(uri)
+    line = params.position.line
+    character = params.position.character
+
+    with _hover_lock:
+        seq = _hover_seq.get(uri, 0) + 1
+        _hover_seq[uri] = seq
+
+    # Debounce: if another hover for the same URI arrives within the
+    # window, drop this one. This collapses Eldoc bursts on rapid cursor
+    # moves to a single computation for the final position.
+    await asyncio.sleep(_HOVER_DEBOUNCE_S)
+    with _hover_lock:
+        if _hover_seq.get(uri, 0) != seq:
+            log.debug(
+                "[timing] hover %.0fms (superseded, uri=%s)",
+                (time.perf_counter() - t0) * 1000,
+                uri,
+            )
+            return None
+
     state = workspace_state.get(uri)
+    version = state.version if state else None
+    cache_key = (uri, version, line, character)
+    hit, cached = _hover_cache_get(cache_key)
+    if hit:
+        log.debug(
+            "[timing] hover %.0fms (cache hit, uri=%s)",
+            (time.perf_counter() - t0) * 1000,
+            uri,
+        )
+        return cached
+
     analysis = state.analysis if state else None
-    return get_hover(
+    if analysis is None:
+        # Fresh analysis is still pending in the diagnostics pipeline.
+        # Return quickly instead of duplicating the parse on the request
+        # thread; the next hover will pick up the cached analysis.
+        # ``_get_doc_source`` can fall back to a pygls workspace lookup,
+        # so it is only called once we know we are going to compute.
+        log.debug(
+            "[timing] hover %.0fms (no analysis, uri=%s)",
+            (time.perf_counter() - t0) * 1000,
+            uri,
+        )
+        return None
+
+    source = _get_doc_source(uri)
+    lines = state.lines if state else None
+    result = await asyncio.to_thread(
+        get_hover,
         source,
-        params.position.line,
-        params.position.character,
+        line,
+        character,
         analysis=analysis,
-        lines=state.lines if state else None,
+        lines=lines,
+        analyse_if_missing=False,
     )
+    # Cache regardless of supersession: the result is correctly keyed by
+    # ``(uri, version, line, character)`` and remains valid for any future
+    # hover at the same point until the document version changes.
+    _hover_cache_put(cache_key, result)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    # Recheck supersession after the threaded compute. If a newer hover
+    # for this URI arrived while we were running, suppress this response
+    # so a slow hover can't race ahead of a newer cursor position.
+    with _hover_lock:
+        if _hover_seq.get(uri, 0) != seq:
+            log.debug(
+                "[timing] hover %.0fms (superseded post-compute, uri=%s)",
+                elapsed_ms,
+                uri,
+            )
+            return None
+    log.debug(
+        "[timing] hover %.0fms (uri=%s, line=%d, char=%d, has_result=%s)",
+        elapsed_ms,
+        uri,
+        line,
+        character,
+        "yes" if result else "no",
+    )
+    return result
+
+
+def _invalidate_hover_cache(uri: str) -> None:
+    """Drop hover cache entries and the request counter for a URI.
+
+    Called from ``did_close`` so that a reopen-with-version-reset (clients
+    commonly reset to ``1`` after close) cannot serve stale hover content
+    keyed on the previous session's matching ``(uri, version, line, char)``.
+    """
+    with _hover_lock:
+        _hover_seq.pop(uri, None)
+        keys = [k for k in _hover_cache if k[0] == uri]
+        for k in keys:
+            _hover_cache.pop(k, None)
 
 
 # Go to definition
