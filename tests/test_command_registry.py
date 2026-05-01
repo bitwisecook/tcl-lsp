@@ -1342,6 +1342,8 @@ class TestCanonicalisationAuditMarkers:
         "core/compiler/codegen/wasm/_emitter/_optimisation.py",
         "core/compiler/codegen/wasm/_emitter/_control_flow.py",
         "core/compiler/codegen/wasm/_emitter/_commands.py",
+        "core/compiler/var_escape/_propagation.py",
+        "core/compiler/var_escape/_cfg_propagation.py",
         "core/diagram/extract.py",
         "core/analysis/_analyser/_diag_commands.py",
         "core/analysis/_analyser/_diag_var_command.py",
@@ -1395,11 +1397,7 @@ class TestCanonicalisationAuditMarkers:
                     continue
                 # Skip docstrings and comment lines that just mention the pattern.
                 stripped = line.lstrip()
-                if (
-                    stripped.startswith("#")
-                    or stripped.startswith('"')
-                    or stripped.startswith("'")
-                ):
+                if stripped.startswith("#") or stripped.startswith('"') or stripped.startswith("'"):
                     continue
                 # Marker check: same line, or any of the preceding
                 # ``marker_lookback`` lines.
