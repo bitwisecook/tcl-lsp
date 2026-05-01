@@ -64,18 +64,44 @@ paths that legitimately want missing-is-fine behaviour:
 
 ## Optimisation: elided checks
 
-The WASM-local mirror path elides the inline check in two cases:
+The WASM-local mirror path elides the inline check only when the
+variable name appears in `self._params` — proc parameters are
+initialised by the call prologue's param-retain before the body
+runs, so the slot is provably bound on every read.
 
-- The variable name appears in `self._params` — proc parameters are
-  initialised by the call prologue's param-retain.
-- The variable's slot is already in `self._first_writes_seen` — a
-  prior IR statement has assigned to it in this proc body.
+For correctness the emitter does **not** use `self._first_writes_seen`
+to skip the check on later reads of a slot.  That set tracks emission
+order, not runtime reachability: a write inside an `if` branch flips
+the flag at compile time, so a follow-up read would take the elision
+fast path even when the branch is not taken at runtime.  The earlier
+shape of this fix did make that elision and silently returned 0 for
+`if {$flag} {set x 1}; set x` when `$flag` was false.  Every
+non-parameter read therefore keeps the inline `i32.eqz` guard and
+raises on the cold zero-slot path.
 
-Eliding here keeps the S5.2 alias-skip peephole (`set x $x` →
-zero-instruction body) firing on the typical proc-local pattern.  See
-[`tests/test_wasm_codegen.py`](../../tests/test_wasm_codegen.py)
+The S5.2 alias-skip peephole (`set x $x` → zero-instruction body) is
+still preserved because:
+
+- The dedicated compile-time `_emit_value` fast path emits a bare
+  `local.get` for bare-name references resolved through `_local_index`
+  (no `i32.eqz` wrap), which is the path the peephole pattern-matches
+  on.
+- The proc-local mirror path's elision for parameters means the typical
+  `set x $x` (where `x` is a param) emits the same straight
+  `local.get` shape today as before issue #263.
+
+See [`tests/test_wasm_codegen.py`](../../tests/test_wasm_codegen.py)
 `test_s52_alias_skip_self_assign` /
 `test_s52_counter_increments` for the coverage.
+
+## Scratch-local reuse
+
+The inline check uses a single per-function scratch i32
+(`_var_unset_check_scratch`, lazily allocated on first read site) for
+the `local.tee` / `i32.eqz` peek.  An earlier shape of this code
+allocated a fresh `_var_check_<n>` slot on every read, which grew the
+locals section linearly with the number of variable reads in a proc.
+Reusing one slot keeps the locals count constant.
 
 ## Regression coverage
 

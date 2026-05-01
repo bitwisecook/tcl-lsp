@@ -75,7 +75,16 @@ class _WasmEmitterVarMixin(_Base):
         unset_err_idx = self._shared_imports.get("tcl_var_unset_error")
         if unset_err_idx is None:
             return False
-        tmp = self._add_extra_local(prefix="_var_check", val_type=ValType.I32)
+        # Reuse a single per-function scratch slot for every unset
+        # peek.  Allocated lazily on first call so functions that
+        # never read a variable don't grow their locals section, and
+        # then reused so a proc with many reads doesn't accumulate one
+        # ``_var_check_<n>`` slot per read site.
+        if self._var_unset_check_scratch is None:
+            self._var_unset_check_scratch = self._add_extra_local(
+                prefix="_var_check", val_type=ValType.I32
+            )
+        tmp = self._var_unset_check_scratch
         self._emit_local_tee(tmp)
         self._emit(WasmOp.I32_EQZ)
         self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))

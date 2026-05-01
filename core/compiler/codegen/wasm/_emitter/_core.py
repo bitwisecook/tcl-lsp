@@ -140,6 +140,14 @@ class _WasmEmitterBase:
         # first use of ``_emit_owned_local_write`` and reused for
         # every wrapped write in this proc.
         self._rc_set_scratch: int | None = None
+        # Issue #263 — single scratch slot for the unset-variable
+        # ``i32.eqz`` peek emitted by ``_emit_unset_check_with_alias``.
+        # Lazily allocated on first use and reused for every read in
+        # this function; without this, a non-trivial proc with N
+        # variable reads grew the locals section by N redundant scratch
+        # i32s, bloating the WASM binary and pushing more
+        # ``_var_check_<n>`` slots through the linker.
+        self._var_unset_check_scratch: int | None = None
         # S5.1 — set of slot indices that have been written at least
         # once during this emitter's body emission.  At the first
         # write (slot not yet in the set) the prior value is provably
