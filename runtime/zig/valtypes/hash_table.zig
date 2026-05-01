@@ -176,6 +176,14 @@ pub fn Table(comptime bucket_size: u32) type {
                     // End of probe chain — fall through to insert.
                     const target = if (first_tombstone != 0) first_tombstone else base;
                     const nbuf = alloc(name_len);
+                    // ``alloc`` returns 0 on OOM (and raises ``oom_flag``).
+                    // Surface as ``null`` so the caller's existing
+                    // "table full" handling path covers OOM too — without
+                    // this guard, ``memcpy`` would call ``@ptrFromInt(0)``
+                    // and trip the debug "cast causes pointer to be null"
+                    // panic.  Leaves the bucket untouched so a retry after
+                    // the OOM clears can still place the entry.
+                    if (nbuf == 0 and name_len != 0) return null;
                     memcpy(nbuf, name_ptr, name_len);
                     write_i32(target, @bitCast(nbuf));
                     write_i32(target + 4, @bitCast(name_len));
@@ -214,6 +222,8 @@ pub fn Table(comptime bucket_size: u32) type {
             // if one was seen.
             if (first_tombstone != 0) {
                 const nbuf = alloc(name_len);
+                // OOM guard mirrors the end-of-probe-chain path above.
+                if (nbuf == 0 and name_len != 0) return null;
                 memcpy(nbuf, name_ptr, name_len);
                 write_i32(first_tombstone, @bitCast(nbuf));
                 write_i32(first_tombstone + 4, @bitCast(name_len));
