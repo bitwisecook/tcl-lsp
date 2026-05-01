@@ -22,7 +22,7 @@ const fixture = @import("runtime_test_fixture.zig");
 // ---- helpers --------------------------------------------------------
 
 fn s(v: []const u8) i32 {
-    return obj.obj_new_string(@intCast(@intFromPtr(v.ptr)), @intCast(v.len));
+    return obj.obj_new_string(@bitCast(@intFromPtr(v.ptr)), @bitCast(v.len));
 }
 
 fn i(v: i64) i32 {

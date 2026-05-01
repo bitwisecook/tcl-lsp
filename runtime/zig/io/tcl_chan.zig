@@ -882,7 +882,7 @@ fn buf_finish(b: ByteBuf) i32 {
         obj.free_sized(b.addr, b.cap);
         return obj_new_string(0, 0);
     }
-    const out = obj_new_string(@intCast(b.addr), @intCast(b.len));
+    const out = obj_new_string(@bitCast(b.addr), @bitCast(b.len));
     if (out != 0) {
         obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
     }

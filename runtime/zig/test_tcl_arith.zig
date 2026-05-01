@@ -27,7 +27,7 @@ fn floatObj(v: f64) i32 {
 }
 
 fn stringObj(s: []const u8) i32 {
-    return obj.obj_new_string(@intCast(@intFromPtr(s.ptr)), @intCast(s.len));
+    return obj.obj_new_string(@bitCast(@intFromPtr(s.ptr)), @bitCast(s.len));
 }
 
 fn expectInt(o: i32, expected: i64) !void {

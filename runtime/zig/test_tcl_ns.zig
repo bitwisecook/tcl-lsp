@@ -242,7 +242,7 @@ test "ns_export with empty pattern is a no-op" {
 // -- global_set / global_get / global_exists -----------------------
 
 fn body_global_set_get_round_trip() void {
-    const name = obj.obj_new_string_copy(@intCast(@intFromPtr("g_value".ptr)), 7);
+    const name = obj.obj_new_string_copy(@bitCast(@intFromPtr("g_value".ptr)), 7);
     _ = ns.global_set(name, obj.obj_new_int(123));
     captured_int = obj.obj_get_int(ns.global_get(name));
     captured_exists = obj.obj_get_int(ns.global_exists(name));
@@ -260,7 +260,7 @@ test "global_set / global_get / global_exists round-trip" {
 }
 
 fn body_global_exists_misses() void {
-    const name = obj.obj_new_string_copy(@intCast(@intFromPtr("never_set_global".ptr)), 16);
+    const name = obj.obj_new_string_copy(@bitCast(@intFromPtr("never_set_global".ptr)), 16);
     captured_exists = obj.obj_get_int(ns.global_exists(name));
 }
 

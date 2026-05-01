@@ -116,7 +116,7 @@ fn format_id(id: u32) i32 {
     const dst: [*]u8 = @ptrFromInt(out);
     var i: u32 = 0;
     while (i < off) : (i += 1) dst[i] = buf[i];
-    return obj_new_string(@intCast(out), @intCast(off));
+    return obj_new_string(@bitCast(out), @bitCast(off));
 }
 
 /// Parse ``after#N``.  Returns the id, or 0 on miss.
@@ -246,7 +246,7 @@ pub fn info_all() i32 {
         off += 1;
     }
     if (off > 0) off -= 1; // strip trailing space
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 fn write_id(dst: [*]u8, off_in: u32, id: u32) u32 {
@@ -300,7 +300,7 @@ fn build_info_pair(script_obj: i32, kind: []const u8) i32 {
     const dst: [*]u8 = @ptrFromInt(buf);
     dst[off] = ' '; off += 1;
     for (kind) |c| { dst[off] = c; off += 1; }
-    return obj_new_string(@intCast(buf), @intCast(off));
+    return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
 // -- Dispatch -----------------------------------------------------------------

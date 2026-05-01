@@ -96,7 +96,7 @@ pub fn eval_read(words: []const i32) i32 {
         if (s.len > 0) {
             const p: [*]const u8 = @ptrFromInt(s.ptr);
             if (p[s.len - 1] == '\n') {
-                return obj_new_string(@intCast(s.ptr), @intCast(s.len - 1));
+                return obj_new_string(@bitCast(s.ptr), @bitCast(s.len - 1));
             }
         }
     }
