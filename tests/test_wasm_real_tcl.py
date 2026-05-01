@@ -539,9 +539,7 @@ def _define_call_compiled_proc(
             # re-entrantly during an active unwind.  Surface the
             # unexpected state loudly so a state-machine bug can't
             # silently hang or corrupt the coroutine.
-            raise RuntimeError(
-                f"coro_yield_unwind: unexpected asyncify state {state}"
-            )
+            raise RuntimeError(f"coro_yield_unwind: unexpected asyncify state {state}")
 
     try:
         linker.define_func("env", "coro_yield_unwind", _arg_i32, _coro_yield_unwind)
