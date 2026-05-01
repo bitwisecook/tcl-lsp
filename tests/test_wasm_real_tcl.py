@@ -180,6 +180,8 @@ def _run_wasm(
     preopen_tmpdir: str | None = None,
     timeout_s: float | None = None,
     memory_size: int | None = None,
+    capabilities: int = 0,
+    host_spawn=None,
 ) -> tuple:
     """Link and run a compiled Tcl WASM module.
 
@@ -252,10 +254,21 @@ def _run_wasm(
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
 
-    tcl_instance_box, memory_box, rt_instance_box = _define_call_compiled_proc(linker, store)
+    tcl_instance_box, memory_box, rt_instance_box = _define_call_compiled_proc(
+        linker, store, host_spawn=host_spawn
+    )
 
     rt_instance = linker.instantiate(store, rt_module)
     rt_instance_box[0] = rt_instance
+
+    # Apply the requested capability mask.  Default is 0 — sandboxed
+    # posture refuses ``exec`` / ``exit`` / ``glob``.  Tests that
+    # need those primitives pass ``capabilities=tcl.CAP_*`` and a
+    # matching ``host_spawn=`` callback (for ``CAP_EXEC``).
+    if capabilities:
+        set_caps_fn = rt_instance.exports(store).get("tcl_set_capabilities")
+        if set_caps_fn is not None:
+            set_caps_fn(store, capabilities)
 
     # WASI reactor initialisation — wasi-libc installs its ctors
     # (preopen-fd scanner, global locks, etc.) in ``_initialize``
@@ -357,6 +370,7 @@ def _run_wasm(
 def _define_call_compiled_proc(
     linker: wasmtime.Linker,
     store: wasmtime.Store,
+    host_spawn=None,
 ) -> tuple[list, list, list]:
     """Register ``env.call_compiled_proc`` on *linker*.
 
@@ -423,6 +437,16 @@ def _define_call_compiled_proc(
         _call_compiled_proc,
     )
 
+    # The runtime always declares ``env.host_spawn`` because
+    # ``cmds/exec.zig`` references it from the (always-kept) BUILTIN
+    # eval_exec handler.  Wire a default stub here so non-cap tests
+    # instantiate cleanly; tests that opt in to ``CAP_EXEC`` pass a
+    # real callback through ``host_spawn=`` and the cap-aware wrapper
+    # in ``_run_wasm`` redefines the import via :func:`_define_host_spawn`
+    # before instantiation.
+    rt_instance_box: list = [None]
+    _define_host_spawn(linker, store, memory_box, rt_instance_box, host_spawn)
+
     # Asyncify-enabled runtime builds (Stage 2 coroutines) declare the
     # five ``asyncify_*`` control functions as ``env`` imports in
     # ``runtime/zig/sched/tcl_asyncify.zig``.  ``wasm-opt --asyncify``
@@ -433,7 +457,6 @@ def _define_call_compiled_proc(
     # the runtime is built without ``-Dasyncify=true`` no module
     # imports the ``env.asyncify_*`` symbols; the linker holds the
     # unused trampoline definitions inert.
-    rt_instance_box: list = [None]
 
     def _make_async_trampoline(name: str, has_arg: bool, has_result: bool):
         def _call(*py_args: int) -> int | None:
@@ -474,6 +497,102 @@ def _define_call_compiled_proc(
             # harness runs the same function across runs in one Store.
             pass
     return tcl_instance_box, memory_box, rt_instance_box
+
+
+def _define_host_spawn(
+    linker: "wasmtime.Linker",
+    store: "wasmtime.Store",
+    memory_box: list,
+    rt_instance_box: list,
+    host_spawn,
+) -> None:
+    """Register ``env.host_spawn`` on *linker*.
+
+    ``host_spawn`` is the host-imported subprocess primitive
+    documented in ``docs/design/compiler/wasm-runtime-primitives.md``.
+    Every compiled WASM module that includes the runtime declares
+    the import, so the linker MUST satisfy it even when
+    ``CAP_EXEC`` is never granted; without the definition the
+    instantiation fails before the runtime gets a chance to refuse
+    the call via the capability gate.
+
+    The default stub (``host_spawn=None``) raises a wasmtime trap
+    matching the runtime's "permission denied" semantics so a test
+    that forgets to pass a real callback fails loudly rather than
+    silently returning empty strings.  Tests that opt in to ``exec``
+    pass a real Python callable that receives the decoded
+    ``(argv, stdin)`` tuple and returns either:
+
+      - a Python ``bytes``/``str`` value (interpreted as captured
+        stdout) — the harness wraps it in a TclObj string and
+        returns the handle, or
+      - ``None`` — the harness raises a Tcl error
+        ``host_spawn: refused`` through the runtime so ``catch``
+        observes a normal error return.
+    """
+
+    def _call(argv_ptr: int, argv_len: int, stdin_ptr: int, stdin_len: int) -> int:
+        rt_inst = rt_instance_box[0]
+        mem = memory_box[0]
+        if rt_inst is None or mem is None:
+            raise RuntimeError("host_spawn called before runtime is wired")
+        if host_spawn is None:
+            raise RuntimeError("host_spawn: not configured (CAP_EXEC granted without callback)")
+        argv_bytes = bytes(mem.data_ptr(store)[argv_ptr : argv_ptr + argv_len])
+        # Strip the trailing NUL added by the runtime's serialiser
+        # before splitting so we don't end up with an empty last
+        # entry.
+        if argv_bytes.endswith(b"\x00"):
+            argv_bytes = argv_bytes[:-1]
+        argv = [s.decode("utf-8", errors="replace") for s in argv_bytes.split(b"\x00")]
+        stdin_text = ""
+        if stdin_len > 0:
+            stdin_bytes = bytes(mem.data_ptr(store)[stdin_ptr : stdin_ptr + stdin_len])
+            if stdin_bytes.endswith(b"\x00"):
+                stdin_bytes = stdin_bytes[:-1]
+            stdin_text = stdin_bytes.decode("utf-8", errors="replace")
+        result = host_spawn(argv, stdin_text)
+        if result is None:
+            return 0
+        if isinstance(result, str):
+            result = result.encode("utf-8")
+        if not isinstance(result, (bytes, bytearray)):
+            raise TypeError(f"host_spawn callback returned {type(result)!r}, expected str/bytes/None")
+        # Stage the bytes into linear memory via the runtime's
+        # ``alloc`` + ``obj_new_string`` pair so the returned TclObj
+        # is shaped the way the rest of the runtime expects.
+        alloc_fn = rt_inst.exports(store)["alloc"]
+        obj_new_string_fn = rt_inst.exports(store)["obj_new_string"]
+        n = len(result)
+        if n == 0:
+            return int(obj_new_string_fn(store, 0, 0))
+        addr = int(alloc_fn(store, n))
+        # ``mem.data_ptr`` returns a ctypes pointer that doesn't
+        # accept slice assignment; copy byte-by-byte instead.
+        ptr = mem.data_ptr(store)
+        for i in range(n):
+            ptr[addr + i] = result[i]
+        return int(obj_new_string_fn(store, addr, n))
+
+    try:
+        linker.define_func(
+            "env",
+            "host_spawn",
+            wasmtime.FuncType(
+                [
+                    wasmtime.ValType.i32(),
+                    wasmtime.ValType.i32(),
+                    wasmtime.ValType.i32(),
+                    wasmtime.ValType.i32(),
+                ],
+                [wasmtime.ValType.i32()],
+            ),
+            _call,
+        )
+    except wasmtime.WasmtimeError:
+        # Linker rejects redefinitions inside one Linker; matches
+        # the existing pattern used by the asyncify trampolines.
+        pass
 
 
 def _maybe_read(path: str | None) -> str:
@@ -1763,16 +1882,17 @@ class TestDiagMap:
         assert site.col == 1
         assert "convertfrom" in site.args
 
-    def test_exec_stub_records_runtime_site(self):
-        # ``exec`` moved from _UNSUPPORTED_COMMANDS into the stub
-        # dispatch table when per-area stubs were introduced; the
-        # trap is still "unsupported command: exec", now attributed
-        # to the runtime-dispatch call site.
+    def test_exec_stub_records_fallback_site(self):
+        # ``exec`` is variadic, so the registry deliberately omits a
+        # ``wasm_runtime_import`` (the codegen's argc=N truncation
+        # would silently drop trailing argv words).  Every call now
+        # routes through the eval-fallback into the BUILTIN
+        # capability-gated handler in ``runtime/zig/cmds/exec.zig``.
         source = "exec /bin/true\n"
         _, diag = _compile_tcl_with_diag(source, "t.tcl")
         hit = [s for s in diag.sites if s.command == "exec"]
         assert hit, f"no 'exec' site in diag map: {diag.sites}"
-        assert hit[0].kind == "runtime"
+        assert hit[0].kind == "fallback"
 
     def test_procs_indexed_by_wasm_function(self):
         # Every compiled proc (and ::top) must appear in diag.procs so
@@ -1805,11 +1925,17 @@ class TestDiagMap:
             # with a syscall-specific message rather than the
             # ``unsupported command:`` prefix, so we no longer
             # parametrize a ``file`` stub entry here.
-            # ``glob`` now returns an empty list instead of trapping —
-            # matches ``glob -nocomplain`` so tcltest's cleanupTests can
-            # run in the WASM sandbox (no real filesystem to glob).
-            # See TestGlob for the positive assertion.
-            ("exec /bin/true\n", "exec"),
+            # ``glob`` and ``exec`` are now capability-gated BUILTINs
+            # (see ``runtime/zig/interp/tcl_caps.zig``).  Without
+            # ``CAP_FS_GLOB`` / ``CAP_EXEC`` granted, calls raise
+            # ``permission denied`` rather than ``unsupported
+            # command:`` — covered by TestCapGlob / TestCapExec in
+            # ``tests/test_wasm_capabilities.py``.  Use ``load`` /
+            # ``unload`` to exercise the trapping-stub path here:
+            # both are filesystem/process commands without a real
+            # WASM impl yet.
+            ("load /tmp/foo.so\n", "load"),
+            ("unload /tmp/foo.so\n", "unload"),
             # ``regexp`` and ``regsub`` have real impls — see TestRegexp
             # and the regsub tests in TestDiagMap.
             # ``format`` has a minimal real impl in tcl_format.zig —
@@ -1860,20 +1986,22 @@ class TestDiagMap:
         # A standalone ``[cmd …]`` at top level compiles as an eval
         # fallback, so the interpreter walks it command-by-command
         # and the eval-context stamping runs before each dispatch.
-        # Use ``exec`` — still a trapping stub not in the
+        # Use ``load`` — a trapping stub that's not in the
         # interpreter's implemented-command set, so the eval path
-        # exercises the unsupported-command branch.
-        source = "[exec /bin/true]\n"
+        # still exercises the unsupported-command branch.  ``exec``
+        # used to live here too but is now a capability-gated
+        # BUILTIN that raises ``permission denied`` instead.
+        source = "[load /tmp/foo.so]\n"
         wasm, diag = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
             pytest.fail("expected trap")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "unsupported command: exec" in stderr
+            assert "unsupported command: load" in stderr
             assert "in eval-script at offset" in stderr
             # The snippet must contain at least the command name.
-            assert "exec" in stderr
+            assert "load" in stderr
 
     def test_parse_bare_tracks_bracket_nesting(self):
         """``parse_bare`` must keep ``[cmd arg]`` as a single word.
