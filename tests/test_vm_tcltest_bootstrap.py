@@ -145,3 +145,17 @@ class TestLrepeatHostExceptions:
         with pytest.raises(TclError) as exc:
             interp.eval("lrepeat foo a b")
         assert 'expected integer but got "foo"' in str(exc.value)
+
+    def test_negative_count_rejected(self) -> None:
+        # Real Tcl rejects a negative count rather than silently
+        # producing an empty list.  Pin that behaviour so the Python
+        # list-multiply default (which returns ``[] * -1 == []``)
+        # can't sneak back in.
+        interp = TclInterp()
+        with pytest.raises(TclError) as exc:
+            interp.eval("lrepeat -1 a")
+        assert 'must be integer >= 0' in str(exc.value)
+
+    def test_zero_count_returns_empty(self) -> None:
+        interp = TclInterp()
+        assert interp.eval("lrepeat 0 a b").value == ""
