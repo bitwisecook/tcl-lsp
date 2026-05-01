@@ -67,7 +67,10 @@ def _parse_compare_options(rest: list[str], sub: str) -> tuple[bool, int, list[s
     Returns ``(nocase, length, [str1, str2])``.
     """
     wrong_args = f'wrong # args: should be "string {sub} ?-nocase? ?-length int? string1 string2"'
-    if len(rest) < 2 or len(rest) > 4:
+    # Mirror the C bound from StringCmpOpts (objc < 3 || objc > 6 where
+    # objc includes the subcommand name).  The maximum legal form is
+    # ``-nocase -length N str1 str2`` — five tokens after the subcommand.
+    if len(rest) < 2 or len(rest) > 5:
         raise TclError(wrong_args)
     nocase = False
     length = -1

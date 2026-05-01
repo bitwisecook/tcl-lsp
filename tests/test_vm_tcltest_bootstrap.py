@@ -95,6 +95,16 @@ class TestStringCompareLengthHostExceptions:
         assert interp.eval("string compare -nocase ABC abc").value == "0"
         assert interp.eval("string compare -length 3 abcd abce").value == "0"
 
+    def test_compare_combined_nocase_and_length(self) -> None:
+        # ``string compare -nocase -length N s1 s2`` is the maximum
+        # legal form — five tokens after the subcommand.  Reject the
+        # earlier ``len(rest) > 4`` guard that broke this combination.
+        interp = TclInterp()
+        assert interp.eval("string compare -nocase -length 1 A a").value == "0"
+        assert interp.eval("string compare -length 1 -nocase A a").value == "0"
+        assert interp.eval("string equal -nocase -length 1 A a").value == "1"
+        assert interp.eval("string equal -length 1 -nocase A a").value == "1"
+
 
 class TestSwitchRegexpHostExceptions:
     """``switch -regexp`` must convert Python ``re.error`` to ``TclError``."""
