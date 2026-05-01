@@ -1754,6 +1754,59 @@ return [main]
         assert ok, f"error: {err}"
         assert val == 111
 
+    def test_array_in_namespace_proc_after_global_scalar_stamp(self):
+        """Issue #273: ``set arr(idx) val`` inside a proc whose
+        resolution namespace is non-root must not collide with a
+        same-simple-name *global scalar* — e.g. tcltest's
+        ``set errorInfo(body) ...`` after ``catch`` has stamped
+        ``::errorInfo`` via ``stamp_error_globals``.
+
+        Real Tcl keeps the namespace-scoped array variable disjoint
+        from the global scalar, but our flat array directory and
+        unqualified-by-default proc emission collapsed both onto the
+        same key, so ``find_or_create`` raised
+        ``can't set "errorInfo(body)": variable isn't array``.
+
+        The runtime fix qualifies unqualified array names with the
+        proc's current namespace before consulting the directory
+        and the scalar-conflict probe — mirrors the script-level
+        qualification ``_emit_array_name_obj`` already performs in
+        ``namespace eval`` blocks.
+        """
+        src = """\
+catch { error boom }
+namespace eval ::myns {
+    proc do_set {} {
+        set errorInfo(body) hello
+        return $errorInfo(body)
+    }
+    puts [do_set]
+}
+"""
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "hello\n"
+
+    def test_array_in_namespace_eval_after_global_scalar_stamp(self):
+        """Companion to the proc case: at script-level inside
+        ``namespace eval ::myns2 { ... }``, the array write must
+        also bypass the global ``::errorInfo`` scalar.  Pre-fix this
+        case worked because ``_emit_array_name_obj`` qualified the
+        name at compile time; this regression test guards against a
+        future emitter change that drops the script-level
+        qualification.
+        """
+        src = """\
+catch { error boom }
+namespace eval ::myns2 {
+    set errorInfo(stage) ready
+    puts $errorInfo(stage)
+}
+"""
+        wasm, _ = _compile_tcl_with_diag(src)
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "ready\n"
+
 
 class TestUplevel:
     """``uplevel`` runs a script in a caller's scope.
