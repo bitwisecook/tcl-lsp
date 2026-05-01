@@ -15,6 +15,7 @@ from ...commands.registry.runtime import (
     CommandSig,
     SubcommandSig,
     arg_indices_for_role,
+    body_arg_implicit_args_for_command,
     iter_body_arguments,
 )
 from ...common.dialect import active_dialect
@@ -511,8 +512,14 @@ class _AnalyserCommandsMixin(_Base):
         is_conditional = cmd_name in ("if", "try")
         if is_conditional:
             self._conditional_depth += 1
+        body_implicit_args = body_arg_implicit_args_for_command(role_cmd, role_args)
         for body in iter_body_arguments(role_cmd, role_args, arg_tokens, prepend_n=prepend_n):
-            self._analyse_body(body.text, scope, body_token=body.token)
+            self._analyse_body(
+                body.text,
+                scope,
+                body_token=body.token,
+                implicit_appended_args=body_implicit_args,
+            )
         if is_conditional:
             self._conditional_depth -= 1
         if cmd_name == "when":

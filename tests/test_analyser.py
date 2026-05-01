@@ -740,6 +740,44 @@ class TestDiagnostics:
         unreachable = [d for d in result.diagnostics if d.code == "I231"]
         assert len(unreachable) >= 1
 
+    def test_fileutil_update_in_place_command_prefix_no_e002(self):
+        """Regression test for issue #308.
+
+        ``fileutil::updateInPlace path cmd`` invokes *cmd* as a
+        command prefix with the file contents appended at runtime, so
+        the arity check on the proc passed by name must account for
+        that implicit appended argument and not fire E002 spuriously.
+        """
+        source = textwrap.dedent("""\
+            package require fileutil
+            proc processContents {contents} { return $contents }
+            fileutil::updateInPlace foo.html processContents
+        """)
+        result = analyse(source)
+        errors = [
+            d
+            for d in result.diagnostics
+            if d.code == "E002" and "::processContents" in d.message
+        ]
+        assert errors == [], f"unexpected E002 diagnostics: {errors}"
+
+    def test_fileutil_update_in_place_too_few_still_detected(self):
+        """The implicit-args relaxation must not mask a genuine arity
+        error: a callback that needs two extra parameters beyond the
+        appended contents argument should still fire E002."""
+        source = textwrap.dedent("""\
+            package require fileutil
+            proc processContents {a b contents} { return $contents }
+            fileutil::updateInPlace foo.html processContents
+        """)
+        result = analyse(source)
+        errors = [
+            d
+            for d in result.diagnostics
+            if d.code == "E002" and "::processContents" in d.message
+        ]
+        assert len(errors) == 1
+
 
 class TestControlFlow:
     def test_if_body_analysed(self):
