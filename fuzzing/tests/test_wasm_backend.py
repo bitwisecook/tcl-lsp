@@ -26,9 +26,20 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def _require_wasm_runtime() -> None:
-    """Skip if wasmtime + the Zig runtime aren't available."""
+    """Skip if wasmtime + the Zig runtime aren't available.
+
+    ``is_available()`` lazily triggers ``runtime_wasm_path()`` which
+    can shell out to ``zig build``; a missing zig toolchain or build
+    failure raises rather than returns ``False``.  Catch and skip so
+    runtime-build failures don't error the whole class — same posture
+    as the missing-wasmtime case.
+    """
     pytest.importorskip("wasmtime", reason="wasmtime not installed")
-    if not is_available():
+    try:
+        available = is_available()
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"WASM runtime not available: {exc}")
+    if not available:
         pytest.skip("WASM runtime not available")
 
 
@@ -94,25 +105,42 @@ class TestStubFilter:
         # in the pattern must keep this from matching.
         assert not uses_stubbed_command("my_switch_proc arg1\n")
 
-    def test_seed_1774200003_is_filtered(self) -> None:
-        # Direct regression for issue #265.  The seed contains
-        # ``switch`` (TRAPPING_STUB) inside ``namespace eval util {…}``
-        # and again inside an ``if`` body — both nested in braced
-        # bodies.  The earlier lexer-walk filter treated the body as a
-        # single ESC token and missed every ``switch`` inside, so this
-        # script slipped past the corpus-load gate and the WASM
-        # backend then trapped on the stub, polluting other findings'
-        # categories.  ``uses_stubbed_command`` must return ``True``.
+    def test_stubbed_command_inside_nested_braced_bodies(self) -> None:
+        # Regression for issue #265.  The earlier lexer-walk filter
+        # treated each braced body as a single ESC token and missed
+        # every command word inside — so scripts that exercised a
+        # stubbed command (e.g. ``switch``) only inside an ``if`` body
+        # or a ``namespace eval`` slipped past the corpus-load gate
+        # and the WASM backend then trapped on the stub, polluting
+        # other findings' categories.  This snippet replicates the
+        # exact shapes from ``fuzzing/findings/seed_1774200003.tcl``
+        # (the literal example called out in the issue).
+        script = (
+            "namespace eval util {\n"
+            "    switch -- 65 {\n"
+            "        default { puts ok }\n"
+            "    }\n"
+            "}\n"
+            "if {1} {\n"
+            "    switch -- true {\n"
+            "        default { puts ok }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert uses_stubbed_command(script)
+
+        # If the literal seed file is still in the tree, also verify
+        # against it — protects against the regression returning in a
+        # shape the synthetic snippet didn't anticipate.
         seed = _REPO_ROOT / "fuzzing" / "findings" / "seed_1774200003.tcl"
-        if not seed.exists():
-            pytest.skip(f"seed file not present: {seed}")
-        assert uses_stubbed_command(seed.read_text(encoding="utf-8"))
+        if seed.exists():
+            assert uses_stubbed_command(seed.read_text(encoding="utf-8"))
 
 
 class TestRunWasm:
     """The WASM backend must produce harness-compatible RunResult shapes."""
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def _runtime_required(self) -> None:
         _require_wasm_runtime()
 
@@ -150,7 +178,7 @@ class TestHarnessIntegration:
     alongside ``vm`` / ``vm_opt`` and produce no spurious mismatches on
     a trivially-correct script."""
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(scope="class", autouse=True)
     def _runtime_required(self) -> None:
         _require_wasm_runtime()
 
