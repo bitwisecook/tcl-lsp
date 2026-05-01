@@ -252,7 +252,7 @@ pub fn buf_to_obj(b: ByteBuf) i32 {
     }
     const out = obj_new_string(@bitCast(b.addr), @bitCast(b.len));
     if (out != 0) {
-        obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
+        obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
     }
     return out;
 }

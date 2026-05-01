@@ -93,7 +93,7 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     if (b.len > 0) memcpy(buf + a.len, b.ptr, b.len);
     const new_obj = obj_new_string(@bitCast(buf), @bitCast(total));
     if (new_obj != 0) {
-        obj.write_i32(@as(u32, @intCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
+        obj.write_i32(@as(u32, @bitCast(new_obj)) + obj.OBJ_STR_CAP, @bitCast(new_cap));
     }
     return new_obj;
 }
