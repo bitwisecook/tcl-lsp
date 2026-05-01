@@ -755,9 +755,7 @@ class TestDiagnostics:
         """)
         result = analyse(source)
         errors = [
-            d
-            for d in result.diagnostics
-            if d.code == "E002" and "::processContents" in d.message
+            d for d in result.diagnostics if d.code == "E002" and "::processContents" in d.message
         ]
         assert errors == [], f"unexpected E002 diagnostics: {errors}"
 
@@ -772,9 +770,7 @@ class TestDiagnostics:
         """)
         result = analyse(source)
         errors = [
-            d
-            for d in result.diagnostics
-            if d.code == "E002" and "::processContents" in d.message
+            d for d in result.diagnostics if d.code == "E002" and "::processContents" in d.message
         ]
         assert len(errors) == 1
 
