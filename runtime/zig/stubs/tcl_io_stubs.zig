@@ -12,24 +12,24 @@
 // gate (``scripts/check_wasm_command_parity.py``) enforces this.
 //
 // Coverage today (everything else has a real impl elsewhere):
-//   - flush  — synchronous wasi-libc writes; nothing to flush
 //   - chan   — top-level ensemble, not yet routed
 //   - fileevent, socket — needs an event loop
 //
-// ``puts`` lives in tcl_io.zig; ``open`` / ``close`` / ``read`` /
-// ``gets`` / ``eof`` / ``fblocked`` / ``tell`` / ``seek`` / ``fcopy``
-// live in tcl_chan.zig (real WASI-backed implementations).
+// ``puts`` lives in tcl_io.zig; ``flush`` / ``open`` / ``close`` /
+// ``read`` / ``gets`` / ``eof`` / ``fblocked`` / ``tell`` / ``seek``
+// / ``fcopy`` live in tcl_chan.zig (real WASI-backed implementations).
 
 const stubs = @import("tcl_stubs.zig");
+const chan = @import("../io/tcl_chan.zig");
 
-/// ``flush`` — WASI's ``fd_write`` is synchronous and unbuffered
-/// from our side (we don't maintain a per-channel write buffer),
-/// so ``flush`` has nothing to do beyond succeed.  Returns empty
-/// string, matching Tcl semantics.  Without this ``cleanupTests``
-/// traps at ``flush [outputChannel]`` during its per-file wrap-up.
+/// ``flush ?channelId?`` — drain the channel's per-write buffer
+/// to its underlying fd.  With no argument (``fd == 0``) the call
+/// is a no-op so the codegen's "flush stdout after a top-level
+/// puts" emission doesn't trap.  Without a real flush path,
+/// ``-buffering full`` writes would never reach the host stream
+/// before ``close`` ran.
 pub export fn tcl_cmd_flush(fd: i32) i32 {
-    _ = fd;
-    return 0;
+    return chan.flush_chan_id(fd);
 }
 
 pub export fn tcl_cmd_chan(sub: i32, arg: i32) i32 {

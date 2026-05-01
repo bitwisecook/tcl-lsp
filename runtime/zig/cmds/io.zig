@@ -188,18 +188,15 @@ fn eval_fcopy(words: []const i32) i32 {
     return chan.fcopy_limited(words[1], words[2], size_limit);
 }
 
-/// ``flush ?channelId?`` — under WASI our writes are synchronous /
-/// unbuffered so flush is a no-op that returns the empty string,
-/// matching tclsh's contract.  Without this entry the interpreter
-/// route (e.g. ``flush`` issued from inside a tcltest body
-/// uplevel'd by ``test``/``Eval``/``RunTest``) hits ``STUB_TRAP``
-/// and fails with ``unsupported command: flush``, breaking any
-/// script that explicitly flushes between writes.  The compiled
-/// fast path in the codegen calls ``tcl_cmd_flush`` directly and
-/// has always worked.
+/// ``flush ?channelId?`` — drain the named channel's write buffer
+/// to its fd and return the empty string.  Without an explicit
+/// channel argument we no-op rather than guess at stdout: the
+/// codegen fast path passes the channel id directly into
+/// ``tcl_cmd_flush``, so the eval route only sees ``flush`` calls
+/// from scripts that always supply the channel.
 fn eval_flush(words: []const i32) i32 {
-    _ = words;
-    return 0;
+    if (words.len < 2) return 0;
+    return chan.flush_chan_id(words[1]);
 }
 
 fn eval_append(words: []const i32) i32 {
