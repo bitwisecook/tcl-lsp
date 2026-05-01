@@ -336,3 +336,16 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
     }
     return obj.obj_new_int(~obj.obj_get_int(a));
 }
+
+/// Float-preserving unary negation.  Mirrors ``tcl_arith_sub(0, x)``:
+/// int → int, any float → float.  Used by the WASM expression emitter
+/// in object-context paths (``_emit_expr_obj``) so that ``-$x`` of a
+/// float-string variable keeps its TYPE_FLOAT tag end-to-end and the
+/// bitwise / shift domain checks (``tcl_arith_lshift`` /
+/// ``tcl_arith_bnot``) observe the float on the operand chain.  Without
+/// this helper the inline ``0 - x`` i64 path silently truncates to int
+/// and the float check is bypassed (Codex review on PR #287).
+pub export fn tcl_arith_neg(a: i32) i32 {
+    if (is_float(a)) return obj.obj_new_float(-obj.obj_get_float(a));
+    return obj.obj_new_int(-%obj.obj_get_int(a));
+}

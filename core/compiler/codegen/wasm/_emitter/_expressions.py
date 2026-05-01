@@ -174,23 +174,19 @@ class _WasmEmitterExprMixin(_Base):
                 # Negation of a float must preserve the TYPE_FLOAT tag —
                 # the inline ``0 - x`` path goes through i64 and loses
                 # the float-ness, which would let a bitwise/shift caller
-                # (e.g. ``-23.55 << 4`` from issue #261) silently truncate
-                # the negative float to an integer instead of raising
-                # the domain error.  Route ``-floatlit`` through
-                # ``tcl_arith_sub(0.0, lit)`` so the runtime keeps the
-                # float tag end-to-end.
-                if uop == UnaryOp.NEG and isinstance(operand, ExprLiteral):
-                    text = operand.text
-                    try:
-                        if "." in text or "e" in text.lower():
-                            float_val = float(text)
-                            new_float_idx = self._shared_imports.get("tcl_obj_new_float")
-                            if new_float_idx is not None:
-                                self._emit_f64_const(-float_val)
-                                self._emit_call(new_float_idx)
-                                return
-                    except ValueError:
-                        pass
+                # (e.g. ``-23.55 << 4`` or ``(-$x) << 1`` with $x = "23.55"
+                # from issue #261) silently truncate the negative float
+                # to an integer instead of raising the domain error.
+                # Route through the runtime ``tcl_arith_neg`` helper so
+                # the float tag survives to ``tcl_arith_lshift`` /
+                # ``tcl_arith_bnot`` for any operand shape (literal,
+                # variable, command substitution, nested expression).
+                if uop == UnaryOp.NEG:
+                    neg_idx = self._shared_imports.get("tcl_arith_neg")
+                    if neg_idx is not None:
+                        self._emit_expr_obj(operand)
+                        self._emit_call(neg_idx)
+                        return
                 if uop == UnaryOp.BIT_NOT:
                     bnot_idx = self._shared_imports.get("tcl_arith_bnot")
                     if bnot_idx is not None:
