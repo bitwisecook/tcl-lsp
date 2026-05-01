@@ -539,13 +539,13 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
         )
         return cached
 
-    source = _get_doc_source(uri)
     analysis = state.analysis if state else None
-    lines = state.lines if state else None
     if analysis is None:
         # Fresh analysis is still pending in the diagnostics pipeline.
         # Return quickly instead of duplicating the parse on the request
         # thread; the next hover will pick up the cached analysis.
+        # ``_get_doc_source`` can fall back to a pygls workspace lookup,
+        # so it is only called once we know we are going to compute.
         log.debug(
             "[timing] hover %.0fms (no analysis, uri=%s)",
             (time.perf_counter() - t0) * 1000,
@@ -553,6 +553,8 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
         )
         return None
 
+    source = _get_doc_source(uri)
+    lines = state.lines if state else None
     result = await asyncio.to_thread(
         get_hover,
         source,
@@ -579,7 +581,7 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
             )
             return None
     log.debug(
-        "[timing] hover %.0fms (uri=%s, line=%d, char=%d, hit=%s)",
+        "[timing] hover %.0fms (uri=%s, line=%d, char=%d, has_result=%s)",
         elapsed_ms,
         uri,
         line,
