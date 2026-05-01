@@ -2017,11 +2017,12 @@ class TestDiagMap:
             # ``open`` / ``close`` / ``read`` / ``gets`` / ``seek`` /
             # ``tell`` / ``eof`` / ``fblocked`` / ``fcopy`` now have
             # WASI-backed implementations in :file:`io/tcl_chan.zig`.
-            # Failure paths surface through ``stubs.raise`` with a
-            # specific message (``open: could not open file``,
-            # ``close: unknown channel``, …) rather than the
+            # Failure paths surface through ``stubs.raise`` with the
+            # upstream Tcl wording (``can not find channel named "X"``,
+            # ``couldn't open "X": …``, …) rather than the
             # ``unsupported command:`` prefix.  See TestChannelIO
-            # for the positive cases.
+            # for the positive cases and TestChannelErrorWording for
+            # the per-error-shape regression test.
             # ``file`` now has real WASI-backed impls for mkdir /
             # delete / rename / copy / link / readlink / stat /
             # lstat / type — see TestFile for the positive cases.
@@ -3034,7 +3035,7 @@ class TestChannelIO:
             pytest.fail("expected trap on non-integer numChars")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "read" in stderr and "integer" in stderr, f"stderr: {stderr!r}"
+            assert 'expected integer but got "abc"' in stderr, f"stderr: {stderr!r}"
 
     def test_read_rejects_negative_numchars(self, tmp_path):
         """Regression for codex P2: ``read $fd -2`` must error."""
@@ -3049,7 +3050,7 @@ class TestChannelIO:
             pytest.fail("expected trap on negative numChars")
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
-            assert "read" in stderr and "non-negative" in stderr, f"stderr: {stderr!r}"
+            assert 'expected non-negative integer but got "-2"' in stderr, f"stderr: {stderr!r}"
 
     def test_fcopy_rejects_unknown_option(self, tmp_path):
         """Regression for codex P2: ``fcopy a b -foo 1`` must error."""
@@ -3086,6 +3087,104 @@ class TestChannelIO:
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
             assert "fcopy" in stderr and "integer" in stderr, f"stderr: {stderr!r}"
+
+
+class TestChannelErrorWording:
+    """Channel-command error wording matches upstream Tcl.
+
+    Issue #272 — the WASI-backed I/O implementations now report the
+    same string format as ``tmp/tcl9.0.3/generic/tclIO.c`` /
+    ``tclIOCmd.c``, so upstream tcltest cases that grep on ``exact
+    matching`` patterns (``can not find channel named "X"``,
+    ``couldn't open "X"``, ``channel "X" wasn't opened for
+    reading``, …) pass under the WASM runtime.
+    """
+
+    @staticmethod
+    def _trap_stderr(source: str, *, preopen: str | None = None) -> str:
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            kwargs = {"capture_stderr": True}
+            if preopen is not None:
+                kwargs["preopen_tmpdir"] = preopen
+            _run_wasm(wasm, **kwargs)
+        except Exception as trap:
+            return getattr(trap, "tcl_stderr", "")
+        pytest.fail("expected trap")
+        return ""
+
+    def test_close_unknown_channel(self):
+        stderr = self._trap_stderr("close aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_read_unknown_channel(self):
+        stderr = self._trap_stderr("read aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_gets_unknown_channel(self):
+        stderr = self._trap_stderr("gets aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_seek_unknown_channel(self):
+        stderr = self._trap_stderr("seek aaa 0\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_tell_unknown_channel(self):
+        stderr = self._trap_stderr("tell aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_eof_unknown_channel(self):
+        stderr = self._trap_stderr("eof aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_fblocked_unknown_channel(self):
+        stderr = self._trap_stderr("fblocked aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_puts_unknown_channel(self):
+        stderr = self._trap_stderr("puts aaa hello\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_fconfigure_unknown_channel(self):
+        stderr = self._trap_stderr("fconfigure aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_flush_unknown_channel(self):
+        stderr = self._trap_stderr("flush aaa\n")
+        assert 'can not find channel named "aaa"' in stderr, f"stderr: {stderr!r}"
+
+    def test_open_couldnt_open(self, tmp_path):
+        stderr = self._trap_stderr(
+            "open /no-such-file r\n", preopen=str(tmp_path)
+        )
+        assert 'couldn\'t open "/no-such-file"' in stderr, f"stderr: {stderr!r}"
+
+    def test_open_illegal_access_mode(self, tmp_path):
+        (tmp_path / "f.txt").write_text("hi")
+        stderr = self._trap_stderr(
+            "open /f.txt zzz\n", preopen=str(tmp_path)
+        )
+        assert 'illegal access mode "zzz"' in stderr, f"stderr: {stderr!r}"
+
+    def test_read_on_write_only_channel(self, tmp_path):
+        # ``stdout`` is a write-only channel in our preset.
+        stderr = self._trap_stderr("read stdout\n")
+        assert 'channel "stdout" wasn\'t opened for reading' in stderr, (
+            f"stderr: {stderr!r}"
+        )
+
+    def test_puts_on_read_only_channel(self, tmp_path):
+        # ``stdin`` is a read-only channel.
+        stderr = self._trap_stderr("puts stdin hello\n")
+        assert 'channel "stdin" wasn\'t opened for writing' in stderr, (
+            f"stderr: {stderr!r}"
+        )
+
+    def test_gets_on_write_only_channel(self, tmp_path):
+        stderr = self._trap_stderr("gets stdout\n")
+        assert 'channel "stdout" wasn\'t opened for reading' in stderr, (
+            f"stderr: {stderr!r}"
+        )
 
 
 class TestEncoding:
