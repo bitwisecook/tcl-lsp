@@ -272,6 +272,86 @@ runtime build time (idempotent, like `fetch_tcl_regex.sh`).
 Output goes to `runtime/zig/data/tzdata.bin` and is pulled in
 via `@embedFile` from `tcl_tz.zig`.
 
+## Capability-gated commands
+
+Three commands — `exec`, `exit`, and `glob` — escape the WASM
+sandbox by reaching the host process or the host filesystem.  All
+three live behind a per-runtime capability bitset
+(`runtime/zig/interp/tcl_caps.zig`); the default sandboxed posture
+refuses each call with a Tcl-catchable
+`permission denied: <cmd> requires CAP_<NAME>` until the embedder
+flips the matching bit.
+
+### Bit layout
+
+| Constant | Bit | Gates |
+|---|---|---|
+| `CAP_EXEC` | `1 << 0` | `exec` |
+| `CAP_EXIT` | `1 << 1` | `exit` |
+| `CAP_FS_GLOB` | `1 << 2` | `glob` |
+
+### Host entry points
+
+#### `tcl_set_capabilities(bits: u32)` → void
+
+`tcl_caps.zig`.  Overwrites the active capability mask.  Called by
+the embedder before `tcl_eval` to grant whichever subset of dangerous
+primitives the deployment needs.  Passing `0` resets to the default
+sandboxed posture mid-run, which is honoured for every subsequent
+call.
+
+#### `tcl_get_capabilities() → u32`
+
+Read-only mirror of the active mask.  Exposes the policy for an
+embedder that wraps the runtime in additional guards.
+
+### `host_spawn` (new host import)
+
+`exec` cannot use WASI directly — `wasi_snapshot_preview1` exposes
+`proc_exit` only, not `proc_spawn`.  The runtime declares a single
+new host import:
+
+```
+extern "env" fn host_spawn(
+    argv_ptr: u32,
+    argv_len: u32,
+    stdin_ptr: u32,
+    stdin_len: u32,
+) i32;
+```
+
+`argv_ptr` / `argv_len` point to a NUL-separated UTF-8 buffer in
+linear memory: every argument is followed by a NUL byte, including
+the last, so the host walks `argv_len` bytes splitting on NUL.  The
+`stdin_*` pair follows the same convention; `(0, 0)` means "no
+stdin".  Return value is a TclObj handle for the captured stdout (a
+string TclObj) on success, or `0` on failure with the host expected
+to have raised a Tcl error through the catch path before returning.
+
+Embedders **must** satisfy `env.host_spawn` even when they never
+intend to grant `CAP_EXEC` — the WASM linker rejects modules with
+unsatisfied imports.  The recommended sandboxed-default stub raises
+`host_spawn: not configured` and returns `0`; the test harness in
+`tests/test_wasm_real_tcl.py` ships with that behaviour and lets
+opt-in tests swap in a real implementation.
+
+### `proc_exit` (existing WASI import)
+
+`exit` calls `std.os.wasi.proc_exit` directly — no new host wiring.
+wasmtime surfaces this as an `Exit` trap to the embedder
+(`wasmtime.ExitTrap` in the Python binding); other embedders see
+their environment-specific termination signal.  When `CAP_EXIT` is
+not granted, control never reaches `proc_exit` — the capability
+gate raises `permission denied` first.
+
+### Failure paths through `catch`
+
+Capability denial routes through `stubs.tcl_stubs.raise` so a
+`catch` around the call sees `code == 1` with the permission-denied
+message available via `$::errorInfo`.  Bare invocations (no `catch`)
+write the same message to stderr with the standard
+`tcl trap: site=<id>` prefix and trap.
+
 ## Known limitations
 
 - **Dialect gating** — the runtime targets Tcl 9.0.  `tcl_expr_order_cmp`
