@@ -323,22 +323,34 @@ test "proc_set_body_source attaches a body TclObj to a compiled proc" {
 
 // -- ns-resolution: qualified registration --------------------------
 
-fn body_register_qualified_lands_in_target_ns() void {
+fn body_register_qualified_then_unqualified_lookup_from_ns() void {
     // ``::myns::myproc`` should land in the ``::myns`` namespace's
-    // cmd_table, not in the root.  After registration ``proc_lookup``
-    // from inside that ns must find it.
-    _ = ns.ns_create_from_fqn(@intCast(@intFromPtr("::test_proc_qualified_ns".ptr)),
-                              @intCast("::test_proc_qualified_ns".len));
+    // cmd_table, not in the root.  Switching ``current_ns`` to the
+    // target namespace and probing the unqualified tail name then
+    // exercises the context-anchored lookup path — the one a proc
+    // body running inside ``::myns`` would take when it calls
+    // ``myproc`` without a qualifier.  Saving / restoring
+    // ``current_ns`` keeps the rest of the suite isolated from this
+    // test's mutation of the shared global.
+    const myns = ns.ns_create_from_fqn(
+        @intCast(@intFromPtr("::test_proc_qualified_ns".ptr)),
+        @intCast("::test_proc_qualified_ns".len),
+    );
     _ = procs.proc_register(
         name_obj("::test_proc_qualified_ns::myproc"),
         name_obj(""),
         name_obj("return ok"),
     );
-    captured_bucket = procs.proc_lookup(name_obj("::test_proc_qualified_ns::myproc"));
+
+    const saved_ns = ns.current_ns;
+    ns.current_ns = myns;
+    defer ns.current_ns = saved_ns;
+
+    captured_bucket = procs.proc_lookup(name_obj("myproc"));
 }
 
-test "proc_register on a ::-qualified name lands in the target namespace" {
+test "proc_register on a ::-qualified name is reachable via unqualified lookup from inside that ns" {
     captured_bucket = 0;
-    fixture.with_interp(&body_register_qualified_lands_in_target_ns);
+    fixture.with_interp(&body_register_qualified_then_unqualified_lookup_from_ns);
     try testing.expect(captured_bucket != 0);
 }
