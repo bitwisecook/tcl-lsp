@@ -559,7 +559,10 @@ def _cmd_switch(interp: TclInterp, args: list[str]) -> TclResult:
             import re
 
             flags = re.IGNORECASE if nocase else 0
-            matched = re.search(pattern, subject, flags) is not None
+            try:
+                matched = re.search(pattern, subject, flags) is not None
+            except re.error as exc:
+                raise TclError(f"couldn't compile regular expression pattern: {exc}") from exc
 
         if matched:
             # Skip past any fall-through (-) bodies to the real body

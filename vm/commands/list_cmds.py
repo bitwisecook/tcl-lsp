@@ -95,18 +95,26 @@ def _cmd_lsearch(interp: TclInterp, args: list[str]) -> TclResult:
     lst = _split_list(remaining[0])
     pattern = remaining[1]
 
+    compiled_re = None
+    if regexp_mode:
+        import re
+
+        try:
+            compiled_re = re.compile(pattern, re.IGNORECASE if nocase else 0)
+        except re.error as exc:
+            raise TclError(f"couldn't compile regular expression pattern: {exc}") from exc
+
     matches: list[tuple[int, str]] = []
     for i, elem in enumerate(lst):
         matched = False
         a, b = elem, pattern
-        if nocase:
+        if nocase and not regexp_mode:
             a, b = a.lower(), b.lower()
         if exact:
             matched = a == b
         elif regexp_mode:
-            import re
-
-            matched = re.search(b, a) is not None
+            assert compiled_re is not None
+            matched = compiled_re.search(elem) is not None
         else:
             matched = fnmatch.fnmatch(a, b)
 
@@ -302,7 +310,12 @@ def _cmd_lrepeat(interp: TclInterp, args: list[str]) -> TclResult:
     """lrepeat count ?value ...?"""
     if len(args) < 2:
         raise TclError('wrong # args: should be "lrepeat count ?value ...?"')
-    count = int(args[0])
+    try:
+        count = int(args[0])
+    except (ValueError, TypeError):
+        raise TclError(f'expected integer but got "{args[0]}"') from None
+    if count < 0:
+        raise TclError('bad count "' + args[0] + '": must be integer >= 0')
     values = args[1:]
     result = values * count
     return TclResult(value=" ".join(_list_escape(e) for e in result))
