@@ -394,6 +394,19 @@ class _Lowerer:
         # to global (``::``) outside an active lowering call.  See
         # issue #246 for the canonicalisation contract.
         self._current_namespace: str = "::"
+        # ``rename old new`` directives captured at lowering time.
+        # Records the *static* renames whose ``old`` and ``new`` arguments
+        # are literal token text so per-call-site canonicalisation can
+        # follow the chain.  Each entry maps ``new_name`` (the spelling
+        # the user calls) to ``old_name`` (the original command the
+        # rename redirects to).  ``rename foo {}`` (deletion) records
+        # ``new_name → ""`` so canonicalisation can flag a deleted
+        # command if it appears later — for now we only consult this
+        # for the redirect case.  Renames with non-literal target
+        # (``rename $foo bar``) do not register: the canonical form is
+        # the user's source spelling for those, since we cannot follow
+        # them statically.  See issue #246.
+        self._command_renames: dict[str, str] = {}
 
     @contextlib.contextmanager
     def _dead_code(self):
@@ -424,11 +437,100 @@ class _Lowerer:
 
         Single source of truth for the lowering-time canonicalisation
         stamped onto ``IRCall.canonical_command`` /
-        ``IRBarrier.canonical_command``.  Threads the captured alias state
-        through :func:`core.common.alias.to_canonical_command`.  See issue
-        #246 for the broader contract.
+        ``IRBarrier.canonical_command``.  Resolves four layers of
+        per-call-site state captured during lowering, in order:
+
+        1. **``rename old new``** — if *cmd_name* matches a recorded
+           ``new_name``, follow the chain back to the original
+           ``old_name``.  ``rename`` chains are walked with a
+           cycle/self-loop guard so a future ``rename a a`` is safe.
+        2. **``interp alias``** — :func:`core.common.alias.to_canonical_command`
+           consumes the captured alias map and follows aliases to their
+           terminal target.
+        3. **``namespace import``** — if the resolved name is still bare
+           and a captured import pattern exposes it under a source
+           namespace (``::other::*`` or an exact ``::other::name``),
+           rewrite to the imported source name.
+        4. **Qualified normalisation** — bare names become global
+           (``::cmd``) via :func:`core.common.naming.normalise_qualified_name`.
+
+        See issue #246.
         """
-        return _to_canonical_command(cmd_name, namespace=namespace, aliases=self._command_aliases)
+        # Iterate until both the rename chain AND the alias chain reach
+        # a fixed point — interp alias and rename can compose in either
+        # order (``rename foo bar`` then ``interp alias {} baz {} bar``
+        # vs ``interp alias {} baz {} foo`` then ``rename foo bar``)
+        # and we have to follow both layers to land on the underlying
+        # builtin.
+        seen: set[str] = set()
+        current = cmd_name
+        while current not in seen:
+            seen.add(current)
+            renamed = self._command_renames.get(current)
+            if renamed and renamed != current:
+                current = renamed
+                continue
+            # Try alias-resolved form (also strips a leading ``::`` for
+            # the rename-table lookup so ``rename oldName newName``
+            # records register ``newName`` and the canonicaliser still
+            # finds them when handed an explicitly-qualified call).
+            alias_resolved = _to_canonical_command(
+                current, namespace=namespace, aliases=self._command_aliases
+            )
+            if alias_resolved != current:
+                # If the alias-resolved canonical form has a recorded
+                # rename when stripped to bare, follow it.
+                bare_alias = (
+                    alias_resolved[2:]
+                    if alias_resolved.startswith("::") and "::" not in alias_resolved[2:]
+                    else None
+                )
+                if bare_alias and bare_alias in self._command_renames:
+                    current = self._command_renames[bare_alias]
+                    if not current:
+                        # Deletion sentinel — stop with the alias-resolved
+                        # form so the canonical reflects the last live name.
+                        current = alias_resolved
+                        break
+                    continue
+                current = alias_resolved
+                continue
+            break
+        canonical = _to_canonical_command(
+            current, namespace=namespace, aliases=self._command_aliases
+        )
+        # If the alias-resolved name is still bare-prefix (only one
+        # ``::`` segment) and matches a captured ``namespace import``
+        # pattern, rewrite to the imported source name.  The captured
+        # patterns are absolute (``::other::*`` or ``::other::name``),
+        # so we just check for an exact-name or glob-tail match against
+        # the bare tail of the canonical form.
+        #
+        # Builtins (``namespace``, ``set``, ``if``, …) are never
+        # rewritten — Tcl's ``namespace import`` does shadow builtins
+        # at runtime, but static analysis keeps the canonical bound
+        # to the global builtin so e.g. ``namespace import ::tcltest::*``
+        # does not silently rename every plain ``namespace`` call to
+        # ``::tcltest::namespace``.  Imports only resolve names that
+        # are not registered as global commands.
+        if canonical.startswith("::") and "::" not in canonical[2:]:
+            bare = canonical[2:]
+            if REGISTRY.get_any(bare) is None:
+                for context_ns, pattern in self._namespace_imports:
+                    if context_ns != namespace:
+                        continue
+                    if not pattern.startswith("::"):
+                        continue
+                    # Exact: ``::other::bare``.
+                    if pattern.endswith(f"::{bare}"):
+                        return _to_canonical_command(pattern, namespace="::", aliases={})
+                    # Glob: ``::other::*`` matches any bare name.
+                    if pattern.endswith("::*"):
+                        source_ns = pattern[:-3]
+                        return _to_canonical_command(
+                            f"{source_ns}::{bare}", namespace="::", aliases={}
+                        )
+        return canonical
 
     def canonicalise_command(self, cmd_name: str) -> str:
         """Public canonicalisation helper for lowering hooks.
@@ -1648,6 +1750,41 @@ class _Lowerer:
         if detected is not None:
             qualified, target_cmd_name, prepended_args = detected
             self._command_aliases[qualified] = (target_cmd_name, prepended_args)
+
+        # Detect ``rename oldName newName`` with literal arguments and
+        # record the redirect for per-call-site canonicalisation.  Only
+        # static renames register: a dynamic ``rename $foo bar`` cannot
+        # be followed at compile time, so the canonical form for any
+        # later call to ``bar`` stays the user spelling — the conservative
+        # fallback documented on ``_command_renames``.  ``rename foo {}``
+        # (deletion) records the new-name → "" mapping but the
+        # canonicaliser only consults the redirect case today.
+        # Suppressed inside dead code (matches the ``namespace import``
+        # / ``namespace export`` gates above) so a folded-out rename
+        # does not silently reroute live calls.
+        if (
+            cmd_name == "rename"
+            and len(args) == 2
+            and self._dead_code_depth == 0
+            and (cmd.expand_word is None or not any(cmd.expand_word))
+        ):
+            old_name, new_name = args[0], args[1]
+            # Skip non-literal arguments (any ``$`` / ``[`` substitution
+            # token) — only rename the static case.
+            if (
+                old_name
+                and not old_name.startswith("$")
+                and not old_name.startswith("[")
+                and not new_name.startswith("$")
+                and not new_name.startswith("[")
+            ):
+                if new_name:
+                    self._command_renames[new_name] = old_name
+                else:
+                    # ``rename oldName {}`` deletes oldName.  Record the
+                    # deletion so a future linter check can flag a call
+                    # to a deleted command, but don't redirect.
+                    self._command_renames[old_name] = ""
 
         # Detect ``namespace import ?-force? pattern ...`` and record
         # each pattern against the current namespace.  Codegen resolves

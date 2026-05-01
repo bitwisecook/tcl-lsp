@@ -82,8 +82,14 @@ def runtime_import_for(command: str) -> WasmRuntimeImport | None:
     (to register the import in the WASM imports section) and by the
     emitter (to pick the function index and decide whether a diag site
     is needed).
+
+    Accepts both bare (``set``) and explicitly-qualified (``::set``)
+    forms; the qualified form is the canonical spelling stamped on
+    ``IRCall.canonical_command`` by lowering.  See issue #246.
     """
     specs = REGISTRY.specs_by_name.get(command)
+    if specs is None and command.startswith("::"):
+        specs = REGISTRY.specs_by_name.get(command[2:])
     if specs is None:
         return None
     for spec in specs:
@@ -98,8 +104,12 @@ def command_emits_nothing(command: str) -> bool:
     Consults ``CommandSpec.wasm_emits_nothing`` on every registered
     spec for *command*.  Replaces the ``_SCOPE_NOP_COMMANDS`` shadow
     frozenset — the registry is the sole source of truth.
+
+    Accepts both bare (``set``) and qualified (``::set``) forms.
     """
     specs = REGISTRY.specs_by_name.get(command)
+    if specs is None and command.startswith("::"):
+        specs = REGISTRY.specs_by_name.get(command[2:])
     if specs is None:
         return False
     return any(spec.wasm_emits_nothing for spec in specs)
@@ -112,8 +122,12 @@ def subcommand_runtime_import_for(command: str, subcommand: str) -> WasmRuntimeI
     ``_CLOCK_SUBCMD_IMPORT`` shadow tables.  Looks up the
     ``SubCommand`` entry on any ``CommandSpec`` for *command* and
     returns its ``wasm_runtime_import`` if set.
+
+    Accepts both bare (``string``) and qualified (``::string``) forms.
     """
     specs = REGISTRY.specs_by_name.get(command)
+    if specs is None and command.startswith("::"):
+        specs = REGISTRY.specs_by_name.get(command[2:])
     if specs is None:
         return None
     for spec in specs:

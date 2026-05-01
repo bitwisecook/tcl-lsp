@@ -1,5 +1,7 @@
 """_WasmEmitterCtrlMixin: if/for/while/foreach/switch/catch/try."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -501,7 +503,9 @@ class _WasmEmitterCtrlMixin(_Base):
         )
 
         match stmt:
-            case IRCall(command=command, args=args, defs=defs, tokens=tokens):
+            case IRCall(args=args, defs=defs, tokens=tokens) as ir_call:
+                command = ir_call.command
+                canonical = ir_call.canonical_command
                 if (
                     tokens is not None
                     and tokens.expand_word is not None
@@ -518,8 +522,11 @@ class _WasmEmitterCtrlMixin(_Base):
                     self._emit_eval_fallback(command, args, script_override=script)
                     # result is on stack; no DROP here
                 else:
-                    self._emit_call_stmt_tail(command, args, defs)
-            case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
+                    # Pass the canonical form so ``_emit_call_stmt_tail``'s
+                    # internal dispatch (case-binding ``canonical_command``)
+                    # matches against ``::cmd`` literals uniformly.
+                    self._emit_call_stmt_tail(canonical, args, defs)
+            case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
                 # Static parse-error barriers (e.g. ``if {…} else {…}
                 # elseif {…}``) emit a direct ``tcl_cmd_error`` call so
                 # the WASM backend reports the same diagnostic as the VM

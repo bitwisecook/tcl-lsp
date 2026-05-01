@@ -8,6 +8,8 @@ Conservative summaries are built per lowered proc to describe:
 - safe static call folding opportunities
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import logging
@@ -181,8 +183,12 @@ def resolve_call_target(
 
     For ``call myproc ...``, the real target is *args[0]*.
     For ``myproc ...`` (direct invocation), the target is *command*.
+
+    Accepts both bare (``call``) and canonical (``::call``) command
+    forms — callers may pass either ``IRCall.command`` (raw) or
+    ``IRCall.canonical_command`` (qualified).  See issue #246.
     """
-    if command == "call" and args:
+    if command in ("call", "::call") and args:
         return resolve_internal_call(args[0], caller_qname, known)
     return resolve_internal_call(command, caller_qname, known)
 

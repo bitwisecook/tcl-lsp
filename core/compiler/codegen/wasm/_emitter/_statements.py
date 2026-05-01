@@ -1,5 +1,7 @@
 """_WasmEmitterStmtMixin: statement dispatch and proc calls."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -80,7 +82,7 @@ def _static_parse_error_message(
     issue #259) AND whose canonical message is unambiguous from the
     barrier metadata.
     """
-    if barrier_cmd != "if" or reason is None:
+    if barrier_cmd != "::if" or reason is None:
         return None
     if reason == 'extra words after "else" clause':
         # ``if cond body else other extra…`` — eval_if otherwise discards
@@ -250,7 +252,7 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_expr(expr)
                 self._emit(WasmOp.DROP)
 
-            case IRCall(command=command, args=args, defs=defs, tokens=tokens):
+            case IRCall(canonical_command=command, args=args, defs=defs, tokens=tokens):
                 if (
                     tokens is not None
                     and tokens.expand_word is not None
@@ -305,7 +307,7 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_i32_const(0)
                 self._emit(WasmOp.RETURN)
 
-            case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
+            case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
                 # Barriers are dynamic commands (eval, uplevel, trace,
                 # etc.) that defeat static *analysis* but may still
                 # have concrete runtime implementations we can call
@@ -336,11 +338,11 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_static_parse_error_trap(barrier_cmd or "", parse_error_msg)
                     if self._optimise:
                         self._const_map.clear()
-                elif barrier_cmd == "uplevel" and barrier_args:
+                elif barrier_cmd == "::uplevel" and barrier_args:
                     self._emit_cmd_uplevel(barrier_args)
                     self._emit(WasmOp.DROP)
                 elif (
-                    barrier_cmd == "return"
+                    barrier_cmd == "::return"
                     and barrier_args
                     and len(barrier_args) == 3
                     and barrier_args[0] == "-code"
@@ -380,7 +382,7 @@ class _WasmEmitterStmtMixin(_Base):
                     # Build a script with the cond/scripts always
                     # brace-wrapped so the runtime sees the literal
                     # expression / body.
-                    if barrier_cmd == "while" and len(barrier_args) >= 2:
+                    if barrier_cmd == "::while" and len(barrier_args) >= 2:
                         cond, body = barrier_args[0], barrier_args[1]
                         script = (
                             "while "
@@ -397,7 +399,7 @@ class _WasmEmitterStmtMixin(_Base):
                             )
                         )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
-                    elif barrier_cmd == "for" and len(barrier_args) >= 4:
+                    elif barrier_cmd == "::for" and len(barrier_args) >= 4:
                         init, cond, nxt, body = (
                             barrier_args[0],
                             barrier_args[1],
@@ -797,7 +799,7 @@ class _WasmEmitterStmtMixin(_Base):
         # registers under the current namespace.
         if command_emits_nothing(command):
             if (
-                command == "proc"
+                command == "::proc"
                 and args
                 and (
                     # Dynamic name (``proc $varName body``)
@@ -824,7 +826,7 @@ class _WasmEmitterStmtMixin(_Base):
             # with dynamic script args: build the script at WASM level
             # (so compiled-frame aliases like $arr($key) are resolved
             # correctly) and call tcl_eval for side effects.
-            if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+            if command == "::namespace" and args and args[0] == "eval" and len(args) > 2:
                 # Bridge drops the result since we're in statement context.
                 # If imports are missing the bridge returns False and we
                 # silently skip (statement context has no stack commitments).
@@ -845,7 +847,7 @@ class _WasmEmitterStmtMixin(_Base):
             # ``namespace eval`` is handled above; ``namespace current``,
             # ``namespace which`` etc. are lookups with no side effect
             # and remain NOPs at codegen.
-            if command == "namespace" and args and args[0] in ("import", "export", "forget"):
+            if command == "::namespace" and args and args[0] in ("import", "export", "forget"):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
@@ -858,7 +860,7 @@ class _WasmEmitterStmtMixin(_Base):
             # stays absent.  (dict.test 23.X+ uses
             # define→rename-delete→re-define→rename-delete on
             # ``linenumber``.)
-            if command == "proc" and self._is_static_proc_args(args):
+            if command == "::proc" and self._is_static_proc_args(args):
                 # First static def with this name at top level: re-emit
                 # ``proc_register_compiled`` so a previous
                 # ``rename NAME {}`` followed by ``proc NAME`` re-
@@ -908,12 +910,12 @@ class _WasmEmitterStmtMixin(_Base):
         # From inside the body at ctrl_depth D, with loop_ctrl C:
         #   continue: br(D - C) exits the continue block → runs <next>
         #   break:    br(D - C + 2) exits continue block + loop + outer block
-        if command == "break" and self._loop_ctrl_depths:
+        if command == "::break" and self._loop_ctrl_depths:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl + 2
             self._emit_br(br_depth)
             return
-        if command == "continue" and self._loop_ctrl_depths:
+        if command == "::continue" and self._loop_ctrl_depths:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl
             self._emit_br(br_depth)
@@ -1257,7 +1259,7 @@ class _WasmEmitterStmtMixin(_Base):
             # ``namespace eval ns arg1 arg2 ...`` in tail position with dynamic
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
-            if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+            if command == "::namespace" and args and args[0] == "eval" and len(args) > 2:
                 if self._emit_namespace_eval_bridge(args[2:], drop_result=False, ns_name=args[1]):
                     return
                 # Runtime imports missing — push null TclObj as fallback.

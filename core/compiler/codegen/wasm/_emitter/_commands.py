@@ -1,5 +1,7 @@
 """_WasmEmitterCmdMixin: Tcl command emitters."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -141,7 +143,7 @@ class _WasmEmitterCmdMixin(_Base):
 
         param_count = len(rimp.params)
 
-        if command == "apply":
+        if command == "::apply":
             # ``apply LAMBDA ?arg ...?`` — pack tail args into a Tcl
             # list (see ``cmds/apply_.py`` for the rationale).
             self._emit_value(args[0] if args else "")
