@@ -137,6 +137,11 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     # falls back to ``int(70.34) = 70`` and the runtime
                     # never sees the float — issue #261.
                     needed.add("tcl_obj_new_float")
+                    # ``tcl_arith_neg`` preserves the float tag through
+                    # ``-$x`` so a downstream bitwise op still sees a
+                    # TYPE_FLOAT operand and raises the canonical
+                    # ``cannot use floating-point value …`` error.
+                    needed.add("tcl_arith_neg")
                 _walk(left)
                 _walk(right)
             case ExprUnary(op=uop, operand=operand):
@@ -148,6 +153,9 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     # needs the float-literal box import registered to
                     # observe the float tag.
                     needed.add("tcl_obj_new_float")
+                    # ``tcl_arith_neg`` keeps the float tag through
+                    # ``~(-$x)`` chains.
+                    needed.add("tcl_arith_neg")
                 _walk(operand)
             case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _walk(cond)
@@ -437,6 +445,7 @@ def _scan_needed_imports(
                     # — float-literal box import is required for the
                     # bitwise helpers to observe a TYPE_FLOAT operand.
                     needed.add("tcl_obj_new_float")
+                    needed.add("tcl_arith_neg")
                 _scan_expr(left)
                 _scan_expr(right)
             case ExprUnary(op=uop, operand=operand):
@@ -445,6 +454,7 @@ def _scan_needed_imports(
                     needed.add("tcl_obj_get_int")
                     needed.add("tcl_obj_new_int")
                     needed.add("tcl_obj_new_float")
+                    needed.add("tcl_arith_neg")
                 _scan_expr(operand)
             case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _scan_expr(cond)

@@ -165,6 +165,11 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_arith_bor": ("tcl", "tcl_arith_bor", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_bxor": ("tcl", "tcl_arith_bxor", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_bnot": ("tcl", "tcl_arith_bnot", [ValType.I32], [ValType.I32]),
+    # Float-preserving unary negation — keeps TYPE_FLOAT tag through
+    # ``-$x`` so the bitwise / shift domain checks downstream observe
+    # the float and raise the canonical error (Codex review on
+    # PR #287; issue #261).
+    "tcl_arith_neg": ("tcl", "tcl_arith_neg", [ValType.I32], [ValType.I32]),
     # Strict ``incr`` helper — validates the variable's value as a
     # strict integer (rejects float strings like ``"52.60"`` and
     # boolean keywords) before adding the amount.  Issue #262.

@@ -1265,6 +1265,36 @@ class TestBatch7WasmAcceptsFloatBitwise:
             result.error_message or ""
         )
 
+    def test_lshift_rejects_negated_float_var(self) -> None:
+        """Codex review on PR #287 — ``(-$x) << 1`` with float-string var.
+
+        The earlier patch only preserved the float tag through ``-floatlit``
+        (a literal negation); ``-$x`` of a variable holding ``"23.55"``
+        was emitted as ``0 - x`` on i64 and re-boxed as TYPE_INT,
+        bypassing the float-operand domain check.  The fix routes the
+        ``ExprUnary(NEG)`` operand through ``tcl_arith_neg`` which
+        preserves the TYPE_FLOAT tag for any operand shape.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set x 23.55\nexpr {(-$x) << 1}\n")
+        assert result.return_code == 1
+        assert "floating-point" in (result.error_message or "")
+        assert '"-23.55"' in (result.error_message or "")
+
+    def test_bnot_rejects_negated_float_var(self) -> None:
+        """Codex review on PR #287 — ``~(-$x)`` with float-string var."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set x 23.55\nexpr {~(-$x)}\n")
+        assert result.return_code == 1
+        assert "floating-point" in (result.error_message or "")
+        assert '"-23.55"' in (result.error_message or "")
+
 
 class TestBatch7WasmAcceptsFloatAsInteger:
     """WASM backend silently truncated float strings in strict-integer ops.
