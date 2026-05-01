@@ -285,6 +285,29 @@ def _run_wasm_inner(
         _call_compiled_proc,
     )
 
+    # ``env.host_spawn`` is imported by the runtime for capability-gated
+    # ``exec`` (5180cdf).  The fuzzer never enables CAP_EXEC, so the
+    # capability check rejects every call before dispatch — but the
+    # import itself still has to be satisfied or instantiation traps
+    # with ``unknown import``.  A stub returning 0 is enough.
+    def _host_spawn(_argv_ptr: int, _argv_len: int, _stdin_ptr: int, _stdin_len: int) -> int:
+        return 0
+
+    linker.define_func(
+        "env",
+        "host_spawn",
+        wasmtime.FuncType(
+            [
+                wasmtime.ValType.i32(),
+                wasmtime.ValType.i32(),
+                wasmtime.ValType.i32(),
+                wasmtime.ValType.i32(),
+            ],
+            [wasmtime.ValType.i32()],
+        ),
+        _host_spawn,
+    )
+
     rt_instance = linker.instantiate(store, rt_module)
 
     # WASI reactor init — populates preopen FD table; no-op on older runtime
