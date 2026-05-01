@@ -407,6 +407,14 @@ def test_no_cmd_imports_for_pure_math():
         "diag_set",
         "global_set",
         "global_get",
+        # Issue #263: strict variable reads.  ``global_get_or_error``
+        # raises ``can't read "<name>": no such variable`` on missing
+        # globals; ``var_unset_error`` is the helper the WASM-local-
+        # mirror inline check uses on the cold (unset slot) path.
+        # Both are always imported because every non-trivial module
+        # reads at least one variable.
+        "global_get_or_error",
+        "var_unset_error",
     }
 
 

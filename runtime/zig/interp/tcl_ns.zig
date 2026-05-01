@@ -1422,6 +1422,24 @@ pub export fn global_get(name: i32) i32 {
     return @bitCast(var_get_scalar(v));
 }
 
+/// Strict variant of :func:`global_get` for codegen-emitted reads of
+/// ``::``-qualified or namespace-eval-qualified globals.  Raises
+/// ``can't read "<name>": no such variable`` through
+/// :func:`tcl_catch.var_unset_error` when the variable has never been
+/// set, matching the Python VM and reference Tcl.  The lenient
+/// :func:`global_get` is still used for paths that legitimately want
+/// the missing-variable-is-fine behaviour (``info exists``, ``unset
+/// -nocomplain``, frame readback after eval-fallback, the ``global``
+/// command's pre-load of a possibly-uninitialised slot).
+pub export fn global_get_or_error(name: i32) i32 {
+    const v = global_get(name);
+    if (v == 0) {
+        const tcl_catch = @import("tcl_catch.zig");
+        tcl_catch.var_unset_error(name);
+    }
+    return v;
+}
+
 /// ``info exists ::name`` — returns a TclObj 1 if the entry has
 /// been written to root's var_table with a non-null value, OR if
 /// an array with this name exists in the array directory.  A scalar
