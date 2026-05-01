@@ -481,6 +481,16 @@ class _AnalyserProcMixin(_Base):
         nargs_min, nargs_max = self._arg_count_bounds(
             args, arg_expand, arg_tokens, arg_single_token, scope
         )
+        # Account for runtime-appended args when this proc call is the
+        # body of a command-prefix-style argument (e.g.
+        # ``fileutil::updateInPlace`` appends the file contents).  The
+        # carrying state is set by ``_analyse_body_inner`` only for the
+        # immediate top-level command of the body.
+        implicit = getattr(self, "_pending_implicit_args", 0)
+        if implicit:
+            nargs_min += implicit
+            if nargs_max != Arity.ANY:
+                nargs_max += implicit
         display_name = proc_def.qualified_name
         if nargs_max < arity.min:
             self.result.diagnostics.append(

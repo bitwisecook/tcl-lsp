@@ -77,6 +77,12 @@ class _AnalyserBase:
         self._conditional_depth: int = 0
         # Track body nesting depth for top-level-only command detection.
         self._body_depth: int = 0
+        # Implicit-args carry from a command-prefix body (e.g.
+        # ``fileutil::updateInPlace`` appends one arg).  Set just
+        # before processing the first top-level command of such a body
+        # and consumed by the arity check.  Always 0 outside that
+        # narrow window.
+        self._pending_implicit_args: int = 0
         # Command aliases: alias_name -> (target_cmd, prepended_args).
         # Populated from ``interp alias {} name {} target ?arg ...?``.
         self._command_aliases: dict[str, tuple[str, tuple[str, ...]]] = {}
@@ -434,16 +440,24 @@ class _AnalyserBase:
         source: str,
         scope: Scope,
         body_token: Token | None = None,
+        implicit_appended_args: int = 0,
     ) -> None:
         """Analyse a Tcl body (top-level or inside braces).
 
         When *body_token* is provided, the lexer is created with base offsets
         so that all positions in the sub-parse map back to the original source.
+
+        ``implicit_appended_args`` records how many arguments the runtime
+        appends to the body when it is invoked as a command prefix
+        (e.g. ``fileutil::updateInPlace`` appends the file contents).
+        Arity checks on the immediate top-level command of the body are
+        relaxed by this many positional arguments; nested bodies do not
+        inherit the offset.
         """
         if body_token is not None:
             self._body_depth += 1
         try:
-            self._analyse_body_inner(source, scope, body_token)
+            self._analyse_body_inner(source, scope, body_token, implicit_appended_args)
         finally:
             if body_token is not None:
                 self._body_depth -= 1
@@ -453,6 +467,7 @@ class _AnalyserBase:
         source: str,
         scope: Scope,
         body_token: Token | None = None,
+        implicit_appended_args: int = 0,
     ) -> None:
         """Inner implementation of _analyse_body, separated for try/finally."""
         commands, recovery_diags = segment_with_recovery(source, body_token)
@@ -525,15 +540,24 @@ class _AnalyserBase:
                     self._record_var_read(tok.text, range_from_token(tok), scope)
                 elif tok.type is TokenType.CMD:
                     self._analyse_body(tok.text, scope, body_token=tok)
-            self._process_command(
-                cmd.argv,
-                cmd.texts,
-                cmd.all_tokens,
-                scope,
-                source,
-                expand_word=cmd.expand_word,
-                single_token_word=cmd.single_token_word,
-            )
+            # Apply command-prefix implicit-args offset to the *first*
+            # top-level command of this body only (subsequent commands
+            # would not be reachable under command-prefix semantics, so
+            # we don't relax their arity).
+            self._pending_implicit_args = implicit_appended_args
+            implicit_appended_args = 0
+            try:
+                self._process_command(
+                    cmd.argv,
+                    cmd.texts,
+                    cmd.all_tokens,
+                    scope,
+                    source,
+                    expand_word=cmd.expand_word,
+                    single_token_word=cmd.single_token_word,
+                )
+            finally:
+                self._pending_implicit_args = 0
             cmd_idx += 1 + consumed
 
     def _analyse_expr(

@@ -1092,6 +1092,42 @@ def body_kind_for_command(command: str, args: list[str]) -> BodyKind:
     return spec.body_kind
 
 
+def body_arg_implicit_args_for_command(command: str, args: list[str]) -> int:
+    """Return the number of runtime-appended args for *command*'s BODY arg.
+
+    Mirrors the spec/subcommand resolution used by
+    :func:`body_kind_for_command`.  Returns 0 for unregistered
+    commands or commands whose ``BODY`` arg is a literal script (the
+    default).  A positive value signals that the body is invoked as a
+    command prefix with that many extra args appended at runtime —
+    arity checks on the first top-level command of the body should
+    account for the implicit args.
+    """
+    alias = _REWRITE_ALIASES.get(command)
+    if alias is not None:
+        source_cmd, sub_name = alias
+        spec = REGISTRY.get_any(source_cmd)
+        if spec is not None:
+            sub = spec.subcommands.get(sub_name)
+            if sub is not None:
+                return sub.body_arg_implicit_args
+        return 0
+
+    if command in SIGNATURES or command in _ROLE_HINTS:
+        target = command
+    else:
+        target = _canonicalise_command_name(command)
+
+    spec = REGISTRY.get_any(target)
+    if spec is None:
+        return 0
+    if spec.subcommands and args:
+        sub = spec.subcommands.get(args[0])
+        if sub is not None:
+            return sub.body_arg_implicit_args
+    return spec.body_arg_implicit_args
+
+
 def arg_indices_for_role(command: str, args: list[str], role: ArgRole) -> set[int]:
     """Return argument indices (0-based, after command name) for a role."""
     if role is ArgRole.BODY:
