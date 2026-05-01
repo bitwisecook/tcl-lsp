@@ -388,6 +388,15 @@ fn find_or_create(name: i32) u32 {
             const total: u32 = ns_len + 2 + sn.len;
             const qbuf = obj.alloc(total);
             if (qbuf != 0) {
+                // ``qbuf`` is a *temporary* lookup key — ``dir_insert``
+                // copies the bytes into its own bucket-owned buffer
+                // (see :func:`dir_insert` above), and the find / scalar
+                // probe paths only read through it.  Free on every
+                // exit so a long-running script that keeps writing
+                // namespace arrays doesn't leak one allocation per
+                // ``set`` (Codex review on PR #297).  Mirrors the same
+                // ``defer obj.free_sized`` pattern in :func:`find_table`.
+                defer obj.free_sized(qbuf, total);
                 const dst: [*]u8 = @ptrFromInt(qbuf);
                 const ns_p: [*]const u8 = @ptrFromInt(ns_ptr);
                 for (0..ns_len) |i| dst[i] = ns_p[i];
