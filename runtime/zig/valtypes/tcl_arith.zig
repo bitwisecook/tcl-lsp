@@ -176,6 +176,13 @@ pub export fn tcl_math_fabs(a: i32) i32 {
 /// Build ``cannot use floating-point value "X" as <position> operand of "<op>"``
 /// and route it through the Tcl error path.
 fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void {
+    // Preserve the first error in a chain: if a prior helper in the
+    // same statement (e.g. a missing-variable read on the other
+    // operand) already set ``error_flag``, don't overwrite the
+    // pending diagnostic with a follow-on ``cannot use floating-
+    // point value`` error — match reference Tcl's "first error
+    // wins" semantics for a single command.
+    if (@import("../interp/tcl_catch.zig").error_flag != 0) return;
     const s = obj.obj_ensure_string(o);
     const prefix: []const u8 = "cannot use floating-point value \"";
     const middle: []const u8 = "\" as ";
@@ -223,6 +230,9 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
 /// Build ``cannot use floating-point value "X" as operand of "<op>"``
 /// (unary form — no left/right qualifier).
 fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
+    // Preserve the first error in a chain — see the binary form for
+    // the rationale.
+    if (@import("../interp/tcl_catch.zig").error_flag != 0) return;
     const s = obj.obj_ensure_string(o);
     const prefix: []const u8 = "cannot use floating-point value \"";
     const middle: []const u8 = "\" as operand of \"";

@@ -233,6 +233,67 @@ class _WasmEmitterVarMixin(_Base):
             # issue #263 fix.
             return
 
+    def _emit_var_read_obj_lenient(self, name: str) -> None:
+        """Lenient counterpart to :meth:`_emit_var_read_obj` — pushes the
+        TclObj or 0 (null TclObj) if the variable is unset, instead of
+        raising ``can't read "<name>": no such variable``.
+
+        Used by ``incr`` (Tcl 8.5+: ``incr x`` on an unset scalar
+        initialises it to ``0`` before adding, returning the increment;
+        the strict-integer contract from issues #260–#262 only applies
+        to non-empty values that fail the integer parse — :func:`tcl_incr`
+        treats a null obj as ``0``).  Without this lenient variant,
+        ``proc p {} { incr x }`` regresses from "returns 1" to
+        "raises".
+
+        The name dispatch (alias / array / namespace-eval / global /
+        frame-only / proc-local) mirrors :meth:`_emit_var_read_obj`
+        exactly; only the missing-variable branch differs.
+        """
+        array_ref = _parse_array_ref(name)
+        if array_ref is not None:
+            # Array element reads return 0 (null TclObj) for missing
+            # elements via ``tcl_array_get`` — already lenient.
+            self._emit_array_element_read(*array_ref)
+            return
+        binding = self._aliases.get(name)
+        if binding is not None:
+            kind, target_idx = binding
+            if kind == "global":
+                gget_lenient = self._shared_imports.get("tcl_global_get")
+                if gget_lenient is not None:
+                    self._emit_local_get(target_idx)
+                    self._emit_call(gget_lenient)
+                    return
+        if name.startswith("::"):
+            gget_lenient = self._shared_imports.get("tcl_global_get")
+            if gget_lenient is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_lenient)
+                return
+        if not self._is_proc and self._block_namespace and self._block_namespace != "::":
+            gget_lenient = self._shared_imports.get("tcl_global_get")
+            if gget_lenient is not None:
+                qname = f"{self._block_namespace}::{name}"
+                self._emit_obj_literal(qname)
+                self._emit_call(gget_lenient)
+                return
+        if self._is_frame_only_var(name):
+            lget_lenient = self._shared_imports.get("tcl_local_get")
+            if lget_lenient is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(lget_lenient)
+                return
+        if not self._is_proc:
+            gget_lenient = self._shared_imports.get("tcl_global_get")
+            if gget_lenient is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_lenient)
+                return
+        # Plain proc-local mirror — slot defaults to 0 if never written.
+        idx = self._intern_local(name)
+        self._emit_local_get(idx)
+
     def _emit_var_write_obj(
         self,
         name: str,

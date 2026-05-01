@@ -1482,6 +1482,12 @@ pub export fn global_exists(name: i32) i32 {
 /// fuzzer's ``wasm-accepts-float-as-integer`` category) or a
 /// runaway loop when the float is the loop counter.
 pub export fn tcl_incr(o: i32, amount: i32) i32 {
+    // Bail early if a prior helper in the same statement (e.g. a
+    // missing-variable read on the increment expression) already
+    // errored — don't clobber that diagnostic with an
+    // ``expected integer`` follow-on.  Match reference Tcl's
+    // "first error wins" semantics for a single command.
+    if (@import("tcl_catch.zig").error_flag != 0) return obj_new_int_pub(0);
     if (!incr_is_strict_int(o)) {
         raise_expected_integer(o);
         return obj_new_int_pub(0);
@@ -1532,6 +1538,11 @@ fn incr_is_strict_int(o: i32) bool {
 }
 
 fn raise_expected_integer(o: i32) void {
+    // Preserve the first error in a chain — see ``tcl_incr`` for
+    // the rationale.  Without this, a missing-variable read on the
+    // increment expression that already set ``error_flag`` would be
+    // overwritten by the follow-on ``expected integer`` diagnostic.
+    if (@import("tcl_catch.zig").error_flag != 0) return;
     const s = obj.obj_ensure_string(o);
     const prefix: []const u8 = "expected integer but got \"";
     const suffix: []const u8 = "\"";

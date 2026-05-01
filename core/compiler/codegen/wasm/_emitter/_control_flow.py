@@ -44,6 +44,7 @@ class _WasmEmitterCtrlMixin(_Base):
         def _emit_unbox_int(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_var_read_obj_lenient(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_if(
@@ -540,9 +541,11 @@ class _WasmEmitterCtrlMixin(_Base):
             case IRIncr(name=name, amount=amount):
                 # Issue #262: route through ``tcl_incr`` for the
                 # strict-integer guard (rejects float strings).
+                # Lenient read so an unset scalar initialises to 0
+                # (Tcl 8.5+: ``incr x`` returns 1, doesn't raise).
                 incr_idx = self._shared_imports.get("tcl_incr")
                 if incr_idx is not None:
-                    self._emit_var_read_obj(name)
+                    self._emit_var_read_obj_lenient(name)
                     if amount is None:
                         self._emit_i64_const(1)
                         self._emit_box_int()
