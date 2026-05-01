@@ -132,7 +132,7 @@ const VarBracedCtx = struct {
     }
 };
 
-test "subst_flagged — \\${name} braced variable" {
+test "subst_flagged — ${name} braced variable" {
     VarBracedCtx.observed = &.{};
     fixture.with_interp(&VarBracedCtx.body_braced_name);
     try testing.expectEqualStrings("hello world!", VarBracedCtx.observed);
@@ -145,16 +145,16 @@ const VarMissingCtx = struct {
         // returns 0 and subst_flagged drops the slot (matching
         // the reference Tcl behaviour of leaving the unmatched
         // text empty rather than raising mid-substitution).
-        observed = substAll("[$unset_var]");
+        observed = substAll("value=$unset_var!");
     }
 };
 
 test "subst_flagged — unresolved $var contributes empty bytes" {
     VarMissingCtx.observed = &.{};
     fixture.with_interp(&VarMissingCtx.body_missing);
-    // Bracket bytes pass through (do_cmds=true tries to eval
-    // their contents as a script — empty body returns 0 / empty).
-    try testing.expectEqualStrings("", VarMissingCtx.observed);
+    // The literal ``value=`` and trailing ``!`` pass through; the
+    // unresolved ``$unset_var`` slot drops out without raising.
+    try testing.expectEqualStrings("value=!", VarMissingCtx.observed);
 }
 
 const NoVarsCtx = struct {

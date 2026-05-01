@@ -206,6 +206,55 @@ pub fn build(b: *std.Build) void {
         std.debug.panic("failed to enumerate test_*.zig files: {s}", .{@errorName(err)});
     };
 
+    // The Spencer regex engine's C objects must be linked into
+    // any test binary whose @import graph reaches
+    // ``valtypes/tcl_regex.zig`` — direct importers
+    // (``test_tcl_regex.zig``) and transitive ones
+    // (``test_tcl_subst.zig`` → ``tcl_subst`` → ``tcl_interp`` →
+    // ``tcl_runtime`` → ``tcl_regex``) alike — otherwise the
+    // resulting WASM has unresolved ``env::TclReComp`` /
+    // ``TclReExec`` imports and wasmtime refuses to instantiate
+    // it.  Adding the C objects to a test that doesn't reach the
+    // regex module just means a few wasted bytes after DCE, so we
+    // wire them in unconditionally rather than try to predict the
+    // import graph.
+    //
+    // Compile the C sources once into a static library and link
+    // *that* into each test binary instead of feeding the .c
+    // files into every test module: with ~13 ``test_*.zig`` files
+    // discovered, the per-module path recompiles regcomp /
+    // regexec / regfree / regerror / tcl_reg_shim N times and
+    // visibly dominates ``zig build test`` wall-clock.  A shared
+    // library compiles them once and the link step into each test
+    // is cheap.
+    const test_regex_lib_module = b.createModule(.{
+        .target = test_target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    test_regex_lib_module.addIncludePath(b.path("regex_include"));
+    test_regex_lib_module.addIncludePath(b.path("vendor/tcl-regex"));
+    test_regex_lib_module.addCSourceFiles(.{
+        .root = b.path("vendor/tcl-regex"),
+        .files = &.{
+            "regcomp.c",
+            "regexec.c",
+            "regfree.c",
+            "regerror.c",
+        },
+        .flags = c_flags,
+    });
+    test_regex_lib_module.addCSourceFile(.{
+        .file = b.path("regex_include/tcl_reg_shim.c"),
+        .flags = c_flags,
+    });
+    const test_regex_lib = b.addLibrary(.{
+        .name = "tcl_regex_test",
+        .linkage = .static,
+        .root_module = test_regex_lib_module,
+    });
+    test_regex_lib.step.dependOn(&fetch_regex.step);
+
     for (test_files) |file| {
         const t_module = b.createModule(.{
             .root_source_file = b.path(file),
@@ -226,43 +275,11 @@ pub fn build(b: *std.Build) void {
         // build_options" and compilation fails — leak_check stays
         // false in tests, matching the production default.
         t_module.addOptions("build_options", build_options);
-        // The Spencer regex engine's C objects must be linked into
-        // any test binary whose @import graph reaches
-        // ``valtypes/tcl_regex.zig`` — otherwise the resulting WASM
-        // has unresolved ``env::TclReComp`` / ``TclReExec`` imports
-        // and wasmtime refuses to instantiate it.
-        //
-        // Direct importers (``test_tcl_regex.zig``) and transitive
-        // ones (``test_tcl_subst.zig`` → ``tcl_subst`` →
-        // ``tcl_interp`` → ``tcl_runtime`` → ``tcl_regex``) both
-        // need the link, and adding the C objects to a test that
-        // doesn't reach the regex module just means a few wasted
-        // bytes after DCE — so we add them unconditionally rather
-        // than try to predict the import graph.
-        t_module.addIncludePath(b.path("regex_include"));
-        t_module.addIncludePath(b.path("vendor/tcl-regex"));
-        t_module.addCSourceFiles(.{
-            .root = b.path("vendor/tcl-regex"),
-            .files = &.{
-                "regcomp.c",
-                "regexec.c",
-                "regfree.c",
-                "regerror.c",
-            },
-            .flags = c_flags,
-        });
-        t_module.addCSourceFile(.{
-            .file = b.path("regex_include/tcl_reg_shim.c"),
-            .flags = c_flags,
-        });
+        t_module.linkLibrary(test_regex_lib);
         const t_exe = b.addTest(.{
             .name = testNameFromPath(b, file),
             .root_module = t_module,
         });
-        // The C sources are fetched on demand by ``fetch_regex``.
-        // Mirror the main exe's dependency so a clean build sees
-        // them before the test compile runs.
-        t_exe.step.dependOn(&fetch_regex.step);
         const run = b.addRunArtifact(t_exe);
         // We're invoking via wasmtime intentionally — silence Zig's
         // foreign-binary safety net so a missing native runner
