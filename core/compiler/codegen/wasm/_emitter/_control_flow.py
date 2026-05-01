@@ -36,6 +36,7 @@ class _WasmEmitterCtrlMixin(_Base):
         def _emit_call_stmt_tail(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_static_parse_error_trap(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterValuesMixin
         def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_obj_literal(self, *a: Any, **kw: Any) -> Any: ...
@@ -499,7 +500,25 @@ class _WasmEmitterCtrlMixin(_Base):
                 else:
                     self._emit_call_stmt_tail(command, args, defs)
             case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
-                if barrier_cmd:
+                # Static parse-error barriers (e.g. ``if {…} else {…}
+                # elseif {…}``) emit a direct ``tcl_cmd_error`` call so
+                # the WASM backend reports the same diagnostic as the VM
+                # / C Tcl.  Inside catch the trap sets ``error_flag`` /
+                # ``error_msg`` instead of unwinding; the catch wrapper
+                # then routes the message to the result variable.  We
+                # push a null result to satisfy the keep-result protocol;
+                # the value never reaches ``catch_set_ok_result`` because
+                # the catch's per-statement ``has_error`` check breaks
+                # out of the body block before it runs (see issue #259).
+                from ._statements import _static_parse_error_message  # noqa: PLC0415
+
+                parse_error_msg = _static_parse_error_message(
+                    barrier_cmd, reason, tuple(barrier_args)
+                )
+                if parse_error_msg is not None:
+                    self._emit_static_parse_error_trap(barrier_cmd or "", parse_error_msg)
+                    self._emit_i32_const(0)
+                elif barrier_cmd:
                     self._emit_eval_fallback(barrier_cmd, barrier_args)
                     # result is on stack; no DROP
                 else:

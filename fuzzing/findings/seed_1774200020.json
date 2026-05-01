@@ -24,6 +24,7 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
+  "fixed": true,
+  "fix": "wasm codegen now traps on if-barrier reasons that classify a static parse error (issue #259)",
   "category": "wasm-accepts-if-else-elseif"
 }
