@@ -1,101 +1,101 @@
 name,subsystem,c_outcome,c_total,c_passed,c_skipped,c_failed,c_wall_ms,c_user_s,c_sys_s,c_max_rss_mb,wasm_outcome,wasm_total,wasm_passed,wasm_skipped,wasm_failed,wasm_run_ms,wasm_pass_rate,slowdown_x,wasm_compile_ms,wasm_wall_ms,wasm_trap_category,wasm_first_failing,wasm_trap
-aaa_exit,misc,pass,2,2,0,0,45,0.03,0.0,7.7,pass,2,2,0,0,326,100%,7.2,481,1468,,,
-abstractlist,list,pass,123,0,123,0,24,0.01,0.0,7.9,trap,0,0,0,0,327,0%,13.4,468,1422,var-not-set,,"tcl trap: can't read ""clean-list"": no such variable |   at abstractlist.test:634:2 in debug (site #128, fallback) |   inside proc ::tcltest::errorChannel | error while executing at wasm backtrace: |  "
-append,misc,pass,52,49,3,0,24,0.02,0.0,8.0,pass,52,52,0,0,336,100%,14.2,513,1517,,,
-appendComp,misc,pass,48,43,5,0,36,0.02,0.0,8.2,fail,48,46,0,2,353,96%,9.8,523,1609,,appendComp-4.17,
-apply,proc,pass,42,38,4,0,22,0.01,0.0,8.0,no_summary,0,0,0,0,274,0%,12.7,466,1372,,,
-assocd,misc,pass,11,0,11,0,29,0.01,0.0,7.8,pass,11,3,8,0,303,27%,10.3,456,1430,,,
-basic,eval,pass,146,69,77,0,89,0.06,0.02,8.4,fail,146,60,60,26,717,41%,8.1,634,2050,,basic-10.1,
-brodnik,misc,trap,0,0,0,0,18,0.01,0.0,7.7,pass,326,2,324,0,357,,19.7,460,1487,,,
-chan,io,pass,42,42,0,0,130,0.01,0.01,8.0,pass,42,42,0,0,311,100%,2.4,458,1420,,,
-chanio,io,pass,779,392,387,0,15828,0.72,0.25,12.3,fail,779,737,23,19,1873,95%,0.1,753,3310,,chan-io-1.7,
-cmdAH,cmd-dispatch,pass,17001,16820,181,0,6084,0.76,0.01,12.6,trap,0,0,0,0,613,0%,0.1,734,1996,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at cmdAH.test:2150:5 in DebugDo (site #712, fallback) |   inside proc ::tcltest::test |   args: '1', '\n\tvariable TestNames\n\tcatch {"
-cmdIL,cmd-dispatch,pass,168,163,5,0,71,0.04,0.02,37.4,fail,168,122,2,44,437,73%,6.1,481,1561,,cmdIL-1.3,
-cmdInfo,proc,pass,12,0,12,0,19,0.0,0.0,7.7,pass,12,0,12,0,291,0%,15.1,454,1485,,,
-cmdMZ,cmd-dispatch,pass,97,96,1,0,242,0.23,0.0,8.6,fail,97,49,0,48,376,51%,1.6,482,1498,,cmdMZ-2.4,
-compExpr,expr,pass,82,80,2,0,24,0.02,0.0,8.1,fail,82,67,0,15,380,82%,15.8,480,1533,,compExpr-1.4,
-compExpr-old,expr,pass,184,183,1,0,114,0.1,0.0,8.6,timeout,,,,,,0%,,,45936,other,,subprocess hard timeout (SIGKILL)
-compile,eval,pass,171,138,33,0,97,0.07,0.01,16.7,fail,171,136,15,20,784,80%,8.1,626,2162,,compile-1.2,
-concat,misc,pass,9,9,0,0,28,0.02,0.0,7.7,pass,9,9,0,0,306,100%,10.8,508,1560,,,
-coroutine,coroutine,pass,77,74,3,0,36,0.03,0.0,8.4,fail,77,72,0,5,354,94%,9.7,482,1480,,coroutine-1.13,
-dict,dict,pass,373,367,6,0,272,0.24,0.02,38.8,fail,373,298,1,74,643,80%,2.4,531,1815,,dict-2.2,
-dstring,misc,pass,46,0,46,0,21,0.01,0.0,7.8,pass,46,46,0,0,321,100%,15.1,475,1482,,,
-error,control,pass,317,309,8,0,36,0.02,0.0,8.6,trap,0,0,0,0,305,0%,8.6,503,1447,other,,error while executing at wasm backtrace: |     0: tcl_runtime.wasm!valtypes.tcl_obj.obj_ensure_string |     1:  0x3d5a3 - tcl_runtime.wasm!interp.tcl_interp.eval_proc_call_bucket |     2:  0x3bd70 - t
-eval,eval,pass,12,12,0,0,20,0.01,0.0,7.7,fail,12,9,0,3,302,75%,15.2,459,1407,,eval-2.1,
-execute,eval,pass,157,79,78,0,71,0.06,0.0,10.5,fail,157,48,77,32,382,31%,5.4,488,1546,,execute-1.3,
-expr,expr,pass,2168,2137,31,0,465,0.45,0.0,9.5,timeout,,,,,,0%,,,45954,other,,subprocess hard timeout (SIGKILL)
-expr-old,expr,pass,461,430,31,0,75,0.07,0.0,8.4,fail,461,197,24,240,642,43%,8.6,579,1920,,expr-old-1.12,
-for,control,pass,88,64,24,0,24,0.01,0.0,8.0,trap,0,0,0,0,7315,0%,304.9,508,9071,other,,"tcl trap: in eval-script at offset 0: ::tcltest::Eval {::tcltest::RunTest for-3.6 { |   at for.test:4212:3 in regexp (site #367, fallback) |   inside proc ::formatMail |   args: '-nocase', '{^x-mailer"
-for-old,control,pass,9,9,0,0,19,0.01,0.0,7.7,fail,9,5,0,4,286,56%,15.3,453,1384,,for-old-1.4,
-foreach,list,pass,43,43,0,0,24,0.02,0.0,7.7,fail,43,13,0,30,324,30%,13.7,462,1425,,foreach-1.3,
-format,string,pass,269,269,0,0,30,0.02,0.0,7.9,fail,269,150,19,100,517,56%,17.5,480,1663,,format-1.1,
-get,string,pass,23,6,17,0,21,0.01,0.0,7.9,fail,23,3,17,3,305,13%,14.2,455,1387,,get-2.3,
-if,control,pass,73,73,0,0,24,0.01,0.0,7.7,pass,73,73,0,0,345,100%,14.1,461,1456,,,
-if-old,control,pass,33,33,0,0,19,0.01,0.0,7.7,fail,33,15,0,18,326,45%,16.8,450,1412,,if-old-1.9,
-incr,misc,pass,69,69,0,0,24,0.01,0.0,7.8,fail,69,62,0,7,360,90%,15.2,483,1519,,incr-1.23,
-incr-old,misc,pass,14,14,0,0,21,0.01,0.0,7.8,fail,14,9,0,5,356,64%,17.2,459,1475,,incr-old-2.1,
-indexObj,misc,pass,65,0,65,0,22,0.01,0.0,7.8,pass,65,4,61,0,318,6%,14.8,479,1471,,,
-info,proc,pass,287,282,5,0,58,0.05,0.0,9.2,trap,0,0,0,0,581,0%,9.9,678,1917,tcltest-option-parse,,"tcl trap: bad option ""proc"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at info.test:2029:5 in ::while (site #656, fallback"
-interp,interp,pass,354,340,14,0,1222,0.56,0.0,14.6,fail,354,200,8,146,1391,56%,1.1,657,2774,,interp-9.1,
-io,io,pass,884,480,404,0,32622,1.58,0.3,12.8,timeout,,,,,,0%,,,45518,other,,subprocess hard timeout (SIGKILL)
-ioCmd,io,pass,377,274,103,0,2732,0.06,0.02,9.6,trap,0,0,0,0,595,0%,0.2,645,1929,other,,"tcl trap: permission denied: exec requires CAP_EXEC |   at ioCmd.test:7999:1 in exec (site #443, fallback) |   args: '[info nameofexecutable]', '<<', '' |   in eval-script at offset 0: exec [info name"
-join,string,pass,10,10,0,0,20,0.01,0.0,7.8,fail,10,7,0,3,282,70%,13.8,470,1451,,join-2.1,
-lindex,list,pass,84,47,37,0,23,0.01,0.0,7.9,fail,84,46,22,16,441,55%,19.2,493,1604,,lindex-9.1,
-linsert,list,pass,28,28,0,0,21,0.01,0.0,7.7,fail,28,18,0,10,381,64%,18.0,463,1546,,linsert-1.8,
-list,list,pass,78,78,0,0,23,0.01,0.0,7.7,fail,78,77,0,1,364,99%,15.9,470,1508,,list-4.1,
-listObj,list,pass,59,42,17,0,22,0.01,0.0,7.9,fail,59,46,7,6,398,78%,17.9,474,1544,,listobj-3.4,
-listRep,list,pass,231,4,227,0,48,0.04,0.0,8.1,pass,231,231,0,0,588,100%,12.1,535,1811,,,
-llength,list,pass,6,6,0,0,20,0.01,0.0,7.7,fail,6,4,0,2,373,67%,18.7,450,1507,,llength-2.1,
-lmap,list,pass,66,66,0,0,736,0.66,0.06,160.5,fail,66,41,0,25,327,62%,0.4,464,1431,,lmap-1.2a,
-lpop,list,pass,19,17,2,0,21,0.01,0.0,7.7,pass,19,19,0,0,318,100%,15.3,444,1389,,,
-lrange,list,pass,1766,1764,2,0,100,0.09,0.0,7.9,fail,1766,1755,0,11,1608,99%,16.1,462,2743,,lrange-1.10,
-lrepeat,list,pass,12,11,1,0,21,0.01,0.0,7.9,trap,0,0,0,0,287,0%,13.7,447,1364,tcltest-option-parse,,"tcl trap: bad option ""}"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lrepeat.test:2029:5 in ::while (site #144, fallback"
-lreplace,list,pass,3579,3579,0,0,169,0.16,0.0,7.8,fail,3579,3527,0,52,2959,99%,17.6,466,4136,,lreplace-1.15,
-lsearch,list,pass,165,165,0,0,28,0.02,0.0,8.1,fail,165,60,0,105,465,36%,16.6,512,1657,,lsearch-2.1,
-lseq,list,pass,134,132,2,0,59,0.05,0.0,8.2,trap,0,0,0,0,330,0%,5.5,491,1443,tcltest-option-parse,,"tcl trap: bad option ""5"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lseq.test:2029:5 in ::while (site #269, fallback) |"
-lset,list,pass,89,0,89,0,23,0.02,0.0,7.8,pass,89,1,88,0,308,1%,13.7,464,1426,,,
-lsetComp,list,pass,19,19,0,0,22,0.01,0.0,7.8,fail,19,14,0,5,301,74%,13.9,464,1395,,lsetComp-1.1,
-mathop,expr,pass,385,385,0,0,60,0.05,0.0,8.4,trap,0,0,0,0,572,0%,9.6,635,1890,unknown-command,,"tcl trap: unknown command: 0 |   at mathop.test:4804:1 in ::tcltest::test (site #353, fallback) |   args: 'mathop-23.1', ' comparison ops, numerical ', '\n    set res {}\n    set todo {5 {1 6} {1 2 2 "
-misc,misc,pass,301,2,299,0,28,0.02,0.0,7.7,fail,301,0,299,2,356,0%,12.9,447,1452,,misc-1.1,
-namespace,variable,pass,314,311,3,0,67,0.05,0.01,8.7,fail,314,197,1,116,619,63%,9.3,540,1844,,namespace-2.1,
-namespace-old,variable,pass,126,126,0,0,25,0.02,0.0,7.7,trap,0,0,0,0,353,0%,14.0,489,1475,other,,error while executing at wasm backtrace: |     0:  0x1a94c - <unknown>!<::test_ns_upvar::show_val> |     1:  0x3d319 - tcl_runtime.wasm!interp.tcl_interp.eval_proc_call_bucket |     2:  0x3bd70 - tcl_
-nre,coroutine,pass,28,5,23,0,48,0.04,0.0,15.3,pass,28,28,0,0,314,100%,6.6,463,1411,,,
-oo,object,pass,388,372,16,0,88,0.08,0.0,8.7,fail,388,345,2,41,604,89%,6.9,595,1870,,oo-0.9,
-ooNext2,object,pass,62,57,5,0,26,0.02,0.0,7.9,trap,0,0,0,0,315,0%,12.0,473,1431,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at ooNext2.test:4733:1 in ::tcltest::test (site #110, fallback) |   args: 'next-tailcall-simple-1', 'trivial case with one method', '${"
-ooProp,object,pass,55,55,0,0,29,0.02,0.0,7.9,pass,55,55,0,0,353,100%,12.1,474,1467,,,
-ooUtil,object,pass,33,33,0,0,26,0.01,0.0,8.2,pass,33,33,0,0,344,100%,13.5,526,1537,,,
-opt,misc,pass,31,31,0,0,25,0.01,0.0,8.1,trap,0,0,0,0,293,0%,11.6,472,1422,var-not-set,,"tcl trap: can't read ""::tcl::OptDescN"": no such variable |   at opt.test:3843:4 in namespace (site #57, fallback) |   args: 'children' | error while executing at wasm backtrace: |     0:  0x1f3ad - tc"
-parse,parsing,pass,271,90,181,0,33,0.02,0.0,8.7,trap,0,0,0,0,413,0%,12.6,527,1618,other,,error while executing at wasm backtrace: |     0:  0x3a558 - tcl_runtime.wasm!parse.tcl_parse.ParseCommand |     1:  0x39613 - tcl_runtime.wasm!interp.tcl_interp.eval_script |     2:  0x3adf1 - tcl_ru
-parseExpr,parsing,pass,286,67,219,0,33,0.03,0.0,8.0,fail,286,137,146,3,429,48%,13.1,536,1631,,parseExpr-20.1,
-parseOld,parsing,pass,158,158,0,0,28,0.02,0.0,7.7,fail,158,56,0,102,423,35%,14.9,480,1604,,parseOld-1.2,
-proc,proc,pass,38,29,9,0,27,0.02,0.0,8.3,fail,38,36,0,2,312,95%,11.7,462,1407,,proc-3.7,
-proc-old,proc,pass,74,74,0,0,23,0.02,0.0,7.7,fail,74,29,0,45,351,39%,15.0,505,1492,,proc-old-2.5,
-range,misc,no_summary,0,0,0,0,10,0.0,0.0,6.5,no_summary,0,0,0,0,282,,27.3,442,1373,,,
-reg,string,pass,1141,34,1107,0,6268,6.12,0.14,265.7,trap,0,0,0,0,295,0%,0.0,593,1534,var-not-set,,"tcl trap: can't read ""ret"": no such variable |   at reg.test:3991:6 in lappend (site #838, runtime) |   inside proc ::RETest::TestFlags |   args: 'args', '-xflags', '${flags}' |   in eval-script at of"
-regexp,string,pass,257,253,4,0,15391,15.32,0.05,141.8,fail,257,174,5,78,497,68%,0.0,485,1620,,regexp-2.5,
-regexpComp,string,pass,179,179,0,0,45,0.04,0.0,10.9,fail,179,133,1,45,466,74%,10.5,473,1587,,regexpComp-2.5,
-rename,proc,pass,19,11,8,0,31,0.02,0.0,8.0,trap,0,0,0,0,296,0%,9.6,467,1409,rename-missing-cmd,,"tcl trap: can't rename ""list"": command doesn't exist |   at rename.test:3876:1 in rename (site #68, fallback) |   args: 'list', 'l.new' |   in eval-script at offset 0: rename list l.new | error while "
-resolver,variable,pass,10,0,10,0,20,0.01,0.0,7.8,pass,10,10,0,0,296,100%,14.7,457,1410,,,
-result,control,pass,26,4,22,0,20,0.01,0.0,7.9,fail,26,6,19,1,314,23%,15.4,469,1436,,result-6.3,
-safe,interp,pass,155,147,8,0,630,0.61,0.01,10.1,fail,155,149,2,4,778,96%,1.2,716,2165,,safe-6.1,
-safe-stock,interp,pass,11,11,0,0,144,0.14,0.0,9.7,trap,0,0,0,0,520,0%,3.6,622,1837,other,,"tcl trap: cannot find opt library |   at safe-stock.test:3892:5 in error (site #113, fallback) |   args: 'cannot find opt library' |   in eval-script at offset 0: error {cannot find opt library} | err"
-safe-stock86,interp,no_summary,0,0,0,0,10,0.0,0.0,6.7,no_summary,0,0,0,0,275,,27.7,466,1405,,,
-scan,string,pass,185,184,1,0,29,0.02,0.0,7.9,fail,185,130,0,55,504,70%,17.4,499,1677,,scan-1.1,
-set,variable,pass,64,63,1,0,23,0.01,0.0,7.8,fail,64,52,0,12,345,81%,15.3,489,1469,,set-1.1,
-set-old,variable,pass,153,153,0,0,28,0.02,0.0,7.9,fail,153,27,0,126,442,18%,15.8,488,1586,,set-old-1.4,
-source,interp,pass,23,23,0,0,35,0.01,0.01,7.9,pass,23,23,0,0,331,100%,9.4,494,1515,,,
-split,string,pass,18,18,0,0,19,0.01,0.0,7.7,fail,18,12,0,6,374,67%,19.4,484,1542,,split-1.1,
-stack,misc,pass,3,3,0,0,111,0.08,0.01,13.6,pass,3,3,0,0,334,100%,3.0,474,1489,,,
-string,string,pass,705,693,12,0,52,0.04,0.0,9.9,fail,705,327,7,371,855,46%,16.5,637,2165,,string-1.2.${noComp},
-stringObj,string,pass,81,0,81,0,22,0.01,0.0,7.7,pass,81,0,81,0,346,0%,15.7,467,1457,,,
-subst,parsing,pass,63,62,1,0,57,0.04,0.01,8.2,fail,63,38,1,24,362,60%,6.3,464,1475,,subst-3.1,
-switch,control,pass,113,113,0,0,24,0.01,0.0,8.3,trap,0,0,0,0,343,0%,14.4,498,1499,unsupported-command,,"tcl trap: unsupported command: switch |   at switch.test:4219:2 in ${switch} (site #399, fallback) |   inside proc ::iswtest-exact |   args: '-exact', '${c}', '\n\t    a {incr x}\n\t    b {incr y}\n\t"
-tailcall,coroutine,pass,37,29,8,0,23,0.01,0.0,7.9,fail,37,35,0,2,312,95%,13.5,456,1401,,tailcall-13.1,
-trace,variable,pass,290,273,17,0,81,0.07,0.0,8.5,fail,266,53,14,199,514,18%,6.3,598,1787,,trace-0.0,
-unknown,proc,pass,7,7,0,0,19,0.01,0.0,7.7,fail,7,0,0,7,287,0%,15.2,454,1393,,unknown-1.1,
-uplevel,variable,pass,57,57,0,0,23,0.02,0.0,8.2,trap,0,0,0,0,285,0%,12.5,475,1406,var-not-set,,"tcl trap: can't read ""x"": no such variable |   at uplevel.test:586:2 in debug (site #128, fallback) |   inside proc ::tcltest::outputChannel | error while executing at wasm backtrace: |     0:  0x1f3a"
-upvar,variable,pass,70,62,8,0,25,0.01,0.0,8.2,fail,70,50,8,12,336,71%,13.6,481,1471,,upvar-2.4,
-var,variable,pass,219,198,21,0,36,0.03,0.0,8.5,fail,219,175,4,40,511,80%,14.2,510,1658,,var-1.3,
-while,control,pass,46,46,0,0,22,0.01,0.0,7.7,pass,46,46,0,0,389,100%,17.7,469,1496,,,
-while-old,control,pass,15,15,0,0,19,0.01,0.0,7.7,fail,15,6,0,9,339,40%,18.0,462,1451,,while-old-1.3,
-word,parsing,pass,55,55,0,0,26,0.01,0.0,8.5,pass,55,55,0,0,331,100%,12.7,463,1460,,,
+aaa_exit,misc,pass,2,2,0,0,45,0.03,0.0,7.7,pass,2,2,0,0,600,100%,13.3,705,2379,,,
+abstractlist,list,pass,123,0,123,0,24,0.01,0.0,7.9,trap,0,0,0,0,685,0%,28.0,907,2738,var-not-set,,"tcl trap: can't read ""clean-list"": no such variable |   at abstractlist.test:654:2 in debug (site #128, fallback) |   inside proc ::tcltest::errorChannel | error while executing at wasm backtrace: |  "
+append,misc,pass,52,49,3,0,24,0.02,0.0,8.0,pass,52,52,0,0,566,100%,24.0,678,2175,,,
+appendComp,misc,pass,48,43,5,0,36,0.02,0.0,8.2,fail,48,46,0,2,556,96%,15.4,608,2091,,appendComp-4.17,
+apply,proc,pass,42,38,4,0,22,0.01,0.0,8.0,no_summary,0,0,0,0,513,0%,23.7,679,2147,,,
+assocd,misc,pass,11,0,11,0,29,0.01,0.0,7.8,pass,11,3,8,0,512,27%,17.5,671,2101,,,
+basic,eval,pass,146,69,77,0,89,0.06,0.02,8.4,fail,146,61,60,25,1385,42%,15.6,823,3090,,basic-10.1,
+brodnik,misc,trap,0,0,0,0,18,0.01,0.0,7.7,pass,326,2,324,0,711,,39.2,656,2314,,,
+chan,io,pass,42,42,0,0,130,0.01,0.01,8.0,pass,42,42,0,0,611,100%,4.7,820,2440,,,
+chanio,io,pass,779,392,387,0,15828,0.72,0.25,12.3,fail,779,737,23,19,3669,95%,0.2,1170,6056,,chan-io-1.7,
+cmdAH,cmd-dispatch,pass,17001,16820,181,0,6084,0.76,0.01,12.6,trap,0,0,0,0,1005,0%,0.2,1015,2995,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at cmdAH.test:2170:5 in DebugDo (site #712, fallback) |   inside proc ::tcltest::test |   args: '1', '\n\tvariable TestNames\n\tcatch {"
+cmdIL,cmd-dispatch,pass,168,163,5,0,71,0.04,0.02,37.4,fail,168,122,2,44,768,73%,10.8,800,2552,,cmdIL-1.3,
+cmdInfo,proc,pass,12,0,12,0,19,0.0,0.0,7.7,pass,12,0,12,0,479,0%,24.8,590,1937,,,
+cmdMZ,cmd-dispatch,pass,97,96,1,0,242,0.23,0.0,8.6,fail,97,50,0,47,669,52%,2.8,653,2250,,cmdMZ-return-2.0,
+compExpr,expr,pass,82,80,2,0,24,0.02,0.0,8.1,fail,82,67,0,15,625,82%,26.0,596,2175,,compExpr-1.4,
+compExpr-old,expr,pass,184,183,1,0,114,0.1,0.0,8.6,timeout,,,,,,0%,,,51004,other,,subprocess hard timeout (SIGKILL)
+compile,eval,pass,171,138,33,0,97,0.07,0.01,16.7,fail,171,136,15,20,1267,80%,13.1,748,2858,,compile-1.2,
+concat,misc,pass,9,9,0,0,28,0.02,0.0,7.7,pass,9,9,0,0,514,100%,18.1,698,2201,,,
+coroutine,coroutine,pass,77,74,3,0,36,0.03,0.0,8.4,fail,77,72,0,5,549,94%,15.1,619,2018,,coroutine-1.13,
+dict,dict,pass,373,367,6,0,272,0.24,0.02,38.8,fail,373,298,1,74,1379,80%,5.1,1025,3572,,dict-2.2,
+dstring,misc,pass,46,0,46,0,21,0.01,0.0,7.8,pass,46,46,0,0,548,100%,25.8,657,2089,,,
+error,control,pass,317,309,8,0,36,0.02,0.0,8.6,trap,0,0,0,0,467,0%,13.1,632,1913,other,,error while executing at wasm backtrace: |     0: tcl_runtime.wasm!parse.tcl_subst.subst_flagged |     1:  0x399e2 - tcl_runtime.wasm!interp.tcl_interp.execute_parsed_command |     2:  0x396c9 - tcl_r
+eval,eval,pass,12,12,0,0,20,0.01,0.0,7.7,fail,12,9,0,3,463,75%,23.4,547,1788,,eval-2.1,
+execute,eval,pass,157,79,78,0,71,0.06,0.0,10.5,fail,157,48,77,32,529,31%,7.5,642,1975,,execute-1.3,
+expr,expr,pass,2168,2137,31,0,465,0.45,0.0,9.5,timeout,,,,,,0%,,,47884,other,,subprocess hard timeout (SIGKILL)
+expr-old,expr,pass,461,430,31,0,75,0.07,0.0,8.4,fail,461,198,24,239,1428,43%,19.1,868,3562,,expr-old-1.12,
+for,control,pass,88,64,24,0,24,0.01,0.0,8.0,trap,0,0,0,0,14278,0%,595.2,744,18594,other,,"tcl trap: in eval-script at offset 0: ::tcltest::Eval {::tcltest::RunTest for-3.6 { |   at for.test:4232:3 in regexp (site #367, fallback) |   inside proc ::formatMail |   args: '-nocase', '{^x-mailer"
+for-old,control,pass,9,9,0,0,19,0.01,0.0,7.7,fail,9,5,0,4,494,56%,26.4,689,2243,,for-old-1.4,
+foreach,list,pass,43,43,0,0,24,0.02,0.0,7.7,fail,43,13,0,30,678,30%,28.8,896,2754,,foreach-1.3,
+format,string,pass,269,269,0,0,30,0.02,0.0,7.9,fail,269,150,19,100,1056,56%,35.8,823,3089,,format-1.1,
+get,string,pass,23,6,17,0,21,0.01,0.0,7.9,fail,23,3,17,3,682,13%,31.8,997,2859,,get-2.3,
+if,control,pass,73,73,0,0,24,0.01,0.0,7.7,pass,73,73,0,0,632,100%,25.9,816,2514,,,
+if-old,control,pass,33,33,0,0,19,0.01,0.0,7.7,fail,33,16,0,17,553,48%,28.5,817,2464,,if-old-1.9,
+incr,misc,pass,69,69,0,0,24,0.01,0.0,7.8,fail,69,62,0,7,585,90%,24.6,696,2258,,incr-1.23,
+incr-old,misc,pass,14,14,0,0,21,0.01,0.0,7.8,fail,14,9,0,5,577,64%,27.9,630,2219,,incr-old-2.1,
+indexObj,misc,pass,65,0,65,0,22,0.01,0.0,7.8,pass,65,4,61,0,529,6%,24.6,668,2127,,,
+info,proc,pass,287,282,5,0,58,0.05,0.0,9.2,trap,0,0,0,0,989,0%,16.9,952,2852,tcltest-option-parse,,"tcl trap: bad option ""proc"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at info.test:2049:5 in ::while (site #656, fallback"
+interp,interp,pass,354,340,14,0,1222,0.56,0.0,14.6,fail,354,206,8,140,2530,58%,2.1,1059,4579,,interp-9.2,
+io,io,pass,884,480,404,0,32622,1.58,0.3,12.8,timeout,,,,,,0%,,,47599,other,,subprocess hard timeout (SIGKILL)
+ioCmd,io,pass,377,274,103,0,2732,0.06,0.02,9.6,trap,0,0,0,0,911,0%,0.3,940,2955,other,,"tcl trap: permission denied: exec requires CAP_EXEC |   at ioCmd.test:8019:1 in exec (site #443, fallback) |   args: '[info nameofexecutable]', '<<', '' |   in eval-script at offset 0: exec [info name"
+join,string,pass,10,10,0,0,20,0.01,0.0,7.8,fail,10,7,0,3,639,70%,31.3,982,2873,,join-2.1,
+lindex,list,pass,84,47,37,0,23,0.01,0.0,7.9,fail,84,46,22,16,811,55%,35.3,684,2529,,lindex-9.1,
+linsert,list,pass,28,28,0,0,21,0.01,0.0,7.7,fail,28,18,0,10,754,64%,35.6,678,2501,,linsert-1.8,
+list,list,pass,78,78,0,0,23,0.01,0.0,7.7,fail,78,77,0,1,726,99%,31.7,790,2789,,list-4.1,
+listObj,list,pass,59,42,17,0,22,0.01,0.0,7.9,fail,59,46,7,6,1174,78%,52.7,986,3446,,listobj-3.4,
+listRep,list,pass,231,4,227,0,48,0.04,0.0,8.1,pass,231,231,0,0,1715,100%,35.5,989,3787,,,
+llength,list,pass,6,6,0,0,20,0.01,0.0,7.7,fail,6,4,0,2,854,67%,42.8,780,2741,,llength-2.1,
+lmap,list,pass,66,66,0,0,736,0.66,0.06,160.5,fail,66,41,0,25,597,62%,0.8,829,2805,,lmap-1.2a,
+lpop,list,pass,19,17,2,0,21,0.01,0.0,7.7,pass,19,19,0,0,523,100%,25.1,776,2409,,,
+lrange,list,pass,1766,1764,2,0,100,0.09,0.0,7.9,fail,1766,1755,0,11,4353,99%,43.5,659,6128,,lrange-1.10,
+lrepeat,list,pass,12,11,1,0,21,0.01,0.0,7.9,trap,0,0,0,0,609,0%,29.1,805,2454,tcltest-option-parse,,"tcl trap: bad option ""}"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lrepeat.test:2049:5 in ::while (site #144, fallback"
+lreplace,list,pass,3579,3579,0,0,169,0.16,0.0,7.8,fail,3579,3527,0,52,7912,99%,46.9,726,9940,,lreplace-1.15,
+lsearch,list,pass,165,165,0,0,28,0.02,0.0,8.1,fail,165,60,0,105,788,36%,28.1,853,2737,,lsearch-2.1,
+lseq,list,pass,134,132,2,0,59,0.05,0.0,8.2,trap,0,0,0,0,587,0%,9.9,893,2636,tcltest-option-parse,,"tcl trap: bad option ""5"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lseq.test:2049:5 in ::while (site #269, fallback) |"
+lset,list,pass,89,0,89,0,23,0.02,0.0,7.8,pass,89,1,88,0,629,1%,27.9,669,2451,,,
+lsetComp,list,pass,19,19,0,0,22,0.01,0.0,7.8,fail,19,14,0,5,618,74%,28.4,747,2450,,lsetComp-1.1,
+mathop,expr,pass,385,385,0,0,60,0.05,0.0,8.4,trap,0,0,0,0,1248,0%,20.9,985,3601,other,,"tcl trap: invalid command name ""0"" |   at mathop.test:4824:1 in ::tcltest::test (site #353, fallback) |   args: 'mathop-23.1', ' comparison ops, numerical ', '\n    set res {}\n    set todo {5 {1 6} {"
+misc,misc,pass,301,2,299,0,28,0.02,0.0,7.7,fail,301,0,299,2,636,0%,23.1,672,2304,,misc-1.1,
+namespace,variable,pass,314,311,3,0,67,0.05,0.01,8.7,fail,314,197,1,116,864,63%,13.0,650,2413,,namespace-2.1,
+namespace-old,variable,pass,126,126,0,0,25,0.02,0.0,7.7,trap,0,0,0,0,650,0%,25.9,670,2230,other,,error while executing at wasm backtrace: |     0:  0x1aa3c - <unknown>!<::test_ns_upvar::show_val> |     1:  0x40794 - tcl_runtime.wasm!dispatch.tcl_dispatch.dispatch |     2:  0x3cb4c - tcl_runtime.w
+nre,coroutine,pass,28,5,23,0,48,0.04,0.0,15.3,pass,28,28,0,0,549,100%,11.5,665,2097,,,
+oo,object,pass,388,372,16,0,88,0.08,0.0,8.7,fail,388,345,2,41,1072,89%,12.2,902,2941,,oo-0.9,
+ooNext2,object,pass,62,57,5,0,26,0.02,0.0,7.9,trap,0,0,0,0,617,0%,23.5,712,2496,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at ooNext2.test:4753:1 in ::tcltest::test (site #110, fallback) |   args: 'next-tailcall-simple-1', 'trivial case with one method', '${"
+ooProp,object,pass,55,55,0,0,29,0.02,0.0,7.9,pass,55,55,0,0,596,100%,20.5,847,2469,,,
+ooUtil,object,pass,33,33,0,0,26,0.01,0.0,8.2,pass,33,33,0,0,465,100%,18.2,658,2087,,,
+opt,misc,pass,31,31,0,0,25,0.01,0.0,8.1,trap,0,0,0,0,522,0%,20.6,625,2076,var-not-set,,"tcl trap: can't read ""::tcl::OptDescN"": no such variable |   at opt.test:3863:4 in namespace (site #57, fallback) |   args: 'children' | error while executing at wasm backtrace: |     0:  0x1f3b1 - tc"
+parse,parsing,pass,271,90,181,0,33,0.02,0.0,8.7,trap,0,0,0,0,872,0%,26.6,1001,3204,other,,error while executing at wasm backtrace: |     0:  0x3a55c - tcl_runtime.wasm!parse.tcl_parse.ParseCommand |     1:  0x39617 - tcl_runtime.wasm!interp.tcl_interp.eval_script |     2:  0x3adf5 - tcl_ru
+parseExpr,parsing,pass,286,67,219,0,33,0.03,0.0,8.0,fail,286,137,146,3,788,48%,24.1,787,2738,,parseExpr-20.1,
+parseOld,parsing,pass,158,158,0,0,28,0.02,0.0,7.7,fail,158,58,0,100,929,37%,32.6,855,2853,,parseOld-1.2,
+proc,proc,pass,38,29,9,0,27,0.02,0.0,8.3,fail,38,36,0,2,662,95%,24.7,772,2465,,proc-3.7,
+proc-old,proc,pass,74,74,0,0,23,0.02,0.0,7.7,fail,74,29,0,45,651,39%,27.9,740,2529,,proc-old-2.5,
+range,misc,no_summary,0,0,0,0,10,0.0,0.0,6.5,no_summary,0,0,0,0,587,,56.8,671,2292,,,
+reg,string,pass,1141,34,1107,0,6268,6.12,0.14,265.7,trap,0,0,0,0,620,0%,0.1,1139,2890,var-not-set,,"tcl trap: can't read ""ret"": no such variable |   at reg.test:4011:6 in lappend (site #838, runtime) |   inside proc ::RETest::TestFlags |   args: 'args', '-xflags', '${flags}' |   in eval-script at of"
+regexp,string,pass,257,253,4,0,15391,15.32,0.05,141.8,fail,257,174,5,78,1080,68%,0.1,910,3129,,regexp-2.5,
+regexpComp,string,pass,179,179,0,0,45,0.04,0.0,10.9,fail,179,133,1,45,993,74%,22.3,887,3091,,regexpComp-2.5,
+rename,proc,pass,19,11,8,0,31,0.02,0.0,8.0,fail,19,8,8,3,476,42%,15.5,593,1896,,rename-3.1,
+resolver,variable,pass,10,0,10,0,20,0.01,0.0,7.8,pass,10,10,0,0,592,100%,29.3,696,2245,,,
+result,control,pass,26,4,22,0,20,0.01,0.0,7.9,fail,26,6,19,1,520,23%,25.5,610,2000,,result-6.3,
+safe,interp,pass,155,147,8,0,630,0.61,0.01,10.1,fail,155,149,2,4,1222,96%,1.9,921,3071,,safe-6.1,
+safe-stock,interp,pass,11,11,0,0,144,0.14,0.0,9.7,trap,0,0,0,0,835,0%,5.8,813,2524,other,,"tcl trap: cannot find opt library |   at safe-stock.test:3912:5 in error (site #113, fallback) |   args: 'cannot find opt library' |   in eval-script at offset 0: error {cannot find opt library} | err"
+safe-stock86,interp,no_summary,0,0,0,0,10,0.0,0.0,6.7,no_summary,0,0,0,0,560,,56.3,733,2395,,,
+scan,string,pass,185,184,1,0,29,0.02,0.0,7.9,fail,185,130,0,55,871,70%,30.1,795,2858,,scan-1.1,
+set,variable,pass,64,63,1,0,23,0.01,0.0,7.8,fail,64,52,0,12,580,81%,25.8,691,2222,,set-1.1,
+set-old,variable,pass,153,153,0,0,28,0.02,0.0,7.9,fail,153,27,0,126,779,18%,27.8,719,2416,,set-old-1.4,
+source,interp,pass,23,23,0,0,35,0.01,0.01,7.9,pass,23,23,0,0,568,100%,16.1,689,2259,,,
+split,string,pass,18,18,0,0,19,0.01,0.0,7.7,fail,18,12,0,6,754,67%,39.0,907,2946,,split-1.1,
+stack,misc,pass,3,3,0,0,111,0.08,0.01,13.6,pass,3,3,0,0,481,100%,4.3,678,2177,,,
+string,string,pass,705,693,12,0,52,0.04,0.0,9.9,fail,705,327,7,371,1861,46%,35.9,1132,4194,,string-1.2.${noComp},
+stringObj,string,pass,81,0,81,0,22,0.01,0.0,7.7,pass,81,0,81,0,656,0%,29.7,833,2535,,,
+subst,parsing,pass,63,62,1,0,57,0.04,0.01,8.2,fail,63,39,1,23,527,62%,9.2,712,2237,,subst-3.1,
+switch,control,pass,113,113,0,0,24,0.01,0.0,8.3,trap,0,0,0,0,513,0%,21.6,596,1944,unsupported-command,,"tcl trap: unsupported command: switch |   at switch.test:4239:2 in ${switch} (site #399, fallback) |   inside proc ::iswtest-exact |   args: '-exact', '${c}', '\n\t    a {incr x}\n\t    b {incr y}\n\t"
+tailcall,coroutine,pass,37,29,8,0,23,0.01,0.0,7.9,fail,37,35,0,2,534,95%,23.2,652,2104,,tailcall-13.1,
+trace,variable,pass,290,273,17,0,81,0.07,0.0,8.5,fail,266,53,14,199,875,18%,10.8,817,2602,,trace-0.0,
+unknown,proc,pass,7,7,0,0,19,0.01,0.0,7.7,fail,7,1,0,6,483,14%,25.6,567,1891,,unknown-2.1,
+uplevel,variable,pass,57,57,0,0,23,0.02,0.0,8.2,trap,0,0,0,0,455,0%,20.0,639,2082,var-not-set,,"tcl trap: can't read ""x"": no such variable |   at uplevel.test:606:2 in debug (site #128, fallback) |   inside proc ::tcltest::outputChannel | error while executing at wasm backtrace: |     0:  0x1f3b"
+upvar,variable,pass,70,62,8,0,25,0.01,0.0,8.2,fail,70,50,8,12,631,71%,25.6,765,2384,,upvar-2.4,
+var,variable,pass,219,198,21,0,36,0.03,0.0,8.5,fail,219,175,4,40,859,80%,23.8,774,2595,,var-1.3,
+while,control,pass,46,46,0,0,22,0.01,0.0,7.7,pass,46,46,0,0,529,100%,24.1,697,2189,,,
+while-old,control,pass,15,15,0,0,19,0.01,0.0,7.7,fail,15,6,0,9,438,40%,23.3,671,1996,,while-old-1.3,
+word,parsing,pass,55,55,0,0,26,0.01,0.0,8.5,pass,55,55,0,0,643,100%,24.7,762,2471,,,

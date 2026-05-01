@@ -274,26 +274,57 @@ pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
     @trap();
 }
 
-// Build a "unknown command: <name>" TclObj and route it through
-// @"error".  Used by the interpreter fallback when a word doesn't
-// match any builtin or registered proc.  Keeping the formatting here
-// rather than in tcl_interp.zig avoids duplicating the obj-allocation
-// dance and guarantees every "unknown command" trap looks the same.
-pub fn error_unknown_command(cmd_obj: i32) void {
-    const prefix: []const u8 = "unknown command: ";
+// Build a ``invalid command name "<name>"`` TclObj and route it
+// through @"error".  Used by the interpreter fallback when a word
+// doesn't match any builtin or registered proc, and by the
+// rename-masked dispatch arm in
+// ``tcl_interp.eval_proc_call_bucket``.  The wording matches
+// reference Tcl's ``TclEvalObjvInternal`` verbatim so tcltest's
+// error-string matchers (``rename.test`` rename-1.2 / 2.1, etc.)
+// agree on the surface.
+//
+// Historical note: this was named ``error_unknown_command`` and
+// emitted ``unknown command: <name>`` until the rename-builtin
+// work landed; it was renamed but the old export name is kept as
+// an alias to avoid breaking the ~10 ``cmds/*.zig`` callers in the
+// alias and stub paths.  See tcl_catch.zig comment block above.
+pub fn error_invalid_command_name(cmd_obj: i32) void {
+    const prefix: []const u8 = "invalid command name \"";
+    const suffix: []const u8 = "\"";
     const s = obj_ensure_string(cmd_obj);
-    const total: u32 = @intCast(prefix.len + s.len);
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
     // Allocate a fresh byte buffer in the bump allocator so the
     // TclObj's string data outlives this frame.
     const buf_addr: u32 = obj.alloc(total);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
-    for (prefix, 0..) |c, i| buf[i] = c;
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
     if (s.len > 0) {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| buf[prefix.len + i] = src[i];
+        for (0..s.len) |i| {
+            buf[off] = src[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
     }
     const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     tcl_cmd_error(msg);
+}
+
+/// Backwards-compatible alias preserving the historical export name
+/// used by the alias dispatch path and the eval-fallback's unknown
+/// command surface.  Both names produce the same ``invalid command
+/// name "<name>"`` text now.  Kept until the call sites are
+/// migrated; the duplication is one line of code, not a behaviour
+/// difference.
+pub fn error_unknown_command(cmd_obj: i32) void {
+    error_invalid_command_name(cmd_obj);
 }
 
 // Build a ``can't read "<name>": no such variable`` TclObj and route

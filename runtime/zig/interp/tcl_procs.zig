@@ -143,6 +143,24 @@ pub const CMD_INTERP_CHILD: u32 = 0x200;
 /// resume the coroutine.
 pub const CMD_COROUTINE: u32 = 0x400;
 
+/// Set on a ``Command`` synthesised by ``rename`` when a hardcoded
+/// BUILTIN command was renamed to a new name.  ``params_obj`` holds
+/// the BUILTIN's ``reg.HandlerFn`` pointer (via ``@intFromPtr``)
+/// rather than a TclObj — the proc-dispatch fast path detects this
+/// flag and calls the wrapped handler with the original ``words[]``.
+/// Mirrors ``CMD_INTERP_CHILD`` / ``CMD_ALIAS`` in shape; the only
+/// difference is the slot's payload type.
+pub const CMD_BUILTIN_FORWARD: u32 = 0x800;
+
+/// Set on a ``Command`` synthesised by ``rename BUILTIN ""`` (or by
+/// ``rename BUILTIN newname`` for the source side) — marks the
+/// BUILTIN as deleted so a subsequent ``[BUILTIN ...]`` call surfaces
+/// ``invalid command name "BUILTIN"`` instead of silently dispatching
+/// through the BUILTIN cmd_table.  ``params_obj`` is unused (zero).
+/// The dispatcher checks this flag BEFORE the BUILTIN lookup so the
+/// mask wins.
+pub const CMD_BUILTIN_MASKED: u32 = 0x1000;
+
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
 // dependency.  Pin the shadow to the canonical values here so any
@@ -345,6 +363,68 @@ pub export fn proc_register(name: i32, params_obj: i32, body_obj: i32) i32 {
     const body_s = obj_ensure_string(owned_body);
     parse_cache.build_for_body(body_s.ptr, body_s.len);
     return obj_new_int(0);
+}
+
+/// Register *name* as a forwarding shim for a hardcoded BUILTIN
+/// command's handler — used by ``rename BUILTIN newName`` so the new
+/// name dispatches through the proc table (winning over the BUILTIN
+/// table) and invokes the original handler.  The handler pointer is
+/// stashed into the ``params_obj`` slot via ``@intFromPtr``; the
+/// dispatch fast path detects ``CMD_BUILTIN_FORWARD`` and re-casts.
+pub fn register_builtin_forward(name_ptr: u32, name_len: u32, handler_addr: u32) void {
+    lru_invalidate();
+    const ctx = resolve_for_register(name_ptr, name_len);
+    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return;
+
+    var cmd: u32 = ctx.existing;
+    if (cmd == 0) {
+        cmd = alloc_command(ctx.r.simple_ptr, ctx.r.simple_len, 0);
+        _ = tcl_ns.ns_cmd_put(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len, cmd);
+        proc_count += 1;
+    }
+    write_i32(cmd + OFF_FLAGS, @bitCast(CMD_BUILTIN_FORWARD));
+    write_i32(cmd + OFF_PARAMS_OBJ, @bitCast(handler_addr));
+    write_i32(cmd + OFF_BODY_OBJ, 0);
+    write_i32(cmd + OFF_N_PARAMS, 0);
+    write_i32(cmd + OFF_FUNC_IDX, 0);
+    write_i32(cmd + OFF_ARGS_TAIL, 0);
+}
+
+/// Register *name* as a tombstone marking a hardcoded BUILTIN as
+/// deleted — used by ``rename BUILTIN ""`` and the source side of
+/// ``rename BUILTIN newName``.  The dispatch fast path detects
+/// ``CMD_BUILTIN_MASKED`` and emits ``invalid command name "X"``
+/// before reaching the BUILTIN cmd_table lookup, so a renamed-away
+/// BUILTIN behaves as if it never existed.
+pub fn register_builtin_masked(name_ptr: u32, name_len: u32) void {
+    lru_invalidate();
+    const ctx = resolve_for_register(name_ptr, name_len);
+    if (ctx.r.target_ns == 0 or ctx.r.simple_len == 0) return;
+
+    var cmd: u32 = ctx.existing;
+    if (cmd == 0) {
+        cmd = alloc_command(ctx.r.simple_ptr, ctx.r.simple_len, 0);
+        _ = tcl_ns.ns_cmd_put(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len, cmd);
+        proc_count += 1;
+    }
+    write_i32(cmd + OFF_FLAGS, @bitCast(CMD_BUILTIN_MASKED));
+    write_i32(cmd + OFF_PARAMS_OBJ, 0);
+    write_i32(cmd + OFF_BODY_OBJ, 0);
+    write_i32(cmd + OFF_N_PARAMS, 0);
+    write_i32(cmd + OFF_FUNC_IDX, 0);
+    write_i32(cmd + OFF_ARGS_TAIL, 0);
+}
+
+/// Remove a Command from the proc table — used by the deletion arm of
+/// ``rename`` (and by the inverse-rename path that restores a masked
+/// BUILTIN by deleting its tombstone).  Returns true iff a Command
+/// was found and removed.  Invalidates the LRU.
+pub fn unregister_command(name_ptr: u32, name_len: u32) bool {
+    const ctx = resolve_for_register(name_ptr, name_len);
+    if (ctx.existing == 0) return false;
+    _ = tcl_ns.ns_cmd_clear(ctx.r.target_ns, ctx.r.simple_ptr, ctx.r.simple_len);
+    lru_invalidate_all();
+    return true;
 }
 
 /// Promote a possibly-borrowing TclObj to an owning copy.  When the

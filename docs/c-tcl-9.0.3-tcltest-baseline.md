@@ -19,8 +19,8 @@ combiner is [`scripts/tcl9_baseline_to_csv.py`](../scripts/tcl9_baseline_to_csv.
 | Metric                                                          | C tclsh 9.0.3 | WASM runtime |
 |----------------------------------------------------------------:|--------------:|-------------:|
 | Bundles in scope                                                |          100  |         100  |
-| Bundles that ran to a tcltest summary line                      |           99  |          76  |
-| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,797 / 38,065 (28.4 %) |
+| Bundles that ran to a tcltest summary line                      |           99  |          77  |
+| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,819 / 38,065 (28.4 %) |
 | Coverage vs native                                              |         100 % |         28 % |
 | Sum of bundle interpreter time (`c_wall_ms` vs `wasm_run_ms`)   |          86 s |        53 s  |
 | Per-bundle median slowdown (`wasm_run_ms / c_wall_ms`)          |             — |       5.8 ×  |
@@ -66,8 +66,8 @@ rest).
 The 100 bundles split this way under WASM:
 
 - **22 pass** (every assertion green)
-- **54 fail** (bundle finishes, tcltest reports `Failed > 0`)
-- **18 trap** (bundle aborts before reaching a tcltest summary)
+- **55 fail** (bundle finishes, tcltest reports `Failed > 0`)
+- **17 trap** (bundle aborts before reaching a tcltest summary)
 - **3 timeout** (30 s / per-bundle budget, hard SIGKILL)
 - **3 no_summary** (bundle ran but emitted no summary line)
 
@@ -303,7 +303,7 @@ the per-command dispatch, not the broad architecture.
 
 ## Fix history
 
-Four fixes have been applied so far:
+Five fixes have been applied so far:
 
 1. **Thread `tokens` through `IRBarrier` eval-fallback path** —
    ~10 line change in `_emit_eval_fallback`'s caller. Unlocked the
@@ -311,8 +311,9 @@ Four fixes have been applied so far:
 2. **Pre-populate tclsh standard globals** in
    `tests/external/run_tcl9_tests.py::_PRE_TCLTEST` (`argv`,
    `argv0`, `argc`, `tcl_interactive`, `auto_path`, `tcl_library`,
-   `env`, `tcl_platform`). Unlocked `parseOld`, `safe`,
-   `stringObj`, `listObj`.
+   `env`, `tcl_platform`, `unknown` stub). Unlocked `parseOld`,
+   `safe`, `stringObj`, `listObj`, plus made the rename test's
+   `info body unknown.old` round-trip viable.
 3. **`tcl_platform(pointerSize) = 4`** (folded into fix #2) —
    resolved the misleading "negative shift argument" trap on
    bitwidth-bootstrap lines in `listObj` / `stringObj`.
@@ -323,33 +324,61 @@ Four fixes have been applied so far:
    append`, fixed `dict for {k v}` calls compiled as
    `::tcl::dict::for`, and changed the codegen `dict_.py`
    fallback to route to `tcl_eval` instead of hard-trapping.
+5. **`rename` for hardcoded BUILTIN commands** — added
+   `CMD_BUILTIN_FORWARD` / `CMD_BUILTIN_MASKED` flag pair in
+   `runtime/zig/interp/tcl_procs.zig`, wired the dispatch in
+   `eval_proc_call_bucket`, and routed `rename BUILTIN newName`
+   (and `rename BUILTIN ""`) through the new shadow set in
+   `runtime/zig/cmds/tcl_cmd_interp.zig`. Plus aligned the
+   "unknown command:" surface to reference Tcl's
+   `invalid command name "X"` (rename.test rename-1.2 / 2.1
+   grep for it). Plus made `info args` tolerate compiled procs
+   (the same way `info body` already did) so the
+   `[info body unknown.old]` round-trip survives. Unlocked
+   `rename.test` (was trap → 19 tests reaching, 8 passing).
 
-| Stage                  | Bundles passing | Bundles trapping | Individual tests passing |
-|-----------------------:|----------------:|-----------------:|-------------------------:|
-| Initial                |             18  |              31  |                  9,323   |
-| After all four fixes   |             22  |              18  |                 10,797   |
-| **Δ**                  |          **+4** |          **−13** |              **+1,474**  |
+| Stage                       | Bundles passing | Bundles trapping | Individual tests passing |
+|----------------------------:|----------------:|-----------------:|-------------------------:|
+| Initial                     |             18  |              31  |                  9,323   |
+| After fixes 1-4 (session 1) |             22  |              18  |                 10,797   |
+| After fix 5 (rename)        |             22  |              17  |                 10,819   |
+| **Δ from initial**          |          **+4** |          **−14** |              **+1,496**  |
 
-That's **+15.8 %** more individual tests passing, with 13 fewer
+That's **+16.0 %** more individual tests passing, with 14 fewer
 bundles trapping out before reaching a tcltest summary.
 
 ## Remaining work (best ROI first)
 
 1. **Implement runtime `switch` handler** — unlocks `switch.test`
    plus any test that hits the dynamic-switch path indirectly.
-2. **Add `rename`-vs-BUILTINS plumbing** — unblocks `rename.test`.
-   Needs a per-name shadow set the dispatcher consults before
-   `BUILTINS`, plus `info commands` enumerator awareness. Non-
-   trivial.
-3. **`cmdAH.test` deep dive** — now reaches individual test
+2. **`cmdAH.test` deep dive** — now reaches individual test
    failures rather than trapping at bootstrap. Triage the residual
    failures (likely `source` paths, encoding helpers).
-4. **Bignum support** — `parseExpr-20.3`, `expr-old` and friends
+3. **Bignum support** — `parseExpr-20.3`, `expr-old` and friends
    need integer arithmetic past the 64-bit boundary.
-5. **Test-internal var-not-set** in `abstractlist`, `opt`, `reg`,
-   `uplevel` — each is a distinct semantic bug in the codegen's
-   handling of compound `set` / `upvar` patterns; not categorical.
-6. **Fix the semantic bugs surfaced by `fail` bundles** (e.g.
+4. **Compiled-frame `uplevel` / `upvar`** — `uplevel.test`,
+   `abstractlist`, `opt`, `reg` all hit the same architectural
+   limitation: when a compiled proc B is called from a compiled
+   proc A and B does `uplevel set X 42`, the write should land
+   in A's WASM locals — but compile-to-compile calls don't push
+   runtime frames, so the write goes nowhere visible. Fix is
+   either (a) inline B's body into A's IR (the existing
+   `inline_uplevel.py` handles the trivial single-body case but
+   not parameterised callees), or (b) route compiled-proc local
+   reads/writes through the runtime frame table. Both are
+   substantial; the documented note in
+   [`tests/test_barrier_relaxation_runtime.py`](../tests/test_barrier_relaxation_runtime.py)
+   explains the trade-off in detail.
+5. **`opt` package stubs** — `opt.test` needs the
+   `tcl9.0.3/library/opt/optparse.tcl` package's
+   `::tcl::OptKeyRegister` / `OptKeyDelete` / `OptParse` /
+   `OptDescN`. We could ship a port or add a per-test bundle
+   stub; either way ~140 tests are gated on it.
+6. **`rename.test` errorCode** — 8/19 passing now, residual
+   failures all assert `errorCode == "TCL WRONGARGS"` but our
+   runtime emits `NONE`. Wiring up errorCode tracking on
+   `wrong # args` errors would close the gap.
+7. **Fix the semantic bugs surfaced by `fail` bundles** (e.g.
    `expr-2.1`, `subst-3.1`) — these are individual bugs that each
    need their own investigation but are typically cheap to fix.
 
