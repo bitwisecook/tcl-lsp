@@ -532,9 +532,16 @@ def _define_call_compiled_proc(
             exp["asyncify_start_unwind"](store, buf)
         elif state == 2:  # REWINDING
             exp["asyncify_stop_rewind"](store)
-        # Other states (UNWINDING) shouldn't reach this trampoline:
-        # the asyncify pass only dispatches into us from NORMAL or
-        # via a rewind, never re-entrantly during an active unwind.
+        else:
+            # ``UNWINDING`` (1) and ``REWIND_DONE`` (3) shouldn't
+            # reach this trampoline: the asyncify pass only
+            # dispatches into us from NORMAL or via a rewind, never
+            # re-entrantly during an active unwind.  Surface the
+            # unexpected state loudly so a state-machine bug can't
+            # silently hang or corrupt the coroutine.
+            raise RuntimeError(
+                f"coro_yield_unwind: unexpected asyncify state {state}"
+            )
 
     try:
         linker.define_func("env", "coro_yield_unwind", _arg_i32, _coro_yield_unwind)
