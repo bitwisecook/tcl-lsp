@@ -34,6 +34,17 @@ formatter_config = FormatterConfig()
 feature_config = FeatureConfig()
 diagnostic_scheduler = DiagnosticScheduler()
 
+
+def config_for_uri(doc_uri: str | None) -> FeatureConfig:  # noqa: ARG001
+    """Resolve the effective ``FeatureConfig`` for a document URI.
+
+    PR A introduces this seam as a shim that returns the global
+    ``feature_config``.  Per-folder resolution lands in the follow-up
+    refactor (issue #230 PR B), where this helper picks the longest
+    workspace-folder-prefix match from a folder→config map.
+    """
+    return feature_config
+
 # Configuration layers, merged on each apply in the order:
 #   global_config_settings  ← ``~/.config/tcl-lsp/config.ini`` (lowest priority)
 #   editor_config_settings  ← ``workspace/didChangeConfiguration`` payload

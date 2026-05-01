@@ -2931,18 +2931,21 @@
         "order": 0,
         "properties": {
           "tclLsp.pythonPath": {
+            "scope": "machine-overridable",
             "type": "string",
             "default": "auto",
             "description": "Python 3.10+ interpreter for the language server (latest stable recommended). The VSIX bundles all Python dependencies — only the interpreter is needed. Set to 'auto' (default) to search PATH and well-known locations, or provide a full path (e.g. /opt/homebrew/bin/python3.14). Install Python from python.org or via Homebrew (brew install python@3.14).",
             "order": 0
           },
           "tclLsp.serverPath": {
+            "scope": "machine-overridable",
             "type": "string",
             "default": "",
             "description": "Path to the tcl-lsp server directory. If empty, uses the bundled server.",
             "order": 1
           },
           "tclLsp.dialect": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "tcl8.6",
             "enum": [
@@ -2981,6 +2984,7 @@
             "order": 2
           },
           "tclLsp.extraCommands": {
+            "scope": "language-overridable",
             "type": "array",
             "default": [],
             "items": {
@@ -2990,6 +2994,7 @@
             "order": 3
           },
           "tclLsp.libraryPaths": {
+            "scope": "resource",
             "type": "array",
             "default": [],
             "items": {
@@ -3005,6 +3010,7 @@
         "order": 1,
         "properties": {
           "tclLsp.features.hover": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3014,6 +3020,7 @@
             "order": 0
           },
           "tclLsp.features.completion": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3023,6 +3030,7 @@
             "order": 1
           },
           "tclLsp.features.diagnostics": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3032,6 +3040,7 @@
             "order": 2
           },
           "tclLsp.features.semanticTokens": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3041,6 +3050,7 @@
             "order": 4
           },
           "tclLsp.features.codeActions": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3050,6 +3060,7 @@
             "order": 5
           },
           "tclLsp.features.definition": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3059,6 +3070,7 @@
             "order": 6
           },
           "tclLsp.features.references": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3068,6 +3080,7 @@
             "order": 7
           },
           "tclLsp.features.documentSymbols": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3077,6 +3090,7 @@
             "order": 8
           },
           "tclLsp.features.folding": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3086,6 +3100,7 @@
             "order": 9
           },
           "tclLsp.features.rename": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3095,6 +3110,7 @@
             "order": 10
           },
           "tclLsp.features.signatureHelp": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3104,6 +3120,7 @@
             "order": 11
           },
           "tclLsp.features.workspaceSymbols": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3113,6 +3130,7 @@
             "order": 12
           },
           "tclLsp.features.inlayHints": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3122,6 +3140,7 @@
             "order": 13
           },
           "tclLsp.features.callHierarchy": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3131,6 +3150,7 @@
             "order": 14
           },
           "tclLsp.features.documentLinks": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3140,6 +3160,7 @@
             "order": 15
           },
           "tclLsp.features.selectionRange": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3149,6 +3170,7 @@
             "order": 16
           },
           "tclLsp.features.documentHighlight": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3158,6 +3180,7 @@
             "order": 17
           },
           "tclLsp.features.codeLens": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3167,6 +3190,7 @@
             "order": 18
           },
           "tclLsp.features.workspaceFileOps": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3176,12 +3200,14 @@
             "order": 19
           },
           "tclLsp.features.pullDiagnostics": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
             "order": 20
           },
           "tclLsp.features.progress": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3191,6 +3217,7 @@
             "order": 22
           },
           "tclLsp.features.implementation": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3200,6 +3227,7 @@
             "order": 23
           },
           "tclLsp.features.typeDefinition": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3209,6 +3237,7 @@
             "order": 24
           },
           "tclLsp.features.declaration": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3218,6 +3247,7 @@
             "order": 25
           },
           "tclLsp.features.linkedEditingRange": {
+            "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
@@ -3233,6 +3263,7 @@
         "order": 2,
         "properties": {
           "tclLsp.formatting.indentSize": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 4,
             "markdownDescription": "Number of spaces per indentation level.",
@@ -3241,6 +3272,7 @@
             "order": 0
           },
           "tclLsp.formatting.indentStyle": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "spaces",
             "markdownDescription": "Use spaces or tabs for indentation.",
@@ -3251,6 +3283,7 @@
             "order": 1
           },
           "tclLsp.formatting.continuationIndent": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 4,
             "markdownDescription": "Extra indentation for continuation lines.",
@@ -3265,6 +3298,7 @@
         "order": 3,
         "properties": {
           "tclLsp.formatting.braceStyle": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "k_and_r",
             "markdownDescription": "Brace placement style. K&R places the opening brace at the end of the line.",
@@ -3274,18 +3308,21 @@
             "order": 0
           },
           "tclLsp.formatting.spaceBetweenBraces": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Insert spaces inside single-line braces: `{ body }` instead of `{body}`.",
             "order": 1
           },
           "tclLsp.formatting.enforceBracedVariables": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "markdownDescription": "Rewrite `$var` as `${var}` for consistency.",
             "order": 2
           },
           "tclLsp.formatting.enforceBracedExpr": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "markdownDescription": "Rewrite unbraced `expr` arguments as braced expressions.",
@@ -3298,6 +3335,7 @@
         "order": 4,
         "properties": {
           "tclLsp.formatting.maxLineLength": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 120,
             "markdownDescription": "Hard limit for line length. Lines exceeding this are wrapped.",
@@ -3305,6 +3343,7 @@
             "order": 0
           },
           "tclLsp.formatting.goalLineLength": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 100,
             "markdownDescription": "Soft target for line length. The formatter prefers to stay within this limit.",
@@ -3312,12 +3351,14 @@
             "order": 1
           },
           "tclLsp.formatting.expandSingleLineBodies": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "markdownDescription": "Expand single-line command bodies onto multiple lines.",
             "order": 2
           },
           "tclLsp.formatting.minBodyCommandsForExpansion": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 2,
             "markdownDescription": "Minimum commands in a body before it is expanded to multiple lines.",
@@ -3331,24 +3372,28 @@
         "order": 5,
         "properties": {
           "tclLsp.formatting.spaceAfterCommentHash": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Ensure a space after `#` in comments.",
             "order": 0
           },
           "tclLsp.formatting.trimTrailingWhitespace": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Remove trailing whitespace from lines.",
             "order": 1
           },
           "tclLsp.formatting.alignCommentsToCode": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Align inline comments to a consistent column.",
             "order": 2
           },
           "tclLsp.formatting.replaceSemicolonsWithNewlines": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Replace `;` command separators with newlines.",
@@ -3361,6 +3406,7 @@
         "order": 6,
         "properties": {
           "tclLsp.formatting.blankLinesBetweenProcs": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 1,
             "markdownDescription": "Number of blank lines between proc definitions.",
@@ -3369,6 +3415,7 @@
             "order": 0
           },
           "tclLsp.formatting.blankLinesBetweenBlocks": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 1,
             "markdownDescription": "Number of blank lines between top-level blocks.",
@@ -3377,6 +3424,7 @@
             "order": 1
           },
           "tclLsp.formatting.maxConsecutiveBlankLines": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 2,
             "markdownDescription": "Maximum number of consecutive blank lines to keep.",
@@ -3385,6 +3433,7 @@
             "order": 2
           },
           "tclLsp.formatting.lineEnding": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "lf",
             "markdownDescription": "Line ending style for formatted output.",
@@ -3396,6 +3445,7 @@
             "order": 3
           },
           "tclLsp.formatting.ensureFinalNewline": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Ensure the file ends with a newline character.",
@@ -3408,6 +3458,7 @@
         "order": 7,
         "properties": {
           "tclLsp.formatting.docstringStyle": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "none",
             "markdownDescription": "Where docstrings are placed relative to `proc` definitions. Set to `none` to leave existing docstrings as-is.",
@@ -3424,6 +3475,7 @@
             "order": 0
           },
           "tclLsp.formatting.docstringTagStyle": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "doxygen",
             "markdownDescription": "Tag format used in docstrings for parameter and return documentation.",
@@ -3440,12 +3492,14 @@
             "order": 1
           },
           "tclLsp.formatting.docstringDecoration": {
+            "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "markdownDescription": "Add decoration border lines (e.g. `# ......`) around docstrings.",
             "order": 2
           },
           "tclLsp.formatting.docstringDecorationChar": {
+            "scope": "language-overridable",
             "type": "string",
             "default": ".",
             "markdownDescription": "Character used for docstring decoration borders.",
@@ -3459,6 +3513,7 @@
             "order": 3
           },
           "tclLsp.formatting.docstringDecorationWidth": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 70,
             "markdownDescription": "Width of docstring decoration border lines.",
@@ -3473,24 +3528,28 @@
         "order": 8,
         "properties": {
           "tclLsp.diagnostics.E001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**E001:** Missing subcommand — e.g. bare `string` without a subcommand.",
             "order": 0
           },
           "tclLsp.diagnostics.E002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**E002:** Too few arguments for command.",
             "order": 1
           },
           "tclLsp.diagnostics.E003": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**E003:** Too many arguments for command.",
             "order": 2
           },
           "tclLsp.diagnostics.E200": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**E200:** Shimmer parse error — internal representation cannot be determined.",
@@ -3503,6 +3562,7 @@
         "order": 9,
         "properties": {
           "tclLsp.style.lineLength": {
+            "scope": "language-overridable",
             "type": "integer",
             "default": 120,
             "minimum": 40,
@@ -3510,6 +3570,7 @@
             "order": -2
           },
           "tclLsp.style.nonAscii": {
+            "scope": "language-overridable",
             "type": "string",
             "default": "confusables",
             "enum": [
@@ -3528,174 +3589,203 @@
             "order": -1
           },
           "tclLsp.diagnostics.W001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W001:** Unknown subcommand.",
             "order": 0
           },
           "tclLsp.diagnostics.W002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W002:** Command is disabled in active dialect profile.",
             "order": 1
           },
           "tclLsp.diagnostics.W100": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W100:** Unbraced expression argument — prevents byte-compilation and risks double substitution.",
             "order": 2
           },
           "tclLsp.diagnostics.W104": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W104:** String concatenation for list building — use `lappend` instead.",
             "order": 3
           },
           "tclLsp.diagnostics.W105": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W105:** Unbraced code block or missing `variable` declaration in `namespace eval`.",
             "order": 4
           },
           "tclLsp.diagnostics.W106": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W106:** Dangerous unbraced `switch` body — risks double substitution.",
             "order": 5
           },
           "tclLsp.diagnostics.W108": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W108:** Non-ASCII characters in token content.",
             "order": 6
           },
           "tclLsp.diagnostics.W110": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W110:** Use `eq`/`ne` instead of `==`/`!=` for string comparison.",
             "order": 7
           },
           "tclLsp.diagnostics.W111": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W111:** Line exceeds maximum length (see `tclLsp.style.lineLength`).",
             "order": 8
           },
           "tclLsp.diagnostics.W112": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W112:** Trailing whitespace.",
             "order": 9
           },
           "tclLsp.diagnostics.W113": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W113:** Procedure shadows built-in command.",
             "order": 10
           },
           "tclLsp.diagnostics.W114": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W114:** Redundant nested `[expr {...}]` — already in expression context.",
             "order": 11
           },
           "tclLsp.diagnostics.W115": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W115:** Backslash-newline in comment silently swallows the next line.",
             "order": 12
           },
           "tclLsp.diagnostics.W116": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W116:** Stub command shadows built-in command.",
             "order": 13
           },
           "tclLsp.diagnostics.W117": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W117:** Stub expression definition shadows built-in function or operator.",
             "order": 14
           },
           "tclLsp.diagnostics.W118": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W118:** Inconsistent line endings.",
             "order": 15
           },
           "tclLsp.diagnostics.W120": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W120:** Command used without a corresponding `package require`.",
             "order": 16
           },
           "tclLsp.diagnostics.W121": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W121:** Subnet mask has non-contiguous bits.",
             "order": 17
           },
           "tclLsp.diagnostics.W122": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W122:** Mistyped IPv4 address (octet > 255 or leading zero).",
             "order": 18
           },
           "tclLsp.diagnostics.W124": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W124:** Invalid IP address literal.",
             "order": 19
           },
           "tclLsp.diagnostics.W125": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W125:** Orphaned control-flow keyword used as standalone command.",
             "order": 20
           },
           "tclLsp.diagnostics.W126": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W126:** Non-channel value in channel argument position.",
             "order": 21
           },
           "tclLsp.diagnostics.W200": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** `exec` result not captured or binary format modifier requires newer Tcl.",
             "order": 22
           },
           "tclLsp.diagnostics.W201": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
             "order": 23
           },
           "tclLsp.diagnostics.W230": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
             "order": 24
           },
           "tclLsp.diagnostics.W231": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
             "order": 25
           },
           "tclLsp.diagnostics.W232": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
             "order": 26
           },
           "tclLsp.diagnostics.W240": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
             "order": 27
           },
           "tclLsp.diagnostics.W241": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
@@ -3708,36 +3798,42 @@
         "order": 10,
         "properties": {
           "tclLsp.diagnostics.W210": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W210:** Variable read before set.",
             "order": 0
           },
           "tclLsp.diagnostics.W211": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W211:** Variable set but never used.",
             "order": 1
           },
           "tclLsp.diagnostics.W212": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W212:** Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.).",
             "order": 2
           },
           "tclLsp.diagnostics.W213": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W213:** Variable may not exist — use `unset -nocomplain` to suppress the error.",
             "order": 3
           },
           "tclLsp.diagnostics.W214": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W214:** Unused proc parameter — argument is declared but never read in the procedure body.",
             "order": 4
           },
           "tclLsp.diagnostics.W220": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W220:** Dead store — variable set but overwritten before use.",
@@ -3750,78 +3846,91 @@
         "order": 11,
         "properties": {
           "tclLsp.diagnostics.W101": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W101:** `eval` with string concatenation — code injection risk.",
             "order": 0
           },
           "tclLsp.diagnostics.W102": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W102:** `subst` on variable input — code injection risk.",
             "order": 1
           },
           "tclLsp.diagnostics.W103": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W103:** `open` with pipeline `|` — command injection risk.",
             "order": 2
           },
           "tclLsp.diagnostics.W300": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W300:** `source` with variable argument — code execution risk.",
             "order": 3
           },
           "tclLsp.diagnostics.W301": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W301:** `uplevel` with string-built script — injection risk.",
             "order": 4
           },
           "tclLsp.diagnostics.W302": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W302:** `catch` without result variable — errors are silently swallowed.",
             "order": 5
           },
           "tclLsp.diagnostics.W303": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W303:** Regexp vulnerable to catastrophic backtracking (ReDoS).",
             "order": 6
           },
           "tclLsp.diagnostics.W304": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W304:** Missing option terminator `--` on option-bearing commands.",
             "order": 7
           },
           "tclLsp.diagnostics.W306": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W306:** Substitution in literal-expected argument position.",
             "order": 8
           },
           "tclLsp.diagnostics.W307": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W307:** Non-literal command name — variable or command substitution as command.",
             "order": 9
           },
           "tclLsp.diagnostics.W308": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W308:** `subst` without `-nocommands` — risk of unintended command execution.",
             "order": 10
           },
           "tclLsp.diagnostics.W309": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W309:** `eval`/`uplevel` with `subst` — double substitution risk.",
             "order": 11
           },
           "tclLsp.diagnostics.W313": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W313:** Destructive file operation with variable path — path-traversal risk.",
@@ -3834,18 +3943,21 @@
         "order": 12,
         "properties": {
           "tclLsp.diagnostics.H300": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**H300:** Possible paste error — repeated assignment to same variable with same value.",
             "order": 0
           },
           "tclLsp.diagnostics.W123": {
+            "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
             "order": 1
           },
           "tclLsp.diagnostics.W242": {
+            "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "**W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
@@ -3858,24 +3970,28 @@
         "order": 13,
         "properties": {
           "tclLsp.shimmer.enabled": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Enable shimmer detection (internal representation changes). When disabled, all S-series diagnostics are suppressed.",
             "order": -1
           },
           "tclLsp.diagnostics.S100": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**S100:** Single shimmer outside a loop — object internal representation changed.",
             "order": 0
           },
           "tclLsp.diagnostics.S101": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**S101:** Shimmer inside a loop body — per-iteration representation conversion cost.",
             "order": 1
           },
           "tclLsp.diagnostics.S102": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**S102:** Variable oscillates between two types across loop iterations.",
@@ -3888,18 +4004,21 @@
         "order": 14,
         "properties": {
           "tclLsp.diagnostics.T100": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**T100:** Tainted data flows into a dangerous code-execution sink (`eval`, `expr`, `exec`, `uplevel`, `subst`).",
             "order": 0
           },
           "tclLsp.diagnostics.T101": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**T101:** Tainted data flows into an output command (`puts`).",
             "order": 1
           },
           "tclLsp.diagnostics.T102": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**T102:** Tainted data in option position without `--` terminator — option injection risk.",
@@ -3912,186 +4031,217 @@
         "order": 15,
         "properties": {
           "tclLsp.diagnostics.IRULE1001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1001:** Command invalid or ineffective in this iRules event.",
             "order": 0
           },
           "tclLsp.diagnostics.IRULE1002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1002:** Unknown iRules event name.",
             "order": 1
           },
           "tclLsp.diagnostics.IRULE1003": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1003:** Deprecated iRules event.",
             "order": 2
           },
           "tclLsp.diagnostics.IRULE1004": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1004:** `when` block missing explicit `priority`.",
             "order": 3
           },
           "tclLsp.diagnostics.IRULE1005": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1005:** Data event without a matching `*::collect` call.",
             "order": 4
           },
           "tclLsp.diagnostics.IRULE1006": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1006:** `*::payload` without a matching `*::collect` call.",
             "order": 5
           },
           "tclLsp.diagnostics.IRULE1007": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1007:** `*::collect` without a matching `*::release` on the same connection side.",
             "order": 6
           },
           "tclLsp.diagnostics.IRULE1008": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1008:** `*::release` without a matching `*::collect` on the same connection side.",
             "order": 7
           },
           "tclLsp.diagnostics.IRULE1201": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1201:** HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
             "order": 8
           },
           "tclLsp.diagnostics.IRULE1202": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1202:** Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
             "order": 9
           },
           "tclLsp.diagnostics.IRULE2001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2001:** Deprecated `matchclass` — use `class match` instead.",
             "order": 10
           },
           "tclLsp.diagnostics.IRULE2002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2002:** Deprecated iRules command.",
             "order": 11
           },
           "tclLsp.diagnostics.IRULE2003": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2003:** Unsafe iRules command.",
             "order": 12
           },
           "tclLsp.diagnostics.IRULE2101": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2101:** Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
             "order": 13
           },
           "tclLsp.diagnostics.IRULE5001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5001:** Ungated `log` in a high-frequency event.",
             "order": 14
           },
           "tclLsp.diagnostics.IRULE5002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5002:** `drop`/`reject`/`discard` without `event disable all` or `return`.",
             "order": 15
           },
           "tclLsp.diagnostics.IRULE5004": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5004:** `DNS::return` without `return`.",
             "order": 16
           },
           "tclLsp.diagnostics.IRULE5005": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
             "order": 17
           },
           "tclLsp.diagnostics.IRULE5006": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5006:** Top-level-only command used inside a nested body.",
             "order": 18
           },
           "tclLsp.diagnostics.IRULE5007": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5007:** Event-context command used at top level outside a `when` block.",
             "order": 19
           },
           "tclLsp.diagnostics.IRULE3001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
             "order": 20
           },
           "tclLsp.diagnostics.IRULE3002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
             "order": 21
           },
           "tclLsp.diagnostics.IRULE3003": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
             "order": 22
           },
           "tclLsp.diagnostics.IRULE3101": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
             "order": 23
           },
           "tclLsp.diagnostics.IRULE3102": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
             "order": 24
           },
           "tclLsp.diagnostics.IRULE4001": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
             "order": 25
           },
           "tclLsp.diagnostics.IRULE4002": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
             "order": 26
           },
           "tclLsp.diagnostics.IRULE4003": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
             "order": 27
           },
           "tclLsp.diagnostics.IRULE4004": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
             "order": 28
           },
           "tclLsp.diagnostics.IRULE4005": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
             "order": 29
           },
           "tclLsp.diagnostics.genericVariablePatterns": {
+            "scope": "resource",
             "type": "array",
             "items": {
               "type": "string"
@@ -4107,30 +4257,35 @@
         "order": 18,
         "properties": {
           "tclLsp.diagnostics.W130": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W130:** tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'.",
             "order": 0
           },
           "tclLsp.diagnostics.W131": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W131:** tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'.",
             "order": 1
           },
           "tclLsp.diagnostics.W132": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W132:** tclpkg.lock integrity mismatch — CAS hash differs from lockfile.",
             "order": 2
           },
           "tclLsp.diagnostics.W133": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W133:** tclpkg.tcl directive not permitted in safe mode.",
             "order": 3
           },
           "tclLsp.diagnostics.W134": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W134:** Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime.",
@@ -4143,12 +4298,14 @@
         "order": 19,
         "properties": {
           "tclLsp.optimiser.enabled": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "description": "Enable optimiser suggestions as diagnostics.",
             "order": 0
           },
           "tclLsp.optimiser.profile": {
+            "scope": "resource",
             "type": "string",
             "enum": [
               "off",
@@ -4169,6 +4326,7 @@
             "order": 1
           },
           "tclLsp.optimiser.O100": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4178,6 +4336,7 @@
             "order": 2
           },
           "tclLsp.optimiser.O101": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4187,6 +4346,7 @@
             "order": 3
           },
           "tclLsp.optimiser.O102": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4196,6 +4356,7 @@
             "order": 4
           },
           "tclLsp.optimiser.O103": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4205,6 +4366,7 @@
             "order": 5
           },
           "tclLsp.optimiser.O104": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4214,6 +4376,7 @@
             "order": 6
           },
           "tclLsp.optimiser.O105": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4223,6 +4386,7 @@
             "order": 7
           },
           "tclLsp.optimiser.O106": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4232,6 +4396,7 @@
             "order": 8
           },
           "tclLsp.optimiser.O107": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4241,6 +4406,7 @@
             "order": 9
           },
           "tclLsp.optimiser.O108": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4250,6 +4416,7 @@
             "order": 10
           },
           "tclLsp.optimiser.O109": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4259,6 +4426,7 @@
             "order": 11
           },
           "tclLsp.optimiser.O110": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4268,6 +4436,7 @@
             "order": 12
           },
           "tclLsp.optimiser.O111": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4277,6 +4446,7 @@
             "order": 13
           },
           "tclLsp.optimiser.O112": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4286,6 +4456,7 @@
             "order": 14
           },
           "tclLsp.optimiser.O113": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4295,6 +4466,7 @@
             "order": 15
           },
           "tclLsp.optimiser.O114": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4304,6 +4476,7 @@
             "order": 16
           },
           "tclLsp.optimiser.O115": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4313,6 +4486,7 @@
             "order": 17
           },
           "tclLsp.optimiser.O116": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4322,6 +4496,7 @@
             "order": 18
           },
           "tclLsp.optimiser.O117": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4331,6 +4506,7 @@
             "order": 19
           },
           "tclLsp.optimiser.O118": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4340,6 +4516,7 @@
             "order": 20
           },
           "tclLsp.optimiser.O119": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4349,6 +4526,7 @@
             "order": 21
           },
           "tclLsp.optimiser.O120": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4358,6 +4536,7 @@
             "order": 22
           },
           "tclLsp.optimiser.O121": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4367,6 +4546,7 @@
             "order": 23
           },
           "tclLsp.optimiser.O122": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4376,6 +4556,7 @@
             "order": 24
           },
           "tclLsp.optimiser.O123": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4385,6 +4566,7 @@
             "order": 25
           },
           "tclLsp.optimiser.O124": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4394,6 +4576,7 @@
             "order": 26
           },
           "tclLsp.optimiser.O125": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4403,6 +4586,7 @@
             "order": 27
           },
           "tclLsp.optimiser.O126": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4412,6 +4596,7 @@
             "order": 28
           },
           "tclLsp.optimiser.O127": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4421,6 +4606,7 @@
             "order": 29
           },
           "tclLsp.optimiser.O128": {
+            "scope": "resource",
             "type": [
               "boolean",
               "null"
@@ -4436,12 +4622,14 @@
         "order": 15,
         "properties": {
           "tclLsp.runtimeValidation.enabled": {
+            "scope": "resource",
             "type": "boolean",
             "default": false,
             "description": "Run runtime validation on save using dialect-aware adapters.",
             "order": 0
           },
           "tclLsp.runtimeValidation.adapter": {
+            "scope": "resource",
             "type": "string",
             "default": "auto",
             "enum": [
@@ -4458,12 +4646,14 @@
             "order": 1
           },
           "tclLsp.runtimeValidation.tclshPath": {
+            "scope": "machine-overridable",
             "type": "string",
             "default": "tclsh",
             "description": "Path to the tclsh executable used for runtime validation.",
             "order": 2
           },
           "tclLsp.runtimeValidation.timeoutMs": {
+            "scope": "resource",
             "type": "integer",
             "default": 5000,
             "minimum": 500,
@@ -4478,12 +4668,14 @@
         "order": 17,
         "properties": {
           "tclLsp.ai.enabled": {
+            "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "Enable AI-powered chat participants (@irule and @tcl). When disabled, the chat participants will not respond to requests. Requires VS Code Copilot Chat.",
             "order": 0
           },
           "tclLsp.ai.extraPrompts": {
+            "scope": "resource",
             "type": "array",
             "items": {
               "type": "object",
@@ -4532,24 +4724,28 @@
         "order": 18,
         "properties": {
           "tclLsp.packageManager.registryUrl": {
+            "scope": "machine-overridable",
             "type": "string",
             "default": "https://raw.githubusercontent.com/tcltk-pkgs/registry/main/packages.json",
             "markdownDescription": "URL of the Tcl package registry (`packages.json`). Used for `tcl pkg search` and dependency discovery.",
             "order": 0
           },
           "tclLsp.packageManager.cacheDir": {
+            "scope": "machine-overridable",
             "type": "string",
             "default": "",
             "markdownDescription": "Override the tclpkg cache directory. Empty uses the platform-native cache path (`~/.cache/tcl-lsp/tclpkg/` on Linux).",
             "order": 1
           },
           "tclLsp.packageManager.autoInstallOnSave": {
+            "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "When `tclpkg.tcl` is saved, automatically run `tcl pkg install` to refresh the lockfile.",
             "order": 2
           },
           "tclLsp.packageManager.offline": {
+            "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "Never touch the network — tclpkg always operates against the local cache.",
@@ -4562,6 +4758,7 @@
         "order": 16,
         "properties": {
           "tclLsp.xcDiagnostics.enabled": {
+            "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "Show F5 Distributed Cloud (XC) translatability diagnostics inline. Highlights which iRule constructs can be translated to XC-native routes, service policies, and header processing. Useful for migration planning.",
