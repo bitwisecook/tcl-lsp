@@ -373,7 +373,7 @@ def _list_quote(s: str) -> str:
     """
     if not s:
         return "{}"
-    if any(c in s for c in " \t\n\r{}\\$[];\""):
+    if any(c in s for c in ' \t\n\r{}\\$[];"'):
         return "{" + s + "}"
     return s
 
