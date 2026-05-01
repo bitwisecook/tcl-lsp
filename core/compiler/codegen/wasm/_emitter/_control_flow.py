@@ -522,10 +522,12 @@ class _WasmEmitterCtrlMixin(_Base):
                     self._emit_eval_fallback(command, args, script_override=script)
                     # result is on stack; no DROP here
                 else:
-                    # Pass the canonical form so ``_emit_call_stmt_tail``'s
-                    # internal dispatch (case-binding ``canonical_command``)
-                    # matches against ``::cmd`` literals uniformly.
-                    self._emit_call_stmt_tail(canonical, args, defs)
+                    # Pass both forms: ``command`` (source spelling)
+                    # flows into ``_emit_eval_fallback`` so namespace-
+                    # local proc resolution works at runtime; ``canonical``
+                    # is the dispatch key for the literal-string matches
+                    # in ``_emit_call_stmt_tail``.  See issue #246.
+                    self._emit_call_stmt_tail(command, args, defs, canonical_command=canonical)
             case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
                 # Static parse-error barriers (e.g. ``if {…} else {…}
                 # elseif {…}``) emit a direct ``tcl_cmd_error`` call so

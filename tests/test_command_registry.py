@@ -1171,36 +1171,36 @@ class TestCanonicalCommandHelper:
         assert to_canonical_command("::ns::::foo") == "::ns::foo"
 
     def test_alias_resolves_to_target(self):
-        from core.common.alias import to_canonical_command
+        from core.common.alias import CommandAliasMap, to_canonical_command
 
         # interp alias {} = {} expr — calling ``=`` canonicalises to ``::expr``.
-        aliases = {"::=": ("expr", ())}
+        aliases: CommandAliasMap = {"::=": ("expr", ())}
         assert to_canonical_command("=", aliases=aliases) == "::expr"
         assert to_canonical_command("::=", aliases=aliases) == "::expr"
 
     def test_alias_chain_terminates_at_self_loop(self):
-        from core.common.alias import to_canonical_command
+        from core.common.alias import CommandAliasMap, to_canonical_command
 
         # Self-referential alias: must not loop forever.
-        aliases = {"::loop": ("loop", ())}
+        aliases: CommandAliasMap = {"::loop": ("loop", ())}
         assert to_canonical_command("loop", aliases=aliases) == "::loop"
 
     def test_alias_chain_terminates_on_cycle(self):
-        from core.common.alias import to_canonical_command
+        from core.common.alias import CommandAliasMap, to_canonical_command
 
         # ``a -> b -> a`` cycle — the helper breaks at the first repeat.
-        aliases = {"::a": ("b", ()), "::b": ("a", ())}
+        aliases: CommandAliasMap = {"::a": ("b", ()), "::b": ("a", ())}
         # Either ``::a`` or ``::b`` is acceptable as a terminating point;
         # what matters is the call returns rather than looping.
         result = to_canonical_command("a", aliases=aliases)
         assert result in ("::a", "::b")
 
     def test_namespace_aware_alias_lookup(self):
-        from core.common.alias import to_canonical_command
+        from core.common.alias import CommandAliasMap, to_canonical_command
 
         # An alias scoped to ``::ns`` is reachable from a bare call inside
         # that namespace but not from the global scope.
-        aliases = {"::ns::myunset": ("unset", ())}
+        aliases: CommandAliasMap = {"::ns::myunset": ("unset", ())}
         assert to_canonical_command("myunset", namespace="::ns", aliases=aliases) == "::unset"
         # From global scope the alias is invisible — bare ``myunset`` falls
         # through to its own global form.

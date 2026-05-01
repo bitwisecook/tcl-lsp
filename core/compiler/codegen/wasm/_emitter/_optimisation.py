@@ -763,7 +763,15 @@ class _WasmEmitterOptMixin(_Base):
                     if self._optimise:
                         self._const_map.clear()
                 else:
-                    self._emit_call_stmt_tail(last.canonical_command, last.args, last.defs)
+                    # Pass source spelling so eval-fallback proc resolution
+                    # walks Tcl's normal namespace stack; canonical form
+                    # drives the literal-string dispatches.  Issue #246.
+                    self._emit_call_stmt_tail(
+                        last.command,
+                        last.args,
+                        last.defs,
+                        canonical_command=last.canonical_command,
+                    )
             elif isinstance(last, IRBarrier):
                 # IRBarrier in tail position — keep result on stack (no DROP).
                 # ``namespace eval ns arg1 arg2 ...`` with dynamic args uses
