@@ -105,8 +105,22 @@ pub export fn catch_leave() i32 {
 // Exported: get the result (or error message) after catch.
 // Returns the error message when an error occurred, or the body's
 // last-command result (set by ``catch_set_ok_result``) on success.
+//
+// Issue #280: when a successful catch body's last command returns
+// the null TclObj (commands that silently produce no value, e.g.
+// ``dict`` with no args under our incomplete arity-check, or
+// arity-shy stubs that just ``return 0``), ``catch_result`` used to
+// hand a literal 0 to the caller's writeback.  The caller then
+// stored 0 into the result-var local slot — at which point any
+// subsequent ``$resultVar`` read mistook the 0 for an unset slot
+// and trapped with ``can't read "<resultVar>": no such variable``.
+// In reference Tcl, ``catch {body} v`` always assigns *some* string
+// to ``v`` on success (the body's empty result is the empty string,
+// not unset).  Materialise an empty TclObj here so the writeback
+// path never plants the unset sentinel.
 pub export fn catch_result() i32 {
     if (last_catch_had_error != 0) return error_msg;
+    if (catch_ok_result == 0) return obj_new_string(0, 0);
     return catch_ok_result;
 }
 
