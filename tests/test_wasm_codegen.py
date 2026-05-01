@@ -326,10 +326,19 @@ def test_empty_script():
 
 
 def test_incr_command():
-    """incr should compile to i64.add."""
+    """``incr`` should route through the ``tcl_incr`` runtime helper.
+
+    Issue #262: the previous ``i64.add`` inline form silently truncated
+    float strings (``incr i`` with ``i = "52.60"`` advanced to 53
+    instead of raising ``expected integer but got "52.60"``); the
+    runtime helper enforces the strict-integer guard.  The earlier
+    inline-add path is retained as a fallback when the helper isn't
+    registered, but the standard scan path now imports ``tcl_incr``
+    on every ``IRIncr`` node.
+    """
     module = _compile("set x 0\nincr x\n")
     wat = module.to_wat()
-    assert "i64.add" in wat
+    assert "tcl_incr" in wat
 
 
 def test_multiple_procedures():

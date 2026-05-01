@@ -22,7 +22,7 @@ const std = @import("std");
 const obj = @import("tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
-const TYPE_INT   = obj.TYPE_INT;
+const TYPE_INT = obj.TYPE_INT;
 const TYPE_FLOAT = obj.TYPE_FLOAT;
 const TYPE_STRING = obj.TYPE_STRING;
 
@@ -152,4 +152,187 @@ pub export fn tcl_math_cos(a: i32) i32 {
 /// fabs(x) — absolute value as float.
 pub export fn tcl_math_fabs(a: i32) i32 {
     return obj.obj_new_float(@abs(obj.obj_get_float(a)));
+}
+
+// ----------------------------------------------------------------------
+// Bitwise / shift helpers — issues #260, #261, #262
+//
+// Tcl 9.0 rejects floating-point operands in bitwise (``&`` ``|`` ``^``
+// ``~``) and shift (``<<`` ``>>``) operators with errors of the form:
+//
+//   cannot use floating-point value "X" as operand of "OP"
+//   cannot use floating-point value "X" as left operand of "OP"
+//   cannot use floating-point value "X" as right operand of "OP"
+//
+// Shift counts must additionally be non-negative; a negative count
+// raises ``negative shift argument``.  The Python VM enforces both
+// rules in ``vm/machine.py::_bitwise_binary``; the WASM expression
+// emitter previously inlined ``i64.shl`` / ``i64.and`` / ``i64.or`` /
+// ``i64.xor`` directly, which silently truncated floats and accepted
+// negative shift counts (WASM masks the count by 63).  These helpers
+// are called from ``core/compiler/codegen/wasm/_emitter/_expressions.py``
+// to recover the missing domain checks.
+
+/// Build ``cannot use floating-point value "X" as <position> operand of "<op>"``
+/// and route it through the Tcl error path.
+fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void {
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "cannot use floating-point value \"";
+    const middle: []const u8 = "\" as ";
+    const between: []const u8 = " operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + position.len + between.len + op_sym.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (middle) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (position) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (between) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (op_sym) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+}
+
+/// Build ``cannot use floating-point value "X" as operand of "<op>"``
+/// (unary form — no left/right qualifier).
+fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "cannot use floating-point value \"";
+    const middle: []const u8 = "\" as operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (middle) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (op_sym) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+}
+
+fn check_int_binary(a: i32, b: i32, op_sym: []const u8) bool {
+    if (is_float(a)) {
+        raise_float_in_bitwise(a, op_sym, "left");
+        return false;
+    }
+    if (is_float(b)) {
+        raise_float_in_bitwise(b, op_sym, "right");
+        return false;
+    }
+    return true;
+}
+
+pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
+    if (!check_int_binary(a, b, "<<")) return obj.obj_new_int(0);
+    const bi = obj.obj_get_int(b);
+    if (bi < 0) {
+        stubs.raise("negative shift argument");
+        return obj.obj_new_int(0);
+    }
+    const ai = obj.obj_get_int(a);
+    if (bi >= 64) {
+        // Tcl 9 raises ``integer value too large to represent`` for
+        // very large shift counts on non-zero values.  For simplicity
+        // we collapse to 0 for ``a == 0`` (mirrors ``0 << N == 0``)
+        // and rely on i64 wrap semantics for non-zero ``a`` (matches
+        // the previous inline ``i64.shl`` behaviour up to the count
+        // mask).  Tcl-style ``integer too large`` is out of scope.
+        if (ai == 0) return obj.obj_new_int(0);
+        // Use a safe default: shift by (bi & 63) — this matches what
+        // ``i64.shl`` did before.  Avoids a hard error for callers
+        // that previously relied on the implicit mask.
+        const shift: u6 = @intCast(@as(u64, @bitCast(bi)) & 63);
+        return obj.obj_new_int(ai << shift);
+    }
+    const shift: u6 = @intCast(bi);
+    return obj.obj_new_int(ai << shift);
+}
+
+pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
+    if (!check_int_binary(a, b, ">>")) return obj.obj_new_int(0);
+    const bi = obj.obj_get_int(b);
+    if (bi < 0) {
+        stubs.raise("negative shift argument");
+        return obj.obj_new_int(0);
+    }
+    const ai = obj.obj_get_int(a);
+    if (bi >= 64) {
+        // Arithmetic shift by 64+ produces 0 for non-negative ``a``
+        // and -1 for negative ``a``.  Match that exactly rather than
+        // letting WASM mask the count.
+        return obj.obj_new_int(if (ai < 0) -1 else 0);
+    }
+    const shift: u6 = @intCast(bi);
+    return obj.obj_new_int(ai >> shift);
+}
+
+pub export fn tcl_arith_band(a: i32, b: i32) i32 {
+    if (!check_int_binary(a, b, "&")) return obj.obj_new_int(0);
+    return obj.obj_new_int(obj.obj_get_int(a) & obj.obj_get_int(b));
+}
+
+pub export fn tcl_arith_bor(a: i32, b: i32) i32 {
+    if (!check_int_binary(a, b, "|")) return obj.obj_new_int(0);
+    return obj.obj_new_int(obj.obj_get_int(a) | obj.obj_get_int(b));
+}
+
+pub export fn tcl_arith_bxor(a: i32, b: i32) i32 {
+    if (!check_int_binary(a, b, "^")) return obj.obj_new_int(0);
+    return obj.obj_new_int(obj.obj_get_int(a) ^ obj.obj_get_int(b));
+}
+
+pub export fn tcl_arith_bnot(a: i32) i32 {
+    if (is_float(a)) {
+        raise_float_in_unary_bitwise(a, "~");
+        return obj.obj_new_int(0);
+    }
+    return obj.obj_new_int(~obj.obj_get_int(a));
 }
