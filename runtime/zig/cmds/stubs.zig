@@ -111,11 +111,43 @@ fn eval_clock(words: []const i32) i32 {
         // micro = clicks (already microseconds from the fast clock)
         return clock.clock_clicks();
     }
-    if (std.mem.eql(u8, sp, "scan")) return rt.obj_new_int(0);
+    if (std.mem.eql(u8, sp, "scan")) {
+        // Form: clock scan TEXT ?-base T? ?-format F? ?-gmt 0|1? ?-timezone Z?
+        if (words.len < 3) return rt.obj_new_int(0);
+        var zone_obj: i32 = 0;
+        var base_obj: i32 = 0;
+        var gmt: i32 = 0;
+        var ai: usize = 3;
+        while (ai + 1 < words.len) : (ai += 2) {
+            const optn = rt.obj_ensure_string(words[ai]);
+            const op: []const u8 = if (optn.ptr == 0) "" else
+                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            if (std.mem.eql(u8, op, "-timezone")) {
+                zone_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-base")) {
+                base_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-gmt")) {
+                const v = rt.obj_ensure_string(words[ai + 1]);
+                if (v.ptr != 0 and v.len > 0) {
+                    const vp: [*]const u8 = @ptrFromInt(v.ptr);
+                    const vs = vp[0..v.len];
+                    gmt = if (std.mem.eql(u8, vs, "0") or
+                        std.mem.eql(u8, vs, "false") or
+                        std.mem.eql(u8, vs, "no")) 0 else 1;
+                }
+            }
+            // ``-format`` / ``-locale`` ignored — the parser
+            // auto-detects ISO vs free-form and locale modifiers
+            // map to the same English month-name table.
+        }
+        return clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj);
+    }
     if (std.mem.eql(u8, sp, "format")) {
-        // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1?
+        // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1? ?-timezone Z?
         if (words.len < 3) return rt.obj_new_string(0, 0);
         var fmt_obj: i32 = 0;
+        var zone_obj: i32 = 0;
+        var gmt: bool = false;
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
             const optn = rt.obj_ensure_string(words[ai]);
@@ -123,18 +155,65 @@ fn eval_clock(words: []const i32) i32 {
                 @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
             if (std.mem.eql(u8, op, "-format")) {
                 fmt_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-timezone")) {
+                zone_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-gmt")) {
+                // Tcl accepts ``0`` / ``1`` / ``true`` / ``false``;
+                // anything non-empty starting with a non-``0`` digit
+                // counts as truthy for our purposes.
+                const v = rt.obj_ensure_string(words[ai + 1]);
+                if (v.ptr != 0 and v.len > 0) {
+                    const vp: [*]const u8 = @ptrFromInt(v.ptr);
+                    const vs = vp[0..v.len];
+                    gmt = !(std.mem.eql(u8, vs, "0") or
+                        std.mem.eql(u8, vs, "false") or
+                        std.mem.eql(u8, vs, "no"));
+                }
             }
-            // ``-gmt`` and ``-timezone`` ignored — we always use UTC
-            // (sample 4 in particular doesn't care).
+            // ``-locale``, ``-validate`` ignored — locale defaults
+            // are baked in (English month/weekday names) and
+            // validation is moot for the strftime path.
         }
-        return clock.clock_format(words[2], fmt_obj);
+        if (gmt) {
+            // ``-gmt 1`` overrides ``-timezone`` per Tcl semantics.
+            const utc_name = rt.obj_new_string_copy(
+                @intCast(@intFromPtr("UTC".ptr)),
+                3,
+            );
+            return clock.clock_format_tz(words[2], fmt_obj, utc_name);
+        }
+        return clock.clock_format_tz(words[2], fmt_obj, zone_obj);
     }
     if (std.mem.eql(u8, sp, "add")) {
-        // Return the string "0" so callers can parse it as an integer.
-        const buf = rt.alloc(1);
-        const p: [*]u8 = @ptrFromInt(buf);
-        p[0] = '0';
-        return rt.obj_new_string(@intCast(buf), 1);
+        // Form: clock add BASE ?COUNT UNIT?* ?-gmt 0|1? ?-timezone Z?
+        // Iterate (count, unit) pairs and accumulate.  Option flags
+        // (``-gmt`` / ``-timezone`` / ``-locale``) are recognised and
+        // skipped — they affect calendar-month math semantics but the
+        // current implementation does month arithmetic in UTC, which
+        // matches Tcl's behaviour for non-DST-crossing month adds.
+        if (words.len < 3) return rt.obj_new_int(0);
+        var acc: i32 = words[2];
+        var ai: usize = 3;
+        while (ai < words.len) {
+            const w = rt.obj_ensure_string(words[ai]);
+            const ws: []const u8 = if (w.ptr == 0) "" else
+                @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
+            // Distinguish a real option flag (``-gmt`` / ``-timezone``)
+            // from a negative count (``-1 days``).  An option starts
+            // with ``-`` followed by an alphabetic character; anything
+            // else (``-``, ``-1``, ``-0.5``) is a numeric count.
+            if (ws.len >= 2 and ws[0] == '-' and
+                ((ws[1] >= 'a' and ws[1] <= 'z') or
+                    (ws[1] >= 'A' and ws[1] <= 'Z')))
+            {
+                ai += 2; // skip option + value
+                continue;
+            }
+            if (ai + 1 >= words.len) break;
+            acc = clock.clock_add_pair(acc, words[ai], words[ai + 1]);
+            ai += 2;
+        }
+        return acc;
     }
     return rt.obj_new_string(0, 0);
 }
