@@ -115,6 +115,15 @@ class IRCall:
     modification (e.g. ``info exists varName``, ``array get arrayName``).
     These are not ``$varName`` references in the args so the SSA scanner
     cannot detect them automatically.
+
+    ``command`` carries the source spelling — what the user wrote at the
+    call site — for diagnostic rendering and source-fidelity passes.
+    ``canonical_command`` carries the namespace-qualified form
+    (``::ns::cmd``) that alias resolution and namespace prefixing produce,
+    set once at lowering and never re-derived.  Downstream analysis,
+    optimiser patterns, and registry lookups should match on
+    ``canonical_command`` so qualified spellings, ``interp alias`` aliases,
+    and namespace imports all hit the same branch.  See issue #246.
     """
 
     range: Range
@@ -125,6 +134,7 @@ class IRCall:
     reads_own_defs: bool = False
     safe_on_uninit: bool = False
     tokens: CommandTokens | None = None
+    canonical_command: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +155,9 @@ class IRBarrier:
     is a human-readable label for diagnostic messages; ``command``
     and ``args`` preserve the original call for passes that inspect
     specific barrier shapes (e.g. ``for`` inside a barrier block).
+
+    ``canonical_command`` mirrors :class:`IRCall.canonical_command` —
+    the lowering-time canonical form that downstream passes match against.
     """
 
     range: Range
@@ -152,6 +165,7 @@ class IRBarrier:
     command: str = ""
     args: tuple[str, ...] = ()
     tokens: CommandTokens | None = None
+    canonical_command: str = ""
 
 
 @dataclass(frozen=True, slots=True)

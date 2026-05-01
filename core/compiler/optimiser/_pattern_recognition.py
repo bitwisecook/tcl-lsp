@@ -1,5 +1,8 @@
 """Pre-loop pattern recognition passes for the optimiser."""
 
+# canonicalisation: audited #246
+
+
 from __future__ import annotations
 
 from core.common.codes import opt
@@ -423,7 +426,7 @@ def optimise_incr_idioms(ctx: PassContext, cfg, ssa) -> None:
             stmt = block.statements[idx]
             if not isinstance(stmt, (IRAssignExpr, IRCall)):
                 continue
-            if isinstance(stmt, IRCall) and stmt.command != "set":
+            if isinstance(stmt, IRCall) and stmt.canonical_command != "::set":
                 continue
             stmt_range = getattr(stmt, "range", None)
             if stmt_range is None:

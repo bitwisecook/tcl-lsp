@@ -1,3 +1,4 @@
+# canonicalisation: audited #246
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -25,7 +26,7 @@ class _AnalyserDiagRacyMixin(_Base):
             for stmt in block.statements:
                 ir_stmt = stmt.statement
                 # Skip unset — not a real write
-                if isinstance(ir_stmt, IRCall) and ir_stmt.command == "unset":
+                if isinstance(ir_stmt, IRCall) and ir_stmt.canonical_command == "::unset":
                     continue
                 for name in stmt.defs:
                     if name in racy_vars:

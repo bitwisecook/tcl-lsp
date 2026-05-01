@@ -27,6 +27,8 @@ This module runs the main analysis passes after SSA construction:
 The public entry point is ``analyse_function`` / ``analyse_source``.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import math
@@ -1212,7 +1214,7 @@ def _read_before_set(
         for stmt in block.statements:
             if (
                 isinstance(stmt, IRBarrier)
-                and stmt.command == "dict"
+                and stmt.canonical_command == "::dict"
                 and stmt.args
                 and stmt.args[0] in ("with", "update")
             ):

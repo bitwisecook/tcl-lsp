@@ -517,8 +517,23 @@ class CommandRegistry:
 
         Useful for checking whether a command exists at all (in any dialect)
         before performing a dialect-filtered lookup.
+
+        Qualified names (``::cmd``) for which only a bare-name spec exists
+        also resolve here — e.g. ``::unset`` returns the ``unset`` builtin
+        spec.  This mirrors Tcl's command resolution: the global namespace
+        form is just an explicitly-qualified spelling of the same builtin.
+        Without this, ``::unset x`` would skip the ``unset`` lowering hook
+        and produce a generic IRCall without variable-write tracking, and
+        every diagnostic that switches on the canonical command name would
+        miss the explicitly-qualified spelling.  See issue #246.
         """
         specs = self.specs_by_name.get(name)
+        if specs is None and name.startswith("::") and "::" not in name[2:]:
+            # ``::cmd`` (no further qualifiers) — fall back to the bare
+            # ``cmd`` spec for global builtins.  We deliberately do not
+            # follow ``::ns::cmd`` to ``cmd`` because that would conflate a
+            # user-defined ``::ns::cmd`` proc with a same-name builtin.
+            specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return None
         return specs[-1]  # prefer latest (most curated) spec

@@ -11,6 +11,8 @@ Commands that are not specifically handled fall through to ``IRCall``
 passes "stop — this command may have arbitrary side effects").
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import contextlib
@@ -28,6 +30,9 @@ from ..common.alias import (
 )
 from ..common.alias import (
     resolve_alias as _resolve_alias_shared,
+)
+from ..common.alias import (
+    to_canonical_command as _to_canonical_command,
 )
 from ..common.dialect import active_dialect as _active_dialect
 from ..common.naming import (
@@ -379,6 +384,16 @@ class _Lowerer:
         # https://github.com/bitwisecook/tcl-lsp/issues/189 for the
         # bug this gates.
         self._dead_code_depth: int = 0
+        # Namespace context of the command currently being lowered.
+        # Tracked separately from the per-method ``namespace`` parameter
+        # so that lowering hooks (which receive only ``(lowerer, cmd)``
+        # and can't see the dispatcher's parameter) can still resolve
+        # canonical command names against the correct enclosing scope
+        # via :meth:`canonicalise_command`.  Set at the top of
+        # :meth:`_lower_command` and restored on exit.  Always defaults
+        # to global (``::``) outside an active lowering call.  See
+        # issue #246 for the canonicalisation contract.
+        self._current_namespace: str = "::"
 
     @contextlib.contextmanager
     def _dead_code(self):
@@ -403,6 +418,30 @@ class _Lowerer:
     def _resolve_alias(self, cmd_name: str, namespace: str) -> tuple[str, tuple[str, ...]] | None:
         """Look up a command alias, namespace-aware."""
         return _resolve_alias_shared(cmd_name, self._command_aliases, namespace=namespace)
+
+    def _canonicalise_command(self, cmd_name: str, namespace: str) -> str:
+        """Resolve a written command name to its canonical fully-qualified form.
+
+        Single source of truth for the lowering-time canonicalisation
+        stamped onto ``IRCall.canonical_command`` /
+        ``IRBarrier.canonical_command``.  Threads the captured alias state
+        through :func:`core.common.alias.to_canonical_command`.  See issue
+        #246 for the broader contract.
+        """
+        return _to_canonical_command(cmd_name, namespace=namespace, aliases=self._command_aliases)
+
+    def canonicalise_command(self, cmd_name: str) -> str:
+        """Public canonicalisation helper for lowering hooks.
+
+        Hooks receive only ``(lowerer, cmd)`` and have no view of the
+        dispatcher's ``namespace`` parameter, so they call this method
+        to canonicalise a command name against
+        :attr:`_current_namespace` (which :meth:`_lower_command` sets
+        before invoking each hook).  The hook then stamps
+        ``canonical_command=lowerer.canonicalise_command(cmd.name)``
+        on every ``IRCall`` / ``IRBarrier`` it constructs.
+        """
+        return self._canonicalise_command(cmd_name, self._current_namespace)
 
     def lower(self, source: str) -> IRModule:
         self.module.top_level = self._lower_script(source, namespace="::")
@@ -659,6 +698,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed if",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -689,6 +729,7 @@ class _Lowerer:
                         range=cmd.range,
                         reason="malformed if else clause",
                         command=cmd.name,
+                        canonical_command=self._canonicalise_command(cmd.name, namespace),
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
@@ -697,6 +738,7 @@ class _Lowerer:
                         range=cmd.range,
                         reason='extra words after "else" clause',
                         command=cmd.name,
+                        canonical_command=self._canonicalise_command(cmd.name, namespace),
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
@@ -718,6 +760,7 @@ class _Lowerer:
                     range=cmd.range,
                     reason="malformed if clause",
                     command=cmd.name,
+                    canonical_command=self._canonicalise_command(cmd.name, namespace),
                     args=tuple(args),
                     tokens=cmd.cmd_tokens,
                 )
@@ -750,6 +793,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed if",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -770,6 +814,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed switch",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -792,6 +837,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed switch options",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -804,6 +850,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="switch missing arms",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -819,6 +866,7 @@ class _Lowerer:
                     range=cmd.range,
                     reason="switch odd pattern count",
                     command=cmd.name,
+                    canonical_command=self._canonicalise_command(cmd.name, namespace),
                     args=tuple(args),
                     tokens=cmd.cmd_tokens,
                 )
@@ -840,6 +888,7 @@ class _Lowerer:
                     range=cmd.range,
                     reason="switch odd pattern count",
                     command=cmd.name,
+                    canonical_command=self._canonicalise_command(cmd.name, namespace),
                     args=tuple(args),
                     tokens=cmd.cmd_tokens,
                 )
@@ -911,6 +960,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed for",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -925,6 +975,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="for with dynamic arguments",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -955,6 +1006,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed while",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -967,6 +1019,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="while with dynamic arguments",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -994,6 +1047,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed foreach",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1005,6 +1059,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="foreach with dynamic body",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1035,6 +1090,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed catch",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1045,6 +1101,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="catch with dynamic body",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1071,6 +1128,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed try",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1081,6 +1139,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="try with dynamic body",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1142,6 +1201,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason="malformed try handler",
                 command=cmd.name,
+                canonical_command=self._canonicalise_command(cmd.name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1175,6 +1235,7 @@ class _Lowerer:
                         range=cmd.range,
                         reason=f"dict {sub} with dynamic body",
                         command=cmd.name,
+                        canonical_command=self._canonicalise_command(cmd.name, namespace),
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
@@ -1195,6 +1256,7 @@ class _Lowerer:
                 return IRCall(
                     range=cmd.range,
                     command=cmd.name,
+                    canonical_command=self._canonicalise_command(cmd.name, namespace),
                     args=tuple(args),
                     defs=(var_name,),
                     reads_own_defs=True,
@@ -1212,6 +1274,7 @@ class _Lowerer:
                     range=cmd.range,
                     reason=f"dict {sub}",
                     command=cmd.name,
+                    canonical_command=self._canonicalise_command(cmd.name, namespace),
                     args=tuple(args),
                     tokens=cmd.cmd_tokens,
                 )
@@ -1219,7 +1282,11 @@ class _Lowerer:
             case _:
                 # Pure subcommands: get, create, exists, keys, values, etc.
                 return IRCall(
-                    range=cmd.range, command=cmd.name, args=tuple(args), tokens=cmd.cmd_tokens
+                    range=cmd.range,
+                    command=cmd.name,
+                    canonical_command=self._canonicalise_command(cmd.name, namespace),
+                    args=tuple(args),
+                    tokens=cmd.cmd_tokens,
                 )
 
     # ---------------------------------------------------------------
@@ -1556,6 +1623,21 @@ class _Lowerer:
         if not cmd.texts:
             return None
 
+        # Track the enclosing namespace for the duration of this lowering
+        # call so registered hooks (which receive only ``(lowerer, cmd)``)
+        # can canonicalise command names via :meth:`canonicalise_command`.
+        # Restored to the previous value on return so nested lowerings
+        # (an outer ``namespace eval ns { … }`` wrapping inner top-level
+        # statements that recurse back through this method) see the
+        # right scope.
+        prev_namespace = self._current_namespace
+        self._current_namespace = namespace
+        try:
+            return self._lower_command_body(cmd, namespace=namespace)
+        finally:
+            self._current_namespace = prev_namespace
+
+    def _lower_command_body(self, cmd: _Command, *, namespace: str) -> IRStatement | None:
         cmd_name = cmd.name
         args = cmd.args
         arg_tokens = cmd.arg_tokens
@@ -1781,6 +1863,7 @@ class _Lowerer:
                 range=cmd.range,
                 reason=f"{cmd_name} with argument expansion",
                 command=cmd_name,
+                canonical_command=self._canonicalise_command(cmd_name, namespace),
                 args=tuple(args),
                 tokens=cmd.cmd_tokens,
             )
@@ -1814,6 +1897,7 @@ class _Lowerer:
                             range=cmd.range,
                             reason="dynamic proc name",
                             command=cmd_name,
+                            canonical_command=self._canonicalise_command(cmd_name, namespace),
                             args=tuple(args),
                             tokens=cmd.cmd_tokens,
                         )
@@ -1843,6 +1927,7 @@ class _Lowerer:
                         range=cmd.range,
                         reason="dynamic proc body or params",
                         command=cmd_name,
+                        canonical_command=self._canonicalise_command(cmd_name, namespace),
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
@@ -1919,6 +2004,7 @@ class _Lowerer:
                 return IRCall(
                     range=cmd.range,
                     command=cmd_name,
+                    canonical_command=self._canonicalise_command(cmd_name, namespace),
                     args=out_args,
                     tokens=cmd.cmd_tokens,
                 )
@@ -1962,7 +2048,11 @@ class _Lowerer:
                     base_priority=base_priority,
                 )
                 return IRCall(
-                    range=cmd.range, command=cmd_name, args=tuple(args), tokens=cmd.cmd_tokens
+                    range=cmd.range,
+                    command=cmd_name,
+                    canonical_command=self._canonicalise_command(cmd_name, namespace),
+                    args=tuple(args),
+                    tokens=cmd.cmd_tokens,
                 )
 
             case "namespace" if len(args) >= 3 and args[0] == "eval" and len(arg_tokens) >= 3:
@@ -2020,6 +2110,7 @@ class _Lowerer:
                     range=cmd.range,
                     reason="namespace eval",
                     command=cmd_name,
+                    canonical_command=self._canonicalise_command(cmd_name, namespace),
                     args=tuple(args),
                     tokens=cmd.cmd_tokens,
                 )
@@ -2048,6 +2139,7 @@ class _Lowerer:
                         range=cmd.range,
                         reason="invalid foreach_in_collection arity",
                         command=cmd_name,
+                        canonical_command=self._canonicalise_command(cmd_name, namespace),
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
@@ -2076,6 +2168,7 @@ class _Lowerer:
                     range=cmd.range,
                     reason="dynamic command",
                     command=cmd_name,
+                    canonical_command=self._canonicalise_command(cmd_name, namespace),
                     args=tuple(args),
                     tokens=cmd.cmd_tokens,
                 )
@@ -2099,6 +2192,7 @@ class _Lowerer:
                         range=cmd.range,
                         reason="unsupported body command",
                         command=cmd_name,
+                        canonical_command=self._canonicalise_command(cmd_name, namespace),
                         args=tuple(args),
                         tokens=cmd.cmd_tokens,
                     )
@@ -2118,13 +2212,18 @@ class _Lowerer:
                     return IRCall(
                         range=cmd.range,
                         command=cmd_name,
+                        canonical_command=self._canonicalise_command(cmd_name, namespace),
                         args=tuple(args),
                         defs=var_defs,
                         reads=var_reads,
                         tokens=cmd.cmd_tokens,
                     )
                 return IRCall(
-                    range=cmd.range, command=cmd_name, args=tuple(args), tokens=cmd.cmd_tokens
+                    range=cmd.range,
+                    command=cmd_name,
+                    canonical_command=self._canonicalise_command(cmd_name, namespace),
+                    args=tuple(args),
+                    tokens=cmd.cmd_tokens,
                 )
 
 
