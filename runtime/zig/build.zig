@@ -150,19 +150,35 @@ pub fn build(b: *std.Build) void {
             "--strip-dwarf",
             "--enable-bulk-memory",
             "--asyncify",
-            // Exclude ``tcl_coro_drive`` from instrumentation so the
-            // unwind triggered by ``yield`` stops at the coroutine
-            // driver instead of propagating all the way to the host.
-            // The driver inspects ``asyncify_get_state()`` after
-            // ``eval_script`` returns and reports SUSPENDED to its
-            // caller (``eval_proc_call_bucket``).  Resume is
-            // symmetric: the driver calls ``asyncify_start_rewind``
-            // then re-enters ``eval_script``, which fast-forwards
-            // through the saved frames back to the yield site.
-            // Internal Zig name (file.module.func mangled form) —
-            // wasm-opt's removelist matches on the names section,
-            // not on export names.
+            // Exclude ``tcl_coro_drive`` from instrumentation so
+            // the unwind triggered by ``yield`` stops at the
+            // coroutine driver instead of propagating all the way
+            // to the host.  The driver inspects
+            // ``asyncify_get_state()`` after ``eval_script``
+            // returns and reports SUSPENDED to its caller
+            // (``eval_proc_call_bucket``).  Resume calls
+            // ``asyncify_start_rewind`` then re-enters
+            // ``eval_script``, which fast-forwards through the
+            // saved frames back to the yield site.  Internal Zig
+            // name (``file.module.func`` mangled form) — wasm-opt's
+            // removelist matches on the names section, not on
+            // export names.
             "--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive",
+            // Treat ``env.coro_yield_unwind`` as an unwinding
+            // import so callers wrap the call with the standard
+            // ``state==UNWINDING ⇒ save+br`` epilogue.  This is
+            // the host-trampolined boundary ``signal_yield`` uses
+            // to dispatch yield/resume — see the doc comment on
+            // ``coro_yield_unwind`` in ``sched/tcl_asyncify.zig``
+            // and the trampoline in the test harness.  Routing
+            // through an instrumented import call site (instead of
+            // a direct ``asyncify_start_unwind`` call from
+            // ``signal_yield``) avoids the multi-yield rewind loop
+            // tracked as issue #282 — the rewind dispatches into
+            // ``coro_yield_unwind`` once, the host calls
+            // ``stop_rewind`` to flip state to NORMAL, and the
+            // body resumes past the original ``yield`` to the next.
+            "--pass-arg=asyncify-imports@env.coro_yield_unwind",
         });
         post.addArtifactArg(exe);
         post.addArg("-o");
