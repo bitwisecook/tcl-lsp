@@ -3049,7 +3049,11 @@ class TestChannelIO:
 
 
 class TestEncoding:
-    """Minimal UTF-8 encoding command — pass-through for identity/utf-8."""
+    """Encoding command — pass-through for identity/utf-8 plus real
+    codecs for iso8859-1, ascii, cp1252 and the utf-16 family.
+
+    Parent issue: #274 (WASM runtime: real encoding subsystem).
+    """
 
     @pytest.mark.parametrize(
         ("source", "expected_stdout"),
@@ -3062,7 +3066,10 @@ class TestEncoding:
             # passes through.
             ("puts [encoding convertfrom abc]\n", "abc\n"),
             ("puts [encoding system]\n", "utf-8\n"),
-            ("puts [encoding names]\n", "identity utf-8\n"),
+            (
+                "puts [encoding names]\n",
+                "ascii cp1252 identity iso8859-1 utf-8 utf-16 utf-16be utf-16le\n",
+            ),
             ("puts [encoding dirs]\n", "\n"),
         ],
     )
@@ -3071,17 +3078,91 @@ class TestEncoding:
         result = _run_wasm(wasm, capture_stdout=True)
         assert result[1] == expected_stdout
 
+    # ``encoding convertto`` produces raw encoded bytes — emit them
+    # via ``binary scan`` to compare against a hex literal so the
+    # comparison is independent of stdout's own encoding.
+    @pytest.mark.parametrize(
+        ("script", "expected_hex"),
+        [
+            # iso8859-1: 'café' = 0x63 0x61 0x66 0xE9
+            ("encoding convertto iso8859-1 café", "636166e9"),
+            # ascii: non-ASCII codepoints become '?'
+            ("encoding convertto ascii café", "6361663f"),
+            # cp1252: euro sign (U+20AC) → 0x80
+            ("encoding convertto cp1252 \\u20AC", "80"),
+            # cp1252: latin-1 range agrees with iso8859-1
+            ("encoding convertto cp1252 café", "636166e9"),
+            # utf-16le: BMP codepoints emit low byte then high byte
+            ("encoding convertto utf-16le AB", "41004200"),
+            # utf-16be: high byte first
+            ("encoding convertto utf-16be AB", "00410042"),
+            # utf-16 alias defaults to LE on this build
+            ("encoding convertto utf-16 AB", "41004200"),
+            # utf-16le with non-ASCII (é = U+00E9 → 0xE9 0x00)
+            ("encoding convertto utf-16le café", "630061006600e900"),
+        ],
+    )
+    def test_convertto_real_codec(self, script, expected_hex):
+        source = f"set bytes [{script}]\nbinary scan $bytes H* hex\nputs $hex\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1].strip() == expected_hex
+
+    @pytest.mark.parametrize(
+        ("script", "expected"),
+        [
+            # iso8859-1 round trip: 0xE9 → 'é'
+            ('encoding convertfrom iso8859-1 [binary format H* "636166e9"]', "café"),
+            # ascii: 7-bit bytes pass through ('?' = 0x3F is just a literal).
+            ('encoding convertfrom ascii [binary format H* "6361663f"]', "caf?"),
+            # ascii: bytes > 0x7F become U+FFFD on the read side.
+            ('encoding convertfrom ascii [binary format H* "636166ff"]', "caf�"),
+            # cp1252: 0x80 → € (U+20AC)
+            ('encoding convertfrom cp1252 [binary format H* "80"]', "€"),
+            # utf-16le round trip
+            ('encoding convertfrom utf-16le [binary format H* "41004200"]', "AB"),
+            # utf-16be
+            ('encoding convertfrom utf-16be [binary format H* "00410042"]', "AB"),
+        ],
+    )
+    def test_convertfrom_real_codec(self, script, expected):
+        source = f"puts [{script}]\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == expected + "\n"
+
+    @pytest.mark.parametrize(
+        "name",
+        ["iso8859-1", "ascii", "cp1252", "utf-16le", "utf-16be", "utf-16"],
+    )
+    def test_round_trip(self, name):
+        """``convertfrom enc [convertto enc s]`` recovers ``s`` for
+        codepoints in the codec's range."""
+        # Choose a payload representable in every implemented codec —
+        # latin-1 covers iso8859-1 / cp1252 / utf-16; ascii needs a
+        # plain 7-bit string.
+        payload = "Hello" if name == "ascii" else "café"
+        source = (
+            f'set s "{payload}"\n'
+            f"set round [encoding convertfrom {name} [encoding convertto {name} $s]]\n"
+            "puts [expr {$round eq $s}]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "1\n"
+
     @pytest.mark.parametrize(
         ("source", "expected_cmd"),
         [
-            ("encoding convertfrom iso8859-1 abc\n", "encoding"),
-            ("encoding convertfrom cp1252 abc\n", "encoding"),
-            ("encoding convertto shiftjis xyz\n", "encoding"),
+            # Codecs we still don't implement must trap.
+            ("encoding convertfrom shiftjis abc\n", "encoding"),
+            ("encoding convertto big5 xyz\n", "encoding"),
             ("encoding bogus_subcommand\n", "encoding"),
         ],
     )
     def test_unsupported_encoding_traps(self, source, expected_cmd):
-        """Non-identity, non-utf-8 codecs must trap rather than pass through."""
+        """Codecs we don't yet implement still trap with a clear
+        ``unsupported`` message rather than silent corruption."""
         wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
@@ -3120,10 +3201,13 @@ class TestFconfigure:
             "fconfigure stdout -polarity reverse\nputs ok\n",
             # Single ``-option`` queries for unknown options also trap.
             "fconfigure stdout -froboz\nputs ok\n",
+            # Known codec we don't yet implement (multi-byte JIS).
+            "fconfigure stdout -encoding shiftjis\nputs ok\n",
         ],
     )
     def test_unknown_option_traps(self, source):
-        """Options outside the safelist must raise unsupported."""
+        """Options outside the safelist (and unknown / unimplemented
+        ``-encoding`` values) must raise ``unsupported``."""
         wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
         try:
             _run_wasm(wasm, capture_stderr=True)
@@ -3267,6 +3351,131 @@ class TestFconfigureQuery:
         except Exception as trap:
             stderr = getattr(trap, "tcl_stderr", "")
             assert "expected integer value for -buffersize" in stderr, f"stderr: {stderr!r}"
+
+
+class TestChannelEncoding:
+    """Channel I/O honours the ``-encoding`` set via ``fconfigure``.
+
+    Parent issue: #274.  Verifies the bytes hitting disk under
+    ``puts -nonewline`` and the string returned by ``read`` match the
+    requested codec rather than always passing utf-8 through.
+    """
+
+    def _run(self, tmp_path, tcl_source):
+        wasm, _ = _compile_tcl_with_diag(tcl_source, "t.tcl")
+        _, stdout, _ = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            capture_stderr=True,
+            preopen_tmpdir=str(tmp_path),
+        )
+        return stdout
+
+    def test_puts_iso8859_1(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /out.bin w]\n"
+                "fconfigure $fd -translation binary -encoding iso8859-1\n"
+                'puts -nonewline $fd "café"\n'
+                "close $fd\n"
+                "puts ok\n"
+            ),
+        )
+        assert out == "ok\n"
+        # 'café' encoded as iso8859-1 → 0x63 0x61 0x66 0xE9.
+        assert (tmp_path / "out.bin").read_bytes() == b"\x63\x61\x66\xe9"
+
+    def test_read_iso8859_1(self, tmp_path):
+        (tmp_path / "in.bin").write_bytes(b"\x63\x61\x66\xe9")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /in.bin r]\n"
+                "fconfigure $fd -translation binary -encoding iso8859-1\n"
+                "set body [read $fd]\n"
+                "close $fd\n"
+                "puts $body\n"
+            ),
+        )
+        assert out == "café\n"
+
+    def test_puts_utf16le(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /out.bin w]\n"
+                "fconfigure $fd -translation binary -encoding utf-16le\n"
+                'puts -nonewline $fd "AB"\n'
+                "close $fd\n"
+                "puts ok\n"
+            ),
+        )
+        assert out == "ok\n"
+        assert (tmp_path / "out.bin").read_bytes() == b"\x41\x00\x42\x00"
+
+    def test_read_utf16be(self, tmp_path):
+        (tmp_path / "in.bin").write_bytes(b"\x00\x41\x00\x42")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /in.bin r]\n"
+                "fconfigure $fd -translation binary -encoding utf-16be\n"
+                "set body [read $fd]\n"
+                "close $fd\n"
+                "puts $body\n"
+            ),
+        )
+        assert out == "AB\n"
+
+    def test_utf16_surrogate_across_refill_boundary(self, tmp_path):
+        """A utf-16 surrogate pair whose two halves straddle the 4 KiB
+        raw-buffer boundary must decode cleanly — earlier the decoder
+        consumed the entire raw chunk on each refill and discarded any
+        partial trailing unit, so the high surrogate at byte 4094 lost
+        its mate at byte 4096 and the pair degraded to U+FFFD.
+
+        Layout: 2047 'A' chars in utf-16le (4094 bytes) + U+10000 as a
+        surrogate pair (4 bytes).  The pair's low surrogate sits at
+        offset 4096 — the boundary ``READ_BUF_SIZE`` falls on.
+        Regression test for the codex review thread on PR #294.
+        """
+        # U+10000 little-endian utf-16: high surrogate D800, low DC00.
+        payload = b"A\x00" * 2047 + b"\x00\xd8\x00\xdc"
+        (tmp_path / "boundary.bin").write_bytes(payload)
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /boundary.bin r]\n"
+                "fconfigure $fd -translation binary -encoding utf-16le\n"
+                "set body [read $fd]\n"
+                "close $fd\n"
+                "puts -nonewline $body\n"
+            ),
+        )
+        expected = "A" * 2047 + "\U00010000"
+        assert out == expected
+
+    def test_round_trip_cp1252(self, tmp_path):
+        """``-encoding cp1252`` round-trips a string with a Windows-
+        only codepoint (€, U+20AC) through the disk and back."""
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /round.bin w]\n"
+                "fconfigure $fd -translation binary -encoding cp1252\n"
+                'puts -nonewline $fd "€100"\n'
+                "close $fd\n"
+                "set fd [open /round.bin r]\n"
+                "fconfigure $fd -translation binary -encoding cp1252\n"
+                "set body [read $fd]\n"
+                "close $fd\n"
+                "puts $body\n"
+            ),
+        )
+        assert out == "€100\n"
+        # Bytes on disk: € → 0x80 (cp1252 specific), '1' '0' '0' → 0x31 0x30 0x30.
+        assert (tmp_path / "round.bin").read_bytes() == b"\x80\x31\x30\x30"
 
 
 class TestChannelTranslation:
