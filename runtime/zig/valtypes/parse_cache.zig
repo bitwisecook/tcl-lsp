@@ -137,8 +137,17 @@ fn slab_size(slab_addr: u32) u32 {
 }
 
 /// Free the slab pointed at by *bucket* and zero the slot.  No-op
-/// when the bucket has no slab attached.
+/// when the bucket is empty / tombstoned or has no slab attached.
+///
+/// ``hash_table.Table.init`` / ``grow`` only zero each bucket's
+/// ``name_ptr`` slot — the rest of the bucket payload (including
+/// ``OFF_SLAB_ADDR``) carries whatever bytes ``alloc`` returned.
+/// Reading the slab pointer from an empty bucket and handing it to
+/// ``free_sized`` would be a wild free; gate on the occupied check
+/// instead (Codex review on PR #322).
 fn free_bucket_slab(bucket: u32) void {
+    const np: u32 = @bitCast(read_i32(bucket));
+    if (np == 0 or np == ht.TOMBSTONE) return;
     const slab: u32 = @bitCast(read_i32(bucket + OFF_SLAB_ADDR));
     if (slab == 0) return;
     write_i32(bucket + OFF_SLAB_ADDR, 0);
