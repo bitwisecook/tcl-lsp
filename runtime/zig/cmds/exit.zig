@@ -27,7 +27,7 @@ const caps = @import("../interp/tcl_caps.zig");
 
 fn eval_exit(words: []const i32) i32 {
     if (!caps.check(caps.CAP_EXIT, "exit", "EXIT")) return 0;
-    var code: i32 = 0;
+    var code: u32 = 0;
     if (words.len >= 2) {
         const s = obj.obj_ensure_string(words[1]);
         const parsed = obj.try_parse_int(s.ptr, s.len);
@@ -35,28 +35,39 @@ fn eval_exit(words: []const i32) i32 {
             stubs.raise("exit: returnCode must be an integer");
             return 0;
         }
-        // POSIX exit codes wrap into 8 bits at the kernel boundary;
-        // pass the i32 through verbatim and let wasmtime / the OS
-        // do the truncation so the embedder sees what the script
-        // asked for, including negative values.
-        code = @intCast(parsed.? & 0xffffffff);
+        code = exit_code_from_i64(parsed.?);
     }
-    std.os.wasi.proc_exit(@bitCast(code));
+    std.os.wasi.proc_exit(code);
+}
+
+/// Map a Tcl integer return code (i64) to the WASI ``exitcode_t``
+/// (u32 — see ``zig/lib/std/os/wasi.zig``).  Tcl accepts the full
+/// signed-i64 range syntactically; POSIX / WASI truncate to 32 bits
+/// at the kernel boundary, so we replicate that truncation
+/// explicitly via :func:`@truncate` on the raw two's-complement
+/// pattern.  This preserves the documented semantics for negative
+/// values (``exit -1`` → ``0xFFFFFFFF``, which the kernel typically
+/// renders as exit status 255) and out-of-i32-range positive values
+/// (``exit 4294967295`` → ``0xFFFFFFFF``) without tripping
+/// ``@intCast``'s safety check.
+fn exit_code_from_i64(v: i64) u32 {
+    return @truncate(@as(u64, @bitCast(v)));
 }
 
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "exit", .arity_min = 0, .arity_max = 1, .handler = &eval_exit },
 };
 
-/// Single-arg compiled-codegen export.  The runtime-import contract
-/// declared in ``core/commands/registry/tcl/exit.py`` (added in this
-/// patch) routes ``exit`` / ``exit code`` through this entry point
-/// so the compiled fast path matches the BUILTIN dispatch.  Words
-/// outside ``exit`` / ``exit code`` fall through the codegen to the
-/// eval fallback, which dispatches via :data:`registrations` above.
+/// Single-arg export for embedders that want the same ``exit`` /
+/// ``exit code`` behaviour without going through the Tcl word
+/// dispatcher.  ``core/commands/registry/tcl/exit.py`` deliberately
+/// has no ``wasm_runtime_import``; the standard eval-fallback path
+/// dispatches via :data:`registrations` above.  This export exists
+/// purely so embedders that have already parsed the return code can
+/// reach the capability gate + ``proc_exit`` pair directly.
 pub export fn tcl_cmd_exit(code_obj: i32) i32 {
     if (!caps.check(caps.CAP_EXIT, "exit", "EXIT")) return 0;
-    var code: i32 = 0;
+    var code: u32 = 0;
     if (code_obj != 0) {
         const s = obj.obj_ensure_string(code_obj);
         if (s.len != 0) {
@@ -65,8 +76,8 @@ pub export fn tcl_cmd_exit(code_obj: i32) i32 {
                 stubs.raise("exit: returnCode must be an integer");
                 return 0;
             }
-            code = @intCast(parsed.? & 0xffffffff);
+            code = exit_code_from_i64(parsed.?);
         }
     }
-    std.os.wasi.proc_exit(@bitCast(code));
+    std.os.wasi.proc_exit(code);
 }

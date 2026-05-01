@@ -109,8 +109,11 @@ pub fn check(flag: u32, cmd_name: []const u8, cap_name: []const u8) bool {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
-    const catch_mod = @import("../interp/tcl_catch.zig");
-    catch_mod.tcl_cmd_error(msg);
+    // Hand the assembled message to ``stubs.raise`` so the
+    // catch-aware error path / runtime-trap formatter is the same
+    // one every other capability-style refusal uses — keeps the
+    // diagnostic surface consistent.
+    const msg_slice = (@as([*]const u8, @ptrFromInt(buf_addr)))[0..total];
+    stubs.raise(msg_slice);
     return false;
 }

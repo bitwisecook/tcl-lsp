@@ -94,9 +94,31 @@ fn eval_glob(words: []const i32) i32 {
             stubs.unsupported_sub("glob", sp[0..s.len]);
             return 0;
         }
-        // Unknown switch — let it through as a literal pattern,
-        // matching the lenient behaviour of stock Tcl.
-        break;
+        // Unknown switch — match stock Tcl's behaviour and raise
+        // ``bad option "<switch>"`` instead of silently demoting to
+        // a literal pattern.  Catches typos like ``glob -typs f *``
+        // before they hide behind an empty result.
+        const prefix: []const u8 = "bad option \"";
+        const suffix: []const u8 = "\": must be -directory, -join, -nocomplain, -path, -tails, -types, or --";
+        const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+        const buf_addr = obj.alloc(total);
+        const buf: [*]u8 = @ptrFromInt(buf_addr);
+        var off: usize = 0;
+        for (prefix) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
+        for (suffix) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+        const msg_slice = (@as([*]const u8, @ptrFromInt(buf_addr)))[0..total];
+        stubs.raise(msg_slice);
+        return 0;
     }
     if (idx >= words.len) {
         if (nocomplain) return obj.obj_new_string(0, 0);

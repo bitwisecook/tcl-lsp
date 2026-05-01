@@ -47,7 +47,6 @@ const tcl_sched = @import("sched/tcl_sched.zig");
 const tcl_coro = @import("sched/tcl_coro.zig");
 const tcl_async = @import("sched/tcl_asyncify.zig");
 const tcl_caps = @import("interp/tcl_caps.zig");
-const tcl_cmd_exec = @import("cmds/exec.zig");
 const tcl_cmd_exit = @import("cmds/exit.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
@@ -327,8 +326,8 @@ comptime {
     // their Python registry specs deliberately omit a
     // ``wasm_runtime_import`` so every call routes through the
     // eval-fallback into the BUILTIN dispatcher.  No comptime ref
-    // is needed here — the cmd-table import keeps them alive.
-    _ = &tcl_cmd_exec;
+    // needed — the cmd-table BUILTINS slice keeps the registrations
+    // alive transitively.
     // pwd and cd live in tcl_fs.zig (pass-through impl).
     _ = &tcl_fs.tcl_cmd_pwd;
     _ = &tcl_fs.tcl_cmd_cd;
