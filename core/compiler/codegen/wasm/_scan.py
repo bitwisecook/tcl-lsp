@@ -8,6 +8,8 @@ command → import dispatch: it can assume every primitive it might call
 is available.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from ...cfg import CFGModule
@@ -591,8 +593,8 @@ def _scan_needed_imports(
 
     def _scan_stmt(stmt: IRStatement) -> None:
         match stmt:
-            case IRCall(command=command, args=args):
-                if command == "lset":
+            case IRCall(canonical_command=command, args=args):
+                if command == "::lset":
                     # ``lset`` is emitter-resident, not in _CMD_RUNTIME
                     # (see the comment in _imports.py).  Register the
                     # runtime import here so the shared-imports table
@@ -607,13 +609,13 @@ def _scan_needed_imports(
                 rimp = runtime_import_for(command)
                 if rimp is not None:
                     needed.add(rimp.import_key)
-                    if command == "puts":
+                    if command == "::puts":
                         # Include the -nonewline and channel-form
                         # helpers alongside tcl_puts so the emitter can
                         # pick the right shape without a second scan.
                         needed.add("tcl_puts_nonewline")
                         needed.add("tcl_puts_chan")
-                    elif command == "lreplace" and len(args) > 4:
+                    elif command == "::lreplace" and len(args) > 4:
                         # Multi-value ``lreplace list first last v1 v2 …``
                         # chains successive ``tcl_list_insert`` calls at
                         # ``first`` to position earlier values before the
@@ -621,48 +623,48 @@ def _scan_needed_imports(
                         # ``_emit_cmd_runtime`` for the emit shape.
                         needed.add("tcl_list_insert")
                 elif (
-                    command == "string"
+                    command == "::string"
                     and args
                     and (sri := subcommand_runtime_import_for("string", args[0])) is not None
                 ):
                     needed.add(sri.import_key)
-                elif command == "string" and args and args[0] == "is" and len(args) >= 3:
+                elif command == "::string" and args and args[0] == "is" and len(args) >= 3:
                     is_key = _STRING_IS_IMPORT.get(args[1])
                     if is_key:
                         needed.add(is_key)
-                elif command == "string" and args and args[0] == "cat":
+                elif command == "::string" and args and args[0] == "cat":
                     # ``string cat`` is variadic no-trim concat; the
                     # runtime path leans on ``tcl_append`` when any arg
                     # isn't a pure literal.
                     needed.add("tcl_append")
-                elif command == "list":
+                elif command == "::list":
                     # ``list $a $b ...`` with variable args uses tcl_lappend
                     # internally in _emit_list_value to quote each element.
                     needed.add("tcl_lappend")
                 elif (
-                    command == "dict"
+                    command == "::dict"
                     and args
                     and (sri := subcommand_runtime_import_for("dict", args[0])) is not None
                 ):
                     needed.add(sri.import_key)
-                elif command == "dict" and args and args[0] == "create":
+                elif command == "::dict" and args and args[0] == "create":
                     # ``dict create`` with non-literal k/v args
                     # folds at runtime via ``tcl_lappend`` so
                     # values with whitespace / braces survive
                     # (concat would trim them).
                     needed.add("tcl_lappend")
-                elif command == "dict" and args and args[0] == "merge":
+                elif command == "::dict" and args and args[0] == "merge":
                     needed.add("tcl_dict_merge_pair")
-                elif command == "global":
+                elif command == "::global":
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
-                elif command == "upvar":
+                elif command == "::upvar":
                     # upvar #0 resolves to a global alias — reads/writes go
                     # through the global table. The target name is computed
                     # at runtime (may be an interpolated string).
                     needed.add("tcl_global_get")
                     needed.add("tcl_global_set")
-                elif command == "variable":
+                elif command == "::variable":
                     # variable inside a proc aliases local → ::ns::local in
                     # the enclosing namespace. Same runtime path as upvar #0.
                     needed.add("tcl_global_get")
@@ -676,7 +678,7 @@ def _scan_needed_imports(
                         needed.add("tcl_append")
                         needed.add("tcl_global_exists")
                         needed.add("tcl_obj_get_int")
-                elif command == "info" and args:
+                elif command == "::info" and args:
                     # info exists — resolves via tcl_global_exists for
                     # aliased / ``::`` names; plain locals are boxed to
                     # TclObj via tcl_obj_new_int.  Other subcommands go
@@ -717,16 +719,16 @@ def _scan_needed_imports(
                         # the ``tcl_append`` concat-chain; see
                         # ``_emit_info_value``.
                         needed.add("tcl_append")
-                elif command == "lassign":
+                elif command == "::lassign":
                     needed.add("tcl_list_index")
                     needed.add("tcl_list_tail")
-                elif command == "clock" and args:
+                elif command == "::clock" and args:
                     sri = subcommand_runtime_import_for("clock", args[0])
                     if sri is not None:
                         needed.add(sri.import_key)
-                elif command == "array" and args:
+                elif command == "::array" and args:
                     _scan_array_subcmd(args)
-                elif command == "uplevel":
+                elif command == "::uplevel":
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_restore")
@@ -741,7 +743,7 @@ def _scan_needed_imports(
                         and not args[0].lstrip("-").isdigit()
                     ):
                         needed.add("tcl_append")
-                elif command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+                elif command == "::namespace" and args and args[0] == "eval" and len(args) > 2:
                     # ``namespace eval ns arg1 arg2 ...`` with dynamic
                     # script args: evaluated through WASM, not fallback.
                     needed.add("tcl_eval")
@@ -750,7 +752,7 @@ def _scan_needed_imports(
                     # so array-element refs ($arr($key)) pull in tcl_array_get.
                     for a in args[2:]:
                         _scan_value(a)
-                elif command == "unset":
+                elif command == "::unset":
                     for a in args:
                         if _parse_array_ref(a) is not None:
                             needed.add("tcl_array_unset_element")
@@ -758,7 +760,7 @@ def _scan_needed_imports(
                             # Whole-variable unset: may need array_unset to
                             # clear an array table when the var is an alias.
                             needed.add("tcl_array_unset")
-                elif command == "catch":
+                elif command == "::catch":
                     needed.add("tcl_catch_enter")
                     needed.add("tcl_catch_leave")
                     needed.add("tcl_catch_result")
@@ -780,7 +782,7 @@ def _scan_needed_imports(
                 # ``catch``, etc.) the args are source text re-parsed
                 # by the lowerer, not values emitted at runtime — mark
                 # them so the scan doesn't over-import tcl_append.
-                is_body = command_emits_nothing(command) or command == "catch"
+                is_body = command_emits_nothing(command) or command == "::catch"
                 for arg in args:
                     _scan_value(arg, is_body_text=is_body)
             case IRAssignValue(name=name, value=value):

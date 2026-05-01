@@ -1394,3 +1394,48 @@ class TestIRulesOperators:
         assert node.op is BinOp.WORD_AND
         assert isinstance(node.left, ExprCommand)
         assert isinstance(node.right, ExprCommand)
+
+
+class TestParseExprCache:
+    """Issue #246 follow-up — ``parse_expr`` is memoised so hot loops
+    (``for {…} {$i < N} {…} { … }``) don't re-tokenise the same
+    expression text on every iteration.
+
+    A 100k-iteration ``for`` loop in the VM measured 17.10s before the
+    cache landed and 4.63s after — a 3.7x speedup that the entire
+    integration-test suite benefits from (the slow ``test_vm_trace_test``
+    encoding.test corpus dropped from a 2-minute timeout to seconds).
+    """
+
+    def test_repeat_parse_returns_cached_node(self):
+        node1 = parse_expr("1 + 2")
+        node2 = parse_expr("1 + 2")
+        # ``ExprNode`` subclasses are frozen dataclasses and the AST is
+        # safe to share; identity equality is the correctness signal.
+        assert node1 is node2
+
+    def test_dialect_distinguishes_cached_entries(self):
+        # ``f5-irules`` enables ``and`` / ``or`` / ``contains`` etc.
+        # that the bare-Tcl dialect does not, so the parsed AST must
+        # differ — caching must key on dialect, not just source.
+        node_tcl = parse_expr("1 and 2")
+        node_irules = parse_expr("1 and 2", dialect="f5-irules")
+        assert node_tcl is not node_irules
+
+    def test_cache_distinguishes_whitespace_variations(self):
+        # The cache key is the source string verbatim — different
+        # spacings parse to equivalent ASTs but cache as separate
+        # entries.  Acceptable: hot loops always submit identical
+        # source text, and false sharing of unrelated entries would
+        # be a correctness hazard.
+        n1 = parse_expr("1+2")
+        n2 = parse_expr("1 + 2")
+        assert n1 is not n2
+
+    def test_invalid_expression_caches_too(self):
+        # Unparseable input also caches its ``ExprRaw`` fallback so a
+        # repeating bad-expression path (e.g. inside a runtime error
+        # loop) doesn't re-incur the lexer cost.
+        n1 = parse_expr("`")
+        n2 = parse_expr("`")
+        assert n1 is n2

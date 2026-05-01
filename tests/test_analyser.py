@@ -2362,3 +2362,193 @@ class TestTclOOClassExtraction:
         """)
         result = analyse(source)
         assert "Dog" in result.global_scope.classes
+
+
+class TestCanonicalisationMatrix:
+    """Issue #246 — diagnostics that switch on a command name must hit
+    identically for bare, qualified, aliased, and namespace-imported
+    spellings of the same Tcl built-in.
+
+    Each test runs the analyser on a small fixture that exercises one
+    spelling variant of the same call shape and asserts that the
+    expected diagnostic code fires (or doesn't) the same number of
+    times as for the bare-name variant.
+    """
+
+    @staticmethod
+    def _w213_count(source: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "W213")
+
+    def test_w213_unset_bare(self):
+        # ``unset $x`` on a possibly-undefined ``x`` triggers W213.
+        # Bare form is the baseline.
+        n = self._w213_count("proc f {} { unset x }")
+        assert n == 1, f"expected one W213 for bare unset, got {n}"
+
+    def test_w213_unset_qualified(self):
+        # ``::unset`` is the qualified form of the same builtin —
+        # should fire the same diagnostic.
+        n = self._w213_count("proc f {} { ::unset x }")
+        assert n == 1, f"expected one W213 for ::unset, got {n}"
+
+    def test_w213_unset_via_interp_alias(self):
+        # ``interp alias {} myunset {} unset`` then ``myunset x`` is
+        # an aliased form — lowering rewrites the call to the alias's
+        # target so canonical_command becomes ``::unset`` and the
+        # W213 path fires identically.
+        source = "interp alias {} myunset {} unset\nproc f {} { myunset x }"
+        n = self._w213_count(source)
+        assert n == 1, f"expected one W213 for interp-aliased unset, got {n}"
+
+    def test_w213_unset_nocomplain_silenced(self):
+        # ``-nocomplain`` opts out of the read-before-set check — the
+        # canonicalisation work must not regress this silencer.
+        n = self._w213_count("proc f {} { unset -nocomplain x }")
+        assert n == 0, f"expected no W213 with -nocomplain, got {n}"
+
+    def test_w213_unset_qualified_nocomplain_silenced(self):
+        n = self._w213_count("proc f {} { ::unset -nocomplain x }")
+        assert n == 0, f"expected no W213 with ::unset -nocomplain, got {n}"
+
+
+class TestCanonicalisationMatrixW211:
+    """Issue #246 — W211 ('variable set but never used') fires for the
+    same call shape regardless of bare / qualified / aliased command
+    spelling.
+    """
+
+    @staticmethod
+    def _w211_count(source: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "W211")
+
+    def test_w211_set_bare(self):
+        # ``set y 1`` with no later read fires W211.
+        n = self._w211_count("proc f {} { set y 1 }")
+        assert n == 1, f"expected one W211 for bare set, got {n}"
+
+    def test_w211_set_qualified(self):
+        # ``::set y 1`` fires the same diagnostic — canonical resolution
+        # routes the qualified call through the same code path.
+        n = self._w211_count("proc f {} { ::set y 1 }")
+        assert n == 1, f"expected one W211 for ::set, got {n}"
+
+    def test_w211_set_via_interp_alias(self):
+        # ``interp alias {} s {} set`` then ``s y 1`` is the alias-
+        # rewritten form — lowering follows the alias to ``set`` and
+        # canonicalisation produces ``::set``.
+        source = "interp alias {} s {} set\nproc f {} { s y 1 }"
+        n = self._w211_count(source)
+        assert n == 1, f"expected one W211 for aliased set, got {n}"
+
+
+class TestCanonicalisationMatrixIRULE4005:
+    """Issue #246 — IRULE4005 (racy ``unset`` on a static:: var) fires
+    on the same shape across spellings.
+    """
+
+    @staticmethod
+    def _irule4005_count(source: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "IRULE4005")
+
+    def test_irule4005_does_not_fire_for_unset(self):
+        # IRULE4005 requires more than just an ``unset`` — it triggers
+        # on a write outside RULE_INIT to a static:: var that another
+        # event reads.  A bare ``unset`` alone should NOT fire it,
+        # because ``unset`` is explicitly excluded as 'not a real write'
+        # — that exclusion uses ``stmt.canonical_command == "::unset"``.
+        # We assert the exclusion holds for bare/qualified/aliased
+        # spellings.
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="f5-irules")
+        try:
+            for spelling in (
+                "when CLIENT_ACCEPTED { unset static::z }",
+                "when CLIENT_ACCEPTED { ::unset static::z }",
+                "interp alias {} u {} unset\nwhen CLIENT_ACCEPTED { u static::z }",
+            ):
+                n = self._irule4005_count(spelling)
+                assert n == 0, f"unexpected IRULE4005 for {spelling!r}: got {n}"
+        finally:
+            configure_signatures(dialect="tcl8.6")
+
+
+class TestCanonicalisationMatrixW120:
+    """Issue #246 — W120 (variable scope analysis) fires identically for
+    ``global`` / ``::global`` / aliased ``g`` declarations.
+
+    The diagnostic stem is ``stmt.canonical_command == "::global"`` in
+    ``_diag_commands._globals_written_by_procs``; the matrix asserts the
+    canonical-form check survives qualified spellings and ``interp
+    alias`` redirects.
+    """
+
+    @staticmethod
+    def _global_aliases_seen(source: str) -> bool:
+        # The internal helper walks each proc and counts ``global``
+        # declarations as the gating signal for "this proc treats X as
+        # a global alias".  Round-trip the source through the analyser
+        # and assert the proc has at least one global-write recorded
+        # via the stmt.canonical_command == "::global" branch.
+        result = analyse(source)
+        # A proc that declares ``global g`` and writes ``$g`` should
+        # NOT fire W210 (read-before-set) on ``g`` because the global
+        # alias is recognised.  Use that as the negative-control signal.
+        w210 = [d for d in result.diagnostics if d.code == "W210"]
+        return all("g" not in d.message for d in w210)
+
+    def test_w120_global_bare(self):
+        # ``global g`` then a write — no W210, global alias recognised.
+        src = "set g 0\nproc f {} { global g; set g 1 }"
+        assert self._global_aliases_seen(src)
+
+    def test_w120_global_qualified(self):
+        src = "set g 0\nproc f {} { ::global g; set g 1 }"
+        assert self._global_aliases_seen(src)
+
+    def test_w120_global_via_alias(self):
+        src = "set g 0\ninterp alias {} mkglobal {} global\nproc f {} { mkglobal g; set g 1 }"
+        assert self._global_aliases_seen(src)
+
+
+class TestCanonicalisationMatrixW210:
+    """Issue #246 — W210 (read-before-set) treats ``variable`` /
+    ``upvar`` declarations identically across bare / qualified /
+    aliased spellings.  Both commands suppress W210 on the named
+    variable because the declaration introduces it from the enclosing
+    scope.  The check uses
+    ``stmt.canonical_command in ("::variable", "::upvar")`` in
+    ``_diag_commands._globals_written_by_procs``.
+    """
+
+    @staticmethod
+    def _w210_for_var(source: str, var: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "W210" and var in d.message)
+
+    def test_w210_variable_decl_bare_silences(self):
+        # ``variable v`` declares ``v`` from the enclosing namespace —
+        # reading it should not fire W210.
+        src = "namespace eval ns { variable v; proc f {} { variable v; puts $v } }"
+        assert self._w210_for_var(src, "v") == 0
+
+    def test_w210_variable_decl_qualified_silences(self):
+        src = "namespace eval ns { variable v; proc f {} { ::variable v; puts $v } }"
+        assert self._w210_for_var(src, "v") == 0
+
+    def test_w210_upvar_decl_bare_silences(self):
+        # ``upvar 1 caller_v local`` introduces ``local`` as an alias;
+        # reads of ``local`` should not fire W210.
+        src = "proc f {} { upvar 1 caller_v local; puts $local }"
+        assert self._w210_for_var(src, "local") == 0
+
+    def test_w210_upvar_decl_qualified_silences(self):
+        src = "proc f {} { ::upvar 1 caller_v local; puts $local }"
+        assert self._w210_for_var(src, "local") == 0
+
+    def test_w210_upvar_decl_aliased_silences(self):
+        src = "interp alias {} link {} upvar\nproc f {} { link 1 caller_v local; puts $local }"
+        assert self._w210_for_var(src, "local") == 0

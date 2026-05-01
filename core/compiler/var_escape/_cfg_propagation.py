@@ -18,6 +18,8 @@ register allocator) can use it. Codegen reads :attr:`name_tags`,
 which is the join over every SSA version of each name.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -453,6 +455,7 @@ def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
         range=stmt.range,
         reason="uplevel relaxed",
         command="uplevel",
+        canonical_command="::uplevel",
         args=args,
         tokens=tokens,
     )
@@ -472,6 +475,7 @@ def _synthesise_eval_barrier(stmt) -> IRBarrier:
         range=stmt.range,
         reason="eval relaxed",
         command="eval",
+        canonical_command="::eval",
         args=tuple(stmt.source_args) if stmt.source_args else (),
         tokens=stmt.source_tokens,
     )
@@ -483,42 +487,48 @@ def _handle_barrier(
     defs: dict[str, int],
 ) -> None:
     state.record_fallback()
-    cmd = barrier.command
-    if cmd == "eval":
+    cmd = barrier.canonical_command
+    if cmd == "::eval":
         _handle_eval(barrier, state, defs)
-    elif cmd == "uplevel":
+    elif cmd == "::uplevel":
         _handle_uplevel(barrier, state, defs)
     else:
         state.mark_pessimistic()
 
 
 def _handle_call(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
-    cmd = call.command
-    if cmd not in _FRAMELESS_RUNTIME_COMMANDS:
-        if not cmd or _is_dynamic_token(cmd):
+    cmd = call.canonical_command or call.command
+    bare = cmd[2:] if cmd.startswith("::") else cmd
+    if bare not in _FRAMELESS_RUNTIME_COMMANDS:
+        if not bare or _is_dynamic_token(bare):
             state.record_fallback()
         else:
             state.record_call_fallback()
 
-    if _has_expand_word(call) and cmd not in ("list", "concat"):
+    if _has_expand_word(call) and bare not in ("list", "concat"):
         state.mark_pessimistic()
         return
 
-    if cmd == "upvar":
+    if cmd == "::upvar":
         _handle_upvar(call, state, defs)
-    elif cmd == "global":
+    elif cmd == "::global":
         _handle_global(call, state, defs)
-    elif cmd == "variable":
+    elif cmd == "::variable":
         _handle_variable(call, state, defs)
-    elif cmd == "namespace":
+    elif cmd == "::namespace":
         _handle_namespace_call(call, state, defs)
-    elif cmd == "info":
+    elif cmd == "::info":
         _handle_info(call, state, defs)
-    elif cmd in _NAME_FIRST_COMMANDS:
+    elif bare in _NAME_FIRST_COMMANDS:
         _handle_dynamic_name_first(call, state, defs)
 
-    if cmd and not _is_dynamic_token(cmd):
-        state.record_callee(cmd)
+    # Record the raw written form for the interprocedural resolver: a
+    # bare ``leaf`` from inside ``::ns`` must remain bare here so
+    # ``_name_candidates`` can walk up the caller's namespace and resolve
+    # to ``::ns::leaf`` rather than locking onto the global ``::leaf``.
+    raw = call.command
+    if raw and not _is_dynamic_token(raw):
+        state.record_callee(raw)
 
 
 def _handle_statement(

@@ -1,3 +1,4 @@
+# canonicalisation: audited #246
 r"""Option-shape factory proc specialisation (Phase 8).
 
 Drives the tcltest ``Option`` pattern:
@@ -123,7 +124,7 @@ def detect_factory_shape(proc: IRProcedure) -> FactoryShape | None:
         return None
     if last.reason != "dynamic proc name":
         return None
-    if last.command != "proc":
+    if last.canonical_command != "::proc":
         return None
 
     tokens = last.tokens

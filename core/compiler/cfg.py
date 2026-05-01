@@ -13,6 +13,8 @@ flattened into this graph form so that SSA and dataflow analyses can
 reason about all possible execution paths.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -132,10 +134,10 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                     continue
                 # upvar ?level? otherVar myVar ?otherVar myVar ...?
                 start = 0
-                if stmt.command == "upvar":
+                if stmt.canonical_command == "::upvar":
                     if args[0].lstrip("-").isdigit() or args[0].startswith("#"):
                         start = 1
-                elif stmt.command == "namespace upvar":
+                elif stmt.canonical_command == "::namespace upvar":
                     start = 1  # skip namespace arg
                 # Pairs: otherVar myVar (caller-side, local)
                 for i in range(start, len(args) - 1, 2):
@@ -565,6 +567,7 @@ class _CFGBuilder:
                 stmt = IRCall(
                     range=stmt.range,
                     command=stmt.command,
+                    canonical_command=stmt.canonical_command,
                     args=stmt.args,
                     defs=tuple(merged),
                     tokens=stmt.tokens,
@@ -591,6 +594,7 @@ class _CFGBuilder:
                     stmt = IRCall(
                         range=stmt.range,
                         command=stmt.command,
+                        canonical_command=stmt.canonical_command,
                         args=stmt.args,
                         defs=tuple(merged),
                         tokens=stmt.tokens,
@@ -649,6 +653,7 @@ class _CFGBuilder:
                                 range=stmt.range,
                                 reason="frozen for (cmd-subst condition)",
                                 command="for",
+                                canonical_command="::for",
                                 args=stmt.raw_args,
                             )
                         )
@@ -664,6 +669,7 @@ class _CFGBuilder:
                                 range=stmt.range,
                                 reason="frozen while (cmd-subst condition)",
                                 command="while",
+                                canonical_command="::while",
                                 args=stmt.raw_args,
                             )
                         )
@@ -695,6 +701,7 @@ class _CFGBuilder:
                                 range=stmt.range,
                                 reason="dict for/map",
                                 command=sub_spec.cfg_rewrite_name,
+                                canonical_command=sub_spec.cfg_rewrite_name,
                                 args=stmt.raw_args[1:],  # skip subcommand
                                 tokens=None,
                             )
@@ -711,6 +718,7 @@ class _CFGBuilder:
                             IRCall(
                                 range=stmt.range,
                                 command=cmd,
+                                canonical_command=f"::{cmd}",
                                 args=stmt.raw_args,
                                 defs=loop_vars,
                             )
@@ -735,6 +743,7 @@ class _CFGBuilder:
                         IRCall(
                             range=stmt.range,
                             command="catch",
+                            canonical_command="::catch",
                             args=stmt.raw_args,
                             defs=tuple(dict.fromkeys(catch_defs)),
                         )
@@ -762,6 +771,7 @@ class _CFGBuilder:
                             IRCall(
                                 range=stmt.range,
                                 command="try",
+                                canonical_command="::try",
                                 args=stmt.raw_args,
                                 defs=tuple(dict.fromkeys(try_defs)),
                             )
@@ -829,6 +839,7 @@ class _CFGBuilder:
                 range=stmt.range,
                 reason="switch -regexp",
                 command="switch",
+                canonical_command="::switch",
                 args=stmt.raw_args,
             )
             self._block(block_name).statements.append(barrier)
@@ -972,11 +983,16 @@ class _CFGBuilder:
         list_args = tuple(list_arg for _, list_arg in stmt.iterators)
         if stmt.is_dict_iteration:
             fe_cmd = "dict for" if not stmt.is_lmap else "dict map"
+            # Source-form ensemble spelling; canonical mirrors the
+            # qualified rewrite name so registry lookups resolve.
+            fe_canonical = "::tcl::dict::for" if not stmt.is_lmap else "::tcl::dict::map"
         else:
             fe_cmd = "foreach" if not stmt.is_lmap else "lmap"
+            fe_canonical = f"::{fe_cmd}"
         var_def = IRCall(
             range=stmt.range,
             command=fe_cmd,
+            canonical_command=fe_canonical,
             args=list_args,
             defs=tuple(all_vars),
         )

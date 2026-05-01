@@ -1,3 +1,4 @@
+# canonicalisation: audited #246
 from __future__ import annotations
 
 import logging
@@ -270,10 +271,10 @@ class _AnalyserDiagCommandsMixin(_Base):
             for block in fu.cfg.blocks.values():
                 for stmt in block.statements:
                     if isinstance(stmt, IRCall):
-                        if stmt.command == "global":
+                        if stmt.canonical_command == "::global":
                             global_aliases.update(stmt.defs)
                             continue
-                        if stmt.command in ("variable", "upvar"):
+                        if stmt.canonical_command in ("::variable", "::upvar"):
                             continue
                         if REGISTRY.is_destroys_variable(stmt.command):
                             continue

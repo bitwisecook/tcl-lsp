@@ -1143,3 +1143,476 @@ class TestOOAndSnitStructuralBodies:
         args = ["name", "arglist", "body"]
         assert body_kind_for_command("snit::macro", args) is BodyKind.STRUCTURAL
         assert arg_indices_for_role("snit::macro", args, ArgRole.BODY) == {2}
+
+
+class TestCanonicalCommandHelper:
+    """Issue #246 — ``to_canonical_command`` resolves aliases and qualifies.
+
+    This is the lowering-time canonicalisation entry point.  Every IR
+    construction site stamps ``canonical_command`` via this helper so
+    downstream comparisons against literal strings (``stmt.canonical_command
+    == "::unset"`` etc.) hit identically regardless of how the call was
+    written in source.
+    """
+
+    def test_bare_name_qualifies_to_global(self):
+        from core.common.alias import to_canonical_command
+
+        assert to_canonical_command("unset") == "::unset"
+        assert to_canonical_command("dict") == "::dict"
+        assert to_canonical_command("set") == "::set"
+
+    def test_already_qualified_name_normalises(self):
+        from core.common.alias import to_canonical_command
+
+        assert to_canonical_command("::unset") == "::unset"
+        assert to_canonical_command("::ns::foo") == "::ns::foo"
+        # Empty namespace components collapse: ``::ns::::foo`` → ``::ns::foo``.
+        assert to_canonical_command("::ns::::foo") == "::ns::foo"
+
+    def test_alias_resolves_to_target(self):
+        from core.common.alias import CommandAliasMap, to_canonical_command
+
+        # interp alias {} = {} expr — calling ``=`` canonicalises to ``::expr``.
+        aliases: CommandAliasMap = {"::=": ("expr", ())}
+        assert to_canonical_command("=", aliases=aliases) == "::expr"
+        assert to_canonical_command("::=", aliases=aliases) == "::expr"
+
+    def test_alias_chain_terminates_at_self_loop(self):
+        from core.common.alias import CommandAliasMap, to_canonical_command
+
+        # Self-referential alias: must not loop forever.
+        aliases: CommandAliasMap = {"::loop": ("loop", ())}
+        assert to_canonical_command("loop", aliases=aliases) == "::loop"
+
+    def test_alias_chain_terminates_on_cycle(self):
+        from core.common.alias import CommandAliasMap, to_canonical_command
+
+        # ``a -> b -> a`` cycle — the helper breaks at the first repeat.
+        aliases: CommandAliasMap = {"::a": ("b", ()), "::b": ("a", ())}
+        # Either ``::a`` or ``::b`` is acceptable as a terminating point;
+        # what matters is the call returns rather than looping.
+        result = to_canonical_command("a", aliases=aliases)
+        assert result in ("::a", "::b")
+
+    def test_namespace_aware_alias_lookup(self):
+        from core.common.alias import CommandAliasMap, to_canonical_command
+
+        # An alias scoped to ``::ns`` is reachable from a bare call inside
+        # that namespace but not from the global scope.
+        aliases: CommandAliasMap = {"::ns::myunset": ("unset", ())}
+        assert to_canonical_command("myunset", namespace="::ns", aliases=aliases) == "::unset"
+        # From global scope the alias is invisible — bare ``myunset`` falls
+        # through to its own global form.
+        assert to_canonical_command("myunset", aliases=aliases) == "::myunset"
+
+
+class TestIRCallCanonicalCommand:
+    """Issue #246 — every IRCall / IRBarrier produced by lowering carries
+    a canonical command name regardless of source spelling.
+
+    This is the contract the systematic audit (item 10) relies on: any
+    pass that switches on a literal command name must be able to compare
+    against ``stmt.canonical_command`` and have qualified forms, aliases,
+    and namespace-scoped calls all hit the same branch.
+    """
+
+    @staticmethod
+    def _walk(stmts):
+        from core.compiler.ir import IRBarrier, IRBlock, IRCall
+
+        for s in stmts:
+            if isinstance(s, (IRCall, IRBarrier)):
+                yield s
+            if isinstance(s, IRBlock):
+                yield from TestIRCallCanonicalCommand._walk(s.body.statements)
+
+    def _lower(self, src):
+        from core.compiler.lowering import _Lowerer
+
+        return _Lowerer().lower(src)
+
+    def test_bare_command_canonicalises_to_global(self):
+        m = self._lower("unset x")
+        calls = list(self._walk(m.top_level.statements))
+        # ``unset`` produces an IRCall with canonical "::unset".
+        assert any(c.canonical_command == "::unset" for c in calls)
+
+    def test_qualified_command_canonicalises_identically(self):
+        m_bare = self._lower("unset x")
+        m_qual = self._lower("::unset x")
+        bare = next(c for c in self._walk(m_bare.top_level.statements) if "unset" in c.command)
+        qual = next(c for c in self._walk(m_qual.top_level.statements) if "unset" in c.command)
+        assert bare.canonical_command == qual.canonical_command == "::unset"
+
+    def test_namespace_eval_body_canonicalises_to_global(self):
+        # Inside ``namespace eval ns``, a bare ``unset z`` still resolves
+        # to ``::unset`` (the global builtin) — namespace shadowing of
+        # builtin commands is rare and not statically tracked here.
+        m = self._lower("namespace eval ns { unset z }")
+        calls = list(self._walk(m.top_level.statements))
+        unsets = [c for c in calls if "unset" in c.command]
+        assert unsets and all(c.canonical_command == "::unset" for c in unsets)
+
+    def test_interp_alias_resolves_at_lowering(self):
+        src = """
+        interp alias {} myunset {} unset
+        myunset w
+        ::myunset q
+        """
+        m = self._lower(src)
+        calls = list(self._walk(m.top_level.statements))
+        # Both ``myunset w`` and ``::myunset q`` should canonicalise to ``::unset``.
+        unsets = [c for c in calls if c.canonical_command == "::unset"]
+        assert len(unsets) >= 2
+
+    def test_diagnostic_targets_canonical_form_uniformly(self):
+        # W213 (read-before-set on possibly-undefined unset target) is one
+        # of the diagnostics that switches on ``stmt.canonical_command ==
+        # "::unset"``.  An aliased ``myunset`` must trigger it identically
+        # to a bare or qualified ``unset``.  Lowering produces canonical
+        # ``::unset`` for both — this test exercises the IR-level contract.
+        # (Actual diagnostic fixture coverage lives in tests/test_analyser.py.)
+        src = """
+        interp alias {} myunset {} unset
+        myunset z
+        """
+        m = self._lower(src)
+        calls = list(self._walk(m.top_level.statements))
+        aliased_unset = next((c for c in calls if c.canonical_command == "::unset"), None)
+        assert aliased_unset is not None
+
+    def test_cfg_synthetic_calls_carry_canonical(self):
+        # The CFG lowering emits synthetic IRCalls for catch / try / foreach /
+        # lmap / dict iteration when the loop is collapsed for codegen.
+        # These synthetic constructs must also carry canonical_command so
+        # downstream passes that match on it (e.g. SSA def-use) treat them
+        # uniformly with lowering-produced calls.
+        from core.compiler.cfg import build_cfg
+
+        m = self._lower("foreach x {1 2 3} { puts $x }")
+        cfg_module = build_cfg(m)
+        # ``__top__`` holds the top-level CFG — drill down into its blocks.
+        top_cfg = cfg_module.top_level
+        canonical_seen = {
+            stmt.canonical_command
+            for block in top_cfg.blocks.values()
+            for stmt in block.statements
+            if hasattr(stmt, "canonical_command") and stmt.canonical_command
+        }
+        # The foreach var-def synthetic IRCall must show up canonical.
+        assert "::foreach" in canonical_seen, (
+            f"Expected synthetic IRCall with canonical_command='::foreach', saw {canonical_seen}"
+        )
+
+
+class TestCanonicalisationAuditMarkers:
+    """Issue #246 — files with literal command-name comparisons must
+    declare they have been audited and migrated to canonical form.
+
+    The audit marker is a top-level comment ``# canonicalisation:
+    audited #246``.  Adding it asserts that every ``stmt.command ==
+    "..."`` and ``stmt.command in (...)`` style check in the file
+    either uses the canonical form (``::cmd``) or is a documented
+    bucket-(iii) pass-specific identity check.
+    """
+
+    AUDITED = (
+        "core/compiler/cfg.py",
+        "core/compiler/core_analyses.py",
+        "core/compiler/compiler_checks.py",
+        "core/compiler/inlining/inline_pass.py",
+        "core/compiler/irules_flow.py",
+        "core/compiler/inline_uplevel.py",
+        "core/compiler/memory_ssa.py",
+        "core/compiler/taint/_uri_split.py",
+        "core/compiler/taint/_sinks.py",
+        "core/compiler/lowering.py",
+        "core/compiler/lowering_hooks/_var.py",
+        "core/compiler/lowering_hooks/_control.py",
+        "core/compiler/source_inliner.py",
+        "core/compiler/optimiser/_pattern_recognition.py",
+        "core/compiler/passes/specialise_factories.py",
+        "core/compiler/interprocedural.py",
+        "core/compiler/codegen/_emitter.py",
+        "core/compiler/codegen/_control_flow.py",
+        "core/compiler/codegen/wasm_link.py",
+        "core/compiler/codegen/wasm/_scan.py",
+        "core/compiler/codegen/wasm/_emitter/_statements.py",
+        "core/compiler/codegen/wasm/_emitter/_optimisation.py",
+        "core/compiler/codegen/wasm/_emitter/_control_flow.py",
+        "core/compiler/codegen/wasm/_emitter/_commands.py",
+        "core/compiler/var_escape/_propagation.py",
+        "core/compiler/var_escape/_cfg_propagation.py",
+        "core/diagram/extract.py",
+        "core/analysis/_analyser/_diag_commands.py",
+        "core/analysis/_analyser/_diag_var_command.py",
+        "core/analysis/_analyser/_diag_var_lifecycle.py",
+        "core/analysis/_analyser/_diag_racy.py",
+    )
+
+    MARKER = "# canonicalisation: audited #246"
+
+    def test_audited_files_carry_marker(self):
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parent.parent
+        missing = [
+            path for path in self.AUDITED if self.MARKER not in (repo_root / path).read_text()
+        ]
+        assert missing == [], (
+            f"Files migrated to canonical command matching must declare the audit marker "
+            f"``{self.MARKER}``; missing in: {missing}"
+        )
+
+    def test_audited_files_have_no_unmarked_literal_command_checks(self):
+        """Reject ``stmt.command == "name"`` / ``stmt.command in ("a", "b")``
+        in audited files — they must use ``stmt.canonical_command == "::name"``
+        or carry an explicit bucket-(iii) marker on the line.
+        """
+        import re
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parent.parent
+        # Pattern: ``stmt.command == "x"`` or ``cmd.command in ("x", ...)``
+        # (allows ``ir_stmt.command``, ``s.command``, etc.).
+        # Match ``X.command == "..."`` / ``X.command != "..."`` /
+        # ``X.command in (...)``.  The ``\.`` anchor avoids flagging a
+        # local parameter named ``command`` in unrelated helpers; the
+        # ``(?<!canonical_)`` negative-lookbehind keeps the new
+        # ``stmt.canonical_command`` form whitelisted.
+        pattern = re.compile(r'(?<!canonical_)\.command\s*(==|!=|in)\s*[\("]')
+        bucket_iii = "# canonicalisation: bucket-iii"
+        # The bucket-(iii) marker may appear on the violation line OR
+        # on any of the four lines immediately preceding it — the
+        # auto-formatter sometimes wraps long expressions across
+        # multiple lines, leaving the marker on a sibling line.
+        marker_lookback = 4
+        violations: list[str] = []
+        for path in self.AUDITED:
+            full = repo_root / path
+            lines = full.read_text().splitlines()
+            for lineno, line in enumerate(lines, 1):
+                if not pattern.search(line):
+                    continue
+                # Skip docstrings and comment lines that just mention the pattern.
+                stripped = line.lstrip()
+                if stripped.startswith("#") or stripped.startswith('"') or stripped.startswith("'"):
+                    continue
+                # Marker check: same line, or any of the preceding
+                # ``marker_lookback`` lines.
+                window_start = max(0, lineno - 1 - marker_lookback)
+                window = lines[window_start:lineno]
+                if any(bucket_iii in w for w in window):
+                    continue
+                violations.append(f"{path}:{lineno}: {line.strip()}")
+        assert violations == [], (
+            "Audited files contain unmarked literal command-name checks. Either migrate to "
+            '``stmt.canonical_command == "::name"`` or add the bucket-(iii) marker '
+            "``# canonicalisation: bucket-iii — <reason>`` on the same line.\n"
+            + "\n".join(violations)
+        )
+
+
+class TestVariableNameAndDisplayHelpers:
+    """Issue #246 — ``to_canonical_var`` / ``from_canonical`` /
+    ``is_canonical_command`` round out the helper surface for variable
+    naming and source-spelling rendering.
+    """
+
+    def test_to_canonical_var_strips_sigils(self):
+        from core.common.naming import to_canonical_var
+
+        assert to_canonical_var("x") == "x"
+        assert to_canonical_var("$x") == "x"
+        assert to_canonical_var("${x}") == "x"
+        assert to_canonical_var("arr(key)") == "arr"
+
+    def test_to_canonical_var_preserves_qualified_form(self):
+        from core.common.naming import to_canonical_var
+
+        # Bare locals stay bare; qualified globals stay qualified.
+        # The bare/qualified distinction is semantically meaningful
+        # (local vs global) and is preserved.
+        assert to_canonical_var("::g") == "::g"
+        assert to_canonical_var("::ns::v") == "::ns::v"
+
+    def test_from_canonical_strips_global_prefix(self):
+        from core.common.naming import from_canonical
+
+        assert from_canonical("::set") == "set"
+        assert from_canonical("::unset") == "unset"
+
+    def test_from_canonical_preserves_nested_namespace(self):
+        from core.common.naming import from_canonical
+
+        # ``::tcl::dict::for`` from global scope keeps the qualifier
+        # so the reader sees the cross-namespace reach.
+        assert from_canonical("::tcl::dict::for") == "::tcl::dict::for"
+
+    def test_from_canonical_rebases_to_display_namespace(self):
+        from core.common.naming import from_canonical
+
+        assert from_canonical("::ns::foo", display_namespace="::ns") == "foo"
+        # Sibling namespace: qualified rendering preserved.
+        assert from_canonical("::other::foo", display_namespace="::ns") == "::other::foo"
+
+    def test_is_canonical_command_accepts_qualified(self):
+        from core.common.naming import is_canonical_command
+
+        assert is_canonical_command("::set") is True
+        assert is_canonical_command("::HTTP::respond") is True
+        assert is_canonical_command("::tcl::dict::for") is True
+
+    def test_is_canonical_command_rejects_bare(self):
+        from core.common.naming import is_canonical_command
+
+        assert is_canonical_command("set") is False
+        assert is_canonical_command("dict") is False
+
+    def test_is_canonical_command_accepts_synthetic(self):
+        from core.common.naming import is_canonical_command
+
+        # CFG synthetic nodes have no user-source command.
+        assert is_canonical_command("") is True
+        assert is_canonical_command("<cond>") is True
+        assert is_canonical_command("<empty_clause>") is True
+        assert is_canonical_command("<upvar-invalidate>") is True
+
+
+class TestRenameAndNamespaceImportCanonicalisation:
+    """Issue #246 — per-call-site canonicalisation follows ``rename``
+    and ``namespace import`` directives captured at lowering time, so
+    the IR's ``canonical_command`` reflects the underlying command
+    even when the user wrote a redirected or imported spelling.
+    """
+
+    @staticmethod
+    def _walk(stmts):
+        from core.compiler.ir import IRBarrier, IRBlock, IRCall
+
+        for s in stmts:
+            if isinstance(s, (IRCall, IRBarrier)):
+                yield s
+            if isinstance(s, IRBlock):
+                yield from TestRenameAndNamespaceImportCanonicalisation._walk(s.body.statements)
+
+    def _lower(self, src):
+        from core.compiler.lowering import _Lowerer
+
+        return _Lowerer().lower(src)
+
+    def test_rename_redirects_canonical_to_original(self):
+        # ``rename unset myunset`` then ``myunset x`` — the canonical
+        # form follows the rename to the underlying builtin.
+        src = "rename unset myunset\nmyunset x"
+        m = self._lower(src)
+        myunset_call = next(
+            (c for c in self._walk(m.top_level.statements) if c.command == "myunset"),
+            None,
+        )
+        assert myunset_call is not None
+        assert myunset_call.canonical_command == "::unset"
+
+    def test_rename_then_alias_chains_to_builtin(self):
+        # A double redirect: rename then alias.  Lowering's alias
+        # resolution rewrites ``mu`` to ``myunset`` at IR construction
+        # (``IRCall.command`` becomes ``myunset``); the canonicaliser
+        # then follows the captured ``rename myunset → unset`` to
+        # produce ``::unset`` as the canonical form.
+        src = """
+        rename unset myunset
+        interp alias {} mu {} myunset
+        mu x
+        """
+        m = self._lower(src)
+        unset_calls = [
+            c for c in self._walk(m.top_level.statements) if c.canonical_command == "::unset"
+        ]
+        assert unset_calls, (
+            "expected at least one IRCall canonicalising to '::unset' from the rename + alias chain"
+        )
+
+    def test_namespace_import_glob_resolves_to_source(self):
+        # ``namespace import ::tcltest::*`` then a bare ``test`` call
+        # inside the importing namespace canonicalises to the source
+        # name ``::tcltest::test``.
+        src = """
+        namespace eval app {
+          namespace import ::tcltest::*
+          test t1 desc -body {expr 1}
+        }
+        """
+        m = self._lower(src)
+        test_call = next(
+            (
+                c
+                for c in self._walk(m.top_level.statements)
+                if "test" in c.command and c.command != "namespace"
+            ),
+            None,
+        )
+        assert test_call is not None
+        assert test_call.canonical_command == "::tcltest::test"
+
+    def test_namespace_import_does_not_shadow_builtin(self):
+        # ``namespace import ::tcltest::*`` should NOT rewrite a plain
+        # ``namespace`` call to ``::tcltest::namespace`` — Tcl's import
+        # shadows builtins at runtime, but the static canonicalisation
+        # preserves the global-builtin binding so analysis still
+        # recognises ``namespace eval`` patterns under the import.
+        src = """
+        namespace eval app {
+          namespace import ::tcltest::*
+          namespace eval inner { set y 1 }
+        }
+        """
+        m = self._lower(src)
+        # Walk top-level + the IRBlock(ns=::app) — find the inner
+        # namespace-eval call (which lowers to an IRBlock at the app
+        # level whose source IRCall is ``namespace`` with canonical
+        # ``::namespace``).
+        ns_call = next(
+            (
+                c
+                for c in self._walk(m.top_level.statements)
+                if c.command == "namespace" and c.args and c.args[0] == "import"
+            ),
+            None,
+        )
+        # The ``namespace import`` call itself canonicalises to
+        # ``::namespace`` (the builtin), not ``::tcltest::namespace``
+        # — the import-shortcut guard we want to assert is that the
+        # builtin lookup wins.
+        assert ns_call is not None
+        assert ns_call.canonical_command == "::namespace"
+
+    def test_namespace_import_dead_code_does_not_register(self):
+        # ``namespace import`` inside ``if {0} { … }`` is dead code;
+        # the canonicaliser must not consult its pattern.
+        src = """
+        namespace eval app {
+          if {0} {
+            namespace import ::tcltest::*
+          }
+          test t1 desc -body {expr 1}
+        }
+        """
+        m = self._lower(src)
+        test_call = next(
+            (
+                c
+                for c in self._walk(m.top_level.statements)
+                if "test" in c.command and c.command != "namespace"
+            ),
+            None,
+        )
+        # Without the import being captured (dead-code gate), bare
+        # ``test`` falls back to the global ``::test`` form.
+        assert test_call is not None
+        # The static-export over-approximation still maps a bare-name
+        # call to ``::tcltest::test`` for body-kind queries (see the
+        # cfd0e12 first slice), but the canonical form here is just
+        # the global form.  Either is acceptable; what we care about
+        # is that the dead ``namespace import`` did NOT contribute.
+        assert test_call.canonical_command == "::test"

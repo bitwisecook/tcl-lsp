@@ -1,5 +1,7 @@
 """_WasmEmitterStmtMixin: statement dispatch and proc calls."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -80,7 +82,7 @@ def _static_parse_error_message(
     issue #259) AND whose canonical message is unambiguous from the
     barrier metadata.
     """
-    if barrier_cmd != "if" or reason is None:
+    if barrier_cmd != "::if" or reason is None:
         return None
     if reason == 'extra words after "else" clause':
         # ``if cond body else other extra…`` — eval_if otherwise discards
@@ -250,7 +252,19 @@ class _WasmEmitterStmtMixin(_Base):
                 self._emit_expr(expr)
                 self._emit(WasmOp.DROP)
 
-            case IRCall(command=command, args=args, defs=defs, tokens=tokens):
+            case IRCall(args=args, defs=defs, tokens=tokens) as ir_call:
+                # Bind both forms: ``command`` (source spelling, what the
+                # user wrote) flows into ``_emit_eval_fallback`` and
+                # proc resolution so Tcl's normal namespace-walk lookup
+                # finds the same target it would at runtime — passing
+                # the eagerly-globalised canonical form would force
+                # ``::name`` resolution and miss namespace-local procs.
+                # ``canonical_command`` (post alias / namespace-import
+                # / rename resolution) is the dispatch key for
+                # literal-string matches against builtin spellings.
+                # See issue #246.
+                command = ir_call.command
+                canonical = ir_call.canonical_command
                 if (
                     tokens is not None
                     and tokens.expand_word is not None
@@ -294,7 +308,9 @@ class _WasmEmitterStmtMixin(_Base):
                     if self._optimise:
                         self._const_map.clear()
                 else:
-                    self._emit_call_stmt(command, args, defs, tokens=tokens)
+                    self._emit_call_stmt(
+                        command, args, defs, tokens=tokens, canonical_command=canonical
+                    )
 
             case IRReturn(value=value, expr=expr):
                 if expr is not None:
@@ -305,7 +321,7 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_i32_const(0)
                 self._emit(WasmOp.RETURN)
 
-            case IRBarrier(command=barrier_cmd, args=barrier_args, reason=reason):
+            case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
                 # Barriers are dynamic commands (eval, uplevel, trace,
                 # etc.) that defeat static *analysis* but may still
                 # have concrete runtime implementations we can call
@@ -336,11 +352,11 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_static_parse_error_trap(barrier_cmd or "", parse_error_msg)
                     if self._optimise:
                         self._const_map.clear()
-                elif barrier_cmd == "uplevel" and barrier_args:
+                elif barrier_cmd == "::uplevel" and barrier_args:
                     self._emit_cmd_uplevel(barrier_args)
                     self._emit(WasmOp.DROP)
                 elif (
-                    barrier_cmd == "return"
+                    barrier_cmd == "::return"
                     and barrier_args
                     and len(barrier_args) == 3
                     and barrier_args[0] == "-code"
@@ -380,7 +396,7 @@ class _WasmEmitterStmtMixin(_Base):
                     # Build a script with the cond/scripts always
                     # brace-wrapped so the runtime sees the literal
                     # expression / body.
-                    if barrier_cmd == "while" and len(barrier_args) >= 2:
+                    if barrier_cmd == "::while" and len(barrier_args) >= 2:
                         cond, body = barrier_args[0], barrier_args[1]
                         script = (
                             "while "
@@ -397,7 +413,7 @@ class _WasmEmitterStmtMixin(_Base):
                             )
                         )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
-                    elif barrier_cmd == "for" and len(barrier_args) >= 4:
+                    elif barrier_cmd == "::for" and len(barrier_args) >= 4:
                         init, cond, nxt, body = (
                             barrier_args[0],
                             barrier_args[1],
@@ -756,6 +772,8 @@ class _WasmEmitterStmtMixin(_Base):
         args: tuple[str, ...],
         defs: tuple[str, ...] = (),
         tokens: "CommandTokens | None" = None,
+        *,
+        canonical_command: str | None = None,
     ) -> None:
         """Emit a command invocation.
 
@@ -766,12 +784,31 @@ class _WasmEmitterStmtMixin(_Base):
         named ``puts`` shadows the built-in runtime import, matching
         Tcl's command resolution semantics.
 
+        *command* is the source-spelling word the user wrote — it is
+        what flows into ``_emit_eval_fallback`` so the runtime sees the
+        same name Tcl would resolve through its normal scope walk
+        (a bare ``leaf`` from inside ``::ns`` resolves via Tcl's
+        namespace lookup to ``::ns::leaf`` if defined; passing the
+        already-globalised ``::leaf`` would force a different
+        resolution).  *canonical_command* is the lowering-time
+        canonical form (``::ns::cmd``) used for the literal-string
+        dispatches below — qualified spellings, ``interp alias``
+        aliases, and namespace-imported builtins all hit the same
+        branch when matched on the canonical form.  When unset (legacy
+        callers) we derive canonical from ``command`` via
+        :func:`core.common.naming.normalise_qualified_name`.  See
+        issue #246.
+
         *tokens* — original parsed tokens for the command invocation.
         Threaded through to user-proc calls so they can distinguish
         braced (``{…}``) args from unbraced ones (braced args must
         skip backslash / interpolation substitution, per Tcl
         semantics).
         """
+        if canonical_command is None:
+            from .....common.naming import normalise_qualified_name
+
+            canonical_command = normalise_qualified_name(command) if command else command
         # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
         # to invalidate caller-side SSA defs around a call that modifies
         # variables via upvar.  No code to emit at the WASM level.
@@ -797,7 +834,7 @@ class _WasmEmitterStmtMixin(_Base):
         # registers under the current namespace.
         if command_emits_nothing(command):
             if (
-                command == "proc"
+                canonical_command == "::proc"
                 and args
                 and (
                     # Dynamic name (``proc $varName body``)
@@ -824,7 +861,7 @@ class _WasmEmitterStmtMixin(_Base):
             # with dynamic script args: build the script at WASM level
             # (so compiled-frame aliases like $arr($key) are resolved
             # correctly) and call tcl_eval for side effects.
-            if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+            if canonical_command == "::namespace" and args and args[0] == "eval" and len(args) > 2:
                 # Bridge drops the result since we're in statement context.
                 # If imports are missing the bridge returns False and we
                 # silently skip (statement context has no stack commitments).
@@ -845,7 +882,11 @@ class _WasmEmitterStmtMixin(_Base):
             # ``namespace eval`` is handled above; ``namespace current``,
             # ``namespace which`` etc. are lookups with no side effect
             # and remain NOPs at codegen.
-            if command == "namespace" and args and args[0] in ("import", "export", "forget"):
+            if (
+                canonical_command == "::namespace"
+                and args
+                and args[0] in ("import", "export", "forget")
+            ):
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return
@@ -858,7 +899,7 @@ class _WasmEmitterStmtMixin(_Base):
             # stays absent.  (dict.test 23.X+ uses
             # define→rename-delete→re-define→rename-delete on
             # ``linenumber``.)
-            if command == "proc" and self._is_static_proc_args(args):
+            if canonical_command == "::proc" and self._is_static_proc_args(args):
                 # First static def with this name at top level: re-emit
                 # ``proc_register_compiled`` so a previous
                 # ``rename NAME {}`` followed by ``proc NAME`` re-
@@ -908,12 +949,12 @@ class _WasmEmitterStmtMixin(_Base):
         # From inside the body at ctrl_depth D, with loop_ctrl C:
         #   continue: br(D - C) exits the continue block → runs <next>
         #   break:    br(D - C + 2) exits continue block + loop + outer block
-        if command == "break" and self._loop_ctrl_depths:
+        if canonical_command == "::break" and self._loop_ctrl_depths:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl + 2
             self._emit_br(br_depth)
             return
-        if command == "continue" and self._loop_ctrl_depths:
+        if canonical_command == "::continue" and self._loop_ctrl_depths:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl
             self._emit_br(br_depth)
@@ -1245,19 +1286,30 @@ class _WasmEmitterStmtMixin(_Base):
         command: str,
         args: tuple[str, ...],
         defs: tuple[str, ...] = (),
+        *,
+        canonical_command: str | None = None,
     ) -> None:
         """Emit a command invocation in tail position, keeping its i32 result on the stack.
 
         Used for implicit return: the last command's result becomes the
         proc's return value.  Dispatch order matches ``_emit_call_stmt``
         (proc calls first, then built-ins) to ensure consistent behaviour.
+
+        See :meth:`_emit_call_stmt` for the *command* / *canonical_command*
+        contract — *command* is the source spelling that flows into
+        ``_emit_eval_fallback``; *canonical_command* is the lowering-time
+        canonical form used for the literal-string dispatches.
         """
+        if canonical_command is None:
+            from .....common.naming import normalise_qualified_name
+
+            canonical_command = normalise_qualified_name(command) if command else command
         # Scope declarations produce no value — return null TclObj
         if command_emits_nothing(command):
             # ``namespace eval ns arg1 arg2 ...`` in tail position with dynamic
             # script args: assemble the script at WASM level and call tcl_eval
             # so the result becomes the proc's return value.
-            if command == "namespace" and args and args[0] == "eval" and len(args) > 2:
+            if canonical_command == "::namespace" and args and args[0] == "eval" and len(args) > 2:
                 if self._emit_namespace_eval_bridge(args[2:], drop_result=False, ns_name=args[1]):
                     return
                 # Runtime imports missing — push null TclObj as fallback.

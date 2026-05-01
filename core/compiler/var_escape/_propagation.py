@@ -5,6 +5,8 @@ Walks the per-proc IR tree, classifying each variable as ``LOCAL`` or
 bound the set of variables that might be observed by name.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import re
@@ -686,6 +688,7 @@ def _synthesise_eval_barrier(stmt) -> IRBarrier:
         range=stmt.range,
         reason="eval relaxed",
         command="eval",
+        canonical_command="::eval",
         args=tuple(stmt.source_args) if stmt.source_args else (),
         tokens=stmt.source_tokens,
     )
@@ -707,6 +710,7 @@ def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
         range=stmt.range,
         reason="uplevel relaxed",
         command="uplevel",
+        canonical_command="::uplevel",
         args=args,
         tokens=tokens,
     )
@@ -717,10 +721,10 @@ def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
     # Any IRBarrier means the codegen can dispatch to the interpreter;
     # the proc prologue must push a frame so the fallback sees locals.
     state.record_fallback()
-    cmd = barrier.command
-    if cmd == "eval":
+    cmd = barrier.canonical_command
+    if cmd == "::eval":
         _handle_eval(barrier, state)
-    elif cmd == "uplevel":
+    elif cmd == "::uplevel":
         _handle_uplevel(barrier, state)
     else:
         # Any other barrier (subst, trace, catch reraise, ...) — be safe.
@@ -728,7 +732,14 @@ def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
 
 
 def _handle_call(call: IRCall, state: _EscapeState) -> None:
-    """Dispatch on a normal ``IRCall``."""
+    """Dispatch on a normal ``IRCall``.
+
+    Matches the canonical command form (``::ns::cmd``) for builtin-
+    detection branches so qualified spellings, ``interp alias`` aliases,
+    and namespace-imported builtins all hit the same path.  See issue
+    #246.
+    """
+    canonical = call.canonical_command or call.command
     cmd = call.command
     # Commands outside the frameless-runtime allow-list could reach
     # the eval fallback via ``_emit_eval_fallback``; the proc must
@@ -738,7 +749,7 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
     # a frame on the caller side.  Both bare and ``::``-prefixed
     # forms qualify (``::puts`` and ``puts`` both resolve to the
     # same global builtin).
-    bare_cmd = cmd[2:] if cmd.startswith("::") else cmd
+    bare_cmd = canonical[2:] if canonical.startswith("::") else canonical
     if bare_cmd not in _FRAMELESS_RUNTIME_COMMANDS:
         # A dynamic command word can't be resolved interprocedurally —
         # treat it as a definite fallback.  Static command words
@@ -753,21 +764,21 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
 
     # ``{*}``-expansion in an unknown call defeats argument-index-based
     # analysis (we can't tell where the name arg landed).
-    if _has_expand_word(call) and cmd not in ("list", "concat"):
+    if _has_expand_word(call) and bare_cmd not in ("list", "concat"):
         state.mark_pessimistic()
         return
 
-    if cmd == "upvar":
+    if canonical == "::upvar":
         _handle_upvar(call, state)
-    elif cmd == "global":
+    elif canonical == "::global":
         _handle_global(call, state)
-    elif cmd == "variable":
+    elif canonical == "::variable":
         _handle_variable(call, state)
-    elif cmd == "namespace":
+    elif canonical == "::namespace":
         _handle_namespace_call(call, state)
-    elif cmd == "info":
+    elif canonical == "::info":
         _handle_info(call, state)
-    elif cmd in _NAME_FIRST_COMMANDS:
+    elif bare_cmd in _NAME_FIRST_COMMANDS:
         _handle_dynamic_name_first(call, state)
     else:
         # Unknown command with no {*} expansion: its ``defs`` and

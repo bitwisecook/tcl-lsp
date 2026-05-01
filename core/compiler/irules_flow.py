@@ -28,6 +28,8 @@ Note: **IRULE2102** (repeated expensive calls) has been retired —
 subsumed by **O105** (GVN/CSE) in ``compiler.gvn``.
 """
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 import logging
@@ -834,7 +836,7 @@ def _is_event_disable_all(stmt) -> bool:
     """Return True if *stmt* is ``event disable all``."""
     if not isinstance(stmt, (IRCall, IRBarrier)):
         return False
-    if stmt.command != "event":
+    if stmt.canonical_command != "::event":
         return False
     args = stmt.args
     return len(args) >= 2 and args[0] == "disable" and args[1] == "all"
@@ -1572,7 +1574,11 @@ def extract_rule_init_vars(
                     elif isinstance(stmt, IRIncr):
                         names.append(stmt.name)
                     elif isinstance(stmt, IRCall):
-                        if stmt.command == "array" and stmt.args and stmt.args[0] == "set":
+                        if (
+                            stmt.canonical_command == "::array"
+                            and stmt.args
+                            and stmt.args[0] == "set"
+                        ):
                             # array set <name> <list> — name is in args[1]
                             if len(stmt.args) >= 2:
                                 names.append(stmt.args[1])
