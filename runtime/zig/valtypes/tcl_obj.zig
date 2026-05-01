@@ -894,6 +894,27 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     return obj;
 }
 
+/// Wrap an already-``alloc``-ed buffer in a fresh string TclObj that
+/// *owns* the buffer — ``release_now`` will hand the slab back via
+/// ``free_sized`` instead of leaking it.  The plain ``obj_new_string``
+/// stores ``cap = 0`` (the borrowing variant for buffers that live in
+/// the wasm data segment or in another obj's storage); callers that
+/// allocated a fresh ``buf`` and want the obj to claim ownership must
+/// go through this helper or set ``OBJ_STR_CAP`` themselves.
+///
+/// ``alloc_size`` is the original argument passed to ``alloc``; the
+/// stored cap is rounded symmetrically with ``alloc``'s own rounding so
+/// ``free_sized`` recycles the slab to the right free-list.
+pub fn obj_new_string_take(buf: u32, len: u32, alloc_size: u32) i32 {
+    const obj = obj_new_string(@bitCast(buf), @bitCast(len));
+    if (obj == 0) return 0;
+    if (buf == 0 or alloc_size == 0) return obj;
+    const aligned = (alloc_size + 7) & ~@as(u32, 7);
+    const cap = if (aligned <= 2048) round_up_to_class(aligned) else aligned;
+    write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
+    return obj;
+}
+
 // Scratch buffer for integer-to-string conversion (no newline)
 var itoa_buf: [21]u8 = undefined;
 

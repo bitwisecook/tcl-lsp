@@ -543,13 +543,32 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
         // the runtime's heap never mapped.
         const k_info = obj.list_element_at(sp.ptr, sp.len, i);
         const v_info = obj.list_element_at(sp.ptr, sp.len, i + 1);
-        const k_obj = obj_new_string(@bitCast(sp.ptr + k_info.start), @bitCast(k_info.len));
-        const v_obj = obj_new_string(@bitCast(sp.ptr + v_info.start), @bitCast(v_info.len));
+        // Issue #317: ``obj_new_string_copy`` so the per-pair
+        // TclObjs own their bytes.  Borrowing into ``sp`` (the
+        // source pairs list) is unsafe because ``array_set``
+        // stores ``v_obj`` in the array slot; once the source
+        // list is released the borrowed bytes go stale and the
+        // stored value reads as binary garbage on the next
+        // ``array get``.  Copying also lets ``release_now``
+        // reclaim the per-pair bufs cleanly.
+        const k_obj = obj.obj_new_string_copy(sp.ptr + k_info.start, k_info.len);
+        const v_obj = obj.obj_new_string_copy(sp.ptr + v_info.start, v_info.len);
         // ``array_set`` returns 0 when ``find_or_create`` flagged
         // a scalar/array name-conflict.  Stop iterating in that
         // case — every further call would re-raise the same
         // error and do no useful work.
-        if (array_set(arr, k_obj, v_obj) == 0) break;
+        if (array_set(arr, k_obj, v_obj) == 0) {
+            obj.tcl_obj_release(k_obj);
+            obj.tcl_obj_release(v_obj);
+            break;
+        }
+        // ``array_set`` retains ``v_obj`` for the slot via
+        // ``bucket_set_value``; ``k_obj``'s bytes are copied by
+        // the hash table.  Drop our creator-side refs so the
+        // array's retain is the only live owner of ``v_obj`` and
+        // ``k_obj`` can be freed at end of statement.
+        obj.tcl_obj_release(k_obj);
+        obj.tcl_obj_release(v_obj);
     }
     return obj_new_string(0, 0);
 }
