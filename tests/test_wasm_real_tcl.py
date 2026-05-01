@@ -3593,6 +3593,40 @@ class TestChan:
             stderr = getattr(trap, "tcl_stderr", "")
             assert "chan" in stderr and "unsupported" in stderr, f"stderr: {stderr!r}"
 
+    def test_chan_names_empty_pattern_filters_all(self, tmp_path):
+        # ``chan names ""`` is a real glob that only matches the empty
+        # string — every actual channel name (``stdin`` / ``stdout`` /
+        # ``stderr`` / ``fileN``) is non-empty, so the result is the
+        # empty list.  Regression for codex P2: don't conflate
+        # "no pattern arg" with "empty pattern arg".
+        out = self._run(
+            tmp_path,
+            ('puts "[llength [chan names {}]]"\n'),
+        )
+        assert out.strip() == "0"
+
+    def test_chan_close_with_direction_traps(self, tmp_path):
+        # ``chan close $ch read`` requests a directional half-close
+        # which the WASI channel layer doesn't model.  Must trap
+        # rather than silently full-closing the channel.
+        (tmp_path / "x.txt").write_text("x")
+        wasm, _ = _compile_tcl_with_diag(
+            "set fd [open /x.txt r]\nchan close $fd read\n",
+            "t.tcl",
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on directional chan close")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "chan close" in stderr or ("chan" in stderr and "unsupported" in stderr), (
+                f"stderr: {stderr!r}"
+            )
+
 
 class TestExternalTcllibCounter:
     """Compile and run the real tcllib counter module (pure Tcl).
