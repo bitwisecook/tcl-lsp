@@ -212,6 +212,11 @@ def _cmd_scan(interp: TclInterp, args: list[str]) -> TclResult:
             conv = fmt[fmt_pos]
             fmt_pos += 1
 
+            # All conversions except %c skip leading whitespace.
+            if conv != "c":
+                while str_pos < len(string) and string[str_pos].isspace():
+                    str_pos += 1
+
             if conv == "d" or conv == "i":
                 start = str_pos
                 if str_pos < len(string) and string[str_pos] in "+-":
