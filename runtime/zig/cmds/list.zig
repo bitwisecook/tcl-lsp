@@ -23,7 +23,8 @@ fn eval_list(words: []const i32) i32 {
         max_total += s.len * 2 + 2;
         if (ei > 1) max_total += 1;
     }
-    const buf = obj_mod.alloc(max_total + 4);
+    const alloc_size: u32 = max_total + 4;
+    const buf = obj_mod.alloc(alloc_size);
     var off: u32 = 0;
     ei = 1;
     while (ei < words.len) : (ei += 1) {
@@ -39,7 +40,12 @@ fn eval_list(words: []const i32) i32 {
             off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    // Issue #317: own the result buffer so the caller's release
+    // reclaims it via ``free_sized``; without this every
+    // ``[list ...]`` invocation leaked one buf, and the
+    // resulting cap=0 also forced ``lappend``'s slow rebuild
+    // path on every subsequent append.
+    return obj_mod.obj_new_string_take(buf, off, alloc_size);
 }
 
 fn eval_lappend(words: []const i32) i32 {

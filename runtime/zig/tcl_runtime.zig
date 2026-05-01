@@ -59,6 +59,7 @@ pub const obj_get_int = tcl_obj.obj_get_int;
 pub const obj_new_float = tcl_obj.obj_new_float;
 pub const obj_get_float = tcl_obj.obj_get_float;
 pub const obj_new_string_copy = tcl_obj.obj_new_string_copy;
+pub const obj_new_string_take = tcl_obj.obj_new_string_take;
 pub const obj_ensure_string = tcl_obj.obj_ensure_string;
 pub const list_count_elements = tcl_obj.list_count_elements;
 pub const list_element_at = tcl_obj.list_element_at;

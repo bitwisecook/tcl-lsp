@@ -37,6 +37,7 @@
 
 const obj = @import("tcl_obj.zig");
 const alloc = obj.alloc;
+const free_sized = obj.free_sized;
 const memcpy = obj.memcpy;
 const read_i32 = obj.read_i32;
 const write_i32 = obj.write_i32;
@@ -122,6 +123,37 @@ pub fn lookup(body_ptr: u32, body_len: u32) u32 {
     return 0;
 }
 
+/// Compute the byte size of an in-cache slab from its header.  Used
+/// by the invalidation paths to hand the slab back to ``free_sized``
+/// with the same size class ``alloc_slab`` requested — without this,
+/// every invalidated entry leaked one slab of up to ~1.6 KB
+/// (issue #317).
+fn slab_size(slab_addr: u32) u32 {
+    const n_commands: u32 = @bitCast(read_i32(slab_addr + OFF_SLAB_N_COMMANDS));
+    const total_tokens: u32 = @bitCast(read_i32(slab_addr + OFF_SLAB_TOTAL_TOKENS));
+    return SLAB_HEADER_SIZE
+        + n_commands * COMMAND_RECORD_SIZE
+        + total_tokens * TOKEN_SIZE;
+}
+
+/// Free the slab pointed at by *bucket* and zero the slot.  No-op
+/// when the bucket is empty / tombstoned or has no slab attached.
+///
+/// ``hash_table.Table.init`` / ``grow`` only zero each bucket's
+/// ``name_ptr`` slot — the rest of the bucket payload (including
+/// ``OFF_SLAB_ADDR``) carries whatever bytes ``alloc`` returned.
+/// Reading the slab pointer from an empty bucket and handing it to
+/// ``free_sized`` would be a wild free; gate on the occupied check
+/// instead (Codex review on PR #322).
+fn free_bucket_slab(bucket: u32) void {
+    const np: u32 = @bitCast(read_i32(bucket));
+    if (np == 0 or np == ht.TOMBSTONE) return;
+    const slab: u32 = @bitCast(read_i32(bucket + OFF_SLAB_ADDR));
+    if (slab == 0) return;
+    write_i32(bucket + OFF_SLAB_ADDR, 0);
+    free_sized(slab, slab_size(slab));
+}
+
 /// Insert a fresh ``(body_ptr, body_len) -> slab_addr`` entry.
 /// Overwrites any existing entry for the same key (re-registering
 /// the same body ptr with a re-parsed slab).  Caller must own
@@ -132,6 +164,10 @@ pub fn insert(body_ptr: u32, body_len: u32, slab_addr: u32) void {
     const key = stage_key(body_ptr, body_len);
     const hash = ht.fnv1a(key, KEY_SIZE);
     if (cache.find(key, KEY_SIZE, hash)) |bucket| {
+        // Issue #317: free the old slab before overwriting; the
+        // older code dropped the pointer without ``free_sized``,
+        // leaking one slab on every re-parse for the same body.
+        free_bucket_slab(bucket);
         write_i32(bucket + OFF_SLAB_ADDR, @bitCast(slab_addr));
         return;
     }
@@ -163,9 +199,13 @@ pub fn invalidate_for_buffer(buf_ptr: u32) void {
         if (np == 0 or np == ht.TOMBSTONE) continue;
         const cached_body_ptr: u32 = @bitCast(read_i32(np));
         if (cached_body_ptr == buf_ptr) {
-            // Zero the slab pointer too so a stale read of the
-            // value payload can't be mistaken for a valid slab.
-            write_i32(bucket + OFF_SLAB_ADDR, 0);
+            // Issue #317: free the slab itself before tomb-stoning
+            // the bucket; the older code zeroed the slab pointer
+            // without handing the slab back to ``free_sized``, so
+            // every unique proc body the cache had ever held leaked
+            // one slab (~1.6 KB each) for the lifetime of the
+            // process.
+            free_bucket_slab(bucket);
             cache.delete_at(bucket);
         }
     }
@@ -183,13 +223,19 @@ pub fn invalidate_all() void {
     // isn't consulted by ``find`` (which stops at empty slots)
     // or ``needs_grow`` (which compares against cap).  Clearing
     // count lets future inserts start fresh.
+    //
+    // Issue #317: free each live slab before wiping the bucket.
+    // The bulk-eviction path (called from :func:`insert` when the
+    // cache hits ``MAX_ENTRIES``) and the proc-redefinition hook
+    // both reach here; without ``free_sized`` every wipe leaked
+    // up to ``MAX_ENTRIES * ~1.6 KB`` per call.
     var i: u32 = 0;
     while (i < cache.cap) : (i += 1) {
         const bucket = cache.buf + i * BUCKET_SIZE;
+        free_bucket_slab(bucket);
         write_i32(bucket, 0);
         write_i32(bucket + 4, 0);
         write_i32(bucket + 8, 0);
-        write_i32(bucket + OFF_SLAB_ADDR, 0);
     }
     cache.count = 0;
 }

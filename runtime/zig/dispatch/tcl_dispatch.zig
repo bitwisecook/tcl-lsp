@@ -142,7 +142,8 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             for (0..proc_len) |k| d[prefix.len + k] = np[k];
         }
         for (suffix, 0..) |b, k| d[prefix.len + proc_len + k] = b;
-        const msg = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+        // Issue #317: see ``build_args_list`` below.
+        const msg = obj.obj_new_string_take(buf, total, total);
         catch_mod.tcl_cmd_error(msg);
         return 0;
     }
@@ -249,5 +250,9 @@ fn build_args_list(words: []const i32, fixed: u32) i32 {
             off = obj.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj.obj_new_string(@bitCast(buf), @bitCast(off));
+    // Issue #317: ``obj_new_string_take`` so the args list owns
+    // ``buf`` (so its eventual release frees the slab).  The
+    // older borrowing form leaked one buf per compiled-proc
+    // dispatch with a tail ``args`` parameter.
+    return obj.obj_new_string_take(buf, off, total);
 }
