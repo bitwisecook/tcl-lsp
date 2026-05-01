@@ -72,12 +72,25 @@ const env_imports = if (build_options.asyncify) struct {
     pub extern "env" fn asyncify_start_rewind(buf: u32) void;
     pub extern "env" fn asyncify_stop_rewind() void;
     pub extern "env" fn asyncify_get_state() i32;
+    /// Coroutine-yield trampoline.  Imported (not auto-generated) so
+    /// asyncify treats it as a may-unwind boundary: callers wrap the
+    /// call with the standard ``state==UNWINDING ⇒ save+br`` epilogue,
+    /// and the rewind dispatch lands here as a single instrumented
+    /// call site instead of re-firing ``start_unwind``.  The host
+    /// trampoline routes on the asyncify state:
+    ///   * ``NORMAL``    → ``asyncify_start_unwind(buf)``
+    ///   * ``REWINDING`` → ``asyncify_stop_rewind()``
+    /// This is the Emscripten asyncify pattern for resumable
+    /// coroutines (issue #282).  Listed in ``asyncify-imports`` in
+    /// ``build.zig`` so the pass treats it as unwinding.
+    pub extern "env" fn coro_yield_unwind(buf: u32) void;
 } else struct {
     pub fn asyncify_start_unwind(buf: u32) void { _ = buf; }
     pub fn asyncify_stop_unwind() void {}
     pub fn asyncify_start_rewind(buf: u32) void { _ = buf; }
     pub fn asyncify_stop_rewind() void {}
     pub fn asyncify_get_state() i32 { return STATE_NORMAL; }
+    pub fn coro_yield_unwind(buf: u32) void { _ = buf; }
 };
 
 pub const asyncify_start_unwind = env_imports.asyncify_start_unwind;
@@ -85,6 +98,7 @@ pub const asyncify_stop_unwind = env_imports.asyncify_stop_unwind;
 pub const asyncify_start_rewind = env_imports.asyncify_start_rewind;
 pub const asyncify_stop_rewind = env_imports.asyncify_stop_rewind;
 pub const asyncify_get_state = env_imports.asyncify_get_state;
+pub const coro_yield_unwind = env_imports.coro_yield_unwind;
 
 /// Initialize the (start_ptr, end_ptr) header at the head of a fresh
 /// asyncify buffer.  The asyncify runtime reads these on every

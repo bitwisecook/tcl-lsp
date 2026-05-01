@@ -17,16 +17,25 @@
 //     so the unwind triggered by yield stops at the driver instead
 //     of propagating to the host.
 //
-// **Status of the asyncify path (Stage 2 partial):**
+// **Status of the asyncify path (Stage 2.5 — issue #282):**
 //
 //   * Single-yield works correctly — yield from arbitrary call
 //     depth (apply / proc / nested loops) unwinds cleanly to the
 //     driver and returns the yielded value.
-//   * Multi-yield rewind has a known issue: the second ``[c]`` call
-//     either returns empty or stack-exhausts depending on the
-//     surrounding shape.  Suspected interaction between the rewind
-//     state machine and the proc-dispatch / apply-frame paths.
-//     Tracked as Stage 2.5; the v1 segment driver is selected by
+//   * Multi-yield rewind works: ``signal_yield`` calls
+//     :func:`tcl_async.coro_yield_unwind` (a host-trampolined
+//     import marked ``--pass-arg=asyncify-imports@env.coro_yield_unwind``).
+//     The trampoline routes on the asyncify state — ``NORMAL``
+//     triggers ``asyncify_start_unwind`` (begin unwind); ``REWINDING``
+//     triggers ``asyncify_stop_rewind`` (transition to ``NORMAL`` so
+//     the body resumes past the original ``yield`` to the next).
+//     This is the standard Emscripten asyncify pattern for
+//     resumable coroutines — calling ``asyncify_start_unwind``
+//     directly here would loop on resume because the rewind dispatch
+//     re-fires the saved call site.
+//   * Body completion past the last yield (``return X`` or natural
+//     end) currently traps under asyncify when reached via a resume.
+//     Tracked as Stage 2.6; the v1 segment driver is selected by
 //     default so this doesn't affect production use.
 //
 // Both drivers share the public surface (:func:`create`,
@@ -420,9 +429,19 @@ pub fn resume_one(c: *Coro) i32 {
 /// Called by the ``yield`` command.  Signals the coroutine driver
 /// to suspend and propagate ``value`` back to the caller of ``[c]``.
 /// When called outside a coroutine, returns false so the caller
-/// emits a ``yield without coroutine`` error.  Under asyncify we
-/// trigger the unwind here; under the v1 driver we just set
-/// ``yield_flag`` and let the segment loop notice.
+/// emits a ``yield without coroutine`` error.  Under the v1 driver
+/// this just sets ``yield_flag`` and lets the segment loop notice;
+/// under asyncify we route the unwind through
+/// ``tcl_async.coro_yield_unwind`` — a host-trampolined import
+/// listed in ``--pass-arg=asyncify-imports`` so the asyncify pass
+/// wraps callers' calls with the standard ``state==UNWINDING ⇒
+/// save+br`` epilogue.  The host trampoline routes on the asyncify
+/// state: ``NORMAL`` ⇒ ``asyncify_start_unwind`` (begin unwind);
+/// ``REWINDING`` ⇒ ``asyncify_stop_rewind`` (transition to NORMAL
+/// so the body resumes past the original ``yield`` to the next
+/// one).  Calling ``asyncify_start_unwind`` directly from here
+/// would loop on resume because the asyncify rewind dispatches to
+/// the saved call site and re-fires the unwind (issue #282).
 pub fn signal_yield(value: i32) bool {
     if (g_call_depth == 0) return false;
     if (value != 0) tcl_obj_retain(value);
@@ -430,7 +449,7 @@ pub fn signal_yield(value: i32) bool {
     tcl_catch.yield_value = value;
     if (tcl_async.ENABLED) {
         if (current_coro()) |c| {
-            tcl_async.asyncify_start_unwind(c.async_buf);
+            tcl_async.coro_yield_unwind(c.async_buf);
         }
     }
     return true;

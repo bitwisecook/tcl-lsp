@@ -170,15 +170,21 @@ class TestCoroutine:
         assert "invalid command name" in lines[2] or "c" in lines[2]
 
     def test_coroutine_basic_yield_resume(self):
-        # v1 segment-based coroutine: each `[c]` runs the next
-        # top-level command in the body.
+        # Three explicit ``yield`` calls so both drivers exercise the
+        # multi-yield path:
+        #   * v1 segment driver — each top-level command is a separate
+        #     segment and ``[c]`` runs the next one.
+        #   * Stage-2 asyncify driver — the rewind chain re-enters
+        #     ``signal_yield`` for the previous yield, the host-side
+        #     ``coro_yield_unwind`` trampoline calls
+        #     ``asyncify_stop_rewind`` to flip state to ``NORMAL``,
+        #     and the body advances to the next ``yield``
+        #     (issue #282).
+        # Avoid bodies that complete naturally past the last yield
+        # — that path is not yet handled cleanly under asyncify and
+        # is tracked as Stage 2.6 (see ``sched/tcl_coro.zig``).
         out = _run_for_stdout(
-            "coroutine c apply {{} { yield A; yield B; return C }}\nputs [c]\nputs [c]\nputs [c]\n"
+            "coroutine c apply {{} { yield A; yield B; yield C }}\nputs [c]\nputs [c]\nputs [c]\n"
         )
-        # All three resumes return their per-segment values.
-        # Note the v1 limitation: the last segment of a body that
-        # returns naturally may surface as an empty string rather
-        # than the return value, depending on segmentation.  Assert
-        # only the first two lines deterministically.
         lines = out.splitlines()
-        assert lines[:2] == ["A", "B"]
+        assert lines[:3] == ["A", "B", "C"]
