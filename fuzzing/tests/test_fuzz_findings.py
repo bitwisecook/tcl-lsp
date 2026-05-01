@@ -1526,3 +1526,77 @@ class TestBatch6WasmStrictIntOpsCombo:
             f"incr on unset scalar produced wrong value (script={script!r}, "
             f"stdout={result.stdout!r}, expected={expected!r})"
         )
+
+
+class TestIssue264WasmTimeoutCohortDrained:
+    """The original 28-seed ``wasm-timeout`` cluster from issue #264.
+
+    Issue #264 was a meta tracker for 28 seeds where the VM raised an
+    error quickly but the WASM backend looped until the per-script
+    watchdog fired.  Each script was loop-driven on a counter or
+    accumulator that got reassigned to a value the VM rejected but
+    WASM accepted, so once the VM-style error was suppressed on the
+    WASM side the loop never terminated.
+
+    The cluster was drained by the four "WASM is too permissive"
+    upstream fixes — issues #259 (if-else-elseif), #260 (negative
+    shift), #261 (float in bitwise / shift), #262 (strict-integer
+    ``incr`` / parser tightening), and #263 (missing-variable read).
+    With all five landed, every seed in the cluster now surfaces a
+    Tcl-level error on WASM (return_code == 1) rather than running
+    off the wasmtime epoch.
+
+    This test locks that in: any regression that puts a seed back
+    into the runaway-loop category will trip ``return_code == 2``
+    here.
+    """
+
+    SEEDS = (
+        1774200001, 1774200010, 1774200011, 1774200015, 1774200018,
+        1774200019, 1774200021, 1774200022, 1774200024, 1774200038,
+        1774200040, 1774200042, 1774200043, 1774200046, 1774200051,
+        1774200052, 1774200058, 1774200060, 1774200061, 1774200062,
+        1774200066, 1774200071, 1774200072, 1774200073, 1774200074,
+        1774200076, 1774200081, 1774200086,
+    )
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_wasm_no_longer_times_out(self, seed: int) -> None:
+        """WASM must surface a Tcl-level error, not a watchdog timeout.
+
+        The bar is ``return_code == 1`` — the same contract the
+        VM-side error already met.  ``return_code == 2`` with
+        ``error_message == 'TIMEOUT'`` is the original symptom this
+        cohort tracked, and is what a regression in any of #259–#263
+        would surface as.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_wasm(source, timeout=5.0)
+        assert result.error_message != "TIMEOUT", (
+            f"seed {seed}: WASM watchdog fired — issue #264 "
+            f"regression (one of #259–#263 may have regressed)"
+        )
+        assert result.return_code == 1, (
+            f"seed {seed}: WASM did not surface a Tcl-level error on a "
+            f"script the VM rejects — issue #264 regression "
+            f"(rc={result.return_code}, err={result.error_message!r})"
+        )
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_seed_marked_fixed(self, seed: int) -> None:
+        """Each finding JSON in the issue-264 cohort must be flipped."""
+        import json  # noqa: PLC0415
+
+        data = json.loads((FINDINGS_DIR / f"seed_{seed}.json").read_text())
+        assert data.get("fixed") is True, (
+            f"seed {seed}: finding JSON not marked fixed (issue #264 "
+            f"meta — drained by #259/#260/#261/#262/#263)"
+        )
+        assert "fix" in data, (
+            f"seed {seed}: missing ``fix`` note pointing to upstream "
+            f"cause issue (issue #264 acceptance)"
+        )
