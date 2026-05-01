@@ -3,24 +3,43 @@
 Verifies the WASM backend integrates with the harness — compiles +
 runs a tiny script, classifies a Tcl-level error, and filters out
 inputs that depend on WASM-stubbed commands.
+
+The stub-filter tests are pure regex over the parity baseline JSON
+and run independently of wasmtime / the Zig runtime — they must
+still execute in CI environments without those installed, since
+that's where stub-filter regressions would otherwise slip through
+unnoticed.
 """
 
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
-pytest.importorskip("wasmtime", reason="wasmtime not installed")
+import pytest
 
 from fuzzing.harness import run_differential
 from fuzzing.wasm_backend import is_available, run_wasm, uses_stubbed_command
 
 pytestmark = pytest.mark.slow
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-@pytest.fixture(scope="module", autouse=True)
+
 def _require_wasm_runtime() -> None:
-    """Skip the whole module if the Zig runtime isn't buildable here."""
-    if not is_available():
+    """Skip if wasmtime + the Zig runtime aren't available.
+
+    ``is_available()`` lazily triggers ``runtime_wasm_path()`` which
+    can shell out to ``zig build``; a missing zig toolchain or build
+    failure raises rather than returns ``False``.  Catch and skip so
+    runtime-build failures don't error the whole class — same posture
+    as the missing-wasmtime case.
+    """
+    pytest.importorskip("wasmtime", reason="wasmtime not installed")
+    try:
+        available = is_available()
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"WASM runtime not available: {exc}")
+    if not available:
         pytest.skip("WASM runtime not available")
 
 
@@ -86,9 +105,44 @@ class TestStubFilter:
         # in the pattern must keep this from matching.
         assert not uses_stubbed_command("my_switch_proc arg1\n")
 
+    def test_stubbed_command_inside_nested_braced_bodies(self) -> None:
+        # Regression for issue #265.  The earlier lexer-walk filter
+        # treated each braced body as a single ESC token and missed
+        # every command word inside — so scripts that exercised a
+        # stubbed command (e.g. ``switch``) only inside an ``if`` body
+        # or a ``namespace eval`` slipped past the corpus-load gate
+        # and the WASM backend then trapped on the stub, polluting
+        # other findings' categories.  This snippet replicates the
+        # exact shapes from ``fuzzing/findings/seed_1774200003.tcl``
+        # (the literal example called out in the issue).
+        script = (
+            "namespace eval util {\n"
+            "    switch -- 65 {\n"
+            "        default { puts ok }\n"
+            "    }\n"
+            "}\n"
+            "if {1} {\n"
+            "    switch -- true {\n"
+            "        default { puts ok }\n"
+            "    }\n"
+            "}\n"
+        )
+        assert uses_stubbed_command(script)
+
+        # If the literal seed file is still in the tree, also verify
+        # against it — protects against the regression returning in a
+        # shape the synthetic snippet didn't anticipate.
+        seed = _REPO_ROOT / "fuzzing" / "findings" / "seed_1774200003.tcl"
+        if seed.exists():
+            assert uses_stubbed_command(seed.read_text(encoding="utf-8"))
+
 
 class TestRunWasm:
     """The WASM backend must produce harness-compatible RunResult shapes."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _runtime_required(self) -> None:
+        _require_wasm_runtime()
 
     def test_simple_puts(self) -> None:
         r = run_wasm("puts hello\n")
@@ -123,6 +177,10 @@ class TestHarnessIntegration:
     """``run_differential(use_wasm=True)`` must wire the new backend in
     alongside ``vm`` / ``vm_opt`` and produce no spurious mismatches on
     a trivially-correct script."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _runtime_required(self) -> None:
+        _require_wasm_runtime()
 
     def test_wasm_appears_in_results(self) -> None:
         r = run_differential(
