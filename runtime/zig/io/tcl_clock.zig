@@ -319,8 +319,11 @@ fn render_format(
                 off = write_pad_int(out, off, t.second, 2, '0');
             },
             'F' => {
-                // %Y-%m-%d
-                off = write_pad_int(out, off, @intCast(t.year), 4, '0');
+                // %Y-%m-%d.  Year goes through ``write_pad_signed``
+                // for the same negative-year reason as the standalone
+                // ``%Y`` spec — formatting an ancient epoch with
+                // ``%F`` would otherwise trap on the i32 → u32 cast.
+                off = write_pad_signed(out, off, @intCast(t.year), 4);
                 out[off] = '-';
                 off += 1;
                 off = write_pad_int(out, off, t.month, 2, '0');
@@ -529,6 +532,22 @@ fn parse_iso(s: []const u8) ?ScanResult {
         }
     }
     if (i != s.len) return null; // trailing garbage
+
+    // Field-bounds validation.  Without these checks an input like
+    // ``2025-99-01`` would forward ``month = 99`` to ``pack_epoch``
+    // which indexes ``MONTH_DAYS_NORMAL[97]`` and traps on the
+    // out-of-bounds array access.  Reject malformed dates as a
+    // parse miss so ``clock_scan_obj`` falls through to the
+    // integer / signed parsers (or returns 0) instead of crashing.
+    if (mo.v < 1 or mo.v > 12) return null;
+    const dim = days_in_month(@intCast(y.v), @intCast(mo.v));
+    if (da.v < 1 or da.v > dim) return null;
+    if (hour < 0 or hour > 23) return null;
+    if (minute < 0 or minute > 59) return null;
+    // Allow second == 60 for leap-second-encoded inputs; tcllib
+    // round-trips them and ``pack_epoch`` collapses the extra
+    // second into the next minute.
+    if (second < 0 or second > 60) return null;
 
     const epoch_local = pack_epoch(
         @intCast(y.v),
@@ -743,11 +762,37 @@ fn token_signed_int(tok: []const u8) ?i64 {
     return if (neg) -v else v;
 }
 
-/// Free-form scan attempt.  Returns a UTC epoch on hit.  The
-/// timezone-naive forms (calendar dates, ``today``-style) treat
-/// the result as midnight UTC of the named day; callers apply the
-/// resolver offset like the ISO path does.
-fn parse_freeform(s: []const u8, base: i64) ?ScanResult {
+/// Validated calendar pack: month must be 1..12 and day must fit
+/// the month's actual length (clamped via :func:`days_in_month`).
+/// Year is bounded to 1..9999 (the proleptic-Gregorian range
+/// the renderer + format specs cover comfortably).  Returns null
+/// on any deviation so callers fall through to the next parse
+/// alternative instead of trapping on an out-of-range index.
+fn pack_validated(year: i64, month: i64, day: i64) ?i64 {
+    if (year < 1 or year > 9999) return null;
+    if (month < 1 or month > 12) return null;
+    const dim = days_in_month(@intCast(year), @intCast(month));
+    if (day < 1 or day > dim) return null;
+    return pack_epoch(@intCast(year), @intCast(month), @intCast(day), 0, 0, 0);
+}
+
+/// Free-form scan attempt.  Returns an epoch on hit.  Calendar-naive
+/// forms (``today`` / ``yesterday`` / ``tomorrow`` / ``Month Day,
+/// Year`` / ``MM/DD/YYYY``) need to know the target timezone's offset
+/// at ``base`` so that ``today`` resolves to midnight of the *local*
+/// date, not the UTC date.  Callers pre-resolve the zone and pass
+/// ``base_utoff`` (seconds east of UTC).
+///
+/// The has_zone flag tells :func:`clock_scan_obj` whether to apply
+/// the post-parse offset adjustment.  Relative forms (``+5 days``)
+/// stay in UTC and set has_zone=true; calendar-naive forms produce
+/// a "local-frame" epoch (midnight as if the zone were UTC) and
+/// set has_zone=false so the caller subtracts the offset.
+fn parse_freeform(s: []const u8, base: i64, base_utoff: i32) ?ScanResult {
+    // Local-frame view of ``base`` so ``break_down`` yields the
+    // calendar date a wall clock in the target zone shows.
+    const local_base = base + @as(i64, base_utoff);
+
     var t = Tokens{ .s = s };
     const tok0 = t.peek() orelse return null;
     if (ieq(tok0, "now")) {
@@ -758,19 +803,19 @@ fn parse_freeform(s: []const u8, base: i64) ?ScanResult {
     if (ieq(tok0, "today")) {
         _ = t.next();
         if (!t.done()) return null;
-        const bt = break_down(base);
+        const bt = break_down(local_base);
         return .{ .epoch = pack_epoch(bt.year, bt.month, bt.day, 0, 0, 0), .has_zone = false };
     }
     if (ieq(tok0, "yesterday")) {
         _ = t.next();
         if (!t.done()) return null;
-        const bt = break_down(base - SECS_PER_DAY);
+        const bt = break_down(local_base - SECS_PER_DAY);
         return .{ .epoch = pack_epoch(bt.year, bt.month, bt.day, 0, 0, 0), .has_zone = false };
     }
     if (ieq(tok0, "tomorrow")) {
         _ = t.next();
         if (!t.done()) return null;
-        const bt = break_down(base + SECS_PER_DAY);
+        const bt = break_down(local_base + SECS_PER_DAY);
         return .{ .epoch = pack_epoch(bt.year, bt.month, bt.day, 0, 0, 0), .has_zone = false };
     }
     if (ieq(tok0, "epoch")) {
@@ -784,15 +829,11 @@ fn parse_freeform(s: []const u8, base: i64) ?ScanResult {
         _ = t.next();
         const day_tok = t.next() orelse return null;
         const day = token_signed_int(day_tok) orelse return null;
-        if (day < 1 or day > 31) return null;
         const year_tok = t.next() orelse return null;
         const year_v = token_signed_int(year_tok) orelse return null;
-        if (year_v < 1 or year_v > 9999) return null;
         if (!t.done()) return null;
-        return .{
-            .epoch = pack_epoch(@intCast(year_v), m, @intCast(day), 0, 0, 0),
-            .has_zone = false,
-        };
+        const ep = pack_validated(year_v, @intCast(m), day) orelse return null;
+        return .{ .epoch = ep, .has_zone = false };
     }
 
     // Numeric leading token — ``+N unit`` / ``N unit`` / ``N unit ago``
@@ -817,13 +858,9 @@ fn parse_freeform(s: []const u8, base: i64) ?ScanResult {
             _ = t.next();
             const tok2 = t.next() orelse return null;
             const year_v = token_signed_int(tok2) orelse return null;
-            if (n < 1 or n > 31) return null;
-            if (year_v < 1 or year_v > 9999) return null;
             if (!t.done()) return null;
-            return .{
-                .epoch = pack_epoch(@intCast(year_v), m, @intCast(n), 0, 0, 0),
-                .has_zone = false,
-            };
+            const ep = pack_validated(year_v, @intCast(m), n) orelse return null;
+            return .{ .epoch = ep, .has_zone = false };
         }
     }
 
@@ -848,9 +885,7 @@ fn parse_slash_date(s: []const u8) ?i64 {
     i = d.i + 1;
     const y = read_uint(s, i, 4) orelse return null;
     if (y.i != s.len) return null;
-    if (m.v < 1 or m.v > 12) return null;
-    if (d.v < 1 or d.v > 31) return null;
-    return pack_epoch(@intCast(y.v), @intCast(m.v), @intCast(d.v), 0, 0, 0);
+    return pack_validated(y.v, m.v, d.v);
 }
 
 /// clock_scan_obj — parse a date/time string into Unix epoch
@@ -882,21 +917,34 @@ pub export fn clock_scan_obj(
         break :blk @divTrunc(ns, NS_PER_SECOND);
     };
 
-    const result: ?ScanResult = parse_iso(ts) orelse parse_freeform(ts, base);
+    // Resolve the target zone up-front: ``parse_freeform`` needs
+    // the offset at ``base`` to compute calendar boundaries
+    // (``today`` / ``yesterday`` / ``tomorrow``) in the local
+    // frame rather than UTC.  Without this the boundary fires off
+    // by one whole day for any base near midnight UTC in a
+    // negative-offset zone (e.g. ``today`` with base = 02:00 UTC
+    // and -timezone :America/New_York lands on the wrong
+    // calendar day, since 02:00 UTC = 21:00 EST the previous
+    // evening).
+    const zone_slice: []const u8 = blk: {
+        if (zone_obj == 0) break :blk &[_]u8{};
+        const zs = obj_ensure_string(zone_obj);
+        if (zs.ptr == 0 or zs.len == 0) break :blk &[_]u8{};
+        const zp: [*]const u8 = @ptrFromInt(zs.ptr);
+        break :blk zp[0..zs.len];
+    };
+    const z: *const tz.TimeZone = if (gmt_flag != 0)
+        &tz_utc_zone
+    else if (zone_slice.len == 0)
+        tz.resolve_default()
+    else
+        tz.resolve(zone_slice);
+    const base_utoff: i32 = z.offset_at(base).utoff;
+
+    const result: ?ScanResult = parse_iso(ts) orelse parse_freeform(ts, base, base_utoff);
     if (result) |r| {
         if (r.has_zone) return obj_new_int(r.epoch);
         if (gmt_flag != 0) return obj_new_int(r.epoch);
-        const zone_slice: []const u8 = blk: {
-            if (zone_obj == 0) break :blk &[_]u8{};
-            const zs = obj_ensure_string(zone_obj);
-            if (zs.ptr == 0 or zs.len == 0) break :blk &[_]u8{};
-            const zp: [*]const u8 = @ptrFromInt(zs.ptr);
-            break :blk zp[0..zs.len];
-        };
-        const z: *const tz.TimeZone = if (zone_slice.len == 0)
-            tz.resolve_default()
-        else
-            tz.resolve(zone_slice);
         // Apply the zone's offset at the *target* time.  Two-pass:
         // assume UTC first, look up the offset there, subtract it.
         // Close enough for non-DST-transition timestamps; full
@@ -911,6 +959,12 @@ pub export fn clock_scan_obj(
     if (parse_signed(ts)) |v| return obj_new_int(v);
     return obj_new_int(0);
 }
+
+/// File-local synthetic UTC zone used by ``clock_scan_obj`` when
+/// ``-gmt 1`` is in effect — picks the same zero-offset, zero-DST
+/// shape as ``tz.utc()`` without paying for a fresh allocation
+/// every scan.
+const tz_utc_zone: tz.TimeZone = tz.utc();
 
 // -- clock add ----------------------------------------------------------------
 

@@ -366,6 +366,95 @@ class TestClockScanFreeform:
         assert stdout.strip() == "0"
 
 
+class TestClockScanRobustness:
+    """Regression coverage for review-board feedback on PR #283.
+
+    Each test pins a specific fix that the Codex review surfaced —
+    out-of-range bounds checks in ``parse_iso`` (P1), the
+    ``today`` /``yesterday`` /``tomorrow`` zone-aware boundary
+    computation (P2), and the ``%F`` composite-format signed-year
+    rendering (P2).  Without the fixes the runtime panics with a
+    safety trap; the assertions below would crash rather than
+    fail.
+    """
+
+    def test_iso_out_of_range_month_does_not_trap(self):
+        # ``2025-99-01`` would index ``MONTH_DAYS_NORMAL[97]`` and
+        # trap before the fix.  With the fix, parse_iso rejects it
+        # as malformed and clock scan returns 0 (the
+        # graceful-degradation path).
+        stdout = _run_for_stdout('puts [clock scan "2025-99-01"]\n')
+        assert stdout.strip() == "0"
+
+    def test_iso_out_of_range_day_does_not_trap(self):
+        # February 30th — month is fine, day overflows.
+        stdout = _run_for_stdout('puts [clock scan "2025-02-30"]\n')
+        assert stdout.strip() == "0"
+
+    def test_iso_zero_month_rejected(self):
+        stdout = _run_for_stdout('puts [clock scan "2025-00-15"]\n')
+        assert stdout.strip() == "0"
+
+    def test_iso_zero_day_rejected(self):
+        stdout = _run_for_stdout('puts [clock scan "2025-01-00"]\n')
+        assert stdout.strip() == "0"
+
+    def test_iso_hour_out_of_range_rejected(self):
+        stdout = _run_for_stdout('puts [clock scan "2025-01-01T25:00:00"]\n')
+        assert stdout.strip() == "0"
+
+    def test_freeform_invalid_calendar_day_rejected(self):
+        # ``Feb 30, 2025`` — month name resolves, but the day is
+        # out of range.  Used to silently overflow into March;
+        # now the validated pack rejects the input.
+        stdout = _run_for_stdout('puts [clock scan "Feb 30, 2025" -gmt 1]\n')
+        assert stdout.strip() == "0"
+
+    def test_freeform_slash_date_invalid_rejected(self):
+        stdout = _run_for_stdout('puts [clock scan "02/30/2025" -gmt 1]\n')
+        assert stdout.strip() == "0"
+
+    def test_today_uses_target_timezone(self):
+        # Base = 2025-01-15 02:00 UTC = 2025-01-14 21:00 EST.
+        # Without the zone-aware fix, ``today`` would land on
+        # 2025-01-15 (UTC date); with the fix it lands on
+        # 2025-01-14 — midnight EST = 05:00 UTC = epoch 1736830800.
+        stdout = _run_for_stdout(
+            'puts [clock scan "today" -base 1736906400 -timezone :America/New_York]\n'
+        )
+        assert stdout.strip() == "1736830800"
+
+    def test_yesterday_uses_target_timezone(self):
+        # Same base; yesterday = 2025-01-13 EST midnight.
+        # 1736830800 - 86400 = 1736744400.
+        stdout = _run_for_stdout(
+            'puts [clock scan "yesterday" -base 1736906400 -timezone :America/New_York]\n'
+        )
+        assert stdout.strip() == "1736744400"
+
+    def test_tomorrow_uses_target_timezone(self):
+        # 1736830800 + 86400 = 1736917200 (2025-01-15 EST midnight).
+        stdout = _run_for_stdout(
+            'puts [clock scan "tomorrow" -base 1736906400 -timezone :America/New_York]\n'
+        )
+        assert stdout.strip() == "1736917200"
+
+    def test_F_composite_format_handles_negative_year(self):
+        # 0001-01-01 UTC — the smallest in-range positive epoch.
+        # Confirm ``%F`` doesn't panic; 1 AD packs to a known
+        # negative epoch (-62135596800).
+        stdout = _run_for_stdout('puts [clock format -62135596800 -gmt 1 -format "%F"]\n')
+        assert stdout.strip() == "0001-01-01"
+
+    def test_F_composite_format_pre_year_one_does_not_trap(self):
+        # Pick an epoch a few hours into year 0000 (BC by Tcl's
+        # proleptic-Gregorian convention).  The previous
+        # implementation panicked on ``@intCast(t.year)`` for any
+        # year ≤ 0; with the fix ``%F`` renders ``0000-01-01``.
+        stdout = _run_for_stdout('puts [clock format -62167219200 -gmt 1 -format "%F"]\n')
+        assert stdout.strip() == "0000-01-01"
+
+
 # ---- clock add --------------------------------------------------------------
 
 
