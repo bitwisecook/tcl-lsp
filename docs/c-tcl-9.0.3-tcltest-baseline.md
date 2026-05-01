@@ -19,8 +19,8 @@ combiner is [`scripts/tcl9_baseline_to_csv.py`](../scripts/tcl9_baseline_to_csv.
 | Metric                                                          | C tclsh 9.0.3 | WASM runtime |
 |----------------------------------------------------------------:|--------------:|-------------:|
 | Bundles in scope                                                |          100  |         100  |
-| Bundles that ran to a tcltest summary line                      |           99  |          72  |
-| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,511 / 38,065 (27.6 %) |
+| Bundles that ran to a tcltest summary line                      |           99  |          76  |
+| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,797 / 38,065 (28.4 %) |
 | Coverage vs native                                              |         100 % |         28 % |
 | Sum of bundle interpreter time (`c_wall_ms` vs `wasm_run_ms`)   |          86 s |        53 s  |
 | Per-bundle median slowdown (`wasm_run_ms / c_wall_ms`)          |             — |       5.8 ×  |
@@ -65,18 +65,18 @@ rest).
 
 The 100 bundles split this way under WASM:
 
-- **21 pass** (every assertion green)
-- **51 fail** (bundle finishes, tcltest reports `Failed > 0`)
-- **22 trap** (bundle aborts before reaching a tcltest summary)
+- **22 pass** (every assertion green)
+- **54 fail** (bundle finishes, tcltest reports `Failed > 0`)
+- **18 trap** (bundle aborts before reaching a tcltest summary)
 - **3 timeout** (30 s / per-bundle budget, hard SIGKILL)
 - **3 no_summary** (bundle ran but emitted no summary line)
 
-The 22 + 3 + 3 = 28 bundles that fail to reach a summary line account
-for **~21,000 individual tests** that we don't even get a chance to
-score. Fixing the bundle-level failures is by far the highest-leverage
-work — the actual per-test pass rate inside the bundles that DO reach
-a summary is decent (e.g. `lset` 95%, `lpop` 100%, `dict` 71%, `oo`
-81%, `ooProp` 100%, `proc` 95%, `nre` 100%).
+The 18 + 3 + 3 = 24 bundles that fail to reach a summary line account
+for the still-unscored individual tests. Fixing the bundle-level
+failures has been the highest-leverage work; the actual per-test pass
+rate inside the bundles that DO reach a summary is decent (e.g.
+`lset` 95%, `lpop` 100%, `dict` 71%, `oo` 81%, `ooProp` 100%,
+`proc` 95%, `nre` 100%, `safe` 96%, `chan` 100%).
 
 ## Trap categories ranked by leverage
 
@@ -157,34 +157,22 @@ needed by `_arg_was_braced`.
    "trust the input is a substitution"; the args-tail path can break
    that trust.
 
-### 2. `var-not-set` (6 bundles, ~600 unlocked tests)
+### 2. `var-not-set` — **PARTIALLY FIXED**
 
 `abstractlist, opt, parseOld, reg, safe, uplevel`
 
-Trap surface: `can't read "argv": no such variable` (`parseOld`),
-`can't read "clean-list"` (`abstractlist`), `can't read "x"`
-(`uplevel`), etc.
+Fixed by populating tclsh's standard startup globals
+(`argv`, `argv0`, `argc`, `tcl_interactive`, `auto_path`,
+`tcl_library`, `env(*)`, `tcl_platform(*)`) in
+`tests/external/run_tcl9_tests.py::_PRE_TCLTEST`. After the fix:
 
-Two sub-causes:
+- `parseOld` recovered (was trap → 56/158 passing)
+- `safe` recovered (was trap → 149/155 passing)
 
-- **Globals not pre-populated.** Real tclsh sets `argv`, `argv0`,
-  `tcl_platform(...)`, `auto_path`, `env(...)` at startup. Our
-  runtime omits several of these (`argv` in particular). Tests that
-  guard with `if {[info exists argv]}` succeed; tests that read
-  `$argv` directly trap.
-
-- **Compound `set` / `upvar` patterns the WASM compiler doesn't
-  capture.** `abstractlist` and `uplevel` use forms like
-  `upvar 0 NS::var x` where the outer-scope variable hasn't been
-  initialised in the same frame; our `frame_get_at_depth` doesn't
-  follow array-element upvar links to a still-empty target.
-
-**Suggested fix:** start with a one-line preamble in
-`tests/external/run_tcl9_tests.py::_PRE_TCLTEST` that defines `argv
-{}` / `argv0 ""` / `auto_path {}`. That alone unlocks `parseOld`
-(158 tests) and probably most of `safe` (147). The deeper upvar /
-namespace-variable fixes are bigger tickets — see the "future work"
-list below.
+`abstractlist`, `opt`, `reg`, `uplevel` still trap on test-internal
+variable reads (e.g. `clean-list`, `::tcl::OptDescN`, `ret`, `x`)
+that aren't standard globals — those are real semantic bugs in how
+the test setup paths reach those reads, not a categorical issue.
 
 ### 3. `tcltest-option-parse` (3 bundles, ~620 unlocked tests)
 
@@ -221,40 +209,44 @@ the args. Same root cause as #1 / #3.
 **Combining 1 + 3 + 4 = 14 bundles, ~3,500 unlocked tests** for one
 codegen fix (the `_emit_eval_fallback` re-quoting bug).
 
-### 5. `unsupported-command` (2 bundles, ~16,820 unlocked tests)
+### 5. `unsupported-command` — **PARTIALLY FIXED** (cmdAH made progress)
 
-`cmdAH` (16,820 tests!), `switch`.
+`cmdAH` (was trap → still trap but with different surface, advanced
+from `dict append` failure to source/test failures), `switch`.
 
-`cmdAH.test` exercises commands A-H including a lot of `clock`,
-`format`, `binary`, `encoding`, `expr` — most are wired up but the
-test bootstrap uses a path that hits an unimplemented dispatcher.
-The trap text is empty in the captured record (truncated by the
-error-message buffer), need a focused re-run with `--trace` to
-isolate the exact missing command.
+`cmdAH.test` traps were caused by `dict append` not being routed —
+the codegen called `_emit_unsupported_trap("dict {subcmd}")` for
+every dict subcommand without a runtime import. Fixed by:
 
-`switch` is documented in
+- Adding runtime impls for `dict append` / `lappend` / `incr` / `for`
+  / `merge` / `remove` / `replace` / `info` in
+  `runtime/zig/cmds/dict.zig`.
+- Adding a `::tcl::ENSEMBLE::SUBCMD` rewrite in
+  `runtime/zig/interp/tcl_interp.zig::eval_command` so the CFG's
+  canonical FQ form (`::tcl::dict::for`, `::tcl::dict::map`) routes
+  back to the BUILTIN ensemble handler.
+- Changing the codegen `dict_.py` to fall through to
+  `_emit_eval_fallback` for unknown subcommands instead of hard-
+  trapping — the runtime now has a chance to dispatch.
+
+`switch` (dynamic-string form) remains a trapping stub. The
 [`runtime/zig/dispatch/tcl_stub_fallback.zig:73-76`](../runtime/zig/dispatch/tcl_stub_fallback.zig)
-as "compiled inline by the code generator (IRSwitch), so this entry
-only fires when the interpreter evaluates a dynamic `switch` string".
-The fix is to add a real `switch` interpreter handler in
-`runtime/zig/cmds/`. Required by tests that build `switch` arms at
-runtime (tcltest itself doesn't, but several test-file helpers do).
+note still applies — required by tests that build `switch` arms at
+runtime.
 
-### 6. `expr-negshift` (2 bundles)
+### 6. `expr-negshift` — **FIXED** (via tcl_platform pre-population)
 
 `listObj`, `stringObj`.
 
-Trap: `tcl trap: negative shift argument`. Comes from a Zig
-`std.math.shl(x, -k)` call — almost certainly in the expr engine's
-`<<` / `>>` opcode. Tcl's spec is that negative shifts give 0 (for
-`<<`) or all-ones / sign-extended (for `>>`); we should clamp the
-shift count to [0, bitwidth) and let the operation produce the Tcl-
-defined value rather than panic.
-
-**Suggested fix:** in the expr `INST_LSHIFT` / `INST_RSHIFT` handler
-(probably `runtime/zig/cmds/tcl_mathop.zig` or the `expr` codegen),
-guard with `if (shift < 0) return 0;` before dispatching to
-`std.math.shl`.
+Trap surface: `tcl trap: negative shift argument`. The shift
+operator IS clamping correctly in the runtime — the actual cause
+was missing `tcl_platform(pointerSize)`. Both files compute
+`SIZE_MAX` via `(1 << (8*$::tcl_platform(pointerSize) - 1)) - 1`
+during their bootstrap; without `pointerSize` the multiplication
+yielded `-1`, and `<< -1` correctly raised the documented "negative
+shift argument" error. Adding `pointerSize 4` to the
+`_PRE_TCLTEST` `tcl_platform` array unblocks both bundles
+(`stringObj` now passes, `listObj` 46/59).
 
 ### 7. Other timeouts / hangs
 
@@ -309,25 +301,57 @@ finish — well within range for an interpreter that doesn't yet have
 a JIT or a bytecode VM. The dominant work to close the gap is in
 the per-command dispatch, not the broad architecture.
 
-## Suggested fix order (best ROI first)
+## Fix history
 
-1. **Fix the braced-word leak in `_emit_eval_fallback`** — biggest
-   single win, unlocks ~3,500 individual tests across 14 bundles
-   (categories 1, 3, 4). The fix is small and self-contained.
-2. **Pre-populate `argv`/`argv0`/`auto_path`/`env(*)` globals** in the
-   WASM runtime entry — small change, unlocks ~600 tests across 6
-   bundles (category 2).
-3. **Clamp negative shift counts in expr** — 2 bundles, ~100 tests,
-   trivial fix.
-4. **Implement runtime `switch` handler** — unlocks `switch.test` plus
-   any test that hits the dynamic-switch path indirectly.
-5. **Triage `cmdAH.test`** — 16,820 individual tests behind one
-   missing dispatcher. Need `--trace` re-run to isolate the call.
-6. **Add `rename`-vs-BUILTINS plumbing** — unblocks `rename.test`.
-7. **Fix the semantic bugs surfaced by `fail` bundles** (e.g.
-   `expr-2.1`, `subst-3.1`, `parseExpr-20.3` bignum overflow) — these
-   are individual bugs, not categorical issues, so each needs its
-   own investigation, but they're cheap ones.
+Four fixes have been applied so far:
+
+1. **Thread `tokens` through `IRBarrier` eval-fallback path** —
+   ~10 line change in `_emit_eval_fallback`'s caller. Unlocked the
+   8 `braced-cmdsubst-leak` bundles.
+2. **Pre-populate tclsh standard globals** in
+   `tests/external/run_tcl9_tests.py::_PRE_TCLTEST` (`argv`,
+   `argv0`, `argc`, `tcl_interactive`, `auto_path`, `tcl_library`,
+   `env`, `tcl_platform`). Unlocked `parseOld`, `safe`,
+   `stringObj`, `listObj`.
+3. **`tcl_platform(pointerSize) = 4`** (folded into fix #2) —
+   resolved the misleading "negative shift argument" trap on
+   bitwidth-bootstrap lines in `listObj` / `stringObj`.
+4. **Real `dict append` / `lappend` / `incr` / `for` / `merge` /
+   `remove` / `replace` / `info` runtime impls + an
+   `::tcl::ENSEMBLE::SUBCMD` rewrite in
+   `eval_command`** — let `cmdAH.test` advance past `dict
+   append`, fixed `dict for {k v}` calls compiled as
+   `::tcl::dict::for`, and changed the codegen `dict_.py`
+   fallback to route to `tcl_eval` instead of hard-trapping.
+
+| Stage                  | Bundles passing | Bundles trapping | Individual tests passing |
+|-----------------------:|----------------:|-----------------:|-------------------------:|
+| Initial                |             18  |              31  |                  9,323   |
+| After all four fixes   |             22  |              18  |                 10,797   |
+| **Δ**                  |          **+4** |          **−13** |              **+1,474**  |
+
+That's **+15.8 %** more individual tests passing, with 13 fewer
+bundles trapping out before reaching a tcltest summary.
+
+## Remaining work (best ROI first)
+
+1. **Implement runtime `switch` handler** — unlocks `switch.test`
+   plus any test that hits the dynamic-switch path indirectly.
+2. **Add `rename`-vs-BUILTINS plumbing** — unblocks `rename.test`.
+   Needs a per-name shadow set the dispatcher consults before
+   `BUILTINS`, plus `info commands` enumerator awareness. Non-
+   trivial.
+3. **`cmdAH.test` deep dive** — now reaches individual test
+   failures rather than trapping at bootstrap. Triage the residual
+   failures (likely `source` paths, encoding helpers).
+4. **Bignum support** — `parseExpr-20.3`, `expr-old` and friends
+   need integer arithmetic past the 64-bit boundary.
+5. **Test-internal var-not-set** in `abstractlist`, `opt`, `reg`,
+   `uplevel` — each is a distinct semantic bug in the codegen's
+   handling of compound `set` / `upvar` patterns; not categorical.
+6. **Fix the semantic bugs surfaced by `fail` bundles** (e.g.
+   `expr-2.1`, `subst-3.1`) — these are individual bugs that each
+   need their own investigation but are typically cheap to fix.
 
 ## How to refresh
 

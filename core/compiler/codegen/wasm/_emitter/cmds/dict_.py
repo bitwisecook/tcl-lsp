@@ -166,7 +166,21 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         elif sri.results:
             emitter._emit(WasmOp.DROP)
     else:
-        emitter._emit_unsupported_trap(f"dict {subcmd}")
+        # Subcommand has no specialised compile-time path or runtime
+        # import (e.g. ``dict append``, ``dict for``, ``dict merge``
+        # — handled by the interpreter's ``dict eval`` switch in
+        # ``runtime/zig/cmds/dict.zig``).  Route through the generic
+        # eval-fallback so the runtime gets a chance to dispatch
+        # rather than hard-trapping with ``unsupported in WASM``.
+        # The runtime emits ``bad subcommand`` if it doesn't handle
+        # the subcommand either, so genuinely unknown forms still
+        # surface a real error.
+        emitter._emit_eval_fallback("dict", args)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
     return True
 
 
