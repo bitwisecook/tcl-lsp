@@ -562,8 +562,22 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
         lines=lines,
         analyse_if_missing=False,
     )
+    # Cache regardless of supersession: the result is correctly keyed by
+    # ``(uri, version, line, character)`` and remains valid for any future
+    # hover at the same point until the document version changes.
     _hover_cache_put(cache_key, result)
     elapsed_ms = (time.perf_counter() - t0) * 1000
+    # Recheck supersession after the threaded compute. If a newer hover
+    # for this URI arrived while we were running, suppress this response
+    # so a slow hover can't race ahead of a newer cursor position.
+    with _hover_lock:
+        if _hover_seq.get(uri, 0) != seq:
+            log.debug(
+                "[timing] hover %.0fms (superseded post-compute, uri=%s)",
+                elapsed_ms,
+                uri,
+            )
+            return None
     log.debug(
         "[timing] hover %.0fms (uri=%s, line=%d, char=%d, hit=%s)",
         elapsed_ms,
@@ -573,6 +587,20 @@ async def on_hover(params: types.HoverParams) -> types.Hover | None:
         "yes" if result else "no",
     )
     return result
+
+
+def _invalidate_hover_cache(uri: str) -> None:
+    """Drop hover cache entries and the request counter for a URI.
+
+    Called from ``did_close`` so that a reopen-with-version-reset (clients
+    commonly reset to ``1`` after close) cannot serve stale hover content
+    keyed on the previous session's matching ``(uri, version, line, char)``.
+    """
+    with _hover_lock:
+        _hover_seq.pop(uri, None)
+        keys = [k for k in _hover_cache if k[0] == uri]
+        for k in keys:
+            _hover_cache.pop(k, None)
 
 
 # Go to definition
