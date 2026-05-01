@@ -87,6 +87,17 @@ pub const TimeZone = struct {
             const t = self.types[idx];
             return .{ .utoff = t.utoff, .isdst = t.isdst, .abbr = t.abbr };
         }
+        // Past the last transition: try the POSIX TZ rule for
+        // extrapolation.  Reference Tcl uses the trailer to handle
+        // any timestamp beyond the last v2 record (in our test suite,
+        // tests like clock-5.432 query 2038 dates that all sit after
+        // the v2 horizon of ~2037-11).  Without this extrapolation
+        // the resolver would freeze on the last-recorded type and
+        // miss every DST transition the rule predicts.
+        const last_idx = self.transitions.len - 1;
+        if (secs > self.transitions[last_idx] and self.posix_tz.len > 0) {
+            if (apply_posix_rule(self.posix_tz, secs)) |r| return r;
+        }
         // Binary search for the largest transition <= secs.
         var lo: usize = 0;
         var hi: usize = self.transitions.len;
@@ -104,6 +115,303 @@ pub const TimeZone = struct {
         return .{ .utoff = t.utoff, .isdst = t.isdst, .abbr = t.abbr };
     }
 };
+
+// -- POSIX TZ-string parser + extrapolator ----------------------------------
+//
+// The trailer of a v2/v3 TZif file holds a POSIX TZ string that
+// describes the zone's behaviour beyond the last 64-bit transition.
+// Format (a strict subset of POSIX.1-2017 §8.3):
+//
+//   STD<offset>[DST[<offset>][,start[/time],end[/time]]]
+//
+// where ``STD`` / ``DST`` are abbreviations (3+ letters, or
+// ``<sign-prefix>`` in angle brackets), ``<offset>`` is hours
+// optionally with minutes / seconds, and the rules are
+// ``M<month>.<week>.<dow>``.  Sign convention for the offset is
+// **west of UTC** (the opposite of TZif's ``utoff``).
+//
+// We only implement the M-form rule with ``/HH`` time syntax.
+// Julian-day forms (``J<n>`` / plain ``<n>``) aren't used by any
+// curated zone we ship, so we return null on unrecognised shapes
+// and let the resolver fall back to its last recorded transition.
+
+const PosixOff = struct { secs: i32 };
+
+const PosixRule = struct {
+    month: u8, // 1..12
+    week: u8,  // 1..5 (5 = last week of month)
+    dow: u8,   // 0..6 (Sun = 0)
+    /// Local-clock seconds since midnight (default 7200 = 02:00).
+    time: i32,
+};
+
+const PosixTz = struct {
+    std_abbr: []const u8,
+    std_off_east: i32, // seconds east of UTC
+    has_dst: bool,
+    dst_abbr: []const u8,
+    dst_off_east: i32,
+    start_rule: PosixRule,
+    end_rule: PosixRule,
+};
+
+/// Read an abbreviation: either ``+05`` style or the ``<...>`` form.
+fn posix_read_abbr(s: []const u8, i_in: usize) ?struct { abbr: []const u8, i: usize } {
+    var i = i_in;
+    if (i >= s.len) return null;
+    if (s[i] == '<') {
+        const start = i + 1;
+        i += 1;
+        while (i < s.len and s[i] != '>') : (i += 1) {}
+        if (i >= s.len) return null;
+        return .{ .abbr = s[start..i], .i = i + 1 };
+    }
+    const start = i;
+    while (i < s.len) : (i += 1) {
+        const c = s[i];
+        if ((c >= 'A' and c <= 'Z') or (c >= 'a' and c <= 'z')) continue;
+        break;
+    }
+    if (i == start) return null;
+    return .{ .abbr = s[start..i], .i = i };
+}
+
+/// Read a signed POSIX offset (``[-+]?H[:MM[:SS]]``).  The result is
+/// in seconds **west of UTC** — POSIX's sign convention.
+fn posix_read_offset(s: []const u8, i_in: usize) ?struct { secs: i32, i: usize } {
+    var i = i_in;
+    if (i >= s.len) return null;
+    var sign: i32 = 1;
+    if (s[i] == '-') {
+        sign = -1;
+        i += 1;
+    } else if (s[i] == '+') {
+        i += 1;
+    }
+    var h: i32 = 0;
+    var n: usize = 0;
+    while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        h = h * 10 + @as(i32, @intCast(s[i] - '0'));
+        n += 1;
+    }
+    if (n == 0) return null;
+    var m: i32 = 0;
+    var sec: i32 = 0;
+    if (i < s.len and s[i] == ':') {
+        i += 1;
+        while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+            m = m * 10 + @as(i32, @intCast(s[i] - '0'));
+        }
+        if (i < s.len and s[i] == ':') {
+            i += 1;
+            while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+                sec = sec * 10 + @as(i32, @intCast(s[i] - '0'));
+            }
+        }
+    }
+    return .{ .secs = sign * (h * 3600 + m * 60 + sec), .i = i };
+}
+
+fn posix_read_rule(s: []const u8, i_in: usize) ?struct { rule: PosixRule, i: usize } {
+    var i = i_in;
+    if (i >= s.len or s[i] != 'M') return null;
+    i += 1;
+    var month: i32 = 0;
+    var week: i32 = 0;
+    var dow: i32 = 0;
+    while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        month = month * 10 + @as(i32, @intCast(s[i] - '0'));
+    }
+    if (i >= s.len or s[i] != '.') return null;
+    i += 1;
+    while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        week = week * 10 + @as(i32, @intCast(s[i] - '0'));
+    }
+    if (i >= s.len or s[i] != '.') return null;
+    i += 1;
+    while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        dow = dow * 10 + @as(i32, @intCast(s[i] - '0'));
+    }
+    if (month < 1 or month > 12 or week < 1 or week > 5 or dow < 0 or dow > 6) {
+        return null;
+    }
+    var time: i32 = 7200; // default 02:00
+    if (i < s.len and s[i] == '/') {
+        i += 1;
+        const off = posix_read_offset(s, i) orelse return null;
+        time = off.secs;
+        i = off.i;
+    }
+    return .{
+        .rule = .{
+            .month = @intCast(month),
+            .week = @intCast(week),
+            .dow = @intCast(dow),
+            .time = time,
+        },
+        .i = i,
+    };
+}
+
+fn parse_posix_tz(s: []const u8) ?PosixTz {
+    var i: usize = 0;
+    const std_a = posix_read_abbr(s, i) orelse return null;
+    i = std_a.i;
+    const std_o = posix_read_offset(s, i) orelse return null;
+    i = std_o.i;
+    var pz = PosixTz{
+        .std_abbr = std_a.abbr,
+        .std_off_east = -std_o.secs, // east-of-UTC = -(west-of-UTC)
+        .has_dst = false,
+        .dst_abbr = std_a.abbr,
+        .dst_off_east = -std_o.secs + 3600,
+        .start_rule = .{ .month = 0, .week = 0, .dow = 0, .time = 0 },
+        .end_rule = .{ .month = 0, .week = 0, .dow = 0, .time = 0 },
+    };
+    if (i >= s.len) return pz;
+    // DST abbreviation.
+    const dst_a = posix_read_abbr(s, i) orelse return pz;
+    i = dst_a.i;
+    pz.has_dst = true;
+    pz.dst_abbr = dst_a.abbr;
+    // Optional explicit DST offset; default is std + 1h east.
+    if (i < s.len and s[i] != ',') {
+        const dst_o = posix_read_offset(s, i) orelse return pz;
+        pz.dst_off_east = -dst_o.secs;
+        i = dst_o.i;
+    }
+    if (i >= s.len or s[i] != ',') return pz;
+    i += 1;
+    const start = posix_read_rule(s, i) orelse return pz;
+    pz.start_rule = start.rule;
+    i = start.i;
+    if (i >= s.len or s[i] != ',') return pz;
+    i += 1;
+    const end = posix_read_rule(s, i) orelse return pz;
+    pz.end_rule = end.rule;
+    return pz;
+}
+
+/// Days in (year, 1-based month).  Local copy — :func:`days_in_month`
+/// in :file:`tcl_clock.zig` is the authoritative version, but we
+/// duplicate a tiny one here so the TZ resolver doesn't need an
+/// import cycle.
+fn tz_days_in_month(year: i32, month: u8) u8 {
+    const normal = [_]u8{ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    if (month == 2) {
+        const leap = (@mod(year, 4) == 0 and @mod(year, 100) != 0) or @mod(year, 400) == 0;
+        return if (leap) 29 else 28;
+    }
+    return normal[month - 1];
+}
+
+/// Days from 1970-01-01 to the start of *year*.
+fn tz_days_to_year(year: i32) i64 {
+    var d: i64 = 0;
+    if (year >= 1970) {
+        var y: i32 = 1970;
+        while (y < year) : (y += 1) {
+            const leap = (@mod(y, 4) == 0 and @mod(y, 100) != 0) or @mod(y, 400) == 0;
+            d += if (leap) 366 else 365;
+        }
+    } else {
+        var y: i32 = year;
+        while (y < 1970) : (y += 1) {
+            const leap = (@mod(y, 4) == 0 and @mod(y, 100) != 0) or @mod(y, 400) == 0;
+            d -= if (leap) 366 else 365;
+        }
+    }
+    return d;
+}
+
+/// Compute the day-of-month for the *week*-th *dow* in *year*-*month*.
+/// ``week == 5`` means "last".  Result is 1..31.
+fn tz_nth_weekday(year: i32, month: u8, week: u8, dow: u8) u8 {
+    // 1970-01-01 is Thursday = 4.
+    const days = tz_days_to_year(year);
+    var pre: i64 = 0;
+    var m: u8 = 1;
+    while (m < month) : (m += 1) pre += @as(i64, tz_days_in_month(year, m));
+    const dow_first: i64 = @mod(days + pre + 4, 7); // Sun=0
+    const target_dow: i64 = @intCast(dow);
+    var first_match: i64 = (target_dow - dow_first + 7);
+    while (first_match > 6) first_match -= 7;
+    var day = first_match + 1; // 1-based
+    var added_weeks: i64 = 0;
+    while (added_weeks < @as(i64, @intCast(week)) - 1) {
+        if (day + 7 > tz_days_in_month(year, month)) break;
+        day += 7;
+        added_weeks += 1;
+    }
+    if (week == 5) {
+        // "Last" = furthest valid occurrence.
+        while (day + 7 <= tz_days_in_month(year, month)) day += 7;
+    }
+    return @intCast(day);
+}
+
+/// Pack a calendar date + time-of-day into Unix epoch seconds (UTC).
+fn tz_pack_epoch(year: i32, month: u8, day: u8, secs_in_day: i32) i64 {
+    var d: i64 = tz_days_to_year(year);
+    var m: u8 = 1;
+    while (m < month) : (m += 1) d += @as(i64, tz_days_in_month(year, m));
+    d += @as(i64, day) - 1;
+    return d * 86400 + @as(i64, secs_in_day);
+}
+
+/// Year of *secs* (UTC) — coarse-grained, used to anchor the rule
+/// computation.  Only needs to be accurate enough to pick the right
+/// year window; a one-day error doesn't matter because we evaluate
+/// both the previous and next year's transitions.
+fn tz_year_of(secs: i64) i32 {
+    // Rough estimate via average-year length + iterative correction.
+    var year: i32 = @intCast(@divFloor(secs, 31_557_600) + 1970);
+    while (true) {
+        const y_start = tz_pack_epoch(year, 1, 1, 0);
+        if (secs < y_start) {
+            year -= 1;
+        } else {
+            const next_start = tz_pack_epoch(year + 1, 1, 1, 0);
+            if (secs >= next_start) {
+                year += 1;
+            } else break;
+        }
+    }
+    return year;
+}
+
+/// Given a rule + a UTC offset in effect when the rule fires, return
+/// the UTC instant of the transition for *year*.
+fn tz_rule_to_utc(rule: PosixRule, year: i32, prev_off_east: i32) i64 {
+    const day = tz_nth_weekday(year, rule.month, rule.week, rule.dow);
+    const local_secs = tz_pack_epoch(year, rule.month, day, rule.time);
+    return local_secs - @as(i64, prev_off_east);
+}
+
+/// Apply the POSIX TZ string to extrapolate an offset for *secs*.
+/// Returns null on unparseable trailer.
+fn apply_posix_rule(posix: []const u8, secs: i64) ?Offset {
+    const pz = parse_posix_tz(posix) orelse return null;
+    if (!pz.has_dst) {
+        return .{ .utoff = pz.std_off_east, .isdst = false, .abbr = pz.std_abbr };
+    }
+    const year = tz_year_of(secs);
+    // DST start: standard offset is in effect immediately before;
+    // DST end: dst offset is in effect immediately before.  Matters
+    // because the local "wall clock" reference for the transition
+    // time is in the offset that's *currently* applied.
+    const start_utc = tz_rule_to_utc(pz.start_rule, year, pz.std_off_east);
+    const end_utc = tz_rule_to_utc(pz.end_rule, year, pz.dst_off_east);
+    const in_dst = if (start_utc < end_utc)
+        (secs >= start_utc and secs < end_utc)
+    else
+        // Southern hemisphere: DST wraps year-end.
+        (secs >= start_utc or secs < end_utc);
+    if (in_dst) {
+        return .{ .utoff = pz.dst_off_east, .isdst = true, .abbr = pz.dst_abbr };
+    }
+    return .{ .utoff = pz.std_off_east, .isdst = false, .abbr = pz.std_abbr };
+}
 
 pub const ParseError = error{
     BadMagic,
@@ -300,16 +608,33 @@ const UTC_TYPES: [1]LocalType = .{
     .{ .utoff = 0, .isdst = false, .abbr = "UTC" },
 };
 
-/// A synthetic, always-available UTC zone — used by the resolver
-/// when ``-gmt 1`` / ``-timezone :UTC`` / ``-timezone GMT`` is
-/// requested, or as the last-ditch fallback when neither host
-/// tzdata nor the bundled blob resolves.
+const GMT_TYPES: [1]LocalType = .{
+    .{ .utoff = 0, .isdst = false, .abbr = "GMT" },
+};
+
+/// A synthetic, always-available UTC zone — used as the last-ditch
+/// fallback when neither host tzdata nor the bundled blob resolves.
 pub fn utc() TimeZone {
     return .{
         .transitions = &[_]i64{},
         .type_indices = &[_]u8{},
         .types = UTC_TYPES[0..],
         .posix_tz = "UTC0",
+        .pre_first = 0,
+    };
+}
+
+/// A synthetic, always-available GMT zone — abbr is ``GMT`` instead
+/// of ``UTC`` so ``clock format ... -gmt true -format %Z`` produces
+/// the reference Tcl spelling.  ``-gmt 1`` and ``-timezone :GMT``
+/// route here; ``-timezone UTC`` / ``Etc/UTC`` keep the ``UTC``
+/// abbr by routing to :func:`utc` instead.
+pub fn gmt_zone() TimeZone {
+    return .{
+        .transitions = &[_]i64{},
+        .type_indices = &[_]u8{},
+        .types = GMT_TYPES[0..],
+        .posix_tz = "GMT0",
         .pre_first = 0,
     };
 }
@@ -388,6 +713,7 @@ const Slot = struct {
 
 var cache: [CACHE_SLOTS]Slot = [_]Slot{.{}} ** CACHE_SLOTS;
 var utc_cache: TimeZone = utc();
+var gmt_cache: TimeZone = gmt_zone();
 
 /// Last-error sentinel for the resolver — non-zero when the most
 /// recent ``resolve()`` call had to fall back to UTC.  Callers
@@ -465,11 +791,17 @@ fn strip_colon(name: []const u8) []const u8 {
 fn is_utc_alias(name: []const u8) bool {
     const n = strip_colon(name);
     return std.mem.eql(u8, n, "UTC") or
-        std.mem.eql(u8, n, "GMT") or
         std.mem.eql(u8, n, "Etc/UTC") or
-        std.mem.eql(u8, n, "Etc/GMT") or
         std.mem.eql(u8, n, "Universal") or
         std.mem.eql(u8, n, "Zulu");
+}
+
+/// True if ``name`` (after colon-stripping) is one of the synthetic
+/// GMT aliases — same offset as UTC but a different ``%Z`` abbr.
+fn is_gmt_alias(name: []const u8) bool {
+    const n = strip_colon(name);
+    return std.mem.eql(u8, n, "GMT") or
+        std.mem.eql(u8, n, "Etc/GMT");
 }
 
 /// Find a cache slot matching ``name``.  Returns null on miss.
@@ -647,6 +979,13 @@ pub fn resolve(name: []const u8) *const TimeZone {
     // 1. Synthetic UTC — no I/O, no cache footprint.
     if (stripped.len == 0 or is_utc_alias(name)) {
         return &utc_cache;
+    }
+    // 1b. Synthetic GMT — same offset as UTC but a distinct ``%Z``
+    // abbreviation.  Reference Tcl's ``-gmt true`` resolves to
+    // ``GMT`` (not ``UTC``); we route ``-gmt 1`` through this name
+    // from ``cmds/stubs.zig``.
+    if (is_gmt_alias(name)) {
+        return &gmt_cache;
     }
 
     // 2. Cache hit?

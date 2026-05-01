@@ -278,14 +278,51 @@ def _parse_remainder(name: str, rest: str) -> TestBlock | None:
         if not body:
             return None
         return TestBlock(name, body.strip(), result, match_kind)
-    # Implicit four-arg form: BODY (a brace word) followed by EXPECTED.
-    body_rd = _read_brace_word(rest, 0)
-    if body_rd is None:
+    # Implicit form: ``BODY EXPECTED`` (4-arg) or
+    # ``CONSTRAINTS BODY EXPECTED`` (5-arg).  Read the first brace
+    # word; if it's a constraint-style list (single line, no leading
+    # whitespace, no command keywords) and a second brace word
+    # follows, the first was the constraints field.  Otherwise the
+    # first is the body and whatever follows is the expected result.
+    first_rd = _read_brace_word(rest, 0)
+    if first_rd is None:
         return None
-    body, after = body_rd
-    tail = rest[after:].strip()
-    expected = _strip_tcl_quoting(tail)
-    return TestBlock(name, body.strip(), expected, "exact")
+    first, after = first_rd
+    next_rest = rest[after:].lstrip()
+    if next_rest.startswith("{") and _looks_like_constraints(first):
+        body_rd = _read_brace_word(next_rest, 0)
+        if body_rd is None:
+            return None
+        body, after2 = body_rd
+        tail = next_rest[after2:].strip()
+        expected = _strip_tcl_quoting(tail)
+        return TestBlock(name, body.strip(), expected, "exact")
+    expected = _strip_tcl_quoting(next_rest)
+    return TestBlock(name, first.strip(), expected, "exact")
+
+
+def _looks_like_constraints(s: str) -> bool:
+    """Heuristic: is *s* a tcltest constraints list rather than a body?
+
+    Constraints are a single-line whitespace-separated list of
+    identifier-like tokens (``detroit y2038``, ``unix pcOnly``).  A
+    body, by contrast, almost always spans multiple lines and
+    contains substitution / command syntax.  We use newline-presence
+    as the discriminator with a tighter shape check on top — every
+    token must start with an ASCII letter.
+    """
+    if "\n" in s:
+        return False
+    s = s.strip()
+    if not s:
+        return False
+    for tok in s.split():
+        if not tok or not (tok[0].isalpha() or tok[0] == "_"):
+            return False
+        for ch in tok:
+            if not (ch.isalnum() or ch in "_-."):
+                return False
+    return True
 
 
 def _matches(want: str, got: str, kind: str) -> bool:

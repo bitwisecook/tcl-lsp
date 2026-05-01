@@ -564,14 +564,32 @@ pub fn try_parse_int(ptr: u32, len: u32) ?i64 {
     }
     if (i >= len) return null;
     if (src[i] < '0' or src[i] > '9') return null;
-    var val: i64 = 0;
+    // Accumulate magnitude in u64 so the i64::MIN literal
+    // ``-9223372036854775808`` parses without panicking — its
+    // absolute value is one above i64::MAX, which an i64 accumulator
+    // would trip on the final ``val * 10 + 8`` step under Zig's
+    // debug-mode overflow checks.  Overflow yields ``null`` so
+    // callers can fall back through the float / string path.
+    var mag: u64 = 0;
     while (i < len and src[i] >= '0' and src[i] <= '9') {
-        val = val * 10 + @as(i64, src[i] - '0');
+        const m = @mulWithOverflow(mag, @as(u64, 10));
+        if (m[1] != 0) return null;
+        const a = @addWithOverflow(m[0], @as(u64, src[i] - '0'));
+        if (a[1] != 0) return null;
+        mag = a[0];
         i += 1;
     }
     while (i < len and is_space(src[i])) i += 1;
     if (i != len) return null;
-    return if (negative) -val else val;
+    const I64_MIN_ABS: u64 = 9223372036854775808;
+    const I64_MAX_U: u64 = 9223372036854775807;
+    if (negative) {
+        if (mag > I64_MIN_ABS) return null;
+        if (mag == I64_MIN_ABS) return @as(i64, -9223372036854775807) - 1;
+        return -@as(i64, @intCast(mag));
+    }
+    if (mag > I64_MAX_U) return null;
+    return @as(i64, @intCast(mag));
 }
 
 /// Parse a decimal float literal (e.g. "3.14", "2.2e5", "-0.5").
@@ -892,20 +910,30 @@ pub export fn tcl_immediate_ring_total_renders() i64 {
 }
 
 pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
-    var v = value;
+    // Compute the magnitude in u64 so the ``-i64::MIN`` corner case
+    // doesn't panic — the i64 ``-v`` operator under Zig's debug
+    // overflow checks would trip here, since ``-i64::MIN`` exceeds
+    // i64::MAX by 1.  Rendering through a u64 magnitude avoids that.
     var negative = false;
-    if (v < 0) {
-        negative = true;
-        v = -v;
-    }
+    var mag: u64 = blk: {
+        if (value < 0) {
+            negative = true;
+            // Bitcast trick: ``0 -% v`` in u64 yields the magnitude
+            // for any negative i64, including i64::MIN whose
+            // absolute value is 2^63.
+            const u: u64 = @bitCast(value);
+            break :blk @as(u64, 0) -% u;
+        }
+        break :blk @as(u64, @intCast(value));
+    };
     var i: u32 = itoa_buf.len - 1;
-    if (v == 0) {
+    if (mag == 0) {
         itoa_buf[i] = '0';
     } else {
-        while (v > 0) {
-            itoa_buf[i] = @as(u8, @intCast(@rem(v, 10))) + '0';
-            v = @divTrunc(v, 10);
-            if (v > 0) i -= 1;
+        while (mag > 0) {
+            itoa_buf[i] = @as(u8, @intCast(mag % 10)) + '0';
+            mag /= 10;
+            if (mag > 0) i -= 1;
         }
     }
     if (negative) {
