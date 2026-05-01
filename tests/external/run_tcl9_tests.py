@@ -365,16 +365,16 @@ def _patch_tcltest_source(src: str) -> str:
     #    test that exercises ``glob`` directly hits the real runtime
     #    behaviour — a global shim would silently turn real glob-
     #    dependent failures into spurious passes (PR #299 review).
-    fill_pattern = (
-        "\tforeach file [glob -nocomplain -directory [temporaryDirectory] *] {"
-    )
+    fill_pattern = "\tforeach file [glob -nocomplain -directory [temporaryDirectory] *] {"
     fill_replacement = "\tforeach file [list] {  ;# issue #280: WASI has no glob -directory"
     if fill_pattern not in patched:
         msg = "_patch_tcltest_source: FillFilesExisted glob pattern not found"
         raise RuntimeError(msg)
     patched = patched.replace(fill_pattern, fill_replacement, 1)
 
-    cleanup_pattern = "\tforeach file [glob -nocomplain \\\n\t\t-directory [temporaryDirectory] *] {"
+    cleanup_pattern = (
+        "\tforeach file [glob -nocomplain \\\n\t\t-directory [temporaryDirectory] *] {"
+    )
     cleanup_replacement = "\tforeach file [list] {  ;# issue #280: WASI has no glob -directory"
     if cleanup_pattern not in patched:
         msg = "_patch_tcltest_source: cleanupTests glob pattern not found"
