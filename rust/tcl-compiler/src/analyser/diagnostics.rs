@@ -1092,14 +1092,37 @@ Consider capturing the result: catch {\u{2026}} result"
         if arg_tokens.len() == 1 && self.is_canonical_list_substitution(arg_tokens[0]) {
             return;
         }
-        // Substitution detection: any ``Var`` / ``Cmd`` arg, or any
-        // multi-token-word arg (multi-token implies inner
-        // substitution — single-token Esc / Str literals are the
-        // only substitution-free word shapes after the all-braced
-        // gate above).
+        // Substitution detection.  An argument carries substitution
+        // when:
+        //
+        // - the representative token kind is ``Var`` / ``Cmd``
+        //   (single-token substitution at the word level), or
+        // - the word is multi-token AND its source range contains
+        //   an unescaped ``$`` / ``[`` outside any ``{...}`` block.
+        //
+        // The multi-token-word flag alone is **not** equivalent to
+        // substitution: the segmenter sets ``single_token_word=false``
+        // for any adjacent-token concatenation, including pure-
+        // literal shapes like ``eval foo{bar}`` (Esc+Str joined,
+        // no inner Var/Cmd).  Mirroring Python's
+        // ``all_tokens[1:]`` walk would require threading the full
+        // token stream through ``process_command``; instead we do a
+        // brace/backslash-aware source-byte scan over the word's
+        // span, which is sound for the common cases and matches
+        // Python's behaviour for every fixture in
+        // ``tests/test_checks.py::TestEvalStringConcat``.  Known
+        // approximation gap: ``"foo{$x}bar"`` (substitution inside
+        // a brace pair within a quoted string — Tcl treats braces
+        // as literal inside ``"…"``) is not detected.  Real W101
+        // shapes don't hit that pattern; documented for posterity.
         let has_substitution = arg_tokens.iter().enumerate().any(|(i, tok)| {
-            matches!(tok.kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
-                || arg_single.get(i).copied() != Some(true)
+            if matches!(tok.kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd) {
+                return true;
+            }
+            if arg_single.get(i).copied() == Some(true) {
+                return false;
+            }
+            self.word_span_contains_substitution(tok.span)
         });
         if !has_substitution {
             return;
@@ -1114,6 +1137,47 @@ Prefer direct invocation or {*}$cmdList to preserve argument boundaries."
             severity: Severity::Warning,
             fixes: Vec::new(),
         });
+    }
+
+    /// Scan the source bytes covered by `span` for an unescaped
+    /// ``$`` or ``[`` outside any ``{...}`` brace block.  Used by
+    /// [`Self::emit_w101_eval_string_concat`] to detect inner
+    /// substitution within a multi-token word without requiring
+    /// the full token stream to be threaded through
+    /// ``process_command``.
+    ///
+    /// Brace tracking: ``{`` increments depth, ``}`` decrements;
+    /// ``$`` / ``[`` only count as substitution when depth is
+    /// zero.  Backslash escapes consume the next byte (so ``\$``
+    /// is skipped).  Out-of-bounds spans return false rather than
+    /// panicking.
+    fn word_span_contains_substitution(&self, span: tcl_lexer::Span) -> bool {
+        let start = span.start() as usize;
+        let end = span.end() as usize;
+        if end > self.source.len() || start >= end {
+            return false;
+        }
+        let bytes = self.source.as_bytes();
+        let mut i = start;
+        let mut brace_depth: i32 = 0;
+        while i < end {
+            match bytes[i] {
+                b'\\' if i + 1 < end => {
+                    i += 2;
+                    continue;
+                }
+                b'{' => brace_depth += 1,
+                b'}' => {
+                    if brace_depth > 0 {
+                        brace_depth -= 1;
+                    }
+                }
+                b'$' | b'[' if brace_depth == 0 => return true,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
     }
 
     /// Helper for [`Self::emit_w101_eval_string_concat`].  Returns

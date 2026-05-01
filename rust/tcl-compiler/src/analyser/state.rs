@@ -2177,6 +2177,30 @@ mod tests {
     }
 
     #[test]
+    fn analyse_no_w101_for_eval_literal_multi_token_word() {
+        // Regression for PR #290 review (Codex bot, P2):
+        // ``eval foo{bar}`` is a multi-token word (Esc + Str joined,
+        // ``single_token_word == false``) that contains no Var/Cmd
+        // substitution — Python's reference check only fires on
+        // actual VAR/CMD tokens, so this must not trigger W101.
+        // The fix replaces the multi-token-word-implies-substitution
+        // heuristic with a brace/backslash-aware source-byte scan
+        // that looks for unescaped ``$`` / ``[`` outside ``{...}``.
+        let diags = w101_diags("eval foo{bar}\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
+    fn analyse_no_w101_for_eval_backslash_escaped_dollar() {
+        // ``eval "no\$x"`` — the ``\$`` is a backslash-escape, so
+        // the lexer produces a single ESC token with no Var.  The
+        // word-span scan must skip the next byte after ``\`` to
+        // avoid mis-detecting the literal ``$``.
+        let diags = w101_diags("eval no\\$x\n");
+        assert!(diags.is_empty(), "got {diags:?}");
+    }
+
+    #[test]
     fn analyse_w304_code_fix_inserts_terminator() {
         let src = "exec $cmd\n";
         let diags = w304_diags(src);
