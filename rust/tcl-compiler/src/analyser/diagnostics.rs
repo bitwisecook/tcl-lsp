@@ -419,8 +419,12 @@ fn rewrite_string_compare_ops(text: &str) -> String {
 /// `core/analysis/checks/_helpers.py::_first_positional_without_terminator`.
 ///
 /// Skips option words (text starts with `-`); skips an additional
-/// argument when an option name appears in
-/// [`tcl_registry::ResolvedTerminator::options_with_values`].
+/// argument when the option's [`OptionSpec`](tcl_registry::prelude::OptionSpec)
+/// in [`ResolvedTerminator::options`](tcl_registry::ResolvedTerminator)
+/// has `takes_value == true`.  Linear scan over the borrowed
+/// option slice — per-command option counts are small (≤ a dozen
+/// for the largest specs in practice), so this is cheaper than a
+/// per-resolve `HashSet` allocation on the analyser hot path.
 /// Returns `None` when a `--` is encountered (positional arguments
 /// after `--` are explicitly terminated).
 fn first_positional_without_terminator(
@@ -435,7 +439,11 @@ fn first_positional_without_terminator(
         }
         if arg.starts_with('-') {
             i += 1;
-            if profile.options_with_values.contains(arg) && i < args.len() {
+            let consumes_value = profile
+                .options
+                .iter()
+                .any(|o| o.name == arg && o.takes_value);
+            if consumes_value && i < args.len() {
                 i += 1;
             }
             continue;
@@ -1289,18 +1297,23 @@ before this value so it is treated as data, not an option."
         (Severity::Warning, message, None)
     }
 
-    /// Extract the variable-name slice for a `Var` token from
-    /// `self.source`.  The token's span starts at the leading `$`
-    /// (or `${`); `content_offset` shifts past those delimiter
-    /// bytes.  Returns `None` when the slice is empty or out of
-    /// bounds.
+    /// Extract the variable name for a `Var` token using the
+    /// lexer-provided token-text semantics
+    /// ([`tcl_lexer::SourceMap::token_text`]).  Preserves the
+    /// `Var`-specific normalisation rules (notably the trailing
+    /// `}` strip for the `${}` degenerate case where the lexer
+    /// extends the span by one byte to cover the closing brace),
+    /// so this stays in sync with the rest of the analyser's
+    /// token-text usage and avoids edge-case mismatches that a
+    /// raw `self.source[..]` slice would introduce.  Returns
+    /// `None` when the extracted text is empty.
     fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
-        let start = tok.span.start() as usize + tok.content_offset as usize;
-        let end = tok.span.end() as usize;
-        if start >= end || end > self.source.len() {
+        let sm = tcl_lexer::SourceMap::new(&self.source);
+        let text = sm.token_text(tok);
+        if text.is_empty() {
             return None;
         }
-        Some(self.source[start..end].to_string())
+        Some(text.to_string())
     }
 
     /// Compute the W304 code-fix span and diagnostic end position.
