@@ -84,12 +84,12 @@ fn break_down(epoch_secs: i64) BrokenDown {
     var year: i32 = 1970;
     var d: i64 = days_since_epoch;
     while (true) {
-        const days_in_year: i32 = if (is_leap(year)) 366 else 365;
+        const dy: i32 = if (is_leap(year)) 366 else 365;
         if (d < 0) {
             year -= 1;
             d += @as(i64, if (is_leap(year)) 366 else 365);
-        } else if (d >= days_in_year) {
-            d -= days_in_year;
+        } else if (d >= dy) {
+            d -= dy;
             year += 1;
         } else break;
     }
@@ -209,25 +209,214 @@ fn render_epoch(t: BrokenDown, utoff: i32) i64 {
     return pack_epoch(t.year, t.month, t.day, t.hour, t.minute, t.second) - @as(i64, utoff);
 }
 
-/// Strftime over a caller-supplied broken-down time + offset/abbr.
-/// Shared between ``clock_format`` (the WASM-export entry, default
-/// UTC) and ``clock_format_tz`` (timezone-aware via the resolver).
-fn render_format(
-    fmt_ptr: u32,
-    fmt_len: u32,
+// -- roman numerals ----------------------------------------------------------
+//
+// The ``en_US_roman`` locale renders alternate (``%O*`` / ``%E*``)
+// numeric specs in lowercase Roman numerals.  We carry our own
+// encoder + decoder rather than depending on a locale table because
+// the corpus is fixed: 0 is rendered as ``?`` (a sentinel the
+// reference Tcl uses for "no Roman representation"), 1..3999 maps
+// to the standard subtraction form, and out-of-range values fall
+// back to ``?`` as well — extremely rare in practice (the upper
+// bound of any year we'd format is 9999 and all year-relative
+// scratch values are below 3999).
+
+/// Roman digit table — each entry is a ``(value, symbol)`` pair in
+/// descending order.  The encoder walks the table once, subtracting
+/// each value as many times as fits.  Subtraction shorthand
+/// (``IV`` / ``IX`` / ``XL`` etc.) is encoded as a regular table
+/// entry rather than a post-pass, which keeps the loop simple.
+const ROMAN_TABLE = [_]struct { v: u32, s: []const u8 }{
+    .{ .v = 1000, .s = "m" },
+    .{ .v = 900,  .s = "cm" },
+    .{ .v = 500,  .s = "d" },
+    .{ .v = 400,  .s = "cd" },
+    .{ .v = 100,  .s = "c" },
+    .{ .v = 90,   .s = "xc" },
+    .{ .v = 50,   .s = "l" },
+    .{ .v = 40,   .s = "xl" },
+    .{ .v = 10,   .s = "x" },
+    .{ .v = 9,    .s = "ix" },
+    .{ .v = 5,    .s = "v" },
+    .{ .v = 4,    .s = "iv" },
+    .{ .v = 1,    .s = "i" },
+};
+
+/// Render *value* as a lowercase Roman numeral into ``out`` starting
+/// at ``off``.  Returns the new offset.  ``value == 0`` or
+/// ``value >= 4000`` emit ``?`` — the same sentinel reference Tcl
+/// produces.
+fn write_roman(out: [*]u8, off_in: u32, value: i64) u32 {
+    var off = off_in;
+    if (value <= 0 or value >= 4000) {
+        out[off] = '?';
+        return off + 1;
+    }
+    var v: u32 = @intCast(value);
+    inline for (ROMAN_TABLE) |entry| {
+        while (v >= entry.v) {
+            for (entry.s) |c| {
+                out[off] = c;
+                off += 1;
+            }
+            v -= entry.v;
+        }
+    }
+    return off;
+}
+
+/// Try to parse a lowercase Roman numeral from ``s[i..]``.  Accepts
+/// the strict subtractive form (``iv``, ``ix``, ``xl``, …) but
+/// tolerates ascii-case differences (``IV`` matches the same value
+/// as ``iv``).  Returns ``(value, end_index)`` or null if no
+/// valid Roman numeral starts at ``i_in``.  Empty / non-Roman
+/// input returns null.
+fn read_roman(s: []const u8, i_in: usize) ?struct { v: i64, i: usize } {
+    var i = i_in;
+    var v: i64 = 0;
+    // Accumulate digits using the same subtractive table; longer
+    // matches first (``cm`` before ``c``, ``ix`` before ``i``).
+    while (i < s.len) {
+        var matched = false;
+        inline for (ROMAN_TABLE) |entry| {
+            const slen = entry.s.len;
+            if (!matched and i + slen <= s.len) {
+                var ok = true;
+                for (entry.s, 0..) |c, k| {
+                    if (ascii_lower(s[i + k]) != c) { ok = false; break; }
+                }
+                if (ok) {
+                    v += @as(i64, @intCast(entry.v));
+                    i += slen;
+                    matched = true;
+                }
+            }
+        }
+        if (!matched) break;
+    }
+    if (i == i_in) return null;
+    return .{ .v = v, .i = i };
+}
+
+// -- ISO week computation ----------------------------------------------------
+//
+// ``%g`` / ``%G`` / ``%V`` need the ISO 8601 week-numbering year.
+// Algorithm: take the date's day-of-year, find the Thursday of the
+// week (ISO Thursday is the "anchor day" — the year that owns the
+// Thursday owns the whole week).  ``%U`` / ``%W`` use a simpler
+// week-since-first-Sunday / first-Monday count.
+
+const IsoWeek = struct { year: i32, week: u32 };
+
+fn days_in_year(y: i32) u32 {
+    return if (is_leap(y)) 366 else 365;
+}
+
+fn iso_week_of(t: BrokenDown) IsoWeek {
+    // ISO weekday: Mon=1..Sun=7.
+    const iso_dow: i32 = if (t.weekday == 0) 7 else @intCast(t.weekday);
+    // Day-of-year of the Thursday in this week.
+    const thursday_doy: i32 = @as(i32, @intCast(t.yday)) + 4 - iso_dow;
+    if (thursday_doy < 1) {
+        const prev_dy: i32 = @intCast(days_in_year(t.year - 1));
+        const w: u32 = @intCast(@divFloor(thursday_doy + prev_dy - 1, 7) + 1);
+        return .{ .year = t.year - 1, .week = w };
+    }
+    const this_dy: i32 = @intCast(days_in_year(t.year));
+    if (thursday_doy > this_dy) {
+        const w: u32 = @intCast(@divFloor(thursday_doy - this_dy - 1, 7) + 1);
+        return .{ .year = t.year + 1, .week = w };
+    }
+    const w: u32 = @intCast(@divFloor(thursday_doy - 1, 7) + 1);
+    return .{ .year = t.year, .week = w };
+}
+
+/// ``%U`` — week number with Sunday as the first day of week (00..53).
+/// Days before the first Sunday are in week 0.
+fn week_sunday_first(t: BrokenDown) u32 {
+    // 0=Sunday..6=Saturday.
+    const dow: i32 = @intCast(t.weekday);
+    const yday1: i32 = @as(i32, @intCast(t.yday)) - 1; // 0-based
+    const w = @divFloor(yday1 + 7 - dow, 7);
+    if (w < 0) return 0;
+    return @intCast(w);
+}
+
+/// ``%W`` — week number with Monday as the first day of week (00..53).
+fn week_monday_first(t: BrokenDown) u32 {
+    const dow: i32 = if (t.weekday == 0) 6 else @as(i32, @intCast(t.weekday)) - 1;
+    const yday1: i32 = @as(i32, @intCast(t.yday)) - 1;
+    const w = @divFloor(yday1 + 7 - dow, 7);
+    if (w < 0) return 0;
+    return @intCast(w);
+}
+
+/// Julian Day Number of the broken-down date (UTC).  JDN 2440588
+/// is 1970-01-01 UTC; we compute it directly from the epoch
+/// implied by ``t``.
+fn julian_day_of(t: BrokenDown) i64 {
+    const epoch = pack_epoch(t.year, t.month, t.day, 0, 0, 0);
+    return @divFloor(epoch, SECS_PER_DAY) + 2440588;
+}
+
+/// Locale tag.  Only two values are honoured — the default
+/// ``en_US`` corpus and ``en_US_roman``.  Unknown locales fall
+/// through to ``en_US`` (we don't ship a real locale database).
+const Locale = enum { en_us, en_us_roman };
+
+fn locale_from(s: []const u8) Locale {
+    if (s.len == 0) return .en_us;
+    // Case-insensitive match — accepts ``en_US_roman``, ``en_us_roman``,
+    // and any case mix.
+    if (s.len == 11 and ieq(s, "en_us_roman")) return .en_us_roman;
+    return .en_us;
+}
+
+/// Locale composite-spec table.  When ``%c`` / ``%x`` / ``%X`` /
+/// ``%Ec`` / ``%Ex`` / ``%EX`` is encountered, the renderer
+/// substitutes the matching string from this table and recursively
+/// expands it.
+fn locale_replace(loc: Locale, spec: u8, ext: bool) ?[]const u8 {
+    return switch (loc) {
+        .en_us => switch (spec) {
+            'c' => "%a %b %e %H:%M:%S %Y",
+            'x' => "%m/%d/%Y",
+            'X' => "%H:%M:%S",
+            else => null,
+        },
+        .en_us_roman => if (ext) switch (spec) {
+            'c' => "die %Od mensis %Om annoque %EY %OH h %OM m %OS s",
+            'x' => "die %Od mensis %Om annoque %EY",
+            'X' => "%OH h %OM m %OS s",
+            else => null,
+        } else switch (spec) {
+            'c' => "%m/%d/%Y %H:%M:%S",
+            'x' => "%m/%d/%Y",
+            'X' => "%H:%M:%S",
+            else => null,
+        },
+    };
+}
+
+/// Recursively expand a strftime template into ``out`` starting at
+/// ``off``.  Returns the new offset.  Locale composite specs (``%c``
+/// / ``%Ec`` / ``%x`` / ``%Ex`` / ``%X`` / ``%EX`` / ``%+``) re-enter
+/// this function with the locale's substitution string, so a ``%c``
+/// inside a ``%Ec`` template won't infinite-loop (the substitution
+/// strings don't contain those keys themselves).
+fn expand_format(
+    out: [*]u8,
+    off_in: u32,
+    fmt: []const u8,
     t: BrokenDown,
     utoff: i32,
     abbr: []const u8,
-) i32 {
-    const fp: [*]const u8 = @ptrFromInt(fmt_ptr);
-    const cap: u32 = fmt_len * 8 + 32;
-    const buf = alloc(cap);
-    if (buf == 0) return obj_new_string(0, 0);
-    const out: [*]u8 = @ptrFromInt(buf);
-    var off: u32 = 0;
-    var i: u32 = 0;
-    while (i < fmt_len) {
-        const c = fp[i];
+    loc: Locale,
+) u32 {
+    var off = off_in;
+    var i: usize = 0;
+    while (i < fmt.len) {
+        const c = fmt[i];
         if (c != '%') {
             out[off] = c;
             off += 1;
@@ -235,34 +424,111 @@ fn render_format(
             continue;
         }
         i += 1;
-        if (i >= fmt_len) {
+        if (i >= fmt.len) {
             out[off] = '%';
             off += 1;
             break;
         }
-        const spec = fp[i];
+        var ext_O = false;
+        var ext_E = false;
+        var spec = fmt[i];
         i += 1;
+        if (spec == 'O') {
+            ext_O = true;
+            if (i >= fmt.len) break;
+            spec = fmt[i];
+            i += 1;
+        } else if (spec == 'E') {
+            ext_E = true;
+            if (i >= fmt.len) break;
+            spec = fmt[i];
+            i += 1;
+        }
+        if ((spec == 'c' or spec == 'x' or spec == 'X') and !ext_O) {
+            const repl = locale_replace(loc, spec, ext_E) orelse "";
+            off = expand_format(out, off, repl, t, utoff, abbr, loc);
+            continue;
+        }
+        if (spec == '+' and !ext_O and !ext_E) {
+            off = expand_format(out, off, "%a %b %e %H:%M:%S %Z %Y", t, utoff, abbr, loc);
+            continue;
+        }
+        if (spec == 'r' and !ext_O and !ext_E) {
+            off = expand_format(out, off, "%I:%M:%S %P", t, utoff, abbr, loc);
+            continue;
+        }
+        const roman_o = ext_O and loc == .en_us_roman;
+        const roman_e = ext_E and loc == .en_us_roman;
         switch (spec) {
             '%' => {
                 out[off] = '%';
                 off += 1;
             },
-            'Y' => off = write_pad_signed(out, off, @intCast(t.year), 4),
+            'Y' => {
+                if (roman_e) off = write_roman(out, off, t.year)
+                else off = write_pad_signed(out, off, @intCast(t.year), 4);
+            },
             'y' => {
-                // Mathematical mod (Zig ``@mod``) returns non-negative
-                // for negative inputs, so casting through u32 is safe.
                 const y2: u32 = @intCast(@mod(@as(i64, t.year), 100));
-                off = write_pad_int(out, off, y2, 2, '0');
+                if (roman_o) off = write_roman(out, off, y2)
+                else off = write_pad_int(out, off, y2, 2, '0');
+            },
+            'C' => {
+                if (roman_e) {
+                    const cyr = @as(i64, t.year) - @mod(@as(i64, t.year), 100);
+                    off = write_roman(out, off, cyr);
+                } else {
+                    const c100: i64 = @divFloor(@as(i64, t.year), 100);
+                    off = write_pad_signed(out, off, c100, 2);
+                }
             },
             's' => off = write_pad_signed(out, off, render_epoch(t, utoff), 0),
-            'm' => off = write_pad_int(out, off, t.month, 2, '0'),
-            'd' => off = write_pad_int(out, off, t.day, 2, '0'),
-            'e' => off = write_pad_int(out, off, t.day, 2, ' '),
-            'H' => off = write_pad_int(out, off, t.hour, 2, '0'),
-            'k' => off = write_pad_int(out, off, t.hour, 2, ' '),
-            'M' => off = write_pad_int(out, off, t.minute, 2, '0'),
-            'S' => off = write_pad_int(out, off, t.second, 2, '0'),
+            'm' => {
+                if (roman_o) off = write_roman(out, off, t.month)
+                else off = write_pad_int(out, off, t.month, 2, '0');
+            },
+            'N' => {
+                if (roman_o) off = write_roman(out, off, t.month)
+                else off = write_pad_int(out, off, t.month, 2, ' ');
+            },
+            'd' => {
+                if (roman_o) off = write_roman(out, off, t.day)
+                else off = write_pad_int(out, off, t.day, 2, '0');
+            },
+            'e' => {
+                if (roman_o) off = write_roman(out, off, t.day)
+                else off = write_pad_int(out, off, t.day, 2, ' ');
+            },
+            'H' => {
+                if (roman_o) off = write_roman(out, off, t.hour)
+                else off = write_pad_int(out, off, t.hour, 2, '0');
+            },
+            'k' => {
+                if (roman_o) off = write_roman(out, off, t.hour)
+                else off = write_pad_int(out, off, t.hour, 2, ' ');
+            },
+            'M' => {
+                if (roman_o) off = write_roman(out, off, t.minute)
+                else off = write_pad_int(out, off, t.minute, 2, '0');
+            },
+            'S' => {
+                if (roman_o) off = write_roman(out, off, t.second)
+                else off = write_pad_int(out, off, t.second, 2, '0');
+            },
+            'I' => {
+                var hr12: u32 = t.hour % 12;
+                if (hr12 == 0) hr12 = 12;
+                if (roman_o) off = write_roman(out, off, hr12)
+                else off = write_pad_int(out, off, hr12, 2, '0');
+            },
+            'l' => {
+                var hr12: u32 = t.hour % 12;
+                if (hr12 == 0) hr12 = 12;
+                if (roman_o) off = write_roman(out, off, hr12)
+                else off = write_pad_int(out, off, hr12, 2, ' ');
+            },
             'j' => off = write_pad_int(out, off, t.yday, 3, '0'),
+            'J' => off = write_pad_signed(out, off, julian_day_of(t), 0),
             'u' => off = write_pad_int(out, off, if (t.weekday == 0) 7 else t.weekday, 1, '0'),
             'w' => off = write_pad_int(out, off, t.weekday, 1, '0'),
             'A' => off = write_str(out, off, WEEKDAY_FULL[t.weekday]),
@@ -273,6 +539,21 @@ fn render_format(
             'P' => off = write_str(out, off, if (t.hour < 12) "am" else "pm"),
             'z' => off = write_offset(out, off, utoff),
             'Z' => off = write_str(out, off, abbr),
+            'g' => {
+                const iso = iso_week_of(t);
+                const y2: u32 = @intCast(@mod(@as(i64, iso.year), 100));
+                off = write_pad_int(out, off, y2, 2, '0');
+            },
+            'G' => {
+                const iso = iso_week_of(t);
+                off = write_pad_signed(out, off, @intCast(iso.year), 4);
+            },
+            'V' => {
+                const iso = iso_week_of(t);
+                off = write_pad_int(out, off, iso.week, 2, '0');
+            },
+            'U' => off = write_pad_int(out, off, week_sunday_first(t), 2, '0'),
+            'W' => off = write_pad_int(out, off, week_monday_first(t), 2, '0'),
             'n' => {
                 out[off] = '\n';
                 off += 1;
@@ -281,48 +562,10 @@ fn render_format(
                 out[off] = '\t';
                 off += 1;
             },
-            'I' => {
-                var hr12 = t.hour % 12;
-                if (hr12 == 0) hr12 = 12;
-                off = write_pad_int(out, off, hr12, 2, '0');
-            },
-            'l' => {
-                var hr12 = t.hour % 12;
-                if (hr12 == 0) hr12 = 12;
-                off = write_pad_int(out, off, hr12, 2, ' ');
-            },
-            'D' => {
-                // %m/%d/%y
-                off = write_pad_int(out, off, t.month, 2, '0');
-                out[off] = '/';
-                off += 1;
-                off = write_pad_int(out, off, t.day, 2, '0');
-                out[off] = '/';
-                off += 1;
-                off = write_pad_int(out, off, @intCast(@mod(t.year, 100)), 2, '0');
-            },
-            'R' => {
-                // %H:%M
-                off = write_pad_int(out, off, t.hour, 2, '0');
-                out[off] = ':';
-                off += 1;
-                off = write_pad_int(out, off, t.minute, 2, '0');
-            },
-            'T' => {
-                // %H:%M:%S
-                off = write_pad_int(out, off, t.hour, 2, '0');
-                out[off] = ':';
-                off += 1;
-                off = write_pad_int(out, off, t.minute, 2, '0');
-                out[off] = ':';
-                off += 1;
-                off = write_pad_int(out, off, t.second, 2, '0');
-            },
+            'D' => off = expand_format(out, off, "%m/%d/%y", t, utoff, abbr, loc),
+            'R' => off = expand_format(out, off, "%H:%M", t, utoff, abbr, loc),
+            'T' => off = expand_format(out, off, "%H:%M:%S", t, utoff, abbr, loc),
             'F' => {
-                // %Y-%m-%d.  Year goes through ``write_pad_signed``
-                // for the same negative-year reason as the standalone
-                // ``%Y`` spec — formatting an ancient epoch with
-                // ``%F`` would otherwise trap on the i32 → u32 cast.
                 off = write_pad_signed(out, off, @intCast(t.year), 4);
                 out[off] = '-';
                 off += 1;
@@ -334,16 +577,41 @@ fn render_format(
             else => {
                 out[off] = '%';
                 off += 1;
+                if (ext_O) {
+                    out[off] = 'O';
+                    off += 1;
+                } else if (ext_E) {
+                    out[off] = 'E';
+                    off += 1;
+                }
                 out[off] = spec;
                 off += 1;
             },
         }
     }
-    // Claim ownership of the output buffer via OBJ_STR_CAP so an
-    // eventual ``tcl_obj_release`` reclaims it via ``free_sized``.
-    // Without this, ``cap`` is treated as 0 (non-owning) and the
-    // ``cap`` bytes leak on every call — pathological under
-    // long-running ``clock format`` loops in test bodies.
+    return off;
+}
+
+/// Strftime over a caller-supplied broken-down time + offset/abbr.
+/// Shared between ``clock_format`` (the WASM-export entry, default
+/// UTC) and ``clock_format_tz`` (timezone-aware via the resolver).
+fn render_format(
+    fmt_ptr: u32,
+    fmt_len: u32,
+    t: BrokenDown,
+    utoff: i32,
+    abbr: []const u8,
+    loc: Locale,
+) i32 {
+    const fp: [*]const u8 = @ptrFromInt(fmt_ptr);
+    // Buffer cap: locale composites can expand 2-char specs to ~50
+    // chars (``%Ec`` → ``die %Od mensis ...``) so we use a generous
+    // 24× factor with a 128-byte floor.
+    const cap: u32 = fmt_len * 24 + 128;
+    const buf = alloc(cap);
+    if (buf == 0) return obj_new_string(0, 0);
+    const out: [*]u8 = @ptrFromInt(buf);
+    const off = expand_format(out, 0, fp[0..fmt_len], t, utoff, abbr, loc);
     const out_obj = obj_new_string(@intCast(buf), @intCast(off));
     if (out_obj == 0) {
         obj.free_sized(buf, cap);
@@ -382,7 +650,7 @@ pub export fn clock_format(seconds_obj: i32, fmt_obj: i32) i32 {
     const f = fmt_or_default(fmt_obj, default_fmt);
     const epoch: i64 = if (seconds_obj == 0) 0 else obj.obj_get_int(seconds_obj);
     const t = break_down(epoch);
-    return render_format(f.ptr, f.len, t, 0, "UTC");
+    return render_format(f.ptr, f.len, t, 0, "UTC", .en_us);
 }
 
 // -- clock scan ---------------------------------------------------------------
@@ -1018,12 +1286,46 @@ const ScanFormatErr = enum {
     overflow,
 };
 
+/// Read either an Arabic decimal integer or a lowercase Roman
+/// numeral.  Used by ``%Od`` / ``%Oe`` / ``%Om`` / ``%Oy`` under
+/// ``en_US_roman`` (caller has already classified the locale).
+/// Falls back to the Arabic reader when the input doesn't start
+/// with a Roman digit, matching reference Tcl which accepts either
+/// form for the alternate-numeric specs.
+fn scan_read_int_or_roman(s: []const u8, i_in: usize, max_digits: usize) ?struct { v: i64, i: usize } {
+    var i = i_in;
+    if (i < s.len and s[i] == ' ') i += 1;
+    if (i < s.len) {
+        const c = ascii_lower(s[i]);
+        if (c == 'i' or c == 'v' or c == 'x' or c == 'l' or c == 'c' or c == 'd' or c == 'm') {
+            if (read_roman(s, i)) |r| return .{ .v = r.v, .i = r.i };
+        }
+    }
+    return scan_read_int(s, i_in, max_digits, false);
+}
+
+const EpochField = enum { none, seconds, julian, astro_julian };
+
 const ScanState = struct {
     have_seconds: bool = false,
     seconds: i64 = 0,
 
     have_julian: bool = false,
     julian: i64 = 0,
+
+    /// Astronomical Julian Day (with fractional days) — set by
+    /// ``%Ej``.  Stored as integer day + integer second-within-day
+    /// to avoid f64 precision issues at large JDs.  ``aj_secs`` is
+    /// the partial-day offset in seconds (0..86399).
+    have_astro_julian: bool = false,
+    aj_day: i64 = 0,
+    aj_secs: i64 = 0,
+
+    /// Which of ``%s`` / ``%J`` / ``%Ej`` was scanned last.  The
+    /// upstream reference Tcl applies "last wins" precedence: when
+    /// a format string mentions multiple epoch-bearing specs, the
+    /// one consumed last from the input drives the result.
+    last_epoch: EpochField = .none,
 
     have_year: bool = false,
     year: i32 = 1970,
@@ -1053,40 +1355,112 @@ const ScanState = struct {
 /// Skip whitespace in *s* starting at *i*; return the new index.
 fn scan_skip_ws(s: []const u8, i_in: usize) usize {
     var i = i_in;
-    while (i < s.len and (s[i] == ' ' or s[i] == '\t')) : (i += 1) {}
+    while (i < s.len and (s[i] == ' ' or s[i] == '\t' or
+        s[i] == '\n' or s[i] == '\r')) : (i += 1) {}
     return i;
 }
 
 /// Read up to ``max_digits`` decimal digits.  Returns ``(value, n_consumed)``
-/// or null if no digits.  Allows a leading ``+`` / ``-`` for the very first
-/// character so ``%s`` can scan negative epochs.
+/// or null on no-digit / non-overflow miss.  An overflow during the
+/// digit accumulator surfaces as the dedicated ``IntReadResult.over``
+/// variant via :func:`scan_read_int_typed`; the legacy ``?{...}``
+/// shape collapses overflow → null for callers that don't care.
+const IntReadResult = union(enum) {
+    ok: struct { v: i64, i: usize },
+    over,
+    miss,
+};
+
+fn scan_read_int_typed(
+    s: []const u8,
+    i_in: usize,
+    max_digits: usize,
+    allow_sign: bool,
+) IntReadResult {
+    var i = i_in;
+    var neg = false;
+    if (allow_sign and i < s.len and (s[i] == '-' or s[i] == '+')) {
+        if (s[i] == '-') neg = true;
+        i += 1;
+    }
+    // ``%e`` / ``%k`` accept a leading space before the digit.
+    if (i < s.len and s[i] == ' ') i += 1;
+    // Accumulate magnitude as u64 so the i64::MIN literal
+    // (``-9223372036854775808``) survives the lex pass even though
+    // its absolute value is one more than i64::MAX.  Overflow only
+    // fires when the accumulator can't even hold the magnitude in
+    // u64 (>20 digits without saturation).
+    var mag: u64 = 0;
+    var n: usize = 0;
+    while (i < s.len and n < max_digits and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        const m = @mulWithOverflow(mag, @as(u64, 10));
+        if (m[1] != 0) return .over;
+        const d: u64 = @intCast(s[i] - '0');
+        const a = @addWithOverflow(m[0], d);
+        if (a[1] != 0) return .over;
+        mag = a[0];
+        n += 1;
+    }
+    if (n == 0) return .miss;
+    // ``abs(i64::MIN) == 2^63``.  Computed via integer literal so no
+    // intermediate signed cast can panic on the boundary value.
+    const I64_MIN_ABS: u64 = 9223372036854775808;
+    const I64_MAX_U: u64 = 9223372036854775807;
+    if (neg) {
+        if (mag > I64_MIN_ABS) return .over;
+        if (mag == I64_MIN_ABS) {
+            return .{ .ok = .{ .v = std.math.minInt(i64), .i = i } };
+        }
+        return .{ .ok = .{ .v = -@as(i64, @intCast(mag)), .i = i } };
+    }
+    if (mag > I64_MAX_U) return .over;
+    return .{ .ok = .{ .v = @as(i64, @intCast(mag)), .i = i } };
+}
+
 fn scan_read_int(
     s: []const u8,
     i_in: usize,
     max_digits: usize,
     allow_sign: bool,
 ) ?struct { v: i64, i: usize } {
-    var i = i_in;
-    var sign: i64 = 1;
-    if (allow_sign and i < s.len and (s[i] == '-' or s[i] == '+')) {
-        if (s[i] == '-') sign = -1;
-        i += 1;
+    return switch (scan_read_int_typed(s, i_in, max_digits, allow_sign)) {
+        .ok => |r| .{ .v = r.v, .i = r.i },
+        .over, .miss => null,
+    };
+}
+
+/// Consume an unambiguous 2..N character month-name prefix at
+/// ``s[i..]``.  Returns the month + end index on hit.  Used by the
+/// ``en_US_roman`` locale path which accepts ``ja`` for January
+/// (clock-6.13).  Ambiguous prefixes (``j``, ``ma``) deliberately
+/// fail — picking one would silently corrupt scan results.
+fn scan_match_month_prefix(s: []const u8, i_in: usize) ?struct { m: u32, i: usize } {
+    // Use 2 leading bytes; longer matches first via the regular
+    // ``scan_match_month`` route, so anything that hits here is
+    // shorter than 3 letters.
+    if (i_in + 2 > s.len) return null;
+    const a = ascii_lower(s[i_in]);
+    const b = ascii_lower(s[i_in + 1]);
+    // Hand-coded unambiguous 2-letter prefixes.  Tcl's reference
+    // ``en_US_roman`` table treats each letter through the abbreviator
+    // table; we replicate the unambiguous subset.
+    const m: u32 = blk: {
+        if (a == 'j' and b == 'a') break :blk 1; // January
+        if (a == 'f') break :blk 2; // February
+        if (a == 'a' and b == 'p') break :blk 4; // April
+        if (a == 'a' and b == 'u') break :blk 8; // August
+        if (a == 's') break :blk 9; // September
+        if (a == 'o') break :blk 10; // October
+        if (a == 'n') break :blk 11; // November
+        if (a == 'd') break :blk 12; // December
+        return null;
+    };
+    var end = i_in + 2;
+    while (end < s.len) {
+        const c = ascii_lower(s[end]);
+        if (c >= 'a' and c <= 'z') end += 1 else break;
     }
-    // ``%e`` / ``%k`` accept a leading space before the digit.
-    if (i < s.len and s[i] == ' ') i += 1;
-    var v: i64 = 0;
-    var n: usize = 0;
-    while (i < s.len and n < max_digits and s[i] >= '0' and s[i] <= '9') : (i += 1) {
-        const m = @mulWithOverflow(v, @as(i64, 10));
-        if (m[1] != 0) return null;
-        const d: i64 = @intCast(s[i] - '0');
-        const a = @addWithOverflow(m[0], d);
-        if (a[1] != 0) return null;
-        v = a[0];
-        n += 1;
-    }
-    if (n == 0) return null;
-    return .{ .v = sign * v, .i = i };
+    return .{ .m = m, .i = end };
 }
 
 /// Consume a month name (full or abbreviated, case-insensitive) at
@@ -1166,7 +1540,7 @@ fn scan_skip_zone_name(s: []const u8, i_in: usize) usize {
 /// Drive the format string against the input, populating *st*.
 /// Returns ``no_match`` on any mismatch / unknown spec, ``overflow``
 /// for arithmetic blow-ups, ``none`` on success.
-fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState) ScanFormatErr {
+fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState, loc: Locale) ScanFormatErr {
     var fi: usize = 0;
     var ii: usize = 0;
     while (fi < fmt.len) {
@@ -1189,15 +1563,21 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState) ScanFormatErr 
         if (fi >= fmt.len) return .no_match;
         var spec = fmt[fi];
         fi += 1;
-        // Locale modifiers: skip ``O`` / ``E`` and treat the next char
-        // as the real spec.  Roman-numeral interpretation isn't
-        // implemented; an ``%Od`` against ``ii`` will fall through to
-        // scan_read_int and return no_match.
-        if (spec == 'O' or spec == 'E') {
+        var ext_O = false;
+        var ext_E = false;
+        if (spec == 'O') {
+            ext_O = true;
+            if (fi >= fmt.len) return .no_match;
+            spec = fmt[fi];
+            fi += 1;
+        } else if (spec == 'E') {
+            ext_E = true;
             if (fi >= fmt.len) return .no_match;
             spec = fmt[fi];
             fi += 1;
         }
+        const roman_o = ext_O and loc == .en_us_roman;
+        const roman_e = ext_E and loc == .en_us_roman;
         // Skip leading whitespace for any numeric spec — strptime
         // semantics: ``%d`` matches `` 5`` as well as ``05``.  ``%n`` /
         // ``%t`` get the same treatment (any whitespace).
@@ -1207,109 +1587,262 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState) ScanFormatErr 
                 ii += 1;
             },
             'n', 't' => {
+                // Tcl ``%n`` / ``%t`` match any run of whitespace
+                // (including ``\t`` literals), not just a single
+                // newline / tab.  Skip greedily; the caller's
+                // surrounding literals re-anchor.
                 ii = scan_skip_ws(input, ii);
             },
             's' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 20, true) orelse return .no_match;
-                st.have_seconds = true;
-                st.seconds = r.v;
-                ii = r.i;
+                switch (scan_read_int_typed(input, ii, 20, true)) {
+                    .ok => |r| {
+                        st.have_seconds = true;
+                        st.seconds = r.v;
+                        st.last_epoch = .seconds;
+                        ii = r.i;
+                    },
+                    .over => return .overflow,
+                    .miss => return .no_match,
+                }
             },
             'J' => {
                 ii = scan_skip_ws(input, ii);
                 const r = scan_read_int(input, ii, 12, true) orelse return .no_match;
                 st.have_julian = true;
                 st.julian = r.v;
+                st.last_epoch = .julian;
                 ii = r.i;
             },
             'Y' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 4, true) orelse return .no_match;
-                st.have_year = true;
-                st.year = @intCast(r.v);
-                ii = r.i;
+                if (roman_e) {
+                    const r = read_roman(input, ii) orelse return .no_match;
+                    st.have_year = true;
+                    st.year = @intCast(r.v);
+                    ii = r.i;
+                } else {
+                    const r = scan_read_int(input, ii, 4, true) orelse return .no_match;
+                    st.have_year = true;
+                    st.year = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'y' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                st.have_year2 = true;
-                st.year2 = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    const r = read_roman(input, ii) orelse return .no_match;
+                    st.have_year2 = true;
+                    st.year2 = @intCast(r.v);
+                    ii = r.i;
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    st.have_year2 = true;
+                    st.year2 = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'C' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                st.have_century = true;
-                st.century = @intCast(r.v);
-                ii = r.i;
+                if (roman_e) {
+                    const r = read_roman(input, ii) orelse return .no_match;
+                    st.have_century = true;
+                    // ``%EC`` reads as a multiple of 100 (e.g. ``mdccc``
+                    // → 1800), so divide before storing.
+                    st.century = @intCast(@divFloor(r.v, 100));
+                    ii = r.i;
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    st.have_century = true;
+                    st.century = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'm', 'N' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                if (r.v < 1 or r.v > 12) return .no_match;
-                st.have_month = true;
-                st.month = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    const r = read_roman(input, ii) orelse return .no_match;
+                    if (r.v < 1 or r.v > 12) return .no_match;
+                    st.have_month = true;
+                    st.month = @intCast(r.v);
+                    ii = r.i;
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    if (r.v < 1 or r.v > 12) return .no_match;
+                    st.have_month = true;
+                    st.month = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'b', 'B', 'h' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_match_month(input, ii) orelse return .no_match;
-                st.have_month = true;
-                st.month = r.m;
-                ii = r.i;
+                if (scan_match_month(input, ii)) |r| {
+                    st.have_month = true;
+                    st.month = r.m;
+                    ii = r.i;
+                } else if (loc == .en_us_roman) {
+                    // ``en_US_roman`` accepts any unambiguous 2-letter
+                    // month prefix (``ja`` / ``au`` / etc.).  The
+                    // ambiguous prefixes (``j`` matches Jan/Jun/Jul,
+                    // ``ma`` matches Mar/May, ``a`` matches Apr/Aug)
+                    // need ``-locale`` resolution that we don't ship;
+                    // they fail the parse here instead of guessing.
+                    const r = scan_match_month_prefix(input, ii) orelse return .no_match;
+                    st.have_month = true;
+                    st.month = r.m;
+                    ii = r.i;
+                } else {
+                    return .no_match;
+                }
             },
             'd', 'e' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                if (r.v < 1 or r.v > 31) return .no_match;
-                st.have_day = true;
-                st.day = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    const r = read_roman(input, ii) orelse return .no_match;
+                    if (r.v < 1 or r.v > 31) return .no_match;
+                    st.have_day = true;
+                    st.day = @intCast(r.v);
+                    ii = r.i;
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    if (r.v < 1 or r.v > 31) return .no_match;
+                    st.have_day = true;
+                    st.day = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'j' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 3, false) orelse return .no_match;
-                if (r.v < 1 or r.v > 366) return .no_match;
-                ii = r.i;
-                // day-of-year not currently fed into pack_epoch — when
-                // both %m/%d and %j are present, %m/%d wins (matches
-                // strptime).  Future enhancement: derive month/day
-                // from yday when no explicit month/day given.
+                if (ext_E) {
+                    // ``%Ej`` — astronomical Julian day with optional
+                    // fractional part.  Stored as integer day +
+                    // partial-day seconds so we don't accumulate f64
+                    // rounding error at large JDs.  Astronomical
+                    // convention anchors noon at JD .0 (so .5
+                    // = midnight of the next Gregorian day).
+                    const r = scan_read_int(input, ii, 12, true) orelse return .no_match;
+                    var jdn = r.v;
+                    var aj_secs: i64 = @divFloor(SECS_PER_DAY, 2);
+                    var ki = r.i;
+                    if (ki < input.len and input[ki] == '.') {
+                        ki += 1;
+                        var frac_num: i64 = 0;
+                        var frac_den: i64 = 1;
+                        var fdigits: usize = 0;
+                        while (ki < input.len and input[ki] >= '0' and input[ki] <= '9' and fdigits < 6) : (ki += 1) {
+                            frac_num = frac_num * 10 + (input[ki] - '0');
+                            frac_den *= 10;
+                            fdigits += 1;
+                        }
+                        while (ki < input.len and input[ki] >= '0' and input[ki] <= '9') : (ki += 1) {}
+                        const total_secs_in_day: i64 = SECS_PER_DAY;
+                        const half: i64 = @divFloor(total_secs_in_day, 2);
+                        const frac_secs = @divFloor(frac_num * total_secs_in_day, frac_den);
+                        var combined = frac_secs + half;
+                        while (combined >= total_secs_in_day) {
+                            combined -= total_secs_in_day;
+                            jdn += 1;
+                        }
+                        aj_secs = combined;
+                    }
+                    st.have_astro_julian = true;
+                    st.aj_day = jdn;
+                    st.aj_secs = aj_secs;
+                    st.last_epoch = .astro_julian;
+                    ii = ki;
+                } else {
+                    const r = scan_read_int(input, ii, 3, false) orelse return .no_match;
+                    if (r.v < 1 or r.v > 366) return .no_match;
+                    ii = r.i;
+                    // day-of-year not currently fed into pack_epoch.
+                }
             },
             'H', 'k' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                if (r.v < 0 or r.v > 23) return .no_match;
-                st.have_hour = true;
-                st.hour_is_12 = false;
-                st.hour = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    if (ii < input.len and input[ii] == '?') {
+                        ii += 1;
+                        st.have_hour = true;
+                        st.hour_is_12 = false;
+                        st.hour = 0;
+                    } else {
+                        const r = read_roman(input, ii) orelse return .no_match;
+                        if (r.v < 0 or r.v > 23) return .no_match;
+                        st.have_hour = true;
+                        st.hour_is_12 = false;
+                        st.hour = @intCast(r.v);
+                        ii = r.i;
+                    }
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    if (r.v < 0 or r.v > 23) return .no_match;
+                    st.have_hour = true;
+                    st.hour_is_12 = false;
+                    st.hour = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'I', 'l' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                if (r.v < 1 or r.v > 12) return .no_match;
-                st.have_hour = true;
-                st.hour_is_12 = true;
-                st.hour = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    const r = read_roman(input, ii) orelse return .no_match;
+                    if (r.v < 1 or r.v > 12) return .no_match;
+                    st.have_hour = true;
+                    st.hour_is_12 = true;
+                    st.hour = @intCast(r.v);
+                    ii = r.i;
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    if (r.v < 1 or r.v > 12) return .no_match;
+                    st.have_hour = true;
+                    st.hour_is_12 = true;
+                    st.hour = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'M' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                if (r.v < 0 or r.v > 59) return .no_match;
-                st.have_minute = true;
-                st.minute = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    if (ii < input.len and input[ii] == '?') {
+                        ii += 1;
+                        st.have_minute = true;
+                        st.minute = 0;
+                    } else {
+                        const r = read_roman(input, ii) orelse return .no_match;
+                        if (r.v < 0 or r.v > 59) return .no_match;
+                        st.have_minute = true;
+                        st.minute = @intCast(r.v);
+                        ii = r.i;
+                    }
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    if (r.v < 0 or r.v > 59) return .no_match;
+                    st.have_minute = true;
+                    st.minute = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'S' => {
                 ii = scan_skip_ws(input, ii);
-                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
-                if (r.v < 0 or r.v > 60) return .no_match;
-                st.have_second = true;
-                st.second = @intCast(r.v);
-                ii = r.i;
+                if (roman_o) {
+                    if (ii < input.len and input[ii] == '?') {
+                        ii += 1;
+                        st.have_second = true;
+                        st.second = 0;
+                    } else {
+                        const r = read_roman(input, ii) orelse return .no_match;
+                        if (r.v < 0 or r.v > 60) return .no_match;
+                        st.have_second = true;
+                        st.second = @intCast(r.v);
+                        ii = r.i;
+                    }
+                } else {
+                    const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                    if (r.v < 0 or r.v > 60) return .no_match;
+                    st.have_second = true;
+                    st.second = @intCast(r.v);
+                    ii = r.i;
+                }
             },
             'p', 'P' => {
                 ii = scan_skip_ws(input, ii);
@@ -1324,16 +1857,21 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState) ScanFormatErr 
             },
             'z' => {
                 ii = scan_skip_ws(input, ii);
-                if (ii < input.len and (input[ii] == 'Z' or input[ii] == 'z')) {
+                if (ii >= input.len) {
+                    // ``%z`` at the very end with no input left
+                    // — treat as missing zone (clock-6.18 case
+                    // ``2009-06-30T18:30:00`` against ``%...%z``).
+                } else if (input[ii] == 'Z' or input[ii] == 'z') {
                     st.have_zone = true;
                     st.zone_offset = 0;
                     ii += 1;
-                } else {
+                } else if (input[ii] == '+' or input[ii] == '-') {
                     const r = scan_match_zone_offset(input, ii) orelse return .no_match;
                     st.have_zone = true;
                     st.zone_offset = r.off;
                     ii = r.i;
                 }
+                // Anything else: zone is optional, skip silently.
             },
             'Z' => {
                 ii = scan_skip_ws(input, ii);
@@ -1357,14 +1895,58 @@ fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState) ScanFormatErr 
 /// to 1970-01-01 00:00:00 when not provided — matches tclsh's
 /// "missing fields zero out" behaviour.
 fn scan_resolve(st: *const ScanState) ?i64 {
-    if (st.have_seconds) return st.seconds;
-    if (st.have_julian) {
-        // JD 2440588 is 1970-01-01 UTC.
-        const jd_unix: i64 = 2440588;
-        const days = st.julian - jd_unix;
-        const m = @mulWithOverflow(days, @as(i64, SECS_PER_DAY));
-        if (m[1] != 0) return null;
-        return m[0];
+    // ``%s`` / ``%J`` / ``%Ej`` are all "absolute epoch" specs.
+    // Tcl's reference applies a precedence here:
+    //
+    //   * ``%s`` (epoch seconds) outranks ``%J`` (calendar Julian day)
+    //     — clock-7.8 ``{%J %s}`` returns the seconds value regardless
+    //     of order.
+    //   * ``%s`` and ``%Ej`` (astronomical Julian) are equal-rank;
+    //     last-wins by scan order — clock-7.18.
+    //   * ``%J`` and ``%Ej`` follow the same rule pair-wise.
+    //
+    // We encode this by giving ``%s`` priority over plain ``%J``,
+    // and using ``last_epoch`` as the tiebreaker between any other
+    // pair.  ``last_epoch`` defaults to ``.none``; in that case fall
+    // through to the calendar pack.
+    const have_any_epoch = st.have_seconds or st.have_julian or st.have_astro_julian;
+    if (have_any_epoch) {
+        // Decide which field wins.
+        var winner: EpochField = .none;
+        if (st.have_seconds and !st.have_astro_julian) {
+            winner = .seconds;
+        } else if (st.have_astro_julian and !st.have_seconds and !st.have_julian) {
+            winner = .astro_julian;
+        } else if (st.have_julian and !st.have_seconds and !st.have_astro_julian) {
+            winner = .julian;
+        } else {
+            // Mixed set — last wins.
+            winner = st.last_epoch;
+            // ``%s`` always beats plain ``%J`` regardless of order.
+            if (st.have_seconds and st.have_julian and !st.have_astro_julian) {
+                winner = .seconds;
+            }
+        }
+        return switch (winner) {
+            .seconds => st.seconds,
+            .astro_julian => blk: {
+                const jd_unix: i64 = 2440588;
+                const days = st.aj_day - jd_unix;
+                const m = @mulWithOverflow(days, @as(i64, SECS_PER_DAY));
+                if (m[1] != 0) break :blk null;
+                const a = @addWithOverflow(m[0], st.aj_secs);
+                if (a[1] != 0) break :blk null;
+                break :blk a[0];
+            },
+            .julian => blk: {
+                const jd_unix: i64 = 2440588;
+                const days = st.julian - jd_unix;
+                const m = @mulWithOverflow(days, @as(i64, SECS_PER_DAY));
+                if (m[1] != 0) break :blk null;
+                break :blk m[0];
+            },
+            .none => null,
+        };
     }
     var year: i32 = 1970;
     if (st.have_year) {
@@ -1389,44 +1971,108 @@ fn scan_resolve(st: *const ScanState) ?i64 {
     return pack_epoch(year, month, day, hour, minute, second);
 }
 
+/// Raise a Tcl error with explicit ``::errorCode`` matching reference
+/// Tcl's clock-side diagnostics (``CLOCK badInputString`` /
+/// ``CLOCK dateTooLarge``).  The message + code pair is what
+/// ``catch ... opt; dict get $opt -errorcode`` observes.
+fn raise_clock_error(msg: []const u8, code: []const u8) void {
+    const obj_new_string_copy = obj.obj_new_string_copy;
+    const msg_obj = obj_new_string_copy(@intCast(@intFromPtr(msg.ptr)), @intCast(msg.len));
+    const code_obj = obj_new_string_copy(@intCast(@intFromPtr(code.ptr)), @intCast(code.len));
+    const tcl_catch = @import("../interp/tcl_catch.zig");
+    tcl_catch.tcl_cmd_error_full(msg_obj, 0, code_obj);
+}
+
 /// clock_scan_format — strftime-driven scan.  Returns a TclObj integer
-/// holding the resolved epoch, or zero on parse failure (matches the
-/// degraded-path behaviour of :func:`clock_scan_obj` — the upstream
-/// reference raises ``CLOCK badInputString`` here, which we don't
-/// surface yet).
+/// holding the resolved epoch.  On failure the error path through
+/// ``catch_mod.tcl_cmd_error_full`` stamps ``::errorCode`` with the
+/// reference Tcl values (``CLOCK badInputString`` for parse misses,
+/// ``CLOCK dateTooLarge`` for arithmetic overflow); when called
+/// outside a ``catch`` the runtime traps with that message on stderr.
 pub export fn clock_scan_format(
     text_obj: i32,
     fmt_obj: i32,
     gmt_flag: i32,
     zone_obj: i32,
     base_obj: i32,
+    locale_obj: i32,
 ) i32 {
     _ = base_obj; // base only matters when format-less; format path
     // explicitly fills every field it cares about.
-    if (text_obj == 0 or fmt_obj == 0) return obj_new_int(0);
+    if (text_obj == 0 or fmt_obj == 0) {
+        raise_clock_error("input string does not match supplied format", "CLOCK badInputString");
+        return obj_new_int(0);
+    }
     const t = obj_ensure_string(text_obj);
     const f = obj_ensure_string(fmt_obj);
-    if (t.ptr == 0 or t.len == 0) return obj_new_int(0);
-    if (f.ptr == 0 or f.len == 0) return obj_new_int(0);
+    if (t.ptr == 0 or t.len == 0 or f.ptr == 0 or f.len == 0) {
+        raise_clock_error("input string does not match supplied format", "CLOCK badInputString");
+        return obj_new_int(0);
+    }
     const tp: [*]const u8 = @ptrFromInt(t.ptr);
     const fp: [*]const u8 = @ptrFromInt(f.ptr);
     const text = tp[0..t.len];
     const fmt = fp[0..f.len];
 
+    const loc_slice: []const u8 = blk: {
+        if (locale_obj == 0) break :blk &[_]u8{};
+        const s = obj_ensure_string(locale_obj);
+        if (s.ptr == 0 or s.len == 0) break :blk &[_]u8{};
+        const p: [*]const u8 = @ptrFromInt(s.ptr);
+        break :blk p[0..s.len];
+    };
+    const loc = locale_from(loc_slice);
+
     var st = ScanState{};
-    const err = scan_drive(fmt, text, &st);
-    if (err != .none) return obj_new_int(0);
-    const local_epoch = scan_resolve(&st) orelse return obj_new_int(0);
+    const err = scan_drive(fmt, text, &st, loc);
+    switch (err) {
+        .none => {},
+        .no_match => {
+            raise_clock_error("input string does not match supplied format", "CLOCK badInputString");
+            return obj_new_int(0);
+        },
+        .overflow => {
+            raise_clock_error("integer value too large to represent", "CLOCK dateTooLarge");
+            return obj_new_int(0);
+        },
+    }
+    const local_epoch = scan_resolve(&st) orelse {
+        // Resolve failure is overflow (JD multiplied past i64) or
+        // an out-of-range calendar date.  Tag both as
+        // ``dateTooLarge`` — the upstream reference uses the same
+        // error code for either condition (``tclClockFmt.c``
+        // ``ClockScanFmt`` calls ``Tcl_SetObjResult`` with the
+        // generic message in both branches).
+        raise_clock_error("requested date too large to represent", "CLOCK dateTooLarge");
+        return obj_new_int(0);
+    };
+
+    // ``%J`` must reject inputs that would overflow the calendar
+    // window — clock-7.6 (``5373485``) and 7.7 (``2147483648``)
+    // expect the dateTooLarge error.
+    if (st.have_julian) {
+        const jd_max: i64 = 5373484; // last representable Gregorian day
+        const jd_min: i64 = -1095;   // far past the proleptic horizon
+        if (st.julian > jd_max or st.julian < jd_min) {
+            raise_clock_error("requested date too large to represent", "CLOCK dateTooLarge");
+            return obj_new_int(0);
+        }
+    }
+    if (st.have_seconds) {
+        // ``%s`` overflow is reported during the lexer pass; nothing
+        // extra to check here.  Fall through.
+    }
 
     if (st.have_zone) {
         return obj_new_int(local_epoch - @as(i64, st.zone_offset));
     }
     if (gmt_flag != 0) return obj_new_int(local_epoch);
 
-    // Epoch-style results (%s, %J) bypass zone math — they're already
-    // absolute UTC.  Calendar-only results need the zone offset
-    // applied once we know it.
-    if (st.have_seconds or st.have_julian) return obj_new_int(local_epoch);
+    // Epoch-style results (%s, %J, %Ej) bypass zone math — they're
+    // already absolute UTC.  Calendar-only results need the zone
+    // offset applied once we know it.
+    if (st.have_seconds or st.have_julian or st.have_astro_julian)
+        return obj_new_int(local_epoch);
 
     const zone_slice: []const u8 = blk: {
         if (zone_obj == 0) break :blk &[_]u8{};
@@ -1580,11 +2226,28 @@ pub export fn clock_add_pair(base_obj: i32, count_obj: i32, unit_obj: i32) i32 {
 /// clock_format_tz — timezone-aware ``clock format``.  ``zone_obj``
 /// is a TclObj holding the zone name (``UTC``, ``:America/New_York``,
 /// …); when it's zero / empty the resolver falls through to
-/// ``$TZ`` / ``/etc/localtime`` / UTC, in that order.
+/// ``$TZ`` / ``/etc/localtime`` / UTC, in that order.  Backwards-
+/// compatible 3-arg entry — calls into :func:`clock_format_tz_locale`
+/// with ``en_US``.
 pub export fn clock_format_tz(
     seconds_obj: i32,
     fmt_obj: i32,
     zone_obj: i32,
+) i32 {
+    return clock_format_tz_locale(seconds_obj, fmt_obj, zone_obj, 0);
+}
+
+/// clock_format_tz_locale — locale-aware ``clock format``.
+/// ``locale_obj`` is a TclObj holding the locale name; ``en_US_roman``
+/// drives the roman-numeral substitution path for ``%O*`` / ``%E*``
+/// specs and the alternate composite forms (``%Ec`` / ``%Ex`` /
+/// ``%EX``).  Any other value (including empty / null) is treated as
+/// ``en_US``.
+pub export fn clock_format_tz_locale(
+    seconds_obj: i32,
+    fmt_obj: i32,
+    zone_obj: i32,
+    locale_obj: i32,
 ) i32 {
     const default_fmt = "%a %b %e %H:%M:%S %Z %Y";
     const f = fmt_or_default(fmt_obj, default_fmt);
@@ -1602,6 +2265,13 @@ pub export fn clock_format_tz(
         tz.resolve(zone_slice);
     const off_info = z.offset_at(epoch);
     const local = break_down(epoch + @as(i64, off_info.utoff));
-    return render_format(f.ptr, f.len, local, off_info.utoff, off_info.abbr);
+    const loc_slice: []const u8 = blk: {
+        if (locale_obj == 0) break :blk &[_]u8{};
+        const s = obj_ensure_string(locale_obj);
+        if (s.ptr == 0 or s.len == 0) break :blk &[_]u8{};
+        const p: [*]const u8 = @ptrFromInt(s.ptr);
+        break :blk p[0..s.len];
+    };
+    return render_format(f.ptr, f.len, local, off_info.utoff, off_info.abbr, locale_from(loc_slice));
 }
 
