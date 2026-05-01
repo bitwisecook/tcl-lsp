@@ -271,12 +271,15 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
             # is a plain string, not a $-substitution, so ``_vars_in_word``
             # misses it.  The registry's resolver attaches both
             # ``ArgRole.VAR_READ`` and ``ArgRole.VAR_WRITE`` to the same
-            # index, so a plain ``VAR_READ`` query finds it.
+            # index, so a plain ``VAR_READ`` query finds it.  Mark it as
+            # ``reads_own_def`` so the final filter doesn't drop it on the
+            # grounds that it's also a barrier def (issue #307).
             for idx in arg_indices_for_role(command, list(args), ArgRole.VAR_READ):
                 if 0 <= idx < len(args):
                     name = _normalise_var_name(args[idx])
                     if name:
                         vars_found.add(name)
+                        reads_own_def.add(name)
         case _:
             pass
 
