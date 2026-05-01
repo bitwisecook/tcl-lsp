@@ -4833,6 +4833,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
+    "test:multi-folder": "node ./out/test/runMultiFolderTest.js",
     "test:coverage": "mkdir -p ../../tmp/coverage/.v8-coverage-vscode ../../tmp/coverage/vscode && NODE_V8_COVERAGE=../../tmp/coverage/.v8-coverage-vscode node ./out/test/runTest.js && node scripts/coverage-report.cjs"
   },
   "devDependencies": {
