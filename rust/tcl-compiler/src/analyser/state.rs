@@ -1893,27 +1893,23 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w304_warns_for_literal_dash_first_positional() {
-        // To exercise the WARNING path on a literal value that
-        // genuinely lands at the first positional, use a command
-        // where the leading dash isn't intercepted by the option
-        // scan — e.g. ``unset`` after the option phase ends.  The
-        // explicit ``--`` clears the scanner; everything after is
-        // a positional, so ``-x`` reaches the OFF/INFO/WARN gate
-        // as a literal-starts-with-dash.  Note: this exercises
-        // the analyser's literal-dash WARN branch independently
-        // of the positional scanner's option-skip behaviour.
+    fn analyse_no_w304_for_exec_literal_dash_after_first_positional() {
+        // ``exec foo -bad`` — ``first_positional_without_terminator``
+        // treats ``foo`` (index 0) as the first positional, so the
+        // OFF gate suppresses W304 there (non-dynamic, doesn't start
+        // with ``-``).  The later literal ``-bad`` is not
+        // re-considered as a candidate "first positional" argument,
+        // so no diagnostic fires.
         //
-        // (The Python check has the same shape — the WARN branch
-        // is reachable via the ``looks_like_option && !is_dynamic``
-        // arm at ``_style.py:622-627``.)
+        // This pins the scanner / first-positional behaviour for
+        // ``exec`` rather than exercising the literal-dash WARN
+        // branch.  The WARN branch is covered by
+        // `analyse_emits_w304_for_regexp_literal_dash_pattern`
+        // (literal pattern starting with `-`) and
+        // `analyse_w304_constant_propagation_dash_value_warns`
+        // (variable resolved via constant-prop to a `-`-prefixed
+        // value).
         let diags = w304_diags("exec foo -bad\n");
-        // ``-bad`` is at index 1 (after ``foo``), but the scanner
-        // treats it as an unknown option and looks for a further
-        // positional — there is none, so no diagnostic fires.
-        // This documents the option-skip behaviour rather than
-        // exercising the literal-dash WARN arm; the OFF gate in
-        // the analyser is exercised separately above.
         assert!(diags.is_empty(), "got {diags:?}");
     }
 

@@ -4,7 +4,7 @@
 //! every consumer. Supports dialect filtering and trait-membership
 //! queries.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
@@ -261,13 +261,25 @@ impl CommandRegistry {
     ///
     /// Drives the W304 ("missing option terminator") diagnostic — the
     /// returned `scan_start` index, `subcommand` label, and
-    /// `options_with_values` set tell the caller where to start
-    /// scanning for the first positional argument and which option
-    /// names consume a following value (so they're not mistaken for
-    /// positionals).  `warn_without_terminator` lifts the
+    /// `options` slice tell the caller where to start scanning for
+    /// the first positional argument and which option specs to
+    /// consult for value-consuming options (so they're not mistaken
+    /// for positionals).  Returning a borrowed `&'static [OptionSpec]`
+    /// rather than a freshly-allocated `HashSet` keeps the resolver
+    /// allocation-free on the analyser hot path; per-command option
+    /// counts are small (typically 1-3 value-consuming options per
+    /// command), so a linear scan at the call site is cheaper than
+    /// a `HashSet` build.
+    ///
+    /// `warn_without_terminator` lifts the
     /// [`Traits::WARN_WITHOUT_TERMINATOR`] flag from the matched
-    /// command spec — when true, W304 fires even for non-dynamic
-    /// positional values that don't start with `-` (e.g. `regexp`).
+    /// command spec and surfaces it on `ResolvedTerminator` for
+    /// parity with the Python registry, but the current Rust W304
+    /// emitter does not consume it (mirroring Python's
+    /// `_style.py`, which also stores but never reads it).  Kept
+    /// on the resolver for future emit logic and so the registry
+    /// API doesn't need to change when consumers start gating on
+    /// it.
     #[must_use]
     pub fn resolve_option_terminator(
         &self,
@@ -287,11 +299,10 @@ impl CommandRegistry {
         if let Some(first) = args.first() {
             if let Some(sub) = spec.subcommand(first) {
                 if sub.options.iter().any(|o| o.name == "--") {
-                    let owv = collect_options_with_values(sub.options);
                     return Some(ResolvedTerminator {
                         scan_start: 1,
                         subcommand: Some(sub.name),
-                        options_with_values: owv,
+                        options: sub.options,
                         warn_without_terminator: warn_flag,
                     });
                 }
@@ -303,11 +314,10 @@ impl CommandRegistry {
         // level (single set per spec) so we consult that directly
         // when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
-            let owv = collect_options_with_values(spec.options);
             return Some(ResolvedTerminator {
                 scan_start: 0,
                 subcommand: None,
-                options_with_values: owv,
+                options: spec.options,
                 warn_without_terminator: warn_flag,
             });
         }
@@ -364,22 +374,13 @@ impl CommandRegistry {
     }
 }
 
-/// Collect option names whose [`OptionSpec::takes_value`] is `true`.
-fn collect_options_with_values(
-    options: &'static [crate::hover::OptionSpec],
-) -> HashSet<&'static str> {
-    options
-        .iter()
-        .filter(|o| o.takes_value)
-        .map(|o| o.name)
-        .collect()
-}
-
 /// Resolved option-terminator profile for a command invocation.
 ///
 /// Returned by [`CommandRegistry::resolve_option_terminator`].  Drives
-/// the W304 ("missing option terminator") diagnostic.
-#[derive(Debug, Clone)]
+/// the W304 ("missing option terminator") diagnostic.  Carries
+/// borrowed references into the registry's static spec table; do
+/// not retain across registry mutation.
+#[derive(Debug, Clone, Copy)]
 pub struct ResolvedTerminator {
     /// Index in the `args` slice where positional-argument scanning
     /// begins.  `0` for form-level matches; `1` for subcommand-scoped
@@ -388,16 +389,21 @@ pub struct ResolvedTerminator {
     /// Subcommand keyword that owns the `--` declaration, if the
     /// match was subcommand-scoped.  `None` for form-level matches.
     pub subcommand: Option<&'static str>,
-    /// Set of option names that consume a following value argument
-    /// (e.g. `-start <index>`).  Used by the positional-scan to skip
-    /// past option-value pairs when looking for the first positional.
-    pub options_with_values: HashSet<&'static str>,
+    /// Borrowed slice of every option declared on the matched
+    /// command (or subcommand).  Callers consult [`OptionSpec::takes_value`]
+    /// on each entry to determine whether an option name consumes a
+    /// following value argument — done at the call site to avoid the
+    /// per-resolve `HashSet` allocation a precomputed name set would
+    /// require.  Per-command counts are small; a linear scan is
+    /// cheaper than a heap-allocated set on the analyser hot path.
+    pub options: &'static [crate::hover::OptionSpec],
     /// Lifted from [`Traits::WARN_WITHOUT_TERMINATOR`] on the matched
-    /// command spec.  When true, W304 fires even for non-dynamic
-    /// positional values that don't start with `-` — e.g. `regexp`,
-    /// where the first positional is always interpreted as a regex
-    /// pattern and a literal regex-class that begins with `-` would
-    /// be mis-interpreted as an option.
+    /// command spec.  Surfaced here for parity with the Python
+    /// registry's `ResolvedTerminator`; the current Rust W304
+    /// emitter does not consume the flag (mirroring Python's
+    /// `_style.py`, which stores but never reads it).  Kept on the
+    /// type so future emit logic can gate on it without an API
+    /// change.
     pub warn_without_terminator: bool,
 }
 
@@ -737,8 +743,17 @@ mod tests {
         assert!(profile.subcommand.is_none());
         assert!(profile.warn_without_terminator);
         // ``-start`` takes a value; ``-nocase`` does not.
-        assert!(profile.options_with_values.contains("-start"));
-        assert!(!profile.options_with_values.contains("-nocase"));
+        // ``-start`` takes a value; ``-nocase`` does not.  The
+        // resolver returns the borrowed options slice; callers
+        // filter via ``OptionSpec::takes_value``.
+        assert!(profile
+            .options
+            .iter()
+            .any(|o| o.name == "-start" && o.takes_value));
+        assert!(profile
+            .options
+            .iter()
+            .any(|o| o.name == "-nocase" && !o.takes_value));
     }
 
     #[test]
