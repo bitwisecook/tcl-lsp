@@ -156,6 +156,24 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_arith_mul": ("tcl", "tcl_arith_mul", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_div": ("tcl", "tcl_arith_div", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_arith_mod": ("tcl", "tcl_arith_mod", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Bitwise / shift — strict integer domain.  Float operands raise
+    # ``cannot use floating-point value …``; negative shift counts
+    # raise ``negative shift argument``.  See issues #260, #261.
+    "tcl_arith_lshift": ("tcl", "tcl_arith_lshift", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_rshift": ("tcl", "tcl_arith_rshift", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_band": ("tcl", "tcl_arith_band", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_bor": ("tcl", "tcl_arith_bor", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_bxor": ("tcl", "tcl_arith_bxor", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_arith_bnot": ("tcl", "tcl_arith_bnot", [ValType.I32], [ValType.I32]),
+    # Float-preserving unary negation — keeps TYPE_FLOAT tag through
+    # ``-$x`` so the bitwise / shift domain checks downstream observe
+    # the float and raise the canonical error (Codex review on
+    # PR #287; issue #261).
+    "tcl_arith_neg": ("tcl", "tcl_arith_neg", [ValType.I32], [ValType.I32]),
+    # Strict ``incr`` helper — validates the variable's value as a
+    # strict integer (rejects float strings like ``"52.60"`` and
+    # boolean keywords) before adding the amount.  Issue #262.
+    "tcl_incr": ("tcl", "tcl_incr", [ValType.I32, ValType.I32], [ValType.I32]),
     # Math functions — called from expr codegen by name.
     "tcl_math_double": ("tcl", "tcl_math_double", [ValType.I32], [ValType.I32]),
     "tcl_math_int": ("tcl", "tcl_math_int", [ValType.I32], [ValType.I32]),

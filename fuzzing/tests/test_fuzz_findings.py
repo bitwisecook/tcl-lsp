@@ -1139,3 +1139,295 @@ class TestBatchWasmAcceptsIfElseElseif:
 
         data = json.loads((FINDINGS_DIR / f"seed_{seed}.json").read_text())
         assert data.get("fixed") is True, f"seed {seed}: finding JSON not marked fixed (issue #259)"
+
+
+class TestBatch7WasmAcceptsNegativeShift:
+    """WASM backend silently completed scripts with negative shift counts.
+
+    Issue #260.  The WASM expression emitter inlined ``i64.shl`` /
+    ``i64.shr_s`` directly, which mask the shift count by 63 — so
+    ``expr {91 >> -41}`` silently returned a wrap-around result
+    instead of raising ``negative shift argument`` like the VM and
+    reference Tcl do.  The fix added ``tcl_arith_lshift`` /
+    ``tcl_arith_rshift`` runtime helpers that validate the count and
+    routed the bitwise emit path through them.
+    """
+
+    SEEDS = (1774200003,)
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_wasm_errors_on_negative_shift(self, seed: int) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_wasm(source, timeout=5.0)
+        assert result.return_code == 1, (
+            f"seed {seed}: wasm did not surface a Tcl-level error on a "
+            f"script with a negative shift count — issue #260 (rc="
+            f"{result.return_code}, err={result.error_message!r})"
+        )
+
+    def test_rshift_negative(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("expr {91 >> -41}\n")
+        assert result.return_code == 1
+        assert "negative shift argument" in (result.error_message or "")
+
+    def test_lshift_negative(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("expr {37 << -25}\n")
+        assert result.return_code == 1
+        assert "negative shift argument" in (result.error_message or "")
+
+    def test_ternary_folded_negative_shift(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("expr {(-39 >> (98 ? -72 : -76))}\n")
+        assert result.return_code == 1
+        assert "negative shift argument" in (result.error_message or "")
+
+
+class TestBatch7WasmAcceptsFloatBitwise:
+    """WASM backend silently truncated floats in bitwise / shift ops.
+
+    Issue #261.  The expression emitter's inline ``i64.and`` / ``i64.or``
+    / ``i64.xor`` / ``i64.shl`` / ``i64.shr_s`` / ``x ^ -1`` paths
+    accepted any operand by silently truncating it to ``int(float)``;
+    the VM and reference Tcl reject floats with
+    ``cannot use floating-point value "X" as <position> operand of "OP"``.
+    The fix added ``tcl_arith_band`` / ``tcl_arith_bor`` /
+    ``tcl_arith_bxor`` / ``tcl_arith_lshift`` / ``tcl_arith_rshift`` /
+    ``tcl_arith_bnot`` helpers that check the operand tag.
+    """
+
+    SEEDS = (1774200031, 1774200035, 1774200087)
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_wasm_errors_on_float_bitwise(self, seed: int) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_wasm(source, timeout=5.0)
+        assert result.return_code == 1, (
+            f"seed {seed}: wasm did not surface a Tcl-level error on a "
+            f"script with a float bitwise/shift operand — issue #261 "
+            f"(rc={result.return_code}, err={result.error_message!r})"
+        )
+        # Some full-seed scripts hit an unrelated error (e.g. ``no such
+        # variable`` from the issue #263 fix) before reaching the
+        # bitwise op; the ``error_status`` match in the differential
+        # harness only requires both backends to error, not match
+        # message exactly.  The targeted unit tests below pin the
+        # specific message wording.
+
+    def test_unary_bitnot_rejects_float(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("expr {~ -38.6}\n")
+        assert result.return_code == 1
+        assert 'cannot use floating-point value "-38.6" as operand of "~"' in (
+            result.error_message or ""
+        )
+
+    def test_bitand_rejects_float_right(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("expr {99 & 70.34}\n")
+        assert result.return_code == 1
+        assert 'cannot use floating-point value "70.34" as right operand of "&"' in (
+            result.error_message or ""
+        )
+
+    def test_lshift_rejects_float_left(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("expr {-23.55 << 4}\n")
+        assert result.return_code == 1
+        assert 'cannot use floating-point value "-23.55" as left operand of "<<"' in (
+            result.error_message or ""
+        )
+
+    def test_lshift_rejects_negated_float_var(self) -> None:
+        """Codex review on PR #287 — ``(-$x) << 1`` with float-string var.
+
+        The earlier patch only preserved the float tag through ``-floatlit``
+        (a literal negation); ``-$x`` of a variable holding ``"23.55"``
+        was emitted as ``0 - x`` on i64 and re-boxed as TYPE_INT,
+        bypassing the float-operand domain check.  The fix routes the
+        ``ExprUnary(NEG)`` operand through ``tcl_arith_neg`` which
+        preserves the TYPE_FLOAT tag for any operand shape.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set x 23.55\nexpr {(-$x) << 1}\n")
+        assert result.return_code == 1
+        assert "floating-point" in (result.error_message or "")
+        assert '"-23.55"' in (result.error_message or "")
+
+    def test_bnot_rejects_negated_float_var(self) -> None:
+        """Codex review on PR #287 — ``~(-$x)`` with float-string var."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set x 23.55\nexpr {~(-$x)}\n")
+        assert result.return_code == 1
+        assert "floating-point" in (result.error_message or "")
+        assert '"-23.55"' in (result.error_message or "")
+
+
+class TestBatch7WasmAcceptsFloatAsInteger:
+    """WASM backend silently truncated float strings in strict-integer ops.
+
+    Issue #262.  ``incr`` is a strict-integer command; the VM rejects
+    a value whose string spells a float (``"52.60"``) with
+    ``expected integer but got "52.60"``.  The WASM emitter's inlined
+    ``IRIncr`` path called ``obj_get_int`` directly, which silently
+    truncates ``"52.60"`` to ``52`` and lets the counter advance — a
+    runaway-loop driver in the differential fuzzer's ``wasm-timeout``
+    cluster.  The fix routes ``IRIncr`` through ``tcl_incr`` and adds
+    a strict-integer guard there.
+    """
+
+    SEEDS = (1774200084,)
+
+    @pytest.mark.parametrize("seed", SEEDS)
+    def test_wasm_errors_on_float_in_incr(self, seed: int) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_wasm(source, timeout=5.0)
+        assert result.return_code == 1, (
+            f"seed {seed}: wasm did not surface a Tcl-level error on a "
+            f"script that runs ``incr`` against a float string — "
+            f"issue #262 (rc={result.return_code}, "
+            f"err={result.error_message!r})"
+        )
+        assert "expected integer" in (result.error_message or ""), (
+            f"seed {seed}: wasm errored but not on the float-as-integer "
+            f"path — issue #262 expects ``expected integer`` in the "
+            f"message (rc={result.return_code}, "
+            f"err={result.error_message!r})"
+        )
+
+    def test_incr_rejects_float_string(self) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set i 52.60\nincr i\n")
+        assert result.return_code == 1
+        assert 'expected integer but got "52.60"' in (result.error_message or "")
+
+    def test_incr_accepts_int_string(self) -> None:
+        """Non-regression: ordinary integer strings still increment cleanly."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set i 5\nincr i\nputs $i\n")
+        assert result.return_code == 0
+        assert result.stdout.strip() == "6"
+
+    def test_incr_rejects_empty_string(self) -> None:
+        """Copilot review on PR #287: ``incr ""`` must reject.
+
+        The earlier char-whitelist parser returned ``true`` for empty
+        strings because the post-whitespace digit-check loop ran zero
+        iterations and fell through to ``return true``.  ``obj_get_int``
+        then silently returned 0 and ``incr`` advanced — masking the
+        canonical ``expected integer but got ""`` error.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm('set i ""\nincr i\n')
+        assert result.return_code == 1
+        assert 'expected integer but got ""' in (result.error_message or "")
+
+    def test_incr_rejects_alpha_string(self) -> None:
+        """Copilot review on PR #287: ``incr abc``/``incr deadbeef`` must reject.
+
+        The earlier char-whitelist accepted any byte in
+        ``[0-9a-fA-FxXoOb]`` unconditionally, so alpha-only strings
+        like ``"abc"`` and ``"deadbeef"`` (every byte is a hex digit)
+        slipped through and ``obj_get_int`` silently returned 0.
+        """
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        for value in ("abc", "deadbeef", "xyz"):
+            result = run_wasm(f"set i {value}\nincr i\n")
+            assert result.return_code == 1, (
+                f"incr {value!r} did not error (rc={result.return_code}, "
+                f"err={result.error_message!r})"
+            )
+            assert f'expected integer but got "{value}"' in (result.error_message or "")
+
+    def test_incr_rejects_whitespace_only(self) -> None:
+        """Copilot review on PR #287: whitespace-only string must reject."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm('set i "   "\nincr i\n')
+        assert result.return_code == 1
+        assert "expected integer" in (result.error_message or "")
+
+    def test_incr_rejects_boolean(self) -> None:
+        """Copilot review on PR #287 (also issue #262 family): boolean strings must reject."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        for value in ("yes", "no", "true", "false"):
+            result = run_wasm(f"set i {value}\nincr i\n")
+            assert result.return_code == 1, (
+                f"incr {value!r} did not error (rc={result.return_code}, "
+                f"err={result.error_message!r})"
+            )
+            assert f'expected integer but got "{value}"' in (result.error_message or "")
+
+    def test_incr_accepts_int_with_whitespace(self) -> None:
+        """Non-regression: integer with leading/trailing whitespace still increments."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm('set i "  5  "\nincr i\nputs $i\n')
+        assert result.return_code == 0
+        assert result.stdout.strip() == "6"
+
+    def test_incr_accepts_negative_int_string(self) -> None:
+        """Non-regression: negative integer strings still increment."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm("set i -5\nincr i\nputs $i\n")
+        assert result.return_code == 0
+        assert result.stdout.strip() == "-4"

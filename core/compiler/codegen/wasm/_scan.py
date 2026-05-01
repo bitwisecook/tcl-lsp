@@ -19,6 +19,7 @@ from ...expr_ast import (
     ExprTernary,
     ExprUnary,
     ExprVar,
+    UnaryOp,
 )
 from ...ir import (
     IRAssignConst,
@@ -69,6 +70,23 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
         BinOp.DIV: "tcl_arith_div",
         BinOp.MOD: "tcl_arith_mod",
     }
+    # Bitwise / shift — strict integer domain (issues #260, #261).
+    _BITWISE_OPS = frozenset(
+        {
+            BinOp.LSHIFT,
+            BinOp.RSHIFT,
+            BinOp.BIT_AND,
+            BinOp.BIT_OR,
+            BinOp.BIT_XOR,
+        }
+    )
+    _BITWISE_IMPORT = {
+        BinOp.LSHIFT: "tcl_arith_lshift",
+        BinOp.RSHIFT: "tcl_arith_rshift",
+        BinOp.BIT_AND: "tcl_arith_band",
+        BinOp.BIT_OR: "tcl_arith_bor",
+        BinOp.BIT_XOR: "tcl_arith_bxor",
+    }
     _MATH_FUNC_IMPORT = {
         "log": "tcl_math_log",
         "sqrt": "tcl_math_sqrt",
@@ -104,11 +122,42 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add("tcl_obj_get_int")
                     needed.add("tcl_obj_new_int")
                     needed.add("tcl_obj_new_float")
+                if op in _BITWISE_OPS:
+                    imp = _BITWISE_IMPORT.get(op)
+                    if imp:
+                        needed.add(imp)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    # Bitwise helpers reject float operands by inspecting
+                    # the runtime tag — operands must be passed as
+                    # TYPE_FLOAT TclObjs (not silently truncated to int).
+                    # ``_emit_obj_literal_for_expr`` boxes a float literal
+                    # via ``tcl_obj_new_float`` when the import is
+                    # registered; without it, a literal like ``70.34``
+                    # falls back to ``int(70.34) = 70`` and the runtime
+                    # never sees the float — issue #261.
+                    needed.add("tcl_obj_new_float")
+                    # ``tcl_arith_neg`` preserves the float tag through
+                    # ``-$x`` so a downstream bitwise op still sees a
+                    # TYPE_FLOAT operand and raises the canonical
+                    # ``cannot use floating-point value …`` error.
+                    needed.add("tcl_arith_neg")
                 _walk(left)
                 _walk(right)
-            case ExprUnary(operand=operand):
+            case ExprUnary(op=uop, operand=operand):
+                if uop == UnaryOp.BIT_NOT:
+                    needed.add("tcl_arith_bnot")
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    # See note above — ``~`` rejects float operands and
+                    # needs the float-literal box import registered to
+                    # observe the float tag.
+                    needed.add("tcl_obj_new_float")
+                    # ``tcl_arith_neg`` keeps the float tag through
+                    # ``~(-$x)`` chains.
+                    needed.add("tcl_arith_neg")
                 _walk(operand)
-            case ExprTernary(cond=cond, true_expr=t, false_expr=f):
+            case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _walk(cond)
                 _walk(t)
                 _walk(f)
@@ -379,11 +428,35 @@ def _scan_needed_imports(
                     needed.add("tcl_obj_get_int")
                     needed.add("tcl_obj_new_int")
                     needed.add("tcl_obj_new_float")
+                if op in (BinOp.LSHIFT, BinOp.RSHIFT, BinOp.BIT_AND, BinOp.BIT_OR, BinOp.BIT_XOR):
+                    _BITWISE_IMPORT2 = {
+                        BinOp.LSHIFT: "tcl_arith_lshift",
+                        BinOp.RSHIFT: "tcl_arith_rshift",
+                        BinOp.BIT_AND: "tcl_arith_band",
+                        BinOp.BIT_OR: "tcl_arith_bor",
+                        BinOp.BIT_XOR: "tcl_arith_bxor",
+                    }
+                    bimp2 = _BITWISE_IMPORT2.get(op)
+                    if bimp2:
+                        needed.add(bimp2)
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    # See companion comment in ``_scan_expr_body_imports``
+                    # — float-literal box import is required for the
+                    # bitwise helpers to observe a TYPE_FLOAT operand.
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_arith_neg")
                 _scan_expr(left)
                 _scan_expr(right)
-            case ExprUnary(operand=operand):
+            case ExprUnary(op=uop, operand=operand):
+                if uop == UnaryOp.BIT_NOT:
+                    needed.add("tcl_arith_bnot")
+                    needed.add("tcl_obj_get_int")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_arith_neg")
                 _scan_expr(operand)
-            case ExprTernary(cond=cond, true_expr=t, false_expr=f):
+            case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _scan_expr(cond)
                 _scan_expr(t)
                 _scan_expr(f)
@@ -701,6 +774,11 @@ def _scan_needed_imports(
                 if isinstance(amount, str):
                     _scan_value(amount)
                     _scan_value_for_array_refs(amount)
+                # Issue #262: route through ``tcl_incr`` to get the
+                # strict-integer guard (rejects float strings like
+                # ``"52.60"`` rather than silently truncating).
+                needed.add("tcl_incr")
+                needed.add("tcl_obj_new_int")
             case IRExprEval(expr=expr):
                 _scan_expr(expr)
             case IRAssignExpr(name=name, expr=expr):

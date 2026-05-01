@@ -820,6 +820,28 @@ class _WasmEmitterOptMixin(_Base):
                 # Emit incr keeping the new value (i32 TclObj) on stack.
                 # Alias-aware: reads/writes route through globals for
                 # upvar/variable-bound locals.
+                # Issue #262: route through ``tcl_incr`` to enforce the
+                # strict-integer guard.
+                incr_idx = self._shared_imports.get("tcl_incr")
+                if incr_idx is not None:
+                    self._emit_var_read_obj(last.name)
+                    if last.amount is None:
+                        self._emit_i64_const(1)
+                        self._emit_box_int()
+                    else:
+                        try:
+                            self._emit_i64_const(int(last.amount))
+                            self._emit_box_int()
+                        except ValueError:
+                            self._emit_value(last.amount)
+                    self._emit_call(incr_idx)
+                    if last.name in self._aliases:
+                        self._emit_var_write_obj_keep(last.name)
+                    else:
+                        idx = self._intern_local(last.name)
+                        self._emit_local_tee(idx)
+                    self._emit(WasmOp.RETURN)
+                    return
                 self._emit_var_read_obj(last.name)
                 self._emit_unbox_int()
                 amt = 1
