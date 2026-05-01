@@ -112,6 +112,7 @@ pub const MODE_WRITE: u32 = 2;
 
 const READ_BUF_SIZE: u32 = 4096;
 const MAX_CHANNELS: u32 = 64;
+const OPT_BUF_LEN: u32 = 16;
 
 const Channel = struct {
     in_use: bool,
@@ -122,12 +123,39 @@ const Channel = struct {
     translation: u32,
     encoding_binary: bool,
     buffering: u32,
+    // Per-option state retained for fconfigure query forms.  The
+    // setter side accepts any value; query renders these back as
+    // their canonical Tcl strings.  Defaults match what real tclsh
+    // 9.0 reports for a freshly-opened file channel.
+    blocking: bool,
+    buffersize: u32,
+    encoding_buf: [OPT_BUF_LEN]u8,
+    encoding_len: u8,
+    eofchar_buf: [OPT_BUF_LEN]u8,
+    eofchar_len: u8,
+    profile_buf: [OPT_BUF_LEN]u8,
+    profile_len: u8,
     // Pull-side buffer for gets/read.  Allocated lazily on first
     // read so unused channels don't reserve 4 KiB.
     buf_addr: u32,
     buf_pos: u32,
     buf_end: u32,
 };
+
+fn opt_buf(comptime s: []const u8) [OPT_BUF_LEN]u8 {
+    var b: [OPT_BUF_LEN]u8 = [_]u8{0} ** OPT_BUF_LEN;
+    inline for (s, 0..) |c, i| {
+        if (i < OPT_BUF_LEN) b[i] = c;
+    }
+    return b;
+}
+
+const DEFAULT_ENCODING = opt_buf("utf-8");
+const DEFAULT_ENCODING_LEN: u8 = 5;
+const DEFAULT_EOFCHAR = opt_buf("");
+const DEFAULT_EOFCHAR_LEN: u8 = 0;
+const DEFAULT_PROFILE = opt_buf("strict");
+const DEFAULT_PROFILE_LEN: u8 = 6;
 
 var channels: [MAX_CHANNELS]Channel = init: {
     var arr: [MAX_CHANNELS]Channel = undefined;
@@ -142,6 +170,14 @@ var channels: [MAX_CHANNELS]Channel = init: {
             .translation = TR_AUTO,
             .encoding_binary = false,
             .buffering = BUF_FULL,
+            .blocking = true,
+            .buffersize = 4096,
+            .encoding_buf = DEFAULT_ENCODING,
+            .encoding_len = DEFAULT_ENCODING_LEN,
+            .eofchar_buf = DEFAULT_EOFCHAR,
+            .eofchar_len = DEFAULT_EOFCHAR_LEN,
+            .profile_buf = DEFAULT_PROFILE,
+            .profile_len = DEFAULT_PROFILE_LEN,
             .buf_addr = 0,
             .buf_pos = 0,
             .buf_end = 0,
@@ -158,6 +194,14 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .translation = TR_AUTO,
         .encoding_binary = false,
         .buffering = BUF_NONE,
+        .blocking = true,
+        .buffersize = 4096,
+        .encoding_buf = DEFAULT_ENCODING,
+        .encoding_len = DEFAULT_ENCODING_LEN,
+        .eofchar_buf = DEFAULT_EOFCHAR,
+        .eofchar_len = DEFAULT_EOFCHAR_LEN,
+        .profile_buf = DEFAULT_PROFILE,
+        .profile_len = DEFAULT_PROFILE_LEN,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -171,6 +215,14 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .translation = TR_AUTO,
         .encoding_binary = false,
         .buffering = BUF_LINE,
+        .blocking = true,
+        .buffersize = 4096,
+        .encoding_buf = DEFAULT_ENCODING,
+        .encoding_len = DEFAULT_ENCODING_LEN,
+        .eofchar_buf = DEFAULT_EOFCHAR,
+        .eofchar_len = DEFAULT_EOFCHAR_LEN,
+        .profile_buf = DEFAULT_PROFILE,
+        .profile_len = DEFAULT_PROFILE_LEN,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -184,6 +236,14 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .translation = TR_AUTO,
         .encoding_binary = false,
         .buffering = BUF_NONE,
+        .blocking = true,
+        .buffersize = 4096,
+        .encoding_buf = DEFAULT_ENCODING,
+        .encoding_len = DEFAULT_ENCODING_LEN,
+        .eofchar_buf = DEFAULT_EOFCHAR,
+        .eofchar_len = DEFAULT_EOFCHAR_LEN,
+        .profile_buf = DEFAULT_PROFILE,
+        .profile_len = DEFAULT_PROFILE_LEN,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -370,6 +430,14 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
         .translation = TR_AUTO,
         .encoding_binary = false,
         .buffering = BUF_FULL,
+        .blocking = true,
+        .buffersize = 4096,
+        .encoding_buf = DEFAULT_ENCODING,
+        .encoding_len = DEFAULT_ENCODING_LEN,
+        .eofchar_buf = DEFAULT_EOFCHAR,
+        .eofchar_len = DEFAULT_EOFCHAR_LEN,
+        .profile_buf = DEFAULT_PROFILE,
+        .profile_len = DEFAULT_PROFILE_LEN,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -409,6 +477,14 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .translation = TR_AUTO,
         .encoding_binary = false,
         .buffering = BUF_FULL,
+        .blocking = true,
+        .buffersize = 4096,
+        .encoding_buf = DEFAULT_ENCODING,
+        .encoding_len = DEFAULT_ENCODING_LEN,
+        .eofchar_buf = DEFAULT_EOFCHAR,
+        .eofchar_len = DEFAULT_EOFCHAR_LEN,
+        .profile_buf = DEFAULT_PROFILE,
+        .profile_len = DEFAULT_PROFILE_LEN,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -850,21 +926,32 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
 
 // -- fconfigure --
 //
-// Applies translation / buffering / encoding settings to a real
-// channel.  Unknown options trap via :func:`stubs.unsupported` so
-// scripts that rely on (e.g.) ``-handshake`` get a clear error
-// instead of a silent no-op.
+// Three shapes, mirroring real Tcl:
 //
-// Supported options:
+//   1. ``fconfigure $fd``                       — query all options
+//      and return ``-name value`` pairs as a Tcl list.
+//   2. ``fconfigure $fd -opt``                  — query one option,
+//      return its current value.
+//   3. ``fconfigure $fd -opt val ?-opt val …?`` — set; returns "".
+//
+// Settable options:
 //   -translation auto|lf|cr|crlf|binary
 //   -buffering   full|line|none
-//   -encoding    utf-8|identity|binary
-//   -blocking    0|1            (always accepted; WASI is sync)
-//   -buffersize  N              (accepted, no effect)
-//   -eofchar     ...            (accepted, no effect)
-//   -profile     tcl8|...       (accepted, no effect)
+//   -encoding    arbitrary string (utf-8 / utf-16 / binary / …)
+//   -blocking    boolean (WASI is synchronous; tracked for query
+//                only)
+//   -buffersize  N
+//   -eofchar     character or 2-element list
+//   -profile     tcl8|replace|strict
+//
+// Queryable-only options (file fd):
+//   -error -mode -readable -writable
+//
+// Unknown options trap via :func:`stubs.unsupported` so scripts
+// that rely on (e.g.) ``-handshake`` get a clear error instead of a
+// silent no-op.
 
-fn is_accepted_option(p: [*]const u8, len: u32) bool {
+fn is_settable_option(p: [*]const u8, len: u32) bool {
     return eq(p, len, "-blocking") or
         eq(p, len, "-buffering") or
         eq(p, len, "-buffersize") or
@@ -872,6 +959,21 @@ fn is_accepted_option(p: [*]const u8, len: u32) bool {
         eq(p, len, "-eofchar") or
         eq(p, len, "-profile") or
         eq(p, len, "-translation");
+}
+
+fn is_queryable_option(p: [*]const u8, len: u32) bool {
+    return is_settable_option(p, len) or
+        eq(p, len, "-error") or
+        eq(p, len, "-mode") or
+        eq(p, len, "-readable") or
+        eq(p, len, "-writable");
+}
+
+fn copy_to_opt_buf(buf: *[OPT_BUF_LEN]u8, len_field: *u8, src: [*]const u8, src_len: u32) void {
+    var n: u32 = src_len;
+    if (n > OPT_BUF_LEN) n = OPT_BUF_LEN;
+    for (0..n) |i| buf[i] = src[i];
+    len_field.* = @intCast(n);
 }
 
 fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) void {
@@ -891,77 +993,273 @@ fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const
     }
     if (eq(name_p, name_len, "-encoding")) {
         c.encoding_binary = eq(val_p, val_len, "binary");
+        copy_to_opt_buf(&c.encoding_buf, &c.encoding_len, val_p, val_len);
+        return;
+    }
+    if (eq(name_p, name_len, "-blocking")) {
+        // Treat "0"/"false"/"no"/"off" as false; everything else
+        // (including the Tcl truthy spellings) as true.  WASI is
+        // synchronous so the value is only consulted by the query
+        // form; this matches the real-Tcl behaviour where the
+        // setter eats any boolean-shaped string.
+        c.blocking = !(eq(val_p, val_len, "0") or
+            eq(val_p, val_len, "false") or
+            eq(val_p, val_len, "no") or
+            eq(val_p, val_len, "off"));
+        return;
+    }
+    if (eq(name_p, name_len, "-buffersize")) {
+        if (parse_uint(val_p, val_len)) |v| c.buffersize = v;
+        return;
+    }
+    if (eq(name_p, name_len, "-eofchar")) {
+        copy_to_opt_buf(&c.eofchar_buf, &c.eofchar_len, val_p, val_len);
+        return;
+    }
+    if (eq(name_p, name_len, "-profile")) {
+        copy_to_opt_buf(&c.profile_buf, &c.profile_len, val_p, val_len);
         return;
     }
 }
 
-/// ``fconfigure $fd ?option value …?`` — channel-option setter.
-/// The args list is a flat space-separated stream of ``-opt val``
-/// pairs assembled by :file:`cmds/chan.zig:eval_fconfigure`.  Each
-/// option name is validated against the allowlist; unknown options
-/// trap with ``unsupported command: fconfigure`` so the caller can
-/// either drop the option or extend this allowlist.
+fn translation_str(t: u32) []const u8 {
+    return switch (t) {
+        TR_LF => "lf",
+        TR_CR => "cr",
+        TR_CRLF => "crlf",
+        TR_BINARY => "binary",
+        else => "auto",
+    };
+}
+
+fn buffering_str(b: u32) []const u8 {
+    return switch (b) {
+        BUF_LINE => "line",
+        BUF_NONE => "none",
+        else => "full",
+    };
+}
+
+fn append_str_buf(buf: *ByteBuf, s: []const u8) void {
+    for (s) |b| buf_push(buf, b);
+}
+
+fn append_decimal(buf: *ByteBuf, n: u32) void {
+    if (n == 0) {
+        buf_push(buf, '0');
+        return;
+    }
+    var digits: [10]u8 = undefined;
+    var dlen: u32 = 0;
+    var v: u32 = n;
+    while (v > 0) : (v /= 10) {
+        digits[dlen] = '0' + @as(u8, @intCast(v % 10));
+        dlen += 1;
+    }
+    var i: u32 = dlen;
+    while (i > 0) {
+        i -= 1;
+        buf_push(buf, digits[i]);
+    }
+}
+
+// Append ``s`` as a single Tcl list element.  Empty string renders
+// as ``{}``; values containing whitespace or braces get wrapped in
+// ``{ ... }``; everything else is emitted raw.  Sufficient for the
+// option values we actually round-trip (encoding names, eofchar,
+// profile), which never embed unbalanced braces.
+fn append_list_element(buf: *ByteBuf, s: []const u8) void {
+    if (s.len == 0) {
+        buf_push(buf, '{');
+        buf_push(buf, '}');
+        return;
+    }
+    var needs_braces = false;
+    for (s) |b| {
+        if (b == ' ' or b == '\t' or b == '\n' or b == '{' or b == '}') {
+            needs_braces = true;
+            break;
+        }
+    }
+    if (needs_braces) {
+        buf_push(buf, '{');
+        for (s) |b| buf_push(buf, b);
+        buf_push(buf, '}');
+    } else {
+        for (s) |b| buf_push(buf, b);
+    }
+}
+
+fn render_option_value(buf: *ByteBuf, c: *const Channel, name_p: [*]const u8, name_len: u32) void {
+    if (eq(name_p, name_len, "-blocking")) {
+        buf_push(buf, if (c.blocking) '1' else '0');
+    } else if (eq(name_p, name_len, "-buffering")) {
+        append_str_buf(buf, buffering_str(c.buffering));
+    } else if (eq(name_p, name_len, "-buffersize")) {
+        append_decimal(buf, c.buffersize);
+    } else if (eq(name_p, name_len, "-encoding")) {
+        append_str_buf(buf, c.encoding_buf[0..c.encoding_len]);
+    } else if (eq(name_p, name_len, "-eofchar")) {
+        append_list_element(buf, c.eofchar_buf[0..c.eofchar_len]);
+    } else if (eq(name_p, name_len, "-profile")) {
+        append_str_buf(buf, c.profile_buf[0..c.profile_len]);
+    } else if (eq(name_p, name_len, "-translation")) {
+        append_str_buf(buf, translation_str(c.translation));
+    } else if (eq(name_p, name_len, "-mode")) {
+        const r = (c.mode & MODE_READ) != 0;
+        const w = (c.mode & MODE_WRITE) != 0;
+        if (r and w) {
+            append_str_buf(buf, "RDWR");
+        } else if (r) {
+            append_str_buf(buf, "RDONLY");
+        } else if (w) {
+            append_str_buf(buf, "WRONLY");
+        }
+    } else if (eq(name_p, name_len, "-readable")) {
+        buf_push(buf, if ((c.mode & MODE_READ) != 0) '1' else '0');
+    } else if (eq(name_p, name_len, "-writable")) {
+        buf_push(buf, if ((c.mode & MODE_WRITE) != 0) '1' else '0');
+    }
+    // -error renders empty: we don't track per-channel I/O errors.
+}
+
+// All-options query — order matches real tclsh's
+// ``Tcl_FconfigureCmd`` output for file channels so ``dict get``
+// over the result behaves identically.
+const QUERY_ALL_OPTIONS = [_][]const u8{
+    "-blocking",
+    "-buffering",
+    "-buffersize",
+    "-encoding",
+    "-eofchar",
+    "-profile",
+    "-translation",
+};
+
+fn query_all(c: *const Channel) i32 {
+    var buf = buf_init(128);
+    inline for (QUERY_ALL_OPTIONS, 0..) |name, idx| {
+        if (idx > 0) buf_push(&buf, ' ');
+        append_str_buf(&buf, name);
+        buf_push(&buf, ' ');
+        render_option_value(&buf, c, name.ptr, @intCast(name.len));
+    }
+    return buf_finish(buf);
+}
+
+fn query_one(c: *const Channel, name_p: [*]const u8, name_len: u32) i32 {
+    if (!is_queryable_option(name_p, name_len)) {
+        stubs.unsupported("fconfigure (unsupported option)");
+        return 0;
+    }
+    var buf = buf_init(32);
+    render_option_value(&buf, c, name_p, name_len);
+    return buf_finish(buf);
+}
+
+const MAX_FCONFIGURE_WORDS: u32 = 32;
+
+/// ``fconfigure $fd ?option ?value? …?`` — query / set channel
+/// options.  The args list is the flat space-separated stream of
+/// remaining words assembled by :file:`cmds/chan.zig:eval_fconfigure`.
+/// Three shapes:
+///   * empty args      → return all options as ``-name value`` list.
+///   * single ``-opt`` → return that option's value.
+///   * ``-opt val`` …  → set; returns the empty string.
+/// Unknown options trap with ``unsupported command: fconfigure``.
 pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     const slot = resolve(fd) orelse {
         // Match the other channel commands' behaviour: an unknown
-        // channel id is a hard error, not a silent no-op.  Without
-        // this guard, ``fconfigure $bogusFd ...`` returned empty
-        // and any per-channel state mutation in the option list
-        // was discarded — masking caller bugs and breaking the
-        // script's expectation that unknown ids surface here.
+        // channel id is a hard error, not a silent no-op.
         stubs.raise("fconfigure: unknown channel");
         return 0;
     };
     const c: *Channel = &channels[slot];
-    if (args == 0) {
-        stubs.unsupported("fconfigure (query all options)");
-        return 0;
-    }
+    if (args == 0) return query_all(c);
     const a = obj_ensure_string(args);
-    if (a.len == 0) {
-        stubs.unsupported("fconfigure (query all options)");
-        return 0;
-    }
+    if (a.len == 0) return query_all(c);
     const ap: [*]const u8 = @ptrFromInt(a.ptr);
+
+    // Tokenize into words.  Braced groups are a single word; we
+    // strip the outer braces so option-value parsing sees the
+    // payload directly.
+    var word_start: [MAX_FCONFIGURE_WORDS]u32 = undefined;
+    var word_len: [MAX_FCONFIGURE_WORDS]u32 = undefined;
+    var n_words: u32 = 0;
     var pos: u32 = 0;
-    var name_start: u32 = 0;
-    var name_len: u32 = 0;
-    var parity: u32 = 0;
     while (pos < a.len) {
         while (pos < a.len and (ap[pos] == ' ' or ap[pos] == '\t' or ap[pos] == '\n')) : (pos += 1) {}
         if (pos >= a.len) break;
-        const start = pos;
+        var start = pos;
+        var end: u32 = pos;
         if (ap[pos] == '{') {
             pos += 1;
+            start = pos;
             var depth: u32 = 1;
-            while (pos < a.len and depth > 0) : (pos += 1) {
+            while (pos < a.len and depth > 0) {
                 if (ap[pos] == '{') depth += 1;
-                if (ap[pos] == '}') depth -= 1;
+                if (ap[pos] == '}') {
+                    depth -= 1;
+                    if (depth == 0) break;
+                }
+                pos += 1;
             }
+            end = pos;
+            if (pos < a.len) pos += 1; // consume closing brace
         } else {
             while (pos < a.len and ap[pos] != ' ' and ap[pos] != '\t' and ap[pos] != '\n') : (pos += 1) {}
+            end = pos;
         }
-        const end = pos;
-        const word_len = end - start;
-        if (parity == 0) {
-            if (word_len < 2 or ap[start] != '-') {
-                stubs.unsupported("fconfigure (expected -option)");
-                return 0;
-            }
-            if (!is_accepted_option(ap + start, word_len)) {
-                stubs.unsupported("fconfigure (unsupported option)");
-                return 0;
-            }
-            name_start = start;
-            name_len = word_len;
-        } else {
-            apply_option(c, ap + name_start, name_len, ap + start, word_len);
+        if (n_words >= MAX_FCONFIGURE_WORDS) {
+            stubs.raise("fconfigure: too many arguments");
+            return 0;
         }
-        parity = 1 - parity;
+        word_start[n_words] = start;
+        word_len[n_words] = end - start;
+        n_words += 1;
     }
-    if (parity == 1) {
-        stubs.unsupported("fconfigure (odd number of option/value args)");
+
+    if (n_words == 0) return query_all(c);
+
+    if (n_words == 1) {
+        const np = ap + word_start[0];
+        const nl = word_len[0];
+        if (nl < 2 or np[0] != '-') {
+            stubs.unsupported("fconfigure (expected -option)");
+            return 0;
+        }
+        return query_one(c, np, nl);
+    }
+
+    if (n_words & 1 != 0) {
+        stubs.raise("fconfigure: value for \"option\" missing");
         return 0;
+    }
+
+    // Validate every option name first so a partial-set on a typo
+    // doesn't leave the channel half-configured.
+    var i: u32 = 0;
+    while (i < n_words) : (i += 2) {
+        const np = ap + word_start[i];
+        const nl = word_len[i];
+        if (nl < 2 or np[0] != '-') {
+            stubs.unsupported("fconfigure (expected -option)");
+            return 0;
+        }
+        if (!is_settable_option(np, nl)) {
+            stubs.unsupported("fconfigure (unsupported option)");
+            return 0;
+        }
+    }
+    i = 0;
+    while (i < n_words) : (i += 2) {
+        apply_option(
+            c,
+            ap + word_start[i],
+            word_len[i],
+            ap + word_start[i + 1],
+            word_len[i + 1],
+        );
     }
     return obj_new_string(0, 0);
 }
