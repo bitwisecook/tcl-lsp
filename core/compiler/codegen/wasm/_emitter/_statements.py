@@ -68,50 +68,40 @@ def _static_parse_error_message(
     discarded the trailing ``elseif`` clause instead of erroring).  We
     convert the barrier into a direct ``tcl_cmd_error`` call so the WASM
     backend reports the same diagnostic.
+
+    The mapping is deliberately narrow.  Several lowering reasons (e.g.
+    ``"malformed if clause"`` for ``if cond body extra``, or
+    ``"malformed if"`` for ``if elseif``) cover *multiple* underlying
+    shapes whose canonical Tcl messages cannot be reconstructed from the
+    barrier alone — the runtime ``eval_if`` already errors on those via
+    the expression parser, so the eval-fallback path produces a
+    comparable error_status without our help.  We only special-case the
+    reasons whose runtime fallback would silently accept (the bug from
+    issue #259) AND whose canonical message is unambiguous from the
+    barrier metadata.
     """
     if barrier_cmd != "if" or reason is None:
         return None
     if reason == 'extra words after "else" clause':
+        # ``if cond body else other extra…`` — eval_if otherwise discards
+        # the trailing words.
         return 'wrong # args: extra words after "else" clause in "if" command'
     if reason == "malformed if else clause":
+        # ``if … else`` with no body — eval_if otherwise drops into the
+        # else branch with no script and silently returns success.
         return 'wrong # args: no script following "else" argument'
-    if reason == "malformed if":
-        if not args:
-            return 'wrong # args: no expression after "if" argument'
-        # ``no clauses after walking args`` — the only way to reach this
-        # arm with a non-empty arglist is something like ``if elseif`` or
-        # ``if then`` where the first word is itself a keyword.  Tcl
-        # reports "no script following" against the last keyword seen.
-        return f'wrong # args: no script following "{args[-1]}" argument'
-    if reason == "malformed if clause":
-        # Lowering reaches this when an ``if`` / ``elseif`` cond is
-        # present but the body is missing.  C Tcl reports the missing
-        # script against the keyword preceding the missing word; the
-        # static lowering only has the post-walk arg list, so look back
-        # to find which clause keyword (``if``, ``elseif``, ``then``)
-        # most recently introduced a missing body.
-        if not args:
-            return 'wrong # args: no script following "if" argument'
-        # ``args`` ends with the orphaned condition (no body).  Walk
-        # back through the keyword that preceded it.  We approximate
-        # ``objv[i-1]`` from the C implementation by inspecting the
-        # tail of ``args``; ``then`` may have been consumed without a
-        # body, in which case it is the last word before the missing
-        # script, otherwise the introducing keyword is the cond's
-        # predecessor (``if`` for the first clause, ``elseif`` later).
-        last = args[-1]
-        if last == "then":
-            return 'wrong # args: no script following "then" argument'
-        # Without an explicit ``then`` the missing script came right
-        # after the cond expression.  C Tcl uses ``objv[i-1]`` where
-        # ``i`` indexes the position past the cond — i.e. the cond
-        # itself.  But the user-facing message names the *keyword* that
-        # introduced the clause.  Find it by scanning the args for the
-        # nearest ``elseif``/``if``-equivalent before the cond.
-        for k in range(len(args) - 2, -1, -1):
-            if args[k] in ("elseif", "then"):
-                return f'wrong # args: no script following "{args[k]}" argument'
-        return 'wrong # args: no script following "if" argument'
+    if reason == "malformed if" and not args:
+        # ``if`` with no arguments at all — eval_if's main loop never
+        # executes (i=1 ≥ words.len=1) and silently returns 0.  Other
+        # ``"malformed if"`` shapes — e.g. ``if elseif``, ``if then``,
+        # ``if elseif elseif`` — are degenerate keyword-only shapes
+        # whose canonical Tcl message depends on arglist length and
+        # which keyword the VM's pre-validate hits first.  We leave
+        # them on the eval-fallback path (which silently accepts) for
+        # now; reporting a wrong but specific message would be worse
+        # than the existing silent-accept divergence.  Issue #259 only
+        # requires fixing the ``extra words after "else"`` shape.
+        return 'wrong # args: no expression after "if" argument'
     return None
 
 
