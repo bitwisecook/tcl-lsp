@@ -1207,6 +1207,33 @@ class TestUnusedProcParameters:
         w214 = [d for d in result.diagnostics if d.code == "W214"]
         assert w214 == []
 
+    def test_param_used_only_by_dict_with_issue_307(self):
+        """Issue #307 — a parameter passed to ``dict with`` as the dict
+        variable must count as used.  The barrier marks the variable as
+        both VAR_READ and VAR_WRITE; the read must survive the
+        defs-filter in ``_uses``."""
+        source = textwrap.dedent("""\
+            proc f {pdata} {
+                dict with pdata {}
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
+    def test_param_used_only_by_dict_update_issue_307(self):
+        """``dict update`` shares the same VAR_READ+VAR_WRITE shape as
+        ``dict with``; a parameter that is only the dict variable must
+        not be flagged as unused."""
+        source = textwrap.dedent("""\
+            proc f {d} {
+                dict update d k v {}
+            }
+        """)
+        result = analyse(source)
+        w214 = [d for d in result.diagnostics if d.code == "W214"]
+        assert w214 == []
+
     def test_pure_write_to_param_inside_body_still_flags(self):
         """A parameter that is only *written* (never read) inside an
         opaque body is still unused — the deep body scan must not count

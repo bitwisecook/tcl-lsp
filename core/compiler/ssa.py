@@ -265,18 +265,25 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                     vars_found |= _vars_in_body_script(arg)
                 else:
                     vars_found |= _vars_in_word(arg)
-            # ``dict with`` / ``dict update`` arg 0 is the dict variable: it
-            # is read as well as written (the body sees the keys unpacked
-            # into local variables of the same name), but the variable name
-            # is a plain string, not a $-substitution, so ``_vars_in_word``
-            # misses it.  The registry's resolver attaches both
-            # ``ArgRole.VAR_READ`` and ``ArgRole.VAR_WRITE`` to the same
-            # index, so a plain ``VAR_READ`` query finds it.
+            # For ``dict with`` / ``dict update`` the dict-variable argument
+            # (``args[1]`` of the full barrier args — ``args[0]`` is the
+            # subcommand word) is both read and written: the body sees the
+            # keys unpacked into local variables of the same name.  The
+            # variable name is a plain string, not a ``$``-substitution, so
+            # ``_vars_in_word`` misses it.  The registry's resolver attaches
+            # both ``ArgRole.VAR_READ`` and ``ArgRole.VAR_WRITE`` to that
+            # position, and ``arg_indices_for_role`` returns indices into
+            # the full ``args`` list (subcommand offset already applied), so
+            # a plain ``VAR_READ`` query yields the right slot.  Mark the
+            # resulting name as ``reads_own_def`` so the final filter
+            # doesn't drop it on the grounds that it's also a barrier def
+            # (issue #307).
             for idx in arg_indices_for_role(command, list(args), ArgRole.VAR_READ):
                 if 0 <= idx < len(args):
                     name = _normalise_var_name(args[idx])
                     if name:
                         vars_found.add(name)
+                        reads_own_def.add(name)
         case _:
             pass
 
