@@ -129,6 +129,16 @@ var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var frame_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 pub var frame_depth: u32 = 0;
 
+// Per-frame namespace context.  Set by the proc-call dispatcher
+// (see :file:`tcl_interp.zig` immediately after each ``frame_push``)
+// so ``uplevel`` can restore the caller's namespace alongside the
+// frame depth.  Without this slot ``uplevel 1 $body`` runs the body
+// at the right frame depth but with the *callee's* namespace still
+// active — so unqualified array lookups (``$path(test1)`` inside a
+// tcltest body uplevel'd from ``::tcltest::RunTest``) miss the
+// outer-namespace array and silently return empty.
+pub var frame_ns: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
 // Per-frame "dirty" bitmap.  Each bit covers a 128-byte chunk (8
 // buckets × 16 bytes) of the frame buffer.  ``frame_push`` only
 // clears chunks whose bit is set, then resets the bitmap.  Writers
@@ -353,6 +363,12 @@ pub export fn frame_pop() void {
         const old = frame_argv[frame_depth];
         frame_argv[frame_depth] = 0;
         if (old != 0) obj.tcl_obj_release(old);
+        // Reset the per-frame namespace slot so the next
+        // ``frame_push`` for this index sees a fresh (zero) value
+        // and ``frame_set_ns_if_unset`` from ``ns_set`` records
+        // the caller-ns of the new frame, not the previous
+        // tenant's.
+        frame_ns[frame_depth] = 0;
         // Note: we do NOT walk the local_table to release each
         // bucket's value here.  Doing so leaks-by-design rather
         // than risking a use-after-free where the bucket contains
@@ -391,6 +407,42 @@ pub export fn frame_set_argv(argv: i32) void {
     if (old != 0 and old != argv) obj.tcl_obj_release(old);
 }
 
+/// Record the namespace context for the *current* frame.  Called
+/// by the proc-call dispatcher right after it switches
+/// ``current_ns`` to the proc's namespace, so a later ``uplevel``
+/// from inside the body can read the caller's saved namespace via
+/// :func:`frame_get_ns` and re-enter it.  No retain/release
+/// bookkeeping — the namespace is a long-lived ``*Namespace`` heap
+/// address, not a refcounted TclObj.
+pub export fn frame_set_ns(ns: u32) void {
+    if (frame_depth == 0) return;
+    frame_ns[frame_depth - 1] = ns;
+}
+
+/// Like :func:`frame_set_ns` but only stamps when the slot is
+/// still empty (zero).  Used by ``ns_set`` so a compiled proc's
+/// prologue records its caller-ns once on frame entry, and any
+/// secondary ``ns_set`` calls (eval-fallback regions push the
+/// proc's own namespace for the duration of the fallback) don't
+/// clobber the original caller-ns slot.
+pub export fn frame_set_ns_if_unset(ns: u32) void {
+    if (frame_depth == 0) return;
+    if (frame_ns[frame_depth - 1] == 0) {
+        frame_ns[frame_depth - 1] = ns;
+    }
+}
+
+/// Return the namespace recorded for the frame *offset* steps down
+/// from the top (0 = current, 1 = caller, …).  Returns 0 when no
+/// ns was recorded (frame predates :func:`frame_set_ns`); callers
+/// treat 0 as "leave ``current_ns`` as-is".
+pub export fn frame_get_ns(offset: i32) u32 {
+    if (offset < 0) return 0;
+    const u: u32 = @intCast(offset);
+    if (u >= frame_depth) return 0;
+    return frame_ns[frame_depth - 1 - u];
+}
+
 /// Return the invocation argv stored for the frame *offset*
 /// steps down from the top (0 = current, 1 = caller, …).
 /// Returns 0 if the offset is out of range or no argv was
@@ -402,16 +454,50 @@ pub export fn frame_get_argv(offset: i32) i32 {
     return frame_argv[frame_depth - 1 - u];
 }
 
+// Side stack for namespace context saved by ``frame_depth_stash``
+// alongside the frame depth.  Same MAX_DEPTH cap as the frame stack
+// itself — every nested ``uplevel`` records one slot.  The two
+// stacks share an index (``ns_save_top``) so a stash/restore pair
+// always touches one slot per nesting level.
+var ns_save_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var ns_save_top: u32 = 0;
+
 /// Save the current frame depth and decrement it by *relative_up*
 /// (clamped to 0).  Returns the saved depth so the caller can
 /// restore it via ``frame_depth_restore``.  Used by ``uplevel`` to
 /// temporarily act as if we're running *relative_up* frames above
 /// the current one.
+///
+/// Also stashes ``current_ns`` and re-enters the target frame's
+/// recorded namespace so unqualified variable lookups inside the
+/// upleveled body resolve against the caller's namespace, not the
+/// callee's.  Without this, ``uplevel 1 $body`` from a tcltest
+/// dispatcher in ``::tcltest`` would leave ``current_ns`` pointing
+/// at ``::tcltest`` and the body's array refs would miss the
+/// caller's namespace's array — see :func:`frame_set_ns`.
 pub export fn frame_depth_stash(relative_up: i32) i32 {
     const saved: i32 = @intCast(frame_depth);
     var up = relative_up;
     if (up < 0) up = 0;
     const u: u32 = @intCast(up);
+
+    // Capture caller-ns BEFORE we pop, then push and switch.
+    if (ns_save_top < MAX_DEPTH) {
+        ns_save_stack[ns_save_top] = tcl_ns.current_ns;
+        ns_save_top += 1;
+    }
+    var target_ns: u32 = 0;
+    if (u > 0 and u <= frame_depth) {
+        // ``u-1`` levels down from the top is the frame whose
+        // recorded caller-ns matches the level we're shifting to.
+        target_ns = if (u - 1 < frame_depth) frame_ns[frame_depth - 1 - (u - 1)] else 0;
+    }
+    if (target_ns != 0) {
+        tcl_ns.current_ns = target_ns;
+    } else if (u >= frame_depth) {
+        tcl_ns.current_ns = tcl_ns.ns_root();
+    }
+
     if (u >= frame_depth) {
         frame_depth = 0;
     } else {
@@ -421,12 +507,17 @@ pub export fn frame_depth_stash(relative_up: i32) i32 {
 }
 
 /// Restore frame_depth to the value returned by an earlier
-/// ``frame_depth_stash``.
+/// ``frame_depth_stash``, and pop the matching namespace save so
+/// ``current_ns`` returns to the callee's namespace.
 pub export fn frame_depth_restore(saved: i32) void {
     if (saved < 0) {
         frame_depth = 0;
     } else {
         frame_depth = @intCast(saved);
+    }
+    if (ns_save_top > 0) {
+        ns_save_top -= 1;
+        tcl_ns.current_ns = ns_save_stack[ns_save_top];
     }
 }
 

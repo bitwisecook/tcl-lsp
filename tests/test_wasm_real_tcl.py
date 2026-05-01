@@ -1738,8 +1738,14 @@ class TestDiagMap:
     @pytest.mark.parametrize(
         ("source", "expected_cmd"),
         [
-            ("open /tmp/x\n", "open"),
-            ("close ch0\n", "close"),
+            # ``open`` / ``close`` / ``read`` / ``gets`` / ``seek`` /
+            # ``tell`` / ``eof`` / ``fblocked`` / ``fcopy`` now have
+            # WASI-backed implementations in :file:`io/tcl_chan.zig`.
+            # Failure paths surface through ``stubs.raise`` with a
+            # specific message (``open: could not open file``,
+            # ``close: unknown channel``, …) rather than the
+            # ``unsupported command:`` prefix.  See TestChannelIO
+            # for the positive cases.
             # ``file`` now has real WASI-backed impls for mkdir /
             # delete / rename / copy / link / readlink / stat /
             # lstat / type — see TestFile for the positive cases.
@@ -2548,6 +2554,254 @@ class TestFile:
             ("set r [file link /lnk tgt.txt]\nputs $r\n"),
         )
         assert out.strip() == "/lnk", f"got {out!r}"
+
+
+class TestChannelIO:
+    """End-to-end ``open`` / ``puts`` / ``gets`` / ``read`` / ``seek`` /
+    ``tell`` / ``eof`` / ``close`` round-trips against a preopened
+    tmpdir.  Same WASI capability model as :class:`TestFile`: the
+    host ``tmp_path`` is mapped to guest ``/`` so paths like
+    ``/log.txt`` resolve under it.
+    """
+
+    def _run(self, tmp_path, tcl_source):
+        wasm, _ = _compile_tcl_with_diag(tcl_source, "t.tcl")
+        _, stdout, _ = _run_wasm(
+            wasm,
+            capture_stdout=True,
+            capture_stderr=True,
+            preopen_tmpdir=str(tmp_path),
+        )
+        return stdout
+
+    def test_puts_to_file_then_read_back(self, tmp_path):
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /log.txt w]\n"
+                'puts $fd "hello"\n'
+                'puts $fd "world"\n'
+                "close $fd\n"
+                "set rfd [open /log.txt r]\n"
+                "set body [read $rfd]\n"
+                "close $rfd\n"
+                "puts $body\n"
+            ),
+        )
+        # The compiled-to-host newline format is LF on WASI.
+        assert out == "hello\nworld\n\n", f"got {out!r}"
+        # File on disk holds the same bytes.
+        assert (tmp_path / "log.txt").read_text() == "hello\nworld\n"
+
+    def test_gets_reads_lines(self, tmp_path):
+        (tmp_path / "lines.txt").write_text("alpha\nbeta\ngamma\n")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /lines.txt r]\n"
+                "puts [gets $fd]\n"
+                "puts [gets $fd]\n"
+                "puts [gets $fd]\n"
+                "close $fd\n"
+            ),
+        )
+        assert out == "alpha\nbeta\ngamma\n", f"got {out!r}"
+
+    def test_gets_with_var_returns_length(self, tmp_path):
+        (tmp_path / "lines.txt").write_text("hi\nworld\n")
+        out = self._run(
+            tmp_path,
+            ("set fd [open /lines.txt r]\nset n [gets $fd line]\nputs $n\nputs $line\nclose $fd\n"),
+        )
+        assert out == "2\nhi\n", f"got {out!r}"
+
+    def test_seek_and_tell_roundtrip(self, tmp_path):
+        (tmp_path / "data.bin").write_bytes(b"0123456789")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /data.bin r]\n"
+                "seek $fd 4\n"
+                "puts [tell $fd]\n"
+                "puts [read $fd 3]\n"
+                "seek $fd 0 start\n"
+                "puts [tell $fd]\n"
+                "puts [read $fd 2]\n"
+                "close $fd\n"
+            ),
+        )
+        # Position after seek 4 = 4; read 3 chars = "456"; rewind to
+        # 0; read 2 chars = "01".
+        assert out == "4\n456\n0\n01\n", f"got {out!r}"
+
+    def test_eof_after_full_read(self, tmp_path):
+        (tmp_path / "f.txt").write_text("xyz")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /f.txt r]\n"
+                "puts [eof $fd]\n"
+                "puts [read $fd]\n"
+                "puts [eof $fd]\n"
+                "close $fd\n"
+            ),
+        )
+        # eof is sticky once we've hit EOF on a read.
+        lines = out.splitlines()
+        assert lines[0] == "0"
+        assert lines[1] == "xyz"
+        assert lines[2] == "1"
+
+    def test_fblocked_always_zero(self, tmp_path):
+        (tmp_path / "f.txt").write_text("data")
+        out = self._run(
+            tmp_path,
+            ("set fd [open /f.txt r]\nputs [fblocked $fd]\nclose $fd\n"),
+        )
+        assert out.strip() == "0"
+
+    def test_append_mode_preserves_contents(self, tmp_path):
+        (tmp_path / "log.txt").write_text("first\n")
+        out = self._run(
+            tmp_path,
+            (
+                "set fd [open /log.txt a]\n"
+                'puts $fd "second"\n'
+                "close $fd\n"
+                "set fd [open /log.txt r]\n"
+                "puts [read $fd]\n"
+                "close $fd\n"
+            ),
+        )
+        # Append leaves the original line and adds another.
+        assert "first" in out and "second" in out, f"got {out!r}"
+        assert (tmp_path / "log.txt").read_text() == "first\nsecond\n"
+
+    def test_fcopy_between_channels(self, tmp_path):
+        (tmp_path / "src.bin").write_bytes(b"copy-me-please")
+        out = self._run(
+            tmp_path,
+            (
+                "set in [open /src.bin r]\n"
+                "set out [open /dst.bin w]\n"
+                "set n [fcopy $in $out]\n"
+                "close $in\n"
+                "close $out\n"
+                "puts $n\n"
+            ),
+        )
+        assert out.strip() == "14"
+        assert (tmp_path / "dst.bin").read_bytes() == b"copy-me-please"
+
+    def test_open_missing_file_traps(self, tmp_path):
+        wasm, _ = _compile_tcl_with_diag("set fd [open /no-such-file r]\n", "t.tcl")
+        try:
+            _run_wasm(
+                wasm,
+                capture_stdout=True,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "open" in stderr, f"stderr: {stderr!r}"
+
+    def test_fcopy_after_partial_read_drains_buffer(self, tmp_path):
+        """``fcopy`` must drain ``read``'s pull-side buffer first.
+
+        Regression for codex P1: a prior ``read`` / ``gets`` prefetches
+        bytes into the channel's pull buffer, which advances the OS
+        file offset past the logical channel position.  Without
+        consuming the buffered span, ``fcopy`` would skip those
+        bytes (or return them out of order).
+        """
+        (tmp_path / "src.bin").write_bytes(b"abcdefghij")
+        out = self._run(
+            tmp_path,
+            (
+                "set in [open /src.bin r]\n"
+                "set head [read $in 3]\n"  # consumes "abc", buffer now holds "defghij"
+                "set out [open /dst.bin w]\n"
+                "set n [fcopy $in $out]\n"
+                "close $in\n"
+                "close $out\n"
+                "puts head=$head\n"
+                "puts n=$n\n"
+            ),
+        )
+        # fcopy should write the remaining 7 buffered/file bytes — not 0
+        # (which is what an unaware fcopy would emit because read had
+        # already pulled the whole 10-byte file into its 4 KB buffer).
+        assert out.strip().splitlines() == ["head=abc", "n=7"], f"got {out!r}"
+        assert (tmp_path / "dst.bin").read_bytes() == b"defghij"
+
+    def test_read_rejects_non_integer_numchars(self, tmp_path):
+        """Regression for codex P2: ``read $fd abc`` must error,
+        not silently treat the bad arg as 'read to EOF'."""
+        (tmp_path / "f.txt").write_text("xyz")
+        wasm, _ = _compile_tcl_with_diag("set fd [open /f.txt r]\nread $fd abc\n", "t.tcl")
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on non-integer numChars")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "read" in stderr and "integer" in stderr, f"stderr: {stderr!r}"
+
+    def test_read_rejects_negative_numchars(self, tmp_path):
+        """Regression for codex P2: ``read $fd -2`` must error."""
+        (tmp_path / "f.txt").write_text("xyz")
+        wasm, _ = _compile_tcl_with_diag("set fd [open /f.txt r]\nread $fd -2\n", "t.tcl")
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on negative numChars")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "read" in stderr and "non-negative" in stderr, f"stderr: {stderr!r}"
+
+    def test_fcopy_rejects_unknown_option(self, tmp_path):
+        """Regression for codex P2: ``fcopy a b -foo 1`` must error."""
+        (tmp_path / "src.bin").write_text("abc")
+        wasm, _ = _compile_tcl_with_diag(
+            ("set in [open /src.bin r]\nset out [open /dst.bin w]\nfcopy $in $out -foo 1\n"),
+            "t.tcl",
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on unknown option")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "fcopy" in stderr and "bad option" in stderr, f"stderr: {stderr!r}"
+
+    def test_fcopy_rejects_non_integer_size(self, tmp_path):
+        """Regression for codex P2: ``fcopy a b -size abc`` must error."""
+        (tmp_path / "src.bin").write_text("abc")
+        wasm, _ = _compile_tcl_with_diag(
+            ("set in [open /src.bin r]\nset out [open /dst.bin w]\nfcopy $in $out -size abc\n"),
+            "t.tcl",
+        )
+        try:
+            _run_wasm(
+                wasm,
+                capture_stderr=True,
+                preopen_tmpdir=str(tmp_path),
+            )
+            pytest.fail("expected trap on non-integer -size")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "fcopy" in stderr and "integer" in stderr, f"stderr: {stderr!r}"
 
 
 class TestEncoding:
