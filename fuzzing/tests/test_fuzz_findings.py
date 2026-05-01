@@ -1538,7 +1538,7 @@ class TestIssue264WasmTimeoutCohortDrained:
     WASM accepted, so once the VM-style error was suppressed on the
     WASM side the loop never terminated.
 
-    The cluster was drained by the four "WASM is too permissive"
+    The cluster was drained by the five "WASM is too permissive"
     upstream fixes — issues #259 (if-else-elseif), #260 (negative
     shift), #261 (float in bitwise / shift), #262 (strict-integer
     ``incr`` / parser tightening), and #263 (missing-variable read).
