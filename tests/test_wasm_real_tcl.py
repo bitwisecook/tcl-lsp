@@ -3154,6 +3154,72 @@ class TestFconfigureQuery:
         result = _run_wasm(wasm, capture_stdout=True)
         assert result[1] == "utf-16\n"
 
+    def test_eofchar_empty_round_trip(self):
+        # ``fconfigure $fd -eofchar {}`` must reach the runtime as a
+        # setter, not collapse to a bare ``-eofchar`` query.  The
+        # producer-side list-quoting in the codegen literal path
+        # and ``cmds/chan.zig:eval_fconfigure`` are responsible.
+        source = (
+            "fconfigure stdout -eofchar {} -translation lf\n"
+            "puts [dict get [fconfigure stdout] -eofchar]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        # Empty eofchar renders as ``{}`` inside the all-options
+        # list — that's the canonical Tcl list element for empty.
+        assert result[1] == "\n"
+
+    def test_eofchar_set_get_single_query(self):
+        # The single-option query form returns the raw value (not
+        # list-element-quoted).  An eofchar of ``Z`` should round-trip
+        # as ``Z``, not ``{Z}``.
+        source = (
+            "fconfigure stdout -eofchar Z -translation lf\n"
+            "puts [fconfigure stdout -eofchar]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "Z\n"
+
+    def test_encoding_with_space_round_trips_in_query_all(self):
+        # Hypothetical encoding name with a space — the all-options
+        # query must list-quote it so ``dict get`` recovers the
+        # original string.  Exercises the ``list_elem_quote_nth``
+        # path in ``render_option_value``.
+        source = (
+            "fconfigure stdout -encoding {utf 16} -translation lf\n"
+            "puts [dict get [fconfigure stdout] -encoding]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == "utf 16\n"
+
+    def test_long_encoding_round_trips(self):
+        # Storing options via TclObj refs (not a fixed-size buffer)
+        # means long values round-trip without truncation.
+        long_name = "x" * 64
+        source = (
+            f"fconfigure stdout -encoding {long_name} -translation lf\n"
+            "puts [fconfigure stdout -encoding]\n"
+        )
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        result = _run_wasm(wasm, capture_stdout=True)
+        assert result[1] == long_name + "\n"
+
+    def test_buffersize_invalid_raises(self):
+        # Non-integer ``-buffersize`` must trap rather than silently
+        # ignoring the option.
+        source = "fconfigure stdout -buffersize abc\nputs ok\n"
+        wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
+        try:
+            _run_wasm(wasm, capture_stderr=True)
+            pytest.fail("expected trap")
+        except Exception as trap:
+            stderr = getattr(trap, "tcl_stderr", "")
+            assert "expected integer value for -buffersize" in stderr, (
+                f"stderr: {stderr!r}"
+            )
+
 
 class TestExternalTcllibCounter:
     """Compile and run the real tcllib counter module (pure Tcl).

@@ -25,6 +25,8 @@
 const std = @import("std");
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
+const list_quote = @import("../valtypes/tcl_list_quote.zig");
+const list_parse = @import("../valtypes/tcl_list_parse.zig");
 
 const obj_new_string = obj.obj_new_string;
 const obj_new_string_copy = obj.obj_new_string_copy;
@@ -112,7 +114,14 @@ pub const MODE_WRITE: u32 = 2;
 
 const READ_BUF_SIZE: u32 = 4096;
 const MAX_CHANNELS: u32 = 64;
-const OPT_BUF_LEN: u32 = 16;
+
+// Default values for option-state TclObj slots — when a slot is
+// 0, the renderer falls back to these constants.  This keeps the
+// initial state heap-free (no allocation at module load) while
+// still letting the setter store arbitrary-length values.
+const DEFAULT_ENCODING_STR: []const u8 = "utf-8";
+const DEFAULT_EOFCHAR_STR: []const u8 = "";
+const DEFAULT_PROFILE_STR: []const u8 = "strict";
 
 const Channel = struct {
     in_use: bool,
@@ -123,39 +132,23 @@ const Channel = struct {
     translation: u32,
     encoding_binary: bool,
     buffering: u32,
-    // Per-option state retained for fconfigure query forms.  The
-    // setter side accepts any value; query renders these back as
-    // their canonical Tcl strings.  Defaults match what real tclsh
-    // 9.0 reports for a freshly-opened file channel.
+    // Per-option state retained for fconfigure query forms.  Set
+    // accepts any value; query renders these back as their
+    // canonical Tcl strings.  String-valued options are stored as
+    // refcounted TclObj handles (0 → use the default constant), so
+    // long values round-trip without truncation and the channel
+    // struct stays a fixed size.
     blocking: bool,
     buffersize: u32,
-    encoding_buf: [OPT_BUF_LEN]u8,
-    encoding_len: u8,
-    eofchar_buf: [OPT_BUF_LEN]u8,
-    eofchar_len: u8,
-    profile_buf: [OPT_BUF_LEN]u8,
-    profile_len: u8,
+    encoding_obj: i32,
+    eofchar_obj: i32,
+    profile_obj: i32,
     // Pull-side buffer for gets/read.  Allocated lazily on first
     // read so unused channels don't reserve 4 KiB.
     buf_addr: u32,
     buf_pos: u32,
     buf_end: u32,
 };
-
-fn opt_buf(comptime s: []const u8) [OPT_BUF_LEN]u8 {
-    var b: [OPT_BUF_LEN]u8 = [_]u8{0} ** OPT_BUF_LEN;
-    inline for (s, 0..) |c, i| {
-        if (i < OPT_BUF_LEN) b[i] = c;
-    }
-    return b;
-}
-
-const DEFAULT_ENCODING = opt_buf("utf-8");
-const DEFAULT_ENCODING_LEN: u8 = 5;
-const DEFAULT_EOFCHAR = opt_buf("");
-const DEFAULT_EOFCHAR_LEN: u8 = 0;
-const DEFAULT_PROFILE = opt_buf("strict");
-const DEFAULT_PROFILE_LEN: u8 = 6;
 
 var channels: [MAX_CHANNELS]Channel = init: {
     var arr: [MAX_CHANNELS]Channel = undefined;
@@ -172,12 +165,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
             .buffering = BUF_FULL,
             .blocking = true,
             .buffersize = 4096,
-            .encoding_buf = DEFAULT_ENCODING,
-            .encoding_len = DEFAULT_ENCODING_LEN,
-            .eofchar_buf = DEFAULT_EOFCHAR,
-            .eofchar_len = DEFAULT_EOFCHAR_LEN,
-            .profile_buf = DEFAULT_PROFILE,
-            .profile_len = DEFAULT_PROFILE_LEN,
+            .encoding_obj = 0,
+            .eofchar_obj = 0,
+            .profile_obj = 0,
             .buf_addr = 0,
             .buf_pos = 0,
             .buf_end = 0,
@@ -196,12 +186,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .buffering = BUF_NONE,
         .blocking = true,
         .buffersize = 4096,
-        .encoding_buf = DEFAULT_ENCODING,
-        .encoding_len = DEFAULT_ENCODING_LEN,
-        .eofchar_buf = DEFAULT_EOFCHAR,
-        .eofchar_len = DEFAULT_EOFCHAR_LEN,
-        .profile_buf = DEFAULT_PROFILE,
-        .profile_len = DEFAULT_PROFILE_LEN,
+        .encoding_obj = 0,
+        .eofchar_obj = 0,
+        .profile_obj = 0,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -217,12 +204,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .buffering = BUF_LINE,
         .blocking = true,
         .buffersize = 4096,
-        .encoding_buf = DEFAULT_ENCODING,
-        .encoding_len = DEFAULT_ENCODING_LEN,
-        .eofchar_buf = DEFAULT_EOFCHAR,
-        .eofchar_len = DEFAULT_EOFCHAR_LEN,
-        .profile_buf = DEFAULT_PROFILE,
-        .profile_len = DEFAULT_PROFILE_LEN,
+        .encoding_obj = 0,
+        .eofchar_obj = 0,
+        .profile_obj = 0,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -238,12 +222,9 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .buffering = BUF_NONE,
         .blocking = true,
         .buffersize = 4096,
-        .encoding_buf = DEFAULT_ENCODING,
-        .encoding_len = DEFAULT_ENCODING_LEN,
-        .eofchar_buf = DEFAULT_EOFCHAR,
-        .eofchar_len = DEFAULT_EOFCHAR_LEN,
-        .profile_buf = DEFAULT_PROFILE,
-        .profile_len = DEFAULT_PROFILE_LEN,
+        .encoding_obj = 0,
+        .eofchar_obj = 0,
+        .profile_obj = 0,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -432,12 +413,9 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
         .buffering = BUF_FULL,
         .blocking = true,
         .buffersize = 4096,
-        .encoding_buf = DEFAULT_ENCODING,
-        .encoding_len = DEFAULT_ENCODING_LEN,
-        .eofchar_buf = DEFAULT_EOFCHAR,
-        .eofchar_len = DEFAULT_EOFCHAR_LEN,
-        .profile_buf = DEFAULT_PROFILE,
-        .profile_len = DEFAULT_PROFILE_LEN,
+        .encoding_obj = 0,
+        .eofchar_obj = 0,
+        .profile_obj = 0,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -468,6 +446,9 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
     if (c.buf_addr != 0) {
         obj.free_sized(c.buf_addr, READ_BUF_SIZE);
     }
+    if (c.encoding_obj != 0) obj.tcl_obj_release(c.encoding_obj);
+    if (c.eofchar_obj != 0) obj.tcl_obj_release(c.eofchar_obj);
+    if (c.profile_obj != 0) obj.tcl_obj_release(c.profile_obj);
     c.* = .{
         .in_use = false,
         .fd = -1,
@@ -479,12 +460,9 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .buffering = BUF_FULL,
         .blocking = true,
         .buffersize = 4096,
-        .encoding_buf = DEFAULT_ENCODING,
-        .encoding_len = DEFAULT_ENCODING_LEN,
-        .eofchar_buf = DEFAULT_EOFCHAR,
-        .eofchar_len = DEFAULT_EOFCHAR_LEN,
-        .profile_buf = DEFAULT_PROFILE,
-        .profile_len = DEFAULT_PROFILE_LEN,
+        .encoding_obj = 0,
+        .eofchar_obj = 0,
+        .profile_obj = 0,
         .buf_addr = 0,
         .buf_pos = 0,
         .buf_end = 0,
@@ -931,7 +909,7 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
 //   1. ``fconfigure $fd``                       — query all options
 //      and return ``-name value`` pairs as a Tcl list.
 //   2. ``fconfigure $fd -opt``                  — query one option,
-//      return its current value.
+//      return its current value (raw, not list-element-quoted).
 //   3. ``fconfigure $fd -opt val ?-opt val …?`` — set; returns "".
 //
 // Settable options:
@@ -940,7 +918,7 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
 //   -encoding    arbitrary string (utf-8 / utf-16 / binary / …)
 //   -blocking    boolean (WASI is synchronous; tracked for query
 //                only)
-//   -buffersize  N
+//   -buffersize  N (decimal integer)
 //   -eofchar     character or 2-element list
 //   -profile     tcl8|replace|strict
 //
@@ -950,6 +928,15 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
 // Unknown options trap via :func:`stubs.unsupported` so scripts
 // that rely on (e.g.) ``-handshake`` get a clear error instead of a
 // silent no-op.
+//
+// The args TclObj arrives as a Tcl list assembled by either
+// :file:`cmds/chan.zig:eval_fconfigure` (eval-fallback path) or
+// :file:`core/compiler/codegen/wasm/_emitter/cmds/fconfigure_.py`
+// (codegen literal path).  Both producers emit canonical Tcl list
+// elements via ``list_quote.list_elem_quote_nth`` so empty values
+// (``{}``) and values containing braces / whitespace round-trip
+// through the parser intact — :mod:`tcl_list_parse` handles
+// backslash and brace escapes.
 
 fn is_settable_option(p: [*]const u8, len: u32) bool {
     return eq(p, len, "-blocking") or
@@ -969,57 +956,115 @@ fn is_queryable_option(p: [*]const u8, len: u32) bool {
         eq(p, len, "-writable");
 }
 
-fn copy_to_opt_buf(buf: *[OPT_BUF_LEN]u8, len_field: *u8, src: [*]const u8, src_len: u32) void {
-    var n: u32 = src_len;
-    if (n > OPT_BUF_LEN) n = OPT_BUF_LEN;
-    for (0..n) |i| buf[i] = src[i];
-    len_field.* = @intCast(n);
+// Replace a TclObj-ref slot with a fresh copy of the bytes at
+// *src_p* / *src_len*.  Releases the previous reference (if any)
+// and retains the new one so the slot owns exactly one count.  An
+// empty value clears the slot back to 0 — render_* falls back to
+// the per-option default constant.
+fn set_obj_option(slot: *i32, src_p: [*]const u8, src_len: u32) void {
+    const old = slot.*;
+    if (src_len == 0) {
+        slot.* = 0;
+    } else {
+        const new_obj = obj_new_string_copy(@intFromPtr(src_p), src_len);
+        if (new_obj == 0) {
+            // Allocation failed; leave slot untouched (don't drop
+            // the old value).
+            return;
+        }
+        obj.tcl_obj_retain(new_obj);
+        slot.* = new_obj;
+    }
+    if (old != 0) obj.tcl_obj_release(old);
 }
 
-fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) void {
+// Read a TclObj-ref option slot as a byte slice.  When the slot is
+// 0, fall back to *default_str*.  The returned slice is valid as
+// long as the obj or constant lives — both are stable until the
+// channel is closed (slot release) or a new value is set.
+fn get_obj_option(slot: i32, default_str: []const u8) []const u8 {
+    if (slot == 0) return default_str;
+    const s = obj_ensure_string(slot);
+    if (s.len == 0) return default_str;
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    return p[0..s.len];
+}
+
+fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const u8, val_len: u32) bool {
     if (eq(name_p, name_len, "-translation")) {
-        if (eq(val_p, val_len, "auto")) c.translation = TR_AUTO;
-        if (eq(val_p, val_len, "lf")) c.translation = TR_LF;
-        if (eq(val_p, val_len, "cr")) c.translation = TR_CR;
-        if (eq(val_p, val_len, "crlf")) c.translation = TR_CRLF;
-        if (eq(val_p, val_len, "binary")) c.translation = TR_BINARY;
-        return;
+        if (eq(val_p, val_len, "auto")) {
+            c.translation = TR_AUTO;
+        } else if (eq(val_p, val_len, "lf")) {
+            c.translation = TR_LF;
+        } else if (eq(val_p, val_len, "cr")) {
+            c.translation = TR_CR;
+        } else if (eq(val_p, val_len, "crlf")) {
+            c.translation = TR_CRLF;
+        } else if (eq(val_p, val_len, "binary")) {
+            c.translation = TR_BINARY;
+        } else {
+            stubs.raise("fconfigure: bad value for -translation: must be auto, binary, cr, crlf, or lf");
+            return false;
+        }
+        return true;
     }
     if (eq(name_p, name_len, "-buffering")) {
-        if (eq(val_p, val_len, "full")) c.buffering = BUF_FULL;
-        if (eq(val_p, val_len, "line")) c.buffering = BUF_LINE;
-        if (eq(val_p, val_len, "none")) c.buffering = BUF_NONE;
-        return;
+        if (eq(val_p, val_len, "full")) {
+            c.buffering = BUF_FULL;
+        } else if (eq(val_p, val_len, "line")) {
+            c.buffering = BUF_LINE;
+        } else if (eq(val_p, val_len, "none")) {
+            c.buffering = BUF_NONE;
+        } else {
+            stubs.raise("fconfigure: bad value for -buffering: must be full, line, or none");
+            return false;
+        }
+        return true;
     }
     if (eq(name_p, name_len, "-encoding")) {
         c.encoding_binary = eq(val_p, val_len, "binary");
-        copy_to_opt_buf(&c.encoding_buf, &c.encoding_len, val_p, val_len);
-        return;
+        set_obj_option(&c.encoding_obj, val_p, val_len);
+        return true;
     }
     if (eq(name_p, name_len, "-blocking")) {
-        // Treat "0"/"false"/"no"/"off" as false; everything else
-        // (including the Tcl truthy spellings) as true.  WASI is
-        // synchronous so the value is only consulted by the query
-        // form; this matches the real-Tcl behaviour where the
-        // setter eats any boolean-shaped string.
-        c.blocking = !(eq(val_p, val_len, "0") or
+        // Treat "0"/"false"/"no"/"off" as false, "1"/"true"/"yes"/
+        // "on" as true; anything else is rejected.  WASI I/O is
+        // synchronous so the value is only consulted by query.
+        if (eq(val_p, val_len, "0") or
             eq(val_p, val_len, "false") or
             eq(val_p, val_len, "no") or
-            eq(val_p, val_len, "off"));
-        return;
+            eq(val_p, val_len, "off"))
+        {
+            c.blocking = false;
+        } else if (eq(val_p, val_len, "1") or
+            eq(val_p, val_len, "true") or
+            eq(val_p, val_len, "yes") or
+            eq(val_p, val_len, "on"))
+        {
+            c.blocking = true;
+        } else {
+            stubs.raise("fconfigure: expected boolean value for -blocking");
+            return false;
+        }
+        return true;
     }
     if (eq(name_p, name_len, "-buffersize")) {
-        if (parse_uint(val_p, val_len)) |v| c.buffersize = v;
-        return;
+        if (parse_uint(val_p, val_len)) |v| {
+            c.buffersize = v;
+            return true;
+        }
+        stubs.raise("fconfigure: expected integer value for -buffersize");
+        return false;
     }
     if (eq(name_p, name_len, "-eofchar")) {
-        copy_to_opt_buf(&c.eofchar_buf, &c.eofchar_len, val_p, val_len);
-        return;
+        set_obj_option(&c.eofchar_obj, val_p, val_len);
+        return true;
     }
     if (eq(name_p, name_len, "-profile")) {
-        copy_to_opt_buf(&c.profile_buf, &c.profile_len, val_p, val_len);
-        return;
+        set_obj_option(&c.profile_obj, val_p, val_len);
+        return true;
     }
+    return true;
 }
 
 fn translation_str(t: u32) []const u8 {
@@ -1063,34 +1108,33 @@ fn append_decimal(buf: *ByteBuf, n: u32) void {
     }
 }
 
-// Append ``s`` as a single Tcl list element.  Empty string renders
-// as ``{}``; values containing whitespace or braces get wrapped in
-// ``{ ... }``; everything else is emitted raw.  Sufficient for the
-// option values we actually round-trip (encoding names, eofchar,
-// profile), which never embed unbalanced braces.
+// Append *s* as a canonical Tcl list element via the shared
+// ``tcl_list_quote`` encoder.  Worst-case expansion is ``2*len + 2``
+// bytes (every byte gets a backslash + outer braces); pre-grow
+// the byte buffer to that ceiling so ``convert_element`` can write
+// directly into the slab without re-checking capacity.
 fn append_list_element(buf: *ByteBuf, s: []const u8) void {
-    if (s.len == 0) {
-        buf_push(buf, '{');
-        buf_push(buf, '}');
-        return;
-    }
-    var needs_braces = false;
-    for (s) |b| {
-        if (b == ' ' or b == '\t' or b == '\n' or b == '{' or b == '}') {
-            needs_braces = true;
-            break;
-        }
-    }
-    if (needs_braces) {
-        buf_push(buf, '{');
-        for (s) |b| buf_push(buf, b);
-        buf_push(buf, '}');
-    } else {
-        for (s) |b| buf_push(buf, b);
-    }
+    const worst: u32 = if (s.len == 0) 2 else @as(u32, @intCast(s.len)) * 2 + 2;
+    buf_grow(buf, worst);
+    const src_u32: u32 = if (s.len == 0) 0 else @intCast(@intFromPtr(s.ptr));
+    const flags = list_quote.scan_element(src_u32, @intCast(s.len), list_quote.FLAG_DONT_QUOTE_HASH);
+    const written = list_quote.convert_element(src_u32, @intCast(s.len), buf.addr + buf.len, flags);
+    buf.len += written;
 }
 
-fn render_option_value(buf: *ByteBuf, c: *const Channel, name_p: [*]const u8, name_len: u32) void {
+// Render an option's value into *buf*.  When *as_list_element* is
+// true (used by the all-options query), string-valued options are
+// list-quoted so the result is a well-formed Tcl list/dict.  When
+// false (single-option query), the raw value is emitted so
+// ``fconfigure $fd -encoding`` returns the canonical encoding name
+// rather than an outer-list-quoted form.
+fn render_option_value(
+    buf: *ByteBuf,
+    c: *const Channel,
+    name_p: [*]const u8,
+    name_len: u32,
+    as_list_element: bool,
+) void {
     if (eq(name_p, name_len, "-blocking")) {
         buf_push(buf, if (c.blocking) '1' else '0');
     } else if (eq(name_p, name_len, "-buffering")) {
@@ -1098,11 +1142,26 @@ fn render_option_value(buf: *ByteBuf, c: *const Channel, name_p: [*]const u8, na
     } else if (eq(name_p, name_len, "-buffersize")) {
         append_decimal(buf, c.buffersize);
     } else if (eq(name_p, name_len, "-encoding")) {
-        append_str_buf(buf, c.encoding_buf[0..c.encoding_len]);
+        const v = get_obj_option(c.encoding_obj, DEFAULT_ENCODING_STR);
+        if (as_list_element) {
+            append_list_element(buf, v);
+        } else {
+            append_str_buf(buf, v);
+        }
     } else if (eq(name_p, name_len, "-eofchar")) {
-        append_list_element(buf, c.eofchar_buf[0..c.eofchar_len]);
+        const v = get_obj_option(c.eofchar_obj, DEFAULT_EOFCHAR_STR);
+        if (as_list_element) {
+            append_list_element(buf, v);
+        } else {
+            append_str_buf(buf, v);
+        }
     } else if (eq(name_p, name_len, "-profile")) {
-        append_str_buf(buf, c.profile_buf[0..c.profile_len]);
+        const v = get_obj_option(c.profile_obj, DEFAULT_PROFILE_STR);
+        if (as_list_element) {
+            append_list_element(buf, v);
+        } else {
+            append_str_buf(buf, v);
+        }
     } else if (eq(name_p, name_len, "-translation")) {
         append_str_buf(buf, translation_str(c.translation));
     } else if (eq(name_p, name_len, "-mode")) {
@@ -1142,7 +1201,7 @@ fn query_all(c: *const Channel) i32 {
         if (idx > 0) buf_push(&buf, ' ');
         append_str_buf(&buf, name);
         buf_push(&buf, ' ');
-        render_option_value(&buf, c, name.ptr, @intCast(name.len));
+        render_option_value(&buf, c, name.ptr, @intCast(name.len), true);
     }
     return buf_finish(buf);
 }
@@ -1153,15 +1212,19 @@ fn query_one(c: *const Channel, name_p: [*]const u8, name_len: u32) i32 {
         return 0;
     }
     var buf = buf_init(32);
-    render_option_value(&buf, c, name_p, name_len);
+    render_option_value(&buf, c, name_p, name_len, false);
     return buf_finish(buf);
 }
 
 const MAX_FCONFIGURE_WORDS: u32 = 32;
 
 /// ``fconfigure $fd ?option ?value? …?`` — query / set channel
-/// options.  The args list is the flat space-separated stream of
-/// remaining words assembled by :file:`cmds/chan.zig:eval_fconfigure`.
+/// options.  *args* is a Tcl list TclObj built by
+/// :file:`cmds/chan.zig:eval_fconfigure` (eval path) or
+/// :file:`fconfigure_.py` (codegen path); both producers go
+/// through ``list_quote.list_elem_quote_nth`` so empty / brace /
+/// whitespace values round-trip.
+///
 /// Three shapes:
 ///   * empty args      → return all options as ``-name value`` list.
 ///   * single ``-opt`` → return that option's value.
@@ -1178,52 +1241,50 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     if (args == 0) return query_all(c);
     const a = obj_ensure_string(args);
     if (a.len == 0) return query_all(c);
-    const ap: [*]const u8 = @ptrFromInt(a.ptr);
 
-    // Tokenize into words.  Braced groups are a single word; we
-    // strip the outer braces so option-value parsing sees the
-    // payload directly.
-    var word_start: [MAX_FCONFIGURE_WORDS]u32 = undefined;
-    var word_len: [MAX_FCONFIGURE_WORDS]u32 = undefined;
-    var n_words: u32 = 0;
-    var pos: u32 = 0;
-    while (pos < a.len) {
-        while (pos < a.len and (ap[pos] == ' ' or ap[pos] == '\t' or ap[pos] == '\n')) : (pos += 1) {}
-        if (pos >= a.len) break;
-        var start = pos;
-        var end: u32 = pos;
-        if (ap[pos] == '{') {
-            pos += 1;
-            start = pos;
-            var depth: u32 = 1;
-            while (pos < a.len and depth > 0) {
-                if (ap[pos] == '{') depth += 1;
-                if (ap[pos] == '}') {
-                    depth -= 1;
-                    if (depth == 0) break;
-                }
-                pos += 1;
-            }
-            end = pos;
-            if (pos < a.len) pos += 1; // consume closing brace
-        } else {
-            while (pos < a.len and ap[pos] != ' ' and ap[pos] != '\t' and ap[pos] != '\n') : (pos += 1) {}
-            end = pos;
-        }
-        if (n_words >= MAX_FCONFIGURE_WORDS) {
-            stubs.raise("fconfigure: too many arguments");
-            return 0;
-        }
-        word_start[n_words] = start;
-        word_len[n_words] = end - start;
-        n_words += 1;
+    const n_i64: i64 = list_parse.count_elements(a.ptr, a.len);
+    if (n_i64 <= 0) return query_all(c);
+    const n_elems: u32 = @intCast(n_i64);
+    if (n_elems > MAX_FCONFIGURE_WORDS) {
+        stubs.raise("fconfigure: too many arguments");
+        return 0;
     }
 
-    if (n_words == 0) return query_all(c);
+    // Decode all elements into one working buffer, recording an
+    // (offset, len) pair per element.  Backslash decoding can only
+    // shrink the input, so ``a.len`` (plus a sentinel byte for the
+    // empty-everything case) is a safe upper bound.  ``defer``
+    // returns the buffer to the recycler before any of the early
+    // exits below.
+    const work_cap: u32 = if (a.len == 0) 1 else a.len;
+    const work_buf = obj.alloc(work_cap);
+    defer obj.free_sized(work_buf, work_cap);
 
-    if (n_words == 1) {
-        const np = ap + word_start[0];
-        const nl = word_len[0];
+    var elem_off: [MAX_FCONFIGURE_WORDS]u32 = undefined;
+    var elem_len: [MAX_FCONFIGURE_WORDS]u32 = undefined;
+    var write_off: u32 = 0;
+
+    var k: u32 = 0;
+    while (k < n_elems) : (k += 1) {
+        const e = list_parse.element_at(a.ptr, a.len, @intCast(k));
+        elem_off[k] = write_off;
+        if (e.braced) {
+            // Already-literal — copy bytes verbatim.
+            const dst: [*]u8 = @ptrFromInt(work_buf + write_off);
+            const src: [*]const u8 = @ptrFromInt(a.ptr + e.start);
+            for (0..e.len) |bi| dst[bi] = src[bi];
+            elem_len[k] = e.len;
+            write_off += e.len;
+        } else {
+            const decoded = list_parse.copy_unbraced_elem(work_buf + write_off, a.ptr + e.start, e.len);
+            elem_len[k] = decoded;
+            write_off += decoded;
+        }
+    }
+
+    if (n_elems == 1) {
+        const np: [*]const u8 = @ptrFromInt(work_buf + elem_off[0]);
+        const nl = elem_len[0];
         if (nl < 2 or np[0] != '-') {
             stubs.unsupported("fconfigure (expected -option)");
             return 0;
@@ -1231,7 +1292,7 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
         return query_one(c, np, nl);
     }
 
-    if (n_words & 1 != 0) {
+    if (n_elems & 1 != 0) {
         stubs.raise("fconfigure: value for \"option\" missing");
         return 0;
     }
@@ -1239,9 +1300,9 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     // Validate every option name first so a partial-set on a typo
     // doesn't leave the channel half-configured.
     var i: u32 = 0;
-    while (i < n_words) : (i += 2) {
-        const np = ap + word_start[i];
-        const nl = word_len[i];
+    while (i < n_elems) : (i += 2) {
+        const np: [*]const u8 = @ptrFromInt(work_buf + elem_off[i]);
+        const nl = elem_len[i];
         if (nl < 2 or np[0] != '-') {
             stubs.unsupported("fconfigure (expected -option)");
             return 0;
@@ -1252,14 +1313,12 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
         }
     }
     i = 0;
-    while (i < n_words) : (i += 2) {
-        apply_option(
-            c,
-            ap + word_start[i],
-            word_len[i],
-            ap + word_start[i + 1],
-            word_len[i + 1],
-        );
+    while (i < n_elems) : (i += 2) {
+        const np: [*]const u8 = @ptrFromInt(work_buf + elem_off[i]);
+        const nl = elem_len[i];
+        const vp: [*]const u8 = @ptrFromInt(work_buf + elem_off[i + 1]);
+        const vl = elem_len[i + 1];
+        if (!apply_option(c, np, nl, vp, vl)) return 0;
     }
     return obj_new_string(0, 0);
 }
