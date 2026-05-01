@@ -129,9 +129,20 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
         if (elem.braced) {
             off = quoter(buf, off, sc_ptr + elem.start, elem.len);
         } else {
-            const tmp = alloc(elem.len + 1);
+            const tmp_size: u32 = elem.len + 1;
+            const tmp = alloc(tmp_size);
             const actual_len = copy_unbraced_elem(tmp, sc_ptr + elem.start, elem.len);
             off = quoter(buf, off, tmp, actual_len);
+            // Issue #317: ``tmp`` is a per-element scratch buffer
+            // for backslash decoding; ``quoter`` finishes copying
+            // its bytes into ``buf`` before this return, so the
+            // scratch is safe to reclaim immediately.  Without this
+            // ``free_sized`` every ``lappend`` against a list with
+            // unbraced elements leaked one buf per element per
+            // call — multiplied across tcltest's repeated
+            // ``lappend testResults …`` and equivalents this was
+            // a dominant per-test leak.
+            obj.free_sized(tmp, tmp_size);
         }
     }
     if (n > 0) {
@@ -164,19 +175,28 @@ fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
 pub export fn tcl_list(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
+    // Issue #317: ``obj_new_string_take`` so each accumulator
+    // step owns its bytes — codegen emits one ``tcl_list`` call
+    // per element, so the older borrowing form leaked one buf
+    // per element on every list construction.  ``tcl_cmd_lappend``
+    // also looks up ``OBJ_STR_CAP > 0`` to decide whether the
+    // in-place fast path is safe; with cap=0 the slow rebuild
+    // ran every time (multiplying allocator pressure further).
     if (sa.len == 0) {
-        const buf = alloc(sb.len * 2 + 4);
+        const alloc_size: u32 = sb.len * 2 + 4;
+        const buf = alloc(alloc_size);
         const off = list_elem_quote(buf, 0, sb.ptr, sb.len);
-        return obj_new_string(@bitCast(buf), @bitCast(off));
+        return obj.obj_new_string_take(buf, off, alloc_size);
     }
-    const buf = alloc(sa.len + sb.len * 2 + 8);
+    const alloc_size: u32 = sa.len + sb.len * 2 + 8;
+    const buf = alloc(alloc_size);
     memcpy(buf, sa.ptr, sa.len);
     var off: u32 = sa.len;
     const d: [*]u8 = @ptrFromInt(buf + off);
     d[0] = ' ';
     off += 1;
     off = list_elem_quote_nth(buf, off, sb.ptr, sb.len);
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, alloc_size);
 }
 
 // Copy one list element into *buf* at offset *off*, re-adding the
@@ -247,10 +267,13 @@ pub export fn tcl_cmd_list_index(list: i32, idx: i32) i32 {
     if (i_val < 0 or i_val >= n) return obj_new_string(0, 0);
     const elem = list_element_at(s.ptr, s.len, i_val);
     if (elem.braced) return obj_new_string_copy(s.ptr + elem.start, elem.len);
-    // Unbraced element: process backslash escapes.
+    // Unbraced element: process backslash escapes.  Issue #317:
+    // ``obj_new_string_take`` so the resulting TclObj owns its
+    // bytes and ``release_now`` reclaims them — the older
+    // borrowing form leaked one buf per ``lindex`` call.
     const buf = alloc(elem.len);
     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-    return obj_new_string(@bitCast(buf), @bitCast(out_len));
+    return obj.obj_new_string_take(buf, out_len, elem.len);
 }
 
 // Exported: list range — extract elements [first..last] (inclusive).
@@ -286,7 +309,9 @@ pub export fn tcl_cmd_list_range(list: i32, first: i32, last: i32) i32 {
             result_len += elem.len;
         }
     }
-    return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
+    // Issue #317: claim ownership of ``result_buf`` so its
+    // release frees the slab via ``free_sized``.
+    return obj.obj_new_string_take(result_buf, result_len, s.len);
 }
 
 // Exported: tail of a list — elements from *start* onwards.  Used by

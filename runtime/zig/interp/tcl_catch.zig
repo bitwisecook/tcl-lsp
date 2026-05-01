@@ -213,16 +213,28 @@ pub export fn catch_has_error() i32 {
 // $::errorInfo`` without introspecting call frames.  ``::errorCode``
 // defaults to ``NONE`` for ``error msg`` with no explicit code.
 fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
+    // Issue #317: ``global_set`` reads the name's byte span (the
+    // var subsystem stores its own copy) and retains the value
+    // for the slot.  Without these releases, every error event
+    // leaked one TclObj per name (``::errorInfo`` / ``::errorCode``)
+    // plus, on the default-code path, one ``NONE`` value TclObj —
+    // four fresh allocations per error.  tcltest exercises the
+    // catched-error path many times per test, so this scaled
+    // linearly with the suite size.
     const info_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
     const info_val = if (info != 0) info else msg;
     _ = globals.global_set(info_name, info_val);
+    obj.tcl_obj_release(info_name);
 
     const code_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
-    const code_val = if (code != 0)
-        code
+    const default_code = code == 0;
+    const code_val = if (default_code)
+        obj_new_string_copy(@intFromPtr("NONE".ptr), 4)
     else
-        obj_new_string_copy(@intFromPtr("NONE".ptr), 4);
+        code;
     _ = globals.global_set(code_name, code_val);
+    obj.tcl_obj_release(code_name);
+    if (default_code) obj.tcl_obj_release(code_val);
 }
 
 // Exported: error — write message to stderr and trap, OR set error flag in catch.
@@ -292,7 +304,11 @@ pub fn error_unknown_command(cmd_obj: i32) void {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
         for (0..s.len) |i| buf[prefix.len + i] = src[i];
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    // Issue #317: ``obj_new_string_take`` so the error TclObj
+    // owns ``buf_addr`` and ``release_now`` returns it via
+    // ``free_sized``; the older borrowing form leaked one buf per
+    // raised error inside a ``catch``.
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
     tcl_cmd_error(msg);
 }
 
@@ -326,6 +342,7 @@ pub export fn var_unset_error(name_obj: i32) void {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    // Issue #317: see ``error_unknown_command`` above.
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
     tcl_cmd_error(msg);
 }
