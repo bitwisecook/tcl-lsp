@@ -20,6 +20,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Log commit info
+        run: |
+          echo "::group::Commit info"
+          echo "github.sha       = ${{ github.sha }}"
+          echo "github.event_name = ${{ github.event_name }}"
+          echo "github.ref        = ${{ github.ref }}"
+          echo "github.head_ref   = ${{ github.head_ref }}"
+          echo "github.run_id     = ${{ github.run_id }}"
+          echo "checked-out HEAD  = $(git rev-parse HEAD)"
+          echo
+          git log -1 --pretty=fuller HEAD || true
+          echo "::endgroup::"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
@@ -57,6 +70,19 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+
+      - name: Log commit info
+        run: |
+          echo "::group::Commit info"
+          echo "github.sha       = ${{ github.sha }}"
+          echo "github.event_name = ${{ github.event_name }}"
+          echo "github.ref        = ${{ github.ref }}"
+          echo "github.head_ref   = ${{ github.head_ref }}"
+          echo "github.run_id     = ${{ github.run_id }}"
+          echo "checked-out HEAD  = $(git rev-parse HEAD)"
+          echo
+          git log -1 --pretty=fuller HEAD || true
+          echo "::endgroup::"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -97,6 +123,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Log commit info
+        run: |
+          echo "::group::Commit info"
+          echo "github.sha       = ${{ github.sha }}"
+          echo "github.event_name = ${{ github.event_name }}"
+          echo "github.ref        = ${{ github.ref }}"
+          echo "github.head_ref   = ${{ github.head_ref }}"
+          echo "github.run_id     = ${{ github.run_id }}"
+          echo "checked-out HEAD  = $(git rev-parse HEAD)"
+          echo
+          git log -1 --pretty=fuller HEAD || true
+          echo "::endgroup::"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4

@@ -14,20 +14,13 @@ const sched = @import("../sched/tcl_sched.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
 fn parse_int_word(o: i32) ?i64 {
+    // Use the runtime's shared integer parser so ``after`` accepts
+    // every shape Tcl does — leading sign, leading whitespace, hex /
+    // octal / binary prefixes — instead of a bespoke digit loop that
+    // rejected ``after +5`` (Copilot review on PR #284).
     const s = obj.obj_ensure_string(o);
     if (s.len == 0) return null;
-    const p: [*]const u8 = @ptrFromInt(s.ptr);
-    var i: u32 = 0;
-    var neg = false;
-    if (p[0] == '-') { neg = true; i = 1; }
-    if (i >= s.len) return null;
-    var v: i64 = 0;
-    while (i < s.len) : (i += 1) {
-        const c = p[i];
-        if (c < '0' or c > '9') return null;
-        v = v * 10 + (c - '0');
-    }
-    return if (neg) -v else v;
+    return obj.try_parse_int(s.ptr, s.len);
 }
 
 fn concat_scripts(words: []const i32) i32 {
