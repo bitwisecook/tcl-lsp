@@ -24,6 +24,7 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
-  "category": "wasm-timeout"
+  "fixed": true,
+  "category": "wasm-timeout",
+  "fix": "drained by negative-shift fix in #260 (PR #287); WASM now raises an error (missing-variable on this seed) instead of looping"
 }

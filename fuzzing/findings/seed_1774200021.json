@@ -24,6 +24,7 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
-  "category": "wasm-timeout"
+  "fixed": true,
+  "category": "wasm-timeout",
+  "fix": "drained by float-in-bitwise fix in #261 (PR #287); WASM now raises 'cannot use floating-point value' instead of looping"
 }

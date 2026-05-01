@@ -24,6 +24,7 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
-  "category": "wasm-timeout"
+  "fixed": true,
+  "category": "wasm-timeout",
+  "fix": "drained by if-else-elseif fix in #259 (PR #286); WASM now raises 'wrong # args: extra words after else' before the loop, breaking the runaway"
 }

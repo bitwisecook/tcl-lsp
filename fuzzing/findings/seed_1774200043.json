@@ -24,6 +24,7 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
-  "category": "wasm-timeout"
+  "fixed": true,
+  "category": "wasm-timeout",
+  "fix": "drained by float-as-integer fix in #262 (PR #287); WASM now raises 'expected integer' instead of looping"
 }

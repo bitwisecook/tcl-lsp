@@ -24,6 +24,7 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
-  "category": "wasm-timeout"
+  "fixed": true,
+  "category": "wasm-timeout",
+  "fix": "drained by missing-variable fix in #263 (PR #279/#288); WASM now raises 'no such variable' instead of looping"
 }

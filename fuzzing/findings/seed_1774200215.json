@@ -1,12 +1,12 @@
 {
-  "seed": 1774200073,
+  "seed": 1774200215,
   "mismatches": [
     {
       "kind": "crash",
       "description": "wasm crashed but vm did not",
       "backend_a": "vm",
       "backend_b": "wasm",
-      "detail_a": "cannot use non-numeric string \"y2w3\" as left operand of \"+\"",
+      "detail_a": "expected integer but got \"0false\"",
       "detail_b": "TIMEOUT"
     },
     {
@@ -14,7 +14,7 @@
       "description": "wasm crashed but vm_opt did not",
       "backend_a": "vm_opt",
       "backend_b": "wasm",
-      "detail_a": "cannot use non-numeric string \"y2w3\" as left operand of \"+\"",
+      "detail_a": "expected integer but got \"0false\"",
       "detail_b": "TIMEOUT"
     }
   ],
@@ -24,7 +24,6 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": true,
-  "category": "wasm-timeout",
-  "fix": "drained by parser-tightening fix in #262 (PR #287); WASM now raises an error (missing-variable on this seed) instead of looping"
+  "fixed": false,
+  "category": "wasm-timeout"
 }
