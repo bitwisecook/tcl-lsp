@@ -127,36 +127,63 @@ pub export fn catch_result() i32 {
 //   * ``-errorinfo`` — last ``::errorInfo`` global.
 //
 // Caller assumes ownership of the returned TclObj.
+//
+// Memory discipline: ``dict_set`` reads the key's string bytes (copied
+// into the dict's list rep) and retains the value via the hash side-
+// cache.  Each ``dict_set_str`` call therefore allocates one temporary
+// key obj + one (often temporary) value obj that the dict no longer
+// needs after the rebuild — both have to be released or they leak per
+// call.  The intermediate ``d`` from each ``dict_set`` is also released
+// before reassigning, since ``dict_set`` returns a fresh dict for any
+// key-modifying path (Copilot review).
 pub export fn catch_options() i32 {
     var d: i32 = dict_mod.dict_create();
     const code_val: i32 = @intCast(last_catch_had_error);
-    d = dict_set_str(d, "-code", obj_new_int(code_val));
-    d = dict_set_str(d, "-level", obj_new_int(0));
+    d = dict_set_str_take(d, "-code", obj_new_int(code_val));
+    d = dict_set_str_take(d, "-level", obj_new_int(0));
     const ec_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
     const ec_val = globals.global_get(ec_name);
+    obj.tcl_obj_release(ec_name);
     if (ec_val != 0) {
-        d = dict_set_str(d, "-errorcode", ec_val);
+        d = dict_set_str_keep(d, "-errorcode", ec_val);
     } else {
-        d = dict_set_str(d, "-errorcode", obj_new_string_copy(
+        d = dict_set_str_take(d, "-errorcode", obj_new_string_copy(
             @intFromPtr("NONE".ptr), 4,
         ));
     }
     const ei_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
     const ei_val = globals.global_get(ei_name);
+    obj.tcl_obj_release(ei_name);
     if (ei_val != 0) {
-        d = dict_set_str(d, "-errorinfo", ei_val);
+        d = dict_set_str_keep(d, "-errorinfo", ei_val);
     } else if (last_catch_had_error != 0 and error_msg != 0) {
-        d = dict_set_str(d, "-errorinfo", error_msg);
+        d = dict_set_str_keep(d, "-errorinfo", error_msg);
     }
     return d;
 }
 
-/// Helper: ``dict set`` with a string-literal key.  The key is copied
-/// out of the data segment into a fresh TclObj since ``dict_set``
-/// expects a TclObj.
-fn dict_set_str(d: i32, key: []const u8, value: i32) i32 {
+/// ``dict set`` with a string-literal key, taking *ownership* of the
+/// caller's *value* refcount.  Allocates a temporary key obj, calls
+/// ``dict_set``, then releases the key and the source value.
+/// Returns the new dict (caller still owns one ref).
+fn dict_set_str_take(d: i32, key: []const u8, value: i32) i32 {
     const k = obj_new_string_copy(@intCast(@intFromPtr(key.ptr)), @intCast(key.len));
-    return dict_mod.dict_set(d, k, value);
+    const new = dict_mod.dict_set(d, k, value);
+    obj.tcl_obj_release(k);
+    obj.tcl_obj_release(value);
+    if (new != d) obj.tcl_obj_release(d);
+    return new;
+}
+
+/// Like :func:`dict_set_str_take` but the *value* is borrowed from
+/// somewhere else (e.g. ``::errorCode`` global) — we don't release
+/// the caller's refcount on it.
+fn dict_set_str_keep(d: i32, key: []const u8, value: i32) i32 {
+    const k = obj_new_string_copy(@intCast(@intFromPtr(key.ptr)), @intCast(key.len));
+    const new = dict_mod.dict_set(d, k, value);
+    obj.tcl_obj_release(k);
+    if (new != d) obj.tcl_obj_release(d);
+    return new;
 }
 
 // Exported: check if an error is pending (for early exit from catch body).

@@ -272,23 +272,31 @@ fn parse_posix_tz(s: []const u8) ?PosixTz {
     // DST abbreviation.
     const dst_a = posix_read_abbr(s, i) orelse return pz;
     i = dst_a.i;
-    pz.has_dst = true;
     pz.dst_abbr = dst_a.abbr;
+    pz.dst_off_east = pz.std_off_east + 3600; // default DST = std + 1h east
     // Optional explicit DST offset; default is std + 1h east.
     if (i < s.len and s[i] != ',') {
         const dst_o = posix_read_offset(s, i) orelse return pz;
         pz.dst_off_east = -dst_o.secs;
         i = dst_o.i;
     }
+    // ``has_dst`` only commits once we've successfully parsed the
+    // ``,start,end`` rule pair.  An incomplete trailer (DST abbr but
+    // no rules, or only one rule) leaves ``start_rule`` /
+    // ``end_rule`` zero-initialised, which would later index
+    // ``MONTH_DAYS_NORMAL[-1]`` inside ``apply_posix_rule`` and trap
+    // (Copilot review).  Falling back to ``has_dst=false`` makes the
+    // resolver use the last recorded transition instead.
     if (i >= s.len or s[i] != ',') return pz;
     i += 1;
     const start = posix_read_rule(s, i) orelse return pz;
-    pz.start_rule = start.rule;
     i = start.i;
     if (i >= s.len or s[i] != ',') return pz;
     i += 1;
     const end = posix_read_rule(s, i) orelse return pz;
+    pz.start_rule = start.rule;
     pz.end_rule = end.rule;
+    pz.has_dst = true;
     return pz;
 }
 

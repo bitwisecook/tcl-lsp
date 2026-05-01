@@ -765,6 +765,16 @@ def _scan_needed_imports(
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
                     needed.add("tcl_catch_options")
+                    needed.add("tcl_error_full")
+                elif command == "error" and len(args) >= 2:
+                    # 3-arg ``error msg ?info? ?code?`` form — the
+                    # bespoke ``cmds/error_.py`` emitter routes
+                    # through ``tcl_cmd_error_full``.  Pure-math
+                    # modules without an ``error`` site shouldn't
+                    # pull this import, so it's conditional on the
+                    # arity here (not added in the always-on
+                    # block lower down).
+                    needed.add("tcl_error_full")
                 # Scan all arguments for command substitutions.  For
                 # body-taking commands (``proc``, ``namespace eval``,
                 # ``catch``, etc.) the args are source text re-parsed
@@ -929,7 +939,6 @@ def _scan_needed_imports(
     # the top-level-var-mirror path in ``_emit_var_write_obj_impl``
     # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
-    needed.add("tcl_error_full")
     needed.add("tcl_eval")
     needed.add("tcl_ns_set")
     needed.add("tcl_ns_restore")
