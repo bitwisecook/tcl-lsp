@@ -966,6 +966,483 @@ pub export fn clock_scan_obj(
 /// every scan.
 const tz_utc_zone: tz.TimeZone = tz.utc();
 
+// -- clock scan -format ------------------------------------------------------
+//
+// strftime-driven scan path: walks the format string, consuming the
+// matching token from the input for each conversion spec, then packs
+// the accumulated field set into Unix epoch seconds.  Complements the
+// free-form / ISO parser above (``parse_iso`` / ``parse_freeform``)
+// which auto-detects the input shape; ``-format`` forces an exact
+// strftime template instead.
+//
+// Supported specs (the subset the tcltest ``clock-6`` / ``clock-7`` /
+// ``clock-8`` slices need):
+//
+//   %s            epoch seconds (signed; takes precedence over fields)
+//   %J            Julian day number
+//   %Y            4-digit year
+//   %y            2-digit year (00..99 → 2000..2069 / 1970..1999 split
+//                 on 69 — same convention as Tcl 9 + POSIX strptime)
+//   %C            2-digit century
+//   %m            zero- or space-padded month (01..12)
+//   %N            space-padded month (1..12, leading space optional)
+//   %b / %h       abbreviated month name (Jan..Dec, case-insensitive)
+//   %B            full month name
+//   %d            zero-padded day-of-month (01..31)
+//   %e            space-padded day-of-month (1..31)
+//   %j            day-of-year (1..366) — accepted but currently ignored
+//                 for date packing (future: derive month/day if no
+//                 explicit month/day given)
+//   %H / %k       24h hour (00..23 / 0..23)
+//   %I / %l       12h hour (01..12 / 1..12) — combined with %p
+//   %M            minute
+//   %S            second
+//   %p / %P       AM/PM (case-insensitive)
+//   %a / %A       weekday name (case-insensitive, accepted but ignored)
+//   %z            zone offset ``±HHMM`` / ``±HH:MM``
+//   %Z            zone name (best-effort: skipped over, not validated)
+//   %% / %n / %t  literal ``%`` / newline / tab
+//
+// Locale modifiers (``%O*`` / ``%E*``) are accepted by stripping the
+// leading ``O`` / ``E`` and treating the rest as plain.  The roman-
+// numeral interpretation that ``-locale en_US_roman`` would normally
+// trigger is *not* implemented — that's a separate locale-aware
+// parser layer we don't ship.  The slice driver currently runs every
+// ``en_US_roman`` test against this engine; those that use Arabic
+// numerals through ``%d`` / ``%e`` / ``%m`` work, those that use
+// roman numerals for ``%Od`` / ``%Oe`` produce a parse miss.
+
+const ScanFormatErr = enum {
+    none,
+    no_match,
+    overflow,
+};
+
+const ScanState = struct {
+    have_seconds: bool = false,
+    seconds: i64 = 0,
+
+    have_julian: bool = false,
+    julian: i64 = 0,
+
+    have_year: bool = false,
+    year: i32 = 1970,
+    have_century: bool = false,
+    century: i32 = 19,
+    have_year2: bool = false,
+    year2: i32 = 70,
+
+    have_month: bool = false,
+    month: u32 = 1,
+    have_day: bool = false,
+    day: u32 = 1,
+
+    have_hour: bool = false,
+    hour: u32 = 0,
+    hour_is_12: bool = false,
+    pm: bool = false,
+    have_minute: bool = false,
+    minute: u32 = 0,
+    have_second: bool = false,
+    second: u32 = 0,
+
+    have_zone: bool = false,
+    zone_offset: i32 = 0,
+};
+
+/// Skip whitespace in *s* starting at *i*; return the new index.
+fn scan_skip_ws(s: []const u8, i_in: usize) usize {
+    var i = i_in;
+    while (i < s.len and (s[i] == ' ' or s[i] == '\t')) : (i += 1) {}
+    return i;
+}
+
+/// Read up to ``max_digits`` decimal digits.  Returns ``(value, n_consumed)``
+/// or null if no digits.  Allows a leading ``+`` / ``-`` for the very first
+/// character so ``%s`` can scan negative epochs.
+fn scan_read_int(
+    s: []const u8,
+    i_in: usize,
+    max_digits: usize,
+    allow_sign: bool,
+) ?struct { v: i64, i: usize } {
+    var i = i_in;
+    var sign: i64 = 1;
+    if (allow_sign and i < s.len and (s[i] == '-' or s[i] == '+')) {
+        if (s[i] == '-') sign = -1;
+        i += 1;
+    }
+    // ``%e`` / ``%k`` accept a leading space before the digit.
+    if (i < s.len and s[i] == ' ') i += 1;
+    var v: i64 = 0;
+    var n: usize = 0;
+    while (i < s.len and n < max_digits and s[i] >= '0' and s[i] <= '9') : (i += 1) {
+        const m = @mulWithOverflow(v, @as(i64, 10));
+        if (m[1] != 0) return null;
+        const d: i64 = @intCast(s[i] - '0');
+        const a = @addWithOverflow(m[0], d);
+        if (a[1] != 0) return null;
+        v = a[0];
+        n += 1;
+    }
+    if (n == 0) return null;
+    return .{ .v = sign * v, .i = i };
+}
+
+/// Consume a month name (full or abbreviated, case-insensitive) at
+/// ``s[i..]``.  Returns ``(month_1based, end_index)`` or null.
+fn scan_match_month(s: []const u8, i_in: usize) ?struct { m: u32, i: usize } {
+    // Try each candidate; longer matches first so ``January`` doesn't
+    // get truncated to ``Jan``.  The MONTH_FULL / MONTH_ABBR tables in
+    // ``render_format`` are MixedCase but we match case-insensitively
+    // via :func:`ieq`.
+    inline for (.{ MONTH_NAMES_FULL, MONTH_NAMES_ABBR }) |table| {
+        for (table, 0..) |name, idx| {
+            if (i_in + name.len > s.len) continue;
+            if (ieq(s[i_in .. i_in + name.len], name)) {
+                return .{ .m = @intCast(idx + 1), .i = i_in + name.len };
+            }
+        }
+    }
+    return null;
+}
+
+/// Consume ``AM`` / ``PM`` / ``am`` / ``pm`` (exactly two chars).
+fn scan_match_am_pm(s: []const u8, i_in: usize) ?struct { pm: bool, i: usize } {
+    if (i_in + 2 > s.len) return null;
+    const c0 = ascii_lower(s[i_in]);
+    const c1 = ascii_lower(s[i_in + 1]);
+    if (c1 != 'm') return null;
+    if (c0 == 'a') return .{ .pm = false, .i = i_in + 2 };
+    if (c0 == 'p') return .{ .pm = true, .i = i_in + 2 };
+    return null;
+}
+
+/// Consume a weekday name.  Return value is the 0..6 index but
+/// callers ignore it for now (not used in the pack step).
+fn scan_match_weekday(s: []const u8, i_in: usize) ?struct { i: usize } {
+    inline for (.{ WEEKDAY_FULL, WEEKDAY_ABBR }) |table| {
+        for (table) |name| {
+            if (i_in + name.len > s.len) continue;
+            if (ieq(s[i_in .. i_in + name.len], name)) {
+                return .{ .i = i_in + name.len };
+            }
+        }
+    }
+    return null;
+}
+
+/// Parse ``±HHMM`` / ``±HH:MM`` zone offset.
+fn scan_match_zone_offset(s: []const u8, i_in: usize) ?struct { off: i32, i: usize } {
+    if (i_in >= s.len) return null;
+    const c = s[i_in];
+    if (c != '+' and c != '-') return null;
+    var i = i_in + 1;
+    const hh = scan_read_int(s, i, 2, false) orelse return null;
+    i = hh.i;
+    var mm: i64 = 0;
+    if (i < s.len and s[i] == ':') i += 1;
+    if (i < s.len and s[i] >= '0' and s[i] <= '9') {
+        const m = scan_read_int(s, i, 2, false) orelse return null;
+        mm = m.v;
+        i = m.i;
+    }
+    const sign: i32 = if (c == '-') -1 else 1;
+    return .{ .off = sign * @as(i32, @intCast(hh.v * 3600 + mm * 60)), .i = i };
+}
+
+/// Step past one zone-name token (``UTC`` / ``GMT`` / ``EST`` / …).
+/// We don't validate the name — Tcl's reference parser also tolerates
+/// any letter run here.
+fn scan_skip_zone_name(s: []const u8, i_in: usize) usize {
+    var i = i_in;
+    while (i < s.len) : (i += 1) {
+        const c = s[i];
+        if (!((c >= 'A' and c <= 'Z') or (c >= 'a' and c <= 'z') or c == '/' or c == '_')) break;
+    }
+    return i;
+}
+
+/// Drive the format string against the input, populating *st*.
+/// Returns ``no_match`` on any mismatch / unknown spec, ``overflow``
+/// for arithmetic blow-ups, ``none`` on success.
+fn scan_drive(fmt: []const u8, input: []const u8, st: *ScanState) ScanFormatErr {
+    var fi: usize = 0;
+    var ii: usize = 0;
+    while (fi < fmt.len) {
+        const fc = fmt[fi];
+        if (fc == ' ' or fc == '\t') {
+            // One-or-more whitespace in fmt matches zero-or-more in input.
+            fi += 1;
+            ii = scan_skip_ws(input, ii);
+            continue;
+        }
+        if (fc != '%') {
+            // Literal char must match.
+            if (ii >= input.len or input[ii] != fc) return .no_match;
+            fi += 1;
+            ii += 1;
+            continue;
+        }
+        // ``%`` followed by spec.
+        fi += 1;
+        if (fi >= fmt.len) return .no_match;
+        var spec = fmt[fi];
+        fi += 1;
+        // Locale modifiers: skip ``O`` / ``E`` and treat the next char
+        // as the real spec.  Roman-numeral interpretation isn't
+        // implemented; an ``%Od`` against ``ii`` will fall through to
+        // scan_read_int and return no_match.
+        if (spec == 'O' or spec == 'E') {
+            if (fi >= fmt.len) return .no_match;
+            spec = fmt[fi];
+            fi += 1;
+        }
+        // Skip leading whitespace for any numeric spec — strptime
+        // semantics: ``%d`` matches `` 5`` as well as ``05``.  ``%n`` /
+        // ``%t`` get the same treatment (any whitespace).
+        switch (spec) {
+            '%' => {
+                if (ii >= input.len or input[ii] != '%') return .no_match;
+                ii += 1;
+            },
+            'n', 't' => {
+                ii = scan_skip_ws(input, ii);
+            },
+            's' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 20, true) orelse return .no_match;
+                st.have_seconds = true;
+                st.seconds = r.v;
+                ii = r.i;
+            },
+            'J' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 12, true) orelse return .no_match;
+                st.have_julian = true;
+                st.julian = r.v;
+                ii = r.i;
+            },
+            'Y' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 4, true) orelse return .no_match;
+                st.have_year = true;
+                st.year = @intCast(r.v);
+                ii = r.i;
+            },
+            'y' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                st.have_year2 = true;
+                st.year2 = @intCast(r.v);
+                ii = r.i;
+            },
+            'C' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                st.have_century = true;
+                st.century = @intCast(r.v);
+                ii = r.i;
+            },
+            'm', 'N' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                if (r.v < 1 or r.v > 12) return .no_match;
+                st.have_month = true;
+                st.month = @intCast(r.v);
+                ii = r.i;
+            },
+            'b', 'B', 'h' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_match_month(input, ii) orelse return .no_match;
+                st.have_month = true;
+                st.month = r.m;
+                ii = r.i;
+            },
+            'd', 'e' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                if (r.v < 1 or r.v > 31) return .no_match;
+                st.have_day = true;
+                st.day = @intCast(r.v);
+                ii = r.i;
+            },
+            'j' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 3, false) orelse return .no_match;
+                if (r.v < 1 or r.v > 366) return .no_match;
+                ii = r.i;
+                // day-of-year not currently fed into pack_epoch — when
+                // both %m/%d and %j are present, %m/%d wins (matches
+                // strptime).  Future enhancement: derive month/day
+                // from yday when no explicit month/day given.
+            },
+            'H', 'k' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                if (r.v < 0 or r.v > 23) return .no_match;
+                st.have_hour = true;
+                st.hour_is_12 = false;
+                st.hour = @intCast(r.v);
+                ii = r.i;
+            },
+            'I', 'l' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                if (r.v < 1 or r.v > 12) return .no_match;
+                st.have_hour = true;
+                st.hour_is_12 = true;
+                st.hour = @intCast(r.v);
+                ii = r.i;
+            },
+            'M' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                if (r.v < 0 or r.v > 59) return .no_match;
+                st.have_minute = true;
+                st.minute = @intCast(r.v);
+                ii = r.i;
+            },
+            'S' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_read_int(input, ii, 2, false) orelse return .no_match;
+                if (r.v < 0 or r.v > 60) return .no_match;
+                st.have_second = true;
+                st.second = @intCast(r.v);
+                ii = r.i;
+            },
+            'p', 'P' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_match_am_pm(input, ii) orelse return .no_match;
+                st.pm = r.pm;
+                ii = r.i;
+            },
+            'a', 'A' => {
+                ii = scan_skip_ws(input, ii);
+                const r = scan_match_weekday(input, ii) orelse return .no_match;
+                ii = r.i;
+            },
+            'z' => {
+                ii = scan_skip_ws(input, ii);
+                if (ii < input.len and (input[ii] == 'Z' or input[ii] == 'z')) {
+                    st.have_zone = true;
+                    st.zone_offset = 0;
+                    ii += 1;
+                } else {
+                    const r = scan_match_zone_offset(input, ii) orelse return .no_match;
+                    st.have_zone = true;
+                    st.zone_offset = r.off;
+                    ii = r.i;
+                }
+            },
+            'Z' => {
+                ii = scan_skip_ws(input, ii);
+                ii = scan_skip_zone_name(input, ii);
+            },
+            else => return .no_match,
+        }
+    }
+    if (ii != input.len) {
+        // Trailing input that the format didn't consume.  Allow only
+        // trailing whitespace (Tcl's scan is lenient here).
+        const trail = scan_skip_ws(input, ii);
+        if (trail != input.len) return .no_match;
+    }
+    return .none;
+}
+
+/// Resolve the partial broken-down state into Unix epoch seconds.
+/// Year is composed from %Y, %C+%y, or %y alone (Tcl's century split:
+/// 00..68 → 2000..2068, 69..99 → 1969..1999).  Calendar fields default
+/// to 1970-01-01 00:00:00 when not provided — matches tclsh's
+/// "missing fields zero out" behaviour.
+fn scan_resolve(st: *const ScanState) ?i64 {
+    if (st.have_seconds) return st.seconds;
+    if (st.have_julian) {
+        // JD 2440588 is 1970-01-01 UTC.
+        const jd_unix: i64 = 2440588;
+        const days = st.julian - jd_unix;
+        const m = @mulWithOverflow(days, @as(i64, SECS_PER_DAY));
+        if (m[1] != 0) return null;
+        return m[0];
+    }
+    var year: i32 = 1970;
+    if (st.have_year) {
+        year = st.year;
+    } else if (st.have_century and st.have_year2) {
+        year = st.century * 100 + st.year2;
+    } else if (st.have_year2) {
+        year = if (st.year2 < 69) 2000 + st.year2 else 1900 + st.year2;
+    }
+    const month: u32 = if (st.have_month) st.month else 1;
+    const day: u32 = if (st.have_day) st.day else 1;
+    var hour: u32 = if (st.have_hour) st.hour else 0;
+    if (st.have_hour and st.hour_is_12) {
+        // %I/%p combo: 12 AM = 00, 12 PM = 12, 1..11 PM = 13..23.
+        if (hour == 12) hour = 0;
+        if (st.pm) hour += 12;
+    }
+    const minute: u32 = if (st.have_minute) st.minute else 0;
+    const second: u32 = if (st.have_second) st.second else 0;
+    if (year < -9999 or year > 9999) return null;
+    if (day < 1 or day > days_in_month(year, month)) return null;
+    return pack_epoch(year, month, day, hour, minute, second);
+}
+
+/// clock_scan_format — strftime-driven scan.  Returns a TclObj integer
+/// holding the resolved epoch, or zero on parse failure (matches the
+/// degraded-path behaviour of :func:`clock_scan_obj` — the upstream
+/// reference raises ``CLOCK badInputString`` here, which we don't
+/// surface yet).
+pub export fn clock_scan_format(
+    text_obj: i32,
+    fmt_obj: i32,
+    gmt_flag: i32,
+    zone_obj: i32,
+    base_obj: i32,
+) i32 {
+    _ = base_obj; // base only matters when format-less; format path
+    // explicitly fills every field it cares about.
+    if (text_obj == 0 or fmt_obj == 0) return obj_new_int(0);
+    const t = obj_ensure_string(text_obj);
+    const f = obj_ensure_string(fmt_obj);
+    if (t.ptr == 0 or t.len == 0) return obj_new_int(0);
+    if (f.ptr == 0 or f.len == 0) return obj_new_int(0);
+    const tp: [*]const u8 = @ptrFromInt(t.ptr);
+    const fp: [*]const u8 = @ptrFromInt(f.ptr);
+    const text = tp[0..t.len];
+    const fmt = fp[0..f.len];
+
+    var st = ScanState{};
+    const err = scan_drive(fmt, text, &st);
+    if (err != .none) return obj_new_int(0);
+    const local_epoch = scan_resolve(&st) orelse return obj_new_int(0);
+
+    if (st.have_zone) {
+        return obj_new_int(local_epoch - @as(i64, st.zone_offset));
+    }
+    if (gmt_flag != 0) return obj_new_int(local_epoch);
+
+    // Epoch-style results (%s, %J) bypass zone math — they're already
+    // absolute UTC.  Calendar-only results need the zone offset
+    // applied once we know it.
+    if (st.have_seconds or st.have_julian) return obj_new_int(local_epoch);
+
+    const zone_slice: []const u8 = blk: {
+        if (zone_obj == 0) break :blk &[_]u8{};
+        const zs = obj_ensure_string(zone_obj);
+        if (zs.ptr == 0 or zs.len == 0) break :blk &[_]u8{};
+        const zp: [*]const u8 = @ptrFromInt(zs.ptr);
+        break :blk zp[0..zs.len];
+    };
+    const z: *const tz.TimeZone = if (zone_slice.len == 0)
+        tz.resolve_default()
+    else
+        tz.resolve(zone_slice);
+    const off = z.offset_at(local_epoch).utoff;
+    return obj_new_int(local_epoch - @as(i64, off));
+}
+
 // -- clock add ----------------------------------------------------------------
 
 const SECS_PER_MINUTE: i64 = 60;

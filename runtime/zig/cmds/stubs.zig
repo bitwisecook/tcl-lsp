@@ -111,6 +111,7 @@ fn eval_clock(words: []const i32) i32 {
         if (words.len < 3) return rt.obj_new_int(0);
         var zone_obj: i32 = 0;
         var base_obj: i32 = 0;
+        var fmt_obj: i32 = 0;
         var gmt: i32 = 0;
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
@@ -121,6 +122,8 @@ fn eval_clock(words: []const i32) i32 {
                 zone_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-base")) {
                 base_obj = words[ai + 1];
+            } else if (std.mem.eql(u8, op, "-format")) {
+                fmt_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-gmt")) {
                 const v = rt.obj_ensure_string(words[ai + 1]);
                 if (v.ptr != 0 and v.len > 0) {
@@ -131,9 +134,19 @@ fn eval_clock(words: []const i32) i32 {
                         std.mem.eql(u8, vs, "no")) 0 else 1;
                 }
             }
-            // ``-format`` / ``-locale`` ignored — the parser
-            // auto-detects ISO vs free-form and locale modifiers
-            // map to the same English month-name table.
+            // ``-locale`` ignored — locale-driven roman numerals etc.
+            // are not implemented; English month-name table is the
+            // sole calendar locale we honour.
+        }
+        if (fmt_obj != 0) {
+            // Strftime-driven path: ``clock-7`` (``%J``) and the
+            // explicit-format ``clock-6`` / ``clock-8`` slices land
+            // here.  Falls back to the auto-detect parser if the
+            // format string is empty (caller passed ``-format ""``).
+            const f = rt.obj_ensure_string(fmt_obj);
+            if (f.ptr != 0 and f.len > 0) {
+                return clock.clock_scan_format(words[2], fmt_obj, gmt, zone_obj, base_obj);
+            }
         }
         return clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj);
     }
