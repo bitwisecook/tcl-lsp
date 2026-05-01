@@ -205,6 +205,7 @@ _fu(
     "fileutil::updateInPlace ?options? fileName cmdOrBody",
     Arity(2),
     arg_role_resolver=_update_in_place_arg_roles,
+    body_arg_implicit_args=1,
     side_effect_hints=_fileutil_se(reads=True, writes=True),
 )
 _fu(
