@@ -301,6 +301,46 @@
       "wasm_total": 23
     },
     {
+      "stem": "chan",
+      "subsystem": "io",
+      "tcl_passed": 0,
+      "tcl_total": 0,
+      "wasm_failed": 0,
+      "wasm_passed": 42,
+      "wasm_status": "pass",
+      "wasm_total": 42
+    },
+    {
+      "stem": "chanio",
+      "subsystem": "io",
+      "tcl_passed": 0,
+      "tcl_total": 0,
+      "wasm_failed": 22,
+      "wasm_passed": 734,
+      "wasm_status": "partial",
+      "wasm_total": 779
+    },
+    {
+      "stem": "io",
+      "subsystem": "io",
+      "tcl_passed": 0,
+      "tcl_total": 0,
+      "wasm_failed": 0,
+      "wasm_passed": 0,
+      "wasm_status": "run-trap",
+      "wasm_total": 0
+    },
+    {
+      "stem": "ioCmd",
+      "subsystem": "io",
+      "tcl_passed": 0,
+      "tcl_total": 0,
+      "wasm_failed": 0,
+      "wasm_passed": 0,
+      "wasm_status": "run-trap",
+      "wasm_total": 0
+    },
+    {
       "stem": "abstractlist",
       "subsystem": "list",
       "tcl_passed": 0,

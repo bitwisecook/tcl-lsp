@@ -181,7 +181,7 @@ fn eval_join(words: []const i32) i32 {
         const sp = alloc(1);
         const d: [*]u8 = @ptrFromInt(sp);
         d[0] = ' ';
-        return rt.tcl_cmd_join(words[1], obj_new_string(@intCast(sp), 1));
+        return rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1));
     }
     return obj_new_string(0, 0);
 }
@@ -241,7 +241,7 @@ fn eval_lrepeat(words: []const i32) i32 {
         rt.memcpy(result_buf + off, cycle_buf, cycle_off);
         off += cycle_off;
     }
-    return obj_new_string(@intCast(result_buf), @intCast(off));
+    return obj_new_string(@bitCast(result_buf), @bitCast(off));
 }
 
 fn eval_lassign(words: []const i32) i32 {
@@ -259,7 +259,7 @@ fn eval_lassign(words: []const i32) i32 {
             } else {
                 const buf = alloc(elem.len + 4);
                 const out_len = rt.copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-                break :blk obj_new_string(@intCast(buf), @intCast(out_len));
+                break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
             }
         } else obj_new_string(0, 0);
         _ = frames.var_set(words[pi], val);
@@ -286,7 +286,7 @@ fn eval_lmap(words: []const i32) i32 {
         else blk: {
             const buf = alloc(elem.len + 4);
             const out_len = rt.copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-            break :blk obj_new_string(@intCast(buf), @intCast(out_len));
+            break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
         };
         _ = frames.var_set(var_name, elem_val);
         const item = interp.eval_script(body_s.ptr, body_s.len);

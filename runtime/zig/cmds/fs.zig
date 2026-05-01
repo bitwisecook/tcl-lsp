@@ -172,7 +172,7 @@ fn list_concat(a: i32, b: i32) i32 {
     for (0..sa.len) |i| out[i] = ap[i];
     out[sa.len] = ' ';
     for (0..sb.len) |i| out[sa.len + 1 + i] = bp[i];
-    return obj.obj_new_string(@intCast(buf), @intCast(total));
+    return obj.obj_new_string(@bitCast(buf), @bitCast(total));
 }
 
 pub const registrations = [_]reg.CmdEntry{

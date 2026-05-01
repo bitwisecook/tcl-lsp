@@ -237,6 +237,13 @@ test-tcl9-full: $(UV_STAMP) ## Full Tcl 9 suite; requires upstream source (night
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
 		--tcl9-required --tcl9-report=tmp/tcl9-report-full.json
 
+check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites against the baseline (issue #276)
+	@echo "==> Running Tcl 9 I/O tcltest suites (chan / chanio / io / ioCmd) against baseline"
+	@mkdir -p $(ROOT)tmp
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
+		--tcl9-required --tcl9-report=tmp/tcl9-report-io.json \
+		-k "TestTcl9_chan or TestTcl9_chanio or TestTcl9_io or TestTcl9_ioCmd"
+
 tcl9-triage: $(UV_STAMP) ## Refresh docs/kcs/kcs-tcl9-triage.md from tmp/tcl9-report.json
 	@echo "==> Refreshing Tcl 9 triage table"
 	cd $(ROOT) && $(UV) run python scripts/tcl9_triage_report.py tmp/tcl9-report.json

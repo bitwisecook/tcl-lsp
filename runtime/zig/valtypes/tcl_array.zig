@@ -342,6 +342,11 @@ fn normalize_ns_name(name: i32) i32 {
     while (i + 1 < sn.len) : (i += 1) {
         if (sp[i] == ':' and sp[i + 1] == ':') {
             const buf = alloc(2 + sn.len);
+            // OOM — fall back to the unqualified form rather than a
+            // null-pointer trap.  Caller's directory probe will miss
+            // and either signal "no such array" cleanly or trip a
+            // Tcl-level error from a higher allocator.
+            if (buf == 0) return name;
             const d: [*]u8 = @ptrFromInt(buf);
             d[0] = ':';
             d[1] = ':';

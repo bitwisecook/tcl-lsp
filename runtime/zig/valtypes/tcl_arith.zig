@@ -223,7 +223,7 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
 }
 
@@ -264,7 +264,7 @@ fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
 }
 

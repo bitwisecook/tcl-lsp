@@ -66,7 +66,7 @@ fn eval_tcl_build_info(words: []const i32) i32 {
 /// for the lifetime of the module — we point ``OBJ_STR_PTR`` at
 /// them with ``OBJ_STR_CAP == 0`` (not owned, not freeable).
 fn obj_new_string_lit(comptime s: []const u8) i32 {
-    return obj_new_string(@intCast(@intFromPtr(s.ptr)), @intCast(s.len));
+    return obj_new_string(@bitCast(@intFromPtr(s.ptr)), @bitCast(s.len));
 }
 
 pub const registrations = [_]reg.CmdEntry{

@@ -1565,7 +1565,7 @@ fn raise_expected_integer(o: i32) void {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@intCast(buf_addr), @intCast(total));
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
     @import("tcl_catch.zig").tcl_cmd_error(msg);
 }
 

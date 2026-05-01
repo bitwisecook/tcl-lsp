@@ -308,6 +308,152 @@ fn parse_uint(p: [*]const u8, len: u32) ?u32 {
     return n;
 }
 
+// Channel-error wording helpers — issue #272.
+//
+// Each helper builds the upstream Tcl error message (matching
+// ``tmp/tcl9.0.3/generic/tclIO.c`` / ``tclIOCmd.c``) into a heap
+// buffer and routes it through ``stubs.raise`` so the per-suite
+// ``exact matching`` assertions in upstream ioCmd.test pass without
+// having to special-case our wording.
+
+/// Concatenate a list of byte slices into a single heap buffer and
+/// raise it through the standard error path.  ``stubs.raise``
+/// internally copies the message into its own ``obj_new_string``-
+/// backed buffer, so we reclaim the scratch we built here once the
+/// call returns — otherwise every dynamic channel error in a long-
+/// running session leaked one slab (Codex review on PR #305).
+fn raise_parts(parts: []const []const u8) void {
+    var total: u32 = 0;
+    for (parts) |p| total += @intCast(p.len);
+    const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) return; // OOM — caller's diagnostic is already truncated.
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: u32 = 0;
+    for (parts) |p| {
+        for (p) |b| {
+            buf[off] = b;
+            off += 1;
+        }
+    }
+    const slice = @as([*]const u8, @ptrFromInt(buf_addr))[0..total];
+    stubs.raise(slice);
+    obj.free_sized(buf_addr, total);
+}
+
+/// Render the bytes of a channel-name TclObj as an unowned slice.
+/// Returns an empty slice when the obj is null or empty so callers
+/// can still produce a well-formed quoted message.
+fn name_slice(name_obj: i32) []const u8 {
+    if (name_obj == 0) return "";
+    const s = obj_ensure_string(name_obj);
+    if (s.len == 0) return "";
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    return p[0..s.len];
+}
+
+/// Recover the channel slot index from a ``*Channel`` pointer.
+/// Used by helper functions (``refill``, ``flush_chan``) that don't
+/// see the original name TclObj but still need to interpolate a
+/// channel name into an error message.
+fn slot_of(c: *const Channel) u32 {
+    const base = @intFromPtr(&channels[0]);
+    const off = @intFromPtr(c) - base;
+    return @intCast(off / @sizeOf(Channel));
+}
+
+/// Write the canonical name for ``slot`` (``stdin`` / ``stdout`` /
+/// ``stderr`` / ``fileN``) into ``dst`` and return how many bytes
+/// were written.  ``dst`` must be at least 16 bytes.
+fn write_slot_name(slot: u32, dst: []u8) u32 {
+    if (slot == 0) {
+        const s = "stdin";
+        for (s, 0..) |b, i| dst[i] = b;
+        return s.len;
+    }
+    if (slot == 1) {
+        const s = "stdout";
+        for (s, 0..) |b, i| dst[i] = b;
+        return s.len;
+    }
+    if (slot == 2) {
+        const s = "stderr";
+        for (s, 0..) |b, i| dst[i] = b;
+        return s.len;
+    }
+    dst[0] = 'f';
+    dst[1] = 'i';
+    dst[2] = 'l';
+    dst[3] = 'e';
+    var digits: [10]u8 = undefined;
+    var dlen: u32 = 0;
+    var v: u32 = slot;
+    if (v == 0) {
+        digits[0] = '0';
+        dlen = 1;
+    } else {
+        while (v > 0) : (v /= 10) {
+            digits[dlen] = '0' + @as(u8, @intCast(v % 10));
+            dlen += 1;
+        }
+    }
+    var i: u32 = 0;
+    while (i < dlen) : (i += 1) dst[4 + i] = digits[dlen - 1 - i];
+    return 4 + dlen;
+}
+
+/// ``can not find channel named "<name>"`` — matches
+/// ``tclIO.c::Tcl_GetChannel`` (``tmp/tcl9.0.3/generic/tclIO.c:1466``).
+fn raise_unknown_channel(name_obj: i32) void {
+    raise_parts(&.{ "can not find channel named \"", name_slice(name_obj), "\"" });
+}
+
+/// ``channel "<name>" wasn't opened for reading`` — matches
+/// ``tclIOCmd.c::Tcl_ReadObjCmd`` (``tclIOCmd.c:300``).
+fn raise_not_readable(name_obj: i32) void {
+    raise_parts(&.{ "channel \"", name_slice(name_obj), "\" wasn't opened for reading" });
+}
+
+/// ``channel "<name>" wasn't opened for writing`` — matches
+/// ``tclIOCmd.c::Tcl_PutsObjCmd`` (``tclIOCmd.c:161``).
+fn raise_not_writable(name_obj: i32) void {
+    raise_parts(&.{ "channel \"", name_slice(name_obj), "\" wasn't opened for writing" });
+}
+
+/// Build the ``can not find...`` / ``... wasn't opened...`` /
+/// ``error reading...`` family by slot when the caller doesn't have
+/// the original name TclObj (helpers like ``refill`` / ``flush_chan``
+/// see only ``*Channel``).
+fn raise_io_error_by_slot(c: *const Channel, prefix: []const u8, syscall: []const u8) void {
+    var name_buf: [16]u8 = undefined;
+    const nlen = write_slot_name(slot_of(c), &name_buf);
+    const name = name_buf[0..nlen];
+    raise_parts(&.{ prefix, "\"", name, "\": ", syscall });
+}
+
+fn raise_read_io_error(c: *const Channel, syscall: []const u8) void {
+    raise_io_error_by_slot(c, "error reading ", syscall);
+}
+
+fn raise_write_io_error(c: *const Channel, syscall: []const u8) void {
+    raise_io_error_by_slot(c, "error writing ", syscall);
+}
+
+fn raise_seek_io_error(name_obj: i32, syscall: []const u8) void {
+    raise_parts(&.{ "error during seek on \"", name_slice(name_obj), "\": ", syscall });
+}
+
+/// ``couldn't open "<path>": <syscall>`` — matches
+/// ``tclIOUtil.c::Tcl_FSOpenFileChannel`` (``tclIOUtil.c:2255``).
+fn raise_open_failed(path_obj: i32, syscall: []const u8) void {
+    raise_parts(&.{ "couldn't open \"", name_slice(path_obj), "\": ", syscall });
+}
+
+/// ``illegal access mode "<mode>"`` — matches
+/// ``tclIOUtil.c::TclGetOpenMode`` (``tclIOUtil.c:1518``).
+fn raise_illegal_access_mode(mode_obj: i32) void {
+    raise_parts(&.{ "illegal access mode \"", name_slice(mode_obj), "\"" });
+}
+
 /// Map a Tcl channel name to a slot index.  Accepts ``stdin`` /
 /// ``stdout`` / ``stderr`` (slots 0/1/2) and ``fileN`` (slot N if
 /// allocated).  Returns null on miss; callers raise via stubs.raise.
@@ -448,17 +594,17 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
         return 0;
     }
     const parsed = parse_access(access) orelse {
-        stubs.raise("open: unrecognised access mode (use r/r+/w/w+/a/a+)");
+        raise_illegal_access_mode(access);
         return 0;
     };
     const fd = open_fn(path_cstr(path), parsed.flags, 0o644);
     if (fd < 0) {
-        stubs.raise("open: could not open file");
+        raise_open_failed(path, "i/o error");
         return 0;
     }
     const slot = alloc_slot() orelse {
         _ = close_fn(fd);
-        stubs.raise("open: too many channels");
+        stubs.raise("couldn't allocate channel");
         return 0;
     };
     channels[slot] = .{
@@ -499,7 +645,7 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
 /// conservative direction.
 pub export fn tcl_cmd_close(chan: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("close: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     if (slot < 3) {
@@ -510,7 +656,7 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         // a flush failure here is reported as an error so callers
         // notice silent data loss (broken pipe, disk full, …).
         if (!flush_chan(&channels[slot])) {
-            stubs.raise("close: write failed");
+            raise_write_io_error(&channels[slot], "i/o error");
             return 0;
         }
         return obj_new_string(0, 0);
@@ -561,7 +707,7 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .dec_raw = 0,
     };
     if (!flush_ok) {
-        stubs.raise("close: write failed");
+        raise_parts(&.{ "error writing \"", name_slice(chan), "\": i/o error" });
         return 0;
     }
     return obj_new_string(0, 0);
@@ -610,7 +756,7 @@ fn refill(c: *Channel) u32 {
         // become indistinguishable from a transport failure and
         // scripts loop forever waiting for a refill that's
         // already broken.
-        stubs.raise("read: I/O error");
+        raise_read_io_error(c, "i/o error");
         return 0;
     }
     c.buf_end = carry + @as(u32, @intCast(n));
@@ -742,9 +888,9 @@ fn buf_finish(b: ByteBuf) i32 {
         obj.free_sized(b.addr, b.cap);
         return obj_new_string(0, 0);
     }
-    const out = obj_new_string(@intCast(b.addr), @intCast(b.len));
+    const out = obj_new_string(@bitCast(b.addr), @bitCast(b.len));
     if (out != 0) {
-        obj.write_i32(@as(u32, @intCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
+        obj.write_i32(@as(u32, @bitCast(out)) + obj.OBJ_STR_CAP, @bitCast(b.cap));
     }
     return out;
 }
@@ -778,12 +924,12 @@ fn translate_input(c: *Channel, byte: u8, prev_cr: *bool) struct { emit: bool, v
 /// string holding the bytes read (after CR/CRLF translation).
 pub export fn tcl_cmd_read(chan: i32, num_chars: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("read: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     const c = &channels[slot];
     if ((c.mode & MODE_READ) == 0) {
-        stubs.raise("read: channel not open for reading");
+        raise_not_readable(chan);
         return 0;
     }
     var want: i64 = -1;
@@ -791,15 +937,12 @@ pub export fn tcl_cmd_read(chan: i32, num_chars: i32) i32 {
         const ns = obj_ensure_string(num_chars);
         if (ns.len > 0) {
             const parsed = obj.try_parse_int(ns.ptr, ns.len) orelse {
-                // ``read $chan abc`` — Tcl reports
-                // ``expected integer but got "abc"``.  We surface a
-                // shorter message here; the upstream-wording sweep
-                // (#272) folds it into the canonical phrasing.
-                stubs.raise("read: expected integer but got non-integer numChars");
+                // Upstream wording: ``expected integer but got "<ns>"``.
+                raise_parts(&.{ "expected integer but got \"", name_slice(num_chars), "\"" });
                 return 0;
             };
             if (parsed < 0) {
-                stubs.raise("read: numChars must be non-negative");
+                raise_parts(&.{ "expected non-negative integer but got \"", name_slice(num_chars), "\"" });
                 return 0;
             }
             want = parsed;
@@ -825,12 +968,12 @@ pub export fn tcl_cmd_read(chan: i32, num_chars: i32) i32 {
 /// and the return value is the byte length (or -1 on EOF).
 pub export fn tcl_cmd_gets(chan: i32, var_name: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("gets: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     const c = &channels[slot];
     if ((c.mode & MODE_READ) == 0) {
-        stubs.raise("gets: channel not open for reading");
+        raise_not_readable(chan);
         return 0;
     }
     var line = buf_init(128);
@@ -872,7 +1015,7 @@ pub export fn tcl_cmd_gets(chan: i32, var_name: i32) i32 {
 /// position.
 pub export fn tcl_cmd_seek(chan: i32, offset: i32, origin: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("seek: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     const c = &channels[slot];
@@ -897,11 +1040,11 @@ pub export fn tcl_cmd_seek(chan: i32, offset: i32, origin: i32) i32 {
     // the buffered bytes would land at the new position rather than
     // the position they were intended for.
     if (!flush_chan(c)) {
-        stubs.raise("seek: write failed");
+        raise_write_io_error(c, "i/o error");
         return 0;
     }
     if (do_seek(c.fd, off_val, whence) == null) {
-        stubs.raise("seek: fd_seek failed");
+        raise_seek_io_error(chan, "i/o error");
         return 0;
     }
     c.buf_pos = 0;
@@ -920,7 +1063,7 @@ pub export fn tcl_cmd_seek(chan: i32, offset: i32, origin: i32) i32 {
 /// Subtracts any pre-read bytes still sitting in the pull buffer.
 pub export fn tcl_cmd_tell(chan: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("tell: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     const c = &channels[slot];
@@ -933,7 +1076,7 @@ pub export fn tcl_cmd_tell(chan: i32) i32 {
 /// otherwise.  Sticky: cleared by ``seek`` / ``close``.
 pub export fn tcl_cmd_eof(chan: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("eof: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     return obj_new_int(if (channels[slot].eof) 1 else 0);
@@ -944,7 +1087,7 @@ pub export fn tcl_cmd_eof(chan: i32) i32 {
 /// observed.  Always returns 0.
 pub export fn tcl_cmd_fblocked(chan: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("fblocked: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     _ = slot;
@@ -963,21 +1106,21 @@ pub export fn tcl_cmd_fcopy(in_chan: i32, out_chan: i32) i32 {
 
 pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
     const in_slot = resolve(in_chan) orelse {
-        stubs.raise("fcopy: unknown input channel");
+        raise_unknown_channel(in_chan);
         return 0;
     };
     const out_slot = resolve(out_chan) orelse {
-        stubs.raise("fcopy: unknown output channel");
+        raise_unknown_channel(out_chan);
         return 0;
     };
     const in_c = &channels[in_slot];
     const out_c = &channels[out_slot];
     if ((in_c.mode & MODE_READ) == 0) {
-        stubs.raise("fcopy: input channel not open for reading");
+        raise_not_readable(in_chan);
         return 0;
     }
     if ((out_c.mode & MODE_WRITE) == 0) {
-        stubs.raise("fcopy: output channel not open for writing");
+        raise_not_writable(out_chan);
         return 0;
     }
     var copied: i64 = 0;
@@ -996,7 +1139,7 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
     // input pull side), so any pending buffered output has to land
     // first or it would appear *after* the freshly copied bytes.
     if (!flush_chan(out_c)) {
-        stubs.raise("fcopy: write failed");
+        raise_write_io_error(out_c, "i/o error");
         return 0;
     }
     if (in_c.buf_pos < in_c.buf_end) {
@@ -1012,7 +1155,7 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
             while (rem > 0) {
                 const w = write_fn(out_c.fd, src + off, rem);
                 if (w <= 0) {
-                    stubs.raise("fcopy: write failed");
+                    raise_write_io_error(out_c, "i/o error");
                     return 0;
                 }
                 off += @intCast(w);
@@ -1037,7 +1180,7 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
             break;
         }
         if (n < 0) {
-            stubs.raise("fcopy: read failed");
+            raise_read_io_error(in_c, "i/o error");
             return 0;
         }
         var off: usize = 0;
@@ -1045,7 +1188,7 @@ pub fn fcopy_limited(in_chan: i32, out_chan: i32, max_bytes: i64) i32 {
         while (rem > 0) {
             const w = write_fn(out_c.fd, @ptrCast(&tmp[off]), rem);
             if (w <= 0) {
-                stubs.raise("fcopy: write failed");
+                raise_write_io_error(out_c, "i/o error");
                 return 0;
             }
             off += @intCast(w);
@@ -1170,11 +1313,11 @@ fn write_translated(c: *Channel, ptr: [*]const u8, len: u32) WriteResult {
 pub fn flush_chan_id(chan_id: i32) i32 {
     if (chan_id == 0) return obj_new_string(0, 0);
     const slot = resolve(chan_id) orelse {
-        stubs.raise("flush: unknown channel");
+        raise_unknown_channel(chan_id);
         return 0;
     };
     if (!flush_chan(&channels[slot])) {
-        stubs.raise("flush: write failed");
+        raise_write_io_error(&channels[slot], "i/o error");
         return 0;
     }
     return obj_new_string(0, 0);
@@ -1186,12 +1329,12 @@ pub fn flush_chan_id(chan_id: i32) i32 {
 /// when it sees a 2-arg form (``puts $fd "..."``).
 pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
     const slot = resolve(chan) orelse {
-        stubs.raise("puts: unknown channel");
+        raise_unknown_channel(chan);
         return 0;
     };
     const c = &channels[slot];
     if ((c.mode & MODE_WRITE) == 0) {
-        stubs.raise("puts: channel not open for writing");
+        raise_not_writable(chan);
         return 0;
     }
     if (msg != 0) {
@@ -1201,7 +1344,7 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
                 .ok => {},
                 .codec_err => return 0, // codec already raised a precise message
                 .io_err => {
-                    stubs.raise("puts: write failed");
+                    raise_write_io_error(c, "i/o error");
                     return 0;
                 },
             }
@@ -1213,7 +1356,7 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
             .ok => {},
             .codec_err => return 0,
             .io_err => {
-                stubs.raise("puts: write failed");
+                raise_write_io_error(c, "i/o error");
                 return 0;
             },
         }
@@ -1418,7 +1561,7 @@ fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const
         // arrive as a ``return false`` with a message already on
         // the error channel.
         if (!flush_chan(c)) {
-            stubs.raise("fconfigure: write failed");
+            raise_write_io_error(c, "i/o error");
             return false;
         }
         if (c.out_buf_addr != 0) {
@@ -1607,7 +1750,7 @@ pub export fn tcl_cmd_fconfigure(fd: i32, args: i32) i32 {
     const slot = resolve(fd) orelse {
         // Match the other channel commands' behaviour: an unknown
         // channel id is a hard error, not a silent no-op.
-        stubs.raise("fconfigure: unknown channel");
+        raise_unknown_channel(fd);
         return 0;
     };
     const c: *Channel = &channels[slot];

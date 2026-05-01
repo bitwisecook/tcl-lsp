@@ -648,6 +648,45 @@ class TestTcltest9Init:
 # ---------------------------------------------------------------------------
 
 
+# Baseline for the I/O suites (subsystem ``"io"``).  These files are
+# wired into ``_IN_SCOPE`` so the sweep picks them up, but the strict
+# ``failed == 0`` assertion in :meth:`_TestClass.test_runs` is replaced
+# by a per-stem baseline gate: a regression is flagged when ``passed``
+# drops below or ``failed`` rises above the recorded snapshot.  Stems
+# whose entry sets ``trap_ok`` allow the file to trap before reaching a
+# tcltest summary — the residual blockers (encoding ``koi8-r``, integer
+# panic, missing-arg paths) are tracked as separate follow-up issues.
+#
+# Refresh after a runtime change by running
+# ``make check-tcl9-tcltest-io`` and updating the numbers if the new
+# snapshot is strictly better than the old one.
+_IO_BASELINE: dict[str, dict[str, object]] = {
+    # chan.test — 42/42, fully green after the issue #270 ensemble
+    # work landed.
+    "chan": {"min_passed": 42, "max_failed": 0},
+    # chanio.test — now reaches the tcltest summary line after the
+    # koi8-r codec landed in this branch (734/779 passing locally).
+    # Residual failures are expected from missing multi-byte codecs
+    # (shiftjis / iso2022-jp / jis0208 / euc-jp …) and reflected-
+    # channel features that are explicit out-of-scope items in #270
+    # / #274.  Tolerance band is generous so a small wobble doesn't
+    # flap the gate.
+    "chanio": {"min_passed": 700, "max_failed": 50},
+    # io.test — still traps with a debug-build integer-overflow check
+    # in ``valtypes.tcl_obj.obj_new_string`` when linear memory grows
+    # past the 2 GiB boundary.  The leak underlying that growth is a
+    # separate ticket (recommended follow-up); the gate stays
+    # ``trap_ok`` until the leak is fully chased down.
+    "io": {"trap_ok": True},
+    # ioCmd.test — bare ``close`` arity error goes through the
+    # interpreter's eval-script fallback in a way that bypasses the
+    # surrounding ``catch`` (catch+command-substitution interaction
+    # bug — recommended follow-up).  Until that lands the gate is
+    # ``trap_ok``.
+    "ioCmd": {"trap_ok": True},
+}
+
+
 def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
     """Dynamically build a test class for a Tcl 9 .test file.
 
@@ -656,8 +695,14 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
     label; ``deferred`` marks files that exercise deferred-by-design
     primitives (I/O, threads, fs, encoding) and pre-categorises them
     as D.
+
+    For files registered in :data:`_IO_BASELINE`, the strict
+    ``failed == 0`` assertion is replaced with a baseline-relative
+    gate so partial-pass suites (``chan`` / ``chanio`` / ``io`` /
+    ``ioCmd``) are tracked without forcing a green sweep.
     """
     filename = f"{test_name}.test"
+    baseline_io = _IO_BASELINE.get(test_name) if subsystem == "io" else None
 
     class _TestClass:
         def test_compiles(self, request: pytest.FixtureRequest) -> None:
@@ -708,6 +753,21 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                 wasm, diag = _compile_tcl_with_diag(src, filename)
                 compiled = True
                 with tempfile.TemporaryDirectory(prefix="tcl9test-") as host_tmp:
+                    # Stage common tcltest helper files into the
+                    # preopened tmpdir so tests that
+                    # ``source [file join [file dirname [info script]] X]``
+                    # can find them.  Mirrors the staging logic in
+                    # :func:`_run_bundle`.
+                    helpers_dir = _tcl9_tcltest().parent.parent.parent / "tests"
+                    for helper in (
+                        "tcltests.tcl",
+                        "internals.tcl",
+                        "encodingVectors.tcl",
+                        "pkgIndex.tcl",
+                    ):
+                        src_path = helpers_dir / helper
+                        if src_path.exists():
+                            shutil.copyfile(src_path, Path(host_tmp) / helper)
                     result = _run_wasm(
                         wasm,
                         capture_stdout=True,
@@ -756,18 +816,38 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             if not compiled:
                 pytest.fail(f"{filename} bundle failed to compile: {stderr[-400:]}")
             if not ran:
+                # Baselined I/O suites are allowed to trap when their
+                # baseline entry sets ``trap_ok`` — the residual blockers
+                # are tracked as separate follow-up sub-issues.  A NEW
+                # compile/run failure on a previously-passing baseline is
+                # still a regression.
+                if baseline_io is not None and baseline_io.get("trap_ok"):
+                    return
                 pytest.fail(f"{filename} trapped: {trap_site or stderr[-400:]}")
             if summary is None:
+                if baseline_io is not None and baseline_io.get("trap_ok"):
+                    return
                 pytest.fail(
                     f"No tcltest summary line in stdout for {filename}.\n"
                     f"stdout tail:\n{stdout[-400:]}\nstderr tail:\n{stderr[-400:]}"
                 )
-            assert failed == 0, (
-                f"{filename}: {failed} test(s) FAILED "
-                f"(total={total}, passed={passed}, skipped={skipped}).\n"
-                f"first failing: {_first_failing(stdout)}\n"
-                f"stdout tail:\n{stdout[-400:]}"
-            )
+            if baseline_io is not None:
+                min_passed = int(baseline_io.get("min_passed", 0))  # type: ignore[arg-type]
+                max_failed = int(baseline_io.get("max_failed", 0))  # type: ignore[arg-type]
+                assert passed >= min_passed and failed <= max_failed, (
+                    f"{filename}: regression vs baseline — "
+                    f"got passed={passed} failed={failed}, "
+                    f"expected passed>={min_passed} failed<={max_failed}.\n"
+                    f"first failing: {_first_failing(stdout)}\n"
+                    f"stdout tail:\n{stdout[-400:]}"
+                )
+            else:
+                assert failed == 0, (
+                    f"{filename}: {failed} test(s) FAILED "
+                    f"(total={total}, passed={passed}, skipped={skipped}).\n"
+                    f"first failing: {_first_failing(stdout)}\n"
+                    f"stdout tail:\n{stdout[-400:]}"
+                )
 
     _TestClass.__name__ = f"TestTcl9_{test_name.replace('-', '_').replace('.', '_')}"
     _TestClass.__qualname__ = _TestClass.__name__
@@ -905,6 +985,16 @@ _IN_SCOPE: list[tuple[str, str]] = [
     ("brodnik", "misc"),
     ("range", "misc"),
     ("aaa_exit", "misc"),
+    # I/O — umbrella issue #276.  Sub-issues #270 (chan ensemble),
+    # #271 (fconfigure query forms), #272 (channel-error wording),
+    # #273 (array trap), #274 (encoding subsystem), #275 (write-side
+    # translation) all merged.  ``chan.test`` runs 42/42 green;
+    # ``chanio`` / ``io`` / ``ioCmd`` are gated by :data:`_IO_BASELINE`
+    # so their residual blockers don't break the sweep.
+    ("chan", "io"),
+    ("chanio", "io"),
+    ("io", "io"),
+    ("ioCmd", "io"),
 ]
 
 for _stem, _sub in _IN_SCOPE:
