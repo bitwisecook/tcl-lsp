@@ -547,7 +547,9 @@ class _WasmEmitterCtrlMixin(_Base):
             case IRExprEval(expr=expr):
                 self._emit_expr(expr)
                 self._emit_box_int()
-            case IRCatch(body=inner_body, result_var=inner_result_var, options_var=inner_options_var):
+            case IRCatch(
+                body=inner_body, result_var=inner_result_var, options_var=inner_options_var
+            ):
                 # Nested ``catch`` as the last stmt of the outer body —
                 # emit with ``keep_on_stack=True`` so the inner catch's
                 # return code (0 or 1) lands on the stack for the outer

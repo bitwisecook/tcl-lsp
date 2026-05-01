@@ -279,8 +279,7 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # source provides explicit info/code.  The 1-arg form keeps using
     # ``tcl_error`` (= ``tcl_cmd_error``) so existing emit sites
     # don't have to track which arity to call.
-    "tcl_error_full": ("tcl", "tcl_cmd_error_full",
-                       [ValType.I32, ValType.I32, ValType.I32], []),
+    "tcl_error_full": ("tcl", "tcl_cmd_error_full", [ValType.I32, ValType.I32, ValType.I32], []),
     # Flow-control consumers — read+clear ``break_flag`` /
     # ``continue_flag`` set by interpreter-side ``break`` / ``continue``
     # inside an eval-fallback body.  Compiled loops need these to

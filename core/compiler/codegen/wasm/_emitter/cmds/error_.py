@@ -12,7 +12,6 @@ get $opt -errorcode`` loses the explicit class.
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
-from ..._ir import WasmOp
 
 
 def _emit_error(
