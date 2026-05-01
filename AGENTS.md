@@ -634,6 +634,14 @@ layers — not just the feature module closest to the symptom.
 - **iRule test framework** (`core/irule_test/`): simulates TMM for testing iRules
   without hardware.  See `docs/kcs/kcs-irule-test-framework.md` for architecture.
   Codegen: `python -m core.irule_test.codegen_mock_stubs` (after registry changes)
+- **WASM runtime tests** (`runtime/zig/test_*.zig`): unit tests for the Zig
+  runtime, run with `cd runtime/zig && zig build test`. Tests that need to
+  catch a Tcl-level error or set up a call frame use the fixture in
+  `runtime/zig/runtime_test_fixture.zig` — `with_catch(body)` returns the
+  raised error message (or `null` on success), `with_interp(body)` pushes a
+  fresh global frame around *body*, and `frame.set` / `frame.get` are
+  shorthand for `local_set` / `local_get`. Smoke coverage lives in
+  `runtime/zig/test_fixture.zig`.
 - **xfail policy**: `pytest.mark.xfail` is only permitted as an intermediate
   state while a feature is under active development. Before a feature is
   considered ready for release, all underlying issues must be fixed and the
