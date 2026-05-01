@@ -249,9 +249,144 @@ proc ::tcltest::Asciify {s} { return $s }
 """
 
 
+def _patch_tcltest_source(src: str) -> str:
+    """Targeted in-memory patches to ``tcltest.tcl`` source.
+
+    Real Tcl ``tcltest::Option`` aliases each option to a per-option
+    namespace variable via ::
+
+        namespace eval [namespace current] \\
+            [list upvar 0 Option($option) $varName]
+
+    relying on a NAMESPACE call-frame plus a true ``upvar 0`` link to
+    an array element.  Our WASM runtime's ``namespace eval`` does not
+    push a call-frame and the array-element ``upvar 0`` target form
+    is not handled in :func:`frame_get_at_depth` — together that
+    leaves ``::tcltest::debug`` (and the dozen other option-controlled
+    names) as a *declared but unset* namespace variable for the
+    lifetime of the bundle, so the very first ``DebugPuts`` invoked
+    from ``DefineConstraintInitializers`` traps with
+    ``can't read "debug": no such variable``.
+
+    Until the runtime grows real namespace-eval-frame + array-element
+    upvar machinery, we patch the source to:
+
+    1. Snapshot the option default into a real namespace variable
+       (``set [namespace current]::$varName $msg``) at ``Option`` time.
+       That gives the per-option name a definite value before any
+       proc reads it.
+    2. Mirror ``Configure``'s writes to the snapshot so
+       ``configure -verbose body`` still propagates to ``$verbose``
+       reads downstream.
+
+    The mapping ``-option → varName`` is captured into a side array
+    ``::tcltest::OptionVarName`` populated by the patched ``Option``
+    proc; ``Configure``'s mirror uses that array.  Any option without
+    a registered ``varName`` (e.g. ``-constraints``) is simply not
+    mirrored — matching the upstream behaviour where those options
+    have no exported per-option variable.
+    """
+    # 1. Replace the namespace-eval/upvar-0 dance with a direct
+    #    snapshot + ``OptionVarName`` mapping write.  Match by the
+    #    leading ``namespace eval [namespace current] \`` plus the
+    #    continuation ``[list upvar 0 Option($option) $varName]`` so
+    #    we hit exactly one site (Option proc body).
+    upvar_pattern = (
+        "namespace eval [namespace current] \\\n\t\t    [list upvar 0 Option($option) $varName]"
+    )
+    upvar_replacement = (
+        "# --- run_tcl9_tests.py patch (issue #280) ---\n"
+        "\t    # Snapshot the option default into a real namespace\n"
+        "\t    # variable, since our WASM runtime cannot persist a\n"
+        "\t    # ``namespace eval ... upvar 0 arr(key) Y`` alias.\n"
+        "\t    # The ``eval [list set ...]`` form routes through the\n"
+        "\t    # interpreter so the dynamic-target ``set`` writes the\n"
+        "\t    # global at the qualified name; the compiled-side\n"
+        "\t    # ``set $tgt $val`` would interpret ``$tgt`` as a\n"
+        "\t    # literal local-slot name.\n"
+        "\t    eval [list set [namespace current]::$varName $msg]\n"
+        "\t    variable OptionVarName\n"
+        "\t    set OptionVarName($option) $varName\n"
+        "\t    # --- end patch ---"
+    )
+    if upvar_pattern not in src:
+        msg = "_patch_tcltest_source: upvar-dance pattern not found"
+        raise RuntimeError(msg)
+    patched = src.replace(upvar_pattern, upvar_replacement, 1)
+
+    # 2. Mirror ``Configure`` writes into the per-option namespace
+    #    variable so post-init reconfigures (``configure -verbose body``)
+    #    propagate.  Match the unique ``set Option($option) $value`` line
+    #    inside the multi-arg ``while`` loop.
+    cfg_pattern = "\t    set Option($option) $value\n\t    set args"
+    cfg_replacement = (
+        "\t    set Option($option) $value\n"
+        "\t    # --- issue #280 patch: mirror to per-option var ---\n"
+        "\t    variable OptionVarName\n"
+        "\t    if {[info exists OptionVarName($option)]} {\n"
+        "\t        eval [list set [namespace current]::$OptionVarName($option) $value]\n"
+        "\t    }\n"
+        "\t    # --- end patch ---\n"
+        "\t    set args"
+    )
+    if cfg_pattern not in patched:
+        msg = "_patch_tcltest_source: Configure-mirror pattern not found"
+        raise RuntimeError(msg)
+    patched = patched.replace(cfg_pattern, cfg_replacement, 1)
+
+    # 3. Initialise the ``OptionVarName`` mapping array next to
+    #    ``Option`` / ``Verify`` / ``Usage`` so the patched ``Option``
+    #    proc body has somewhere to write into.
+    init_pattern = "    variable Option; array set Option {}"
+    init_replacement = (
+        "    variable Option; array set Option {}\n"
+        "    # --- issue #280 patch ---\n"
+        "    variable OptionVarName; array set OptionVarName {}\n"
+        "    # --- end patch ---"
+    )
+    if init_pattern not in patched:
+        msg = "_patch_tcltest_source: Option-init pattern not found"
+        raise RuntimeError(msg)
+    patched = patched.replace(init_pattern, init_replacement, 1)
+
+    # 4. Neutralise the two scratch-directory ``glob`` call-sites
+    #    inside tcltest itself (``FillFilesExisted`` and
+    #    ``cleanupTests``).  Our WASI runtime has no directory-listing
+    #    primitive so the real ``glob -directory`` traps with
+    #    ``unsupported command: glob -directory``; without these
+    #    patches every bundle traps during tcltest init before the
+    #    first ``test`` call.  Replacing them with an empty list
+    #    matches what ``-nocomplain`` would observe in a freshly-
+    #    allocated empty scratch dir — which is exactly what the
+    #    runner's ``preopen_tmpdir`` provides.
+    #
+    #    Scoped to these two specific lines (rather than overriding
+    #    ``glob`` globally in ``_PRE_TCLTEST``) so that any in-scope
+    #    test that exercises ``glob`` directly hits the real runtime
+    #    behaviour — a global shim would silently turn real glob-
+    #    dependent failures into spurious passes (PR #299 review).
+    fill_pattern = "\tforeach file [glob -nocomplain -directory [temporaryDirectory] *] {"
+    fill_replacement = "\tforeach file [list] {  ;# issue #280: WASI has no glob -directory"
+    if fill_pattern not in patched:
+        msg = "_patch_tcltest_source: FillFilesExisted glob pattern not found"
+        raise RuntimeError(msg)
+    patched = patched.replace(fill_pattern, fill_replacement, 1)
+
+    cleanup_pattern = (
+        "\tforeach file [glob -nocomplain \\\n\t\t-directory [temporaryDirectory] *] {"
+    )
+    cleanup_replacement = "\tforeach file [list] {  ;# issue #280: WASI has no glob -directory"
+    if cleanup_pattern not in patched:
+        msg = "_patch_tcltest_source: cleanupTests glob pattern not found"
+        raise RuntimeError(msg)
+    patched = patched.replace(cleanup_pattern, cleanup_replacement, 1)
+
+    return patched
+
+
 def _bundle(test_file_path: Path) -> str:
     """Concatenate Tcl 9 tcltest + preamble + test file into one script."""
-    tcltest_src = _tcl9_tcltest().read_text(encoding="utf-8")
+    tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
     test_src = test_file_path.read_text(encoding="utf-8")
 
     return "\n".join(
@@ -454,8 +589,19 @@ class TestTcltest9Init:
         )
 
     def test_tcltest9_top_runs(self, request: pytest.FixtureRequest) -> None:
-        """Tcl 9 tcltest.tcl top-level init executes without trapping."""
-        src = _tcl9_tcltest().read_text(encoding="utf-8")
+        """Tcl 9 tcltest.tcl top-level init executes without trapping.
+
+        The bare upstream ``tcltest.tcl`` calls ``auto_load ::parray``
+        and dereferences the loaded body with ``info body ::parray``;
+        the runtime has no auto-loader, so the ``_PRE_TCLTEST`` stubs
+        (``::parray``, ``auto_load`` no-op, ``::tcl::tm::path`` ensemble,
+        ``msgcat`` shims) are prepended here just like ``_bundle()`` does
+        for downstream test files.  Without this preamble the test would
+        always trap on the auto-load path even when tcltest itself is
+        otherwise viable.
+        """
+        tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
+        src = "\n".join([_PRE_TCLTEST, tcltest_src, ""])
         try:
             wasm, diag = _compile_tcl_with_diag(src, "tcl9_tcltest.tcl")
         except Exception as exc:

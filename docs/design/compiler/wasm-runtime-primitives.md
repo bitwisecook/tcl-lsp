@@ -352,6 +352,101 @@ message available via `$::errorInfo`.  Bare invocations (no `catch`)
 write the same message to stderr with the standard
 `tcl trap: site=<id>` prefix and trap.
 
+## tcltest 2.5 bootstrap (issue #280)
+
+The Tcl 9 `tcltest` package (`tmp/tcl9.0.3/library/tcltest/tcltest.tcl`)
+relies on two semantic corners that the runtime gets wrong out of the
+box; without compensating fixes, every upstream `*.test` sweep traps
+during package init and never produces a `Total / Passed / Skipped /
+Failed` summary line.
+
+### `lappend` auto-creates an unset target
+
+`lappend var v` on an unset `var` must initialise the variable to
+`[list v]` rather than raise `can't read "<var>": no such variable`.
+The WASM emitter under `_emitter/cmds/lappend_.py` previously
+threaded the read of `var` through `_emit_var_read_obj` — the strict
+variant — so a `variable OptionControlledVariables; lappend
+OptionControlledVariables x` sequence inside `::tcltest::Option` (the
+canonical case) trapped on the first append.  The fix is to read via
+`_emit_var_read_obj_lenient`: the lenient variant returns the null
+TclObj for an unset slot, and `tcl_cmd_lappend` already handles
+`current == 0` by treating the existing list as empty.  Tracked in
+issue #280; same auto-create pattern already lives in the
+`incr` / `append` paths.
+
+### `catch_result` materialises an empty TclObj on null success
+
+`catch {body} resultVar` must always assign *some* string to
+`resultVar` on success — the empty result of a body that produces no
+value is the empty string, not "unset".  The WASM `catch` codegen
+calls `tcl_catch_set_ok_result` with the body's last-statement value;
+when that value is the null TclObj (commands that silently return 0
+under our incomplete arity-check stubs, or arity-shy paths that just
+`return 0`), `catch_result` used to hand the literal 0 back to the
+caller's writeback.  The caller stored 0 into the `resultVar` local
+slot — at which point `$resultVar` mistook the 0 for an unset slot
+and trapped with `can't read "<resultVar>": no such variable`.
+
+The `tcl_catch.catch_result` export now substitutes
+`obj_new_string(0, 0)` (an empty TclObj) when the success path's
+recorded value is null, so the writeback never plants the
+unset sentinel.  Tcltest's `RunTest` runs `set code [catch {uplevel
+1 $script} actualAnswer]` and immediately reads `$actualAnswer`; that
+read no longer traps even when `$script` exercises commands whose
+runtime stubs return 0 instead of a real result.
+
+### `namespace eval [list upvar 0 arr(key) Y]` — source-side workaround
+
+Real Tcl handles `namespace eval ::ns { upvar 0 X(k) Y }` by pushing a
+namespace call-frame and storing the alias in the namespace's own
+variable table (where it persists past the `namespace eval` body).
+Our runtime does neither: `namespace eval` just swaps `current_ns`
+without pushing a frame, so `upvar 0` creates a frame-local alias in
+the calling proc and the alias is gone the moment the proc returns.
+On top of that, `frame_get_at_depth` looks the upvar target up by
+literal name (`"Option(-debug)"`), missing the array-element form.
+
+`tcltest::Option` uses precisely this pattern to thread each option's
+default into a per-option namespace variable (`::tcltest::debug`,
+`::tcltest::verbose`, …); without it, the very first
+`DebugPuts` invoked from `DefineConstraintInitializers` traps with
+`can't read "debug": no such variable`.
+
+The runtime fix is two-part — namespace-eval call-frames plus
+array-element upvar resolution — and out of scope for issue #280.
+The bundle-side workaround in `tests/external/run_tcl9_tests.py`
+(`_patch_tcltest_source`) instead rewrites the upvar dance into a
+direct `eval [list set [namespace current]::$varName $msg]` (the
+``eval`` form goes through the interpreter so the dynamic-target
+write resolves correctly, where the compiled-side `set $tgt $val`
+would interpret `$tgt` as a literal local-slot name), populates an
+`OptionVarName($option) → $varName` mapping, and patches
+`tcltest::Configure` to mirror writes into the per-option variable
+when the mapping is present.  Cost: post-init `configure -X v`
+re-reads still propagate; the strictly-aliased-storage semantics of
+real Tcl are not modelled (no read trace) but no current `_IN_SCOPE`
+test depends on them.
+
+### `glob -directory` neutralisation in tcltest internals
+
+`tcltest::FillFilesExisted` and `tcltest::cleanupTests` both
+enumerate the scratch directory with
+`glob -nocomplain -directory [temporaryDirectory] *`; our WASI
+runtime has no directory-listing primitive, so the real `glob`
+traps with `unsupported command: glob -directory`.
+
+`_patch_tcltest_source` rewrites those two specific call-sites to
+`[list]` (what `-nocomplain` would observe against the freshly-
+allocated empty preopen tmpdir), so tcltest's own init/cleanup paths
+no longer trap.  The patches are intentionally scoped to those two
+lines — an earlier iteration overrode `glob` globally via
+`_PRE_TCLTEST`, but that risked silently turning a real
+glob-dependent test failure into a spurious pass.  In-scope test
+files that call `glob` themselves now hit the real runtime
+behaviour, which traps honestly if the test depends on directory
+enumeration.
+
 ## Known limitations
 
 - **Dialect gating** — the runtime targets Tcl 9.0.  `tcl_expr_order_cmp`
