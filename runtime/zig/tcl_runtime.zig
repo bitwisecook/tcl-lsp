@@ -46,6 +46,8 @@ const interp = @import("interp/tcl_interp.zig");
 const tcl_sched = @import("sched/tcl_sched.zig");
 const tcl_coro = @import("sched/tcl_coro.zig");
 const tcl_async = @import("sched/tcl_asyncify.zig");
+const tcl_caps = @import("interp/tcl_caps.zig");
+const tcl_cmd_exit = @import("cmds/exit.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
 // (backwards-compatible: code that does @import("tcl_runtime.zig").X still works)
@@ -319,14 +321,28 @@ comptime {
     _ = &tcl_io_stubs.tcl_cmd_socket;
     // file has a real impl in tcl_fs.zig.
     _ = &tcl_fs.tcl_cmd_file;
-    _ = &tcl_fs_stubs.tcl_cmd_glob;
+    // ``glob`` and ``exec`` are capability-gated BUILTINs in
+    // ``runtime/zig/cmds/fs.zig`` and ``runtime/zig/cmds/exec.zig``;
+    // their Python registry specs deliberately omit a
+    // ``wasm_runtime_import`` so every call routes through the
+    // eval-fallback into the BUILTIN dispatcher.  No comptime ref
+    // needed — the cmd-table BUILTINS slice keeps the registrations
+    // alive transitively.
     // pwd and cd live in tcl_fs.zig (pass-through impl).
     _ = &tcl_fs.tcl_cmd_pwd;
     _ = &tcl_fs.tcl_cmd_cd;
-    _ = &tcl_fs_stubs.tcl_cmd_exec;
+    // ``exit`` is capability-gated; the BUILTIN registers via the
+    // cmd-table.  The export below is exposed for embedders that
+    // want to call ``exit`` directly without going through Tcl.
+    _ = &tcl_cmd_exit.tcl_cmd_exit;
     _ = &tcl_fs.tcl_cmd_source;
     _ = &tcl_fs_stubs.tcl_cmd_load;
     _ = &tcl_fs_stubs.tcl_cmd_unload;
+    // Capability bitset — ``tcl_set_capabilities`` is the host-side
+    // entry point used by embedders to grant CAP_EXEC / CAP_EXIT /
+    // CAP_FS_GLOB before driving ``tcl_eval``.
+    _ = &tcl_caps.tcl_set_capabilities;
+    _ = &tcl_caps.tcl_get_capabilities;
     // format lives in tcl_format.zig (real impl).
     _ = &tcl_format.tcl_cmd_format;
     _ = &tcl_fmt_stubs.tcl_cmd_scan;

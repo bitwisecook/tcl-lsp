@@ -14,18 +14,16 @@
 // — the parity gate will block the merge otherwise.
 //
 // Coverage:
-//   - file (mkdir, delete, exists, isfile, isdirectory, dirname,
-//     tail, normalize, rootname, extension, join, split, pathtype,
-//     readable, writable, executable, owned, size, mtime, atime,
-//     stat, lstat, link, readlink, rename, copy, attributes,
-//     tempfile, system, channels, volumes, separator, nativename)
-//     is multiplexed through a single ``file`` stub — the subcommand
-//     variance is captured in the site's ``args`` in the sidecar map.
-//   - glob, pwd, cd
-//   - exec, source, load, unload
+//   - ``file`` — pass-through impl in io/tcl_fs.zig (string-only
+//     subcommands, real access(2)/stat(2), recursive mkdir, …).
+//   - ``glob`` — real impl in io/tcl_fs.zig gated on CAP_FS_GLOB.
+//   - ``pwd`` / ``cd`` — pass-through in io/tcl_fs.zig.
+//   - ``exec`` — real impl in cmds/exec.zig gated on CAP_EXEC,
+//     dispatching to the host-imported ``env.host_spawn``.
+//   - ``source`` — real impl in io/tcl_fs.zig.
+//   - ``load`` / ``unload`` — trapping stubs (below).
 
 const stubs = @import("tcl_stubs.zig");
-const obj = @import("../valtypes/tcl_obj.zig");
 
 // ``file`` moved to tcl_fs.zig — has pass-through implementations
 // for string-only path manipulation (join / dirname / tail /
@@ -33,24 +31,22 @@ const obj = @import("../valtypes/tcl_obj.zig");
 // / nativename), always-false answers for existence queries, and
 // trapping behaviour for mutating ops (mkdir / delete / rename / …).
 
-pub export fn tcl_cmd_glob(pattern: i32) i32 {
-    _ = pattern;
-    // In the WASM sandbox there is no real filesystem to glob.  Always return
-    // an empty list — this matches ``glob -nocomplain`` behaviour and lets
-    // callers like tcltest's cleanupTests proceed without trapping.
-    return obj.obj_new_string(0, 0);
-}
+// ``glob`` moved to io/tcl_fs.zig with a real ``opendir`` /
+// ``readdir`` / fnmatch implementation gated on ``CAP_FS_GLOB``
+// (see :module:`interp/tcl_caps.zig`).  Scripts that hit this
+// command without the capability granted get a Tcl-catchable
+// ``permission denied`` error.
 
 // ``pwd`` and ``cd`` moved to tcl_fs.zig — pwd returns "/" and cd
 // silently accepts its arg.  Scripts that use them for logging /
 // path-seed purposes (tcltest's ``workingDirectory`` option is the
 // poster child) now load without tripping.
 
-pub export fn tcl_cmd_exec(cmd: i32) i32 {
-    _ = cmd;
-    stubs.unsupported("exec");
-    return 0;
-}
+// ``exec`` moved to cmds/exec.zig with a host-imported ``host_spawn``
+// primitive gated on ``CAP_EXEC``; the BUILTIN handler there owns
+// argv assembly and capability enforcement.  Scripts that call
+// ``exec`` without the capability see a Tcl-catchable
+// ``permission denied`` error.
 
 // ``tcl_cmd_source`` moved to io/tcl_fs.zig with a real WASI-fd
 // resolution + read + tcl_eval implementation.  Kept this comment
