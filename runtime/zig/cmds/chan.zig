@@ -88,9 +88,14 @@ fn name_eq(w: i32, literal: []const u8) bool {
 }
 
 fn eval_chan_names(words: []const i32) i32 {
+    // Distinguish "no pattern arg" (``chan names``) from "empty
+    // pattern arg" (``chan names ""``).  Tcl semantics: an empty
+    // pattern is a real glob that only matches the empty string,
+    // so the latter must filter out every (non-empty) channel name.
+    const has_pattern = words.len >= 2;
     var pattern_ptr: u32 = 0;
     var pattern_len: u32 = 0;
-    if (words.len >= 2) {
+    if (has_pattern) {
         const ps = obj_ensure_string(words[1]);
         pattern_ptr = ps.ptr;
         pattern_len = ps.len;
@@ -100,13 +105,28 @@ fn eval_chan_names(words: []const i32) i32 {
     while (slot < chan.channel_count) : (slot += 1) {
         if (!chan.slot_in_use(slot)) continue;
         const name = chan.channel_name(slot);
-        if (pattern_len > 0) {
+        if (has_pattern) {
             const ns = obj_ensure_string(name);
             if (!tcl_string.glob_match(pattern_ptr, pattern_len, ns.ptr, ns.len)) continue;
         }
         result = rt.tcl_cmd_lappend(result, name);
     }
     return result;
+}
+
+/// ``chan close $ch ?direction?`` — the optional direction word
+/// requests a half-close (``read`` or ``write``), which the WASI
+/// channel layer doesn't model.  Trap on the directional form
+/// rather than silently dropping the arg, matching the
+/// "no silent stubs" convention in :file:`tcl_stub_fallback.zig`.
+/// Plain ``chan close $ch`` (no direction) routes through the
+/// regular full-close path.
+fn eval_chan_close(words: []const i32) i32 {
+    if (words.len >= 3) {
+        stubs.unsupported("chan close (half-close direction not implemented)");
+        return 0;
+    }
+    return io_cmd.eval_close(words);
 }
 
 fn eval_chan(words: []const i32) i32 {
@@ -120,7 +140,7 @@ fn eval_chan(words: []const i32) i32 {
     // delegate, which never reads ``words[0]``).
     const tail = words[1..];
     if (name_eq(sub, "blocked")) return io_cmd.eval_fblocked(tail);
-    if (name_eq(sub, "close")) return io_cmd.eval_close(tail);
+    if (name_eq(sub, "close")) return eval_chan_close(tail);
     if (name_eq(sub, "configure")) return eval_fconfigure(tail);
     if (name_eq(sub, "copy")) return io_cmd.eval_fcopy(tail);
     if (name_eq(sub, "eof")) return io_cmd.eval_eof(tail);
