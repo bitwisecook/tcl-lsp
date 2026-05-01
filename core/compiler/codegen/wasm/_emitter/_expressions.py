@@ -117,6 +117,19 @@ class _WasmEmitterExprMixin(_Base):
         BinOp.MOD: "tcl_arith_mod",
     }
 
+    # Maps bitwise / shift BinOp to the runtime helper that enforces the
+    # integer-only domain (issues #260, #261): floats raise ``cannot use
+    # floating-point value …``; negative shift counts raise ``negative
+    # shift argument``.  The previous inline ``i64.shl``/``i64.and`` etc.
+    # path silently truncated floats and masked the shift count by 63.
+    _BITWISE_INT_FUNC: dict[BinOp, str] = {
+        BinOp.LSHIFT: "tcl_arith_lshift",
+        BinOp.RSHIFT: "tcl_arith_rshift",
+        BinOp.BIT_AND: "tcl_arith_band",
+        BinOp.BIT_OR: "tcl_arith_bor",
+        BinOp.BIT_XOR: "tcl_arith_bxor",
+    }
+
     def _emit_expr_obj(self, node: ExprNode) -> None:
         """Emit WASM instructions leaving a TclObj i32 on the stack.
 
@@ -145,6 +158,8 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_obj_literal_for_expr(value)
             case ExprBinary(op=op, left=left, right=right):
                 func_name = self._ARITH_FLOAT_FUNC.get(op)
+                if func_name is None:
+                    func_name = self._BITWISE_INT_FUNC.get(op)
                 if func_name is not None:
                     func_idx = self._shared_imports.get(func_name)
                     if func_idx is not None:
@@ -153,6 +168,32 @@ class _WasmEmitterExprMixin(_Base):
                         self._emit_call(func_idx)
                         return
                 # Non-arithmetic or missing import: fall back to i64 path.
+                self._emit_expr(node)
+                self._emit_box_int()
+            case ExprUnary(op=uop, operand=operand):
+                # Negation of a float must preserve the TYPE_FLOAT tag —
+                # the inline ``0 - x`` path goes through i64 and loses
+                # the float-ness, which would let a bitwise/shift caller
+                # (e.g. ``-23.55 << 4`` or ``(-$x) << 1`` with $x = "23.55"
+                # from issue #261) silently truncate the negative float
+                # to an integer instead of raising the domain error.
+                # Route through the runtime ``tcl_arith_neg`` helper so
+                # the float tag survives to ``tcl_arith_lshift`` /
+                # ``tcl_arith_bnot`` for any operand shape (literal,
+                # variable, command substitution, nested expression).
+                if uop == UnaryOp.NEG:
+                    neg_idx = self._shared_imports.get("tcl_arith_neg")
+                    if neg_idx is not None:
+                        self._emit_expr_obj(operand)
+                        self._emit_call(neg_idx)
+                        return
+                if uop == UnaryOp.BIT_NOT:
+                    bnot_idx = self._shared_imports.get("tcl_arith_bnot")
+                    if bnot_idx is not None:
+                        self._emit_expr_obj(operand)
+                        self._emit_call(bnot_idx)
+                        return
+                # Fall back: evaluate as i64, box.
                 self._emit_expr(node)
                 self._emit_box_int()
             case ExprCall(function=func, args=args):
@@ -696,6 +737,20 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_unbox_int()  # → i64
                 return
 
+        # Bitwise / shift: delegate to tcl_arith_{lshift,rshift,band,bor,bxor}
+        # which enforce the integer-only domain (issues #260, #261).  The
+        # previous direct ``i64.shl`` / ``i64.and`` path silently truncated
+        # float operands and masked negative shift counts by 63.
+        bitwise_func = self._BITWISE_INT_FUNC.get(op)
+        if bitwise_func is not None:
+            bw_idx = self._shared_imports.get(bitwise_func)
+            if bw_idx is not None:
+                self._emit_expr_obj(left)
+                self._emit_expr_obj(right)
+                self._emit_call(bw_idx)  # → i32 TclObj
+                self._emit_unbox_int()  # → i64
+                return
+
         wasm_op = _BINOP_WASM.get(op)
         if wasm_op is not None:
             self._emit_expr(left)
@@ -985,9 +1040,20 @@ class _WasmEmitterExprMixin(_Base):
         elif op == UnaryOp.POS:
             self._emit_expr(operand)  # no-op
         elif op == UnaryOp.BIT_NOT:
-            self._emit_expr(operand)
-            self._emit_i64_const(-1)
-            self._emit(WasmOp.I64_XOR)
+            # Issue #261: ``~`` rejects float operands with ``cannot use
+            # floating-point value "X" as operand of "~"``.  Route through
+            # the runtime helper so the domain check fires before the
+            # XOR; falling back to inline ``x ^ -1`` would silently
+            # truncate floats and accept them.
+            bnot_idx = self._shared_imports.get("tcl_arith_bnot")
+            if bnot_idx is not None:
+                self._emit_expr_obj(operand)
+                self._emit_call(bnot_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(operand)
+                self._emit_i64_const(-1)
+                self._emit(WasmOp.I64_XOR)
         elif op == UnaryOp.NOT:
             self._emit_expr(operand)
             self._emit(WasmOp.I64_EQZ)

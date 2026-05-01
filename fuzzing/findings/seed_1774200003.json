@@ -24,6 +24,6 @@
     "vm_opt",
     "wasm"
   ],
-  "fixed": false,
+  "fixed": true,
   "category": "wasm-accepts-negative-shift"
 }

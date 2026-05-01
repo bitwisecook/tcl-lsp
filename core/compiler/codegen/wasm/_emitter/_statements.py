@@ -189,6 +189,32 @@ class _WasmEmitterStmtMixin(_Base):
                     self._const_map.pop(name, None)
 
             case IRIncr(name=name, amount=amount):
+                # Issue #262: route through the runtime helper so the
+                # strict-integer guard fires on the current value
+                # (a float string like ``"52.60"`` raises ``expected
+                # integer but got "52.60"`` rather than silently
+                # truncating to ``52`` and advancing the counter).
+                # Falls back to the inline integer add path when the
+                # runtime helper isn't registered (older compile
+                # configs without the import).
+                incr_idx = self._shared_imports.get("tcl_incr")
+                if incr_idx is not None:
+                    self._emit_var_read_obj(name)  # current value (TclObj)
+                    if amount is None:
+                        self._emit_i64_const(1)
+                        self._emit_box_int()
+                    else:
+                        try:
+                            self._emit_i64_const(int(amount))
+                            self._emit_box_int()
+                        except ValueError:
+                            self._emit_value(amount)  # variable amount
+                    self._emit_call(incr_idx)  # → new TclObj
+                    # ``tcl_incr`` returns OWNED.
+                    self._emit_var_write_obj(name, source=Ownership.OWNED)
+                    if self._optimise:
+                        self._const_map.pop(name, None)
+                    return
                 self._emit_var_read_obj(name)
                 self._emit_unbox_int()
                 amt = 1
