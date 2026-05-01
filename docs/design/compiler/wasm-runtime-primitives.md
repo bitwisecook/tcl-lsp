@@ -428,17 +428,24 @@ re-reads still propagate; the strictly-aliased-storage semantics of
 real Tcl are not modelled (no read trace) but no current `_IN_SCOPE`
 test depends on them.
 
-### `glob -directory` stub
+### `glob -directory` neutralisation in tcltest internals
 
-`tcltest::FillFilesExisted` enumerates the scratch directory with
+`tcltest::FillFilesExisted` and `tcltest::cleanupTests` both
+enumerate the scratch directory with
 `glob -nocomplain -directory [temporaryDirectory] *`; our WASI
-runtime has no directory-listing primitive and the unstubbed
-runtime traps with `unsupported command: glob -directory`.  The
-pre-tcltest stub in `_PRE_TCLTEST` overrides `glob` with a no-op
-returning `{}`, matching what `-nocomplain` would observe in a
-freshly-allocated empty scratch dir.  Strict (no-`-nocomplain`)
-glob calls hit by `cleanupTests` also resolve to `{}` — sufficient
-for tcltest to reach the summary-line.
+runtime has no directory-listing primitive, so the real `glob`
+traps with `unsupported command: glob -directory`.
+
+`_patch_tcltest_source` rewrites those two specific call-sites to
+`[list]` (what `-nocomplain` would observe against the freshly-
+allocated empty preopen tmpdir), so tcltest's own init/cleanup paths
+no longer trap.  The patches are intentionally scoped to those two
+lines — an earlier iteration overrode `glob` globally via
+`_PRE_TCLTEST`, but that risked silently turning a real
+glob-dependent test failure into a spurious pass.  In-scope test
+files that call `glob` themselves now hit the real runtime
+behaviour, which traps honestly if the test depends on directory
+enumeration.
 
 ## Known limitations
 

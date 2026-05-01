@@ -223,32 +223,6 @@ namespace eval ::tcl::tm {
     }
     namespace export path
 }
-
-# ``glob`` stub — tcltest's ``FillFilesExisted`` calls ``glob
-# -nocomplain -directory ...`` to enumerate the scratch dir before a
-# test run, so it can later distinguish files-the-test-created from
-# files-that-were-already-there.  Our WASI runtime doesn't support
-# directory enumeration, so the real ``glob`` traps with ``unsupported
-# command: glob -directory`` even with ``-nocomplain``.  Override
-# ``glob`` here with a no-op that returns ``{}`` for any
-# ``-nocomplain`` invocation; without it, every test bundle traps
-# during tcltest init before the first ``test`` call.  The override
-# is wrapped in ``eval {}`` so it registers via the interpreter's
-# ``proc`` handler (the compile-time ``proc`` lift can interfere
-# with ``rename`` / ``info commands`` introspection done by tcltest
-# proper).  Tracked separately as a runtime gap.
-eval {
-    proc glob {args} {
-        # Return empty for ``-nocomplain``; for the strict form, raise
-        # the standard "no files matched" error (most tcltest internal
-        # call-sites pass ``-nocomplain``, so this branch is rarely
-        # taken — but tcltest's ``cleanupTests`` probes the scratch
-        # dir without it).  Either way we never trap, since downstream
-        # code only ever expects either a list of matches or a Tcl
-        # error.
-        return {}
-    }
-}
 """
 
 _PREAMBLE = r"""
@@ -374,6 +348,38 @@ def _patch_tcltest_source(src: str) -> str:
         msg = "_patch_tcltest_source: Option-init pattern not found"
         raise RuntimeError(msg)
     patched = patched.replace(init_pattern, init_replacement, 1)
+
+    # 4. Neutralise the two scratch-directory ``glob`` call-sites
+    #    inside tcltest itself (``FillFilesExisted`` and
+    #    ``cleanupTests``).  Our WASI runtime has no directory-listing
+    #    primitive so the real ``glob -directory`` traps with
+    #    ``unsupported command: glob -directory``; without these
+    #    patches every bundle traps during tcltest init before the
+    #    first ``test`` call.  Replacing them with an empty list
+    #    matches what ``-nocomplain`` would observe in a freshly-
+    #    allocated empty scratch dir — which is exactly what the
+    #    runner's ``preopen_tmpdir`` provides.
+    #
+    #    Scoped to these two specific lines (rather than overriding
+    #    ``glob`` globally in ``_PRE_TCLTEST``) so that any in-scope
+    #    test that exercises ``glob`` directly hits the real runtime
+    #    behaviour — a global shim would silently turn real glob-
+    #    dependent failures into spurious passes (PR #299 review).
+    fill_pattern = (
+        "\tforeach file [glob -nocomplain -directory [temporaryDirectory] *] {"
+    )
+    fill_replacement = "\tforeach file [list] {  ;# issue #280: WASI has no glob -directory"
+    if fill_pattern not in patched:
+        msg = "_patch_tcltest_source: FillFilesExisted glob pattern not found"
+        raise RuntimeError(msg)
+    patched = patched.replace(fill_pattern, fill_replacement, 1)
+
+    cleanup_pattern = "\tforeach file [glob -nocomplain \\\n\t\t-directory [temporaryDirectory] *] {"
+    cleanup_replacement = "\tforeach file [list] {  ;# issue #280: WASI has no glob -directory"
+    if cleanup_pattern not in patched:
+        msg = "_patch_tcltest_source: cleanupTests glob pattern not found"
+        raise RuntimeError(msg)
+    patched = patched.replace(cleanup_pattern, cleanup_replacement, 1)
 
     return patched
 
