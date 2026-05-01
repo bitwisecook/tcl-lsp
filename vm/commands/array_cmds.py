@@ -112,7 +112,11 @@ def _array_names(interp: TclInterp, args: list[str]) -> TclResult:
             case "-regexp" | "regexp":
                 import re
 
-                names = [n for n in names if re.search(pattern, n)]
+                try:
+                    compiled = re.compile(pattern)
+                except re.error as exc:
+                    raise TclError(f"couldn't compile regular expression pattern: {exc}") from exc
+                names = [n for n in names if compiled.search(n)]
             case _:
                 raise TclError(f'bad option "{mode}": must be -exact, -glob, or -regexp')
 

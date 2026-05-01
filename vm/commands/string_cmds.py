@@ -54,6 +54,44 @@ def _is_integer(s: str) -> bool:
         return False
 
 
+def _parse_compare_options(rest: list[str], sub: str) -> tuple[bool, int, list[str]]:
+    """Parse leading ``-nocase`` / ``-length N`` options for ``string compare``
+    and ``string equal``.
+
+    Mirrors ``StringCmpOpts`` in ``tclCmdMZ.c``: the last two arguments
+    are the operand strings, and everything before them is parsed as
+    options.  Raises a Tcl-level error (rather than letting Python's
+    ``int()`` ``ValueError`` propagate) when the ``-length`` argument
+    isn't an integer.
+
+    Returns ``(nocase, length, [str1, str2])``.
+    """
+    wrong_args = f'wrong # args: should be "string {sub} ?-nocase? ?-length int? string1 string2"'
+    if len(rest) < 2 or len(rest) > 4:
+        raise TclError(wrong_args)
+    nocase = False
+    length = -1
+    n_options = len(rest) - 2
+    i = 0
+    while i < n_options:
+        opt = rest[i]
+        if opt == "-nocase":
+            nocase = True
+            i += 1
+            continue
+        if opt == "-length":
+            if i + 1 >= n_options:
+                raise TclError(wrong_args)
+            try:
+                length = int(rest[i + 1])
+            except (ValueError, TypeError):
+                raise TclError(f'expected integer but got "{rest[i + 1]}"') from None
+            i += 2
+            continue
+        raise TclError(f'bad option "{opt}": must be -nocase or -length')
+    return nocase, length, rest[-2:]
+
+
 def _cmd_string(interp: TclInterp, args: list[str]) -> TclResult:
     """string subcommand ?arg ...?"""
     if not args:
@@ -89,23 +127,8 @@ def _cmd_string(interp: TclInterp, args: list[str]) -> TclResult:
             return TclResult(value=s[first : last + 1])
 
         case "compare":
-            nocase = False
-            length = -1
-            r = list(rest)
-            while r and r[0].startswith("-"):
-                if r[0] == "-nocase":
-                    nocase = True
-                    r.pop(0)
-                elif r[0] == "-length" and len(r) > 1:
-                    length = int(r[1])
-                    r = r[2:]
-                else:
-                    r.pop(0)
-            if len(r) != 2:
-                raise TclError(
-                    'wrong # args: should be "string compare ?-nocase? ?-length int? string1 string2"'
-                )
-            a, b = r[0], r[1]
+            nocase, length, strings = _parse_compare_options(rest, "compare")
+            a, b = strings[0], strings[1]
             if length >= 0:
                 a, b = a[:length], b[:length]
             if nocase:
@@ -117,23 +140,8 @@ def _cmd_string(interp: TclInterp, args: list[str]) -> TclResult:
             return TclResult(value="0")
 
         case "equal":
-            nocase = False
-            length = -1
-            r = list(rest)
-            while r and r[0].startswith("-"):
-                if r[0] == "-nocase":
-                    nocase = True
-                    r.pop(0)
-                elif r[0] == "-length" and len(r) > 1:
-                    length = int(r[1])
-                    r = r[2:]
-                else:
-                    r.pop(0)
-            if len(r) != 2:
-                raise TclError(
-                    'wrong # args: should be "string equal ?-nocase? ?-length int? string1 string2"'
-                )
-            a, b = r[0], r[1]
+            nocase, length, strings = _parse_compare_options(rest, "equal")
+            a, b = strings[0], strings[1]
             if length >= 0:
                 a, b = a[:length], b[:length]
             if nocase:
@@ -198,7 +206,11 @@ def _cmd_string(interp: TclInterp, args: list[str]) -> TclResult:
         case "repeat":
             if len(rest) != 2:
                 raise TclError('wrong # args: should be "string repeat string count"')
-            return TclResult(value=rest[0] * int(rest[1]))
+            try:
+                count = int(rest[1])
+            except (ValueError, TypeError):
+                raise TclError(f'expected integer but got "{rest[1]}"') from None
+            return TclResult(value=rest[0] * max(count, 0))
 
         case "reverse":
             if len(rest) != 1:
