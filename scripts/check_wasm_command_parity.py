@@ -93,7 +93,6 @@ SILENT_STUB_HANDLERS: frozenset[str] = frozenset(
     {
         "eval_auto_load",
         "eval_auto_noop",
-        "eval_after",
         "eval_package",
     }
 )

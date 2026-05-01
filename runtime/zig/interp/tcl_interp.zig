@@ -32,8 +32,10 @@ const list_element_at = rt.list_element_at;
 
 // Convenience: check if any signal flag is set (error, return, break, continue)
 fn has_signal() bool {
+    const tcl_catch = @import("tcl_catch.zig");
     return rt.error_flag.* != 0 or rt.return_flag.* != 0 or
-        rt.break_flag.* != 0 or rt.continue_flag.* != 0;
+        rt.break_flag.* != 0 or rt.continue_flag.* != 0 or
+        tcl_catch.yield_flag != 0;
 }
 
 // -- Tokeniser --
@@ -1102,6 +1104,15 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // as a clean diagnostic rather than a stub-dispatch miss.
     if ((cmd_flags & procs.CMD_INTERP_CHILD) != 0) {
         return dispatch_interp_child(words, bucket);
+    }
+    // ``coroutine NAME`` redirect commands carry CMD_COROUTINE and
+    // a ``*Coro`` in ``params_obj``.  Resuming the coroutine is a
+    // direct call into the segment driver — no proc body to push.
+    if ((cmd_flags & procs.CMD_COROUTINE) != 0) {
+        const tcl_coro = @import("../sched/tcl_coro.zig");
+        const rec_addr: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_PARAMS_OBJ));
+        const c: *tcl_coro.Coro = @ptrFromInt(rec_addr);
+        return tcl_coro.resume_one(c);
     }
     // Compiled proc (func_idx != 0 is a marker set by
     // ``proc_register_compiled``) — dispatch via the host bridge

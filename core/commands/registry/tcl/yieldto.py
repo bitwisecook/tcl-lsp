@@ -12,7 +12,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     ValidationSpec,
-    WasmRuntimeImport,
 )
 from ..signatures import Arity
 from ._base import register
@@ -50,11 +49,5 @@ class YieldtoCommand(CommandDef):
                 SideEffect(
                     target=SideEffectTarget.INTERP_STATE, connection_side=ConnectionSide.NONE
                 ),
-            ),
-            wasm_runtime_import=WasmRuntimeImport(
-                import_key="tcl_yieldto",
-                argc=1,
-                params=("i32",),
-                results=("i32",),
             ),
         )

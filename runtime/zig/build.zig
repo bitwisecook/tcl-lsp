@@ -20,8 +20,24 @@ pub fn build(b: *std.Build) void {
         "leak-check",
         "enable leak counters in tcl_obj.zig (S0.2 debug aid)",
     ) orelse false;
+    // -Dasyncify=true post-processes the output with binaryen's
+    // ``wasm-opt --asyncify`` so calls to ``asyncify_start_unwind`` /
+    // ``_stop_unwind`` / ``_start_rewind`` / ``_stop_rewind`` /
+    // ``_get_state`` (declared as extern imports in
+    // ``sched/tcl_asyncify.zig``) become real stack-saving / -restoring
+    // operations.  Stage 2 of the event-loop staircase: enables real
+    // ``coroutine`` / ``yield`` semantics with yields from arbitrary
+    // call depth.  Cost is ~50% binary size and ~2x runtime overhead,
+    // so the flag is off by default; tests that need real coroutines
+    // (and CI builds) opt in.
+    const asyncify = b.option(
+        bool,
+        "asyncify",
+        "post-process with wasm-opt --asyncify (Stage 2 coroutines)",
+    ) orelse false;
     const build_options = b.addOptions();
     build_options.addOption(bool, "leak_check", leak_check);
+    build_options.addOption(bool, "asyncify", asyncify);
 
     // Fetch Tcl 9.0.3's regex engine sources on demand (idempotent
     // via a stamp file; see scripts/fetch_tcl_regex.sh).  Running
@@ -118,7 +134,45 @@ pub fn build(b: *std.Build) void {
     exe.entry = .disabled;
     exe.wasi_exec_model = .reactor;
 
-    b.installArtifact(exe);
+    if (asyncify) {
+        // Run wasm-opt --asyncify on the linker output and install
+        // the result as ``zig-out/bin/tcl_runtime.wasm``.  DWARF
+        // sections trip the asyncify pass on Zig 0.16 debug builds
+        // (TODO: DW_LNE_define_file), so strip them first.
+        // ``--enable-bulk-memory`` matches the linker's feature set
+        // (Zig stdlib uses ``memory.fill``).
+        const wasm_opt = b.findProgram(
+            &.{"wasm-opt"},
+            &.{ "/opt/binaryen/bin", "/usr/local/bin", "/usr/bin" },
+        ) catch @panic("wasm-opt (binaryen) not found; install for -Dasyncify=true builds");
+        const post = b.addSystemCommand(&.{
+            wasm_opt,
+            "--strip-dwarf",
+            "--enable-bulk-memory",
+            "--asyncify",
+            // Exclude ``tcl_coro_drive`` from instrumentation so the
+            // unwind triggered by ``yield`` stops at the coroutine
+            // driver instead of propagating all the way to the host.
+            // The driver inspects ``asyncify_get_state()`` after
+            // ``eval_script`` returns and reports SUSPENDED to its
+            // caller (``eval_proc_call_bucket``).  Resume is
+            // symmetric: the driver calls ``asyncify_start_rewind``
+            // then re-enters ``eval_script``, which fast-forwards
+            // through the saved frames back to the yield site.
+            // Internal Zig name (file.module.func mangled form) —
+            // wasm-opt's removelist matches on the names section,
+            // not on export names.
+            "--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive",
+        });
+        post.addArtifactArg(exe);
+        post.addArg("-o");
+        const out = post.addOutputFileArg("tcl_runtime.wasm");
+        b.getInstallStep().dependOn(&post.step);
+        const install = b.addInstallFileWithDir(out, .bin, "tcl_runtime.wasm");
+        b.getInstallStep().dependOn(&install.step);
+    } else {
+        b.installArtifact(exe);
+    }
 
     // ---------------------------------------------------------------
     // ``zig build test`` — unit tests for the WASM runtime.

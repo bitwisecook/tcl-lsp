@@ -67,11 +67,12 @@ def _link_and_instantiate(
     # before runtime instantiation so the runtime's import resolves;
     # filled with the real tcl_instance reference after the compiled
     # module is instantiated below.
-    tcl_instance_box, memory_box = _define_call_compiled_proc(linker, store)
+    tcl_instance_box, memory_box, rt_instance_box = _define_call_compiled_proc(linker, store)
 
     # Instantiate the Zig runtime
     rt_module = _get_rt_module()
     rt_instance = linker.instantiate(store, rt_module)
+    rt_instance_box[0] = rt_instance
 
     # Re-export Zig runtime functions and memory under the "tcl" module
     # namespace so the compiled Tcl module's imports resolve correctly.

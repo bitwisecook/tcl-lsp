@@ -43,6 +43,9 @@ const tcl_alias = @import("cmds/tcl_alias.zig");
 const tcl_hide = @import("cmds/tcl_hide.zig");
 const tcl_interp_registry = @import("interp/tcl_interp_registry.zig");
 const interp = @import("interp/tcl_interp.zig");
+const tcl_sched = @import("sched/tcl_sched.zig");
+const tcl_coro = @import("sched/tcl_coro.zig");
+const tcl_async = @import("sched/tcl_asyncify.zig");
 
 // Re-export everything that tcl_interp.zig and other consumers need
 // (backwards-compatible: code that does @import("tcl_runtime.zig").X still works)
@@ -497,6 +500,14 @@ comptime {
     _ = &tcl_test_interp_eval_script;
     _ = &tcl_test_interp_root_ns;
     _ = &tcl_test_hidden_find_in;
+    // Stage-2 coroutine driver — exported so wasm-opt --asyncify can
+    // reference it by name in the removelist.  No host caller reaches
+    // this directly today (the runtime drives coroutines via
+    // ``eval_proc_call_bucket``); the comptime ref ensures the linker
+    // keeps the symbol when the export attribute alone wouldn't (Zig
+    // 0.16's wasm-ld otherwise prunes externally-unused exports
+    // even with ``rdynamic``).
+    _ = &tcl_coro.tcl_coro_drive;
 }
 
 // -- Runtime test scaffolding (rename / alias) -----------------------------

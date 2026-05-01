@@ -22,7 +22,7 @@ const alloc = obj.alloc;
 const NS_PER_SECOND: i64 = 1_000_000_000;
 const NS_PER_USEC: i64 = 1_000;
 
-fn clock_ns(clock_id: std.os.wasi.clockid_t) i64 {
+pub fn clock_ns(clock_id: std.os.wasi.clockid_t) i64 {
     var ts: std.os.wasi.timestamp_t = 0;
     // Request nanosecond precision (last arg) — WASI's contract is
     // "best effort" so the returned timestamp may be coarser, which

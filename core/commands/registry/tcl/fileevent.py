@@ -13,7 +13,6 @@ from ..models import (
     FormSpec,
     HoverSnippet,
     ValidationSpec,
-    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ._base import register
@@ -56,11 +55,5 @@ class FileeventCommand(CommandDef):
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
-            ),
-            wasm_runtime_import=WasmRuntimeImport(
-                import_key="tcl_fileevent",
-                argc=2,
-                params=("i32", "i32"),
-                results=("i32",),
             ),
         )

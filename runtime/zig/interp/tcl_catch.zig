@@ -25,6 +25,13 @@ pub var return_flag: u32 = 0; // 1 = return pending (absorbed by proc dispatch)
 pub var return_val: i32 = 0; // TclObj return value
 pub var break_flag: u32 = 0; // 1 = break pending (absorbed by loops)
 pub var continue_flag: u32 = 0; // 1 = continue pending (absorbed by loops)
+/// Coroutine ``yield`` signal.  Set by ``yield`` / ``yieldto`` to
+/// unwind the eval stack back to the enclosing coroutine driver
+/// (``sched/tcl_coro.zig::resume_one``).  Distinct from
+/// ``return_flag`` so ``apply`` / proc dispatch don't silently
+/// absorb it.
+pub var yield_flag: u32 = 0;
+pub var yield_value: i32 = 0;
 
 // ``catch body result`` success path: when no error occurs, the result
 // variable should receive the return value of the body's last command,
