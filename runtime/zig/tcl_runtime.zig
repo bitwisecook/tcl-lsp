@@ -338,6 +338,9 @@ comptime {
     // fconfigure lives in tcl_chan.zig (NOP).
     _ = &tcl_chan.tcl_cmd_fconfigure;
     _ = &tcl_clock.clock_format;
+    _ = &tcl_clock.clock_format_tz;
+    _ = &tcl_clock.clock_add_pair;
+    _ = &tcl_clock.clock_scan_obj;
     _ = &tcl_time_stubs.clock_scan;
     _ = &tcl_time_stubs.clock_add;
     _ = &tcl_time_stubs.tcl_cmd_after;
