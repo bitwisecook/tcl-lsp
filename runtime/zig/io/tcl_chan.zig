@@ -27,6 +27,7 @@ const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const list_quote = @import("../valtypes/tcl_list_quote.zig");
 const list_parse = @import("../valtypes/tcl_list_parse.zig");
+const encoding = @import("../valtypes/tcl_encoding.zig");
 
 const obj_new_string = obj.obj_new_string;
 const obj_new_string_copy = obj.obj_new_string_copy;
@@ -131,7 +132,12 @@ const Channel = struct {
     eof: bool,
     blocked: bool,
     translation: u32,
-    encoding_binary: bool,
+    // Codec applied on read (bytes → utf-8) and write (utf-8 →
+    // bytes).  ``Enc.pass`` covers identity / utf-8 / binary — no
+    // transformation, the legacy code path.  Non-pass codecs route
+    // through ``encoding.encode`` / ``encoding.decode_step`` and a
+    // single-codepoint decoded utf-8 pull-side buffer (``dec_*``).
+    enc: encoding.Enc,
     buffering: u32,
     // Per-option state retained for fconfigure query forms.  Set
     // accepts any value; query renders these back as their
@@ -158,6 +164,17 @@ const Channel = struct {
     out_buf_addr: u32,
     out_buf_size: u32,
     out_buf_pos: u32,
+    // Decoded utf-8 buffer.  Holds the utf-8 expansion of a SINGLE
+    // codepoint (≤ 4 bytes) so ``buf_pos`` stays aligned with the
+    // raw bytes whose codepoints have been fully delivered.  Only
+    // populated when ``enc != .pass``; ``dec_raw`` records how many
+    // raw bytes the codepoint cost so we know how far to bump
+    // ``buf_pos`` once the user has drained dec_*.
+    dec_addr: u32,
+    dec_cap: u32,
+    dec_pos: u32,
+    dec_end: u32,
+    dec_raw: u32,
 };
 
 var channels: [MAX_CHANNELS]Channel = init: {
@@ -171,7 +188,7 @@ var channels: [MAX_CHANNELS]Channel = init: {
             .eof = false,
             .blocked = false,
             .translation = TR_AUTO,
-            .encoding_binary = false,
+            .enc = .pass,
             .buffering = BUF_FULL,
             .blocking = true,
             .buffersize = 4096,
@@ -184,6 +201,11 @@ var channels: [MAX_CHANNELS]Channel = init: {
             .out_buf_addr = 0,
             .out_buf_size = WRITE_BUF_SIZE,
             .out_buf_pos = 0,
+            .dec_addr = 0,
+            .dec_cap = 0,
+            .dec_pos = 0,
+            .dec_end = 0,
+            .dec_raw = 0,
         };
     }
     // Slots 0/1/2 are pre-populated for stdin/stdout/stderr so
@@ -195,7 +217,7 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .eof = false,
         .blocked = false,
         .translation = TR_AUTO,
-        .encoding_binary = false,
+        .enc = .pass,
         .buffering = BUF_NONE,
         .blocking = true,
         .buffersize = 4096,
@@ -208,6 +230,11 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .out_buf_addr = 0,
         .out_buf_size = WRITE_BUF_SIZE,
         .out_buf_pos = 0,
+        .dec_addr = 0,
+        .dec_cap = 0,
+        .dec_pos = 0,
+        .dec_end = 0,
+        .dec_raw = 0,
     };
     arr[1] = .{
         .in_use = true,
@@ -216,7 +243,7 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .eof = false,
         .blocked = false,
         .translation = TR_AUTO,
-        .encoding_binary = false,
+        .enc = .pass,
         .buffering = BUF_LINE,
         .blocking = true,
         .buffersize = 4096,
@@ -229,6 +256,11 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .out_buf_addr = 0,
         .out_buf_size = WRITE_BUF_SIZE,
         .out_buf_pos = 0,
+        .dec_addr = 0,
+        .dec_cap = 0,
+        .dec_pos = 0,
+        .dec_end = 0,
+        .dec_raw = 0,
     };
     arr[2] = .{
         .in_use = true,
@@ -237,7 +269,7 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .eof = false,
         .blocked = false,
         .translation = TR_AUTO,
-        .encoding_binary = false,
+        .enc = .pass,
         .buffering = BUF_NONE,
         .blocking = true,
         .buffersize = 4096,
@@ -250,6 +282,11 @@ var channels: [MAX_CHANNELS]Channel = init: {
         .out_buf_addr = 0,
         .out_buf_size = WRITE_BUF_SIZE,
         .out_buf_pos = 0,
+        .dec_addr = 0,
+        .dec_cap = 0,
+        .dec_pos = 0,
+        .dec_end = 0,
+        .dec_raw = 0,
     };
     break :init arr;
 };
@@ -431,7 +468,7 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
         .eof = false,
         .blocked = false,
         .translation = TR_AUTO,
-        .encoding_binary = false,
+        .enc = .pass,
         .buffering = BUF_FULL,
         .blocking = true,
         .buffersize = 4096,
@@ -444,6 +481,11 @@ pub export fn tcl_cmd_open(path: i32, access: i32) i32 {
         .out_buf_addr = 0,
         .out_buf_size = WRITE_BUF_SIZE,
         .out_buf_pos = 0,
+        .dec_addr = 0,
+        .dec_cap = 0,
+        .dec_pos = 0,
+        .dec_end = 0,
+        .dec_raw = 0,
     };
     return slot_name(slot);
 }
@@ -489,6 +531,9 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
     if (c.encoding_obj != 0) obj.tcl_obj_release(c.encoding_obj);
     if (c.eofchar_obj != 0) obj.tcl_obj_release(c.eofchar_obj);
     if (c.profile_obj != 0) obj.tcl_obj_release(c.profile_obj);
+    if (c.dec_addr != 0) {
+        obj.free_sized(c.dec_addr, c.dec_cap);
+    }
     c.* = .{
         .in_use = false,
         .fd = -1,
@@ -496,7 +541,7 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .eof = false,
         .blocked = false,
         .translation = TR_AUTO,
-        .encoding_binary = false,
+        .enc = .pass,
         .buffering = BUF_FULL,
         .blocking = true,
         .buffersize = 4096,
@@ -509,6 +554,11 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
         .out_buf_addr = 0,
         .out_buf_size = WRITE_BUF_SIZE,
         .out_buf_pos = 0,
+        .dec_addr = 0,
+        .dec_cap = 0,
+        .dec_pos = 0,
+        .dec_end = 0,
+        .dec_raw = 0,
     };
     if (!flush_ok) {
         stubs.raise("close: write failed");
@@ -518,20 +568,41 @@ pub export fn tcl_cmd_close(chan: i32) i32 {
 }
 
 // Refill the channel's pull-side buffer from the underlying fd.
-// Sets ``c.eof`` on a zero-byte read.  Returns the number of bytes
-// available after the refill, or 0 on EOF / error.
+// Compacts any carry bytes (``buf[buf_pos..buf_end]``) to the front
+// of the buffer before reading more — the per-codepoint decoder
+// leaves a 1- or 3-byte residue at the tail of the chunk when a
+// utf-16 unit straddles the 4 KiB boundary, and that residue must
+// survive into the next read.  Sets ``c.eof`` on a zero-byte read.
+// Returns the number of bytes available after the refill, or 0 on
+// EOF with no carry / error.
 fn refill(c: *Channel) u32 {
     if (c.buf_addr == 0) {
         c.buf_addr = obj.alloc(READ_BUF_SIZE);
     }
+    var carry: u32 = 0;
+    if (c.buf_pos < c.buf_end) {
+        carry = c.buf_end - c.buf_pos;
+        if (c.buf_pos > 0) {
+            const buf: [*]u8 = @ptrFromInt(c.buf_addr);
+            for (0..carry) |i| buf[i] = buf[c.buf_pos + i];
+        }
+    }
     c.buf_pos = 0;
-    c.buf_end = 0;
-    const n = read_fn(c.fd, @ptrFromInt(c.buf_addr), READ_BUF_SIZE);
+    c.buf_end = carry;
+    if (carry >= READ_BUF_SIZE) {
+        // Pathological: carry filled the entire buffer.  Nothing to
+        // read; caller must consume something first.  Shouldn't
+        // happen with the 4-byte max-codepoint codecs we ship.
+        return carry;
+    }
+    const n = read_fn(c.fd, @ptrFromInt(c.buf_addr + carry), READ_BUF_SIZE - carry);
     if (n == 0) {
         // Genuine end-of-file: stamp the sticky EOF flag so
-        // ``eof $chan`` reports 1 and signal "no bytes available".
+        // ``eof $chan`` reports 1.  Carry bytes (if any) stay in
+        // the buffer — the streaming decoder converts them to a
+        // U+FFFD on its next pass, then declares EOF.
         c.eof = true;
-        return 0;
+        return carry;
     }
     if (n < 0) {
         // I/O error from wasi-libc.  Surface as a real error
@@ -542,8 +613,90 @@ fn refill(c: *Channel) u32 {
         stubs.raise("read: I/O error");
         return 0;
     }
-    c.buf_end = @intCast(n);
+    c.buf_end = carry + @as(u32, @intCast(n));
     return c.buf_end;
+}
+
+// Decode the next codepoint from the raw pull buffer into ``c.dec_*``.
+// Stages the codepoint's utf-8 expansion (≤ 4 bytes) into the small
+// dec buffer and records the raw bytes the codepoint cost in
+// ``c.dec_raw``.  ``c.buf_pos`` is *not* advanced here — it's bumped
+// only after the user drains the dec buffer in :func:`next_byte`, so
+// position-dependent operations (``tell`` / ``fcopy``) see a raw
+// chunk that still includes the in-flight codepoint as "pending".
+//
+// On EOF mid-unit (utf-16 with one trailing byte) the residue is
+// flushed as U+FFFD and ``dec_raw`` reflects the discarded count, so
+// the channel reports a single replacement char and then EOF.
+fn refill_decoded(c: *Channel) u32 {
+    if (c.dec_addr == 0) {
+        // Lazy alloc — utf-8 expansion of one codepoint never exceeds
+        // 4 bytes, but we round up to the smallest size class via the
+        // recycler so the slab can be reused without realloc.
+        c.dec_cap = 8;
+        c.dec_addr = obj.alloc(c.dec_cap);
+    }
+    while (true) {
+        if (c.buf_pos >= c.buf_end) {
+            if (refill(c) == 0) return 0;
+        }
+        const raw_p: u32 = c.buf_addr + c.buf_pos;
+        const raw_len: u32 = c.buf_end - c.buf_pos;
+        const step = encoding.decode_step(c.enc, raw_p, raw_len);
+        if (step.needs_more) {
+            // Try to pull more raw data so the partial unit can be
+            // completed.  ``refill`` compacts the carry to the front
+            // of the buffer first.
+            const before = c.buf_end - c.buf_pos;
+            if (refill(c) == 0 and (c.buf_end - c.buf_pos) == before) {
+                // Hit EOF with residue still in the buffer — flush
+                // it as a single U+FFFD so the read returns the
+                // replacement char before declaring EOF.
+                c.dec_raw = c.buf_end - c.buf_pos;
+                c.dec_pos = 0;
+                c.dec_end = encoding.utf8_encode(c.dec_addr, 0xFFFD);
+                return c.dec_end;
+            }
+            continue;
+        }
+        c.dec_raw = step.consumed;
+        c.dec_pos = 0;
+        c.dec_end = encoding.utf8_encode(c.dec_addr, step.cp);
+        return c.dec_end;
+    }
+}
+
+// Pull the next utf-8 byte from the channel.  ``c.enc == .pass``
+// short-circuits to the raw buffer; otherwise the per-codepoint
+// streaming decoder feeds dec_*, advancing ``buf_pos`` only after a
+// codepoint is fully delivered so ``tell`` / ``fcopy`` stay aligned
+// with the OS fd offset.  Returns null on EOF / error.
+fn next_byte(c: *Channel) ?u8 {
+    if (c.enc == .pass) {
+        if (c.buf_pos >= c.buf_end) {
+            if (refill(c) == 0) return null;
+        }
+        const src: [*]const u8 = @ptrFromInt(c.buf_addr);
+        const v = src[c.buf_pos];
+        c.buf_pos += 1;
+        return v;
+    }
+    if (c.dec_pos >= c.dec_end) {
+        if (refill_decoded(c) == 0) return null;
+    }
+    const src: [*]const u8 = @ptrFromInt(c.dec_addr);
+    const v = src[c.dec_pos];
+    c.dec_pos += 1;
+    if (c.dec_pos >= c.dec_end) {
+        // Codepoint fully delivered — advance raw past its bytes so
+        // ``tell``'s ``pos - (buf_end - buf_pos)`` formula stays
+        // consistent with what Tcl 9 reports between codepoints.
+        c.buf_pos += c.dec_raw;
+        c.dec_pos = 0;
+        c.dec_end = 0;
+        c.dec_raw = 0;
+    }
+    return v;
 }
 
 // Append ``len`` bytes from ``src`` to a growable byte buffer.
@@ -655,17 +808,11 @@ pub export fn tcl_cmd_read(chan: i32, num_chars: i32) i32 {
     var buf = buf_init(if (want > 0 and want < 4096) @intCast(want) else 256);
     var prev_cr = false;
     while (want != 0) {
-        if (c.buf_pos >= c.buf_end) {
-            if (refill(c) == 0) break;
-        }
-        const src: [*]const u8 = @ptrFromInt(c.buf_addr);
-        while (c.buf_pos < c.buf_end and want != 0) {
-            const r = translate_input(c, src[c.buf_pos], &prev_cr);
-            c.buf_pos += 1;
-            if (r.emit) {
-                buf_push(&buf, r.value);
-                if (want > 0) want -= 1;
-            }
+        const b = next_byte(c) orelse break;
+        const r = translate_input(c, b, &prev_cr);
+        if (r.emit) {
+            buf_push(&buf, r.value);
+            if (want > 0) want -= 1;
         }
     }
     return buf_finish(buf);
@@ -690,22 +837,16 @@ pub export fn tcl_cmd_gets(chan: i32, var_name: i32) i32 {
     var saw_newline = false;
     var any_byte = false;
     var prev_cr = false;
-    outer: while (true) {
-        if (c.buf_pos >= c.buf_end) {
-            if (refill(c) == 0) break;
+    while (true) {
+        const b = next_byte(c) orelse break;
+        const r = translate_input(c, b, &prev_cr);
+        if (!r.emit) continue;
+        any_byte = true;
+        if (r.value == '\n') {
+            saw_newline = true;
+            break;
         }
-        const src: [*]const u8 = @ptrFromInt(c.buf_addr);
-        while (c.buf_pos < c.buf_end) {
-            const r = translate_input(c, src[c.buf_pos], &prev_cr);
-            c.buf_pos += 1;
-            if (!r.emit) continue;
-            any_byte = true;
-            if (r.value == '\n') {
-                saw_newline = true;
-                break :outer;
-            }
-            buf_push(&line, r.value);
-        }
+        buf_push(&line, r.value);
     }
 
     const interp = @import("../interp/tcl_frames.zig");
@@ -765,6 +906,12 @@ pub export fn tcl_cmd_seek(chan: i32, offset: i32, origin: i32) i32 {
     }
     c.buf_pos = 0;
     c.buf_end = 0;
+    // Drop any pre-decoded utf-8 sitting in ``dec_*`` for the same
+    // reason we drop the raw buffer: its contents predate the new
+    // logical position.
+    c.dec_pos = 0;
+    c.dec_end = 0;
+    c.dec_raw = 0;
     c.eof = false;
     return obj_new_string(0, 0);
 }
@@ -951,29 +1098,69 @@ fn emit_byte(c: *Channel, byte: u8) bool {
     return true;
 }
 
-// Output translation — append ``len`` bytes starting at ``ptr`` to
-// the channel's write buffer.  TR_CRLF expands LF → CRLF; TR_CR
-// rewrites LF → CR; everything else is byte-for-byte.  When the
-// channel is unbuffered (``BUF_NONE``) the call ends with a flush so
-// each ``puts`` lands on the fd immediately.  Returns false on a
-// write failure so the caller can raise.
-fn write_translated(c: *Channel, ptr: [*]const u8, len: u32) bool {
+// Distinguishes a codec-level failure (``encoding.encode`` already
+// raised a precise ``codepoint not representable`` / ``lone surrogate``
+// message — caller must NOT overwrite that with a generic
+// ``write failed``) from an I/O failure on ``write_fn`` / a flush.
+const WriteResult = enum { ok, codec_err, io_err };
+
+// Output translation — push ``len`` bytes starting at ``ptr`` (a
+// utf-8 byte stream) onto the channel's write buffer with TR_CRLF /
+// TR_CR translation applied in utf-8 source space.  When
+// ``c.enc != .pass`` the translated utf-8 is then encoded through
+// the channel codec and the *encoded* bytes hit ``emit_byte``; for
+// ``.pass`` it's a straight byte-by-byte path.  Unbuffered channels
+// (``BUF_NONE``) flush at the end so each ``puts`` lands on the fd
+// immediately.
+fn write_translated(c: *Channel, ptr: [*]const u8, len: u32) WriteResult {
+    if (c.enc == .pass) {
+        var i: u32 = 0;
+        while (i < len) : (i += 1) {
+            const b = ptr[i];
+            if (c.translation == TR_CRLF and b == '\n') {
+                if (!emit_byte(c, '\r')) return .io_err;
+                if (!emit_byte(c, '\n')) return .io_err;
+            } else if (c.translation == TR_CR and b == '\n') {
+                if (!emit_byte(c, '\r')) return .io_err;
+            } else {
+                if (!emit_byte(c, b)) return .io_err;
+            }
+        }
+        if (c.buffering == BUF_NONE) {
+            return if (flush_chan(c)) .ok else .io_err;
+        }
+        return .ok;
+    }
+    // Non-pass codec — translation must run in utf-8 source space so
+    // a multi-byte codepoint isn't split mid-byte by an LF→CRLF
+    // expansion.  Build the translated stream into a temp buffer,
+    // encode it, then funnel the encoded bytes through ``emit_byte``
+    // so the per-channel write buffer / line-flush rules still apply.
+    var staged = encoding.buf_init(if (len > 0) len + 2 else 4);
+    defer encoding.buf_release(staged);
     var i: u32 = 0;
     while (i < len) : (i += 1) {
         const b = ptr[i];
         if (c.translation == TR_CRLF and b == '\n') {
-            if (!emit_byte(c, '\r')) return false;
-            if (!emit_byte(c, '\n')) return false;
+            encoding.buf_push(&staged, '\r');
+            encoding.buf_push(&staged, '\n');
         } else if (c.translation == TR_CR and b == '\n') {
-            if (!emit_byte(c, '\r')) return false;
+            encoding.buf_push(&staged, '\r');
         } else {
-            if (!emit_byte(c, b)) return false;
+            encoding.buf_push(&staged, b);
         }
     }
-    if (c.buffering == BUF_NONE) {
-        return flush_chan(c);
+    const enc_buf = encoding.encode(c.enc, staged.addr, staged.len) orelse return .codec_err;
+    defer encoding.buf_release(enc_buf);
+    const ep: [*]const u8 = @ptrFromInt(enc_buf.addr);
+    var j: u32 = 0;
+    while (j < enc_buf.len) : (j += 1) {
+        if (!emit_byte(c, ep[j])) return .io_err;
     }
-    return true;
+    if (c.buffering == BUF_NONE) {
+        return if (flush_chan(c)) .ok else .io_err;
+    }
+    return .ok;
 }
 
 /// Resolve a channel id and flush its write buffer.  Used by
@@ -1010,17 +1197,25 @@ pub export fn tcl_cmd_puts_chan(chan: i32, msg: i32, nonewline: i32) i32 {
     if (msg != 0) {
         const s = obj_ensure_string(msg);
         if (s.len > 0) {
-            if (!write_translated(c, @ptrFromInt(s.ptr), s.len)) {
-                stubs.raise("puts: write failed");
-                return 0;
+            switch (write_translated(c, @ptrFromInt(s.ptr), s.len)) {
+                .ok => {},
+                .codec_err => return 0, // codec already raised a precise message
+                .io_err => {
+                    stubs.raise("puts: write failed");
+                    return 0;
+                },
             }
         }
     }
     if (nonewline == 0) {
         const nl: [1]u8 = .{'\n'};
-        if (!write_translated(c, &nl, 1)) {
-            stubs.raise("puts: write failed");
-            return 0;
+        switch (write_translated(c, &nl, 1)) {
+            .ok => {},
+            .codec_err => return 0,
+            .io_err => {
+                stubs.raise("puts: write failed");
+                return 0;
+            },
         }
     }
     return obj_new_string(0, 0);
@@ -1150,7 +1345,30 @@ fn apply_option(c: *Channel, name_p: [*]const u8, name_len: u32, val_p: [*]const
         return true;
     }
     if (eq(name_p, name_len, "-encoding")) {
-        c.encoding_binary = eq(val_p, val_len, "binary");
+        const r = encoding.resolve_name(val_p, val_len);
+        if (r.enc) |new_enc| {
+            // Switching encodings invalidates the decoded utf-8 cache;
+            // drop it so the next read re-decodes through the new
+            // codec.  (The raw-side buffer stays — its bytes haven't
+            // changed.)
+            if (c.enc != new_enc) {
+                c.enc = new_enc;
+                c.dec_pos = 0;
+                c.dec_end = 0;
+                c.dec_raw = 0;
+            }
+        } else if (r.known_unsupported) {
+            // A real Tcl codec we don't model yet — surface a clear
+            // error rather than silently passing bytes through.
+            stubs.unsupported("fconfigure -encoding (codec not implemented)");
+            return false;
+        }
+        // Unrecognised free-form names fall through: the runtime
+        // codec stays as it was, and ``set_obj_option`` records the
+        // string so the query form returns what the caller set.
+        // (Real Tcl errors on unknown codecs; main's fconfigure
+        // query tests rely on lenient string storage, and that's
+        // the established direction here — see PR #271 / #292.)
         set_obj_option(&c.encoding_obj, val_p, val_len);
         return true;
     }
