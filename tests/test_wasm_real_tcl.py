@@ -3104,10 +3104,10 @@ class TestChannelErrorWording:
     def _trap_stderr(source: str, *, preopen: str | None = None) -> str:
         wasm, _ = _compile_tcl_with_diag(source, "t.tcl")
         try:
-            kwargs = {"capture_stderr": True}
             if preopen is not None:
-                kwargs["preopen_tmpdir"] = preopen
-            _run_wasm(wasm, **kwargs)
+                _run_wasm(wasm, capture_stderr=True, preopen_tmpdir=preopen)
+            else:
+                _run_wasm(wasm, capture_stderr=True)
         except Exception as trap:
             return getattr(trap, "tcl_stderr", "")
         pytest.fail("expected trap")
