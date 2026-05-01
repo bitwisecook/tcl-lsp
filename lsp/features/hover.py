@@ -892,9 +892,19 @@ def get_hover(
     analysis: AnalysisResult | None = None,
     *,
     lines: list[str] | None = None,
+    analyse_if_missing: bool = True,
 ) -> types.Hover | None:
-    """Generate hover info for a position in source."""
+    """Generate hover info for a position in source.
+
+    When ``analyse_if_missing`` is true (default, used by tests and direct
+    callers) and ``analysis`` is None, the source is analysed synchronously.
+    The LSP server passes ``analyse_if_missing=False`` so that hover requests
+    that arrive while a fresh analysis is still pending in the background
+    return quickly without duplicating the analysis on the request thread.
+    """
     if analysis is None:
+        if not analyse_if_missing:
+            return None
         analysis = analyse(source)
 
     # Check for variable hover ($var)
