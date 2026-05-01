@@ -15,6 +15,7 @@ from . import (
     catch_,
     concat_,
     dict_,
+    error_,
     fconfigure_,
     fcopy_,
     format_,

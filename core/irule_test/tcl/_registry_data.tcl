@@ -24,6 +24,34 @@ namespace eval ::tmm {
         -
         /
         ::tcl::build-info
+        ::tcl::mathop::!
+        ::tcl::mathop::!=
+        ::tcl::mathop::%
+        ::tcl::mathop::&
+        ::tcl::mathop::&&
+        ::tcl::mathop::*
+        ::tcl::mathop::**
+        ::tcl::mathop::+
+        ::tcl::mathop::-
+        ::tcl::mathop::/
+        ::tcl::mathop::<
+        ::tcl::mathop::<<
+        ::tcl::mathop::<=
+        ::tcl::mathop::==
+        ::tcl::mathop::>
+        ::tcl::mathop::>=
+        ::tcl::mathop::>>
+        ::tcl::mathop::@
+        ::tcl::mathop::^
+        ::tcl::mathop::eq
+        ::tcl::mathop::in
+        ::tcl::mathop::max
+        ::tcl::mathop::min
+        ::tcl::mathop::ne
+        ::tcl::mathop::ni
+        ::tcl::mathop::|
+        ::tcl::mathop::||
+        ::tcl::mathop::~
         <
         <<
         <=
@@ -59,7 +87,9 @@ namespace eval ::tmm {
         in
         interp
         load
+        max
         memory
+        min
         namespace
         ne
         ni
@@ -78,6 +108,34 @@ namespace eval ::tmm {
         socket
         source
         tcl::build-info
+        tcl::mathop::!
+        tcl::mathop::!=
+        tcl::mathop::%
+        tcl::mathop::&
+        tcl::mathop::&&
+        tcl::mathop::*
+        tcl::mathop::**
+        tcl::mathop::+
+        tcl::mathop::-
+        tcl::mathop::/
+        tcl::mathop::<
+        tcl::mathop::<<
+        tcl::mathop::<=
+        tcl::mathop::==
+        tcl::mathop::>
+        tcl::mathop::>=
+        tcl::mathop::>>
+        tcl::mathop::@
+        tcl::mathop::^
+        tcl::mathop::eq
+        tcl::mathop::in
+        tcl::mathop::max
+        tcl::mathop::min
+        tcl::mathop::ne
+        tcl::mathop::ni
+        tcl::mathop::|
+        tcl::mathop::||
+        tcl::mathop::~
         tcl_findLibrary
         tell
         time
