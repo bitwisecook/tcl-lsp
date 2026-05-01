@@ -3561,12 +3561,7 @@ class TestChan:
         (tmp_path / "x.txt").write_text("x")
         out = self._run(
             tmp_path,
-            (
-                "set fd [open /x.txt r]\n"
-                "puts $fd\n"
-                "puts [chan names]\n"
-                "chan close $fd\n"
-            ),
+            ("set fd [open /x.txt r]\nputs $fd\nputs [chan names]\nchan close $fd\n"),
         )
         # The freshly-opened channel name should appear in
         # ``chan names`` alongside the standard streams.
