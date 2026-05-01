@@ -64,13 +64,16 @@ def _cmd_gets(interp: TclInterp, args: list[str]) -> TclResult:
     if ch is None:
         raise TclError(f'can not find channel named "{channel}"')
 
-    line = ch.readline()
-    if line.endswith("\n"):
-        line = line[:-1]
+    raw = ch.readline()
+    at_eof = not raw
+    nl = b"\n" if isinstance(raw, bytes) else "\n"
+    line = raw[:-1] if raw.endswith(nl) else raw
+    if isinstance(line, bytes):
+        line = line.decode("utf-8", errors="replace")
 
     if len(args) >= 2:
         interp.current_frame.set_var(args[1], line)
-        return TclResult(value=str(len(line)))
+        return TclResult(value="-1" if at_eof else str(len(line)))
     return TclResult(value=line)
 
 
