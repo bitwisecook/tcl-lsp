@@ -2410,3 +2410,67 @@ class TestCanonicalisationMatrix:
     def test_w213_unset_qualified_nocomplain_silenced(self):
         n = self._w213_count("proc f {} { ::unset -nocomplain x }")
         assert n == 0, f"expected no W213 with ::unset -nocomplain, got {n}"
+
+
+class TestCanonicalisationMatrixW211:
+    """Issue #246 — W211 ('variable set but never used') fires for the
+    same call shape regardless of bare / qualified / aliased command
+    spelling.
+    """
+
+    @staticmethod
+    def _w211_count(source: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "W211")
+
+    def test_w211_set_bare(self):
+        # ``set y 1`` with no later read fires W211.
+        n = self._w211_count("proc f {} { set y 1 }")
+        assert n == 1, f"expected one W211 for bare set, got {n}"
+
+    def test_w211_set_qualified(self):
+        # ``::set y 1`` fires the same diagnostic — canonical resolution
+        # routes the qualified call through the same code path.
+        n = self._w211_count("proc f {} { ::set y 1 }")
+        assert n == 1, f"expected one W211 for ::set, got {n}"
+
+    def test_w211_set_via_interp_alias(self):
+        # ``interp alias {} s {} set`` then ``s y 1`` is the alias-
+        # rewritten form — lowering follows the alias to ``set`` and
+        # canonicalisation produces ``::set``.
+        source = "interp alias {} s {} set\nproc f {} { s y 1 }"
+        n = self._w211_count(source)
+        assert n == 1, f"expected one W211 for aliased set, got {n}"
+
+
+class TestCanonicalisationMatrixIRULE4005:
+    """Issue #246 — IRULE4005 (racy ``unset`` on a static:: var) fires
+    on the same shape across spellings.
+    """
+
+    @staticmethod
+    def _irule4005_count(source: str) -> int:
+        result = analyse(source)
+        return sum(1 for d in result.diagnostics if d.code == "IRULE4005")
+
+    def test_irule4005_does_not_fire_for_unset(self):
+        # IRULE4005 requires more than just an ``unset`` — it triggers
+        # on a write outside RULE_INIT to a static:: var that another
+        # event reads.  A bare ``unset`` alone should NOT fire it,
+        # because ``unset`` is explicitly excluded as 'not a real write'
+        # — that exclusion uses ``stmt.canonical_command == "::unset"``.
+        # We assert the exclusion holds for bare/qualified/aliased
+        # spellings.
+        from core.commands.registry.runtime import configure_signatures
+
+        configure_signatures(dialect="f5-irules")
+        try:
+            for spelling in (
+                "when CLIENT_ACCEPTED { unset static::z }",
+                "when CLIENT_ACCEPTED { ::unset static::z }",
+                "interp alias {} u {} unset\nwhen CLIENT_ACCEPTED { u static::z }",
+            ):
+                n = self._irule4005_count(spelling)
+                assert n == 0, f"unexpected IRULE4005 for {spelling!r}: got {n}"
+        finally:
+            configure_signatures(dialect="tcl8.6")

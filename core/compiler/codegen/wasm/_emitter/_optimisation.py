@@ -1,5 +1,7 @@
 """_WasmEmitterOptMixin: peephole optimiser, dead-code removal, CFG loop codegen."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -78,7 +80,7 @@ class _WasmEmitterOptMixin(_Base):
 
         def _walk(stmt) -> bool:
             if isinstance(stmt, IRCall):
-                if stmt.command == "info" and stmt.args and stmt.args[0] == "level":
+                if stmt.canonical_command == "::info" and stmt.args and stmt.args[0] == "level":
                     return True
                 # ``info level`` can also appear as a bracketed
                 # command substitution inside another call's
@@ -588,7 +590,7 @@ class _WasmEmitterOptMixin(_Base):
         list_var: str | None = None
         loop_vars: tuple[str, ...] = ()
         for stmt in header_stmts:
-            if isinstance(stmt, IRCall) and stmt.command == "foreach":
+            if isinstance(stmt, IRCall) and stmt.canonical_command == "::foreach":
                 if stmt.args:
                     list_var = stmt.args[0]
                 if stmt.defs:
@@ -761,15 +763,15 @@ class _WasmEmitterOptMixin(_Base):
                     if self._optimise:
                         self._const_map.clear()
                 else:
-                    self._emit_call_stmt_tail(last.command, last.args, last.defs)
+                    self._emit_call_stmt_tail(last.canonical_command, last.args, last.defs)
             elif isinstance(last, IRBarrier):
                 # IRBarrier in tail position — keep result on stack (no DROP).
                 # ``namespace eval ns arg1 arg2 ...`` with dynamic args uses
                 # WASM-level assembly so compiled-frame aliases resolve.
-                barrier_cmd = last.command
+                barrier_cmd = last.canonical_command
                 barrier_args = last.args
                 if (
-                    barrier_cmd == "namespace"
+                    barrier_cmd == "::namespace"
                     and barrier_args
                     and barrier_args[0] == "eval"
                     and len(barrier_args) > 2
@@ -779,12 +781,12 @@ class _WasmEmitterOptMixin(_Base):
                     ):
                         self._emit_eval_fallback(barrier_cmd, barrier_args)
                         # result stays on stack (no DROP)
-                elif barrier_cmd == "uplevel" and barrier_args:
+                elif barrier_cmd == "::uplevel" and barrier_args:
                     # Tail-position uplevel: shift frame depth, eval body,
                     # restore — result stays on stack (no DROP).
                     self._emit_cmd_uplevel(barrier_args)
                 elif (
-                    barrier_cmd == "return"
+                    barrier_cmd == "::return"
                     and barrier_args
                     and len(barrier_args) == 3
                     and barrier_args[0] == "-code"

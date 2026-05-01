@@ -2,7 +2,6 @@
 
 # canonicalisation: audited #246
 
-
 from __future__ import annotations
 
 from core.common.codes import opt

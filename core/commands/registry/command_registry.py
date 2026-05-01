@@ -518,21 +518,20 @@ class CommandRegistry:
         Useful for checking whether a command exists at all (in any dialect)
         before performing a dialect-filtered lookup.
 
-        Qualified names (``::cmd``) for which only a bare-name spec exists
-        also resolve here — e.g. ``::unset`` returns the ``unset`` builtin
-        spec.  This mirrors Tcl's command resolution: the global namespace
-        form is just an explicitly-qualified spelling of the same builtin.
-        Without this, ``::unset x`` would skip the ``unset`` lowering hook
-        and produce a generic IRCall without variable-write tracking, and
-        every diagnostic that switches on the canonical command name would
-        miss the explicitly-qualified spelling.  See issue #246.
+        Qualified names (``::cmd``, ``::HTTP::respond``) for which only
+        a bare-name spec exists also resolve here — e.g. ``::unset``
+        returns the ``unset`` builtin spec, ``::HTTP::respond`` returns
+        the registered ``HTTP::respond`` iRules spec.  This mirrors
+        Tcl's command resolution: the global namespace form is just
+        an explicitly-qualified spelling of the same builtin.  See
+        issue #246.
+
+        The leading ``::`` is stripped only when no exact match exists,
+        so user-defined ``::ns::userproc`` does not accidentally pick
+        up a same-name builtin (the lookup falls through to ``None``).
         """
         specs = self.specs_by_name.get(name)
-        if specs is None and name.startswith("::") and "::" not in name[2:]:
-            # ``::cmd`` (no further qualifiers) — fall back to the bare
-            # ``cmd`` spec for global builtins.  We deliberately do not
-            # follow ``::ns::cmd`` to ``cmd`` because that would conflate a
-            # user-defined ``::ns::cmd`` proc with a same-name builtin.
+        if specs is None and name.startswith("::"):
             specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return None
@@ -812,11 +811,26 @@ class CommandRegistry:
         return self.command_names(dialect, active_packages=packages)
 
     def _any_spec_has(self, name: str, attr: str) -> bool:
-        """Return True if any spec for *name* has a truthy value for *attr*."""
+        """Return True if any spec for *name* has a truthy value for *attr*.
+
+        Accepts both bare (``set``, ``HTTP::respond``) and canonical
+        (``::set``, ``::HTTP::respond``) command forms — the canonical
+        form is the spelling stamped on ``IRCall.canonical_command`` by
+        lowering, so passes that match on canonical can call this helper
+        without re-stripping.  Specs themselves are registered under
+        bare names (``set``, ``HTTP::respond``); the leading ``::`` is
+        stripped to recover the bare form.  See issue #246.
+        """
         trait_names = self._trait_indexes.get(attr)
         if trait_names is not None:
-            return name in trait_names
+            if name in trait_names:
+                return True
+            if name.startswith("::"):
+                return name[2:] in trait_names
+            return False
         specs = self.specs_by_name.get(name)
+        if specs is None and name.startswith("::"):
+            specs = self.specs_by_name.get(name[2:])
         if specs is None:
             return False
         return any(getattr(spec, attr, False) for spec in specs)

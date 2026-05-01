@@ -35,7 +35,6 @@ runtime ``source`` builtin unchanged):
 
 # canonicalisation: audited #246
 
-
 from __future__ import annotations
 
 import re

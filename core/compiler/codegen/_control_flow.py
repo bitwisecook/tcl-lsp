@@ -1,5 +1,7 @@
 """Mixin: catch/try/error handling control flow."""
 
+# canonicalisation: audited #246
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -483,7 +485,7 @@ class _ControlFlowMixin:
         ``error`` commands are compiled as ``returnImm`` instead of
         ``invokeStk``.
         """
-        if isinstance(stmt, IRCall) and stmt.command == "error":
+        if isinstance(stmt, IRCall) and stmt.canonical_command == "::error":
             # ``error msg`` → push msg, push "", returnImm +1 0
             if stmt.args:
                 self._emit_value(stmt.args[0])
