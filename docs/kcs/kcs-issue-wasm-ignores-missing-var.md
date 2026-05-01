@@ -113,7 +113,56 @@ the WASM run now surfaces a Tcl-level error matching the VM's
 return code.
 
 Three other seeds the original issue listed (`1774200067`,
-`1774200082`, `1774200094`) turn out to surface independent
-`wasm-timeout` bugs once the missing-variable signal stops
-short-circuiting the runaway loop; those need their own follow-up
-fixes and stay `"fixed": false` for now.
+`1774200082`, `1774200094`) surface as independent `wasm-timeout`
+bugs once the missing-variable signal stops short-circuiting the
+runaway loop.  These are addressed by issues #260, #261, and #262
+(bitwise / shift float-domain checks plus strict-integer `incr`),
+and the end-to-end coverage lives in `TestBatch6WasmStrictIntOpsCombo`
+in the same test file.  All seven seed JSONs flip to
+`"fixed": true`.
+
+## Strict-integer follow-up: incr-on-unset preservation
+
+Tightening `incr` to enforce the strict-integer contract initially
+regressed the unset-variable case: routing the codegen through the
+strict `_emit_var_read_obj` raised `can't read "<name>": no such
+variable` for `proc p {} { incr x }`, but Tcl 8.5+ semantics require
+that `incr` on an unset scalar initialise it to `0` and return the
+increment.  Codex P1 review on PR #288 caught this.
+
+The fix lives in two places:
+
+1. [`runtime/zig/interp/tcl_ns.zig`](../../runtime/zig/interp/tcl_ns.zig)
+   `tcl_incr` treats a null `o` (TclObj 0) as the unset case and
+   initialises to `0` before adding.  The strict-integer contract
+   still applies to non-empty values that fail the integer parse
+   (a string `"abc"` or a float `"5.0"` still raises).
+2. [`core/compiler/codegen/wasm/_emitter/_variables.py`](../../core/compiler/codegen/wasm/_emitter/_variables.py)
+   adds `_emit_var_read_obj_lenient` — a lenient counterpart of
+   `_emit_var_read_obj` that returns 0 (null TclObj) for an unset
+   variable instead of raising.  The three `IRIncr` emit sites
+   (`_statements.py`, `_control_flow.py`, `_optimisation.py`) call
+   the lenient variant; `tcl_incr`'s null-input branch turns the
+   null TclObj into the matching `0 + amount` initialisation.
+
+`TestBatch6WasmStrictIntOpsCombo::test_incr_initialises_unset_scalar`
+parametrises five shapes (`proc p {} { incr x }`,
+`proc q {} { incr y 5 }`, `proc r {} { incr z -3 }`, `incr top`,
+`incr top 7`) and locks in the Tcl 8.5+ behaviour.
+
+## First-error-wins guards on the runtime error helpers
+
+A second Copilot review on PR #288 noted that the int-op error
+helpers (`raise_float_in_bitwise` / `raise_float_in_unary_bitwise`
+in `tcl_arith.zig`, `raise_expected_integer` in `tcl_ns.zig`, plus
+the top-level `tcl_incr` entry) called `tcl_cmd_error`
+unconditionally.  Inside a catch scope, that overwrites `error_msg`
+even when `error_flag` was already set by an earlier failure in the
+same statement (e.g. a missing-variable read on the other operand)
+— clobbering the original diagnostic.
+
+The fix adds an early `if (error_flag != 0) return;` guard at the
+top of each helper.  Once an error is pending these helpers become
+no-ops, so the first error stays the one the catch boundary
+surfaces — matching reference Tcl's "first error wins" semantics
+for a single command.

@@ -1003,10 +1003,12 @@ class TestBatch6WasmIgnoresMissingVar:
     The seeds covered here are the four from the original finding
     batch whose mismatch was directly the missing-variable behaviour.
     Seeds 1774200067, 1774200082, and 1774200094 were also listed in
-    the issue but turn out to surface independent ``wasm-timeout``
-    bugs once the missing-variable signal stops short-circuiting the
-    bad loop; those need their own follow-up fixes and stay
-    ``"fixed": false``.
+    the issue and surfaced as independent ``wasm-timeout`` bugs once
+    the missing-variable signal stopped short-circuiting the bad
+    loop; those are covered by issues #260–#262 (bitwise / shift
+    domain checks and strict-integer ``incr``).  See
+    :class:`TestBatch6WasmStrictIntOpsCombo` below for the
+    end-to-end coverage.
 
     The test imports the WASM backend lazily because ``wasmtime`` /
     the compiled runtime are optional at install time; without them
@@ -1431,3 +1433,96 @@ class TestBatch7WasmAcceptsFloatAsInteger:
         result = run_wasm("set i -5\nincr i\nputs $i\n")
         assert result.return_code == 0
         assert result.stdout.strip() == "-4"
+
+
+class TestBatch6WasmStrictIntOpsCombo:
+    """End-to-end coverage for the three issue-263 follow-up seeds.
+
+    Issues #260, #261, #262 together fixed the underlying domain
+    checks (bitwise float, negative shift, strict-integer ``incr``)
+    that drove these seeds into the ``wasm-timeout`` cluster.  This
+    class re-runs the original full seed scripts and asserts the WASM
+    backend now surfaces the matching VM-style error rather than
+    running off the wasmtime epoch.
+
+    A separate non-regression test (``test_incr_initialises_unset_scalar``)
+    locks in the Tcl 8.5+ semantics that ``incr`` on an unset scalar
+    initialises it to ``0`` and returns the increment, so the
+    strict-integer fix doesn't regress the unset-then-incr case.
+    """
+
+    # ``(seed, expected error substring)``.  The substring must be
+    # specific to the strict-integer fix — a ``return_code == 1``
+    # from an unrelated downstream error would otherwise let the
+    # test pass while the underlying silent-truncate bug is still
+    # present.
+    SEEDS_AND_ERRORS = (
+        (1774200067, 'cannot use floating-point value "44.41"'),
+        (1774200082, "expected integer but got"),
+        (1774200094, "expected integer but got"),
+    )
+
+    @pytest.mark.parametrize(("seed", "expected"), SEEDS_AND_ERRORS)
+    def test_wasm_strict_int_ops(self, seed: int, expected: str) -> None:
+        """WASM should surface the same int-contract error the VM does."""
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        source = (FINDINGS_DIR / f"seed_{seed}.tcl").read_text()
+        result = run_wasm(source, timeout=5.0)
+        assert result.return_code == 1, (
+            f"seed {seed}: wasm did not surface a Tcl-level error on a "
+            f"script the VM rejects with {expected!r} — issue #263 "
+            f"regression (rc={result.return_code}, "
+            f"err={result.error_message!r})"
+        )
+        assert expected in (result.error_message or ""), (
+            f"seed {seed}: wasm errored but not for the expected reason "
+            f"— issue #263 expects {expected!r} in the message "
+            f"(rc={result.return_code}, err={result.error_message!r})"
+        )
+
+    @pytest.mark.parametrize("seed", [1774200067, 1774200082, 1774200094])
+    def test_seed_marked_fixed(self, seed: int) -> None:
+        """Each finding JSON must be flipped to ``fixed: true``."""
+        import json  # noqa: PLC0415
+
+        data = json.loads((FINDINGS_DIR / f"seed_{seed}.json").read_text())
+        assert data.get("fixed") is True, (
+            f"seed {seed}: finding JSON not marked fixed (issue #263 "
+            f"follow-up — issues #260/#261/#262)"
+        )
+
+    # ``incr`` on an unset scalar must initialise it to ``0`` + amount
+    # and return the result, NOT raise ``no such variable`` (Tcl 8.5+
+    # semantics).  The ``incr`` codegen routes through ``tcl_incr``
+    # which carries the strict-integer contract for non-empty values
+    # but treats a null TclObj (the codegen's lenient read of an
+    # unset slot) as ``0`` so this case still works.  Without the
+    # lenient read, ``proc p {} { incr x }`` regresses from "returns
+    # 1" to "raises".
+    INCR_INIT_SCRIPTS = (
+        ("proc p {} { incr x }; puts [p]", "1\n"),
+        ("proc q {} { incr y 5 }; puts [q]", "5\n"),
+        ("proc r {} { incr z -3 }; puts [r]", "-3\n"),
+        ("incr top; puts $top", "1\n"),
+        ("incr top 7; puts $top", "7\n"),
+    )
+
+    @pytest.mark.parametrize(("script", "expected"), INCR_INIT_SCRIPTS)
+    def test_incr_initialises_unset_scalar(self, script: str, expected: str) -> None:
+        from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
+
+        if not is_available():
+            pytest.skip("wasmtime / runtime WASM artefact not available")
+        result = run_wasm(script, timeout=5.0)
+        assert result.return_code == 0, (
+            f"incr on unset scalar should not raise — Tcl 8.5+ "
+            f"initialises to 0 (script={script!r}, "
+            f"rc={result.return_code}, err={result.error_message!r})"
+        )
+        assert result.stdout == expected, (
+            f"incr on unset scalar produced wrong value (script={script!r}, "
+            f"stdout={result.stdout!r}, expected={expected!r})"
+        )
