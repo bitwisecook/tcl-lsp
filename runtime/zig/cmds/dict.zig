@@ -97,7 +97,196 @@ pub fn eval(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "values")) return rt.dict_values(words[2]);
     if (str_eq(sp, sub.len, "size")) return rt.dict_size(words[2]);
     if (str_eq(sp, sub.len, "create")) return rt.dict_create();
+    if (str_eq(sp, sub.len, "append") and words.len >= 4) return eval_dict_append(words);
+    if (str_eq(sp, sub.len, "lappend") and words.len >= 4) return eval_dict_lappend(words);
+    if (str_eq(sp, sub.len, "incr") and words.len >= 4) return eval_dict_incr(words);
+    if (str_eq(sp, sub.len, "for") and words.len == 5) return eval_dict_for(words);
+    if (str_eq(sp, sub.len, "merge")) return eval_dict_merge(words);
+    if (str_eq(sp, sub.len, "remove")) return eval_dict_remove(words);
+    if (str_eq(sp, sub.len, "replace")) return eval_dict_replace(words);
+    if (str_eq(sp, sub.len, "info") and words.len == 3) return eval_dict_info(words);
     return 0;
+}
+
+/// ``dict append DICTVAR KEY ?VALUE ...?`` — concatenate VALUEs onto
+/// the existing string at KEY (creating an empty entry first if the
+/// key isn't present, matching Tcl 9 semantics).
+fn eval_dict_append(words: []const i32) i32 {
+    var cur = frames.var_resolve(words[2]);
+    if (cur == 0) cur = rt.dict_create();
+    const key = words[3];
+    var existing = if (rt.obj_get_int(rt.dict_exists(cur, key)) != 0)
+        rt.dict_get(cur, key)
+    else
+        rt.obj_new_string(0, 0);
+    var wi: u32 = 4;
+    while (wi < words.len) : (wi += 1) {
+        existing = rt.tcl_cmd_append(existing, words[wi]);
+    }
+    const updated = rt.dict_set(cur, key, existing);
+    _ = frames.var_set(words[2], updated);
+    return updated;
+}
+
+/// ``dict lappend DICTVAR KEY ?VALUE ...?`` — list-append VALUEs onto
+/// the existing list at KEY (creating an empty list first if the key
+/// isn't present).
+fn eval_dict_lappend(words: []const i32) i32 {
+    var cur = frames.var_resolve(words[2]);
+    if (cur == 0) cur = rt.dict_create();
+    const key = words[3];
+    var existing = if (rt.obj_get_int(rt.dict_exists(cur, key)) != 0)
+        rt.dict_get(cur, key)
+    else
+        rt.obj_new_string(0, 0);
+    var wi: u32 = 4;
+    while (wi < words.len) : (wi += 1) {
+        existing = rt.tcl_cmd_lappend(existing, words[wi]);
+    }
+    const updated = rt.dict_set(cur, key, existing);
+    _ = frames.var_set(words[2], updated);
+    return updated;
+}
+
+/// ``dict incr DICTVAR KEY ?INCREMENT?`` — increment integer at KEY by
+/// INCREMENT (default 1).  Creates KEY=0 first if missing.
+fn eval_dict_incr(words: []const i32) i32 {
+    var cur = frames.var_resolve(words[2]);
+    if (cur == 0) cur = rt.dict_create();
+    const key = words[3];
+    const existing_i: i64 = if (rt.obj_get_int(rt.dict_exists(cur, key)) != 0)
+        rt.obj_get_int(rt.dict_get(cur, key))
+    else
+        0;
+    const inc_i: i64 = if (words.len >= 5) rt.obj_get_int(words[4]) else 1;
+    const new_val = rt.obj_new_int(existing_i + inc_i);
+    const updated = rt.dict_set(cur, key, new_val);
+    _ = frames.var_set(words[2], updated);
+    return updated;
+}
+
+/// ``dict for {keyVar valueVar} dict body`` — iterate every key/value
+/// pair binding them to the named locals around BODY.  Tcl semantics:
+/// returns the empty string on completion, propagates ``return`` /
+/// ``error`` upward, treats ``break`` as a clean exit and ``continue``
+/// as next-iteration.
+fn eval_dict_for(words: []const i32) i32 {
+    const var_pair_s = obj_ensure_string(words[2]);
+    const valtypes_list = @import("../valtypes/tcl_list_parse.zig");
+    const npair = valtypes_list.count_elements(var_pair_s.ptr, var_pair_s.len);
+    if (npair != 2) return 0;
+    const e0 = valtypes_list.element_at(var_pair_s.ptr, var_pair_s.len, 0);
+    const e1 = valtypes_list.element_at(var_pair_s.ptr, var_pair_s.len, 1);
+    const key_name = rt.obj_new_string_copy(var_pair_s.ptr + e0.start, e0.len);
+    const val_name = rt.obj_new_string_copy(var_pair_s.ptr + e1.start, e1.len);
+
+    const dict = words[3];
+    const body = words[4];
+    const keys_list = rt.dict_keys(dict);
+    const keys_s = obj_ensure_string(keys_list);
+    const nkeys = valtypes_list.count_elements(keys_s.ptr, keys_s.len);
+    const body_s = obj_ensure_string(body);
+
+    var ki: u32 = 0;
+    while (ki < nkeys) : (ki += 1) {
+        const ke = valtypes_list.element_at(keys_s.ptr, keys_s.len, @intCast(ki));
+        const key_obj = rt.obj_new_string_copy(keys_s.ptr + ke.start, ke.len);
+        const val_obj = rt.dict_get(dict, key_obj);
+        _ = frames.var_set(key_name, key_obj);
+        _ = frames.var_set(val_name, val_obj);
+        _ = interp.eval_script(body_s.ptr, body_s.len);
+        if (rt.break_flag.* != 0) {
+            rt.break_flag.* = 0;
+            break;
+        }
+        if (rt.continue_flag.* != 0) {
+            rt.continue_flag.* = 0;
+            continue;
+        }
+        if (rt.return_flag.* != 0) return 0;
+    }
+    return rt.obj_new_string(0, 0);
+}
+
+/// ``dict merge ?dict ...?`` — flatten N dicts into one (later wins
+/// on key conflict).  Empty arg list returns the empty dict.
+fn eval_dict_merge(words: []const i32) i32 {
+    if (words.len < 3) return rt.obj_new_string(0, 0);
+    var cur = words[2];
+    var wi: u32 = 3;
+    while (wi < words.len) : (wi += 1) {
+        cur = rt.dict_merge_pair(cur, words[wi]);
+    }
+    return cur;
+}
+
+/// ``dict remove dict ?key ...?`` — return a copy of dict with the
+/// listed keys removed.  Missing keys are silently skipped.
+fn eval_dict_remove(words: []const i32) i32 {
+    if (words.len < 3) return rt.obj_new_string(0, 0);
+    var cur = words[2];
+    var wi: u32 = 3;
+    while (wi < words.len) : (wi += 1) {
+        cur = rt.dict_unset(cur, words[wi]);
+    }
+    return cur;
+}
+
+/// ``dict replace dict ?key value ...?`` — return a copy of dict with
+/// each key/value pair set.  Equivalent to ``dict set`` chained over
+/// many pairs but operating on a value rather than a variable.
+fn eval_dict_replace(words: []const i32) i32 {
+    if (words.len < 3) return rt.obj_new_string(0, 0);
+    if ((words.len - 3) % 2 != 0) return 0;
+    var cur = words[2];
+    var i: u32 = 3;
+    while (i + 1 < words.len) : (i += 2) {
+        cur = rt.dict_set(cur, words[i], words[i + 1]);
+    }
+    return cur;
+}
+
+/// ``dict info dict`` — return a human-readable description of the
+/// dict's internal representation.  Real Tcl prints hash-bucket
+/// statistics; we emit the size + first key as a stub.
+fn eval_dict_info(words: []const i32) i32 {
+    const size_obj = rt.dict_size(words[2]);
+    const size_i = rt.obj_get_int(size_obj);
+    const prefix = "dict (";
+    const suffix = " entries)";
+    var buf: [64]u8 = undefined;
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    // itoa
+    var n = size_i;
+    if (n < 0) {
+        buf[off] = '-';
+        off += 1;
+        n = -n;
+    }
+    var digits: [20]u8 = undefined;
+    var dlen: usize = 0;
+    if (n == 0) {
+        digits[0] = '0';
+        dlen = 1;
+    } else while (n > 0) : (n = @divTrunc(n, 10)) {
+        digits[dlen] = @intCast(@as(i64, '0') + @rem(n, 10));
+        dlen += 1;
+    }
+    var di: usize = dlen;
+    while (di > 0) {
+        di -= 1;
+        buf[off] = digits[di];
+        off += 1;
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    return rt.obj_new_string_copy(@intFromPtr(&buf[0]), @intCast(off));
 }
 
 /// ``dict update DICTVAR KEY VAR ?KEY VAR ...? SCRIPT`` — bind each

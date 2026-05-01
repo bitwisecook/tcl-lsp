@@ -334,11 +334,69 @@ fn eval_command(words: []const i32) i32 {
             if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
                 return handler(words);
             }
+            // Ensemble FQ rewrites — the CFG canonicalises
+            // ``dict for`` to ``::tcl::dict::for`` (and friends).
+            // Detect the ``::tcl::dict::`` / ``::tcl::string::`` /
+            // ``::tcl::info::`` prefixes and re-dispatch as the
+            // ensemble form by synthesising a ``words[]`` slice
+            // with the subcommand spliced in.
+            if (try_ensemble_rewrite(cmd_s, words)) |result| return result;
         }
     }
 
     // -- Proc dispatch: check registry before erroring --
     return eval_proc_call(words);
+}
+
+/// Recognise ``::tcl::ENSEMBLE::SUBCMD`` (the canonical FQ rewrite
+/// form the CFG emits for compiled ensembles like ``dict for`` →
+/// ``::tcl::dict::for``) and re-dispatch as the BUILTIN form
+/// ``ENSEMBLE SUBCMD ...``.
+///
+/// Returns ``null`` when *cmd_s* doesn't match a known ensemble, or
+/// the handler's i32 result when it does.  The synthesised words[]
+/// slice has ``ENSEMBLE`` at slot 0 and ``SUBCMD`` at slot 1; the
+/// caller's args[1..] follow at slot 2.
+fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
+    if (cmd_s.len < 11) return null; // ``::tcl::X::Y`` is 11 minimum
+    const p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+    // ``::tcl::`` prefix
+    const prefix = "::tcl::";
+    inline for (prefix, 0..) |c, i| {
+        if (p[i] != c) return null;
+    }
+    // Find the second ``::`` to split ENSEMBLE from SUBCMD.
+    var i: u32 = prefix.len;
+    var ens_end: u32 = 0;
+    while (i + 1 < cmd_s.len) : (i += 1) {
+        if (p[i] == ':' and p[i + 1] == ':') {
+            ens_end = i;
+            break;
+        }
+    }
+    if (ens_end == 0 or ens_end + 2 >= cmd_s.len) return null;
+    const ens_ptr = cmd_s.ptr + prefix.len;
+    const ens_len: u32 = ens_end - prefix.len;
+    const sub_ptr = cmd_s.ptr + ens_end + 2;
+    const sub_len: u32 = cmd_s.len - ens_end - 2;
+
+    // Confirm the ENSEMBLE name resolves to a real BUILTIN (else this
+    // could swallow an unrelated ``::tcl::pkg::path``-style name).
+    const handler = cmd_table.lookup(ens_ptr, ens_len) orelse return null;
+
+    // Build a synthesised words[] with the ensemble at [0], subcmd at
+    // [1], and the caller's args[1..] at [2..].  Use the bump
+    // allocator — the slice lives only for the handler call.
+    const total: u32 = @as(u32, @intCast(words.len)) + 1;
+    const buf = obj_mod.alloc(total * 4);
+    const slot: [*]i32 = @ptrFromInt(buf);
+    slot[0] = obj_mod.obj_new_string(@bitCast(ens_ptr), @bitCast(ens_len));
+    slot[1] = obj_mod.obj_new_string(@bitCast(sub_ptr), @bitCast(sub_len));
+    var k: u32 = 1;
+    while (k < words.len) : (k += 1) {
+        slot[k + 1] = words[k];
+    }
+    return handler(slot[0..total]);
 }
 
 const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;

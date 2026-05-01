@@ -1010,6 +1010,48 @@ return [dict get $d age]
         assert ok, f"error: {err}"
         assert val == 30
 
+    def test_dict_append_runtime(self):
+        # ``dict append varname key ?value ...?`` — concatenates onto
+        # the existing string at KEY (creates an empty entry first if
+        # the key isn't present).  Until the runtime gained an
+        # ``append`` arm in ``cmds/dict.zig`` the codegen routed to
+        # ``_emit_unsupported_trap("dict append")`` and any call
+        # surfaced as ``unsupported in WASM: dict append``.
+        source = """\
+set d {a hello b world}
+dict append d a " there"
+dict append d c brand new
+puts $d
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        # ``dict append`` concatenates its trailing args back-to-back
+        # with no separator (matches C tclsh: ``brand`` + ``new`` =
+        # ``brandnew``).  ``" there"`` keeps its leading space because
+        # the literal carries it.
+        assert out == "a {hello there} b world c brandnew\n", (
+            f"unexpected dict result: {out!r}"
+        )
+
+    def test_dict_for_compiled_canonical_name(self):
+        # ``dict for {k v} D body`` is canonicalised by the CFG to
+        # ``::tcl::dict::for {k v} D body`` so static-foreach-like
+        # SSA reasoning sees a single command.  The runtime's
+        # ``eval_command`` recognises that ``::tcl::ENSEMBLE::SUBCMD``
+        # FQ form and re-dispatches to the ensemble's BUILTIN
+        # handler — without that rewrite the call traps with
+        # ``unknown command: ::tcl::dict::for``.
+        source = """\
+set out {}
+dict for {k v} {x 1 y 2 z 3} {
+    lappend out "$k=$v"
+}
+puts $out
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "x=1 y=2 z=3\n", f"got {out!r}"
+
     def test_nested_proc_calls(self):
         source = """\
 proc double {x} { return [expr {$x * 2}] }

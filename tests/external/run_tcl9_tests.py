@@ -79,6 +79,54 @@ def _tcl9_test_file(name: str) -> Path:
 
 _PRE_TCLTEST = r"""
 # ----- run_tcl9_tests.py pre-tcltest stubs -----
+# Tcl's standard startup populates a small set of globals that
+# tclsh sets before any user script runs (``tclsh.c`` /
+# ``Tcl_Main`` does this) — ``argv``, ``argv0``, ``argc``,
+# ``tcl_interactive``, ``auto_path``, ``env(*)``.  Our WASM
+# runtime entry point doesn't perform that bootstrap, so test
+# files that reach for ``$argv`` (parseOld), ``$auto_path``
+# (safe-stock), or ``$tcl_interactive`` (uplevel.test diag
+# probes) trap with ``can't read "X": no such variable``.
+#
+# Mirror the tclsh defaults: empty argv list, empty argv0, the
+# single-element auto_path tcllib uses, an empty env array, and
+# tcl_interactive=0 (we're not a terminal).  The values themselves
+# are deliberately minimal — none of the in-scope tests exercise
+# their content, only the readability.
+set ::argv {}
+set ::argv0 ""
+set ::argc 0
+set ::tcl_interactive 0
+set ::auto_path {}
+set ::tcl_library ""
+array set ::env {}
+
+# ``tcl_platform`` — real tclsh exports a dozen-key array that
+# tcltest reads at line 288 / 312 (``$::tcl_platform(platform)``,
+# ``$::tcl_platform(os)``) plus several test files reach for
+# ``pointerSize``, ``wordSize``, ``byteOrder``, etc.  Without
+# these, ``listObj.test`` / ``stringObj.test`` hit the
+# ``set SIZE_MAX [expr {(1 << (8*$::tcl_platform(pointerSize) - 1)) - 1}]``
+# bootstrap with an empty pointerSize, which collapses to a
+# negative shift and traps with ``negative shift argument``.
+# Match the WASM target's actual values: pointerSize=4 (wasm32),
+# wordSize=8 (we report 64-bit ints to scripts), unix-shaped
+# platform/os.  The values are conservative — none of the in-
+# scope tests inspect them beyond the smoke-test reads above.
+array set ::tcl_platform {
+    platform        unix
+    os              "Linux"
+    osVersion       "0.0"
+    machine         "wasm32"
+    byteOrder       littleEndian
+    pointerSize     4
+    wordSize        8
+    threaded        0
+    user            "wasm"
+    pathSeparator   ":"
+    engine          "Tcl"
+}
+
 # tcltest.tcl line 919 calls ``auto_load ::parray`` followed by
 # ``proc tcltest::parray {a {pattern *}} [info body ::parray]``.
 # Tcl's auto-loading machinery is not implemented here, so we
