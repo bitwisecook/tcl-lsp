@@ -226,10 +226,43 @@ pub fn build(b: *std.Build) void {
         // build_options" and compilation fails — leak_check stays
         // false in tests, matching the production default.
         t_module.addOptions("build_options", build_options);
+        // The Spencer regex engine's C objects must be linked into
+        // any test binary whose @import graph reaches
+        // ``valtypes/tcl_regex.zig`` — otherwise the resulting WASM
+        // has unresolved ``env::TclReComp`` / ``TclReExec`` imports
+        // and wasmtime refuses to instantiate it.
+        //
+        // Direct importers (``test_tcl_regex.zig``) and transitive
+        // ones (``test_tcl_subst.zig`` → ``tcl_subst`` →
+        // ``tcl_interp`` → ``tcl_runtime`` → ``tcl_regex``) both
+        // need the link, and adding the C objects to a test that
+        // doesn't reach the regex module just means a few wasted
+        // bytes after DCE — so we add them unconditionally rather
+        // than try to predict the import graph.
+        t_module.addIncludePath(b.path("regex_include"));
+        t_module.addIncludePath(b.path("vendor/tcl-regex"));
+        t_module.addCSourceFiles(.{
+            .root = b.path("vendor/tcl-regex"),
+            .files = &.{
+                "regcomp.c",
+                "regexec.c",
+                "regfree.c",
+                "regerror.c",
+            },
+            .flags = c_flags,
+        });
+        t_module.addCSourceFile(.{
+            .file = b.path("regex_include/tcl_reg_shim.c"),
+            .flags = c_flags,
+        });
         const t_exe = b.addTest(.{
             .name = testNameFromPath(b, file),
             .root_module = t_module,
         });
+        // The C sources are fetched on demand by ``fetch_regex``.
+        // Mirror the main exe's dependency so a clean build sees
+        // them before the test compile runs.
+        t_exe.step.dependOn(&fetch_regex.step);
         const run = b.addRunArtifact(t_exe);
         // We're invoking via wasmtime intentionally — silence Zig's
         // foreign-binary safety net so a missing native runner
