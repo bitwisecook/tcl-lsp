@@ -51,12 +51,15 @@ const caps = @import("../interp/tcl_caps.zig");
 /// recommended posture for sandboxed deployments.
 ///
 /// For unit-test builds (``builtin.is_test``) the import is
-/// replaced with a Zig-side stub that returns 0: tests reach
-/// ``cmds/exec.zig`` only transitively (via ``tcl_runtime`` →
-/// ``tcl_dispatch`` → command table) and never actually invoke
-/// ``exec``, so the stub satisfies the link without forcing every
-/// test-binary embedder (wasmtime in this case) to wire a real
-/// subprocess primitive.
+/// replaced with a Zig-side stub that panics if reached: tests
+/// reach ``cmds/exec.zig`` only transitively (via ``tcl_runtime``
+/// → ``tcl_dispatch`` → command table) and should never actually
+/// invoke ``exec`` from a unit test.  The panic surfaces any
+/// future test that accidentally walks into this bridge — a
+/// silent ``return 0`` would look like a normal empty Tcl result
+/// and hide the missing host wiring, defeating the point of the
+/// test harness.  Production embedders continue to satisfy the
+/// real ``env::host_spawn`` import.
 const builtin = @import("builtin");
 const env_host_spawn = if (builtin.is_test) struct {
     pub fn host_spawn(
@@ -66,7 +69,7 @@ const env_host_spawn = if (builtin.is_test) struct {
         stdin_len: u32,
     ) i32 {
         _ = .{ argv_ptr, argv_len, stdin_ptr, stdin_len };
-        return 0;
+        @panic("test build: host_spawn invoked — exec is not wired in unit tests");
     }
 } else struct {
     pub extern "env" fn host_spawn(
