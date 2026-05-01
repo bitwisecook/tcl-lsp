@@ -289,9 +289,18 @@ def _run_wasm_inner(
     # ``exec`` (5180cdf).  The fuzzer never enables CAP_EXEC, so the
     # capability check rejects every call before dispatch — but the
     # import itself still has to be satisfied or instantiation traps
-    # with ``unknown import``.  A stub returning 0 is enough.
+    # with ``unknown import``.  Trap loudly on accidental invocation
+    # so a future harness change that flips CAP_EXEC on doesn't
+    # silently look like every ``exec`` succeeded with empty output:
+    # the runtime treats the i32 result as a TclObj string handle and
+    # ``0`` (NULL) is indistinguishable from a captured-empty success.
+    # Same posture as ``tests/runtime/_host_imports.py``'s default.
     def _host_spawn(_argv_ptr: int, _argv_len: int, _stdin_ptr: int, _stdin_len: int) -> int:
-        return 0
+        raise RuntimeError(
+            "fuzzing.wasm_backend: env.host_spawn invoked but CAP_EXEC "
+            "is not enabled in the fuzzer harness — implement a real "
+            "callback if exec coverage is intentional"
+        )
 
     linker.define_func(
         "env",
