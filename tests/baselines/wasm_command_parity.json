@@ -37,7 +37,7 @@
     "break": "IMPLEMENTED",
     "catch": "IMPLEMENTED",
     "cd": "IMPLEMENTED",
-    "chan": "TRAPPING_STUB",
+    "chan": "IMPLEMENTED",
     "classvariable": "IMPLEMENTED",
     "clock": "IMPLEMENTED",
     "close": "IMPLEMENTED",

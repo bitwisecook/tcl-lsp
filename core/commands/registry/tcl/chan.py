@@ -14,7 +14,6 @@ from ..models import (
     OptionSpec,
     SubCommand,
     ValidationSpec,
-    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ..taint_hints import TaintColour, TaintHint
@@ -470,12 +469,14 @@ class ChanCommand(CommandDef):
             ),
             configures_channel=True,
             has_destructive_ops=True,
-            wasm_runtime_import=WasmRuntimeImport(
-                import_key="tcl_chan",
-                argc=2,
-                params=("i32", "i32"),
-                results=("i32",),
-            ),
+            # No top-level ``wasm_runtime_import`` — the ``chan``
+            # ensemble routes through the interpreter's BUILTINS
+            # dispatch (``runtime/zig/cmds/chan.zig:eval_chan``), which
+            # forwards each subcommand to the matching bare-form
+            # handler.  A direct 2-arg ``tcl_cmd_chan(sub, arg)`` import
+            # couldn't carry the variadic tail (``chan configure $fd
+            # -opt val -opt val``) without a per-sub specialisation —
+            # the eval-fallback path handles every shape uniformly.
         )
 
     @classmethod
