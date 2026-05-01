@@ -74,6 +74,17 @@ def main() -> int:
             return "info-complete"
         return "other"
 
+    # Comparison policy: WASM compile time is a one-time cost paid by
+    # the build harness, not by the running interpreter, so we exclude
+    # it from the runtime-vs-runtime comparison.  ``slowdown_x`` is
+    # ``wasm_run_ms / c_wall_ms`` — both measure "interpreter ran the
+    # script end-to-end" with the same I/O surface.  The native
+    # ``c_wall_ms`` includes a fixed ~25 ms tclsh startup; the WASM
+    # ``wasm_run_ms`` is the in-process wasmtime call only (no
+    # subprocess setup, no compile).  The fused ``wasm_wall_ms``
+    # column is kept for readers who want to see total bundle wall
+    # cost including subprocess overhead, but it is NOT what the
+    # slowdown column compares.
     with out_path.open("w", newline="") as f:
         wr = csv.writer(f)
         wr.writerow([
@@ -82,8 +93,8 @@ def main() -> int:
             "c_outcome", "c_total", "c_passed", "c_skipped", "c_failed",
             "c_wall_ms", "c_user_s", "c_sys_s", "c_max_rss_mb",
             "wasm_outcome", "wasm_total", "wasm_passed", "wasm_skipped", "wasm_failed",
-            "wasm_compile_ms", "wasm_run_ms", "wasm_wall_ms",
-            "wasm_pass_rate", "slowdown_x",
+            "wasm_run_ms", "wasm_pass_rate", "slowdown_x",
+            "wasm_compile_ms", "wasm_wall_ms",
             "wasm_trap_category",
             "wasm_first_failing", "wasm_trap",
         ])
@@ -100,9 +111,12 @@ def main() -> int:
             wr_ = w.get(name, {})
             c_wall = cr.get("wall_ms")
             w_wall = wr_.get("wall_ms")
+            w_run = wr_.get("run_ms")
             slowdown = ""
-            if c_wall and w_wall and c_wall > 0:
-                slowdown = f"{w_wall / c_wall:.1f}"
+            # Slowdown is run-only WASM vs C tclsh wall — compile is
+            # excluded so the column reflects interpreter cost only.
+            if c_wall and w_run and c_wall > 0:
+                slowdown = f"{w_run / c_wall:.1f}"
             c_total = cr.get("total", 0) or 0
             w_passed = wr_.get("passed", 0) or 0
             pass_rate = ""
@@ -119,11 +133,11 @@ def main() -> int:
                 f"{cr.get('max_rss_kb',0)/1024:.1f}" if cr.get("max_rss_kb") else "",
                 wr_.get("outcome", ""), wr_.get("total", ""), wr_.get("passed", ""),
                 wr_.get("skipped", ""), wr_.get("failed", ""),
-                f"{wr_.get('compile_ms',0):.0f}" if wr_.get("compile_ms") else "",
-                f"{wr_.get('run_ms',0):.0f}" if wr_.get("run_ms") else "",
-                f"{w_wall:.0f}" if w_wall else "",
+                f"{w_run:.0f}" if w_run else "",
                 pass_rate,
                 slowdown,
+                f"{wr_.get('compile_ms',0):.0f}" if wr_.get("compile_ms") else "",
+                f"{w_wall:.0f}" if w_wall else "",
                 categorise_trap(wr_.get("trap") or ""),
                 (wr_.get("first_failing") or "")[:60],
                 (wr_.get("trap") or "").replace("\n", " | ")[:200],

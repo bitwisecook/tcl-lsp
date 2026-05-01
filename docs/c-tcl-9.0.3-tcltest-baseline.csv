@@ -1,101 +1,101 @@
-name,subsystem,c_outcome,c_total,c_passed,c_skipped,c_failed,c_wall_ms,c_user_s,c_sys_s,c_max_rss_mb,wasm_outcome,wasm_total,wasm_passed,wasm_skipped,wasm_failed,wasm_compile_ms,wasm_run_ms,wasm_wall_ms,wasm_pass_rate,slowdown_x,wasm_trap_category,wasm_first_failing,wasm_trap
-aaa_exit,misc,pass,2,2,0,0,45,0.03,0.0,7.7,pass,2,2,0,0,460,294,1402,100%,31.0,,,
-abstractlist,list,pass,123,0,123,0,24,0.01,0.0,7.9,trap,0,0,0,0,513,628,1887,0%,77.1,var-not-set,,"tcl trap: can't read ""clean-list"": no such variable |   at abstractlist.test:586:2 in debug (site #128, fallback) |   inside proc ::tcltest::errorChannel | error while executing at wasm backtrace: |  "
-append,misc,pass,52,49,3,0,24,0.02,0.0,8.0,fail,52,48,0,4,512,332,1588,92%,67.3,,append-4.4,
-appendComp,misc,pass,48,43,5,0,36,0.02,0.0,8.2,fail,48,40,0,8,504,349,1618,83%,44.9,,appendComp-4.4,
-apply,proc,pass,42,38,4,0,22,0.01,0.0,8.0,no_summary,0,0,0,0,469,283,1410,0%,65.2,,,
-assocd,misc,pass,11,0,11,0,29,0.01,0.0,7.8,pass,11,3,8,0,461,308,1416,27%,48.3,,,
-basic,eval,pass,146,69,77,0,89,0.06,0.02,8.4,trap,0,0,0,0,640,731,2082,0%,23.4,braced-cmdsubst-leak,,"tcl trap: unknown command: 586e71dce4 |   at basic.test:4784:1 in ::tcltest::test (site #226, fallback) |   args: 'basic-50.1', '[586e71dce4] EvalObjv level #0 exception handling', '-setup' |   in eva"
-brodnik,misc,trap,0,0,0,0,18,0.01,0.0,7.7,pass,257,2,255,0,455,359,1466,,80.8,,,
-chan,io,pass,42,42,0,0,130,0.01,0.01,8.0,pass,42,42,0,0,481,327,1493,100%,11.5,,,
-chanio,io,pass,779,392,387,0,15828,0.72,0.25,12.3,fail,779,734,23,22,812,1926,3444,94%,0.2,,chan-io-1.7,
-cmdAH,cmd-dispatch,pass,17001,16820,181,0,6084,0.76,0.01,12.6,trap,0,0,0,0,770,605,2070,0%,0.3,unsupported-command,,"tcl trap: unsupported in WASM: dict append |   at cmdAH.test:4051:5 in dict append (site #992, unsupported) |   inside proc ::testconvert |   in eval-script at offset 0: testconvert cmdAH-4.3.11 { | e"
-cmdIL,cmd-dispatch,pass,168,163,5,0,71,0.04,0.02,37.4,fail,168,116,2,50,501,444,1626,69%,22.9,,cmdIL-1.3,
-cmdInfo,proc,pass,12,0,12,0,19,0.0,0.0,7.7,pass,12,0,12,0,478,324,1472,0%,76.2,,,
-cmdMZ,cmd-dispatch,pass,97,96,1,0,242,0.23,0.0,8.6,fail,97,49,0,48,503,400,1591,51%,6.6,,cmdMZ-2.4,
-compExpr,expr,pass,82,80,2,0,24,0.02,0.0,8.1,trap,0,0,0,0,467,401,1522,0%,63.2,braced-cmdsubst-leak,,"tcl trap: unknown command: Bug |   at compExpr.test:4136:1 in ::tcltest::test (site #138, fallback) |   args: 'compExpr-7.2', '[Bug 1869989]: expr parser memleak', '-constraints' |   in eval-script at"
-compExpr-old,expr,pass,184,183,1,0,114,0.1,0.0,8.6,timeout,,,,,,,45765,0%,402.5,other,,subprocess hard timeout (SIGKILL)
-compile,eval,pass,171,138,33,0,97,0.07,0.01,16.7,fail,171,135,15,21,657,882,2237,79%,23.1,,compile-1.2,
-concat,misc,pass,9,9,0,0,28,0.02,0.0,7.7,fail,9,8,0,1,513,309,1567,89%,55.1,,concat-1.4,
-coroutine,coroutine,pass,77,74,3,0,36,0.03,0.0,8.4,fail,77,72,0,5,509,389,1620,94%,44.5,,coroutine-1.13,
-dict,dict,pass,373,367,6,0,272,0.24,0.02,38.8,fail,373,263,1,109,532,901,2141,71%,7.9,,dict-2.2,
-dstring,misc,pass,46,0,46,0,21,0.01,0.0,7.8,pass,46,46,0,0,466,316,1439,100%,67.6,,,
-error,control,pass,317,309,8,0,36,0.02,0.0,8.6,trap,0,0,0,0,505,296,1471,0%,41.4,other,,error while executing at wasm backtrace: |     0: tcl_runtime.wasm!parse.tcl_subst.subst_flagged |     1:  0x399d4 - tcl_runtime.wasm!interp.tcl_interp.execute_parsed_command |     2:  0x3943c - tcl_r
-eval,eval,pass,12,12,0,0,20,0.01,0.0,7.7,fail,12,9,0,3,466,318,1484,75%,74.9,,eval-2.1,
-execute,eval,pass,157,79,78,0,71,0.06,0.0,10.5,fail,157,48,77,32,520,414,1632,31%,23.0,,execute-1.3,
-expr,expr,pass,2168,2137,31,0,465,0.45,0.0,9.5,timeout,,,,,,,45807,0%,98.6,other,,subprocess hard timeout (SIGKILL)
-expr-old,expr,pass,461,430,31,0,75,0.07,0.0,8.4,fail,461,197,24,240,583,764,2056,43%,27.6,,expr-old-1.12,
-for,control,pass,88,64,24,0,24,0.01,0.0,8.0,trap,0,0,0,0,515,7257,9018,0%,375.9,other,,"tcl trap: in eval-script at offset 0: ::tcltest::RunTest for-3.6 { |   at for.test:4164:3 in regexp (site #367, fallback) |   inside proc ::formatMail |   args: '-nocase', '{^x-mailer:}', '$line' |   "
-for-old,control,pass,9,9,0,0,19,0.01,0.0,7.7,fail,9,5,0,4,470,277,1409,56%,75.4,,for-old-1.4,
-foreach,list,pass,43,43,0,0,24,0.02,0.0,7.7,fail,43,13,0,30,465,734,1905,30%,80.8,,foreach-1.3,
-format,string,pass,269,269,0,0,30,0.02,0.0,7.9,fail,269,150,19,100,545,797,2115,56%,71.6,,format-1.1,
-get,string,pass,23,6,17,0,21,0.01,0.0,7.9,fail,23,3,17,3,503,413,1679,13%,78.3,,get-2.3,
-if,control,pass,73,73,0,0,24,0.01,0.0,7.7,pass,73,73,0,0,487,339,1515,100%,62.2,,,
-if-old,control,pass,33,33,0,0,19,0.01,0.0,7.7,fail,33,15,0,18,474,332,1486,45%,76.5,,if-old-1.9,
-incr,misc,pass,69,69,0,0,24,0.01,0.0,7.8,fail,69,62,0,7,477,366,1508,90%,63.5,,incr-1.23,
-incr-old,misc,pass,14,14,0,0,21,0.01,0.0,7.8,fail,14,9,0,5,465,351,1452,64%,70.1,,incr-old-2.1,
-indexObj,misc,pass,65,0,65,0,22,0.01,0.0,7.8,pass,65,4,61,0,456,307,1394,6%,64.7,,,
-info,proc,pass,287,282,5,0,58,0.05,0.0,9.2,trap,0,0,0,0,720,620,2033,0%,34.8,tcltest-option-parse,,"tcl trap: bad option ""proc"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at info.test:1981:5 in ::while (site #656, fallback"
-interp,interp,pass,354,340,14,0,1222,0.56,0.0,14.6,trap,0,0,0,0,713,1367,2803,0%,2.3,braced-cmdsubst-leak,,"tcl trap: unknown command: Bug |   at interp.test:7235:1 in ::tcltest::test (site #437, fallback) |   args: 'interp-34.14', '[Bug e3f4a8b78d]: interp limit and interp eval', '-setup' |   in eval-scrip"
-io,io,pass,884,480,404,0,32622,1.58,0.3,12.8,timeout,,,,,,,45573,0%,1.4,other,,subprocess hard timeout (SIGKILL)
-ioCmd,io,pass,377,274,103,0,2732,0.06,0.02,9.6,trap,0,0,0,0,619,431,1734,0%,0.6,other,,"tcl trap: close: missing channelId |   at ioCmd.test:4650:1 in ::tcltest::test (site #215, fallback) |   args: 'iocmd-21.21', '[close] in [read] segfaults', '-setup' |   in eval-script at offset 0: cl"
-join,string,pass,10,10,0,0,20,0.01,0.0,7.8,fail,10,7,0,3,500,322,1552,70%,76.0,,join-2.1,
-lindex,list,pass,84,47,37,0,23,0.01,0.0,7.9,fail,84,46,22,16,463,386,1527,55%,66.5,,lindex-9.1,
-linsert,list,pass,28,28,0,0,21,0.01,0.0,7.7,fail,28,15,0,13,456,316,1575,54%,74.4,,linsert-1.7,
-list,list,pass,78,78,0,0,23,0.01,0.0,7.7,fail,78,64,0,14,466,340,1471,82%,64.4,,list-1.3,
-listObj,list,pass,59,42,17,0,22,0.01,0.0,7.9,trap,0,0,0,0,463,292,1412,0%,63.4,expr-negshift,,"tcl trap: negative shift argument |   at listObj.test:1162:8 in limitConstraints (site #167, fallback) |   inside proc ::tcltest::testConstraint | error while executing at wasm backtrace: |     0:  0x"
-listRep,list,pass,231,4,227,0,48,0.04,0.0,8.1,pass,231,231,0,0,575,562,1808,100%,37.4,,,
-llength,list,pass,6,6,0,0,20,0.01,0.0,7.7,fail,6,3,0,3,449,266,1364,50%,68.3,,llength-2.1,
-lmap,list,pass,66,66,0,0,736,0.66,0.06,160.5,fail,66,41,0,25,467,414,1576,62%,2.1,,lmap-1.2a,
-lpop,list,pass,19,17,2,0,21,0.01,0.0,7.7,pass,19,19,0,0,450,296,1431,100%,68.8,,,
-lrange,list,pass,1766,1764,2,0,100,0.09,0.0,7.9,fail,1766,1754,0,12,489,1696,2862,99%,28.6,,lrange-1.10,
-lrepeat,list,pass,12,11,1,0,21,0.01,0.0,7.9,trap,0,0,0,0,456,479,1593,0%,76.0,tcltest-option-parse,,"tcl trap: bad option ""}"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lrepeat.test:1981:5 in ::while (site #144, fallback"
-lreplace,list,pass,3579,3579,0,0,169,0.16,0.0,7.8,fail,3579,3526,0,53,467,2748,3928,99%,23.3,,lreplace-1.15,
-lsearch,list,pass,165,165,0,0,28,0.02,0.0,8.1,fail,165,60,0,105,491,506,1631,36%,58.2,,lsearch-2.1,
-lseq,list,pass,134,132,2,0,59,0.05,0.0,8.2,trap,0,0,0,0,524,349,1543,0%,26.0,tcltest-option-parse,,"tcl trap: bad option ""5"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lseq.test:1981:5 in ::while (site #269, fallback) |"
-lset,list,pass,89,0,89,0,23,0.02,0.0,7.8,pass,89,1,88,0,480,368,1520,1%,67.4,,,
-lsetComp,list,pass,19,19,0,0,22,0.01,0.0,7.8,fail,19,14,0,5,492,357,1506,74%,69.3,,lsetComp-1.1,
-mathop,expr,pass,385,385,0,0,60,0.05,0.0,8.4,trap,0,0,0,0,690,390,1766,0%,29.5,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at mathop.test:4135:5 in ::test (site #188, fallback) |   args: 'mathop-5.11', 'interpreted eq', '$op {} a' |   in eval-script at offse"
-misc,misc,pass,301,2,299,0,28,0.02,0.0,7.7,fail,301,0,299,2,466,387,1496,0%,54.4,,misc-1.1,
-namespace,variable,pass,314,311,3,0,67,0.05,0.01,8.7,trap,0,0,0,0,548,523,1768,0%,26.5,braced-cmdsubst-leak,,"tcl trap: unknown command: 4402cfa58c |   at namespace.test:6226:1 in ::tcltest::test (site #337, fallback) |   args: 'namespace-50.5', '[4402cfa58c]', '-setup' |   in eval-script at offset 0: 4402cfa"
-namespace-old,variable,pass,126,126,0,0,25,0.02,0.0,7.7,trap,0,0,0,0,504,361,1541,0%,61.3,other,,error while executing at wasm backtrace: |     0:  0x1a795 - <unknown>!<::test_ns_upvar::show_val> |     1:  0x3d2e5 - tcl_runtime.wasm!interp.tcl_interp.eval_proc_call_bucket |     2:  0x3bd63 - tcl_
-nre,coroutine,pass,28,5,23,0,48,0.04,0.0,15.3,trap,0,0,0,0,529,304,1521,0%,31.8,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at nre.test:3962:1 in ::tcltest::test (site #75, fallback) |   args: 'nre-5.1', '[namespace eval] is not recursive', '-setup' |   in ev"
-oo,object,pass,388,372,16,0,88,0.08,0.0,8.7,fail,388,345,2,41,720,632,2108,89%,24.1,,oo-0.9,
-ooNext2,object,pass,62,57,5,0,26,0.02,0.0,7.9,trap,0,0,0,0,507,311,1542,0%,58.7,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at ooNext2.test:4685:1 in ::tcltest::test (site #110, fallback) |   args: 'next-tailcall-simple-1', 'trivial case with one method', '${"
-ooProp,object,pass,55,55,0,0,29,0.02,0.0,7.9,pass,55,55,0,0,487,385,1557,100%,53.4,,,
-ooUtil,object,pass,33,33,0,0,26,0.01,0.0,8.2,pass,33,33,0,0,470,324,1478,100%,58.0,,,
-opt,misc,pass,31,31,0,0,25,0.01,0.0,8.1,trap,0,0,0,0,460,305,1403,0%,55.5,var-not-set,,"tcl trap: can't read ""::tcl::OptDescN"": no such variable |   at opt.test:3795:4 in namespace (site #57, fallback) |   args: 'children' | error while executing at wasm backtrace: |     0:  0x1f3a3 - tc"
-parse,parsing,pass,271,90,181,0,33,0.02,0.0,8.7,trap,0,0,0,0,512,382,1537,0%,47.0,other,,error while executing at wasm backtrace: |     0:  0x3a6c4 - tcl_runtime.wasm!parse.tcl_parse.ParseCommand |     1:  0x39609 - tcl_runtime.wasm!interp.tcl_interp.eval_script |     2:  0x3ade7 - tcl_ru
-parseExpr,parsing,pass,286,67,219,0,33,0.03,0.0,8.0,fail,286,137,146,3,507,417,1571,48%,48.1,,parseExpr-20.1,
-parseOld,parsing,pass,158,158,0,0,28,0.02,0.0,7.7,trap,0,0,0,0,469,277,1382,0%,48.5,var-not-set,,"tcl trap: can't read ""argv"": no such variable |   at parseOld.test:1162:8 in limitConstraints (site #206, fallback) |   inside proc ::tcltest::testConstraint | error while executing at wasm backtrace:"
-proc,proc,pass,38,29,9,0,27,0.02,0.0,8.3,trap,0,0,0,0,472,305,1433,0%,53.5,braced-cmdsubst-leak,,"tcl trap: unknown command: 39fed4dae5 |   at proc.test:4106:1 in ::tcltest::test (site #99, fallback) |   args: 'proc-4.9', '[39fed4dae5] Valid Tcl_PkgPresent return', 'tcl::test' |   in eval-script a"
-proc-old,proc,pass,74,74,0,0,23,0.02,0.0,7.7,fail,74,29,0,45,473,367,1513,39%,64.7,,proc-old-2.5,
-range,misc,no_summary,0,0,0,0,10,0.0,0.0,6.5,no_summary,0,0,0,0,454,293,1403,,135.6,,,
-reg,string,pass,1141,34,1107,0,6268,6.12,0.14,265.7,trap,0,0,0,0,607,331,1592,0%,0.3,var-not-set,,"tcl trap: can't read ""ret"": no such variable |   at reg.test:3943:6 in lappend (site #838, runtime) |   inside proc ::RETest::TestFlags |   args: 'args', '-xflags', '${flags}' |   in eval-script at of"
-regexp,string,pass,257,253,4,0,15391,15.32,0.05,141.8,fail,257,159,5,93,565,849,2170,62%,0.1,,regexp-2.5,
-regexpComp,string,pass,179,179,0,0,45,0.04,0.0,10.9,fail,179,125,1,53,473,456,1588,70%,35.7,,regexpComp-2.5,
-rename,proc,pass,19,11,8,0,31,0.02,0.0,8.0,trap,0,0,0,0,480,322,1520,0%,49.5,rename-missing-cmd,,"tcl trap: can't rename ""list"": command doesn't exist |   at rename.test:3828:1 in rename (site #68, fallback) |   args: 'list', 'l.new' |   in eval-script at offset 0: rename list l.new | error while "
-resolver,variable,pass,10,0,10,0,20,0.01,0.0,7.8,pass,10,10,0,0,460,290,1408,100%,69.8,,,
-result,control,pass,26,4,22,0,20,0.01,0.0,7.9,fail,26,6,19,1,476,298,1450,23%,71.2,,result-6.3,
-safe,interp,pass,155,147,8,0,630,0.61,0.01,10.1,trap,0,0,0,0,695,524,1890,0%,3.0,var-not-set,,"tcl trap: can't read ""::auto_path"": no such variable |   at safe.test:3811:1 in interp (site #110, fallback) |   args: 'children' | error while executing at wasm backtrace: |     0:  0x1f3a3 - tcl_run"
-safe-stock,interp,pass,11,11,0,0,144,0.14,0.0,9.7,trap,0,0,0,0,627,524,1870,0%,13.0,other,,"tcl trap: cannot find opt library |   at safe-stock.test:3844:5 in error (site #113, fallback) |   args: 'cannot find opt library' |   in eval-script at offset 0: error {cannot find opt library} | err"
-safe-stock86,interp,no_summary,0,0,0,0,10,0.0,0.0,6.7,no_summary,0,0,0,0,456,293,1413,,142.1,,,
-scan,string,pass,185,184,1,0,29,0.02,0.0,7.9,fail,185,130,0,55,573,778,2150,70%,74.3,,scan-1.1,
-set,variable,pass,64,63,1,0,23,0.01,0.0,7.8,fail,64,52,0,12,512,361,1567,81%,69.6,,set-1.1,
-set-old,variable,pass,153,153,0,0,28,0.02,0.0,7.9,fail,153,27,0,126,522,443,1673,18%,59.7,,set-old-1.4,
-source,interp,pass,23,23,0,0,35,0.01,0.01,7.9,pass,23,23,0,0,475,310,1452,100%,41.1,,,
-split,string,pass,18,18,0,0,19,0.01,0.0,7.7,fail,18,12,0,6,471,320,1487,67%,76.9,,split-1.1,
-stack,misc,pass,3,3,0,0,111,0.08,0.01,13.6,pass,3,3,0,0,457,285,1383,100%,12.4,,,
-string,string,pass,705,693,12,0,52,0.04,0.0,9.9,trap,0,0,0,0,641,1025,2344,0%,45.2,braced-cmdsubst-leak,,"tcl trap: unknown command: c61818e4c9 |   at string.test:5684:1 in ::tcltest::test (site #604, fallback) |   args: 'string-20.8.${noComp}', '[c61818e4c9] [string trimright] fails when UtfPrev is ok', "
-stringObj,string,pass,81,0,81,0,22,0.01,0.0,7.7,trap,0,0,0,0,482,511,1831,0%,82.9,expr-negshift,,"tcl trap: negative shift argument |   at stringObj.test:1:1 in llength (site #252, runtime) |   inside proc ::tcltest::Skipped |   args: '${constraints}' | error while executing at wasm backtrace: |  "
-subst,parsing,pass,63,62,1,0,57,0.04,0.01,8.2,fail,63,38,1,24,459,326,1438,60%,25.1,,subst-3.1,
-switch,control,pass,113,113,0,0,24,0.01,0.0,8.3,trap,0,0,0,0,509,356,1548,0%,65.2,unsupported-command,,"tcl trap: unsupported command: switch |   at switch.test:4171:2 in ${switch} (site #399, fallback) |   inside proc ::iswtest-exact |   args: '-exact', '${c}', '\n\t    a {incr x}\n\t    b {incr y}\n\t"
-tailcall,coroutine,pass,37,29,8,0,23,0.01,0.0,7.9,trap,0,0,0,0,488,334,1517,0%,65.8,braced-cmdsubst-leak,,"tcl trap: unknown command: Bug |   at tailcall.test:4213:1 in ::tcltest::test (site #86, fallback) |   args: 'tailcall-12.1', '[Bug 2649975]', '-setup' |   in eval-script at offset 0: Bug 2649975 | er"
-trace,variable,pass,290,273,17,0,81,0.07,0.0,8.5,fail,266,53,14,199,594,516,1787,18%,22.0,,trace-0.0,
-unknown,proc,pass,7,7,0,0,19,0.01,0.0,7.7,fail,7,0,0,7,475,302,1448,0%,76.7,,unknown-1.1,
-uplevel,variable,pass,57,57,0,0,23,0.02,0.0,8.2,trap,0,0,0,0,487,296,1468,0%,64.6,var-not-set,,"tcl trap: can't read ""x"": no such variable |   at uplevel.test:538:2 in debug (site #128, fallback) |   inside proc ::tcltest::outputChannel | error while executing at wasm backtrace: |     0:  0x1f3a"
-upvar,variable,pass,70,62,8,0,25,0.01,0.0,8.2,fail,70,50,8,12,507,364,1603,71%,65.0,,upvar-2.4,
-var,variable,pass,219,198,21,0,36,0.03,0.0,8.5,trap,0,0,0,0,543,367,1615,0%,44.7,braced-cmdsubst-leak,,"tcl trap: unknown command: bc1a96407a |   at var.test:4750:1 in ::tcltest::test (site #174, fallback) |   args: 'var-20.9', '[bc1a96407a] array set compiled w/ trace', '-setup' |   in eval-script at o"
-while,control,pass,46,46,0,0,22,0.01,0.0,7.7,pass,46,46,0,0,487,323,1498,100%,68.2,,,
-while-old,control,pass,15,15,0,0,19,0.01,0.0,7.7,fail,15,6,0,9,457,295,1405,40%,74.5,,while-old-1.3,
-word,parsing,pass,55,55,0,0,26,0.01,0.0,8.5,pass,55,55,0,0,469,322,1424,100%,54.8,,,
+name,subsystem,c_outcome,c_total,c_passed,c_skipped,c_failed,c_wall_ms,c_user_s,c_sys_s,c_max_rss_mb,wasm_outcome,wasm_total,wasm_passed,wasm_skipped,wasm_failed,wasm_run_ms,wasm_pass_rate,slowdown_x,wasm_compile_ms,wasm_wall_ms,wasm_trap_category,wasm_first_failing,wasm_trap
+aaa_exit,misc,pass,2,2,0,0,45,0.03,0.0,7.7,pass,2,2,0,0,294,100%,6.5,460,1402,,,
+abstractlist,list,pass,123,0,123,0,24,0.01,0.0,7.9,trap,0,0,0,0,628,0%,25.7,513,1887,var-not-set,,"tcl trap: can't read ""clean-list"": no such variable |   at abstractlist.test:586:2 in debug (site #128, fallback) |   inside proc ::tcltest::errorChannel | error while executing at wasm backtrace: |  "
+append,misc,pass,52,49,3,0,24,0.02,0.0,8.0,fail,52,48,0,4,332,92%,14.1,512,1588,,append-4.4,
+appendComp,misc,pass,48,43,5,0,36,0.02,0.0,8.2,fail,48,40,0,8,349,83%,9.7,504,1618,,appendComp-4.4,
+apply,proc,pass,42,38,4,0,22,0.01,0.0,8.0,no_summary,0,0,0,0,283,0%,13.1,469,1410,,,
+assocd,misc,pass,11,0,11,0,29,0.01,0.0,7.8,pass,11,3,8,0,308,27%,10.5,461,1416,,,
+basic,eval,pass,146,69,77,0,89,0.06,0.02,8.4,trap,0,0,0,0,731,0%,8.2,640,2082,braced-cmdsubst-leak,,"tcl trap: unknown command: 586e71dce4 |   at basic.test:4784:1 in ::tcltest::test (site #226, fallback) |   args: 'basic-50.1', '[586e71dce4] EvalObjv level #0 exception handling', '-setup' |   in eva"
+brodnik,misc,trap,0,0,0,0,18,0.01,0.0,7.7,pass,257,2,255,0,359,,19.8,455,1466,,,
+chan,io,pass,42,42,0,0,130,0.01,0.01,8.0,pass,42,42,0,0,327,100%,2.5,481,1493,,,
+chanio,io,pass,779,392,387,0,15828,0.72,0.25,12.3,fail,779,734,23,22,1926,94%,0.1,812,3444,,chan-io-1.7,
+cmdAH,cmd-dispatch,pass,17001,16820,181,0,6084,0.76,0.01,12.6,trap,0,0,0,0,605,0%,0.1,770,2070,unsupported-command,,"tcl trap: unsupported in WASM: dict append |   at cmdAH.test:4051:5 in dict append (site #992, unsupported) |   inside proc ::testconvert |   in eval-script at offset 0: testconvert cmdAH-4.3.11 { | e"
+cmdIL,cmd-dispatch,pass,168,163,5,0,71,0.04,0.02,37.4,fail,168,116,2,50,444,69%,6.2,501,1626,,cmdIL-1.3,
+cmdInfo,proc,pass,12,0,12,0,19,0.0,0.0,7.7,pass,12,0,12,0,324,0%,16.8,478,1472,,,
+cmdMZ,cmd-dispatch,pass,97,96,1,0,242,0.23,0.0,8.6,fail,97,49,0,48,400,51%,1.6,503,1591,,cmdMZ-2.4,
+compExpr,expr,pass,82,80,2,0,24,0.02,0.0,8.1,trap,0,0,0,0,401,0%,16.6,467,1522,braced-cmdsubst-leak,,"tcl trap: unknown command: Bug |   at compExpr.test:4136:1 in ::tcltest::test (site #138, fallback) |   args: 'compExpr-7.2', '[Bug 1869989]: expr parser memleak', '-constraints' |   in eval-script at"
+compExpr-old,expr,pass,184,183,1,0,114,0.1,0.0,8.6,timeout,,,,,,0%,,,45765,other,,subprocess hard timeout (SIGKILL)
+compile,eval,pass,171,138,33,0,97,0.07,0.01,16.7,fail,171,135,15,21,882,79%,9.1,657,2237,,compile-1.2,
+concat,misc,pass,9,9,0,0,28,0.02,0.0,7.7,fail,9,8,0,1,309,89%,10.9,513,1567,,concat-1.4,
+coroutine,coroutine,pass,77,74,3,0,36,0.03,0.0,8.4,fail,77,72,0,5,389,94%,10.7,509,1620,,coroutine-1.13,
+dict,dict,pass,373,367,6,0,272,0.24,0.02,38.8,fail,373,263,1,109,901,71%,3.3,532,2141,,dict-2.2,
+dstring,misc,pass,46,0,46,0,21,0.01,0.0,7.8,pass,46,46,0,0,316,100%,14.8,466,1439,,,
+error,control,pass,317,309,8,0,36,0.02,0.0,8.6,trap,0,0,0,0,296,0%,8.3,505,1471,other,,error while executing at wasm backtrace: |     0: tcl_runtime.wasm!parse.tcl_subst.subst_flagged |     1:  0x399d4 - tcl_runtime.wasm!interp.tcl_interp.execute_parsed_command |     2:  0x3943c - tcl_r
+eval,eval,pass,12,12,0,0,20,0.01,0.0,7.7,fail,12,9,0,3,318,75%,16.0,466,1484,,eval-2.1,
+execute,eval,pass,157,79,78,0,71,0.06,0.0,10.5,fail,157,48,77,32,414,31%,5.8,520,1632,,execute-1.3,
+expr,expr,pass,2168,2137,31,0,465,0.45,0.0,9.5,timeout,,,,,,0%,,,45807,other,,subprocess hard timeout (SIGKILL)
+expr-old,expr,pass,461,430,31,0,75,0.07,0.0,8.4,fail,461,197,24,240,764,43%,10.2,583,2056,,expr-old-1.12,
+for,control,pass,88,64,24,0,24,0.01,0.0,8.0,trap,0,0,0,0,7257,0%,302.5,515,9018,other,,"tcl trap: in eval-script at offset 0: ::tcltest::RunTest for-3.6 { |   at for.test:4164:3 in regexp (site #367, fallback) |   inside proc ::formatMail |   args: '-nocase', '{^x-mailer:}', '$line' |   "
+for-old,control,pass,9,9,0,0,19,0.01,0.0,7.7,fail,9,5,0,4,277,56%,14.8,470,1409,,for-old-1.4,
+foreach,list,pass,43,43,0,0,24,0.02,0.0,7.7,fail,43,13,0,30,734,30%,31.2,465,1905,,foreach-1.3,
+format,string,pass,269,269,0,0,30,0.02,0.0,7.9,fail,269,150,19,100,797,56%,27.0,545,2115,,format-1.1,
+get,string,pass,23,6,17,0,21,0.01,0.0,7.9,fail,23,3,17,3,413,13%,19.3,503,1679,,get-2.3,
+if,control,pass,73,73,0,0,24,0.01,0.0,7.7,pass,73,73,0,0,339,100%,13.9,487,1515,,,
+if-old,control,pass,33,33,0,0,19,0.01,0.0,7.7,fail,33,15,0,18,332,45%,17.1,474,1486,,if-old-1.9,
+incr,misc,pass,69,69,0,0,24,0.01,0.0,7.8,fail,69,62,0,7,366,90%,15.4,477,1508,,incr-1.23,
+incr-old,misc,pass,14,14,0,0,21,0.01,0.0,7.8,fail,14,9,0,5,351,64%,16.9,465,1452,,incr-old-2.1,
+indexObj,misc,pass,65,0,65,0,22,0.01,0.0,7.8,pass,65,4,61,0,307,6%,14.3,456,1394,,,
+info,proc,pass,287,282,5,0,58,0.05,0.0,9.2,trap,0,0,0,0,620,0%,10.6,720,2033,tcltest-option-parse,,"tcl trap: bad option ""proc"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at info.test:1981:5 in ::while (site #656, fallback"
+interp,interp,pass,354,340,14,0,1222,0.56,0.0,14.6,trap,0,0,0,0,1367,0%,1.1,713,2803,braced-cmdsubst-leak,,"tcl trap: unknown command: Bug |   at interp.test:7235:1 in ::tcltest::test (site #437, fallback) |   args: 'interp-34.14', '[Bug e3f4a8b78d]: interp limit and interp eval', '-setup' |   in eval-scrip"
+io,io,pass,884,480,404,0,32622,1.58,0.3,12.8,timeout,,,,,,0%,,,45573,other,,subprocess hard timeout (SIGKILL)
+ioCmd,io,pass,377,274,103,0,2732,0.06,0.02,9.6,trap,0,0,0,0,431,0%,0.2,619,1734,other,,"tcl trap: close: missing channelId |   at ioCmd.test:4650:1 in ::tcltest::test (site #215, fallback) |   args: 'iocmd-21.21', '[close] in [read] segfaults', '-setup' |   in eval-script at offset 0: cl"
+join,string,pass,10,10,0,0,20,0.01,0.0,7.8,fail,10,7,0,3,322,70%,15.8,500,1552,,join-2.1,
+lindex,list,pass,84,47,37,0,23,0.01,0.0,7.9,fail,84,46,22,16,386,55%,16.8,463,1527,,lindex-9.1,
+linsert,list,pass,28,28,0,0,21,0.01,0.0,7.7,fail,28,15,0,13,316,54%,14.9,456,1575,,linsert-1.7,
+list,list,pass,78,78,0,0,23,0.01,0.0,7.7,fail,78,64,0,14,340,82%,14.9,466,1471,,list-1.3,
+listObj,list,pass,59,42,17,0,22,0.01,0.0,7.9,trap,0,0,0,0,292,0%,13.1,463,1412,expr-negshift,,"tcl trap: negative shift argument |   at listObj.test:1162:8 in limitConstraints (site #167, fallback) |   inside proc ::tcltest::testConstraint | error while executing at wasm backtrace: |     0:  0x"
+listRep,list,pass,231,4,227,0,48,0.04,0.0,8.1,pass,231,231,0,0,562,100%,11.6,575,1808,,,
+llength,list,pass,6,6,0,0,20,0.01,0.0,7.7,fail,6,3,0,3,266,50%,13.3,449,1364,,llength-2.1,
+lmap,list,pass,66,66,0,0,736,0.66,0.06,160.5,fail,66,41,0,25,414,62%,0.6,467,1576,,lmap-1.2a,
+lpop,list,pass,19,17,2,0,21,0.01,0.0,7.7,pass,19,19,0,0,296,100%,14.2,450,1431,,,
+lrange,list,pass,1766,1764,2,0,100,0.09,0.0,7.9,fail,1766,1754,0,12,1696,99%,17.0,489,2862,,lrange-1.10,
+lrepeat,list,pass,12,11,1,0,21,0.01,0.0,7.9,trap,0,0,0,0,479,0%,22.8,456,1593,tcltest-option-parse,,"tcl trap: bad option ""}"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lrepeat.test:1981:5 in ::while (site #144, fallback"
+lreplace,list,pass,3579,3579,0,0,169,0.16,0.0,7.8,fail,3579,3526,0,53,2748,99%,16.3,467,3928,,lreplace-1.15,
+lsearch,list,pass,165,165,0,0,28,0.02,0.0,8.1,fail,165,60,0,105,506,36%,18.0,491,1631,,lsearch-2.1,
+lseq,list,pass,134,132,2,0,59,0.05,0.0,8.2,trap,0,0,0,0,349,0%,5.9,524,1543,tcltest-option-parse,,"tcl trap: bad option ""5"": must be -body, -cleanup, -constraints, -errorCode, -errorOutput, -match, -output, -result, -returnCodes, -setup, or |   at lseq.test:1981:5 in ::while (site #269, fallback) |"
+lset,list,pass,89,0,89,0,23,0.02,0.0,7.8,pass,89,1,88,0,368,1%,16.3,480,1520,,,
+lsetComp,list,pass,19,19,0,0,22,0.01,0.0,7.8,fail,19,14,0,5,357,74%,16.4,492,1506,,lsetComp-1.1,
+mathop,expr,pass,385,385,0,0,60,0.05,0.0,8.4,trap,0,0,0,0,390,0%,6.5,690,1766,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at mathop.test:4135:5 in ::test (site #188, fallback) |   args: 'mathop-5.11', 'interpreted eq', '$op {} a' |   in eval-script at offse"
+misc,misc,pass,301,2,299,0,28,0.02,0.0,7.7,fail,301,0,299,2,387,0%,14.1,466,1496,,misc-1.1,
+namespace,variable,pass,314,311,3,0,67,0.05,0.01,8.7,trap,0,0,0,0,523,0%,7.9,548,1768,braced-cmdsubst-leak,,"tcl trap: unknown command: 4402cfa58c |   at namespace.test:6226:1 in ::tcltest::test (site #337, fallback) |   args: 'namespace-50.5', '[4402cfa58c]', '-setup' |   in eval-script at offset 0: 4402cfa"
+namespace-old,variable,pass,126,126,0,0,25,0.02,0.0,7.7,trap,0,0,0,0,361,0%,14.4,504,1541,other,,error while executing at wasm backtrace: |     0:  0x1a795 - <unknown>!<::test_ns_upvar::show_val> |     1:  0x3d2e5 - tcl_runtime.wasm!interp.tcl_interp.eval_proc_call_bucket |     2:  0x3bd63 - tcl_
+nre,coroutine,pass,28,5,23,0,48,0.04,0.0,15.3,trap,0,0,0,0,304,0%,6.4,529,1521,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at nre.test:3962:1 in ::tcltest::test (site #75, fallback) |   args: 'nre-5.1', '[namespace eval] is not recursive', '-setup' |   in ev"
+oo,object,pass,388,372,16,0,88,0.08,0.0,8.7,fail,388,345,2,41,632,89%,7.2,720,2108,,oo-0.9,
+ooNext2,object,pass,62,57,5,0,26,0.02,0.0,7.9,trap,0,0,0,0,311,0%,11.8,507,1542,tcltest-arg-parse-fallthrough,,"tcl trap: wrong # args: should be ""test name desc ?options?"" |   at ooNext2.test:4685:1 in ::tcltest::test (site #110, fallback) |   args: 'next-tailcall-simple-1', 'trivial case with one method', '${"
+ooProp,object,pass,55,55,0,0,29,0.02,0.0,7.9,pass,55,55,0,0,385,100%,13.2,487,1557,,,
+ooUtil,object,pass,33,33,0,0,26,0.01,0.0,8.2,pass,33,33,0,0,324,100%,12.7,470,1478,,,
+opt,misc,pass,31,31,0,0,25,0.01,0.0,8.1,trap,0,0,0,0,305,0%,12.1,460,1403,var-not-set,,"tcl trap: can't read ""::tcl::OptDescN"": no such variable |   at opt.test:3795:4 in namespace (site #57, fallback) |   args: 'children' | error while executing at wasm backtrace: |     0:  0x1f3a3 - tc"
+parse,parsing,pass,271,90,181,0,33,0.02,0.0,8.7,trap,0,0,0,0,382,0%,11.7,512,1537,other,,error while executing at wasm backtrace: |     0:  0x3a6c4 - tcl_runtime.wasm!parse.tcl_parse.ParseCommand |     1:  0x39609 - tcl_runtime.wasm!interp.tcl_interp.eval_script |     2:  0x3ade7 - tcl_ru
+parseExpr,parsing,pass,286,67,219,0,33,0.03,0.0,8.0,fail,286,137,146,3,417,48%,12.8,507,1571,,parseExpr-20.1,
+parseOld,parsing,pass,158,158,0,0,28,0.02,0.0,7.7,trap,0,0,0,0,277,0%,9.7,469,1382,var-not-set,,"tcl trap: can't read ""argv"": no such variable |   at parseOld.test:1162:8 in limitConstraints (site #206, fallback) |   inside proc ::tcltest::testConstraint | error while executing at wasm backtrace:"
+proc,proc,pass,38,29,9,0,27,0.02,0.0,8.3,trap,0,0,0,0,305,0%,11.4,472,1433,braced-cmdsubst-leak,,"tcl trap: unknown command: 39fed4dae5 |   at proc.test:4106:1 in ::tcltest::test (site #99, fallback) |   args: 'proc-4.9', '[39fed4dae5] Valid Tcl_PkgPresent return', 'tcl::test' |   in eval-script a"
+proc-old,proc,pass,74,74,0,0,23,0.02,0.0,7.7,fail,74,29,0,45,367,39%,15.7,473,1513,,proc-old-2.5,
+range,misc,no_summary,0,0,0,0,10,0.0,0.0,6.5,no_summary,0,0,0,0,293,,28.3,454,1403,,,
+reg,string,pass,1141,34,1107,0,6268,6.12,0.14,265.7,trap,0,0,0,0,331,0%,0.1,607,1592,var-not-set,,"tcl trap: can't read ""ret"": no such variable |   at reg.test:3943:6 in lappend (site #838, runtime) |   inside proc ::RETest::TestFlags |   args: 'args', '-xflags', '${flags}' |   in eval-script at of"
+regexp,string,pass,257,253,4,0,15391,15.32,0.05,141.8,fail,257,159,5,93,849,62%,0.1,565,2170,,regexp-2.5,
+regexpComp,string,pass,179,179,0,0,45,0.04,0.0,10.9,fail,179,125,1,53,456,70%,10.2,473,1588,,regexpComp-2.5,
+rename,proc,pass,19,11,8,0,31,0.02,0.0,8.0,trap,0,0,0,0,322,0%,10.5,480,1520,rename-missing-cmd,,"tcl trap: can't rename ""list"": command doesn't exist |   at rename.test:3828:1 in rename (site #68, fallback) |   args: 'list', 'l.new' |   in eval-script at offset 0: rename list l.new | error while "
+resolver,variable,pass,10,0,10,0,20,0.01,0.0,7.8,pass,10,10,0,0,290,100%,14.4,460,1408,,,
+result,control,pass,26,4,22,0,20,0.01,0.0,7.9,fail,26,6,19,1,298,23%,14.6,476,1450,,result-6.3,
+safe,interp,pass,155,147,8,0,630,0.61,0.01,10.1,trap,0,0,0,0,524,0%,0.8,695,1890,var-not-set,,"tcl trap: can't read ""::auto_path"": no such variable |   at safe.test:3811:1 in interp (site #110, fallback) |   args: 'children' | error while executing at wasm backtrace: |     0:  0x1f3a3 - tcl_run"
+safe-stock,interp,pass,11,11,0,0,144,0.14,0.0,9.7,trap,0,0,0,0,524,0%,3.6,627,1870,other,,"tcl trap: cannot find opt library |   at safe-stock.test:3844:5 in error (site #113, fallback) |   args: 'cannot find opt library' |   in eval-script at offset 0: error {cannot find opt library} | err"
+safe-stock86,interp,no_summary,0,0,0,0,10,0.0,0.0,6.7,no_summary,0,0,0,0,293,,29.4,456,1413,,,
+scan,string,pass,185,184,1,0,29,0.02,0.0,7.9,fail,185,130,0,55,778,70%,26.9,573,2150,,scan-1.1,
+set,variable,pass,64,63,1,0,23,0.01,0.0,7.8,fail,64,52,0,12,361,81%,16.0,512,1567,,set-1.1,
+set-old,variable,pass,153,153,0,0,28,0.02,0.0,7.9,fail,153,27,0,126,443,18%,15.8,522,1673,,set-old-1.4,
+source,interp,pass,23,23,0,0,35,0.01,0.01,7.9,pass,23,23,0,0,310,100%,8.8,475,1452,,,
+split,string,pass,18,18,0,0,19,0.01,0.0,7.7,fail,18,12,0,6,320,67%,16.6,471,1487,,split-1.1,
+stack,misc,pass,3,3,0,0,111,0.08,0.01,13.6,pass,3,3,0,0,285,100%,2.6,457,1383,,,
+string,string,pass,705,693,12,0,52,0.04,0.0,9.9,trap,0,0,0,0,1025,0%,19.8,641,2344,braced-cmdsubst-leak,,"tcl trap: unknown command: c61818e4c9 |   at string.test:5684:1 in ::tcltest::test (site #604, fallback) |   args: 'string-20.8.${noComp}', '[c61818e4c9] [string trimright] fails when UtfPrev is ok', "
+stringObj,string,pass,81,0,81,0,22,0.01,0.0,7.7,trap,0,0,0,0,511,0%,23.1,482,1831,expr-negshift,,"tcl trap: negative shift argument |   at stringObj.test:1:1 in llength (site #252, runtime) |   inside proc ::tcltest::Skipped |   args: '${constraints}' | error while executing at wasm backtrace: |  "
+subst,parsing,pass,63,62,1,0,57,0.04,0.01,8.2,fail,63,38,1,24,326,60%,5.7,459,1438,,subst-3.1,
+switch,control,pass,113,113,0,0,24,0.01,0.0,8.3,trap,0,0,0,0,356,0%,15.0,509,1548,unsupported-command,,"tcl trap: unsupported command: switch |   at switch.test:4171:2 in ${switch} (site #399, fallback) |   inside proc ::iswtest-exact |   args: '-exact', '${c}', '\n\t    a {incr x}\n\t    b {incr y}\n\t"
+tailcall,coroutine,pass,37,29,8,0,23,0.01,0.0,7.9,trap,0,0,0,0,334,0%,14.5,488,1517,braced-cmdsubst-leak,,"tcl trap: unknown command: Bug |   at tailcall.test:4213:1 in ::tcltest::test (site #86, fallback) |   args: 'tailcall-12.1', '[Bug 2649975]', '-setup' |   in eval-script at offset 0: Bug 2649975 | er"
+trace,variable,pass,290,273,17,0,81,0.07,0.0,8.5,fail,266,53,14,199,516,18%,6.4,594,1787,,trace-0.0,
+unknown,proc,pass,7,7,0,0,19,0.01,0.0,7.7,fail,7,0,0,7,302,0%,16.0,475,1448,,unknown-1.1,
+uplevel,variable,pass,57,57,0,0,23,0.02,0.0,8.2,trap,0,0,0,0,296,0%,13.0,487,1468,var-not-set,,"tcl trap: can't read ""x"": no such variable |   at uplevel.test:538:2 in debug (site #128, fallback) |   inside proc ::tcltest::outputChannel | error while executing at wasm backtrace: |     0:  0x1f3a"
+upvar,variable,pass,70,62,8,0,25,0.01,0.0,8.2,fail,70,50,8,12,364,71%,14.8,507,1603,,upvar-2.4,
+var,variable,pass,219,198,21,0,36,0.03,0.0,8.5,trap,0,0,0,0,367,0%,10.2,543,1615,braced-cmdsubst-leak,,"tcl trap: unknown command: bc1a96407a |   at var.test:4750:1 in ::tcltest::test (site #174, fallback) |   args: 'var-20.9', '[bc1a96407a] array set compiled w/ trace', '-setup' |   in eval-script at o"
+while,control,pass,46,46,0,0,22,0.01,0.0,7.7,pass,46,46,0,0,323,100%,14.7,487,1498,,,
+while-old,control,pass,15,15,0,0,19,0.01,0.0,7.7,fail,15,6,0,9,295,40%,15.7,457,1405,,while-old-1.3,
+word,parsing,pass,55,55,0,0,26,0.01,0.0,8.5,pass,55,55,0,0,322,100%,12.4,469,1424,,,
