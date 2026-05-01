@@ -12,8 +12,10 @@
 // gate (``scripts/check_wasm_command_parity.py``) enforces this.
 //
 // Coverage today (everything else has a real impl elsewhere):
-//   - chan   — top-level ensemble, not yet routed
 //   - fileevent, socket — needs an event loop
+//
+// ``chan`` dispatches through ``cmds/chan.zig:eval_chan`` (no direct
+// codegen import); see issue #270.
 //
 // ``puts`` lives in tcl_io.zig; ``flush`` / ``open`` / ``close`` /
 // ``read`` / ``gets`` / ``eof`` / ``fblocked`` / ``tell`` / ``seek``
@@ -30,13 +32,6 @@ const chan = @import("../io/tcl_chan.zig");
 /// before ``close`` ran.
 pub export fn tcl_cmd_flush(fd: i32) i32 {
     return chan.flush_chan_id(fd);
-}
-
-pub export fn tcl_cmd_chan(sub: i32, arg: i32) i32 {
-    _ = sub;
-    _ = arg;
-    stubs.unsupported("chan");
-    return 0;
 }
 
 pub export fn tcl_cmd_fileevent(fd: i32, mode: i32) i32 {

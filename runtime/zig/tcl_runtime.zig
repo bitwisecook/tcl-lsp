@@ -316,7 +316,6 @@ comptime {
     _ = &tcl_chan.tcl_cmd_fcopy;
     _ = &tcl_chan.tcl_cmd_puts_chan;
     _ = &tcl_io_stubs.tcl_cmd_flush;
-    _ = &tcl_io_stubs.tcl_cmd_chan;
     _ = &tcl_io_stubs.tcl_cmd_fileevent;
     _ = &tcl_io_stubs.tcl_cmd_socket;
     // file has a real impl in tcl_fs.zig.

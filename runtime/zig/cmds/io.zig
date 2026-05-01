@@ -35,7 +35,7 @@ fn word_eq(w: i32, literal: []const u8) bool {
 /// fall through here via :file:`codegen/wasm/_emitter/cmds/puts_.py`'s
 /// returning ``False`` so this handler can route through
 /// :func:`tcl_chan.tcl_cmd_puts_chan`.
-fn eval_puts(words: []const i32) i32 {
+pub fn eval_puts(words: []const i32) i32 {
     // words[0] = "puts"
     const argc = words.len - 1;
     if (argc == 0) return 0;
@@ -58,7 +58,7 @@ fn eval_puts(words: []const i32) i32 {
     return 0;
 }
 
-fn eval_open(words: []const i32) i32 {
+pub fn eval_open(words: []const i32) i32 {
     // open fileName ?access? ?permissions?
     const path = if (words.len >= 2) words[1] else 0;
     const access = if (words.len >= 3) words[2] else 0;
@@ -67,7 +67,7 @@ fn eval_open(words: []const i32) i32 {
     return chan.tcl_cmd_open(path, access);
 }
 
-fn eval_close(words: []const i32) i32 {
+pub fn eval_close(words: []const i32) i32 {
     if (words.len < 2) {
         stubs.raise("close: missing channelId");
         return 0;
@@ -75,7 +75,7 @@ fn eval_close(words: []const i32) i32 {
     return chan.tcl_cmd_close(words[1]);
 }
 
-fn eval_read(words: []const i32) i32 {
+pub fn eval_read(words: []const i32) i32 {
     // read ?-nonewline? channel | read channel ?numChars?
     var nonewline = false;
     var arg_idx: usize = 1;
@@ -103,7 +103,7 @@ fn eval_read(words: []const i32) i32 {
     return result;
 }
 
-fn eval_gets(words: []const i32) i32 {
+pub fn eval_gets(words: []const i32) i32 {
     if (words.len < 2) {
         stubs.raise("gets: missing channelId");
         return 0;
@@ -113,7 +113,7 @@ fn eval_gets(words: []const i32) i32 {
     return chan.tcl_cmd_gets(ch, var_name);
 }
 
-fn eval_seek(words: []const i32) i32 {
+pub fn eval_seek(words: []const i32) i32 {
     if (words.len < 3) {
         stubs.raise("seek: missing offset");
         return 0;
@@ -124,7 +124,7 @@ fn eval_seek(words: []const i32) i32 {
     return chan.tcl_cmd_seek(ch, off_obj, origin_obj);
 }
 
-fn eval_tell(words: []const i32) i32 {
+pub fn eval_tell(words: []const i32) i32 {
     if (words.len < 2) {
         stubs.raise("tell: missing channelId");
         return 0;
@@ -132,7 +132,7 @@ fn eval_tell(words: []const i32) i32 {
     return chan.tcl_cmd_tell(words[1]);
 }
 
-fn eval_eof(words: []const i32) i32 {
+pub fn eval_eof(words: []const i32) i32 {
     if (words.len < 2) {
         stubs.raise("eof: missing channelId");
         return 0;
@@ -140,7 +140,7 @@ fn eval_eof(words: []const i32) i32 {
     return chan.tcl_cmd_eof(words[1]);
 }
 
-fn eval_fblocked(words: []const i32) i32 {
+pub fn eval_fblocked(words: []const i32) i32 {
     if (words.len < 2) {
         stubs.raise("fblocked: missing channelId");
         return 0;
@@ -148,7 +148,7 @@ fn eval_fblocked(words: []const i32) i32 {
     return chan.tcl_cmd_fblocked(words[1]);
 }
 
-fn eval_fcopy(words: []const i32) i32 {
+pub fn eval_fcopy(words: []const i32) i32 {
     if (words.len < 3) {
         stubs.raise("fcopy: missing inputChan or outputChan");
         return 0;
@@ -194,7 +194,7 @@ fn eval_fcopy(words: []const i32) i32 {
 /// codegen fast path passes the channel id directly into
 /// ``tcl_cmd_flush``, so the eval route only sees ``flush`` calls
 /// from scripts that always supply the channel.
-fn eval_flush(words: []const i32) i32 {
+pub fn eval_flush(words: []const i32) i32 {
     if (words.len < 2) return 0;
     return chan.flush_chan_id(words[1]);
 }
