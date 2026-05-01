@@ -616,14 +616,28 @@ def register(server_instance: LanguageServer) -> None:
 
     @server_instance.feature(types.WORKSPACE_DID_CHANGE_CONFIGURATION)
     def did_change_configuration(params: types.DidChangeConfigurationParams) -> None:
-        # Always pull per-folder via workspace/configuration: the push
-        # payload (if any) is the workspace-merged value and cannot
-        # populate per-folder configs.  The pull also covers clients that
-        # send empty notifications as a "config changed" signal.
+        # Push payloads come from two sources:
+        #
+        # 1. ``vscode-languageclient`` ``synchronize.configurationSection``:
+        #    the workspace-merged value of ``tclLsp.*``.  We apply to the
+        #    fallback layer and then pull per-folder via
+        #    ``workspace/configuration`` for folder-scoped overrides.
+        #
+        # 2. The extension's ``setServerDialect`` notification: a hand-
+        #    crafted ``{tclLsp: {dialect: "..."}}`` payload that is *not*
+        #    backed by the client's configuration store (auto-detected
+        #    from shebang / file extension / directive).  Pulling after
+        #    applying it would clobber the dialect with whatever the
+        #    client has stored.
+        #
+        # Detect (2) by checking whether the extracted settings are a
+        # dialect-only payload — in that case skip the re-pull.  Empty
+        # payloads (e.g. clients that signal "something changed") fall
+        # through to the pull.
         settings = params.settings
         if isinstance(settings, dict) and settings:
-            # Apply the push payload to the fallback layer immediately
-            # (covers files outside every workspace folder), then pull
-            # for accurate per-folder values.
-            _apply_all_settings(_extract_tcl_lsp_settings(settings), folder_uri="")
+            extracted = _extract_tcl_lsp_settings(settings)
+            _apply_all_settings(extracted, folder_uri="")
+            if set(extracted.keys()) == {"dialect"}:
+                return
         _pull_and_apply_configuration()
