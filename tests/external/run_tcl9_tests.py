@@ -318,8 +318,7 @@ def _patch_tcltest_source(src: str) -> str:
     #    continuation ``[list upvar 0 Option($option) $varName]`` so
     #    we hit exactly one site (Option proc body).
     upvar_pattern = (
-        "namespace eval [namespace current] \\\n"
-        "\t\t    [list upvar 0 Option($option) $varName]"
+        "namespace eval [namespace current] \\\n\t\t    [list upvar 0 Option($option) $varName]"
     )
     upvar_replacement = (
         "# --- run_tcl9_tests.py patch (issue #280) ---\n"
