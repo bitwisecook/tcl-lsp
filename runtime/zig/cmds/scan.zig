@@ -212,6 +212,15 @@ fn eval_scan(words: []const i32) i32 {
         }
         if (fi >= fs.len) break;
 
+        // POSIX size modifiers — ``h`` / ``l`` / ``ll`` / ``L``.
+        // Tcl 9 accepts these but ignores them at the value level
+        // (every integer obj is i64 internally, and the host C
+        // varargs distinction is moot in the WASM runtime).  Skip
+        // them so ``scan X %lld`` parses as ``%d`` rather than
+        // attempting to consume ``l`` as the spec letter.
+        while (fi < fs.len and (fmt[fi] == 'h' or fmt[fi] == 'l' or fmt[fi] == 'L')) : (fi += 1) {}
+        if (fi >= fs.len) break;
+
         const spec = fmt[fi];
         fi += 1;
 

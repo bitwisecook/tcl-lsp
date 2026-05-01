@@ -269,6 +269,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_catch_result": ("tcl", "catch_result", [], [ValType.I32]),
     "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
     "tcl_catch_set_ok_result": ("tcl", "catch_set_ok_result", [ValType.I32], []),
+    # 3-arg catch options dict.  ``catch BODY result opt`` populates
+    # ``$opt`` with a dict carrying ``-code``, ``-level``, ``-errorcode``
+    # and ``-errorinfo`` keys; ``dict get $opt -errorcode`` is the
+    # standard idiom for inspecting the error class.
+    "tcl_catch_options": ("tcl", "catch_options", [], [ValType.I32]),
+    # 3-arg ``error msg ?info? ?code?`` form: lets the emitter
+    # populate ``::errorInfo`` / ``::errorCode`` directly when the
+    # source provides explicit info/code.  The 1-arg form keeps using
+    # ``tcl_error`` (= ``tcl_cmd_error``) so existing emit sites
+    # don't have to track which arity to call.
+    "tcl_error_full": ("tcl", "tcl_cmd_error_full",
+                       [ValType.I32, ValType.I32, ValType.I32], []),
     # Flow-control consumers — read+clear ``break_flag`` /
     # ``continue_flag`` set by interpreter-side ``break`` / ``continue``
     # inside an eval-fallback body.  Compiled loops need these to

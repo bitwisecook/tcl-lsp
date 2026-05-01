@@ -378,6 +378,7 @@ class _WasmEmitterCtrlMixin(_Base):
         body: IRScript,
         result_var: str | None,
         *,
+        options_var: str | None = None,
         keep_on_stack: bool = False,
     ) -> None:
         """Emit a catch block with error-flag based error propagation.
@@ -460,6 +461,24 @@ class _WasmEmitterCtrlMixin(_Base):
                 self._emit_call(gset_idx)
                 self._emit(WasmOp.DROP)
 
+        # Store options dict if requested (3-arg ``catch`` form).
+        # ``catch_options`` builds the standard ``-code`` /
+        # ``-level`` / ``-errorcode`` / ``-errorinfo`` dict from the
+        # last-catch state captured by ``catch_leave``; subsequent
+        # ``dict get $opt -errorcode`` reads observe the right code.
+        if options_var:
+            opts_idx = self._shared_imports.get("tcl_catch_options")
+            if opts_idx is not None:
+                ov_idx = self._intern_local(options_var)
+                self._emit_call(opts_idx)
+                self._emit_local_set(ov_idx)
+                if not self._is_proc and "tcl_global_set" in self._shared_imports:
+                    gset_idx = self._shared_imports["tcl_global_set"]
+                    self._emit_obj_literal(options_var)
+                    self._emit_local_get(ov_idx)
+                    self._emit_call(gset_idx)
+                    self._emit(WasmOp.DROP)
+
     def _emit_stmt_keep_result(self, stmt: "IRStatement") -> None:
         """Emit a statement leaving its i32 TclObj result on the WASM stack.
 
@@ -528,7 +547,7 @@ class _WasmEmitterCtrlMixin(_Base):
             case IRExprEval(expr=expr):
                 self._emit_expr(expr)
                 self._emit_box_int()
-            case IRCatch(body=inner_body, result_var=inner_result_var):
+            case IRCatch(body=inner_body, result_var=inner_result_var, options_var=inner_options_var):
                 # Nested ``catch`` as the last stmt of the outer body —
                 # emit with ``keep_on_stack=True`` so the inner catch's
                 # return code (0 or 1) lands on the stack for the outer
@@ -537,7 +556,12 @@ class _WasmEmitterCtrlMixin(_Base):
                 # (which drops the inner result) and then push a null,
                 # turning ``catch {catch {error x} m1} m2`` into
                 # ``m2 == ""``.
-                self._emit_catch(inner_body, inner_result_var, keep_on_stack=True)
+                self._emit_catch(
+                    inner_body,
+                    inner_result_var,
+                    options_var=inner_options_var,
+                    keep_on_stack=True,
+                )
             case IRIncr(name=name, amount=amount):
                 # Issue #262: route through ``tcl_incr`` for the
                 # strict-integer guard (rejects float strings).
@@ -623,6 +647,7 @@ class _WasmEmitterCtrlMixin(_Base):
         if body_text.startswith("{") and body_text.endswith("}"):
             body_text = body_text[1:-1]
         result_var = args[1] if len(args) >= 2 else None
+        options_var = args[2] if len(args) >= 3 else None
 
         if not body_text:
             enter_idx = self._shared_imports.get("tcl_catch_enter")
@@ -645,7 +670,12 @@ class _WasmEmitterCtrlMixin(_Base):
             self._emit_unsupported_trap("catch (unparseable body)")
             return
 
-        self._emit_catch(body_script, result_var, keep_on_stack=keep_on_stack)
+        self._emit_catch(
+            body_script,
+            result_var,
+            options_var=options_var,
+            keep_on_stack=keep_on_stack,
+        )
 
     def _emit_try(self, body: IRScript, handlers, finally_body) -> None:
         """Emit a try block (simplified — just run the body + finally)."""

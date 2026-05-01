@@ -341,9 +341,18 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
-                # Recurse into the command text for nested substitutions
+                    needed.add("tcl_catch_options")
+                # Recurse into the command text for nested
+                # substitutions.  Scanning ``parts[-1]`` alone misses
+                # nested brackets that landed in earlier split slots
+                # (``list [catch …] $r [dict …]`` splits into 3 with
+                # the inner ``[catch`` stuck mid-token of parts[1] /
+                # parts[2]); use the whole tail-of-cmd_text so every
+                # ``[…]`` group is rescanned regardless of where the
+                # ``split(None, 2)`` boundary fell.
                 if len(parts) > 1:
-                    _scan_text_for_cmd_subst(parts[-1], needed)
+                    rest = cmd_text[len(parts[0]) :]
+                    _scan_text_for_cmd_subst(rest, needed)
             i = j
         else:
             i += 1
@@ -755,6 +764,7 @@ def _scan_needed_imports(
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_catch_options")
                 # Scan all arguments for command substitutions.  For
                 # body-taking commands (``proc``, ``namespace eval``,
                 # ``catch``, etc.) the args are source text re-parsed
@@ -888,6 +898,8 @@ def _scan_needed_imports(
                 needed.add("tcl_catch_result")
                 needed.add("tcl_catch_has_error")
                 needed.add("tcl_catch_set_ok_result")
+                needed.add("tcl_catch_options")
+                needed.add("tcl_error_full")
                 _scan_script(body)
             case IRTry(body=body, finally_body=finally_body):
                 _scan_script(body)
@@ -917,6 +929,7 @@ def _scan_needed_imports(
     # the top-level-var-mirror path in ``_emit_var_write_obj_impl``
     # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
+    needed.add("tcl_error_full")
     needed.add("tcl_eval")
     needed.add("tcl_ns_set")
     needed.add("tcl_ns_restore")
