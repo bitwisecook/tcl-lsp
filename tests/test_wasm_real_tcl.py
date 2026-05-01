@@ -3207,7 +3207,7 @@ class TestEncoding:
             ("puts [encoding system]\n", "utf-8\n"),
             (
                 "puts [encoding names]\n",
-                "ascii cp1252 identity iso8859-1 utf-8 utf-16 utf-16be utf-16le\n",
+                "ascii cp1252 identity iso8859-1 koi8-r utf-8 utf-16 utf-16be utf-16le\n",
             ),
             ("puts [encoding dirs]\n", "\n"),
         ],
@@ -3239,6 +3239,12 @@ class TestEncoding:
             ("encoding convertto utf-16 AB", "41004200"),
             # utf-16le with non-ASCII (é = U+00E9 → 0xE9 0x00)
             ("encoding convertto utf-16le café", "630061006600e900"),
+            # koi8-r: ASCII range passes through.
+            ("encoding convertto koi8-r abc", "616263"),
+            # koi8-r: cyrillic 'А' (U+0410) → 0xE1.
+            ("encoding convertto koi8-r \\u0410", "e1"),
+            # koi8-r: 'Русский' → 0xF2 0xD5 0xD3 0xD3 0xCB 0xC9 0xCA.
+            ("encoding convertto koi8-r \\u0420\\u0443\\u0441\\u0441\\u043A\\u0438\\u0439", "f2d5d3d3cbc9ca"),
         ],
     )
     def test_convertto_real_codec(self, script, expected_hex):
@@ -3262,6 +3268,13 @@ class TestEncoding:
             ('encoding convertfrom utf-16le [binary format H* "41004200"]', "AB"),
             # utf-16be
             ('encoding convertfrom utf-16be [binary format H* "00410042"]', "AB"),
+            # koi8-r: 0xE1 → 'А' (U+0410).
+            ('encoding convertfrom koi8-r [binary format H* "e1"]', "А"),
+            # koi8-r round-trip 'Русский'.
+            (
+                'encoding convertfrom koi8-r [binary format H* "f2d5d3d3cbc9ca"]',
+                "Русский",
+            ),
         ],
     )
     def test_convertfrom_real_codec(self, script, expected):

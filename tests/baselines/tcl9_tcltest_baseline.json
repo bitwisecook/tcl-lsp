@@ -315,10 +315,10 @@
       "subsystem": "io",
       "tcl_passed": 0,
       "tcl_total": 0,
-      "wasm_failed": 0,
-      "wasm_passed": 0,
-      "wasm_status": "run-trap",
-      "wasm_total": 0
+      "wasm_failed": 22,
+      "wasm_passed": 734,
+      "wasm_status": "partial",
+      "wasm_total": 779
     },
     {
       "stem": "io",

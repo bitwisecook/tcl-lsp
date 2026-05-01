@@ -664,17 +664,25 @@ _IO_BASELINE: dict[str, dict[str, object]] = {
     # chan.test — 42/42, fully green after the issue #270 ensemble
     # work landed.
     "chan": {"min_passed": 42, "max_failed": 0},
-    # The remaining three suites still trap before tcltest summary in
-    # paths outside the umbrella's six sub-issues:
-    #   * ``chanio.test`` — depends on a koi8-r codec (encoding
-    #     subsystem only ships iso8859-1 / ascii / cp1252 / utf-16).
-    #   * ``io.test``     — integer-panic in a Zig-side cast.
-    #   * ``ioCmd.test``  — ``close`` arity check (``close: missing
-    #     channelId``) hits before ``Tcl_BadChannelOption`` rendering.
-    # Each of these is its own follow-up sub-issue; until they land,
-    # the gate only enforces "still compiles + still traps cleanly".
-    "chanio": {"trap_ok": True},
+    # chanio.test — now reaches the tcltest summary line after the
+    # koi8-r codec landed in this branch (734/779 passing locally).
+    # Residual failures are expected from missing multi-byte codecs
+    # (shiftjis / iso2022-jp / jis0208 / euc-jp …) and reflected-
+    # channel features that are explicit out-of-scope items in #270
+    # / #274.  Tolerance band is generous so a small wobble doesn't
+    # flap the gate.
+    "chanio": {"min_passed": 700, "max_failed": 50},
+    # io.test — still traps with a debug-build integer-overflow check
+    # in ``valtypes.tcl_obj.obj_new_string`` when linear memory grows
+    # past the 2 GiB boundary.  The leak underlying that growth is a
+    # separate ticket (recommended follow-up); the gate stays
+    # ``trap_ok`` until the leak is fully chased down.
     "io": {"trap_ok": True},
+    # ioCmd.test — bare ``close`` arity error goes through the
+    # interpreter's eval-script fallback in a way that bypasses the
+    # surrounding ``catch`` (catch+command-substitution interaction
+    # bug — recommended follow-up).  Until that lands the gate is
+    # ``trap_ok``.
     "ioCmd": {"trap_ok": True},
 }
 
