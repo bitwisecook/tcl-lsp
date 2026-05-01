@@ -778,8 +778,9 @@ to the chunk-log entry that has the full spec.
 
 | Priority | Chunk | Why now |
 |---|---|---|
-| 1 | `C41-default-on-followups-postpass` (= ``C42``) | Largest analyser-followup chunk.  Port ``run_compiler_checks`` integration (W110 / W220 / W304 / W101 / W105 / W116 / W117) so ``rust.diagnostics = python.diagnostics`` retires.  Depends on the IR / CFG / SSA pipeline being reachable from the Rust analyser — already true via ``compilation_unit::CompilationUnit``. |
-| 2 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question. |
+| 1 | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Sync gaps surfaced by the 2026-04-30 → 2026-05-01 main-rebase audit.  Eleven scoped sub-chunks tracking changes that landed on `main` while the rust workstream was open and that affect a Rust mirror.  Order matters: `SYNC1` (`arg_role_resolver` → multi-role frozenset) unblocks `SYNC4` / `SYNC5` / `SYNC6` (SSA fallout); `SYNC7` (canonical command names on IR) unblocks the rest of the `#246` body-kind canonicalisation.  See the per-chunk sub-plans below. |
+| 2 | `C41-default-on-followups-postpass` (= ``C42``) | Largest analyser-followup chunk.  Port ``run_compiler_checks`` integration (W110 / W220 / W304 / W101 / W105 / W116 / W117) so ``rust.diagnostics = python.diagnostics`` retires.  Depends on the IR / CFG / SSA pipeline being reachable from the Rust analyser — already true via ``compilation_unit::CompilationUnit``. |
+| 3 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question. |
 | — | `ARCH0` … `ARCH9` | Landed.  Initial crate-and-registry cleanup (ARCH0–ARCH4) plus the post-cleanup follow-ups (ARCH5–ARCH9): pure LSP feature crate, typed hook IDs, registry-driven hook dispatch, registry-owned diagnostics facts, codegen registry threading, `SubCommand::traits` for subcommand-shaped facts, `tcl-lsp-rust` binding-only audit, `tcl-lsp-server` bootstrap, and `tcl-lsp-py` public binding crate.  See chunk log and `docs/design/rust/current-architecture.md`. |
 | — | `S*` (LSP server) | Per-feature ports.  ARCH8 landed the `tcl-lsp-server` bootstrap with folding; subsequent providers (document symbols, hover, completion, semantic tokens, diagnostics, …) extend it one at a time, smallest first. |
 | — | `VM*`, `F*`, `REF*`, `IT*`, `DBG*`, `EXP*`, `AI*`, `BIG*`, `APL*`, `TK*`, `DIAG*`, `PKG*`, `XK*`, `SCR*` | The other top-level Python-retirement chunks.  See the chunk-log rows for scope. |
@@ -884,6 +885,17 @@ by per-feature LSP server ports (`S*`) building on the
 | C36   | **Factory specialisation pass + `subst -nocommands`.** See the C36 sub-plan below. | landed |
 | C33   | **`var_escape` flow-sensitive analysis (5 strips).** See the C33 sub-plan below. | landed |
 | C40   | **`signature_scan.py` Rust port (5 sub-strip families, 37 strips).** See the C40 sub-plan below. | landed (default-on; `TCL_LSP_RUST_SIGNATURE_SCAN=0` opt-out) |
+| **SYNC1** | **Registry — multi-role `arg_role_resolver` return type.** Mirror `#252` (`8c95c2ee` / `38d90003` / `91daf5c2`).  Widen `ArgRoleResolver` from `fn(&[&str]) -> Vec<(u8, ArgRole)>` to `fn(&[&str]) -> Vec<(u8, ArgRoleSet)>` (or equivalent multi-role return) and migrate static `arg_roles` arrays so an index can declare multiple roles (e.g. `dict with $var` arg 0 → `{VarRead, VarWrite}`) without the deleted `VarReadWrite` role.  See the SYNC1 sub-plan below. | planned |
+| **SYNC2** | **Registry — `BodyKind::STRUCTURAL` marking on OO/snit/uri.** Mirror `#246`/`#250` (`88970edc` + `91daf5c2`).  Add a `BodyKind` enum to `tcl-registry` with `Plain`/`Structural`/… variants and stamp `Structural` on the bodies of `oo::class`, `oo::abstract`, `oo::singleton`, `oo::configurable`, `oo::define`, `oo::objdefine`, `snit::method`, `snit::typemethod`, and `uri::register` so SSA suppresses scanning those bodies as caller-scope flow.  See the SYNC2 sub-plan below. | planned |
+| **SYNC3** | **Registry — `body_arg_implicit_args` field.** Mirror `#308` (`e30b6ae9`).  New optional `body_arg_implicit_args: u8` on `CommandSpec` / `SubCommand` recording how many runtime-supplied args a `Body` argument receives (e.g. `fileutil::updateInPlace` callback gets the file contents appended).  Analyser threads it through `_check_proc_call_arity` so command-prefix appended args don't trip E002.  See the SYNC3 sub-plan below. | planned |
+| **SYNC4** | **SSA — registry-driven `trace add variable` VAR_WRITE.** Mirror `#249` (`01326b40`).  Drop the `command == "trace" && args[0] == "add" && args[1] == "variable"` string match in `rust/tcl-compiler/src/ssa.rs:130–134` and route the def discovery through `CommandRegistry::arg_indices_for_role(_, _, ArgRole::VarWrite)` (depends on SYNC1).  See the SYNC4 sub-plan below. | planned |
+| **SYNC5** | **SSA — scope-alias barrier guard.** Mirror `f87bc090`.  Skip `global` / `variable` (and any spec carrying `creates_dynamic_barrier=true`) when materialising VAR_WRITE defs from the registry, so vararg `global x y z` doesn't produce partial defs.  See the SYNC5 sub-plan below. | planned |
+| **SYNC6** | **SSA — `dict with` / `dict update` `reads_own_def` flag.** Mirror `75d841e8`.  After SYNC4 plumbs the registry-driven dict-var def, also insert it into `reads_own_def` so the closing `(!defs.contains(v) || reads_own_def.contains(v))` filter at `ssa.rs:552` doesn't drop the dict variable.  See the SYNC6 sub-plan below. | planned |
+| **SYNC7** | **IR — canonical command name on `Statement::Call` / `Statement::Barrier`.** Mirror `#246` (`a042271a` + `9bd77464` + `1c8c4d98`).  Add a `canonical_command: Option<String>` field next to `command` on the two IR variants, populate it in `lowering` from the registry's canonical spelling, and consume it in places that currently re-resolve from source text (e.g. analyser var helpers, codegen hook lookup).  Unblocks the rest of the `#246` body-kind canonicalisation in the Rust pipeline.  See the SYNC7 sub-plan below. | planned |
+| **SYNC8** | **GVN — trace-aware purity.** Mirror `979883c2` + `8a6f4d58` + `6252aae1`.  Currently `rust/tcl-compiler/src/gvn.rs` has zero `trace`-related logic — it would mark traced commands as redundant and emit bogus `O105`/`O106` diagnostics under `trace add execution`.  Thread `traced_commands` and `has_dynamic_trace` from a new `IrModule`-equivalent into `is_pure_command` so calls to traced commands are never classified pure.  Depends on SYNC9 for the side-effect feed.  See the SYNC8 sub-plan below. | planned |
+| **SYNC9** | **Side-effects — propagate `trace add execution`.** Mirror `8a6f4d58`.  Update `rust/tcl-compiler/src/side_effects.rs` to lift `trace add execution` registrations into a per-module set so SYNC8 can read it, mirroring Python's IR capture.  See the SYNC9 sub-plan below. | planned |
+| **SYNC10** | **`expr_parser` — LRU-cached `parse_expr`.** Mirror `5056effe`.  Wrap `rust/tcl-compiler/src/expr_parser.rs:347 parse_expr` in a 4096-entry LRU keyed on `(source, dialect)`.  `ExprNode` is already cheaply cloneable (Arc-shareable) so the cached AST is safe to share.  Less urgent than SYNC1–SYNC9 — Python's hit was a VM-loop hot path; the Rust expr parser is currently driven by analyser one-shot calls — but worth landing before the VM port (`VM*`) starts driving it from a tight loop.  See the SYNC10 sub-plan below. | planned |
+| **SYNC11** | **LSP server — hover debounce / cache / worker offload contract.** Mirror `#301` (`95db2a70` + `c9c73a45` + `bfd3ed68`).  When the `S-hover` chunk lands on `tcl-lsp-server`, ship it with the same shape Python now treats as the documented contract: 30 ms debounce, `(uri, version, line, character)` LRU (256 entries), `tokio::task::spawn_blocking` offload, `Ok(None)` early-return when the cached analysis is missing, and `[timing] hover …` debug logs.  See the SYNC11 sub-plan below. | planned |
 | **C42** | **Reserved alias for `C41-default-on-followups-postpass`.** The `run_compiler_checks` post-pass integration is tracked under that row to keep the C41 followups co-located.  Stays in this list as a discoverable cross-reference. | see `C41-default-on-followups-postpass` |
 | **C43** | **Codegen + lowering hooks port** (`core/compiler/lowering_hooks/`, `core/compiler/codegen/_helpers.py`).  Rust workspace already has `lowering/` and `codegen/` directories carrying the bulk of the pipeline (C7-C21).  This chunk closes the remaining gaps by using registry-declared hook IDs, not command-name dispatch.  Each command form's hook is its own commit. | planned (after `ARCH1` / `ARCH2`) |
 | **ARCH0** | **LSP core crate split.** Create `rust/tcl-lsp-core/` as the pure LSP feature crate and move folding-range logic out of `rust/tcl-lsp-rust/`. The PyO3 crate keeps only the wrapper and Python materialisation. | landed |
@@ -2299,3 +2311,861 @@ under `make prep-pr`. Wire the analysis into
 `compiler_checks::run_all_checks` only after C33e lands so
 intermediate strips don't leak into Python diagnostics. The
 public-API `_api.py` module ports as part of C33e.
+
+### SYNC-MAY26 family — main rebase audit (2026-04-30 → 2026-05-01)
+
+These eleven sub-chunks track parity gaps surfaced by rebasing
+the rust workstream onto `main` after the 253-commit burst that
+landed between `6104b8a5` (2026-04-30) and `3e110b44`
+(2026-05-01).  All eleven items have a Rust mirror that is now
+stale; the rest of `main`'s landing themes (WASM AOT staircase
+S0–S6, WASM runtime, clock subsystem, Zig-runtime tests,
+fuzzing 4th backend, misc string/scan/io fixes) are out of scope
+because the corresponding Rust crates don't exist yet.
+
+Suggested order: `SYNC1 → SYNC4 / SYNC5 / SYNC6 → SYNC7 →
+SYNC2 / SYNC3 → SYNC9 → SYNC8 → SYNC10 → SYNC11`.  `SYNC1` is
+the registry-shape change every SSA fix depends on; `SYNC7`
+unblocks the body-kind canonicalisation surface; `SYNC9` feeds
+`SYNC8`; the rest are independent.
+
+Each sub-chunk lands as its own commit (or strip series) and
+keeps `make prep-pr` green at every step.  None of the sub-chunks
+flips a Python override on its own — the override retirement
+happens later, alongside the C41 followup family, when the Rust
+analyser surface matches Python's full post-`#246` shape.
+
+#### SYNC1 — Registry: multi-role `arg_role_resolver` return type
+
+**Source on main:** `8c95c2ee` (resolver returns
+`dict[int, frozenset[ArgRole]]`), `38d90003` (static `arg_roles`
+shape unification on 163 entries), `2db09231` (Copilot review
+follow-up).
+
+**Why:** Python deleted the `ArgRole.VAR_READ_WRITE` enum value
+along with the role-subsumption table at the query layer.  An
+argument that plays multiple roles now declares them directly as
+a frozenset.  `dict with` / `dict update` arg 0 is the canonical
+case: `frozenset({VAR_READ, VAR_WRITE})` instead of the old
+combined `VAR_READ_WRITE` value plus a subsumption-table lookup.
+The Rust `ArgRole` enum (`rust/tcl-registry/src/arg_role.rs`) is
+already correct in not having a `VarReadWrite` variant, but the
+resolver and the static `arg_roles` arrays still carry one role
+per index.
+
+**Steps:**
+
+1. **Type widening.**  `rust/tcl-registry/src/types.rs` —
+   change
+   ```rust
+   pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
+   ```
+   to either an explicit set type
+   ```rust
+   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+   pub struct ArgRoleSet(u16);
+   impl ArgRoleSet { pub fn insert(&mut self, role: ArgRole); pub fn contains(&self, role: ArgRole) -> bool; pub fn iter(&self) -> impl Iterator<Item = ArgRole>; }
+   pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRoleSet)>;
+   ```
+   or a thin newtype around `enumflags2::BitFlags<ArgRole>`.
+   Prefer the bit-set form — `ArgRole` has 13 variants today,
+   well within a `u16`, and the comparison/contains/iter cost is
+   the same as for `frozenset[ArgRole]` on the Python side.
+2. **Enum repr.**  Change `ArgRole` to `#[derive(enumflags2::BitFlags)]`
+   or assign explicit power-of-two `#[repr(u16)]` discriminants
+   for hand-rolled set storage.  Keep the existing variant names
+   so the rest of the workspace doesn't churn.
+3. **Static arrays.**  `rust/tcl-registry/src/spec.rs` and
+   `rust/tcl-registry/src/forms.rs` —
+   ```rust
+   pub arg_roles: &'static [(u8, ArgRole)],
+   ```
+   becomes
+   ```rust
+   pub arg_roles: &'static [(u8, ArgRoleSet)],
+   ```
+   Add a `const fn ArgRoleSet::single(role: ArgRole) -> Self`
+   so the existing per-spec literals can rewrite as
+   `(0, ArgRoleSet::single(ArgRole::Body))` without touching
+   200+ command files at once.  Land the type widening + the
+   constructor in commit 1; do the literal sweep across
+   `rust/tcl-registry/src/commands/**` in commit 2 (mostly a
+   `sed`).  Keep dispatch using the new shape from the start —
+   no temporary `From<(u8, ArgRole)>` conversion hop.
+4. **`arg_indices_for_role` rewrite.**
+   `rust/tcl-registry/src/registry.rs:142`.  Current shape
+   filters with `*r == role`; new shape filters with
+   `r.contains(role)`.  All four code paths (top-level static,
+   top-level resolver, subcommand static, subcommand resolver)
+   need the same edit.  No call-site change downstream — the
+   public method signature is unchanged.
+5. **`dict with` / `dict update` resolver.**  Locate the
+   existing `dict` resolver (search
+   `rust/tcl-registry/src/commands/tcl/dict.rs`) and update arg 0
+   for the `with` and `update` subcommands to declare both
+   `VarRead` and `VarWrite`.  This is the regression test fixture
+   for the type widening.
+6. **Tests.**
+   - New `tcl-registry::registry::tests::arg_indices_for_role_multirole`
+     pinning `dict with $var {}` arg 0 returns from both
+     `arg_indices_for_role(_, _, ArgRole::VarRead)` and
+     `arg_indices_for_role(_, _, ArgRole::VarWrite)`.
+   - Rename or extend the existing `arg_roles_for_static_command`
+     / `arg_roles_for_expr` tests.
+   - Add a roundtrip test that
+     `ArgRoleSet::single(ArgRole::Body).contains(ArgRole::Body)
+      && !ArgRoleSet::single(ArgRole::Body).contains(ArgRole::Expr)`.
+
+**Acceptance:**
+
+- `cargo check --workspace` clean, `cargo test --workspace`
+  green.
+- `dict with` / `dict update` arg 0 returns both reads-role and
+  writes-role from `arg_indices_for_role`.
+- No remaining single-role `Vec<(u8, ArgRole)>` in the public
+  `tcl-registry` surface.
+
+**Unblocks:** SYNC4, SYNC5, SYNC6.
+
+#### SYNC2 — Registry: `BodyKind::STRUCTURAL` marking on OO/snit/uri
+
+**Source on main:** `88970edc` (mark OO + snit + uri::register
+bodies as STRUCTURAL), `91daf5c2` (extend STRUCTURAL marking to
+`oo::objdefine` and remaining snit forms).  Closes `#250`,
+second slice of `#246`'s body-kind canonicalisation.
+
+**Why:** Bodies of `oo::class` (and the sister metaclasses
+`oo::abstract`, `oo::singleton`, `oo::configurable`),
+`oo::define`, `oo::objdefine`, `snit::method` /
+`snit::typemethod`, and `uri::register` run in a definition or
+dispatch context that is *not* the caller's scope.  Without
+`BodyKind::STRUCTURAL` SSA scans those bodies as part of the
+enclosing block's data flow — variable references inside a
+method body appear as reads/writes against the surrounding
+scope.
+
+The Rust registry has **no** `BodyKind` enum yet; the only
+mention of "Structural" in the Rust workspace is the doc comment
+on `rust/tcl-registry/src/commands/irules/proc.rs:3`.
+
+**Steps:**
+
+1. **`BodyKind` enum.**  New module
+   `rust/tcl-registry/src/body_kind.rs`:
+   ```rust
+   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+   #[non_exhaustive]
+   pub enum BodyKind {
+       #[default]
+       /// Body runs in the caller's frame; SSA should scan it as
+       /// part of the enclosing block's data flow.
+       Plain,
+       /// Body runs in a definition or dispatch context that is
+       /// not the caller's scope. SSA must skip the body when
+       /// scanning the enclosing block (the body still gets
+       /// analysed as its own scope).
+       Structural,
+   }
+   ```
+   Re-export from `lib.rs`.  Mirror the Python `BodyKind` enum's
+   variant names.  Resist adding more variants up front — Python
+   still only ships the two.
+2. **Spec field.**  Add `pub body_kind: BodyKind` to both
+   `CommandSpec` and `SubCommand` in
+   `rust/tcl-registry/src/spec.rs` (and the matching
+   `CommandForm` if `forms.rs` needs it for sub-form bodies).
+   Default to `BodyKind::Plain` in the `const`-empty constructors
+   so the existing 200+ specs don't need touching.  When/where a
+   spec already declares `arg_roles` containing
+   `(_, ArgRole::Body)`, the new field is the body's *kind* for
+   that index.
+3. **OO + snit + uri stamps.**  Update the affected specs:
+   - `rust/tcl-registry/src/commands/tcl/oo_class.rs` —
+     `body_kind: BodyKind::Structural` on the `create`, `new`,
+     and `createWithNamespace` subcommands.
+   - `rust/tcl-registry/src/commands/tcl/oo_define.rs` — the
+     script-form body and every script-bearing subcommand
+     (`constructor`, `destructor`, `method`, `classmethod`,
+     `initialise`, `initialize`, `private`, `self`, `property`).
+   - `rust/tcl-registry/src/commands/tcl/oo_objdefine.rs` (or
+     wherever the spec lives — `oo::objdefine` shares
+     `oo::define`'s resolver per the doc table at line 1034).
+   - Snit: locate or add specs for `snit::method` /
+     `snit::typemethod`; if they don't exist, this chunk also
+     adds them with `arg_roles: ArgRole::Body` on the body slot
+     plus `body_kind: BodyKind::Structural`.
+   - Add `uri::register` similarly (`tcllib` dialect — check
+     `rust/tcl-registry/src/commands/tcllib/`).
+4. **SSA consumer.**  In
+   `rust/tcl-compiler/src/ssa.rs::uses_of_in_block` (currently
+   around line 525 where `body_indices.contains(&idx)` skips
+   body args), the body-arg skip must additionally consult the
+   resolved spec's `body_kind`.  The simplest way: have
+   `uses_of_in_block` ask the registry not just *which indices
+   are bodies* but also *which body indices are structural*; for
+   the structural ones, the body content is excluded as it is
+   today, but the body's own scope analysis happens elsewhere
+   (already the case today via the OO analyser /
+   `_handle_oo_class_command` Python equivalent).  No change to
+   the Python-shim materialiser is needed — Rust just stops
+   double-counting var refs inside method bodies.
+5. **Tests.**
+   - `tcl-registry::tests::body_kind_default_plain` — every
+     non-OO/snit/uri spec defaults to `Plain`.
+   - `tcl-registry::tests::body_kind_oo_class_method_structural`
+     and one each for `oo::define::method`, `snit::method`,
+     `snit::typemethod`, `uri::register`.
+   - `tcl-compiler::ssa::tests::structural_body_excluded_from_uses` —
+     a fixture invoking `oo::class create C { method m {} { set x
+     1 } }` outside a `proc` and asserting `x` is *not* in the
+     enclosing scope's `uses_of` result.
+
+**Acceptance:**
+
+- The OO/snit/uri body args no longer flow var refs into the
+  enclosing block's SSA analysis.
+- `cargo test --workspace` green.
+- Differential corpus
+  (`tests/test_rust_analyser_differential.py` /
+  `tests/test_rust_signature_scan_differential.py`) shows no
+  regression.
+
+#### SYNC3 — Registry: `body_arg_implicit_args` field
+
+**Source on main:** `e30b6ae9` ("analyser: account for
+command-prefix appended args in proc arity check").  Fixes `#308`.
+
+**Why:** `fileutil::updateInPlace ?options? path cmd` invokes
+`cmd` as a command prefix with the file contents appended at
+runtime.  Treating `cmd` as a literal Tcl script body causes
+E002 to fire on the first command of the body when its proc
+requires parameters that the runtime supplies implicitly.
+
+The Rust spec for `fileutil::updateInPlace` exists
+(`rust/tcl-registry/src/commands/tcllib/fileutil__updateinplace.rs`)
+but doesn't carry the new field, so the Rust analyser will keep
+mis-firing E002.
+
+**Steps:**
+
+1. **Spec field.**  Add
+   `pub body_arg_implicit_args: u8` (default 0) to both
+   `CommandSpec` and `SubCommand`.  Document: "How many runtime-
+   supplied positional args the body's first command receives.
+   Used by `_check_proc_call_arity` to relax static arity bounds
+   on a Body-marked argument.".  Default 0 keeps every existing
+   spec correct.
+2. **Stamp `fileutil::updateInPlace`.**  Set
+   `body_arg_implicit_args: 1` on the existing spec.
+3. **Analyser plumb-through.**  `rust/tcl-compiler/src/analyser/`
+   — locate the proc-call arity check (search
+   `_check_proc_call_arity` equivalent in `commands.rs` or
+   `handlers.rs`).  When dispatching into a Body argument, look
+   up the parent spec's `body_arg_implicit_args` and stash it on
+   a one-shot carry slot before the first top-level command of
+   the body is processed.  Nested bodies do **not** inherit the
+   offset (per the Python implementation —
+   `core/analysis/_analyser/_core.py`).  The arity check
+   consumes the carry slot and adds the implicit count to the
+   actual-arg-count when comparing against the proc's static
+   arity bounds.
+4. **Tests.**
+   - `tcl-registry::tests::body_arg_implicit_args_default_zero`.
+   - `tcl-registry::tests::body_arg_implicit_args_fileutil_updateinplace`.
+   - `tcl-compiler::analyser::tests::body_arg_implicit_args_relaxes_arity` —
+     define a single-arg proc, invoke
+     `fileutil::updateInPlace foo procname`, assert no E002 on
+     `procname` (without `body_arg_implicit_args` it would fire
+     because the proc's required arity is 1 and the call site
+     passes 0 args).
+5. **Python parity check (one-off).**
+   - Mirror `tests/test_analyser.py` for `#308`'s shape if the
+     Rust analyser test surface allows; otherwise leave it to
+     the differential corpus.
+
+**Acceptance:**
+
+- `fileutil::updateInPlace` callback procs no longer trigger E002
+  in the Rust analyser.
+- Other Body-marked arguments still get standard arity-checked.
+
+#### SYNC4 — SSA: registry-driven `trace add variable` VAR_WRITE
+
+**Source on main:** `01326b40` ("ssa: route `trace add variable`
+defs through registry for #249").
+
+**Why:** `rust/tcl-compiler/src/ssa.rs:130–134` still
+string-matches:
+```rust
+Statement::Barrier { command, args, .. } => {
+    if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
+        defs.insert(normalise_var_name(&args[2]).to_owned());
+    }
+    …
+}
+```
+This was the last hardcoded command-name special case left in
+Python's `ssa.py` and `01326b40` retired it by declaring the def
+on the spec itself: `trace add variable name ops body` registers
+a hook whose body can rewrite `name` at runtime, so SSA must see
+`name` as a definition site, and the spec is the right place to
+say so.  The Rust SSA needs the same treatment so future trace
+spellings (`::trace`, alias forms, any new dialect spelling)
+flow through the registry without code edits.
+
+**Depends on:** SYNC1 (multi-role resolver).
+
+**Steps:**
+
+1. **Spec stamp.**  In the trace spec
+   (`rust/tcl-registry/src/commands/tcl/trace.rs`), declare arg
+   2 (the variable name) of the `add variable` subcommand as
+   `ArgRole::VarWrite`.  After SYNC1 this is just an
+   `arg_roles: &[(2, ArgRoleSet::single(ArgRole::VarWrite))]`
+   on the relevant subcommand entry.
+2. **`defs_of` rewrite.**  In `rust/tcl-compiler/src/ssa.rs`
+   replace the trace-string-match arm with a registry-driven
+   query:
+   ```rust
+   Statement::Barrier { command, args, .. } => {
+       for idx in registry.arg_indices_for_role(command, &args.iter().map(|s| s.as_str()).collect::<Vec<_>>(), ArgRole::VarWrite) {
+           if let Some(arg) = args.get(idx) {
+               let name = normalise_var_name(arg);
+               if !name.is_empty() { defs.insert(name.into_owned()); }
+           }
+       }
+       // dict for/map barriers stay as a separate match arm —
+       // their iteration variables come from a structured-body
+       // scan, not from a registry role.
+   }
+   ```
+   The `dict for` / `dict map` arms stay as today (they extract
+   iteration variable names from a structured body, not from a
+   role-tagged arg).
+3. **Plumb the registry.**  `defs_of` is currently registry-less
+   (signature `defs_of(stmt: &Statement) -> Vec<String>`).  Add a
+   `&CommandRegistry` parameter; update call sites in `ssa.rs`,
+   `def_use.rs`, `cfg_builder/`, and `ir_helpers.rs` to thread
+   the registry in.  This is the same plumbing pattern ARCH5 used
+   for codegen.
+4. **Tests.**
+   - `tcl-compiler::ssa::tests::trace_add_variable_defines_via_registry` —
+     replaces the existing trace-string-match test.  Asserts
+     `defs_of` returns `["x"]` for the `Statement::Barrier`
+     produced by `trace add variable x write …`.
+   - `tcl-compiler::ssa::tests::trace_alias_forms_define` —
+     asserts `::trace add variable x …` produces the same def
+     (proves the registry routing covers alias spellings).
+
+**Acceptance:**
+
+- Zero string-matches on `"trace"` in `ssa.rs::defs_of`.
+- The differential corpus
+  (`tests/test_rust_lexer_warnings.py` /
+  `tests/test_rust_signature_scan_differential.py`) shows no
+  regression.
+
+**Unblocks:** SYNC6.
+
+#### SYNC5 — SSA: scope-alias barrier guard
+
+**Source on main:** `f87bc090` ("ssa: skip scope-alias barriers
+in registry VAR_WRITE def-tracking").  Review concern on `#256`.
+
+**Why:** Once SYNC4 routes barrier defs through the registry, a
+naive `for idx in arg_indices_for_role(_, _, VarWrite)` walk
+would *also* walk `global` and `variable` barriers — both
+declare `arg_roles={0: VAR_WRITE}` plus
+`creates_dynamic_barrier=true`.  The static role only points at
+arg 0, which would silently produce **partial** defs for the
+vararg forms: `global x y z` would mark `x` and miss `y` / `z`.
+
+The right discriminator is `creates_dynamic_barrier` — those
+barriers describe arbitrary-arity scope aliasing; the analyser
+already handles them through `var_scoping` (`C24b4`'s
+`global_declaration_indices` /
+`variable_declaration_indices`).  SSA should skip them.
+
+**Steps:**
+
+1. **Trait check.**  In `rust/tcl-compiler/src/ssa.rs::defs_of`
+   (the new SYNC4 form), gate the registry walk on
+   ```rust
+   if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER) {
+       // var_scoping handles the per-arg list; SSA must not
+       // produce partial defs from arg_roles[0].
+       return;
+   }
+   ```
+   Verify `Traits::CREATES_DYNAMIC_BARRIER` exists in
+   `tcl-registry::Traits`; if not, add it (the bit is already
+   declared on the Python side as `creates_dynamic_barrier=True`
+   on the relevant specs).  Stamp it on `global`, `variable`,
+   `upvar`, and any other spec that already carried the
+   equivalent in Python.
+2. **Tests.**
+   - `tcl-compiler::ssa::tests::global_vararg_no_partial_defs` —
+     `global x y z` produces *no* defs from the registry path
+     (the var_scoping handler picks up all three separately).
+   - `tcl-compiler::ssa::tests::variable_vararg_no_partial_defs`
+     for the `variable` form.
+3. **Optional cross-check.**  Confirm
+   `core/compiler/ssa.py::_defs` for the Python parity behaviour
+   and copy-paste the relevant comment into the Rust source so
+   the next reader doesn't re-introduce the partial-def bug.
+
+**Acceptance:**
+
+- No partial defs from `global` / `variable` barriers in SSA.
+- Existing var_scoping-driven tests for
+  `global` / `variable` / `upvar` still pass.
+
+#### SYNC6 — SSA: `dict with` / `dict update` `reads_own_def` flag
+
+**Source on main:** `75d841e8` ("ssa: dict with/update — flag
+dict var as reads-own-def to avoid filter").
+
+**Why:** The `dict with` / `dict update` arg-0 dict variable
+carries both `ArgRole::VarRead` and `ArgRole::VarWrite`.  Once
+SYNC1 unifies the resolver shape and SYNC4 routes barrier defs
+through the registry, the IRBarrier `_uses` path will correctly
+add the variable to `vars_found` via the VarRead query, *and*
+correctly add it to `defs` via the VarWrite query.  But the
+closing filter at `ssa.rs:552`
+(`!defs.contains(v) || reads_own_def.contains(v)`) will then
+drop it because the same name appears in both sets and was never
+marked as reads-own-def.  Result: a proc whose only reference to
+a parameter is `dict with $param {}` produces a false unused-
+parameter diagnostic.
+
+**Depends on:** SYNC1, SYNC4.
+
+**Steps:**
+
+1. **Insert into `reads_own_def`.**  In
+   `rust/tcl-compiler/src/ssa.rs:533` (the existing
+   `dict with` / `dict update` branch), keep the existing
+   `vars_found.insert(dict_var)` and *also* add
+   `reads_own_def.insert(dict_var)`.  After SYNC4 the same
+   information could be expressed as "any arg whose
+   `ArgRoleSet` contains both VarRead and VarWrite implies
+   reads-own-def" — pick whichever expression matches the
+   existing `incr` / `append` / `lappend` reads-own-def emission
+   in `defs_of`'s call arm.  The role-set form is preferred
+   because it generalises beyond `dict`, but the local
+   special-case is acceptable as a scoped fix.
+2. **Tests.**
+   - `tcl-compiler::ssa::tests::dict_with_param_not_unused` — a
+     proc body of `dict with $param {}` should *not* produce an
+     unused-parameter diagnostic for `param`.  Mirrors the
+     Python regression test added in `75d841e8`.
+3. **Comment.**  Inline reference: `// Mirrors the
+   reads-own-def hop on dict with/update — see ssa.py
+   _uses for the Python-side comment.`.
+
+**Acceptance:**
+
+- The unused-parameter false positive on `dict with $param {}`
+  is gone.
+
+#### SYNC7 — IR: canonical command name on `Statement::Call` / `Statement::Barrier`
+
+**Source on main:** `a042271a` ("canonicalisation: stamp
+canonical command names on IRCall/IRBarrier (#246)"),
+`9bd77464` ("route get_wasm_hook through bare-name fallback"),
+`1c8c4d98` ("split source vs canonical command in WASM emit"),
+plus the two follow-up matrices `b5549b03` and `a03235fe`.
+
+**Why:** Python's `IRCall` / `IRBarrier` now carry a `command`
+*plus* a separate `canonical_command` field.  `command` is the
+spelling that appeared in the source (so diagnostics can render
+the original surface form); `canonical_command` is the
+registry's canonical name (so codegen / analyser / var helpers
+all dispatch through one stable string).  This split was needed
+because the same command can reach the IR via multiple
+spellings — bare name, `::`-qualified, alias-resolved,
+namespace-imported — and downstream consumers want one stable
+key without re-resolving from text on every lookup.
+
+The Rust `Statement::Call` and `Statement::Barrier` (`ir.rs:205`
+and `ir.rs:241`) only carry a single `command: String`.  Today
+the rest of the Rust pipeline re-resolves canonical names on
+demand; once canonical-name-aware code starts landing
+(structural body-kind dispatch, taint trait lookup,
+trace-aware GVN), each of those sites would re-resolve
+independently and drift.
+
+**Steps:**
+
+1. **IR field.**  Add
+   `pub canonical_command: Option<String>` next to `command` on
+   both `Statement::Call` and `Statement::Barrier`.  `Option`
+   so the field can land empty in commit 1 and be filled in
+   incrementally.
+2. **Lowerer populates it.**  `rust/tcl-compiler/src/lowering/`
+   — at every site that constructs `Statement::Call` /
+   `Statement::Barrier`, look up the resolved spec via
+   `CommandRegistry::resolve` (or the equivalent
+   `ResolvedCall::canonical_name()` accessor; add it if
+   missing) and store the canonical name.  For unresolved
+   commands (registry miss), leave the field `None`.  The
+   `Lowerer` already has the registry in scope.
+3. **Helpers consume it.**  Add
+   `Statement::canonical_command_or_source() -> &str` (returns
+   `canonical_command.as_deref().unwrap_or(command)`) so
+   callers don't re-implement the fallback.  Migrate the
+   following call sites to use it (search
+   `Statement::Call { command,` / `Statement::Barrier { command,`):
+   - `rust/tcl-compiler/src/ssa.rs::defs_of` (after SYNC4 lands).
+   - `rust/tcl-compiler/src/gvn.rs::is_pure_command` /
+     `is_worth_reporting`.
+   - `rust/tcl-compiler/src/side_effects.rs::classify_side_effects`
+     entry.
+   - `rust/tcl-compiler/src/codegen/statements.rs::emit_call`
+     hook lookup (codegen-hook dispatch is the most-affected
+     consumer).
+   - `rust/tcl-compiler/src/var_escape/*` handlers that consult
+     the command name.
+4. **Codegen rendering.**  Where diagnostics or emitted source
+   text reproduces the *source-surface* command name (e.g.
+   `analyser::diagnostics`), keep using `command`.  Where
+   dispatch happens, switch to `canonical_command_or_source()`.
+   Document this rule inline at the top of `ir.rs` near the
+   field declaration.
+5. **Equality + Hashing.**  `Statement` already derives
+   `PartialEq` / `Eq` / `Hash` (or the equivalent).  Adding
+   `Option<String>` participates in those derives — verify the
+   differential corpus diff is empty for fixtures whose
+   canonical and source names match.  For fixtures where they
+   diverge (alias spellings), update the expected outputs.
+6. **Tests.**
+   - `tcl-compiler::lowering::tests::canonical_command_alias` —
+     `interp alias {} foo {} ::ns::bar; foo 1 2` lowers to a
+     `Statement::Call` with `command == "foo"` and
+     `canonical_command == Some("::ns::bar")`.
+   - `tcl-compiler::lowering::tests::canonical_command_unresolved` —
+     unknown command lowers with `canonical_command == None`.
+7. **Out of scope (defer to a follow-up):** the WASM-emit split
+   (`1c8c4d98`) is purely a Python-side concern (Rust has no
+   WASM emit yet); call out in the IR doc-comment that the
+   field exists for future Rust-side WASM emit too.
+
+**Acceptance:**
+
+- All `Statement::Call` / `Statement::Barrier` produced by the
+  lowerer carry the canonical name when the registry resolves
+  the command.
+- Downstream dispatch sites query `canonical_command` (with
+  `command` fallback) instead of re-resolving from text.
+
+**Unblocks:** the rest of `#246`'s body-kind canonicalisation
+fan-out (taint trait lookup, GVN purity, var-escape handlers).
+
+#### SYNC8 — GVN: trace-aware purity
+
+**Source on main:** `979883c2` ("gvn,optimiser: hoist trace
+lookups and thread traces into when-body scan"), `8a6f4d58`
+("ir: capture trace add execution and propagate to side-effect
+classification"), `6252aae1` ("ir: tighten trace literal-target
+detection and remove-match semantics").  Issue `#251`.
+
+**Why:** `core/compiler/gvn.py` now consumes
+`traced_commands: set[str]` and `has_dynamic_trace: bool` from
+`IRModule.traced_commands` / `IRModule.has_dynamic_trace`.
+Calls to a command with an active execution trace are never
+pure because the trace body composes side-effects in.  Without
+this hop, GVN replaces a traced call's second invocation with
+the previous SSA value — but the trace might have been
+re-armed, mutated state, or even cancelled the call — so the
+optimisation is unsound.
+
+`rust/tcl-compiler/src/gvn.rs` has zero `trace`-related logic
+today.  Currently it would mark traced commands as redundant,
+leading to bogus `O105` / `O106` diagnostics under traces and
+(once the rust pipeline drives codegen) silently-wrong bytecode.
+
+**Depends on:** SYNC9 (side-effects feed).
+
+**Steps:**
+
+1. **`Module` extension.**  Add the two new fields to
+   `Module` in `rust/tcl-compiler/src/ir.rs`:
+   ```rust
+   pub traced_commands: BTreeSet<String>,
+   pub has_dynamic_trace: bool,
+   ```
+   Mirror the Python `IRModule` shape.  Default to empty / false
+   for callers that don't populate them yet.
+2. **Threading.**  Update `find_redundancies` (line ~1 of
+   `gvn.rs::C26d`) to take an additional
+   `module: &crate::ir::Module` parameter (or a
+   `traced: &TraceFacts` struct holding the two fields).  Update
+   `is_pure_command` (`gvn.rs::C26c`) to early-return `false`
+   when:
+   - `has_dynamic_trace` is true (any trace add execution with
+     a non-literal command target — every call could have a
+     trace registered), or
+   - `traced_commands.contains(canonical_command_or_source())`
+     (after SYNC7's canonical name is available; until then,
+     fall back to `command`).
+   Mirror `core/compiler/gvn.py:151–158` exactly.
+3. **`is_worth_reporting` parity.**  The Python helper takes
+   the same flags so the partial-redundancy / loop-invariant
+   passes also skip traced commands.  Update the Rust
+   `find_partial_redundancies` (`gvn.rs::C26e3`) and
+   `find_loop_invariants` (`gvn.rs::C26e2`) to thread the same
+   parameter through.
+4. **Tests.**
+   - `tcl-compiler::gvn::tests::traced_command_not_pure` —
+     `trace add execution foo enter handler; foo a; foo a` does
+     **not** emit `O105`.
+   - `tcl-compiler::gvn::tests::has_dynamic_trace_inhibits_all` —
+     `trace add execution $cmd enter handler; foo a; foo a` does
+     **not** emit `O105`.  (`$cmd` non-literal → dynamic trace.)
+   - `tcl-compiler::gvn::tests::untraced_command_still_pure` —
+     regression: untraced pure commands still get O105.
+5. **Doc comment.**  At the top of
+   `gvn.rs::is_pure_command`, copy the Python comment from
+   `gvn.py:119–127`:
+   > `traced_commands` and `has_dynamic_trace` come from
+   > `IRModule.traced_commands` / `IRModule.has_dynamic_trace`
+   > — calls to a command with an active execution trace are
+   > never pure because the trace body composes side-effects in
+   > (issue #251).
+
+**Acceptance:**
+
+- Bogus `O105` / `O106` / `O107` diagnostics under
+  `trace add execution` are gone.
+- The cargo tests above pin the no-regression case.
+
+#### SYNC9 — Side-effects: propagate `trace add execution`
+
+**Source on main:** `8a6f4d58` ("ir: capture trace add execution
+and propagate to side-effect classification").
+
+**Why:** The IR-builder needs to spot `trace add execution
+COMMAND TYPE BODY` and record the targeted command in
+`Module.traced_commands` (or `has_dynamic_trace=true` when
+`COMMAND` is non-literal).  Without this feed, SYNC8's GVN flag
+is always empty/false and the trace-awareness is dead code.
+
+**Depends on:** SYNC1 (clean dispatch on the `trace` spec).
+SYNC7 helps but isn't strictly required (the trace handler can
+use the source-text `command` field).
+
+**Steps:**
+
+1. **Spot the trace.**  In
+   `rust/tcl-compiler/src/lowering/` (or wherever `trace add
+   execution` lowers — search for the existing
+   `trace add variable` handling), add a sibling handler for
+   `trace add execution`.  Match the same dispatch pattern
+   SYNC4 uses for `trace add variable` (registry-driven
+   subcommand resolution).
+2. **Populate the module facts.**  The lowerer doesn't directly
+   own a `Module` — it produces a `Script` + `Procedure` set
+   that `Module::from_*` later assembles.  Add a side-channel
+   on the `Lowerer` state: `traced_commands: BTreeSet<String>`
+   + `has_dynamic_trace: bool`.  `Module::lower_*` constructors
+   drain those into the module fields.  Pattern: same as the
+   existing way the lowerer threads `procedures` /
+   `unknown_proc_info` out of recursive lowering.
+3. **Literal vs dynamic.**  Mirror the Python rules:
+   - If arg `COMMAND` parses as a literal scalar (no `$` / `[`),
+     insert it into `traced_commands` (canonicalised — strip
+     the surrounding `"…"` if quoted; resolve aliases via the
+     registry the same way SYNC7 does).
+   - Otherwise, set `has_dynamic_trace = true` and skip the
+     specific insertion.
+4. **Side-effects classifier hook.**  Update
+   `rust/tcl-compiler/src/side_effects.rs::classify_side_effects`
+   so it can also pick up the `traced_commands` set when called
+   in module-aware mode (some callers have the module in scope
+   and want the same trace-awareness in side-effect
+   classification).  Add a new
+   `classify_side_effects_in_module(registry, module, cmd, args,
+   dialect, callee_summary)` entry point that consults the
+   module's `traced_commands` and `has_dynamic_trace` to widen
+   pure → may-side-effect for any traced call.  Keep the
+   existing `classify_side_effects(...)` for callers that don't
+   have a module.
+5. **Tests.**
+   - `tcl-compiler::lowering::tests::trace_add_execution_literal_recorded` —
+     `trace add execution foo enter handler` produces
+     `module.traced_commands == {"foo"}`.
+   - `tcl-compiler::lowering::tests::trace_add_execution_dynamic_widens` —
+     `trace add execution $cmd enter handler` produces
+     `has_dynamic_trace == true`.
+   - `tcl-compiler::lowering::tests::trace_add_execution_alias_canonicalised` —
+     `interp alias {} foo {} ::ns::bar; trace add execution foo …`
+     records the canonical `::ns::bar` (after SYNC7).
+
+**Acceptance:**
+
+- `Module::traced_commands` / `Module::has_dynamic_trace` are
+  populated correctly across the differential corpus.
+- SYNC8's traced-command-not-pure tests pass once SYNC9 is the
+  feed.
+
+#### SYNC10 — `expr_parser` LRU-cached `parse_expr`
+
+**Source on main:** `5056effe` ("parsing: memoise parse_expr to
+skip per-iteration loop overhead").  4096-entry LRU keyed on
+`(source, dialect)`.
+
+**Why:** Python's hit was a VM-loop hot path —
+`for {set i 0} {$i < 10000} {incr i} { … }` re-tokenises and
+re-parses the loop condition on every iteration.  After the
+cache, that workload went from 17.10s to 5.04s (3.4x).  The
+Rust `parse_expr` (`rust/tcl-compiler/src/expr_parser.rs:347`)
+has no cache.  Currently this is fine — the Rust expr parser is
+called once-per-invocation by the analyser, not in a tight VM
+loop — but it becomes hot the moment the VM port (`VM*`) starts
+driving the Rust expr parser.  Land before the VM port to avoid
+a perf regression at port time.
+
+**Steps:**
+
+1. **Cache primitive.**  Pull in a single-purpose LRU.  Pick
+   one:
+   - `moka` — feature-rich, async-aware, slightly heavier.
+   - `lru` — minimal, single-thread.
+   - Hand-roll a tiny `Mutex<HashMap<…> + VecDeque<…>>`.
+   The `tcl-compiler` crate is already depending on a few
+   small infra crates; pick whichever is closest to the cargo
+   dependency budget the workspace allows.  `moka` is the
+   safest choice if the cache will later be shared across
+   threads (the LSP server's analyse worker pool will).
+2. **Key shape.**  `(source: String, dialect: Option<String>)`
+   — cloning the source for the key on every call is fine for
+   the Python-parity behaviour but cheaper to hash a `&str` and
+   only allocate on insert.  Use `moka::sync::Cache<(String,
+   Option<String>), Arc<ExprNode>>` and return
+   `Arc<ExprNode>` from the public `parse_expr_cached`.
+3. **Public function.**  Either add a sibling
+   `parse_expr_cached(source: &str, dialect: Option<&str>) ->
+   Arc<ExprNode>` that delegates to the existing `parse_expr`
+   on miss, or replace the existing `parse_expr` outright (the
+   current callers all call it once per source).  Prefer the
+   sibling approach — the `analyser` callers don't need the
+   cache and shouldn't pay the `Arc`-bump cost.  The VM port
+   imports the cached form.
+4. **Capacity.**  4096 entries to match Python.  Document the
+   number inline so the next reader doesn't have to reach for
+   the Python source.
+5. **Eviction observability.**  Optional but cheap:
+   `tracing::trace!` an entry on every miss with the
+   `(source.len(), dialect)` so the LSP server's debug log can
+   show cache hit ratios without the `RUST_LOG=trace` user
+   needing to read source.
+6. **Tests.**
+   - `expr_parser::tests::parse_expr_cached_identity` — two
+     calls with the same `(source, dialect)` return
+     `Arc::ptr_eq` results.
+   - `expr_parser::tests::parse_expr_cached_dialect_distinct`.
+   - `expr_parser::tests::parse_expr_cached_whitespace_sensitive`
+     — `"$x  +  1"` and `"$x + 1"` produce distinct entries
+     (Python parity — the cache key is the source string, not
+     the parsed AST).
+   - `expr_parser::tests::parse_expr_cached_capacity_eviction`
+     — fill past 4096 entries, assert oldest evicted.
+
+**Acceptance:**
+
+- `cargo bench` (or a scoped `--release` regression script) on a
+  10k-iter `for` loop driven by the Rust VM port (when it
+  exists) shows the same 3-4x improvement Python saw.  Until
+  the VM port lands this acceptance criterion is "no
+  regression on the existing analyser-driven benchmarks", which
+  is automatic.
+
+#### SYNC11 — LSP server: hover debounce / cache / worker offload contract
+
+**Source on main:** `95db2a70` ("perf(hover): debounce, cache,
+and offload to worker thread (#301)"), `c9c73a45` ("review:
+defer _get_doc_source past no-analysis fast path; rename
+hit→has_result"), `bfd3ed68` ("review: post-compute supersession
+recheck and close-time cache invalidation").
+
+**Why:** Eldoc-style clients (Eglot) issue
+`textDocument/hover` on every cursor move.  The pre-`#301`
+Python handler ran synchronously on the event loop and called
+`analyse(source)` itself when the cached analysis wasn't ready,
+duplicating the work the diagnostics pipeline was already doing
+in a process pool.  After `#301`:
+- 30 ms debounce — superseded requests for the same URI return
+  `None` without doing any work.
+- LRU keyed on `(uri, version, line, character)` (256 entries).
+- Computation runs via `asyncio.to_thread`.
+- When `state.analysis is None` (fresh analysis still pending),
+  the handler returns `None` instead of running a duplicate
+  parse on the request thread.
+- `[timing] hover …` debug logs.
+
+`rust/tcl-lsp-server` only has the bootstrap + folding +
+document-symbols providers today (per the `S-document-symbols`
+chunk on line 900).  Hover hasn't been ported yet.  This
+sub-chunk is **not** the hover port itself — it's the contract
+the future `S-hover` chunk must follow so we don't ship a Rust
+LSP server with the same Eglot-stall regression Python had
+before `#301`.
+
+**Status today:** documented contract only.  Land the actual
+work as part of `S-hover`; this row exists so the next
+contributor doesn't have to re-discover the design.
+
+**Acceptance criteria for `S-hover` (when it lands):**
+
+1. **Debounce.**  Before computing, sleep 30 ms (configurable
+   via a constant); if a newer hover for the same URI has been
+   queued in the meantime (track via an
+   `AtomicU64::fetch_add`-ed token per URI), return
+   `Ok(None)`.  Pattern: same as the Python `_HoverDebouncer`
+   shape from `lsp/server.py`.
+2. **LRU cache.**  `moka::sync::Cache<(Url, i32, u32, u32),
+   Hover>` (URI, document version, line, char) with capacity
+   256.  Hit returns immediately.  Miss runs the computation
+   and stores.  Invalidate on `didClose` and on `didChange` for
+   the same URI (drop every key matching that URI).  The Python
+   implementation invalidates on close-time per the
+   `bfd3ed68` review.
+3. **Worker offload.**  Wrap the actual
+   `tcl_lsp_core::hover::hover(source, dialect, line, char)`
+   call in `tokio::task::spawn_blocking`.  The `tower-lsp`
+   handler is `async`; the core hover provider is a sync
+   pure-CPU function and shouldn't block the LSP event loop.
+4. **No-analysis fast path.**  Before computing, peek at the
+   cached `Analysis` on the `Backend`'s document state.  If
+   `None`, return `Ok(None)` — let the diagnostics pipeline
+   fill the cache and the next Eglot tick will hit it.  Per
+   `c9c73a45`, defer the `source = get_doc_source(uri)` call
+   until *after* the no-analysis early-return so the fast path
+   doesn't pay the document-store cost.
+5. **Timing logs.**  `tracing::debug!("hover: uri={} version={}
+   pos={}:{} elapsed={:?} cached={}", …)` so users can attach
+   numbers when reporting performance issues.
+6. **`get_hover` direct API.**  The pure provider in
+   `tcl-lsp-core` exposes a sync `hover(source, dialect, line,
+   char) -> Option<Hover>` that does **not** touch the cache or
+   the event loop.  Python's equivalent gained an
+   `analyse_if_missing` flag for direct callers (tests); the
+   Rust core takes a pre-computed `&Analysis` so the question
+   doesn't arise — the cache lives in the server crate, not the
+   provider.
+7. **Supersession recheck.**  Per `bfd3ed68`, after computing
+   on a worker thread, re-check whether a newer request for the
+   same URI superseded this one *before* writing to the cache;
+   if so, drop the result.  Otherwise the cache can populate
+   with stale-version results.
+
+**Tests.**
+- Smoke test along the lines of
+  `tests/document_symbols_smoke.rs`: drive
+  `initialize → didOpen → hover → didChange → hover` and
+  assert the second hover is computed afresh.
+- A focused unit test for the debouncer's supersession token.
+- A focused unit test for the cache's `didClose` invalidation.
+
+**Cross-reference:** `lsp/server.py::on_hover` (Python source
+of truth) and the three commits above for the design rationale.
