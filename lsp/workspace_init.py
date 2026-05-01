@@ -304,16 +304,11 @@ def on_initialized(params: types.InitializedParams) -> None:
         _state.project_config_settings = project_settings
 
     # Apply the current (global + project) layers so server state is
-    # populated before the first analysis pass.
+    # populated before the first analysis pass.  Editor settings are
+    # pulled per workspace folder near the end of this handler — the
+    # callback re-runs ``_apply_merged_settings_now`` with the populated
+    # editor layer.
     _apply_merged_settings_now()
-
-    # Pull the initial editor settings from the client per workspace
-    # folder.  Without this, per-folder ``.vscode/settings.json`` values
-    # only land after the client sends its first
-    # ``workspace/didChangeConfiguration`` notification — which some
-    # clients delay or batch, leaving formatting/diagnostics on initial
-    # requests using stale (default) configuration (issue #230).
-    _pull_and_apply_configuration()
 
     process_start = getattr(_server, "_process_start_time", None)
     if process_start is not None:

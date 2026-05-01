@@ -293,7 +293,7 @@ def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
     t0 = time.perf_counter()
-    if not feature_config.semantic_tokens_enabled:
+    if not _state.config_for_uri(params.text_document.uri).semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -351,7 +351,7 @@ def on_semantic_tokens_delta(
     uri = params.text_document.uri
     previous_result_id = params.previous_result_id
 
-    if not feature_config.semantic_tokens_enabled:
+    if not _state.config_for_uri(params.text_document.uri).semantic_tokens_enabled:
         return types.SemanticTokens(data=[])
 
     # Look up previous result for this URI.
@@ -439,7 +439,7 @@ def on_semantic_tokens_delta(
 def on_completion(
     params: types.CompletionParams,
 ) -> list[types.CompletionItem]:
-    if not feature_config.completion_enabled:
+    if not _state.config_for_uri(params.text_document.uri).completion_enabled:
         return []
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -503,7 +503,7 @@ def _hover_cache_put(key: tuple[str, int | None, int, int], value: types.Hover |
 
 @server.feature(types.TEXT_DOCUMENT_HOVER)
 async def on_hover(params: types.HoverParams) -> types.Hover | None:
-    if not feature_config.hover_enabled:
+    if not _state.config_for_uri(params.text_document.uri).hover_enabled:
         return None
     t0 = time.perf_counter()
     uri = params.text_document.uri
@@ -612,7 +612,7 @@ def _invalidate_hover_cache(uri: str) -> None:
 def on_definition(
     params: types.DefinitionParams,
 ) -> list[types.Location]:
-    if not feature_config.definition_enabled:
+    if not _state.config_for_uri(params.text_document.uri).definition_enabled:
         return []
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -685,7 +685,7 @@ def on_definition(
 def on_type_definition(
     params: types.TypeDefinitionParams,
 ) -> list[types.Location] | None:
-    if not feature_config.type_definition_enabled:
+    if not _state.config_for_uri(params.text_document.uri).type_definition_enabled:
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -713,7 +713,7 @@ def on_type_definition(
 def on_declaration(
     params: types.DeclarationParams,
 ) -> list[types.Location] | None:
-    if not feature_config.declaration_enabled:
+    if not _state.config_for_uri(params.text_document.uri).declaration_enabled:
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -737,7 +737,7 @@ def on_declaration(
 def on_references(
     params: types.ReferenceParams,
 ) -> list[types.Location]:
-    if not feature_config.references_enabled:
+    if not _state.config_for_uri(params.text_document.uri).references_enabled:
         return []
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -761,7 +761,7 @@ def on_references(
 def on_document_highlight(
     params: types.DocumentHighlightParams,
 ) -> list[types.DocumentHighlight] | None:
-    if not feature_config.document_highlight_enabled:
+    if not _state.config_for_uri(params.text_document.uri).document_highlight_enabled:
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -785,7 +785,7 @@ def on_document_highlight(
 def on_document_symbol(
     params: types.DocumentSymbolParams,
 ) -> list[types.DocumentSymbol]:
-    if not feature_config.document_symbols_enabled:
+    if not _state.config_for_uri(params.text_document.uri).document_symbols_enabled:
         return []
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -807,7 +807,7 @@ def on_document_symbol(
 def on_folding_range(
     params: types.FoldingRangeParams,
 ) -> list[types.FoldingRange]:
-    if not feature_config.folding_enabled:
+    if not _state.config_for_uri(params.text_document.uri).folding_enabled:
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -831,7 +831,7 @@ def on_folding_range(
 def on_rename(
     params: types.RenameParams,
 ) -> types.WorkspaceEdit | None:
-    if not feature_config.rename_enabled:
+    if not _state.config_for_uri(params.text_document.uri).rename_enabled:
         return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -851,7 +851,7 @@ def on_rename(
 def on_prepare_rename(
     params: types.PrepareRenameParams,
 ) -> types.PrepareRenamePlaceholder | None:
-    if not feature_config.rename_enabled:
+    if not _state.config_for_uri(params.text_document.uri).rename_enabled:
         return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -876,7 +876,7 @@ def on_prepare_rename(
 def on_signature_help(
     params: types.SignatureHelpParams,
 ) -> types.SignatureHelp | None:
-    if not feature_config.signature_help_enabled:
+    if not _state.config_for_uri(params.text_document.uri).signature_help_enabled:
         return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -909,7 +909,7 @@ def on_workspace_symbol(
 def on_inlay_hint(
     params: types.InlayHintParams,
 ) -> list[types.InlayHint]:
-    if not feature_config.inlay_hints_enabled:
+    if not _state.config_for_uri(params.text_document.uri).inlay_hints_enabled:
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -929,7 +929,7 @@ def on_inlay_hint(
 def on_prepare_call_hierarchy(
     params: types.CallHierarchyPrepareParams,
 ) -> list[types.CallHierarchyItem]:
-    if not feature_config.call_hierarchy_enabled:
+    if not _state.config_for_uri(params.text_document.uri).call_hierarchy_enabled:
         return []
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -948,7 +948,7 @@ def on_prepare_call_hierarchy(
 def on_incoming_calls(
     params: types.CallHierarchyIncomingCallsParams,
 ) -> list[types.CallHierarchyIncomingCall]:
-    if not feature_config.call_hierarchy_enabled:
+    if not _state.config_for_uri(params.item.uri).call_hierarchy_enabled:
         return []
     item = params.item
     uri = item.uri
@@ -962,7 +962,7 @@ def on_incoming_calls(
 def on_outgoing_calls(
     params: types.CallHierarchyOutgoingCallsParams,
 ) -> list[types.CallHierarchyOutgoingCall]:
-    if not feature_config.call_hierarchy_enabled:
+    if not _state.config_for_uri(params.item.uri).call_hierarchy_enabled:
         return []
     item = params.item
     uri = item.uri
@@ -1023,7 +1023,7 @@ def on_subtypes(
 def on_implementation(
     params: types.ImplementationParams,
 ) -> list[types.Location] | None:
-    if not feature_config.implementation_enabled:
+    if not _state.config_for_uri(params.text_document.uri).implementation_enabled:
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -1048,7 +1048,7 @@ def on_implementation(
 def on_document_link(
     params: types.DocumentLinkParams,
 ) -> list[types.DocumentLink]:
-    if not feature_config.document_links_enabled:
+    if not _state.config_for_uri(params.text_document.uri).document_links_enabled:
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -1068,7 +1068,7 @@ def on_document_link(
 def on_code_lens(
     params: types.CodeLensParams,
 ) -> list[types.CodeLens] | None:
-    if not feature_config.code_lens_enabled:
+    if not _state.config_for_uri(params.text_document.uri).code_lens_enabled:
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -1121,7 +1121,7 @@ if _state.feature_config.pull_diagnostics_enabled:
 def on_selection_range(
     params: types.SelectionRangeParams,
 ) -> list[types.SelectionRange] | None:
-    if not feature_config.selection_range_enabled:
+    if not _state.config_for_uri(params.text_document.uri).selection_range_enabled:
         return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
@@ -1139,7 +1139,7 @@ def on_selection_range(
 def on_linked_editing_range(
     params: types.LinkedEditingRangeParams,
 ) -> types.LinkedEditingRanges | None:
-    if not feature_config.linked_editing_range_enabled:
+    if not _state.config_for_uri(params.text_document.uri).linked_editing_range_enabled:
         return None
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -1174,7 +1174,7 @@ def on_linked_editing_range(
 def on_code_action(
     params: types.CodeActionParams,
 ) -> list[types.CodeAction] | None:
-    if not feature_config.code_actions_enabled:
+    if not _state.config_for_uri(params.text_document.uri).code_actions_enabled:
         return None
     uri = params.text_document.uri
     source = _get_doc_source(uri)
