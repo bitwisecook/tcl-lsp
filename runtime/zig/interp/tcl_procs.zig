@@ -135,6 +135,14 @@ pub const CMD_ALIAS: u32 = 0x100;
 /// so the ``proc_lookup`` fast path just needs a flag check.
 pub const CMD_INTERP_CHILD: u32 = 0x200;
 
+/// Set on a ``Command`` registered by ``coroutine NAME body``.  The
+/// ``params_obj`` slot holds a ``*Coro`` (see ``sched/tcl_coro.zig``).
+/// The proc-dispatch fast path checks this bit before treating the
+/// Command as a plain interpreted proc, and routes through
+/// :func:`tcl_coro.resume_one` so subsequent ``[NAME]`` calls
+/// resume the coroutine.
+pub const CMD_COROUTINE: u32 = 0x400;
+
 // ``tcl_ns.zig`` keeps a shadow copy of the Command layout constants
 // above because it can't ``@import`` this module without a circular
 // dependency.  Pin the shadow to the canonical values here so any

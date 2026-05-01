@@ -80,8 +80,9 @@ def _run_with_same_path_preopen(wasm_bytes: bytes, preopen: str) -> str:
     rt_module = wasmtime.Module.from_file(engine, str(runtime_wasm_path()))
     linker = wasmtime.Linker(engine)
     linker.define_wasi()
-    tcl_box, mem_box = _define_call_compiled_proc(linker, store)
+    tcl_box, mem_box, rt_instance_box = _define_call_compiled_proc(linker, store)
     rt_instance = linker.instantiate(store, rt_module)
+    rt_instance_box[0] = rt_instance
     init_fn = rt_instance.exports(store).get("_initialize")
     if init_fn is not None:
         init_fn(store)

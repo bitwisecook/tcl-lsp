@@ -14,7 +14,6 @@ from ..models import (
     HoverSnippet,
     OptionSpec,
     ValidationSpec,
-    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ._base import register
@@ -113,11 +112,5 @@ class VwaitCommand(CommandDef):
                     writes=True,
                     connection_side=ConnectionSide.NONE,
                 ),
-            ),
-            wasm_runtime_import=WasmRuntimeImport(
-                import_key="tcl_vwait",
-                argc=1,
-                params=("i32",),
-                results=("i32",),
             ),
         )
