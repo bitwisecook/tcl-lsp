@@ -364,6 +364,67 @@ fn find_or_create(name: i32) u32 {
         write_i32(bucket + 12, @bitCast(fresh));
         return fresh;
     }
+    // Namespace-aware fallback for unqualified names.  When *name* is
+    // unqualified and a non-root namespace is active, also probe the
+    // directory under ``<ns_full>::<name>`` and — when neither key
+    // exists — *create* under the qualified form.  Mirrors the read
+    // side in :func:`find_table` and the compile-time qualification
+    // performed by ``_emit_array_name_obj`` for script-level writes
+    // inside ``namespace eval``.  Required at runtime too because
+    // proc bodies emit unqualified array names (the proc's
+    // resolution namespace is only known once it's running), and a
+    // tcltest proc that does ``set errorInfo(body) ...`` inside
+    // ``::tcltest`` would otherwise collide with the global scalar
+    // ``::errorInfo`` that ``stamp_error_globals`` writes after
+    // every ``error`` — both keyed in root as ``errorInfo``, even
+    // though Tcl semantics keep the namespace's array variable
+    // disjoint from the global scalar.
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    const is_qualified = sn.len >= 2 and sp[0] == ':' and sp[1] == ':';
+    if (!is_qualified) {
+        const ns_ptr = current_ns_full_ptr();
+        const ns_len = current_ns_full_len();
+        if (ns_len > 2) {
+            const total: u32 = ns_len + 2 + sn.len;
+            const qbuf = obj.alloc(total);
+            if (qbuf != 0) {
+                // ``qbuf`` is a *temporary* lookup key — ``dir_insert``
+                // copies the bytes into its own bucket-owned buffer
+                // (see :func:`dir_insert` above), and the find / scalar
+                // probe paths only read through it.  Free on every
+                // exit so a long-running script that keeps writing
+                // namespace arrays doesn't leak one allocation per
+                // ``set`` (Codex review on PR #297).  Mirrors the same
+                // ``defer obj.free_sized`` pattern in :func:`find_table`.
+                defer obj.free_sized(qbuf, total);
+                const dst: [*]u8 = @ptrFromInt(qbuf);
+                const ns_p: [*]const u8 = @ptrFromInt(ns_ptr);
+                for (0..ns_len) |i| dst[i] = ns_p[i];
+                dst[ns_len] = ':';
+                dst[ns_len + 1] = ':';
+                for (0..sn.len) |i| dst[ns_len + 2 + i] = sp[i];
+                const qhash = fnv1a(qbuf, total);
+                if (dir_find(qbuf, total, qhash)) |bucket| {
+                    const existing: u32 = @bitCast(read_i32(bucket + 12));
+                    if (existing != 0) return existing;
+                    const fresh = ar_new();
+                    write_i32(bucket + 12, @bitCast(fresh));
+                    return fresh;
+                }
+                // Conflict check & insertion both keyed by the
+                // qualified form so a same-namespace scalar (e.g.
+                // ``::ns::errorInfo``) still raises while the bare
+                // root scalar ``::errorInfo`` does not.
+                if (ns_scalar_exists(qbuf, total) != 0) {
+                    stubs.raise("can't set: variable isn't array");
+                    return 0;
+                }
+                const t = ar_new();
+                dir_insert(qbuf, total, qhash, t);
+                return t;
+            }
+        }
+    }
     // No array with this name yet — but a *scalar* might exist.  Real
     // Tcl raises ``can't set "<name>(...)": variable isn't array`` in
     // that case.  Detect via ``ns_scalar_exists`` (probe into the var
