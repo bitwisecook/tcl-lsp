@@ -1022,16 +1022,22 @@ class TestBatch6WasmIgnoresMissingVar:
 
     @pytest.mark.parametrize("seed", SEEDS)
     def test_wasm_errors_on_missing_var(self, seed: int) -> None:
-        """WASM should surface a Tcl-level error, not silently return.
+        """WASM should surface a Tcl-level missing-variable error.
 
         The bar is ``return_code == 1`` — a Tcl-level error matching
         the VM's behaviour.  ``return_code == 2`` (host-side trap or
         timeout) does NOT count: under the original bug the WASM run
         timed out on a runaway loop driven by a 0-default unset read,
         which is exactly the symptom this fix is meant to remove.
-        The precise error text is allowed to drift from the VM's
-        because some seeds chain into secondary errors after the
-        first missing-variable read.
+
+        The error message must contain ``no such variable``: a
+        ``return_code == 1`` from an unrelated downstream error
+        (``divide by zero``, ``unknown command``, ``expected
+        integer``) would otherwise pass this test even though the
+        original missing-variable read was still being silently
+        ignored.  The precise variable name is allowed to drift from
+        the VM's because some seeds chain into secondary missing-var
+        errors after the first read.
         """
         from fuzzing.wasm_backend import is_available, run_wasm  # noqa: PLC0415
 
@@ -1044,4 +1050,9 @@ class TestBatch6WasmIgnoresMissingVar:
             f"script the VM rejects with 'no such variable' — "
             f"issue #263 regression (rc={result.return_code}, "
             f"err={result.error_message!r})"
+        )
+        assert "no such variable" in (result.error_message or ""), (
+            f"seed {seed}: wasm errored but not for the expected reason "
+            f"— issue #263 expects ``no such variable`` in the message "
+            f"(rc={result.return_code}, err={result.error_message!r})"
         )
