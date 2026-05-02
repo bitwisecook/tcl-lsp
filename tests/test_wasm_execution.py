@@ -824,6 +824,15 @@ class TestCommandDispatch:
             "frame_alias_frame_var",
             "frame_get_depth",
             "upvar_resolve_depth",
+            # Signal-flag inspectors used by every compiled-proc-call
+            # bridge to absorb ``return`` at the dispatch boundary
+            # and propagate ``error`` past the call.  Always pulled
+            # in for any module with procs since any callee may
+            # raise either flag — see ``_scan.py``'s
+            # always-needed block.
+            "catch_has_error",
+            "flow_check_return",
+            "flow_take_return",
         }
 
 

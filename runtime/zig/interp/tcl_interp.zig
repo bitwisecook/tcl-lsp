@@ -1691,7 +1691,30 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         if (words.len > 0) {
             frames.frame_set_pending_argv0(words[0]);
         }
-        return dispatch_mod.dispatch(bucket, words);
+        var result = dispatch_mod.dispatch(bucket, words);
+        // Absorb ``return`` at the proc-dispatch boundary, mirroring
+        // the interpreted-proc path below.  Without this, a compiled
+        // proc whose body ends in ``return X`` (via the eval-fallback
+        // path that sets ``return_flag``) leaks TCL_RETURN into the
+        // script-level eval, and a surrounding ``catch {...}`` reports
+        // code 2 where code 0 is correct — opt-3.x saw this after
+        // ``catch_leave`` grew TCL_RETURN handling.  Real Tcl's proc
+        // dispatch unconditionally converts body-level ``return`` to
+        // a normal return value at the dispatch boundary.
+        if (rt.return_flag.* != 0) {
+            rt.return_flag.* = 0;
+            const rv = rt.return_val.*;
+            rt.return_val.* = 0;
+            // The dispatch-bridge result the WASM-side flow_take_return
+            // already absorbed will be non-zero; only fall back to the
+            // recorded ``return_val`` when the bridge handed us 0.
+            if (result == 0 and rv != 0) {
+                result = rv;
+            } else if (rv != 0 and rv != result) {
+                obj_mod.tcl_obj_release(rv);
+            }
+        }
+        return result;
     }
     const body_obj = procs.proc_get_body(bucket);
     const params_obj = procs.proc_get_params(bucket);
