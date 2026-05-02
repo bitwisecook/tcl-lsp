@@ -1,4 +1,4 @@
-"""WASM bignum (i128) end-to-end tests for ``expr``.
+"""WASM bignum end-to-end tests for ``expr``.
 
 Compile small ``expr``-driven snippets through the AOT pipeline,
 execute under wasmtime, and compare ``puts`` output against the
@@ -7,11 +7,12 @@ directly from ``tmp/tcl9.0.3/tests/expr.test`` and
 ``tests/expr-old.test``; each comment names the upstream test ID
 the case mirrors.
 
-Stage 1 of bignum support promotes overflow only as far as i128
-(see ``runtime/zig/valtypes/tcl_bignum.zig``).  Cases that need
-more than 128 bits (e.g. upstream ``expr-old-36.16`` with its
-152-bit hex literal) are deliberately *not* listed here — Stage 2
-will lift the cap via libtommath and grow this file to match.
+Stage 1 of bignum support promoted overflow as far as i128.
+Stage 2 (current) lifts the cap to true arbitrary precision via
+``std.math.big.int.Managed`` from Zig's stdlib — see
+``runtime/zig/valtypes/tcl_bignum.zig``.  The
+``TestArbitraryPrecision`` class below pins the cases that
+require >i128 magnitude (upstream ``expr-old-36.{11,14,16}``).
 """
 
 from __future__ import annotations
@@ -151,3 +152,111 @@ class TestRoundTrip:
         if not ok:
             pytest.fail(f"WASM compile/run failed: {err}")
         assert stdout.rstrip("\n") == "18446744073709551617"
+
+
+# Arbitrary precision (Stage 2, ``std.math.big.int.Managed``).
+#
+# Stage 1's i128 cap saturated values past 38 decimal digits.  Stage 2
+# routes through Zig stdlib's Managed for true arbitrary precision —
+# the cases below all need >128 bits and would have produced wrong
+# answers under Stage 1.
+
+
+class TestArbitraryPrecision:
+    """Stage 2 — values that exceed i128."""
+
+    def test_expr_old_36_11(self) -> None:
+        # Upstream ``expr-old-36.11``:
+        #     set x 665802003400000000000000
+        #     expr {$x+1}
+        # The literal is 80 bits — fits i128 — but the test catches
+        # any silent precision loss at the i64→bignum boundary.
+        src = (
+            "set x 665802003400000000000000\nputs [expr {$x+1}]\n"
+        )
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        assert stdout.rstrip("\n") == "665802003400000000000001"
+
+    def test_expr_old_36_14(self) -> None:
+        # Upstream ``expr-old-36.14``:
+        #     set x "123456789012345678901234567890 "
+        #     expr {$x+1}
+        # 30 decimal digits — fits i128, again pins the bignum
+        # parse + add path.
+        src = 'set x "123456789012345678901234567890 "\nputs [expr {$x+1}]\n'
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        assert stdout.rstrip("\n") == "123456789012345678901234567891"
+
+    def test_expr_old_36_16(self) -> None:
+        # Upstream ``expr-old-36.16``:
+        #     set x " 0xffffffffffffffffffffffffffffffffffffff  "
+        #     expr {$x+1}
+        # 38 hex digits = 152 bits — exceeds i128.  Stage 1 would
+        # have saturated; Stage 2's Managed path produces the exact
+        # value ``2^152`` decimal-formatted.
+        src = (
+            'set x " 0xffffffffffffffffffffffffffffffffffffff  "\n'
+            "puts [expr {$x+1}]\n"
+        )
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        assert stdout.rstrip("\n") == "5708990770823839524233143877797980545530986496"
+
+    def test_one_shl_200(self) -> None:
+        # ``1 << 200`` — Stage 1 would have saturated past 1 << 127.
+        src = "puts [expr {1 << 200}]\n"
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        assert stdout.rstrip("\n") == (
+            "1606938044258990275541962092341162602522202993782792835301376"
+        )
+
+    def test_pow_via_repeated_mul(self) -> None:
+        # ``(2^100) * (2^100) * (2^100)`` = ``2^300`` — three
+        # multiplications past the i128 boundary.  Stage 2 must
+        # carry the precision through the chain.
+        src = (
+            "set a [expr {1 << 100}]\n"
+            "puts [expr {$a * $a * $a}]\n"
+        )
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        # Compute expected via Python.
+        assert stdout.rstrip("\n") == str((1 << 100) ** 3)
+
+    def test_huge_mod(self) -> None:
+        # ``-1 % (1 << 200)`` = ``(1 << 200) - 1`` — Tcl floor-mod
+        # plus arbitrary-precision divisor.
+        src = "puts [expr {-1 % (1 << 200)}]\n"
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        assert stdout.rstrip("\n") == str((1 << 200) - 1)
+
+    def test_huge_negate(self) -> None:
+        # ``-(2^150)`` rendered as a negative 46-digit number.
+        src = "puts [expr {-(1 << 150)}]\n"
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        assert stdout.rstrip("\n") == str(-(1 << 150))
+
+    def test_round_trip_via_set(self) -> None:
+        # Set a 50-digit literal, multiply by itself, render — the
+        # result should be the exact 100-digit decimal product.
+        src = (
+            "set x 12345678901234567890123456789012345678901234567890\n"
+            "puts [expr {$x * $x}]\n"
+        )
+        ok, stdout, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        x = 12345678901234567890123456789012345678901234567890
+        assert stdout.rstrip("\n") == str(x * x)

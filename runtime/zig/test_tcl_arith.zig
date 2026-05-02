@@ -343,3 +343,99 @@ test "is_bignum — string literal exceeding i64 range parses as bignum" {
     const r = arith.tcl_arith_add(stringObj(big), intObj(1));
     try expectBignum(r, @as(i128, std.math.maxInt(i64)) + 2);
 }
+
+// ---- Stage 2 — arbitrary-precision (>i128) arithmetic --------------
+//
+// These tests pin the Managed (``std.math.big.int.Managed``) path
+// reached when a result, or one of the operands, exceeds i128.  The
+// rendered string is checked rather than the i128 view because the
+// values intentionally don't fit i128 — the i128 view would truncate.
+
+const bignum_mod = @import("valtypes/tcl_bignum.zig");
+
+fn bignumStrObj(s: []const u8) i32 {
+    // Build a TYPE_STRING TclObj whose contents the runtime parses
+    // as a bignum literal on first arithmetic.  Mirrors the path a
+    // Tcl source-level literal larger than i64 takes through the
+    // WASM emitter (``_emit_obj_literal_for_expr`` falls through to
+    // ``obj_new_string`` for out-of-i64 integers).
+    return obj.obj_new_string(@bitCast(@intFromPtr(s.ptr)), @bitCast(s.len));
+}
+
+fn expectBignumString(o: i32, expected: []const u8) !void {
+    try testing.expectEqual(obj.TYPE_BIGNUM, obj.obj_type(o));
+    const m = obj.obj_get_bignum_managed(o).?;
+    const rendered = bignum_mod.alloc_format(m).?;
+    defer bignum_mod.allocator.free(rendered);
+    try testing.expectEqualStrings(expected, rendered);
+}
+
+test "tcl_arith_add — two i128-sized operands sum past i128 (Stage 2)" {
+    // ``(2^126) + (2^126)`` = ``2^127`` (overflows i128 by one bit).
+    const half = @as(i128, 1) << 126;
+    const r = arith.tcl_arith_add(bignumObj(half), bignumObj(half));
+    try expectBignumString(r, "170141183460469231731687303715884105728");
+}
+
+test "tcl_arith_mul — squaring 2^100 gives 2^200" {
+    const a = bignumObj(@as(i128, 1) << 100);
+    const r = arith.tcl_arith_mul(a, a);
+    try expectBignumString(r, "1606938044258990275541962092341162602522202993782792835301376");
+}
+
+test "tcl_arith_lshift — 1 << 1000 produces a 1000-bit value" {
+    // The result has ``1`` followed by ``1000 / log2(10) ≈ 301`` digits.
+    // We just check the leading character + total length to keep the
+    // assert short; full digits are exercised by the bignum unit
+    // tests in ``tcl_bignum.zig``.
+    const r = arith.tcl_arith_lshift(intObj(1), intObj(1000));
+    try testing.expectEqual(obj.TYPE_BIGNUM, obj.obj_type(r));
+    const m = obj.obj_get_bignum_managed(r).?;
+    const rendered = bignum_mod.alloc_format(m).?;
+    defer bignum_mod.allocator.free(rendered);
+    try testing.expect(rendered.len > 300 and rendered.len < 305);
+    try testing.expectEqual(@as(u8, '1'), rendered[0]);
+}
+
+test "tcl_arith_neg — large bignum negates without saturation" {
+    // ``-(1 << 200)`` — Stage 1 would have saturated this at the
+    // i128 boundary; Stage 2's Managed path produces the exact
+    // negative value.
+    const a = arith.tcl_arith_lshift(intObj(1), intObj(200));
+    const r = arith.tcl_arith_neg(a);
+    try expectBignumString(
+        r,
+        "-1606938044258990275541962092341162602522202993782792835301376",
+    );
+}
+
+test "tcl_arith_mod — Tcl floor-mod semantics on huge divisor" {
+    // ``-1 % (1 << 200)`` should give ``(1 << 200) - 1`` —
+    // result has divisor's sign per Tcl's ``%`` semantics.
+    const huge = arith.tcl_arith_lshift(intObj(1), intObj(200));
+    const r = arith.tcl_arith_mod(intObj(-1), huge);
+    try expectBignumString(
+        r,
+        "1606938044258990275541962092341162602522202993782792835301375",
+    );
+}
+
+test "string literal exceeding i128 promotes to bignum on first op" {
+    // Upstream ``expr-old-36.14`` literal — 30 decimal digits, well
+    // beyond i128 (which stops at 39 digits).  Wait, actually 30
+    // digits fits i128 (i128 max ≈ 1.7e38).  Use 40 digits to
+    // exceed i128.
+    const huge_str = "12345678901234567890123456789012345678901";
+    const r = arith.tcl_arith_add(bignumStrObj(huge_str), intObj(1));
+    try expectBignumString(r, "12345678901234567890123456789012345678902");
+}
+
+test "result that fits i64 collapses back to TYPE_INT (Stage 2)" {
+    // ``(2^200) - (2^200)`` = 0 — auto-collapse via
+    // ``obj_new_bignum_take`` should give us TYPE_INT 0, not a
+    // TYPE_BIGNUM zero.
+    const a = arith.tcl_arith_lshift(intObj(1), intObj(200));
+    const r = arith.tcl_arith_sub(a, a);
+    try testing.expectEqual(obj.TYPE_INT, obj.obj_type(r));
+    try expectInt(r, 0);
+}
