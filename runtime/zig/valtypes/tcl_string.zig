@@ -269,7 +269,9 @@ pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
     var star_pi: u32 = plen;
     var star_vi: u32 = 0;
     if (vlen == 0) {
-        // Non-empty pattern vs empty value — only matches if pattern is all '*'.
+        // Non-empty pattern vs empty value — only matches if every
+        // remaining pattern char is ``*`` (skipping over any
+        // backslash escapes that don't reduce to ``*``).
         while (pi < plen) {
             if (pat[pi] != '*') return false;
             pi += 1;
@@ -282,6 +284,26 @@ pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
             star_pi = pi;
             star_vi = vi;
             pi += 1;
+        } else if (pi < plen and pat[pi] == '\\' and pi + 1 < plen) {
+            // Backslash escape: ``\?`` ``\*`` ``\[`` ``\\`` etc. all
+            // turn into the LITERAL char that follows.  Without this,
+            // ``string match {\?*} cmd`` parses ``\`` as a literal
+            // and tries to match ``c`` against ``\``, returning 0
+            // for the empty case but 1 for any value starting with
+            // a ``?`` (because ``?`` then matches anything as a
+            // wildcard) — root cause of opt-10.x silently passing
+            // ``cmd`` as if it were optional.
+            if (vi < vlen and pat[pi + 1] == val[vi]) {
+                pi += 2;
+                vi += 1;
+            } else if (star_pi < plen) {
+                pi = star_pi + 1;
+                if (star_vi >= vlen) return false;
+                star_vi += 1;
+                vi = star_vi;
+            } else {
+                return false;
+            }
         } else if (pi < plen and vi < vlen and (pat[pi] == '?' or pat[pi] == val[vi])) {
             pi += 1;
             vi += 1;

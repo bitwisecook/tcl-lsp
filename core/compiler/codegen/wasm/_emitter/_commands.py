@@ -148,14 +148,36 @@ class _WasmEmitterCmdMixin(_Base):
 
         param_count = len(rimp.params)
 
+        # Probe the active call's parsed tokens (stashed by
+        # ``_emit_call_stmt`` before invoking the hook) to find
+        # which positional args originated from a ``{…}`` STR
+        # token.  Braced words pass through with backslashes
+        # preserved literally — without the probe, ``string
+        # match {\?*} cmd`` would have its IR ``\?*`` value run
+        # through Tcl backslash substitution at emit time, turning
+        # the pattern into ``?*`` and matching anything starting
+        # with any single char (so ``OptIsOpt cmd`` returns 1
+        # instead of 0 — the root cause of opt-10.5/.6/.7/.8/.9/
+        # .10 / opt-3.1 silently succeeding when they should
+        # raise ``no value given for parameter "cmd"``).
+        tokens = getattr(self, "_current_call_tokens", None)
+
+        def _was_braced(call_arg_idx: int) -> bool:
+            if tokens is None or tokens.argv is None:
+                return False
+            tok_idx = call_arg_idx + 1
+            if tok_idx >= len(tokens.argv):
+                return False
+            return tokens.argv[tok_idx].type == TokenType.STR
+
         if command == "::apply":
             # ``apply LAMBDA ?arg ...?`` — pack tail args into a Tcl
             # list (see ``cmds/apply_.py`` for the rationale).
-            self._emit_value(args[0] if args else "")
+            self._emit_value(args[0] if args else "", was_braced=_was_braced(0))
             self._emit_args_list(tuple(args[1:]))
         else:
             for i in range(min(param_count, len(args))):
-                self._emit_value(args[i])
+                self._emit_value(args[i], was_braced=_was_braced(i))
             for _ in range(param_count - len(args)):
                 self._emit_i32_const(0)
 

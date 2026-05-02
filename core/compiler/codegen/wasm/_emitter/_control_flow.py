@@ -551,8 +551,13 @@ class _WasmEmitterCtrlMixin(_Base):
                     # flows into ``_emit_eval_fallback`` so namespace-
                     # local proc resolution works at runtime; ``canonical``
                     # is the dispatch key for the literal-string matches
-                    # in ``_emit_call_stmt_tail``.  See issue #246.
-                    self._emit_call_stmt_tail(command, args, defs, canonical_command=canonical)
+                    # in ``_emit_call_stmt_tail``.  See issue #246.  Pass
+                    # ``tokens`` through so the hook can probe per-arg
+                    # ``was_braced`` info (needed for ``string match
+                    # {\?*} $name`` and other braced-pattern callers).
+                    self._emit_call_stmt_tail(
+                        command, args, defs, canonical_command=canonical, tokens=tokens
+                    )
             case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
                 # Static parse-error barriers (e.g. ``if {…} else {…}
                 # elseif {…}``) emit a direct ``tcl_cmd_error`` call so

@@ -1494,6 +1494,7 @@ class _WasmEmitterStmtMixin(_Base):
         defs: tuple[str, ...] = (),
         *,
         canonical_command: str | None = None,
+        tokens: "CommandTokens | None" = None,
     ) -> None:
         """Emit a command invocation in tail position, keeping its i32 result on the stack.
 
@@ -1584,12 +1585,22 @@ class _WasmEmitterStmtMixin(_Base):
         # Hooks now fully support EmitContext.VALUE — the runtime hook
         # emits the import call and leaves the result on the stack via
         # ``_emit_cmd_runtime(context=VALUE)`` / ``_runtime_call_end``.
-        hook = _REGISTRY.get_wasm_hook(command)
-        if hook is not None and hook(self, args, defs, EmitContext.VALUE):
-            return
+        # Stash ``_current_call_tokens`` around the hook so per-arg
+        # brace info survives — without this, a tail-position
+        # ``string match {\?*} $name`` loses the BRACED bit on the
+        # pattern and ``_emit_value`` runs Tcl backslash subst on
+        # the IR ``\?*``, producing ``?*`` and matching everything.
+        prev_tokens = getattr(self, "_current_call_tokens", None)
+        self._current_call_tokens = tokens
+        try:
+            hook = _REGISTRY.get_wasm_hook(command)
+            if hook is not None and hook(self, args, defs, EmitContext.VALUE):
+                return
+        finally:
+            self._current_call_tokens = prev_tokens
 
         # Unknown command in tail position — fall back to interpreter,
         # leaving the result on the stack for implicit return.
-        self._emit_eval_fallback(command, args)
+        self._emit_eval_fallback(command, args, tokens=tokens)
 
     # -- Global variable write-through --
