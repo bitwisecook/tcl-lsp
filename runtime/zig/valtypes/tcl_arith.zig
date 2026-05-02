@@ -45,41 +45,84 @@ fn is_float(o: i32) bool {
 }
 
 /// True iff the operand is already represented as a bignum (TYPE_BIGNUM)
-/// or a string literal that exceeds the i64 range and so demands i128
-/// arithmetic to compute correctly.  Used by the arithmetic helpers to
-/// decide between the fast i64-with-wrap path and the i128 promotion
-/// path.
+/// or a string literal that exceeds the i64 range and so demands wider-
+/// than-i64 arithmetic to compute correctly.  Used by the arithmetic
+/// helpers to decide between the fast i64-with-promotion path and the
+/// Managed (arbitrary-precision) path.
 fn is_bignum(o: i32) bool {
     if (o == 0) return false;
     const tag = obj.obj_type(o);
     if (tag == TYPE_BIGNUM) return true;
     if (tag == TYPE_STRING) {
-        // Avoid the i128 parse on every operand by first probing the
+        // Avoid the bignum parse on every operand by first probing the
         // i64 parser; only literals that *don't* fit in i64 need the
         // bignum path.
         const s = obj.obj_ensure_string(o);
         if (s.len == 0) return false;
         if (obj.try_parse_int(s.ptr, s.len) != null) return false;
-        return bignum.parse_i128(s.ptr, s.len) != null;
+        // i128 parse covers values up to ~38 decimal digits — past that
+        // we still want the bignum path, so probe alloc_from_string and
+        // immediately destroy.
+        if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+        const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+        bignum.destroy(m);
+        return true;
     }
     return false;
+}
+
+/// Borrowed-or-owned BigInt promotion result.  Returned by
+/// :func:`promote_to_bignum` so callers can destroy the BigInt
+/// only when they own it.
+const PromotedBigInt = struct { m: *bignum.BigInt, owned: bool };
+
+/// Promote an arithmetic operand to a ``*bignum.BigInt``.  Returns
+/// ``null`` on OOM.  Callers must :func:`bignum.destroy` the
+/// result iff ``owned`` is true.
+fn promote_to_bignum(o: i32) ?PromotedBigInt {
+    const r = obj.obj_promote_to_bignum(o);
+    if (r.m) |m| return PromotedBigInt{ .m = m, .owned = r.owned };
+    return null;
+}
+
+fn release_promoted(p: PromotedBigInt) void {
+    if (p.owned) bignum.destroy(p.m);
+}
+
+/// Generic Managed-backed binary op.  Promotes both operands to
+/// BigInt, runs the op, and wraps the result in a TYPE_BIGNUM
+/// TclObj (auto-collapsing to TYPE_INT when the result fits i64).
+/// Returns ``null`` on OOM.
+fn managed_binop(
+    a: i32,
+    b: i32,
+    op: *const fn (a: *const bignum.BigInt, b: *const bignum.BigInt) ?*bignum.BigInt,
+) ?i32 {
+    const ap = promote_to_bignum(a) orelse return null;
+    defer release_promoted(ap);
+    const bp = promote_to_bignum(b) orelse return null;
+    defer release_promoted(bp);
+    const r = op(ap.m, bp.m) orelse return null;
+    return obj.obj_new_bignum_take(r);
 }
 
 pub export fn tcl_arith_add(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) + obj.obj_get_float(b));
+    // Bignum operand → Managed path (arbitrary precision).  The
+    // Stage 1 ``add_overflow`` saturated at i128, which silently
+    // miscompiled e.g. ``(1 << 126) + (1 << 126)`` (2^127, fits
+    // i128 by 1 bit) and any larger combination.  Stage 2 routes
+    // the path through ``std.math.big.int.Managed`` for unbounded
+    // precision matching C Tcl's libtommath.
     if (is_bignum(a) or is_bignum(b)) {
-        const r = bignum.add_overflow(obj.obj_get_bignum(a), obj.obj_get_bignum(b)) orelse {
-            // i128 boundary — saturate to wrap rather than trap.
-            // C Tcl 9.0 produces the mathematically correct value via
-            // libtommath; Stage 1 documents this saturation in
-            // ``tcl_bignum.zig`` and leaves Stage 2 to lift the cap.
-            return obj.obj_new_bignum(std.math.maxInt(i128));
-        };
-        return obj.obj_new_bignum(r);
+        return managed_binop(a, b, bignum.alloc_add) orelse return obj.obj_new_int(0);
     }
     // Detect i64 overflow and promote to bignum so wrap-around
     // doesn't silently corrupt mathematically meaningful sums.
+    // i64 + i64 always fits in i65, well within i128 — no need
+    // for the Managed allocation here, just the i128 box (which
+    // auto-collapses if the result fits i64).
     const ai = obj.obj_get_int(a);
     const bi = obj.obj_get_int(b);
     const r = @addWithOverflow(ai, bi);
@@ -91,10 +134,7 @@ pub export fn tcl_arith_sub(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) - obj.obj_get_float(b));
     if (is_bignum(a) or is_bignum(b)) {
-        const r = bignum.sub_overflow(obj.obj_get_bignum(a), obj.obj_get_bignum(b)) orelse {
-            return obj.obj_new_bignum(std.math.minInt(i128));
-        };
-        return obj.obj_new_bignum(r);
+        return managed_binop(a, b, bignum.alloc_sub) orelse return obj.obj_new_int(0);
     }
     const ai = obj.obj_get_int(a);
     const bi = obj.obj_get_int(b);
@@ -107,20 +147,14 @@ pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) * obj.obj_get_float(b));
     if (is_bignum(a) or is_bignum(b)) {
-        const r = bignum.mul_overflow(obj.obj_get_bignum(a), obj.obj_get_bignum(b)) orelse {
-            // Pick the saturation sign based on operand signs so the
-            // sign of the result is at least directionally correct.
-            const av = obj.obj_get_bignum(a);
-            const bv = obj.obj_get_bignum(b);
-            const negative = (av < 0) != (bv < 0);
-            return obj.obj_new_bignum(if (negative) std.math.minInt(i128) else std.math.maxInt(i128));
-        };
-        return obj.obj_new_bignum(r);
+        return managed_binop(a, b, bignum.alloc_mul) orelse return obj.obj_new_int(0);
     }
     const ai = obj.obj_get_int(a);
     const bi = obj.obj_get_int(b);
     const r = @mulWithOverflow(ai, bi);
     if (r[1] == 0) return obj.obj_new_int(r[0]);
+    // i64 * i64 fits in i128 (max product magnitude is 2^126), so
+    // the i128 promotion is enough — no Managed allocation needed.
     return obj.obj_new_bignum(@as(i128, ai) * @as(i128, bi));
 }
 
@@ -134,21 +168,16 @@ pub export fn tcl_arith_div(a: i32, b: i32) i32 {
         return obj.obj_new_float(obj.obj_get_float(a) / bf);
     }
     if (is_bignum(a) or is_bignum(b)) {
-        const bv = obj.obj_get_bignum(b);
-        if (bv == 0) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const bp = promote_to_bignum(b) orelse return obj.obj_new_int(0);
+        defer release_promoted(bp);
+        if (bp.m.eqlZero()) {
             stubs.raise("divide by zero");
             return obj.obj_new_int(0);
         }
-        const av = obj.obj_get_bignum(a);
-        // ``i128::MIN / -1`` overflows the signed range.  Promote-
-        // saturate at the i128 boundary; mirrors the wrap of i64
-        // ``min/-1`` we already accept for the i64-only case
-        // (matches ``expr-34.13``'s ``int($min / -1) == 2147483648``
-        // pattern at the next size up).
-        if (av == std.math.minInt(i128) and bv == -1) {
-            return obj.obj_new_bignum(std.math.maxInt(i128));
-        }
-        return obj.obj_new_bignum(@divTrunc(av, bv));
+        const r = bignum.alloc_div_trunc(ap.m, bp.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
     const bi = obj.obj_get_int(b);
     if (bi == 0) {
@@ -182,15 +211,16 @@ pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
         return obj.obj_new_float(r);
     }
     if (is_bignum(a) or is_bignum(b)) {
-        const bv = obj.obj_get_bignum(b);
-        if (bv == 0) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const bp = promote_to_bignum(b) orelse return obj.obj_new_int(0);
+        defer release_promoted(bp);
+        if (bp.m.eqlZero()) {
             stubs.raise("divide by zero");
             return obj.obj_new_int(0);
         }
-        const av = obj.obj_get_bignum(a);
-        var r = @rem(av, bv);
-        if (r != 0 and ((r < 0) != (bv < 0))) r += bv;
-        return obj.obj_new_bignum(r);
+        const r = bignum.alloc_mod_floor(ap.m, bp.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
     const bi = obj.obj_get_int(b);
     if (bi == 0) {
@@ -407,25 +437,22 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         stubs.raise("negative shift argument");
         return obj.obj_new_int(0);
     }
-    // Promote to i128 when the operand is already a bignum, when the
-    // shift count alone would overflow i64, or when the shifted value
-    // would step past i64::MAX / under i64::MIN.  This is the path
-    // that turns ``1 << 63`` from the silent two's-complement wrap
-    // ``-9223372036854775808`` into the mathematically correct
-    // bignum ``9223372036854775808`` — the regression covered by
-    // upstream ``expr-32.{3..9}`` and the ``Bug 1585704`` cluster.
+    // Bignum operand or wide shift count → Managed (arbitrary-precision)
+    // path so ``1 << 1000`` and ``(2^200) << 50`` round-trip exactly.
+    // Stage 1's i128 path saturated past ``1 << 127``; Stage 2 routes
+    // through ``std.math.big.int.Managed`` for unbounded precision.
     if (is_bignum(a) or bi >= 63) {
-        const av = obj.obj_get_bignum(a);
-        if (av == 0) return obj.obj_new_int(0);
-        const count: u32 = if (bi >= std.math.maxInt(u32)) std.math.maxInt(u32) else @intCast(bi);
-        const r = bignum.shl_overflow(av, count) orelse {
-            return obj.obj_new_bignum(if (av < 0) std.math.minInt(i128) else std.math.maxInt(i128));
-        };
-        return obj.obj_new_bignum(r);
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        if (ap.m.eqlZero()) return obj.obj_new_int(0);
+        const count: u64 = @bitCast(bi);
+        const r = bignum.alloc_shl(ap.m, count) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
     const ai = obj.obj_get_int(a);
     // For 0 <= bi < 63 the i64 result is well-defined when no
-    // overflow occurs; if it does overflow, promote to i128.
+    // overflow occurs; if it does overflow, promote to i128 (which
+    // auto-collapses if the result fits i64).
     const shift: u6 = @intCast(bi);
     const widened = @as(i128, ai) << shift;
     if (widened >= std.math.minInt(i64) and widened <= std.math.maxInt(i64)) {
@@ -492,9 +519,10 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
 pub export fn tcl_arith_neg(a: i32) i32 {
     if (is_float(a)) return obj.obj_new_float(-obj.obj_get_float(a));
     if (is_bignum(a)) {
-        const av = obj.obj_get_bignum(a);
-        const r = bignum.sub_overflow(0, av) orelse return obj.obj_new_bignum(std.math.maxInt(i128));
-        return obj.obj_new_bignum(r);
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const r = bignum.alloc_neg(ap.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
     const ai = obj.obj_get_int(a);
     if (ai == std.math.minInt(i64)) {

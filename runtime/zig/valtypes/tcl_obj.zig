@@ -64,20 +64,29 @@ pub const TYPE_FLOAT: i32 = 4;
 // inline encoding stays transparent to the rest of the system.
 pub const TYPE_INLINE_STRING: i32 = 5;
 pub const MAX_INLINE_STR: u32 = 8;
-// TYPE_BIGNUM: arbitrary-precision (currently i128) integer.
-// Reference Tcl 9.0 uses libtommath for unbounded integers; our
-// Stage 1 implementation promotes only as far as i128, which is
-// enough to cover the upstream test cases that drove the type
-// (``1<<63`` and friends).  Storage: a 16-byte off-heap buffer
-// holding the i128 value, pointed to by OBJ_DICT_EXT (at offset
-// 28; that slot is otherwise reserved for the dict hash side-
-// cache and is unused for non-dict tags).  String-rep caching
-// reuses the same OBJ_STR_PTR / OBJ_STR_LEN / OBJ_STR_CAP
-// machinery as TYPE_INT / TYPE_FLOAT.  See
-// ``valtypes/tcl_bignum.zig`` for the parse / format / overflow-
-// detected arithmetic helpers.
+// TYPE_BIGNUM: arbitrary-precision integer (Stage 2).  The
+// OBJ_DICT_EXT slot (offset 28) holds a ``*bignum.BigInt`` —
+// a heap-allocated ``std.math.big.int.Managed`` whose limb
+// buffer is owned through ``std.heap.c_allocator`` (wasi-libc
+// malloc), keeping the bignum heap consistent with the rest of
+// the runtime.  Stage 1 used a 16-byte off-heap i128 payload;
+// Stage 2 lifted the i128 cap so values like
+// ``665802003400000000000000`` (upstream ``expr-old-36.11``,
+// 80 bits) and ``0xff..ff`` (38 hex digits, 152 bits, upstream
+// ``expr-old-36.16``) round-trip exactly.
+//
+// The OBJ_DICT_EXT slot is shared with the dict hash side-
+// cache; a single TclObj is one type at a time, so the slot's
+// owning subsystem is determined by ``OBJ_TYPE_TAG``.
+// ``release_now`` checks the tag and routes the cleanup either
+// to ``bignum.destroy`` (TYPE_BIGNUM) or
+// ``tcl_dict.dict_destroy_ext`` (TYPE_DICT).
+//
+// String-rep caching reuses the same ``OBJ_STR_PTR`` /
+// ``OBJ_STR_LEN`` / ``OBJ_STR_CAP`` machinery as TYPE_INT and
+// TYPE_FLOAT, so a value rendered once stays cached for the
+// rest of the obj's lifetime.
 pub const TYPE_BIGNUM: i32 = 6;
-pub const BIGNUM_PAYLOAD_SIZE: u32 = 16;
 
 // TclObj field offsets
 pub const OBJ_REFCOUNT: u32 = 0;
@@ -491,61 +500,73 @@ pub export fn obj_new_float(value: f64) i32 {
 /// arithmetic helpers is the right place to choose between the
 /// two representations.
 ///
-/// Storage: a 16-byte off-heap buffer holds the i128 value;
-/// the buffer's address is written into ``OBJ_DICT_EXT``.
-/// String-rep caching reuses ``OBJ_STR_PTR`` /
-/// ``OBJ_STR_LEN`` / ``OBJ_STR_CAP`` like other scalar types.
+/// Stage 2 storage: an off-heap ``bignum.BigInt`` (a Zig
+/// ``std.math.big.int.Managed``).  The pointer is written into
+/// ``OBJ_DICT_EXT``; ``release_now`` detects TYPE_BIGNUM and
+/// routes cleanup through ``bignum.destroy``.  String-rep caching
+/// reuses ``OBJ_STR_PTR`` / ``OBJ_STR_LEN`` / ``OBJ_STR_CAP``
+/// like other scalar types.
 pub fn obj_new_bignum(value: i128) i32 {
     // Promote-down to TYPE_INT when the value is i64-representable.
-    // Saves the bignum payload alloc and lets the regular int path
-    // handle the obj.
     if (value >= std.math.minInt(i64) and value <= std.math.maxInt(i64)) {
         return obj_new_int(@intCast(value));
     }
-    const payload = alloc(BIGNUM_PAYLOAD_SIZE);
-    if (payload == 0) return 0;
-    write_bignum_payload(payload, value);
+    const m = bignum.alloc_from_int(value) orelse return 0;
+    return obj_new_bignum_take(m);
+}
+
+/// Take ownership of an already-allocated ``*bignum.BigInt`` and
+/// wrap it in a TclObj.  Auto-collapses to TYPE_INT (and frees the
+/// BigInt) when the value fits in i64 — saves a heap allocation for
+/// every "result happens to fit i64" arithmetic case.
+///
+/// Caller transfers ownership: on success, the obj owns *m* and
+/// will free it on release.  On obj-allocation failure, *m* is
+/// destroyed before returning 0 so the caller can't double-free.
+pub fn obj_new_bignum_take(m: *bignum.BigInt) i32 {
+    if (bignum.fits_i64(m)) {
+        const v = bignum.to_i64(m);
+        bignum.destroy(m);
+        return obj_new_int(v);
+    }
     const ptr = obj_alloc();
     if (ptr == 0) {
-        free_sized(payload, BIGNUM_PAYLOAD_SIZE);
+        bignum.destroy(m);
         return 0;
     }
     write_i32(ptr + OBJ_TYPE_TAG, TYPE_BIGNUM);
-    // OBJ_DICT_EXT slot doubles as the bignum payload pointer for
-    // TYPE_BIGNUM; the dict cache and bignum payload are mutually
-    // exclusive (a single TclObj is one type at a time).
-    write_i32(ptr + OBJ_DICT_EXT, @bitCast(payload));
+    write_i32(ptr + OBJ_DICT_EXT, @bitCast(@as(u32, @intCast(@intFromPtr(m)))));
     return @bitCast(ptr);
 }
 
-fn write_bignum_payload(addr: u32, value: i128) void {
-    const bytes: [16]u8 = @bitCast(value);
-    const dst: [*]u8 = @ptrFromInt(addr);
-    inline for (0..16) |i| dst[i] = bytes[i];
+/// Read the underlying ``*bignum.BigInt`` from a TYPE_BIGNUM obj,
+/// or ``null`` for any other tag.  The returned pointer is borrowed
+/// — callers must not destroy it (the obj retains ownership).
+pub fn obj_get_bignum_managed(obj: i32) ?*bignum.BigInt {
+    if (obj == 0) return null;
+    if (is_immediate(obj)) return null;
+    const addr: u32 = @bitCast(obj);
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag != TYPE_BIGNUM) return null;
+    const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+    if (ptr_addr == 0) return null;
+    return @ptrFromInt(ptr_addr);
 }
 
-fn read_bignum_payload(addr: u32) i128 {
-    const src: [*]const u8 = @ptrFromInt(addr);
-    var bytes: [16]u8 = undefined;
-    inline for (0..16) |i| bytes[i] = src[i];
-    return @bitCast(bytes);
-}
-
-/// Read the i128 value out of a TYPE_BIGNUM TclObj.  Callers
-/// must verify ``obj_type(obj) == TYPE_BIGNUM`` first;
-/// ``obj_get_bignum`` on a non-bignum obj returns the
-/// equivalent value through :func:`obj_get_int` so promotion-
-/// agnostic callers ("treat any int-shaped operand as i128") get
-/// a sensible widening rather than a panic.
+/// Read an i128 view of any int-shaped TclObj.  Truncates to the
+/// low 128 bits when the value exceeds i128 — callers needing the
+/// full magnitude must go through :func:`obj_get_bignum_managed`
+/// (when ``obj_type(obj) == TYPE_BIGNUM``).
 pub fn obj_get_bignum(obj: i32) i128 {
     if (obj == 0) return 0;
     if (is_immediate(obj)) return @as(i128, immediate_unbox(obj));
     const addr: u32 = @bitCast(obj);
     const tag = read_i32(addr + OBJ_TYPE_TAG);
     if (tag == TYPE_BIGNUM) {
-        const payload: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
-        if (payload == 0) return 0;
-        return read_bignum_payload(payload);
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return 0;
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        return bignum.to_i128(m);
     }
     if (tag == TYPE_INT) return @as(i128, read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_FLOAT) {
@@ -562,6 +583,37 @@ pub fn obj_get_bignum(obj: i32) i128 {
     return 0;
 }
 
+/// Promote any int-shaped operand to a freshly-allocated BigInt,
+/// or return the existing borrowed BigInt for TYPE_BIGNUM.  The
+/// boolean return tells the caller whether they own the result and
+/// must :func:`bignum.destroy` it.
+///
+/// Used by arithmetic helpers in ``tcl_arith.zig`` when an
+/// operation needs a ``*BigInt`` and any of its inputs may still
+/// be in a smaller representation (TYPE_INT, immediate, or a
+/// string literal that hasn't been promoted yet).
+pub fn obj_promote_to_bignum(obj: i32) struct { m: ?*bignum.BigInt, owned: bool } {
+    // Already a bignum — borrow.
+    if (obj_get_bignum_managed(obj)) |m| return .{ .m = m, .owned = false };
+    // String literal that exceeds i64 — parse fresh as bignum.
+    if (obj != 0 and !is_immediate(obj)) {
+        const addr: u32 = @bitCast(obj);
+        const tag = read_i32(addr + OBJ_TYPE_TAG);
+        if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
+            const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
+            const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
+            if (try_parse_int(sptr, slen) == null) {
+                if (bignum.alloc_from_string(sptr, slen)) |m| {
+                    return .{ .m = m, .owned = true };
+                }
+            }
+        }
+    }
+    // Anything else collapses through the i128 path.
+    const v = obj_get_bignum(obj);
+    return .{ .m = bignum.alloc_from_int(v), .owned = true };
+}
+
 pub export fn obj_get_float(obj: i32) f64 {
     if (obj == 0) return 0.0;
     // S6.4 — tagged immediate: convert int → float directly.
@@ -571,9 +623,10 @@ pub export fn obj_get_float(obj: i32) f64 {
     if (tag == TYPE_FLOAT) return @bitCast(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_INT) return @floatFromInt(read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_BIGNUM) {
-        const payload: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
-        if (payload == 0) return 0.0;
-        return @floatFromInt(read_bignum_payload(payload));
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return 0.0;
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        return bignum.to_f64(m);
     }
     if (tag == TYPE_STRING) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
@@ -611,14 +664,14 @@ pub export fn obj_get_int(obj: i32) i64 {
     }
     if (tag == TYPE_BIGNUM) {
         // Truncating int conversion: take the low 64 bits of the
-        // i128 payload via @truncate.  Matches C Tcl 9.0 behaviour
+        // arbitrary-precision payload.  Matches C Tcl 9.0 behaviour
         // when an i64-only API (Tcl_GetWideIntFromObj) is asked for
         // a value that doesn't fit — caller must check overflow
         // before requesting the i64 form when accuracy is required.
-        const payload: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
-        if (payload == 0) return 0;
-        const big = read_bignum_payload(payload);
-        return @as(i64, @truncate(big));
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return 0;
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        return bignum.to_i64(m);
     }
     if (tag == TYPE_STRING) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
@@ -874,7 +927,8 @@ fn release_now(addr: u32) void {
     if (ext != 0) {
         write_i32(addr + OBJ_DICT_EXT, 0);
         if (tag == TYPE_BIGNUM) {
-            free_sized(ext, BIGNUM_PAYLOAD_SIZE);
+            const m: *bignum.BigInt = @ptrFromInt(ext);
+            bignum.destroy(m);
         } else {
             const tcl_dict = @import("tcl_dict.zig");
             tcl_dict.dict_destroy_ext(ext);
@@ -1261,20 +1315,20 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         return .{ .ptr = buf, .len = result.len };
     }
     if (tag == TYPE_BIGNUM) {
-        const payload: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
-        if (payload == 0) return .{ .ptr = 0, .len = 0 };
-        const value = read_bignum_payload(payload);
-        var scratch: [bignum.I128_DECIMAL_MAX]u8 = undefined;
-        const len = bignum.format_i128(value, &scratch);
-        const cap = round_up_to_class((@as(u32, @intCast(len)) + 7) & ~@as(u32, 7));
+        const ptr_addr: u32 = @bitCast(read_i32(addr + OBJ_DICT_EXT));
+        if (ptr_addr == 0) return .{ .ptr = 0, .len = 0 };
+        const m: *bignum.BigInt = @ptrFromInt(ptr_addr);
+        const rendered = bignum.alloc_format(m) orelse return .{ .ptr = 0, .len = 0 };
+        defer bignum.allocator.free(rendered);
+        const len: u32 = @intCast(rendered.len);
+        const cap = round_up_to_class((len + 7) & ~@as(u32, 7));
         const buf = alloc(cap);
         if (buf == 0) return .{ .ptr = 0, .len = 0 };
-        const dst: [*]u8 = @ptrFromInt(buf);
-        for (0..len) |i| dst[i] = scratch[i];
+        memcpy(buf, @intFromPtr(rendered.ptr), len);
         write_i32(addr + OBJ_STR_PTR, @intCast(buf));
         write_i32(addr + OBJ_STR_LEN, @intCast(len));
         write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
-        return .{ .ptr = buf, .len = @intCast(len) };
+        return .{ .ptr = buf, .len = len };
     }
     const val = read_i64(addr + OBJ_INT_CACHE);
     const result = itoa(val);
