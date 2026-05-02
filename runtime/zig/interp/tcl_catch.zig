@@ -47,6 +47,28 @@ pub export fn catch_enter() void {
     error_flag = 0;
     error_msg = 0;
     catch_ok_result = 0;
+    // Release any captured payload from a previous catch so a
+    // drain between catches doesn't see a stale +1 hold.
+    if (last_catch_value != 0) {
+        const old = last_catch_value;
+        last_catch_value = 0;
+        obj.tcl_obj_release(old);
+    }
+}
+
+// Exported: signal a TCL_RETURN unwind from the compiled catch body.
+// Mirrors the runtime ``return`` command: stash the value, set the
+// flag, and let ``catch_has_error`` / ``catch_leave`` see it.  The
+// codegen calls this for ``return ?value?`` inside a ``catch`` body
+// so the WASM ``return`` instruction (which would jump past
+// ``catch_leave``) is replaced by a flag-driven unwind.  Issue #..:
+// fixes ``catch {return foo}`` exiting the surrounding proc.
+pub export fn tcl_return_set(value: i32) void {
+    return_flag = 1;
+    const old = return_val;
+    if (value != 0) obj.tcl_obj_retain(value);
+    return_val = value;
+    if (old != 0 and old != value) obj.tcl_obj_release(old);
 }
 
 /// Read-and-clear the pending break flag.  Returns 1 if a break was
@@ -94,13 +116,87 @@ pub export fn catch_set_ok_result(val: i32) void {
 // ``catch {error boom} msg`` produced ``msg == ""``.
 pub var last_catch_had_error: u32 = 0;
 
-// Exported: leave a catch scope. Returns 0 (TCL_OK) or 1 (TCL_ERROR).
+// Tcl return-code constants — mirrors ``generic/tcl.h``.
+const TCL_OK: i64 = 0;
+const TCL_ERROR: i64 = 1;
+const TCL_RETURN: i64 = 2;
+const TCL_BREAK: i64 = 3;
+const TCL_CONTINUE: i64 = 4;
+
+// Snapshot of the captured return code from the most recent
+// ``catch_leave`` call.  ``catch_options`` reads this when building
+// the ``-code`` field of the options dict so a 3-arg ``catch`` sees
+// the same code that ``catch`` itself returned (TCL_BREAK / TCL_CONTINUE
+// for unwound flow control, not TCL_OK / TCL_ERROR like the legacy
+// boolean-only path).
+pub var last_catch_code: i64 = 0;
+
+// Snapshot of the body's payload value at ``catch_leave`` time —
+// the ``return`` value when the body unwound with TCL_RETURN, or the
+// ``error_msg`` when it raised TCL_ERROR.  ``catch_result`` returns
+// this so ``catch {return foo} r`` populates ``r`` with ``foo`` (the
+// returned value) rather than the empty string the previous
+// ``catch_ok_result``-only path produced for non-error exceptional
+// returns.  Cleared back to 0 in ``catch_enter`` so a stale snapshot
+// from a previous catch doesn't leak into a fresh scope.  The
+// ``catch_leave`` path retains the value for the slot's hold so the
+// caller's writeback observes a stable refcount independent of any
+// intervening drain.
+pub var last_catch_value: i32 = 0;
+
+// Exported: leave a catch scope.  Returns the TCL_* return code
+// produced by the body — TCL_OK (0), TCL_ERROR (1), TCL_RETURN (2),
+// TCL_BREAK (3), or TCL_CONTINUE (4) — matching reference Tcl's
+// ``Tcl_CatchObjCmd``.  All four flow-control flags are absorbed
+// here so the surrounding (non-catch) compiled code doesn't see
+// them and the loop / proc dispatcher above us doesn't double-fire.
 pub export fn catch_leave() i32 {
     if (catch_depth > 0) catch_depth -= 1;
-    const had_error = error_flag;
-    last_catch_had_error = had_error;
+    const code: i64 = blk: {
+        if (error_flag != 0) break :blk TCL_ERROR;
+        if (return_flag != 0) break :blk TCL_RETURN;
+        if (break_flag != 0) break :blk TCL_BREAK;
+        if (continue_flag != 0) break :blk TCL_CONTINUE;
+        break :blk TCL_OK;
+    };
+    last_catch_had_error = if (error_flag != 0) 1 else 0;
+    last_catch_code = code;
+    // Snapshot the body's payload so ``catch_result`` can hand it back
+    // to the caller's result-var writeback.  TCL_RETURN carries
+    // ``return_val``; TCL_ERROR carries ``error_msg``.  Retain the
+    // handle so a drain between ``catch_leave`` and ``catch_result``
+    // can't free it out from under the writeback (Codex/Copilot
+    // review on PR #324).  The previous occupant of
+    // ``last_catch_value`` is released.
+    const old_value = last_catch_value;
+    var new_value: i32 = 0;
+    if (return_flag != 0) {
+        new_value = return_val;
+    } else if (error_flag != 0) {
+        new_value = error_msg;
+    }
+    if (new_value != 0 and new_value != old_value) obj.tcl_obj_retain(new_value);
+    last_catch_value = new_value;
+    if (old_value != 0 and old_value != new_value) obj.tcl_obj_release(old_value);
+    // Absorb every flow-control flag — ``catch`` is the universal sink
+    // for non-OK return codes from its body.  Surrounding loops
+    // (``flow_consume_break``) and proc dispatchers (``return_flag``)
+    // would otherwise re-fire on a code we already converted into a
+    // return value.  Also clear ``return_val`` so a stale handle
+    // doesn't leak into the next ``return`` site's release of ``old``.
     error_flag = 0;
-    return obj_new_int(@intCast(had_error));
+    return_flag = 0;
+    break_flag = 0;
+    continue_flag = 0;
+    if (return_val != 0) {
+        // Hand the +1 retain that ``return_val`` was holding to
+        // ``last_catch_value`` (we already retained above).  Release
+        // here cancels the source-side hold.
+        const rv = return_val;
+        return_val = 0;
+        obj.tcl_obj_release(rv);
+    }
+    return obj_new_int(code);
 }
 
 // Exported: get the result (or error message) after catch.
@@ -120,6 +216,14 @@ pub export fn catch_leave() i32 {
 // not unset).  Materialise an empty TclObj here so the writeback
 // path never plants the unset sentinel.
 pub export fn catch_result() i32 {
+    // TCL_ERROR / TCL_RETURN: hand back the payload captured at
+    // ``catch_leave`` time (error message or ``return`` value).  TCL_OK
+    // (and the bare TCL_BREAK / TCL_CONTINUE no-payload codes) fall
+    // through to the body's last-statement value or the empty
+    // sentinel.  This keeps ``catch {return foo} r`` populating ``r``
+    // with ``foo``, matching reference Tcl's ``Tcl_CatchObjCmd``
+    // (Codex/Copilot review on PR #324).
+    if (last_catch_value != 0) return last_catch_value;
     if (last_catch_had_error != 0) return error_msg;
     if (catch_ok_result == 0) return obj_new_string(0, 0);
     return catch_ok_result;
@@ -152,8 +256,7 @@ pub export fn catch_result() i32 {
 // key-modifying path (Copilot review).
 pub export fn catch_options() i32 {
     var d: i32 = dict_mod.dict_create();
-    const code_val: i32 = @intCast(last_catch_had_error);
-    d = dict_set_str_take(d, "-code", obj_new_int(code_val));
+    d = dict_set_str_take(d, "-code", obj_new_int(last_catch_code));
     d = dict_set_str_take(d, "-level", obj_new_int(0));
     const ec_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
     const ec_val = globals.global_get(ec_name);
@@ -200,9 +303,18 @@ fn dict_set_str_keep(d: i32, key: []const u8, value: i32) i32 {
     return new;
 }
 
-// Exported: check if an error is pending (for early exit from catch body).
+// Exported: check if any flow-control signal is pending — error,
+// break, continue, or return.  Catch-body codegen calls this between
+// statements to short-circuit the remainder of the body when the
+// previous statement raised an error or unwound a non-OK return code.
+// Returns 1 when any flag is set, 0 otherwise.  Reference Tcl's
+// ``Tcl_CatchObjCmd`` likewise stops at the first non-TCL_OK code.
 pub export fn catch_has_error() i32 {
-    return @as(i32, @intCast(error_flag));
+    if (error_flag != 0) return 1;
+    if (return_flag != 0) return 1;
+    if (break_flag != 0) return 1;
+    if (continue_flag != 0) return 1;
+    return 0;
 }
 
 // Stamp the error-context globals that Tcl scripts inspect after a
