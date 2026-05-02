@@ -397,10 +397,23 @@ pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
     return obj.obj_new_bignum_take(r);
 }
 
-/// round(x) — round to nearest integer (returns float TclObj or int).
+/// round(x) — round to nearest integer.  Bignum-aware: huge floats
+/// (e.g. ``round(1.0e30)``) are rendered through the same fixed-
+/// point format-and-parse path as ``int()`` so the exact IEEE-754
+/// integer view survives.  In-range floats take the i128 fast path.
 pub export fn tcl_math_round(a: i32) i32 {
     const f = obj.obj_get_float(a);
-    return obj.obj_new_int(@intFromFloat(@round(f)));
+    if (std.math.isNan(f) or std.math.isInf(f)) {
+        stubs.raise("integer value too large to represent");
+        return obj.obj_new_int(0);
+    }
+    const r = @round(f);
+    if (r >= @as(f64, @floatFromInt(std.math.minInt(i128))) and
+        r <= @as(f64, @floatFromInt(std.math.maxInt(i128))))
+    {
+        return obj.obj_new_bignum(@as(i128, @intFromFloat(r)));
+    }
+    return float_to_bignum_obj(r);
 }
 
 /// log(x) — natural logarithm.

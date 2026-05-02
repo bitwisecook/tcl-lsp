@@ -45,6 +45,7 @@ const std = @import("std");
 const obj = @import("../valtypes/tcl_obj.zig");
 const arith = @import("../valtypes/tcl_arith.zig");
 const string = @import("../valtypes/tcl_string.zig");
+const list_mod = @import("../valtypes/tcl_list.zig");
 
 const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;
@@ -58,6 +59,76 @@ const State = struct {
     len: u32,
     pos: u32,
 };
+
+// Helpers to bridge raw memory pointers (usize on wasm32) into the
+// runtime's TclObj signatures.  ``obj_new_string`` takes ``i32`` but
+// treats the value as a bit pattern (the wasm linear-memory address);
+// ``@intCast`` would panic for addresses >= 2 GiB, so we cast through
+// u32 and bit-reinterpret.  ``subst_flagged`` already takes u32, so a
+// plain ``@intCast`` covers it.
+
+inline fn ptr_as_i32(p: usize) i32 {
+    return @bitCast(@as(u32, @intCast(p)));
+}
+
+inline fn ptr_as_u32(p: usize) u32 {
+    return @intCast(p);
+}
+
+inline fn len_as_i32(n: u32) i32 {
+    return @bitCast(n);
+}
+
+/// Apply a binary runtime op to *left* and *right*, releasing both
+/// inputs and returning the freshly-allocated result.  All
+/// ``tcl_arith_*`` helpers produce a new TclObj rather than mutating
+/// either operand, so each parser-level loop must drop the
+/// intermediates it consumed — without this discipline the deep
+/// expression trees in upstream tests (e.g. ``hello_world`` from
+/// ``compExpr-old.test``) leak hundreds of TclObjs per loop iteration
+/// and trip the wasi-libc allocator's u32 overflow check.
+inline fn apply_binary(
+    op: *const fn (a: i32, b: i32) callconv(.c) i32,
+    left: i32,
+    right: i32,
+) i32 {
+    const r = op(left, right);
+    obj.tcl_obj_release(left);
+    obj.tcl_obj_release(right);
+    return r;
+}
+
+/// Same as :func:`apply_binary` for unary ops.
+inline fn apply_unary(
+    op: *const fn (a: i32) callconv(.c) i32,
+    operand: i32,
+) i32 {
+    const r = op(operand);
+    obj.tcl_obj_release(operand);
+    return r;
+}
+
+/// True iff the alphabetic identifier ``name`` matches a Tcl
+/// operator-keyword and the *next* character would cleanly end the
+/// keyword (i.e. not the leading char of a longer identifier).  The
+/// runtime evaluator needs this to disambiguate ``eq``/``ne``/``in``/
+/// ``ni``/``lt``/``le``/``gt``/``ge`` from a same-prefixed bareword
+/// or function name (``int(x)`` shouldn't trigger the ``in`` operator
+/// branch even though it starts with ``in``).
+fn match_kw_op(s: *State, kw: []const u8) bool {
+    if (s.pos + kw.len > s.len) return false;
+    for (kw, 0..) |c, i| {
+        if (s.src[s.pos + i] != c) return false;
+    }
+    if (s.pos + kw.len == s.len) return true;
+    const next = s.src[s.pos + kw.len];
+    if ((next >= 'a' and next <= 'z') or (next >= 'A' and next <= 'Z') or
+        (next >= '0' and next <= '9') or next == '_')
+    {
+        return false;
+    }
+    return true;
+}
 
 fn skip_ws(s: *State) void {
     while (s.pos < s.len) {
@@ -109,7 +180,13 @@ fn parse_ternary(s: *State) i32 {
         skip_ws(s);
         if (s.pos < s.len and s.src[s.pos] == ':') s.pos += 1;
         const false_branch = parse_ternary(s);
-        if (truthy(cond)) return true_branch;
+        const taken_true = truthy(cond);
+        obj.tcl_obj_release(cond);
+        if (taken_true) {
+            obj.tcl_obj_release(false_branch);
+            return true_branch;
+        }
+        obj.tcl_obj_release(true_branch);
         return false_branch;
     }
     return cond;
@@ -121,7 +198,10 @@ fn parse_or(s: *State) i32 {
         skip_ws(s);
         if (match2(s, '|', '|')) {
             const right = parse_and(s);
-            left = obj_new_int(if (truthy(left) or truthy(right)) @as(i64, 1) else 0);
+            const result = obj_new_int(if (truthy(left) or truthy(right)) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = result;
         } else break;
     }
     return left;
@@ -133,7 +213,10 @@ fn parse_and(s: *State) i32 {
         skip_ws(s);
         if (match2(s, '&', '&')) {
             const right = parse_bit_or(s);
-            left = obj_new_int(if (truthy(left) and truthy(right)) @as(i64, 1) else 0);
+            const result = obj_new_int(if (truthy(left) and truthy(right)) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = result;
         } else break;
     }
     return left;
@@ -143,11 +226,10 @@ fn parse_bit_or(s: *State) i32 {
     var left = parse_bit_xor(s);
     while (true) {
         skip_ws(s);
-        // Reject ``||`` which is the logical-or token at the higher level.
         if (s.pos < s.len and s.src[s.pos] == '|' and (s.pos + 1 >= s.len or s.src[s.pos + 1] != '|')) {
             s.pos += 1;
             const right = parse_bit_xor(s);
-            left = arith.tcl_arith_bor(left, right);
+            left = apply_binary(arith.tcl_arith_bor, left, right);
         } else break;
     }
     return left;
@@ -160,7 +242,7 @@ fn parse_bit_xor(s: *State) i32 {
         if (s.pos < s.len and s.src[s.pos] == '^') {
             s.pos += 1;
             const right = parse_bit_and(s);
-            left = arith.tcl_arith_bxor(left, right);
+            left = apply_binary(arith.tcl_arith_bxor, left, right);
         } else break;
     }
     return left;
@@ -170,14 +252,22 @@ fn parse_bit_and(s: *State) i32 {
     var left = parse_eq_cmp(s);
     while (true) {
         skip_ws(s);
-        // Reject ``&&`` which is the logical-and token at the higher level.
         if (s.pos < s.len and s.src[s.pos] == '&' and (s.pos + 1 >= s.len or s.src[s.pos + 1] != '&')) {
             s.pos += 1;
             const right = parse_eq_cmp(s);
-            left = arith.tcl_arith_band(left, right);
+            left = apply_binary(arith.tcl_arith_band, left, right);
         } else break;
     }
     return left;
+}
+
+/// Map a ``tcl_expr_order_cmp`` result (-1 / 0 / +1 wrapped in a
+/// TclObj) to an int for the sign-test in ``==`` / ``!=`` / ``<`` /
+/// ``<=`` / ``>`` / ``>=``.  Releases the cmp obj before returning.
+inline fn drain_cmp(cmp: i32) i64 {
+    const v = obj.obj_get_int(cmp);
+    obj.tcl_obj_release(cmp);
+    return v;
 }
 
 fn parse_eq_cmp(s: *State) i32 {
@@ -187,11 +277,50 @@ fn parse_eq_cmp(s: *State) i32 {
         if (match2(s, '=', '=')) {
             const right = parse_order_cmp(s);
             const cmp = string.tcl_expr_order_cmp(left, right);
-            left = obj_new_int(if (obj.obj_get_int(cmp) == 0) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = obj_new_int(if (drain_cmp(cmp) == 0) @as(i64, 1) else 0);
         } else if (match2(s, '!', '=')) {
             const right = parse_order_cmp(s);
             const cmp = string.tcl_expr_order_cmp(left, right);
-            left = obj_new_int(if (obj.obj_get_int(cmp) != 0) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = obj_new_int(if (drain_cmp(cmp) != 0) @as(i64, 1) else 0);
+        } else if (match_kw_op(s, "eq")) {
+            // ``eq`` — string equality (canonical-byte-equal).  The
+            // ``string_equal`` helper byte-compares the canonical
+            // string form of both operands; for canonical decimal
+            // ints / bignums it reduces to numeric equality.
+            s.pos += 2;
+            const right = parse_order_cmp(s);
+            left = apply_binary(string.string_equal, left, right);
+        } else if (match_kw_op(s, "ne")) {
+            s.pos += 2;
+            const right = parse_order_cmp(s);
+            const eq_obj = string.string_equal(left, right);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            const v = obj.obj_get_int(eq_obj);
+            obj.tcl_obj_release(eq_obj);
+            left = obj_new_int(if (v == 0) @as(i64, 1) else 0);
+        } else if (match_kw_op(s, "in")) {
+            // ``in`` — list-membership.  ``list.tcl_cmd_list_contains``
+            // takes ``(list, value)`` (note the order).
+            s.pos += 2;
+            const right = parse_order_cmp(s);
+            const r = list_mod.tcl_cmd_list_contains(right, left);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = r;
+        } else if (match_kw_op(s, "ni")) {
+            s.pos += 2;
+            const right = parse_order_cmp(s);
+            const in_obj = list_mod.tcl_cmd_list_contains(right, left);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            const v = obj.obj_get_int(in_obj);
+            obj.tcl_obj_release(in_obj);
+            left = obj_new_int(if (v == 0) @as(i64, 1) else 0);
         } else break;
     }
     return left;
@@ -201,28 +330,71 @@ fn parse_order_cmp(s: *State) i32 {
     var left = parse_shift(s);
     while (true) {
         skip_ws(s);
-        // Order matters: check the 2-char tokens (<= >=) before the
-        // 1-char (< > <<) so we don't misparse ``<=`` as ``<`` then
-        // a stray ``=``.  Also reject ``<<`` / ``>>`` which are the
-        // shift tokens at the higher level.
         if (match2(s, '<', '=')) {
             const right = parse_shift(s);
             const cmp = string.tcl_expr_order_cmp(left, right);
-            left = obj_new_int(if (obj.obj_get_int(cmp) <= 0) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = obj_new_int(if (drain_cmp(cmp) <= 0) @as(i64, 1) else 0);
         } else if (match2(s, '>', '=')) {
             const right = parse_shift(s);
             const cmp = string.tcl_expr_order_cmp(left, right);
-            left = obj_new_int(if (obj.obj_get_int(cmp) >= 0) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = obj_new_int(if (drain_cmp(cmp) >= 0) @as(i64, 1) else 0);
         } else if (s.pos < s.len and s.src[s.pos] == '<' and (s.pos + 1 >= s.len or s.src[s.pos + 1] != '<')) {
             s.pos += 1;
             const right = parse_shift(s);
             const cmp = string.tcl_expr_order_cmp(left, right);
-            left = obj_new_int(if (obj.obj_get_int(cmp) < 0) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = obj_new_int(if (drain_cmp(cmp) < 0) @as(i64, 1) else 0);
         } else if (s.pos < s.len and s.src[s.pos] == '>' and (s.pos + 1 >= s.len or s.src[s.pos + 1] != '>')) {
             s.pos += 1;
             const right = parse_shift(s);
             const cmp = string.tcl_expr_order_cmp(left, right);
-            left = obj_new_int(if (obj.obj_get_int(cmp) > 0) @as(i64, 1) else 0);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            left = obj_new_int(if (drain_cmp(cmp) > 0) @as(i64, 1) else 0);
+        } else if (match_kw_op(s, "lt")) {
+            // ``lt`` / ``le`` / ``gt`` / ``ge`` — string-order
+            // comparison.  Always lexicographic (Tcl 9 semantic),
+            // regardless of whether the operands look numeric.
+            s.pos += 2;
+            const right = parse_shift(s);
+            const cmp_obj = string.string_compare(left, right);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            const v = obj.obj_get_int(cmp_obj);
+            obj.tcl_obj_release(cmp_obj);
+            left = obj_new_int(if (v < 0) @as(i64, 1) else 0);
+        } else if (match_kw_op(s, "le")) {
+            s.pos += 2;
+            const right = parse_shift(s);
+            const cmp_obj = string.string_compare(left, right);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            const v = obj.obj_get_int(cmp_obj);
+            obj.tcl_obj_release(cmp_obj);
+            left = obj_new_int(if (v <= 0) @as(i64, 1) else 0);
+        } else if (match_kw_op(s, "gt")) {
+            s.pos += 2;
+            const right = parse_shift(s);
+            const cmp_obj = string.string_compare(left, right);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            const v = obj.obj_get_int(cmp_obj);
+            obj.tcl_obj_release(cmp_obj);
+            left = obj_new_int(if (v > 0) @as(i64, 1) else 0);
+        } else if (match_kw_op(s, "ge")) {
+            s.pos += 2;
+            const right = parse_shift(s);
+            const cmp_obj = string.string_compare(left, right);
+            obj.tcl_obj_release(left);
+            obj.tcl_obj_release(right);
+            const v = obj.obj_get_int(cmp_obj);
+            obj.tcl_obj_release(cmp_obj);
+            left = obj_new_int(if (v >= 0) @as(i64, 1) else 0);
         } else break;
     }
     return left;
@@ -234,10 +406,10 @@ fn parse_shift(s: *State) i32 {
         skip_ws(s);
         if (match2(s, '<', '<')) {
             const right = parse_add(s);
-            left = arith.tcl_arith_lshift(left, right);
+            left = apply_binary(arith.tcl_arith_lshift, left, right);
         } else if (match2(s, '>', '>')) {
             const right = parse_add(s);
-            left = arith.tcl_arith_rshift(left, right);
+            left = apply_binary(arith.tcl_arith_rshift, left, right);
         } else break;
     }
     return left;
@@ -250,11 +422,11 @@ fn parse_add(s: *State) i32 {
         if (s.pos < s.len and s.src[s.pos] == '+') {
             s.pos += 1;
             const right = parse_mul(s);
-            left = arith.tcl_arith_add(left, right);
+            left = apply_binary(arith.tcl_arith_add, left, right);
         } else if (s.pos < s.len and s.src[s.pos] == '-') {
             s.pos += 1;
             const right = parse_mul(s);
-            left = arith.tcl_arith_sub(left, right);
+            left = apply_binary(arith.tcl_arith_sub, left, right);
         } else break;
     }
     return left;
@@ -264,33 +436,29 @@ fn parse_mul(s: *State) i32 {
     var left = parse_pow(s);
     while (true) {
         skip_ws(s);
-        // Reject ``**`` which is the power token at the higher level.
         if (s.pos < s.len and s.src[s.pos] == '*' and (s.pos + 1 >= s.len or s.src[s.pos + 1] != '*')) {
             s.pos += 1;
             const right = parse_pow(s);
-            left = arith.tcl_arith_mul(left, right);
+            left = apply_binary(arith.tcl_arith_mul, left, right);
         } else if (s.pos < s.len and s.src[s.pos] == '/') {
             s.pos += 1;
             const right = parse_pow(s);
-            left = arith.tcl_arith_div(left, right);
+            left = apply_binary(arith.tcl_arith_div, left, right);
         } else if (s.pos < s.len and s.src[s.pos] == '%') {
             s.pos += 1;
             const right = parse_pow(s);
-            left = arith.tcl_arith_mod(left, right);
+            left = apply_binary(arith.tcl_arith_mod, left, right);
         } else break;
     }
     return left;
 }
 
 fn parse_pow(s: *State) i32 {
-    // ``**`` is right-associative — recurse into ``parse_pow`` for
-    // the right operand so ``2 ** 3 ** 4`` parses as
-    // ``2 ** (3 ** 4)``.
     const left = parse_unary(s);
     skip_ws(s);
     if (match2(s, '*', '*')) {
         const right = parse_pow(s);
-        return arith.tcl_arith_pow(left, right);
+        return apply_binary(arith.tcl_arith_pow, left, right);
     }
     return left;
 }
@@ -301,8 +469,7 @@ fn parse_unary(s: *State) i32 {
     const c = s.src[s.pos];
     if (c == '-') {
         s.pos += 1;
-        const operand = parse_unary(s);
-        return arith.tcl_arith_neg(operand);
+        return apply_unary(arith.tcl_arith_neg, parse_unary(s));
     }
     if (c == '+') {
         s.pos += 1;
@@ -311,12 +478,13 @@ fn parse_unary(s: *State) i32 {
     if (c == '!') {
         s.pos += 1;
         const operand = parse_unary(s);
-        return obj_new_int(if (truthy(operand)) @as(i64, 0) else 1);
+        const result = obj_new_int(if (truthy(operand)) @as(i64, 0) else 1);
+        obj.tcl_obj_release(operand);
+        return result;
     }
     if (c == '~') {
         s.pos += 1;
-        const operand = parse_unary(s);
-        return arith.tcl_arith_bnot(operand);
+        return apply_unary(arith.tcl_arith_bnot, parse_unary(s));
     }
     return parse_atom(s);
 }
@@ -366,7 +534,7 @@ fn parse_var(s: *State) i32 {
     const slice_ptr = @intFromPtr(s.src) + start;
     const slice_len = s.pos - start;
     const subst = @import("../parse/tcl_subst.zig");
-    return subst.subst_flagged(@intCast(slice_ptr), slice_len, true, false, false);
+    return subst.subst_flagged(ptr_as_u32(slice_ptr), slice_len, true, false, false);
 }
 
 fn parse_cmd_subst(s: *State) i32 {
@@ -392,7 +560,7 @@ fn parse_cmd_subst(s: *State) i32 {
     if (s.pos < s.len) s.pos += 1; // skip closing ]
     const inner_ptr = @intFromPtr(s.src) + start;
     const interp_mod = @import("tcl_interp.zig");
-    const script_obj = obj_new_string(@intCast(inner_ptr), @intCast(inner_len));
+    const script_obj = obj_new_string(ptr_as_i32(inner_ptr), len_as_i32(inner_len));
     return interp_mod.tcl_eval(script_obj);
 }
 
@@ -407,7 +575,7 @@ fn parse_quoted(s: *State) i32 {
     if (s.pos < s.len) s.pos += 1; // skip closing "
     const inner_ptr = @intFromPtr(s.src) + start;
     const subst = @import("../parse/tcl_subst.zig");
-    return subst.subst_flagged(@intCast(inner_ptr), inner_len, true, true, true);
+    return subst.subst_flagged(ptr_as_u32(inner_ptr), inner_len, true, true, true);
 }
 
 fn parse_braced(s: *State) i32 {
@@ -430,7 +598,7 @@ fn parse_braced(s: *State) i32 {
     const inner_len = s.pos - start;
     if (s.pos < s.len) s.pos += 1; // skip closing }
     const inner_ptr = @intFromPtr(s.src) + start;
-    return obj_new_string(@intCast(inner_ptr), @intCast(inner_len));
+    return obj_new_string(ptr_as_i32(inner_ptr), len_as_i32(inner_len));
 }
 
 fn parse_number(s: *State) i32 {
@@ -480,7 +648,7 @@ fn parse_number(s: *State) i32 {
 fn finalize_num(s: *State, start: u32) i32 {
     const slen = s.pos - start;
     const sptr = @intFromPtr(s.src) + start;
-    return obj_new_string(@intCast(sptr), @intCast(slen));
+    return obj_new_string(ptr_as_i32(sptr), len_as_i32(slen));
 }
 
 fn parse_func_or_word(s: *State) i32 {
@@ -514,7 +682,11 @@ fn parse_func_or_word(s: *State) i32 {
             argc += 1;
         }
         if (s.pos < s.len and s.src[s.pos] == ')') s.pos += 1;
-        return dispatch_math_func(name, args[0..argc]);
+        const result = dispatch_math_func(name, args[0..argc]);
+        // Release the argument TclObjs we own — the math helpers
+        // produce a fresh result rather than retaining their inputs.
+        for (args[0..argc]) |arg| obj.tcl_obj_release(arg);
+        return result;
     }
     // Bare keyword: ``true`` / ``false`` / ``yes`` / ``no`` / ``on`` / ``off``.
     if (parse_bool_keyword(name)) |v| return obj_new_int(v);
@@ -522,7 +694,7 @@ fn parse_func_or_word(s: *State) i32 {
     // of bare words in expressions when they don't match a known
     // function name.
     const sptr = @intFromPtr(s.src) + start;
-    return obj_new_string(@intCast(sptr), @intCast(name_len));
+    return obj_new_string(ptr_as_i32(sptr), len_as_i32(name_len));
 }
 
 fn parse_bool_keyword(name: []const u8) ?i64 {
