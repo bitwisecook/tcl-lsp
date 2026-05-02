@@ -833,6 +833,11 @@ class TestCommandDispatch:
             "catch_has_error",
             "flow_check_return",
             "flow_take_return",
+            # ``flow_check_signal_loop`` is the per-callsite
+            # break/continue probe — also always pulled in once a
+            # module has procs since any callee can ``return -code
+            # break`` / ``-code continue``.
+            "flow_check_signal_loop",
         }
 
 
