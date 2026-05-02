@@ -184,6 +184,9 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_clock_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_array_subcmd_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_signal_check_and_return(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_error_flag_check_and_return(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_compiled_call_with_bridge(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_stmt(self, stmt: IRStatement) -> None:
         """Emit WASM for a single IR statement."""
@@ -944,8 +947,19 @@ class _WasmEmitterStmtMixin(_Base):
             canonical_command = normalise_qualified_name(command) if command else command
         # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
         # to invalidate caller-side SSA defs around a call that modifies
-        # variables via upvar.  No code to emit at the WASM level.
+        # variables via upvar.  No code to emit at the WASM level — but
+        # we pre-intern the ``defs`` so the next statement's frame-bridge
+        # readback covers them.  Without this, an embedded call like
+        # ``set lg [::tcl::Lassign $item varname arg1 ...]`` (which the
+        # CFG builder represents as a synthetic invalidate followed by
+        # the IRAssignValue) silently drops the uplevel-back writes:
+        # the IRAssignValue's value-context dispatch syncs only the
+        # locals already interned, and ``varname`` / ``arg1`` aren't
+        # interned until the post-call ``$varname`` reads — by which
+        # time the readback has already run with an empty sync set.
         if command == "<upvar-invalidate>":
+            for _def_var in defs:
+                self._intern_local(_def_var)
             return
 
         # <cond> — synthetic IRCall emitted by the CFG builder in front
@@ -1454,6 +1468,23 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_local_get(ns_saved_idx)
                     self._emit_call(ns_restore_idx)
                     self._emit_local_get(result_tmp)
+            # Signal-flag propagation.  When the eval body raised
+            # ``error`` or ``return``, ``eval_script`` exits early
+            # leaving the corresponding flag set; without an
+            # explicit unwind here the compiled body would happily
+            # run the next statement and (for ``return``) try to
+            # read variables that the body's early exit never
+            # initialised — opt-10.5's "can't read 'arg'" came
+            # from exactly this path: ``OptDoOne`` ran the if-chain
+            # via fallback whose ``return -code return`` set the
+            # flag, then the compiled switch immediately read
+            # ``$arg`` with strict-read.  The unwind hands the
+            # eval result back to the caller (matches Tcl's
+            # ``proc {} { return $x }`` semantics — the body's
+            # final value becomes the proc's result) while
+            # leaving the flag set so the surrounding catch /
+            # outer compiled call can see it.
+            self._emit_signal_check_and_return()
             return
         # No interpreter available — hard trap
         fidx = self._shared_imports.get("tcl_error")
@@ -1470,6 +1501,7 @@ class _WasmEmitterStmtMixin(_Base):
         defs: tuple[str, ...] = (),
         *,
         canonical_command: str | None = None,
+        tokens: "CommandTokens | None" = None,
     ) -> None:
         """Emit a command invocation in tail position, keeping its i32 result on the stack.
 
@@ -1539,7 +1571,18 @@ class _WasmEmitterStmtMixin(_Base):
                 for _ in range(n_params - len(args)):
                     self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
-            self._emit_call(func_idx)
+            # Pessimistic procs need the frame-bridge sync/readback
+            # around the call so the callee's ``upvar`` /
+            # ``uplevel`` writes propagate (and so the callee can
+            # observe caller-side WASM-local state via the runtime
+            # frame).  The tail position is no exception — without
+            # this, a proc whose only body is ``set X v; Callee X``
+            # never syncs ``X`` to the frame and ``Callee``'s
+            # ``upvar 1 $aN x`` pulls 0 from the empty frame slot,
+            # raising ``can't read "x": no such variable``.  See the
+            # statement-context path in ``_emit_cmd_proc_call`` for
+            # the matching wrap.
+            self._emit_compiled_call_with_bridge(func_idx, defs=defs)
             # i32 result stays on the stack
             return
 
@@ -1549,12 +1592,22 @@ class _WasmEmitterStmtMixin(_Base):
         # Hooks now fully support EmitContext.VALUE — the runtime hook
         # emits the import call and leaves the result on the stack via
         # ``_emit_cmd_runtime(context=VALUE)`` / ``_runtime_call_end``.
-        hook = _REGISTRY.get_wasm_hook(command)
-        if hook is not None and hook(self, args, defs, EmitContext.VALUE):
-            return
+        # Stash ``_current_call_tokens`` around the hook so per-arg
+        # brace info survives — without this, a tail-position
+        # ``string match {\?*} $name`` loses the BRACED bit on the
+        # pattern and ``_emit_value`` runs Tcl backslash subst on
+        # the IR ``\?*``, producing ``?*`` and matching everything.
+        prev_tokens = getattr(self, "_current_call_tokens", None)
+        self._current_call_tokens = tokens
+        try:
+            hook = _REGISTRY.get_wasm_hook(command)
+            if hook is not None and hook(self, args, defs, EmitContext.VALUE):
+                return
+        finally:
+            self._current_call_tokens = prev_tokens
 
         # Unknown command in tail position — fall back to interpreter,
         # leaving the result on the stack for implicit return.
-        self._emit_eval_fallback(command, args)
+        self._emit_eval_fallback(command, args, tokens=tokens)
 
     # -- Global variable write-through --

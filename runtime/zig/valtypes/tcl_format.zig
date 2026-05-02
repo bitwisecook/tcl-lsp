@@ -46,12 +46,42 @@ const alloc = obj.alloc;
 /// string.  Returns a freshly-allocated TclObj with the formatted
 /// string.
 pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
+    const args = [_]i32{ a1, a2, a3 };
+    return format_internal(fmt, args[0..]);
+}
+
+/// Variadic ``format`` — args supplied as a Tcl list TclObj.  Used
+/// by callers that exceed the three-slot ``tcl_cmd_format``
+/// signature, e.g. ``[format "%-*s %-*s %-*s %s" $nl $name $tl $type
+/// $dl $dv $help]`` in opt.test's ``OptTree``.  Each list element is
+/// pulled in turn as the next sequential argument.
+pub export fn tcl_cmd_format_list(fmt: i32, args_list: i32) i32 {
+    const list_mod = @import("tcl_list.zig");
+    const list_parse = @import("tcl_list_parse.zig");
+    if (args_list == 0) return format_internal(fmt, &[_]i32{});
+    const ls = obj_ensure_string(args_list);
+    const n_signed = list_parse.count_elements(ls.ptr, ls.len);
+    if (n_signed <= 0) return format_internal(fmt, &[_]i32{});
+    const n: u32 = @intCast(n_signed);
+    // Materialise each element as a fresh TclObj via
+    // ``tcl_cmd_list_index`` (handles braced + quoted elements
+    // and backslash decoding) so the format routine can pull
+    // integer widths and string values uniformly.
+    const objs_addr = alloc(n * 4);
+    const objs: [*]i32 = @ptrFromInt(objs_addr);
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        objs[i] = list_mod.tcl_cmd_list_index(args_list, obj.obj_new_int(@intCast(i)));
+    }
+    return format_internal(fmt, objs[0..n]);
+}
+
+fn format_internal(fmt: i32, args: []const i32) i32 {
     if (fmt == 0) return obj_new_string(0, 0);
     const fs = obj_ensure_string(fmt);
     if (fs.len == 0) return obj_new_string(0, 0);
     const fp: [*]const u8 = @ptrFromInt(fs.ptr);
 
-    const args = [_]i32{ a1, a2, a3 };
     var arg_idx: u32 = 0;
 
     // Preallocate a generously-sized buffer.  4× the format string
@@ -119,15 +149,42 @@ pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
             }
         }
         var width: u32 = 0;
-        while (i < fs.len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
-            width = width * 10 + @as(u32, fp[i] - '0');
+        if (i < fs.len and fp[i] == '*') {
+            // ``%-*s`` / ``%*s`` — consume the next arg as the width.
+            // Matches reference Tcl's ``Tcl_FormatObjCmd`` star-width
+            // semantics; opt.test's ``OptTree`` (``format "%-*s"``)
+            // depends on this for column alignment.
+            i += 1;
+            const w_arg = if (arg_idx < args.len) args[arg_idx] else 0;
+            arg_idx += 1;
+            const w = obj_get_int(w_arg);
+            // Negative widths are treated as left-aligned + abs(width).
+            if (w < 0) {
+                left_align = true;
+                width = @intCast(-w);
+            } else {
+                width = @intCast(w);
+            }
+        } else {
+            while (i < fs.len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
+                width = width * 10 + @as(u32, fp[i] - '0');
+            }
         }
         var precision: i32 = -1;
         if (i < fs.len and fp[i] == '.') {
             i += 1;
-            precision = 0;
-            while (i < fs.len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
-                precision = precision * 10 + @as(i32, fp[i] - '0');
+            if (i < fs.len and fp[i] == '*') {
+                // ``%.*s`` — dynamic precision from the next arg.
+                i += 1;
+                const p_arg = if (arg_idx < args.len) args[arg_idx] else 0;
+                arg_idx += 1;
+                const p = obj_get_int(p_arg);
+                precision = if (p < 0) 0 else @intCast(p);
+            } else {
+                precision = 0;
+                while (i < fs.len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
+                    precision = precision * 10 + @as(i32, fp[i] - '0');
+                }
             }
         }
         if (i >= fs.len) break;

@@ -271,11 +271,29 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         # ``tcl_list_insert`` to thread earlier values
                         # before the replaced slot.
                         needed.add("tcl_list_insert")
+                    elif cmd == "format" and len(full_parts) > 4:
+                        # ``format`` with more than 3 substitution
+                        # args exceeds ``tcl_cmd_format``'s fixed-arity
+                        # slot budget; route through the variadic
+                        # ``tcl_cmd_format_list`` helper which packs
+                        # args into a Tcl list at runtime.  Used by
+                        # opt.test's ``OptTree`` (7-arg ``format``
+                        # with ``%-*s`` columns) and any other
+                        # multi-substitution callsite.
+                        needed.add("tcl_cmd_format_list")
+                        needed.add("tcl_list_create")
                 elif cmd == "list":
                     # ``[list $a $b ...]`` with variable/command args uses
                     # tcl_lappend internally in _emit_list_value to properly
                     # quote each element.  Add it so the import is available.
                     needed.add("tcl_lappend")
+                    # Args that are interpolated double-quoted strings
+                    # (``[list "value=$x" b]``) route through ``_emit_value``
+                    # → ``_emit_interpolated_value`` which builds the
+                    # element via a ``tcl_append`` concat chain.  Without
+                    # this import the interpolation collapses to a literal
+                    # in the lookup table and ``$x`` never substitutes.
+                    needed.add("tcl_append")
                 elif cmd == "dict" and len(parts) > 1:
                     subcmd = parts[1]
                     sri = subcommand_runtime_import_for("dict", subcmd)
@@ -347,6 +365,19 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_restore")
+                elif cmd == "set" and len(parts) >= 2:
+                    # ``[set arr(key)]`` reads through ``tcl_array_get``
+                    # via ``_emit_command_subst_value`` →
+                    # ``_emit_var_read_obj`` → ``_emit_array_element_read``.
+                    # Without this scan branch, the import is missing and
+                    # the read silently degrades to ``i32.const 0`` (empty).
+                    # ``[set arr(key) value]`` writes through ``tcl_array_set``.
+                    name = parts[1]
+                    if _parse_array_ref(name) is not None:
+                        if len(full_parts) == 2:
+                            needed.add("tcl_array_get")
+                        else:
+                            needed.add("tcl_array_set")
                 elif cmd == "array" and len(parts) > 1:
                     sub = parts[1]
                     if sub == "exists":
@@ -877,8 +908,20 @@ def _scan_needed_imports(
                 if expr is not None:
                     _scan_expr(expr)
             case IRBarrier(command=barrier_cmd, args=barrier_args):
-                # Eval-fallback path always needs tcl_eval.
+                # Eval-fallback path always needs tcl_eval.  Also pull
+                # in the catch-/return-flag inspectors so the wrapper
+                # that follows the eval can detect a body-raised
+                # ``error`` / ``return`` and unwind out of the
+                # surrounding compiled proc — without these, control
+                # falls through to the next statement and a strict
+                # ``$x`` read traps with a misleading "no such
+                # variable" because the body never finished setting
+                # up ``x``.  Inert at top level (``::top``) where the
+                # check is skipped.
                 needed.add("tcl_eval")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_check_return")
+                needed.add("tcl_flow_take_return")
                 if barrier_cmd == "uplevel":
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_restore")
@@ -1042,6 +1085,43 @@ def _scan_needed_imports(
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")
         needed.add("tcl_frame_get_argv")
+        # Compiled procs need to detect & propagate signal flags
+        # (``error_flag`` / ``return_flag``) raised by callees and
+        # eval-fallback bodies.  Pulled in for any module with procs
+        # since any callee may raise either flag — see the
+        # ``_emit_error_flag_check_and_return`` /
+        # ``_emit_signal_check_and_return`` callsites in
+        # ``_commands.py``.  Pure-arithmetic top-level scripts (no
+        # procs) don't trigger the bridge so they skip these.
+        needed.add("tcl_catch_has_error")
+        needed.add("tcl_flow_check_return")
+        needed.add("tcl_flow_take_return")
+        # ``return -code break`` / ``return -code continue`` from a
+        # compiled callee leave a signal flag set; the per-callsite
+        # probe early-returns from the WASM function so the proc
+        # dispatcher can route the signal to the caller's enclosing
+        # loop.  Always include the import alongside the other flow
+        # helpers when the module has procedures.
+        needed.add("tcl_flow_check_signal_loop")
+        # ``variable X`` / ``global X`` inside a compiled proc emit
+        # ``tcl_frame_alias_named`` so an interpreter-side eval inside
+        # the body (a ``while``-with-bracket-cond, an explicit ``eval
+        # { ... }``, the eval-fallback for an unknown command) sees
+        # the same alias the compiled code uses.  Without this, the
+        # body's ``incr X`` lands in a fresh frame-local while
+        # compiled reads/writes go to the ns var -- two divergent
+        # views of the same name.
+        needed.add("tcl_frame_alias_named")
+        needed.add("tcl_frame_alias_global")
+        # ``upvar 1 other local`` / ``upvar N other local`` / ``upvar
+        # #N other local`` (with N > 0) compiled-proc support: register
+        # the local as an alias to a variable in another frame so the
+        # callee's ``set local x`` lands in the caller's slot.  Used by
+        # opt.test (``OptDoAll``, ``OptDoOne``, ``OptCurSetValue``,
+        # ``OptTreeVars``), uplevel.test, abstractlist.test, reg.test.
+        needed.add("tcl_frame_alias_frame_var")
+        needed.add("tcl_frame_get_depth")
+        needed.add("tcl_upvar_resolve_depth")
         # Pending-argv0 ABI: the callee prologue reads this slot
         # (cleared on read) to pick up the invoked word recorded by
         # the caller immediately before the compiled ``call``.  The

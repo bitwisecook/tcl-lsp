@@ -29,6 +29,29 @@ def _looks_like_option(arg: str) -> bool:
     return not (second.isdigit() or second == ".")
 
 
+def _was_braced(emitter, call_arg_idx: int) -> bool:
+    """Probe ``_current_call_tokens`` for whether the call-site arg at
+    *call_arg_idx* (0-indexed into the original ``args``, which excludes
+    the command name) came from a ``{…}`` STR token.
+
+    ``string match {\\?*} $name`` only works correctly when the IR
+    value ``\\?*`` is emitted verbatim — without the probe, ``_emit_value``
+    falls into the backslash-subst branch and turns the pattern into
+    ``?*``, matching anything starting with any single char.  That
+    surfaces as ``OptIsOpt cmd`` returning 1 instead of 0 and is the
+    root cause of the opt-10.5..10 / 11.1 / 3.1 silent successes.
+    """
+    from ......parsing.tokens import TokenType
+
+    tokens = getattr(emitter, "_current_call_tokens", None)
+    if tokens is None or tokens.argv is None:
+        return False
+    tok_idx = call_arg_idx + 1
+    if tok_idx >= len(tokens.argv):
+        return False
+    return tokens.argv[tok_idx].type == TokenType.STR
+
+
 def _emit_string(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
@@ -67,7 +90,10 @@ def _emit_string(
                 func_idx = emitter._shared_imports[sri.import_key]
                 param_count = len(sri.params)
                 for i in range(min(param_count, len(sub_args))):
-                    emitter._emit_value(sub_args[i])
+                    # ``i`` is into ``sub_args`` (= ``args[1:]``), so the
+                    # original call-arg index is ``i + 1`` (the
+                    # subcommand at args[0] occupies the first slot).
+                    emitter._emit_value(sub_args[i], was_braced=_was_braced(emitter, i + 1))
                 for _ in range(param_count - len(sub_args)):
                     emitter._emit_i32_const(0)
                 emitter._emit_call(func_idx)
@@ -152,7 +178,7 @@ def _emit_string(
         func_idx = emitter._shared_imports[sri.import_key]
         param_count = len(sri.params)
         for i in range(min(param_count, len(sub_args))):
-            emitter._emit_value(sub_args[i])
+            emitter._emit_value(sub_args[i], was_braced=_was_braced(emitter, i + 1))
         for _ in range(param_count - len(sub_args)):
             emitter._emit_i32_const(0)
         emitter._emit_call(func_idx)

@@ -109,6 +109,44 @@ pub fn eval(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "map") and words.len >= 5) return eval_dict_map(words);
     if (str_eq(sp, sub.len, "with") and words.len >= 4) return eval_dict_with(words);
     if (str_eq(sp, sub.len, "filter") and words.len >= 4) return eval_dict_filter(words);
+    // Unrecognised subcommand — surface Tcl's standard ``unknown or
+    // ambiguous subcommand`` diagnostic so a compiled ``dict foo
+    // ...`` callsite that fell through to this dispatcher (because
+    // the subcommand has no compile-time hook) errors loudly instead
+    // of silently evaluating to the empty string (Copilot review on
+    // PR #325).  Mirrors ``tclDictObj.c::DictCmdSubcommandError``.
+    const known = "append create exists filter for get getd getdef getwithdefault " ++
+        "incr info keys lappend map merge remove replace set size unset update values with";
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const prefix: []const u8 = "unknown or ambiguous subcommand \"";
+    const middle: []const u8 = "\": must be ";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + sub.len +
+        @as(u32, @intCast(middle.len)) + @as(u32, @intCast(known.len));
+    const buf = obj_mod.alloc(total);
+    const d: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |b| {
+        d[off] = b;
+        off += 1;
+    }
+    if (sub.len > 0) {
+        const sb: [*]const u8 = @ptrFromInt(sub.ptr);
+        for (0..sub.len) |k| {
+            d[off] = sb[k];
+            off += 1;
+        }
+    }
+    for (middle) |b| {
+        d[off] = b;
+        off += 1;
+    }
+    for (known) |b| {
+        d[off] = b;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
     return 0;
 }
 

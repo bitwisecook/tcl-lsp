@@ -810,6 +810,34 @@ class TestCommandDispatch:
             # the owned-slot wrap can fire on any frame-elided proc.
             "tcl_obj_retain",
             "tcl_obj_release",
+            # Frame-side aliases for ``variable``/``global`` (always
+            # pulled in for any module with procs so interpreter-side
+            # eval inside a compiled proc body sees the same alias the
+            # compiled code uses).
+            "frame_alias_named",
+            "frame_alias_global",
+            # ``upvar N``/``upvar #N`` runtime helpers: install a
+            # caller-frame alias bucket and resolve dynamic ``$level``
+            # tokens.  Pulled in unconditionally whenever a module
+            # has procs because any of them might use ``upvar`` —
+            # see ``_scan.py``.
+            "frame_alias_frame_var",
+            "frame_get_depth",
+            "upvar_resolve_depth",
+            # Signal-flag inspectors used by every compiled-proc-call
+            # bridge to absorb ``return`` at the dispatch boundary
+            # and propagate ``error`` past the call.  Always pulled
+            # in for any module with procs since any callee may
+            # raise either flag — see ``_scan.py``'s
+            # always-needed block.
+            "catch_has_error",
+            "flow_check_return",
+            "flow_take_return",
+            # ``flow_check_signal_loop`` is the per-callsite
+            # break/continue probe — also always pulled in once a
+            # module has procs since any callee can ``return -code
+            # break`` / ``-code continue``.
+            "flow_check_signal_loop",
         }
 
 
@@ -4104,7 +4132,7 @@ set ::result $msg
 """,
             "::result",
         )
-        assert result.startswith(b"unknown command")
+        assert result.startswith(b"invalid command name")
 
     # --- Section 7: basic alias creation (child-as-command alias) ---------
 
@@ -4248,11 +4276,13 @@ set ::result $msg
 """,
             "::result",
         )
-        # Our runtime's alias-miss diagnostic is ``unknown command:
-        # <target>`` (see dispatch_alias in tcl_interp.zig).  tclsh
-        # uses ``invalid command name "<target>"`` after the unknown
-        # fallback; we pin our wording here.
-        assert result == b"unknown command: nonexistent"
+        # Our runtime's alias-miss diagnostic now matches reference
+        # Tcl's ``invalid command name "<target>"`` surface — see the
+        # rename-builtin work in ``tcl_catch.error_invalid_command_name``
+        # which unified the two formerly-divergent ``error_unknown_command``
+        # callers under one helper that mirrors tclsh's
+        # ``TclEvalObjvInternal``.
+        assert result == b'invalid command name "nonexistent"'
 
     def test_9_2_alias_late_bound_target(self):
         """interp-9.2: defining the target after the alias still

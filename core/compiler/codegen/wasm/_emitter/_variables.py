@@ -149,6 +149,18 @@ class _WasmEmitterVarMixin(_Base):
                             self._emit_local_get(target_idx)
                             self._emit_call(gget_strict)
                     return
+            if kind == "frame_var":
+                # ``upvar N other local`` — read through the runtime
+                # frame's alias bucket.  ``tcl_local_get_or_error``
+                # follows ALIAS_EXT into the target frame and raises
+                # ``can't read "<local>": no such variable`` (with the
+                # *local* name) when the target is unset, matching
+                # reference Tcl's wording.
+                lget_idx = self._shared_imports.get("tcl_local_get_or_error")
+                if lget_idx is not None:
+                    self._emit_obj_literal(name)
+                    self._emit_call(lget_idx)
+                    return
         if name.startswith("::"):
             gget_idx = self._shared_imports.get("tcl_global_get_or_error")
             if gget_idx is not None:
@@ -265,6 +277,12 @@ class _WasmEmitterVarMixin(_Base):
                     self._emit_local_get(target_idx)
                     self._emit_call(gget_lenient)
                     return
+            if kind == "frame_var":
+                lget_lenient = self._shared_imports.get("tcl_local_get")
+                if lget_lenient is not None:
+                    self._emit_obj_literal(name)
+                    self._emit_call(lget_lenient)
+                    return
         if name.startswith("::"):
             gget_lenient = self._shared_imports.get("tcl_global_get")
             if gget_lenient is not None:
@@ -344,6 +362,13 @@ class _WasmEmitterVarMixin(_Base):
             kind, target_idx = binding
             if kind == "global":
                 self._emit_global_set_via_local(target_idx, keep_on_stack=keep_on_stack)
+                return
+            if kind == "frame_var":
+                # ``upvar N other local`` — runtime frame holds an
+                # ALIAS_EXT bucket on *local_name* pointing at the
+                # caller's slot.  ``tcl_local_set`` chases the alias
+                # and lands the write in the target frame's variable.
+                self._emit_frame_var_set(name, keep_on_stack=keep_on_stack)
                 return
         if name.startswith("::"):
             # ``::``-qualified names always refer to globals.  Route the
@@ -505,6 +530,26 @@ class _WasmEmitterVarMixin(_Base):
         if not keep_on_stack:
             self._emit(WasmOp.DROP)
 
+    def _emit_frame_var_set(self, local_name: str, *, keep_on_stack: bool) -> None:
+        """Consume a value on the stack and write it to a local whose
+        runtime frame slot carries an ALIAS_EXT bucket (registered by
+        ``upvar N`` / ``upvar #N``).  ``tcl_local_set`` follows the
+        alias to the target frame's variable; the caller-frame slot is
+        the authoritative storage.
+        """
+        lset_idx = self._shared_imports.get("tcl_local_set")
+        if lset_idx is None:
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        tmp = self._add_extra_local(prefix="_uvr_val", val_type=ValType.I32)
+        self._emit_local_set(tmp)
+        self._emit_obj_literal(local_name)
+        self._emit_local_get(tmp)
+        self._emit_call(lset_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
     def _emit_global_set_via_local(self, target_local_idx: int, *, keep_on_stack: bool) -> None:
         """Consume a value on the stack, write it to the global whose name
         is held in WASM local *target_local_idx*.  Leaves the value on the
@@ -660,9 +705,6 @@ class _WasmEmitterVarMixin(_Base):
         if summary is None or summary.dynamic_barrier:
             return False
         if not self._is_proc:
-            # At top level there's no frame; FRAME tags are meaningless
-            # and the writer already routes ``::``-prefixed and
-            # block-namespace writes through ``tcl_global_set``.
             return False
         if name in self._globals:
             return False
@@ -788,27 +830,137 @@ class _WasmEmitterVarMixin(_Base):
         self._emit_local_set(target_idx)
         self._aliases[local_name] = ("global", target_idx)
 
+    def _emit_upvar_abs_depth(self, level_spec: str) -> bool:
+        """Push an i32 absolute frame depth onto the stack.
+
+        *level_spec* may be:
+
+        * ``#N`` — literal absolute level; emits ``i32.const N``.
+        * bare integer ``N`` (possibly with a leading ``-``) — relative
+          level; emits ``frame_get_depth() - |N|``.
+        * a dynamic value (``$level``, ``[expr ...]``) whose runtime
+          string starts with ``#`` for absolute or is a bare integer
+          for relative.  We emit a runtime helper call:
+          ``tcl_upvar_resolve_depth(level_obj, frame_get_depth())``
+          which mirrors Tcl's parsing.  When that helper is not
+          available we default to relative-1 to keep optparse-style
+          ``upvar $level $vname var`` working in the common case
+          where the caller passes ``#N`` (e.g. OptKeyParse hands
+          OptTreeVars ``"#[expr ...]"``); see
+          ``tcl::OptKeyParse`` line 540.
+
+        Returns True when the depth was pushed; False if the level
+        could not be resolved at compile time and the caller should
+        emit an unsupported trap.
+        """
+        depth_idx = self._shared_imports.get("tcl_frame_get_depth")
+        if depth_idx is None:
+            return False
+        if level_spec.startswith("#"):
+            try:
+                self._emit_i32_const(int(level_spec[1:]))
+                return True
+            except ValueError:
+                pass  # fall through to dynamic path
+        elif not level_spec.startswith("$") and not level_spec.startswith("["):
+            # Static relative integer.
+            try:
+                rel = abs(int(level_spec))
+            except ValueError:
+                rel = 1
+            self._emit_call(depth_idx)
+            self._emit_i32_const(rel)
+            self._emit(WasmOp.I32_SUB)
+            return True
+        # Dynamic level value.  Resolve it through a runtime helper
+        # that accepts a TclObj and returns the absolute depth.
+        upvar_depth_idx = self._shared_imports.get("tcl_upvar_resolve_depth")
+        if upvar_depth_idx is not None:
+            self._emit_value(level_spec)
+            self._emit_call(depth_idx)
+            self._emit_call(upvar_depth_idx)
+            return True
+        # Helper not available — fall back to assuming the dynamic
+        # value is a relative ``1`` (reference Tcl's default).  This
+        # mis-compiles ``#0`` / ``#N`` callsites that pass a dynamic
+        # level, but those are vanishingly rare in scripted code.
+        self._emit_call(depth_idx)
+        self._emit_i32_const(1)
+        self._emit(WasmOp.I32_SUB)
+        return True
+
+    def _register_frame_var_alias(
+        self, local_name: str, target_value: str, level_spec: str
+    ) -> None:
+        """Register *local_name* as a caller-frame alias and stash the
+        target name + emit the runtime ``frame_alias_frame_var`` call so
+        the runtime frame's bucket carries the alias descriptor.
+
+        The local is then driven through the runtime's ``tcl_local_get``
+        / ``tcl_local_set`` (which transparently chase ALIAS_EXT to the
+        target frame's slot) — both compiled reads/writes and any
+        interpreter-side eval inside the body see the same binding.
+        """
+        alias_idx = self._shared_imports.get("tcl_frame_alias_frame_var")
+        depth_idx = self._shared_imports.get("tcl_frame_get_depth")
+        if alias_idx is None or depth_idx is None:
+            self._emit_unsupported_trap("upvar (frame-var alias runtime helpers missing)")
+            return
+
+        target_idx = self._add_extra_local(prefix=f"_uvr_{local_name}_tgt", val_type=ValType.I32)
+        self._emit_value(target_value)
+        self._emit_local_set(target_idx)
+
+        abs_tmp = self._add_extra_local(prefix="_uvr_abs", val_type=ValType.I32)
+        if not self._emit_upvar_abs_depth(level_spec):
+            self._emit_unsupported_trap(f"upvar level {level_spec} (could not resolve depth)")
+            return
+        self._emit_local_set(abs_tmp)
+
+        # frame_alias_frame_var(local_name_obj, abs_depth, target_obj)
+        self._emit_obj_literal(local_name)
+        self._emit_local_get(abs_tmp)
+        self._emit_local_get(target_idx)
+        self._emit_call(alias_idx)
+
+        self._aliases[local_name] = ("frame_var", target_idx)
+
     def _emit_cmd_upvar(self, args: tuple[str, ...]) -> None:
         """``upvar ?level? otherVar myVar ?otherVar myVar ...?``
 
-        Only the ``#0`` (global alias) form is currently compiled.  For
-        any other level the module traps at runtime with a descriptive
-        message — a future enhancement will add caller-frame alias
-        support via a new runtime hook.
+        ``#0`` aliases the local to a global; non-zero levels (relative
+        ``N`` or absolute ``#N``) register a caller-frame alias via
+        ``frame_alias_frame_var`` so reads/writes of the local in the
+        compiled body resolve through the runtime to the target frame's
+        variable.  Both forms register a codegen-side alias entry so
+        later ``$local`` / ``set local x`` route through the right
+        runtime primitive.
+
+        The first arg is treated as a level specifier when it has the
+        ``#N`` / ``-?N`` literal shape OR when the remaining args have
+        an odd count (since the var-pair list following a level must
+        be even).  ``upvar $level $vname var`` (OptTreeVars) hits the
+        odd-count branch even though ``$level`` is dynamic.
         """
         if len(args) < 2:
             self._emit_unsupported_trap("upvar (too few args)")
             return
 
-        # Determine whether args[0] is a level specifier.  A leading '#'
-        # always marks one; a bare digit sequence does too.  Anything
-        # else means the level defaults to 1 and args[0] is otherVar.
         first = args[0]
-        if first.startswith("#"):
+        # Strict-literal level shapes.
+        literal_level = first.startswith("#") or first.lstrip("-").isdigit()
+        # Dynamic-level disambiguation: ``upvar`` requires an even
+        # var-pair count after the optional level.  When the total
+        # arg count is ODD the first MUST be a level token (statically
+        # ``#N`` / ``N`` or dynamically a ``$x`` resolved at runtime).
+        # ``upvar $level $vname var`` in OptTreeVars (3 args) is the
+        # canonical dynamic case.
+        odd_total = bool(len(args) & 1)
+        if literal_level:
             level_spec = first
             pairs_start = 1
-        elif first.lstrip("-").isdigit():
-            level_spec = first
+        elif odd_total:
+            level_spec = first  # dynamic — handled by _emit_upvar_abs_depth
             pairs_start = 1
         else:
             level_spec = "1"
@@ -819,21 +971,18 @@ class _WasmEmitterVarMixin(_Base):
             self._emit_unsupported_trap("upvar (uneven var pairs)")
             return
 
-        if level_spec != "#0":
-            # Caller-frame aliasing not yet implemented — trap with a
-            # clear message rather than silently mis-compiling.
-            self._emit_unsupported_trap(
-                f"upvar level {level_spec} — compiled procs only support #0 "
-                "(global alias).  Caller-frame aliasing (upvar N) needs "
-                "the frame-pushing variant of compiled procs; use uplevel "
-                "to run code in the caller instead."
-            )
+        if level_spec == "#0":
+            for i in range(0, len(pair_args), 2):
+                target = pair_args[i]
+                local_name = pair_args[i + 1]
+                self._register_global_alias(local_name, target)
             return
 
+        # Caller-frame alias path.
         for i in range(0, len(pair_args), 2):
             target = pair_args[i]
             local_name = pair_args[i + 1]
-            self._register_global_alias(local_name, target)
+            self._register_frame_var_alias(local_name, target, level_spec)
 
     def _emit_cmd_variable(self, args: tuple[str, ...]) -> None:
         """``variable name ?value? ?name value ...?``
@@ -959,6 +1108,24 @@ class _WasmEmitterVarMixin(_Base):
             self._emit_obj_literal(target)
             self._emit_local_set(target_idx)
             self._aliases[local_name] = ("global", target_idx)
+
+            # Mirror the alias into the runtime frame as well so any
+            # interpreter-side eval inside the proc body (a dynamic
+            # ``while`` condition, an ``eval`` / ``catch`` body, the
+            # eval-fallback path for an unknown command) sees the
+            # same ``X`` -> ``::ns::X`` mapping the compiled code uses.
+            # Without this, ``variable n`` declares the alias in the
+            # codegen ``_aliases`` dict only -- compiled reads/writes
+            # of ``$n`` go to ``::ns::n`` via ``tcl_global_set``,
+            # but interpreter-side ``incr n`` (e.g. inside a ``while
+            # {[info exists arr($n)]} { incr n }`` body) lands in a
+            # fresh frame-local ``n`` and never propagates back.
+            # See opt.test ``OptKeyRegister`` auto-allocation loop.
+            alias_named_idx = self._shared_imports.get("tcl_frame_alias_named")
+            if alias_named_idx is not None and self._is_proc:
+                self._emit_obj_literal(local_name)
+                self._emit_local_get(target_idx)
+                self._emit_call(alias_named_idx)
 
             if has_value:
                 # ``variable name value`` — initialise the namespace var

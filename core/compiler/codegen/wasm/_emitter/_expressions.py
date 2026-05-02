@@ -62,6 +62,7 @@ class _WasmEmitterExprMixin(_Base):
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_uplevel(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_cmd_lassign(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_compiled_call_with_bridge(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_expr(self, node: ExprNode) -> None:
         """Emit WASM instructions to evaluate an expression, leaving i64 on stack.
@@ -677,7 +678,11 @@ class _WasmEmitterExprMixin(_Base):
                 # report an accurate argv for ``info level 0``.
                 self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
-            self._emit_call(func_idx)
+            # Use the frame-bridge wrap so a pessimistic caller
+            # mirrors its locals to the runtime frame before the
+            # callee can ``upvar`` into them.  Mirrors the
+            # statement and value-context paths.
+            self._emit_compiled_call_with_bridge(func_idx)
             # Result is i32 TclObj — unbox to i64 for expression context
             self._emit_unbox_int()
             return

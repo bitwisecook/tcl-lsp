@@ -63,6 +63,82 @@ pub fn rename_error(template_prefix: []const u8, name_ptr: u32, name_len: u32, t
     catch_mod.tcl_cmd_error(msg);
 }
 
+/// Implement ``rename BUILTIN newName`` (and ``rename BUILTIN ""``).
+/// Synthesises the ``CMD_BUILTIN_FORWARD`` for the new name (if any)
+/// and the ``CMD_BUILTIN_MASKED`` tombstone for the old name so the
+/// proc-lookup fast path in ``eval_command`` sees them before the
+/// BUILTIN cmd_table.  The BUILTIN handler itself is the data
+/// stashed in the FORWARD's ``params_obj`` slot.
+fn rename_builtin(
+    old_s: anytype,
+    new_s: anytype,
+    handler: @import("../dispatch/tcl_cmd_registry.zig").HandlerFn,
+) i32 {
+    // Refuse to rename the protected BUILTINs (``return``, ``error``).
+    // The rename module's ``is_protected`` check fires for those when
+    // they reach the proc-table path, but we route around it for
+    // BUILTIN renames so the protection lives here.
+    const protected: []const []const u8 = &[_][]const u8{ "return", "error" };
+    inline for (protected) |p| {
+        if (p.len == old_s.len) {
+            const op: [*]const u8 = @ptrFromInt(old_s.ptr);
+            var match = true;
+            for (p, 0..) |c, i| {
+                if (op[i] != c) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                rename_error("can't rename \"", old_s.ptr, old_s.len, "\": built-in command");
+                return 0;
+            }
+        }
+    }
+
+    // Move form: refuse if the destination name is occupied by a
+    // live (non-tombstone) command.  Matches reference Tcl's
+    // ``can't rename to "X": command already exists``.
+    if (new_s.len > 0) {
+        const cxt = tcl_ns.ns_current();
+        const new_r = tcl_ns.ns_resolve_qualified(cxt, new_s.ptr, new_s.len);
+        const new_target_ns = if (new_r.target_ns != 0) new_r.target_ns else new_r.alt_ns;
+        if (new_target_ns != 0) {
+            const occ = tcl_ns.ns_cmd_find(new_target_ns, new_r.simple_ptr, new_r.simple_len);
+            if (occ != 0) {
+                const f: u32 = @bitCast(read_i32(occ + procs.OFF_FLAGS));
+                if ((f & procs.CMD_BUILTIN_MASKED) == 0) {
+                    rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": command already exists");
+                    return 0;
+                }
+            }
+        }
+        // The proc-table check above only sees user-defined / proc-
+        // registered Commands.  Hardcoded BUILTINs (``set``,
+        // ``list``, ``puts``, …) live in the static dispatch table
+        // and have no proc record until ``rename`` masks/forwards
+        // them.  ``rename list set`` would otherwise install a
+        // forwarder over ``set`` and silently shadow the builtin —
+        // proc dispatch runs before the BUILTIN cmd_table, so the
+        // forwarder would win and ``set`` would lose its identity.
+        // Match reference Tcl by raising ``can't rename to
+        // "set": command already exists`` (Codex review on
+        // PR #325).
+        const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+        if (cmd_table.lookup(new_r.simple_ptr, new_r.simple_len) != null) {
+            rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": command already exists");
+            return 0;
+        }
+        const handler_addr: u32 = @intCast(@intFromPtr(handler));
+        procs.register_builtin_forward(new_s.ptr, new_s.len, handler_addr);
+    }
+
+    // Mask the BUILTIN under its old name so subsequent dispatch
+    // surfaces ``invalid command name`` instead of running it.
+    procs.register_builtin_masked(old_s.ptr, old_s.len);
+    return 0;
+}
+
 pub fn eval_rename(words: []const i32) i32 {
     // ``rename`` takes exactly two operands (oldName + newName).
     // Extra words are rejected with ``wrong # args`` rather than
@@ -92,8 +168,67 @@ pub fn eval_rename(words: []const i32) i32 {
     {
         old_ns = old_r.alt_ns;
     } else {
-        rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
+        // No live Command in the proc table for this name — but it
+        // may still be a hardcoded BUILTIN.  Route to the
+        // BUILTIN-rename path which synthesises a CMD_BUILTIN_FORWARD
+        // (for the new name) and a CMD_BUILTIN_MASKED tombstone (for
+        // the old name) so subsequent dispatch sees them via the
+        // proc-lookup fast path.  See rename.test rename-2.1.
+        const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+        if (cmd_table.lookup(old_s.ptr, old_s.len)) |handler| {
+            return rename_builtin(old_s, new_s, handler);
+        }
+        // ``::name``-qualified BUILTIN — strip and retry.
+        if (old_s.len >= 2) {
+            const old_p: [*]const u8 = @ptrFromInt(old_s.ptr);
+            if (old_p[0] == ':' and old_p[1] == ':') {
+                if (cmd_table.lookup(old_s.ptr + 2, old_s.len - 2)) |handler| {
+                    return rename_builtin(old_s, new_s, handler);
+                }
+            }
+        }
+        // Truly unknown — emit ``can't rename`` (move) or
+        // ``can't delete`` (delete) per reference Tcl.
+        if (new_s.len == 0) {
+            rename_error("can't delete \"", old_s.ptr, old_s.len, "\": command doesn't exist");
+        } else {
+            rename_error("can't rename \"", old_s.ptr, old_s.len, "\": command doesn't exist");
+        }
         return 0;
+    }
+
+    // Found a live Command.  Special-case ``rename FORWARD MASKED-name``
+    // (the inverse of an earlier BUILTIN rename) so the BUILTIN slot
+    // becomes dispatchable again — delete both the FORWARD and the
+    // tombstone, leaving the BUILTIN cmd_table to win on next lookup.
+    const old_cmd = tcl_ns.ns_cmd_find(old_ns, old_r.simple_ptr, old_r.simple_len);
+    if (old_cmd != 0) {
+        const old_flags: u32 = @bitCast(read_i32(old_cmd + procs.OFF_FLAGS));
+        if ((old_flags & procs.CMD_BUILTIN_FORWARD) != 0 and new_s.len > 0) {
+            const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+            // Look up the BUILTIN that corresponds to the destination
+            // name.  When the dest is a name shadowed by a MASKED
+            // tombstone for this same BUILTIN, the rename undoes the
+            // earlier BUILTIN rename.
+            const new_r_probe = tcl_ns.ns_resolve_qualified(cxt, new_s.ptr, new_s.len);
+            const new_target_ns = if (new_r_probe.target_ns != 0)
+                new_r_probe.target_ns
+            else
+                new_r_probe.alt_ns;
+            const new_cmd = if (new_target_ns != 0)
+                tcl_ns.ns_cmd_find(new_target_ns, new_r_probe.simple_ptr, new_r_probe.simple_len)
+            else
+                0;
+            const new_is_masked = if (new_cmd != 0) blk: {
+                const f: u32 = @bitCast(read_i32(new_cmd + procs.OFF_FLAGS));
+                break :blk (f & procs.CMD_BUILTIN_MASKED) != 0;
+            } else false;
+            if (new_is_masked and cmd_table.lookup(new_s.ptr, new_s.len) != null) {
+                _ = procs.unregister_command(old_s.ptr, old_s.len);
+                _ = procs.unregister_command(new_s.ptr, new_s.len);
+                return 0;
+            }
+        }
     }
 
     // Deletion form: new name is empty.

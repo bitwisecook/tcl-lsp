@@ -470,6 +470,31 @@ pub export fn frame_get_argv(offset: i32) i32 {
 var ns_save_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var ns_save_top: u32 = 0;
 
+// Side stack for "parked" frames — a frame's full state (buffer
+// pointer + capacity + dirty bitmap + ns + argv) is moved here
+// while ``frame_depth_stash`` shifts the active depth lower for
+// an ``uplevel``.  Without this parking step, a compiled-proc
+// call dispatched *inside* the upleveled body would push its
+// new frame at the index the stashed frame still logically
+// owned — overwriting the caller's locals (selective-clear via
+// the dirty bitmap zeros every populated bucket) and leaving
+// the caller's frame data destroyed once ``uplevel`` returns.
+//
+// One slot per stashed level per active stash, so a deeply
+// nested ``uplevel`` can't run out of room before the frame
+// stack itself does.  The per-stash count lives in
+// ``parked_count_stack`` so each ``frame_depth_restore`` knows
+// exactly how many frames its corresponding stash parked.
+var parked_stack:    [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_dirty:    [MAX_DEPTH]u64 = [_]u64{0} ** MAX_DEPTH;
+var parked_ns:       [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_argv:     [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
+var parked_top: u32 = 0;
+// Per-stash count of parked frames.  Indexed by ``ns_save_top``
+// at stash time so restore can recover the matching count.
+var parked_count_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
 /// Save the current frame depth and decrement it by *relative_up*
 /// (clamped to 0).  Returns the saved depth so the caller can
 /// restore it via ``frame_depth_restore``.  Used by ``uplevel`` to
@@ -483,14 +508,27 @@ var ns_save_top: u32 = 0;
 /// dispatcher in ``::tcltest`` would leave ``current_ns`` pointing
 /// at ``::tcltest`` and the body's array refs would miss the
 /// caller's namespace's array — see :func:`frame_set_ns`.
+///
+/// Parks the top *relative_up* frames in a side stack (clearing
+/// the original slots) so a compiled-proc call inside the
+/// upleveled body gets a fresh slot at ``frame_depth`` instead of
+/// reusing the parked frame's buffer.  ``frame_depth_restore``
+/// puts them back unchanged.  Required because our frame buffers
+/// are reused across pushes via the dirty-bitmap selective
+/// clear — without parking, ``uplevel 1 [list CompiledCall]``
+/// would zero every populated bucket of the caller's frame on
+/// the inner push, losing all of its locals.
 pub export fn frame_depth_stash(relative_up: i32) i32 {
     const saved: i32 = @intCast(frame_depth);
     var up = relative_up;
     if (up < 0) up = 0;
-    const u: u32 = @intCast(up);
+    var u: u32 = @intCast(up);
+    if (u > frame_depth) u = frame_depth;
 
     // Capture caller-ns BEFORE we pop, then push and switch.
+    var stash_idx: u32 = 0;
     if (ns_save_top < MAX_DEPTH) {
+        stash_idx = ns_save_top;
         ns_save_stack[ns_save_top] = tcl_ns.current_ns;
         ns_save_top += 1;
     }
@@ -504,6 +542,37 @@ pub export fn frame_depth_stash(relative_up: i32) i32 {
         tcl_ns.current_ns = target_ns;
     } else if (u >= frame_depth) {
         tcl_ns.current_ns = tcl_ns.ns_root();
+    }
+
+    // Park the top ``u`` frames so the slots can be reused by
+    // any compiled-proc dispatched within the upleveled body
+    // without trampling the stashed locals.  The slots are
+    // cleared (frame_stack=0) so the next ``frame_push`` for
+    // them allocates a brand-new buffer.
+    var parked_here: u32 = 0;
+    if (parked_top + u <= MAX_DEPTH) {
+        var i: u32 = 0;
+        while (i < u) : (i += 1) {
+            const slot = frame_depth - 1 - i;
+            parked_stack[parked_top]    = frame_stack[slot];
+            parked_capacity[parked_top] = frame_capacity[slot];
+            parked_dirty[parked_top]    = frame_dirty[slot];
+            parked_ns[parked_top]       = frame_ns[slot];
+            parked_argv[parked_top]     = frame_argv[slot];
+            // Clear the slot.  ``frame_argv`` is NOT released
+            // here — the parked entry retains the caller's
+            // refcount; restore puts the same handle back.
+            frame_stack[slot]    = 0;
+            frame_capacity[slot] = 0;
+            frame_dirty[slot]    = 0;
+            frame_ns[slot]       = 0;
+            frame_argv[slot]     = 0;
+            parked_top += 1;
+            parked_here += 1;
+        }
+    }
+    if (stash_idx < MAX_DEPTH) {
+        parked_count_stack[stash_idx] = parked_here;
     }
 
     if (u >= frame_depth) {
@@ -526,6 +595,41 @@ pub export fn frame_depth_restore(saved: i32) void {
     if (ns_save_top > 0) {
         ns_save_top -= 1;
         tcl_ns.current_ns = ns_save_stack[ns_save_top];
+        // Unpark the matching frames in reverse insertion order
+        // — the topmost park lands back in the caller's slot,
+        // restoring the buffer pointer + capacity + dirty
+        // bitmap so a subsequent ``local_get`` finds the
+        // pre-uplevel value untouched.
+        const u = parked_count_stack[ns_save_top];
+        var i: u32 = u;
+        while (i > 0) : (i -= 1) {
+            if (parked_top == 0) break;
+            parked_top -= 1;
+            const slot = frame_depth - i;
+            // If a compiled-proc dispatched inside the upleveled
+            // body re-allocated this slot, ``frame_stack[slot]``
+            // now points at a fresh buffer.  ``free_sized`` it
+            // before overwriting with the parked pointer — without
+            // this, repeated ``uplevel`` calls that invoke
+            // compiled procs at the parked-slot depth grow linear
+            // memory by one full frame buffer per call (Copilot
+            // review on PR #325).  The capacity-driven size
+            // matches what ``frame_push`` would have allocated;
+            // the bump allocator's free-list reclaims the slab.
+            const orphan_base = frame_stack[slot];
+            const orphan_cap = frame_capacity[slot];
+            if (orphan_base != 0
+                and orphan_base != parked_stack[parked_top]
+                and orphan_cap > 0)
+            {
+                obj.free_sized(orphan_base, orphan_cap * FRAME_BUCKET_SIZE);
+            }
+            frame_stack[slot] = parked_stack[parked_top];
+            frame_capacity[slot] = parked_capacity[parked_top];
+            frame_dirty[slot] = parked_dirty[parked_top];
+            frame_ns[slot] = parked_ns[parked_top];
+            frame_argv[slot] = parked_argv[parked_top];
+        }
     }
 }
 
@@ -797,6 +901,87 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32) void {
     }
 }
 
+/// Resolve a Tcl ``upvar`` *level* token to an absolute frame depth.
+/// *cur_depth* is the runtime's current frame depth (passed in to
+/// avoid duplicate ``frame_get_depth`` reads on the codegen side).
+///
+/// Tcl semantics:
+///   * ``#N`` -> absolute depth ``N`` (``#0`` is global scope).
+///   * ``-?N`` (a bare integer, optionally signed) -> relative,
+///     ``cur_depth - |N|``; reference Tcl rejects negative values
+///     with an error but our codegen never asks for one.
+///   * Anything else (a non-numeric token) means the level was
+///     absent and the caller should have passed ``"1"`` instead;
+///     we still return ``cur_depth - 1`` defensively rather than
+///     trapping so a mis-detected dynamic value degrades gracefully.
+pub export fn upvar_resolve_depth(level_obj: i32, cur_depth: i32) i32 {
+    const sn = obj_ensure_string(level_obj);
+    if (sn.len == 0) return cur_depth - 1;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sp[0] == '#') {
+        // Absolute level.
+        var n: i32 = 0;
+        var i: u32 = 1;
+        while (i < sn.len) : (i += 1) {
+            const c = sp[i];
+            if (c < '0' or c > '9') return cur_depth - 1;
+            n = n * 10 + @as(i32, @intCast(c - '0'));
+        }
+        return n;
+    }
+    // Relative integer (possibly signed).
+    var i: u32 = 0;
+    var sign: i32 = 1;
+    if (sp[0] == '-') {
+        sign = -1;
+        i = 1;
+    } else if (sp[0] == '+') {
+        i = 1;
+    }
+    if (i >= sn.len) return cur_depth - 1;
+    var n: i32 = 0;
+    while (i < sn.len) : (i += 1) {
+        const c = sp[i];
+        if (c < '0' or c > '9') return cur_depth - 1;
+        n = n * 10 + @as(i32, @intCast(c - '0'));
+    }
+    const rel = if (sign < 0) -n else n;
+    if (rel < 0) {
+        // Reference Tcl rejects negative ``upvar`` levels with
+        // ``bad level "-N"`` rather than silently aliasing the
+        // wrong frame (Copilot review on PR #325).  Surface the
+        // same error so a script that computes ``upvar [expr
+        // {-$n}] ...`` fails fast.
+        const tcl_catch = @import("tcl_catch.zig");
+        const prefix: []const u8 = "bad level \"";
+        const suffix: []const u8 = "\"";
+        const total: u32 = @as(u32, @intCast(prefix.len)) + sn.len +
+            @as(u32, @intCast(suffix.len));
+        const buf = obj.alloc(total);
+        const d: [*]u8 = @ptrFromInt(buf);
+        var off: u32 = 0;
+        for (prefix) |b| {
+            d[off] = b;
+            off += 1;
+        }
+        if (sn.len > 0) {
+            const src: [*]const u8 = @ptrFromInt(sn.ptr);
+            for (0..sn.len) |k| {
+                d[off] = src[k];
+                off += 1;
+            }
+        }
+        for (suffix) |b| {
+            d[off] = b;
+            off += 1;
+        }
+        const msg = obj.obj_new_string_take(buf, total, total);
+        tcl_catch.tcl_cmd_error(msg);
+        return cur_depth - 1;
+    }
+    return cur_depth - rel;
+}
+
 // -- Local variable operations on current frame --
 
 /// Set a local variable in the current frame.
@@ -892,6 +1077,40 @@ pub export fn local_exists(name: i32) i32 {
 /// This is the standard Tcl lookup order for the interpreter.
 pub export fn var_resolve(name: i32) i32 {
     const sn = obj_ensure_string(name);
+    // Array-element form ``arr(key)`` — split into ``arr`` + ``key``
+    // and route through the array directory.  The previous code
+    // handed the entire ``arr(key)`` string to ``ns_var_find`` /
+    // ``frame_find``, which look for SCALAR slots and miss every
+    // array element.  ``info exists arr(key)`` already does this
+    // split (see ``var_exists`` below); without the matching read
+    // path, ``set $::ns::arr(key)`` reading an existing element
+    // returned empty even when ``info exists`` confirmed the
+    // element was set — root cause of opt-10.5..10 / 11.1 (the
+    // tcltest test bodies use ``$::tcl::OptDesc(...)`` reads
+    // through the eval-fallback path).
+    if (sn.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var paren: u32 = 0;
+        var found = false;
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            if (sp[k] == '(') {
+                paren = k;
+                found = true;
+                break;
+            }
+        }
+        if (found and paren > 0 and sp[sn.len - 1] == ')') {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            const key_len = sn.len - paren - 2;
+            const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
+            const v = tcl_array.array_get(arr_name, key);
+            obj.tcl_obj_release(arr_name);
+            obj.tcl_obj_release(key);
+            return v;
+        }
+    }
     // ``::``-qualified names always go to globals.
     if (sn.len >= 2) {
         const sp: [*]const u8 = @ptrFromInt(sn.ptr);
@@ -960,10 +1179,40 @@ pub export fn var_resolve(name: i32) i32 {
 /// Set a variable: sets in current frame if one is active, otherwise global.
 /// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
+    const sn = obj_ensure_string(name);
+    // Array-element form ``arr(key)`` — split off the key and route
+    // through ``array_set``.  Mirrors the read path in
+    // ``var_resolve``; without this, ``set ::ns::arr(key) value``
+    // would be stored as a SCALAR ns var literally named
+    // ``arr(key)`` and the matching read would need to use the
+    // same literal-string key path.  The split keeps array reads
+    // and writes in the same array directory.
+    if (sn.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var paren: u32 = 0;
+        var found = false;
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            if (sp[k] == '(') {
+                paren = k;
+                found = true;
+                break;
+            }
+        }
+        if (found and paren > 0 and sp[sn.len - 1] == ')') {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            const key_len = sn.len - paren - 2;
+            const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
+            _ = tcl_array.array_set(arr_name, key, value);
+            obj.tcl_obj_release(arr_name);
+            obj.tcl_obj_release(key);
+            return value;
+        }
+    }
     // ``::``-qualified names are always global, regardless of frame
     // depth — matches Tcl's namespace resolution where an absolute
     // name bypasses all local scopes.
-    const sn = obj_ensure_string(name);
     if (sn.len >= 2) {
         const sp: [*]const u8 = @ptrFromInt(sn.ptr);
         if (sp[0] == ':' and sp[1] == ':') {

@@ -48,6 +48,7 @@ class _WasmEmitterCtrlMixin(_Base):
         # From _WasmEmitterVarMixin
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_read_obj_lenient(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_var_write_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_if(
@@ -237,6 +238,16 @@ class _WasmEmitterCtrlMixin(_Base):
         # and assign.  When ``counter + slot >= limit`` the runtime
         # returns the empty-string TclObj, so trailing slots in the
         # last iteration bind to "" as expected.
+        #
+        # Pessimistic procs (``dynamic_barrier=True``) need the loop
+        # variable to land in the runtime frame so that body reads
+        # — which go through ``tcl_local_get_or_error`` for FRAME-
+        # tagged names — see the per-iteration value.  Route through
+        # ``_emit_var_write_obj`` for the FRAME-only case so the
+        # right primitive (frame ``local_set`` vs. WASM-local write)
+        # fires; otherwise fall through to the fast WASM-local path
+        # to avoid the frame_set overhead on tight non-pessimistic
+        # foreach loops.
         lindex_idx = self._shared_imports.get("tcl_list_index")
         for slot, var_name in enumerate(first_vars):
             var_local = self._intern_local(var_name)
@@ -258,7 +269,10 @@ class _WasmEmitterCtrlMixin(_Base):
             # Both branches produce a fresh TclObj (tcl_list_index
             # returns obj_new_string_copy, the fallback boxes a fresh
             # int).  S2.3 migration.
-            self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
+            if self._is_frame_only_var(var_name):
+                self._emit_var_write_obj(var_name, source=Ownership.OWNED)
+            else:
+                self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
@@ -454,21 +468,18 @@ class _WasmEmitterCtrlMixin(_Base):
         else:
             self._emit(WasmOp.DROP)
 
-        # Store result/error message if requested
+        # Store result/error message if requested.  Route through
+        # ``_emit_var_write_obj`` so pessimistic procs (where the
+        # name is FRAME-only) land the value in the runtime frame
+        # rather than a stale WASM-local mirror.  See opt.test
+        # ``::tcltest::Option`` -> ``catch {$verify $value} msg``:
+        # the post-catch ``$msg`` read goes through
+        # ``local_get_or_error`` and would otherwise raise ``can't
+        # read "msg": no such variable`` despite the catch having
+        # produced a value.
         if result_var and result_idx is not None:
-            rv_idx = self._intern_local(result_var)
             self._emit_call(result_idx)
-            self._emit_local_set(rv_idx)
-            # At top level, also mirror to the global table so reads
-            # of ``$result_var`` — which under the Phase 4.5 fix go
-            # through ``tcl_global_get`` — return the catch result.
-            # Inside procs, the local mirror is the canonical location.
-            if not self._is_proc and "tcl_global_set" in self._shared_imports:
-                gset_idx = self._shared_imports["tcl_global_set"]
-                self._emit_obj_literal(result_var)
-                self._emit_local_get(rv_idx)
-                self._emit_call(gset_idx)
-                self._emit(WasmOp.DROP)
+            self._emit_var_write_obj(result_var)
 
         # Store options dict if requested (3-arg ``catch`` form).
         # ``catch_options`` builds the standard ``-code`` /
@@ -478,15 +489,8 @@ class _WasmEmitterCtrlMixin(_Base):
         if options_var:
             opts_idx = self._shared_imports.get("tcl_catch_options")
             if opts_idx is not None:
-                ov_idx = self._intern_local(options_var)
                 self._emit_call(opts_idx)
-                self._emit_local_set(ov_idx)
-                if not self._is_proc and "tcl_global_set" in self._shared_imports:
-                    gset_idx = self._shared_imports["tcl_global_set"]
-                    self._emit_obj_literal(options_var)
-                    self._emit_local_get(ov_idx)
-                    self._emit_call(gset_idx)
-                    self._emit(WasmOp.DROP)
+                self._emit_var_write_obj(options_var)
 
     def _emit_stmt_keep_result(self, stmt: "IRStatement") -> None:
         """Emit a statement leaving its i32 TclObj result on the WASM stack.
@@ -547,8 +551,13 @@ class _WasmEmitterCtrlMixin(_Base):
                     # flows into ``_emit_eval_fallback`` so namespace-
                     # local proc resolution works at runtime; ``canonical``
                     # is the dispatch key for the literal-string matches
-                    # in ``_emit_call_stmt_tail``.  See issue #246.
-                    self._emit_call_stmt_tail(command, args, defs, canonical_command=canonical)
+                    # in ``_emit_call_stmt_tail``.  See issue #246.  Pass
+                    # ``tokens`` through so the hook can probe per-arg
+                    # ``was_braced`` info (needed for ``string match
+                    # {\?*} $name`` and other braced-pattern callers).
+                    self._emit_call_stmt_tail(
+                        command, args, defs, canonical_command=canonical, tokens=tokens
+                    )
             case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
                 # Static parse-error barriers (e.g. ``if {…} else {…}
                 # elseif {…}``) emit a direct ``tcl_cmd_error`` call so
