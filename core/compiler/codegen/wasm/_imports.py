@@ -184,6 +184,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # the float and raise the canonical error (Codex review on
     # PR #287; issue #261).
     "tcl_arith_neg": ("tcl", "tcl_arith_neg", [ValType.I32], [ValType.I32]),
+    # ``**`` operator — bignum-aware integer exponentiation.  The
+    # WASM emitter previously inlined an i64 multiplication loop
+    # (``_emit_power``) which silently wrapped past the i64 boundary;
+    # this helper promotes overflowing results to TYPE_BIGNUM via
+    # ``Managed.pow``, matching upstream Tcl 9.0 semantics.
+    "tcl_arith_pow": ("tcl", "tcl_arith_pow", [ValType.I32, ValType.I32], [ValType.I32]),
     # Strict ``incr`` helper — validates the variable's value as a
     # strict integer (rejects float strings like ``"52.60"`` and
     # boolean keywords) before adding the amount.  Issue #262.
@@ -198,6 +204,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_math_log10": ("tcl", "tcl_math_log10", [ValType.I32], [ValType.I32]),
     "tcl_math_sin": ("tcl", "tcl_math_sin", [ValType.I32], [ValType.I32]),
     "tcl_math_cos": ("tcl", "tcl_math_cos", [ValType.I32], [ValType.I32]),
+    "tcl_math_tan": ("tcl", "tcl_math_tan", [ValType.I32], [ValType.I32]),
+    "tcl_math_asin": ("tcl", "tcl_math_asin", [ValType.I32], [ValType.I32]),
+    "tcl_math_acos": ("tcl", "tcl_math_acos", [ValType.I32], [ValType.I32]),
+    "tcl_math_atan": ("tcl", "tcl_math_atan", [ValType.I32], [ValType.I32]),
+    "tcl_math_atan2": ("tcl", "tcl_math_atan2", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_math_sinh": ("tcl", "tcl_math_sinh", [ValType.I32], [ValType.I32]),
+    "tcl_math_cosh": ("tcl", "tcl_math_cosh", [ValType.I32], [ValType.I32]),
+    "tcl_math_tanh": ("tcl", "tcl_math_tanh", [ValType.I32], [ValType.I32]),
+    "tcl_math_floor": ("tcl", "tcl_math_floor", [ValType.I32], [ValType.I32]),
+    "tcl_math_ceil": ("tcl", "tcl_math_ceil", [ValType.I32], [ValType.I32]),
+    "tcl_math_fmod": ("tcl", "tcl_math_fmod", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_math_hypot": ("tcl", "tcl_math_hypot", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_math_fabs": ("tcl", "tcl_math_fabs", [ValType.I32], [ValType.I32]),
     # Infra used by the puts specialisation for ``-nonewline``.
     "tcl_puts_nonewline": (
@@ -231,6 +249,7 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # for the dispatch table; these signatures live here because the
     # registry doesn't model sub-sub-commands.
     "tcl_string_is_integer": ("tcl", "string_is_integer", [ValType.I32], [ValType.I32]),
+    "tcl_string_is_wideinteger": ("tcl", "string_is_wideinteger", [ValType.I32], [ValType.I32]),
     "tcl_string_is_alpha": ("tcl", "string_is_alpha", [ValType.I32], [ValType.I32]),
     "tcl_string_is_digit": ("tcl", "string_is_digit", [ValType.I32], [ValType.I32]),
     "tcl_string_is_space": ("tcl", "string_is_space", [ValType.I32], [ValType.I32]),
@@ -504,6 +523,7 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
 # The registry doesn't model sub-sub-commands, so it stays as a dict.
 _STRING_IS_IMPORT: dict[str, str] = {
     "integer": "tcl_string_is_integer",
+    "wideinteger": "tcl_string_is_wideinteger",
     "alpha": "tcl_string_is_alpha",
     "digit": "tcl_string_is_digit",
     "space": "tcl_string_is_space",

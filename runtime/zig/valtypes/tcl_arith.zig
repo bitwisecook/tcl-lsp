@@ -20,11 +20,13 @@
 
 const std = @import("std");
 const obj = @import("tcl_obj.zig");
+const bignum = @import("tcl_bignum.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
 const TYPE_INT = obj.TYPE_INT;
 const TYPE_FLOAT = obj.TYPE_FLOAT;
 const TYPE_STRING = obj.TYPE_STRING;
+const TYPE_BIGNUM = obj.TYPE_BIGNUM;
 
 fn is_float(o: i32) bool {
     if (o == 0) return false;
@@ -42,22 +44,118 @@ fn is_float(o: i32) bool {
     return false;
 }
 
+/// True iff the operand is already represented as a bignum (TYPE_BIGNUM)
+/// or a string literal that exceeds the i64 range and so demands wider-
+/// than-i64 arithmetic to compute correctly.  Used by the arithmetic
+/// helpers to decide between the fast i64-with-promotion path and the
+/// Managed (arbitrary-precision) path.
+fn is_bignum(o: i32) bool {
+    if (o == 0) return false;
+    const tag = obj.obj_type(o);
+    if (tag == TYPE_BIGNUM) return true;
+    if (tag == TYPE_STRING) {
+        // Avoid the bignum parse on every operand by first probing the
+        // i64 parser; only literals that *don't* fit in i64 need the
+        // bignum path.
+        const s = obj.obj_ensure_string(o);
+        if (s.len == 0) return false;
+        if (obj.try_parse_int(s.ptr, s.len) != null) return false;
+        // i128 parse covers values up to ~38 decimal digits — past that
+        // we still want the bignum path, so probe alloc_from_string and
+        // immediately destroy.
+        if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+        const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+        bignum.destroy(m);
+        return true;
+    }
+    return false;
+}
+
+/// Borrowed-or-owned BigInt promotion result.  Returned by
+/// :func:`promote_to_bignum` so callers can destroy the BigInt
+/// only when they own it.
+const PromotedBigInt = struct { m: *bignum.BigInt, owned: bool };
+
+/// Promote an arithmetic operand to a ``*bignum.BigInt``.  Returns
+/// ``null`` on OOM.  Callers must :func:`bignum.destroy` the
+/// result iff ``owned`` is true.
+fn promote_to_bignum(o: i32) ?PromotedBigInt {
+    const r = obj.obj_promote_to_bignum(o);
+    if (r.m) |m| return PromotedBigInt{ .m = m, .owned = r.owned };
+    return null;
+}
+
+fn release_promoted(p: PromotedBigInt) void {
+    if (p.owned) bignum.destroy(p.m);
+}
+
+/// Generic Managed-backed binary op.  Promotes both operands to
+/// BigInt, runs the op, and wraps the result in a TYPE_BIGNUM
+/// TclObj (auto-collapsing to TYPE_INT when the result fits i64).
+/// Returns ``null`` on OOM.
+fn managed_binop(
+    a: i32,
+    b: i32,
+    op: *const fn (a: *const bignum.BigInt, b: *const bignum.BigInt) ?*bignum.BigInt,
+) ?i32 {
+    const ap = promote_to_bignum(a) orelse return null;
+    defer release_promoted(ap);
+    const bp = promote_to_bignum(b) orelse return null;
+    defer release_promoted(bp);
+    const r = op(ap.m, bp.m) orelse return null;
+    return obj.obj_new_bignum_take(r);
+}
+
 pub export fn tcl_arith_add(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) + obj.obj_get_float(b));
-    return obj.obj_new_int(obj.obj_get_int(a) +% obj.obj_get_int(b));
+    // Bignum operand → Managed path (arbitrary precision).  The
+    // Stage 1 ``add_overflow`` saturated at i128, which silently
+    // miscompiled e.g. ``(1 << 126) + (1 << 126)`` (2^127, fits
+    // i128 by 1 bit) and any larger combination.  Stage 2 routes
+    // the path through ``std.math.big.int.Managed`` for unbounded
+    // precision matching C Tcl's libtommath.
+    if (is_bignum(a) or is_bignum(b)) {
+        return managed_binop(a, b, bignum.alloc_add) orelse return obj.obj_new_int(0);
+    }
+    // Detect i64 overflow and promote to bignum so wrap-around
+    // doesn't silently corrupt mathematically meaningful sums.
+    // i64 + i64 always fits in i65, well within i128 — no need
+    // for the Managed allocation here, just the i128 box (which
+    // auto-collapses if the result fits i64).
+    const ai = obj.obj_get_int(a);
+    const bi = obj.obj_get_int(b);
+    const r = @addWithOverflow(ai, bi);
+    if (r[1] == 0) return obj.obj_new_int(r[0]);
+    return obj.obj_new_bignum(@as(i128, ai) + @as(i128, bi));
 }
 
 pub export fn tcl_arith_sub(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) - obj.obj_get_float(b));
-    return obj.obj_new_int(obj.obj_get_int(a) -% obj.obj_get_int(b));
+    if (is_bignum(a) or is_bignum(b)) {
+        return managed_binop(a, b, bignum.alloc_sub) orelse return obj.obj_new_int(0);
+    }
+    const ai = obj.obj_get_int(a);
+    const bi = obj.obj_get_int(b);
+    const r = @subWithOverflow(ai, bi);
+    if (r[1] == 0) return obj.obj_new_int(r[0]);
+    return obj.obj_new_bignum(@as(i128, ai) - @as(i128, bi));
 }
 
 pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) * obj.obj_get_float(b));
-    return obj.obj_new_int(obj.obj_get_int(a) *% obj.obj_get_int(b));
+    if (is_bignum(a) or is_bignum(b)) {
+        return managed_binop(a, b, bignum.alloc_mul) orelse return obj.obj_new_int(0);
+    }
+    const ai = obj.obj_get_int(a);
+    const bi = obj.obj_get_int(b);
+    const r = @mulWithOverflow(ai, bi);
+    if (r[1] == 0) return obj.obj_new_int(r[0]);
+    // i64 * i64 fits in i128 (max product magnitude is 2^126), so
+    // the i128 promotion is enough — no Managed allocation needed.
+    return obj.obj_new_bignum(@as(i128, ai) * @as(i128, bi));
 }
 
 pub export fn tcl_arith_div(a: i32, b: i32) i32 {
@@ -69,83 +167,274 @@ pub export fn tcl_arith_div(a: i32, b: i32) i32 {
         }
         return obj.obj_new_float(obj.obj_get_float(a) / bf);
     }
+    if (is_bignum(a) or is_bignum(b)) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const bp = promote_to_bignum(b) orelse return obj.obj_new_int(0);
+        defer release_promoted(bp);
+        if (bp.m.eqlZero()) {
+            stubs.raise("divide by zero");
+            return obj.obj_new_int(0);
+        }
+        const r = bignum.alloc_div_trunc(ap.m, bp.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     const bi = obj.obj_get_int(b);
     if (bi == 0) {
         stubs.raise("divide by zero");
         return obj.obj_new_int(0);
     }
-    return obj.obj_new_int(@divTrunc(obj.obj_get_int(a), bi));
+    const ai = obj.obj_get_int(a);
+    if (ai == std.math.minInt(i64) and bi == -1) {
+        return obj.obj_new_bignum(-@as(i128, ai));
+    }
+    return obj.obj_new_int(@divTrunc(ai, bi));
 }
 
 pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
+    // Tcl's ``%`` follows Python-like "result has same sign as
+    // divisor" semantics — see ``tclExecute.c`` INST_MOD which does
+    // ``remainder = w1 % w2;  if (remainder != 0 && (remainder ^ w2) < 0)
+    // remainder += w2;``.  Zig's ``@rem`` truncates toward zero (C's
+    // ``%``), so we need the sign-fixup or ``-1 % (1 << 63)`` returns
+    // ``-1`` instead of the upstream-correct ``9223372036854775807``
+    // (the regression covered by ``expr-32.4`` and ``expr-32.6`` and
+    // the ``Bug 1585704`` cluster).
     if (is_float(a) or is_float(b)) {
         const bf = obj.obj_get_float(b);
         if (bf == 0.0) {
             stubs.raise("divide by zero");
             return obj.obj_new_int(0);
         }
-        return obj.obj_new_float(@rem(obj.obj_get_float(a), bf));
+        var r = @rem(obj.obj_get_float(a), bf);
+        if (r != 0.0 and ((r < 0) != (bf < 0))) r += bf;
+        return obj.obj_new_float(r);
+    }
+    if (is_bignum(a) or is_bignum(b)) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const bp = promote_to_bignum(b) orelse return obj.obj_new_int(0);
+        defer release_promoted(bp);
+        if (bp.m.eqlZero()) {
+            stubs.raise("divide by zero");
+            return obj.obj_new_int(0);
+        }
+        const r = bignum.alloc_mod_floor(ap.m, bp.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
     const bi = obj.obj_get_int(b);
     if (bi == 0) {
         stubs.raise("divide by zero");
         return obj.obj_new_int(0);
     }
-    return obj.obj_new_int(@rem(obj.obj_get_int(a), bi));
+    var r = @rem(obj.obj_get_int(a), bi);
+    if (r != 0 and ((r < 0) != (bi < 0))) r += bi;
+    return obj.obj_new_int(r);
+}
+
+/// Convert an f64 magnitude that exceeds the i128 range to a
+/// TYPE_BIGNUM TclObj holding the exact integer part of *fval*.
+/// Used by :func:`tcl_math_int` for inputs like ``1.0e30`` which
+/// the i128 fast path can't represent.
+///
+/// Implementation: format the float in fixed-point notation via
+/// ``std.fmt.bufPrint("{d:.0}", ...)`` (rounded to no fractional
+/// digits, but Zig formats f64 conservatively so we get the exact
+/// IEEE-754 integer view), then feed the resulting digit string
+/// to ``bignum.alloc_from_string``.  Matches upstream Tcl's
+/// ``int(1.0e30) = 1000000000000000019884624838656`` (the exact
+/// double value, not the mathematical ``1e30``).
+fn float_to_bignum_obj(fval: f64) i32 {
+    // Truncate toward zero before formatting so fractional bits
+    // don't appear in the digit string ``alloc_from_string``
+    // would reject.
+    const trunc = @trunc(fval);
+    var buf: [80]u8 = undefined;
+    const slice = std.fmt.bufPrint(&buf, "{d:.0}", .{trunc}) catch {
+        return obj.obj_new_int(0);
+    };
+    const m = bignum.alloc_from_string(@intFromPtr(slice.ptr), @intCast(slice.len)) orelse {
+        return obj.obj_new_int(0);
+    };
+    return obj.obj_new_bignum_take(m);
 }
 
 /// double(x) — coerce to float.  Used in ``expr {$n / double($d)}``.
+///
+/// Refcount contract: caller passes ownership of ``a`` and expects a
+/// fresh +1-ref result.  When the operand is already a float we
+/// must NOT return the same handle without bumping its refcount,
+/// otherwise the caller's release-of-arg + release-of-result pair
+/// frees the same TclObj twice (Copilot review #326).
 pub export fn tcl_math_double(a: i32) i32 {
-    if (a == 0) {
-        // Empty/null arg — match reference Tcl's
-        // ``can't use empty string as operand of "double"``.  In
-        // practice this only fires when the slot was never written;
-        // fall through to a numeric error so callers see a Tcl
-        // diagnostic instead of a silent 0.0.
-        return raise_double_error(a);
+    if (a == 0) return obj.obj_new_float(0.0);
+    if (obj.obj_type(a) == TYPE_FLOAT) {
+        obj.tcl_obj_retain(a);
+        return a;
     }
-    if (obj.obj_type(a) == TYPE_FLOAT) return a;
-    if (obj.obj_type(a) == TYPE_INT or obj.is_immediate(a)) {
-        return obj.obj_new_float(@floatFromInt(obj.obj_get_int(a)));
-    }
-    // String-typed arg — must parse as a number.  Matches reference
-    // Tcl's ``expected floating-point number but got "X"``.
-    const s = obj.obj_ensure_string(a);
-    if (obj.try_parse_float(s.ptr, s.len)) |val| return obj.obj_new_float(val);
-    if (obj.try_parse_int(s.ptr, s.len)) |val| return obj.obj_new_float(@floatFromInt(val));
-    return raise_double_error(a);
+    return obj.obj_new_float(obj.obj_get_float(a));
 }
 
-fn raise_double_error(a: i32) i32 {
-    if (@import("../interp/tcl_catch.zig").error_flag != 0) return obj.obj_new_float(0.0);
-    const s = obj.obj_ensure_string(a);
-    const prefix: []const u8 = "expected floating-point number but got \"";
-    const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
-    const buf_addr: u32 = obj.alloc(total);
-    const buf: [*]u8 = @ptrFromInt(buf_addr);
-    var off: usize = 0;
-    for (prefix) |c| { buf[off] = c; off += 1; }
-    if (s.len > 0) {
-        const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| { buf[off] = sp[i]; off += 1; }
-    }
-    for (suffix) |c| { buf[off] = c; off += 1; }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
-    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
-    return obj.obj_new_float(0.0);
-}
-
-/// int(x) — truncate to integer.
+/// int(x) — truncate to integer.  Bignum-aware: ``int(1 << 200)``
+/// preserves the full 200-bit value rather than truncating to the
+/// low 64 bits.  ``wide()`` and ``entier()`` route through the same
+/// helper from the WASM emitter, so all three preserve precision.
 pub export fn tcl_math_int(a: i32) i32 {
     if (a == 0) return obj.obj_new_int(0);
-    return obj.obj_new_int(obj.obj_get_int(a));
+    // Already an integer-shaped operand → return as-is (bignum stays
+    // bignum, int stays int).  ``int($x)`` on a string operand still
+    // routes through obj_get_int below; on a TYPE_FLOAT operand it
+    // truncates toward zero.  Retain on the same-handle return so
+    // the caller's release-of-arg pair doesn't double-free the
+    // shared TclObj (Copilot review #326).
+    const tag = obj.obj_type(a);
+    if (tag == TYPE_INT or tag == TYPE_BIGNUM) {
+        obj.tcl_obj_retain(a);
+        return a;
+    }
+    if (tag == TYPE_FLOAT) {
+        // Tcl's ``int(3.9)`` = 3, ``int(-3.9)`` = -3 — truncation toward
+        // zero.  Float magnitudes that exceed i64 land in TYPE_BIGNUM
+        // via the f64→i128 widening + auto-collapse path; values that
+        // exceed i128 (e.g. ``1e30``) need the Managed setFloat path.
+        const fval = obj.obj_get_float(a);
+        if (std.math.isNan(fval) or std.math.isInf(fval)) {
+            stubs.raise("integer value too large to represent");
+            return obj.obj_new_int(0);
+        }
+        // Fast path for values within i128 range — saves the Managed
+        // alloc / setFloat overhead for the common ``int(3.14)`` etc.
+        if (fval >= @as(f64, @floatFromInt(std.math.minInt(i128))) and
+            fval <= @as(f64, @floatFromInt(std.math.maxInt(i128))))
+        {
+            return obj.obj_new_bignum(@as(i128, @intFromFloat(fval)));
+        }
+        // Wide-magnitude float → render to scientific notation,
+        // expand the mantissa according to the exponent, then parse
+        // as BigInt.  Matches Tcl's ``int(1e30)`` =
+        // ``1000000000000000019884624838656`` (the exact integer
+        // value of the IEEE-754 representation, not the
+        // mathematical ``1e30``).
+        return float_to_bignum_obj(fval);
+    }
+    // String / bool / list / dict etc. — try the i64 / bignum parse
+    // chain via obj_promote_to_bignum, then reuse obj_new_bignum_take's
+    // auto-collapse to drop back to TYPE_INT when it fits.
+    const ap = obj.obj_promote_to_bignum(a);
+    if (ap.m) |m| {
+        if (ap.owned) return obj.obj_new_bignum_take(m);
+        // Borrowed bignum — caller doesn't own.  Clone into a fresh
+        // BigInt so the obj layer can safely destroy it on release.
+        const cloned = m.clone() catch return obj.obj_new_int(0);
+        const heap = bignum.allocator.create(bignum.BigInt) catch {
+            var c = cloned;
+            c.deinit();
+            return obj.obj_new_int(0);
+        };
+        heap.* = cloned;
+        return obj.obj_new_bignum_take(heap);
+    }
+    return obj.obj_new_int(0);
 }
 
-/// round(x) — round to nearest integer (returns float TclObj or int).
+/// pow(x, y) — Tcl's ``**`` operator and ``pow()``-as-int math
+/// function (with both args integral).  Bignum-aware: ``2 ** 100``
+/// produces a TYPE_BIGNUM with the full 30-digit value rather than
+/// the i64 wrap of the inline loop in the WASM emitter.
+///
+/// Negative exponent semantics match upstream INST_EXPON:
+///   * ``a == 0, b < 0`` → "exponentiation of zero by negative power"
+///   * ``a == 1`` → 1
+///   * ``a == -1`` → ``b`` even ? 1 : -1
+///   * otherwise (``|a| >= 2, b < 0``) → 0 (truncation)
+///
+/// Float operands route to ``f64`` ``std.math.pow`` so
+/// ``expr {2.0 ** 0.5}`` keeps working — the integer path applies
+/// only when both operands are integer-shaped.
+pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
+    if (is_float(a) or is_float(b)) {
+        return obj.obj_new_float(std.math.pow(f64, obj.obj_get_float(a), obj.obj_get_float(b)));
+    }
+    // Integer base / integer exponent.  We need the exponent as an
+    // i64 to detect the negative-exponent corner cases; even a
+    // bignum exponent that fits a u32 maxes out at ~4 billion which
+    // is plenty for any well-formed Tcl program (a 4-billion-digit
+    // result wouldn't fit memory anyway).
+    const bi = obj.obj_get_int(b);
+    if (bi < 0) {
+        const ai = obj.obj_get_int(a);
+        if (is_bignum(a)) {
+            // |a| >= 2 (anything bigger than ±1 has |a| >= 2 in
+            // bignum land too, since 0/-1/1 collapse to TYPE_INT).
+            return obj.obj_new_int(0);
+        }
+        if (ai == 0) {
+            stubs.raise("exponentiation of zero by negative power");
+            return obj.obj_new_int(0);
+        }
+        if (ai == 1) return obj.obj_new_int(1);
+        if (ai == -1) return obj.obj_new_int(if (@rem(bi, 2) == 0) 1 else -1);
+        return obj.obj_new_int(0);
+    }
+    if (bi == 0) return obj.obj_new_int(1);
+    if (bi == 1) {
+        // Same-handle return: retain so the caller's
+        // release-operand + release-result pair doesn't double-
+        // free.  apply_binary in the runtime expr evaluator and
+        // the AOT emitter helpers both follow that contract.
+        obj.tcl_obj_retain(a);
+        return a;
+    }
+
+    // For TYPE_INT operands, try i64 multiplication first and
+    // promote on overflow.  Empirically the vast majority of Tcl
+    // ``**`` calls fit i64 (e.g. ``$i ** 2`` in a loop).
+    if (!is_bignum(a) and bi <= 64) {
+        const ai = obj.obj_get_int(a);
+        var acc: i64 = 1;
+        var i: i64 = 0;
+        while (i < bi) : (i += 1) {
+            const r = @mulWithOverflow(acc, ai);
+            if (r[1] != 0) {
+                // Overflow → fall through to bignum path.
+                break;
+            }
+            acc = r[0];
+        }
+        if (i == bi) return obj.obj_new_int(acc);
+    }
+
+    // Bignum path.  Promote base to BigInt, take exponent as u32.
+    const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+    defer release_promoted(ap);
+    if (bi > std.math.maxInt(u32)) {
+        // 4-billion-bit result exceeds anything realistic — match the
+        // behaviour of upstream INST_EXPON which raises here.
+        stubs.raise("exponent too large");
+        return obj.obj_new_int(0);
+    }
+    const exp_u32: u32 = @intCast(bi);
+    const r = bignum.alloc_pow(ap.m, exp_u32) orelse return obj.obj_new_int(0);
+    return obj.obj_new_bignum_take(r);
+}
+
+/// round(x) — round to nearest integer.  Bignum-aware: huge floats
+/// (e.g. ``round(1.0e30)``) are rendered through the same fixed-
+/// point format-and-parse path as ``int()`` so the exact IEEE-754
+/// integer view survives.  In-range floats take the i128 fast path.
 pub export fn tcl_math_round(a: i32) i32 {
     const f = obj.obj_get_float(a);
-    return obj.obj_new_int(@intFromFloat(@round(f)));
+    if (std.math.isNan(f) or std.math.isInf(f)) {
+        stubs.raise("integer value too large to represent");
+        return obj.obj_new_int(0);
+    }
+    const r = @round(f);
+    if (r >= @as(f64, @floatFromInt(std.math.minInt(i128))) and
+        r <= @as(f64, @floatFromInt(std.math.maxInt(i128))))
+    {
+        return obj.obj_new_bignum(@as(i128, @intFromFloat(r)));
+    }
+    return float_to_bignum_obj(r);
 }
 
 /// log(x) — natural logarithm.
@@ -187,6 +476,72 @@ pub export fn tcl_math_cos(a: i32) i32 {
 /// fabs(x) — absolute value as float.
 pub export fn tcl_math_fabs(a: i32) i32 {
     return obj.obj_new_float(@abs(obj.obj_get_float(a)));
+}
+
+/// tan(x).
+pub export fn tcl_math_tan(a: i32) i32 {
+    return obj.obj_new_float(@tan(obj.obj_get_float(a)));
+}
+
+/// asin(x) — arc sine.  Domain is ``-1 ≤ x ≤ 1``; outside the
+/// domain we follow C / IEEE-754 semantics and emit a NaN
+/// (``std.math.asin`` returns NaN for |x| > 1).
+pub export fn tcl_math_asin(a: i32) i32 {
+    return obj.obj_new_float(std.math.asin(obj.obj_get_float(a)));
+}
+
+/// acos(x) — arc cosine.  Same domain handling as :func:`tcl_math_asin`.
+pub export fn tcl_math_acos(a: i32) i32 {
+    return obj.obj_new_float(std.math.acos(obj.obj_get_float(a)));
+}
+
+/// atan(x) — arc tangent (single-arg form).  ``atan2(y, x)`` is a
+/// separate two-arg helper (:func:`tcl_math_atan2`).
+pub export fn tcl_math_atan(a: i32) i32 {
+    return obj.obj_new_float(std.math.atan(obj.obj_get_float(a)));
+}
+
+/// atan2(y, x) — two-arg arctangent, returning the angle in
+/// ``[-π, π]``.
+pub export fn tcl_math_atan2(y: i32, x: i32) i32 {
+    return obj.obj_new_float(std.math.atan2(obj.obj_get_float(y), obj.obj_get_float(x)));
+}
+
+/// sinh(x) / cosh(x) / tanh(x) — hyperbolic trig.
+pub export fn tcl_math_sinh(a: i32) i32 {
+    return obj.obj_new_float(std.math.sinh(obj.obj_get_float(a)));
+}
+
+pub export fn tcl_math_cosh(a: i32) i32 {
+    return obj.obj_new_float(std.math.cosh(obj.obj_get_float(a)));
+}
+
+pub export fn tcl_math_tanh(a: i32) i32 {
+    return obj.obj_new_float(std.math.tanh(obj.obj_get_float(a)));
+}
+
+/// floor(x) — round toward -∞.  Returns a float per Tcl semantics
+/// (``expr {floor(2.7)}`` is ``2.0``, not the integer ``2``).
+pub export fn tcl_math_floor(a: i32) i32 {
+    return obj.obj_new_float(@floor(obj.obj_get_float(a)));
+}
+
+/// ceil(x) — round toward +∞.  Float result per Tcl semantics.
+pub export fn tcl_math_ceil(a: i32) i32 {
+    return obj.obj_new_float(@ceil(obj.obj_get_float(a)));
+}
+
+/// fmod(x, y) — IEEE-754 remainder of ``x / y`` with the sign of
+/// ``x``.  Distinct from Tcl's ``%`` operator (``expr {x % y}`` is
+/// integer-only and uses divisor sign).
+pub export fn tcl_math_fmod(x: i32, y: i32) i32 {
+    return obj.obj_new_float(@rem(obj.obj_get_float(x), obj.obj_get_float(y)));
+}
+
+/// hypot(x, y) — ``sqrt(x*x + y*y)``, computed without intermediate
+/// overflow.
+pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
+    return obj.obj_new_float(std.math.hypot(obj.obj_get_float(x), obj.obj_get_float(y)));
 }
 
 // ----------------------------------------------------------------------
@@ -334,23 +689,28 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         stubs.raise("negative shift argument");
         return obj.obj_new_int(0);
     }
-    const ai = obj.obj_get_int(a);
-    if (bi >= 64) {
-        // Tcl 9 raises ``integer value too large to represent`` for
-        // very large shift counts on non-zero values.  For simplicity
-        // we collapse to 0 for ``a == 0`` (mirrors ``0 << N == 0``)
-        // and rely on i64 wrap semantics for non-zero ``a`` (matches
-        // the previous inline ``i64.shl`` behaviour up to the count
-        // mask).  Tcl-style ``integer too large`` is out of scope.
-        if (ai == 0) return obj.obj_new_int(0);
-        // Use a safe default: shift by (bi & 63) — this matches what
-        // ``i64.shl`` did before.  Avoids a hard error for callers
-        // that previously relied on the implicit mask.
-        const shift: u6 = @intCast(@as(u64, @bitCast(bi)) & 63);
-        return obj.obj_new_int(ai << shift);
+    // Bignum operand or wide shift count → Managed (arbitrary-precision)
+    // path so ``1 << 1000`` and ``(2^200) << 50`` round-trip exactly.
+    // Stage 1's i128 path saturated past ``1 << 127``; Stage 2 routes
+    // through ``std.math.big.int.Managed`` for unbounded precision.
+    if (is_bignum(a) or bi >= 63) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        if (ap.m.eqlZero()) return obj.obj_new_int(0);
+        const count: u64 = @bitCast(bi);
+        const r = bignum.alloc_shl(ap.m, count) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
+    const ai = obj.obj_get_int(a);
+    // For 0 <= bi < 63 the i64 result is well-defined when no
+    // overflow occurs; if it does overflow, promote to i128 (which
+    // auto-collapses if the result fits i64).
     const shift: u6 = @intCast(bi);
-    return obj.obj_new_int(ai << shift);
+    const widened = @as(i128, ai) << shift;
+    if (widened >= std.math.minInt(i64) and widened <= std.math.maxInt(i64)) {
+        return obj.obj_new_int(@intCast(widened));
+    }
+    return obj.obj_new_bignum(widened);
 }
 
 pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
@@ -360,29 +720,71 @@ pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
         stubs.raise("negative shift argument");
         return obj.obj_new_int(0);
     }
+    // Bignum operand → Managed shiftRight so e.g. ``(1 << 200) >> 100``
+    // recovers ``1 << 100`` instead of truncating to 0 (the bottom 64
+    // bits of any large power-of-two are zero).
+    if (is_bignum(a)) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        // Managed.shiftRight takes the shift count as usize; a bignum
+        // operand with shift >= ``bit_len(a)`` produces 0 / -1 per the
+        // arithmetic-shift convention, which Managed handles natively.
+        const shift: u64 = @bitCast(bi);
+        const r = bignum.alloc_zero() orelse return obj.obj_new_int(0);
+        r.shiftRight(ap.m, @intCast(shift)) catch {
+            bignum.destroy(r);
+            return obj.obj_new_int(0);
+        };
+        return obj.obj_new_bignum_take(r);
+    }
     const ai = obj.obj_get_int(a);
     if (bi >= 64) {
-        // Arithmetic shift by 64+ produces 0 for non-negative ``a``
-        // and -1 for negative ``a``.  Match that exactly rather than
-        // letting WASM mask the count.
         return obj.obj_new_int(if (ai < 0) -1 else 0);
     }
     const shift: u6 = @intCast(bi);
     return obj.obj_new_int(ai >> shift);
 }
 
+/// Bignum-aware bitwise binary op.  Routes through ``Managed.bitAnd /
+/// bitOr / bitXor`` for arbitrary precision; the i64 fast path stays
+/// for the common small-int case so we don't pay the heap allocation.
+fn bitwise_managed(
+    a: i32,
+    b: i32,
+    op: enum { band, bor, bxor },
+) i32 {
+    const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+    defer release_promoted(ap);
+    const bp = promote_to_bignum(b) orelse return obj.obj_new_int(0);
+    defer release_promoted(bp);
+    const r = bignum.alloc_zero() orelse return obj.obj_new_int(0);
+    const res = switch (op) {
+        .band => r.bitAnd(ap.m, bp.m),
+        .bor => r.bitOr(ap.m, bp.m),
+        .bxor => r.bitXor(ap.m, bp.m),
+    };
+    res catch {
+        bignum.destroy(r);
+        return obj.obj_new_int(0);
+    };
+    return obj.obj_new_bignum_take(r);
+}
+
 pub export fn tcl_arith_band(a: i32, b: i32) i32 {
     if (!check_int_binary(a, b, "&")) return obj.obj_new_int(0);
+    if (is_bignum(a) or is_bignum(b)) return bitwise_managed(a, b, .band);
     return obj.obj_new_int(obj.obj_get_int(a) & obj.obj_get_int(b));
 }
 
 pub export fn tcl_arith_bor(a: i32, b: i32) i32 {
     if (!check_int_binary(a, b, "|")) return obj.obj_new_int(0);
+    if (is_bignum(a) or is_bignum(b)) return bitwise_managed(a, b, .bor);
     return obj.obj_new_int(obj.obj_get_int(a) | obj.obj_get_int(b));
 }
 
 pub export fn tcl_arith_bxor(a: i32, b: i32) i32 {
     if (!check_int_binary(a, b, "^")) return obj.obj_new_int(0);
+    if (is_bignum(a) or is_bignum(b)) return bitwise_managed(a, b, .bxor);
     return obj.obj_new_int(obj.obj_get_int(a) ^ obj.obj_get_int(b));
 }
 
@@ -390,6 +792,20 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
     if (is_float(a)) {
         raise_float_in_unary_bitwise(a, "~");
         return obj.obj_new_int(0);
+    }
+    if (is_bignum(a)) {
+        // ``~x`` = ``-x - 1`` in two's complement; Managed has no
+        // direct bitNot but the identity gives a clean implementation
+        // that matches Tcl's "result has divisor's sign" semantic
+        // (here the "divisor" is implicitly ``-1``).
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const neg = bignum.alloc_neg(ap.m) orelse return obj.obj_new_int(0);
+        defer bignum.destroy(neg);
+        const one = bignum.alloc_from_int(1) orelse return obj.obj_new_int(0);
+        defer bignum.destroy(one);
+        const r = bignum.alloc_sub(neg, one) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
     }
     return obj.obj_new_int(~obj.obj_get_int(a));
 }
@@ -402,7 +818,24 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
 /// ``tcl_arith_bnot``) observe the float on the operand chain.  Without
 /// this helper the inline ``0 - x`` i64 path silently truncates to int
 /// and the float check is bypassed (Codex review on PR #287).
+///
+/// Bignum-aware: ``-(1<<127)`` is i128::MIN whose magnitude exceeds
+/// i128::MAX by 1, so the ``i64.MIN`` wrap-trick for ``-i64::MIN`` no
+/// longer suffices once the operand can carry an i128 payload.  We
+/// route through :func:`bignum.sub_overflow(0, av)` and saturate to
+/// i128::MAX on the one boundary case.
 pub export fn tcl_arith_neg(a: i32) i32 {
     if (is_float(a)) return obj.obj_new_float(-obj.obj_get_float(a));
-    return obj.obj_new_int(-%obj.obj_get_int(a));
+    if (is_bignum(a)) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        const r = bignum.alloc_neg(ap.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
+    const ai = obj.obj_get_int(a);
+    if (ai == std.math.minInt(i64)) {
+        // Promote: ``-(-2^63)`` = ``2^63`` doesn't fit in i64.
+        return obj.obj_new_bignum(-@as(i128, ai));
+    }
+    return obj.obj_new_int(-ai);
 }
