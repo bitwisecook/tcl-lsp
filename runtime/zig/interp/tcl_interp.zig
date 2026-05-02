@@ -25,6 +25,7 @@ const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
 const obj_get_int = rt.obj_get_int;
 const obj_new_string_copy = rt.obj_new_string_copy;
+const obj_new_string_take = rt.obj_new_string_take;
 const copy_unbraced_elem = rt.copy_unbraced_elem;
 const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
@@ -83,8 +84,221 @@ const subst_flagged = tcl_subst.subst_flagged;
 // Recursive-descent: +, -, *, /, %, ==, !=, <, >, <=, >=, unary -, (), $var, [cmd]
 
 pub fn eval_expr_str(ptr: u32, len: u32) i64 {
+    // Tcl's ``eq`` / ``ne`` / ``in`` / ``ni`` operators take string
+    // operands, not numeric — but the legacy ``expr_*`` chain below is
+    // a pure-numeric evaluator that loses the string form once it
+    // reads an atom.  Pre-scan the expression for a top-level string
+    // operator and dispatch through ``eval_string_expr`` when we see
+    // one; that helper substitutes both sides via ``subst_word`` and
+    // does a real string compare.  Without this dispatch, ``expr
+    // {$token ne {}}`` parses ``$token`` as 0 (string ``"v1"`` is not
+    // a number), then sees the unknown ``ne`` operator, returns 0,
+    // and ``catch {$token ne {}}`` always evaluates false.  See the
+    // ``::tcltest::SubstArguments`` smoke trace in the cmdAH triage
+    // for a worked example.
+    if (find_top_string_op(ptr, len)) |op| {
+        return eval_string_expr(ptr, len, op);
+    }
     var pos: u32 = 0;
     return expr_or(ptr, len, &pos, false);
+}
+
+/// One of the four Tcl string-comparison / list-membership operators
+/// in ``expr``.  The kind is enough to dispatch the comparison; the
+/// position lets the caller split the expression text into LHS / RHS
+/// substrings.
+const StringOp = struct {
+    kind: enum { eq, ne, in_, ni },
+    /// First byte of the operator keyword in the expression text.
+    start: u32,
+    /// Byte length of the keyword (2 for all four operators).
+    op_len: u32,
+};
+
+/// Walk *ptr*[0..*len*] looking for a top-level ``eq`` / ``ne`` / ``in``
+/// / ``ni`` operator.  Skips over ``"..."``, ``{...}``, ``[...]``,
+/// ``(...)`` so nested constructs don't trip the match, and bails out
+/// at the first higher- or equal-precedence boolean / ternary operator
+/// (``&&``, ``||``, ``?``, ``:``) so chained expressions like
+/// ``expr {$a eq $b && $c}`` or ``expr {$a eq $b ? 1 : 0}`` are
+/// recognised as numeric expressions and dispatched through the
+/// regular ``expr_or`` pipeline (which itself recurses back into
+/// ``eval_expr_str`` for each side, picking up the string-op fix
+/// where it actually applies).
+fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
+    if (len < 4) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        const c = src[i];
+        // Skip nested constructs so an inner ``eq`` doesn't get picked.
+        if (c == '"') {
+            i += 1;
+            while (i < len and src[i] != '"') {
+                if (src[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            continue;
+        }
+        if (c == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 1;
+                    continue;
+                }
+                if (src[i] == '{') depth += 1 else if (src[i] == '}') depth -= 1;
+            }
+            // ``i`` now points one past the closing brace; the loop
+            // ``i += 1`` will advance once more, so step back.
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (c == '[') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (c == '(') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '(') depth += 1 else if (src[i] == ')') depth -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        // Bail out at higher- or equal-precedence boolean / ternary
+        // operators so the string-op shortcut only fires for atom-
+        // level ``$a eq $b`` shapes.  Inside a ``&&`` or ``?:``
+        // expression the regular numeric ``expr_or`` chain handles
+        // each operand and recurses back here for each subexpression.
+        if (i + 1 < len and src[i] == '&' and src[i + 1] == '&') return null;
+        if (i + 1 < len and src[i] == '|' and src[i + 1] == '|') return null;
+        if (c == '?' or c == ':') return null;
+        // String operator must be surrounded by whitespace on both
+        // sides — otherwise a variable name like ``$equal`` would
+        // self-match its ``eq`` substring.  Two-char keyword + at
+        // least one trailing byte (the RHS start).
+        if (c != ' ' and c != '\t') continue;
+        if (i + 3 >= len) break;
+        const ch1 = src[i + 1];
+        const ch2 = src[i + 2];
+        const ch3 = src[i + 3];
+        if (ch3 != ' ' and ch3 != '\t') continue;
+        if (ch1 == 'e' and ch2 == 'q') {
+            return .{ .kind = .eq, .start = i + 1, .op_len = 2 };
+        }
+        if (ch1 == 'n' and ch2 == 'e') {
+            return .{ .kind = .ne, .start = i + 1, .op_len = 2 };
+        }
+        if (ch1 == 'i' and ch2 == 'n') {
+            return .{ .kind = .in_, .start = i + 1, .op_len = 2 };
+        }
+        if (ch1 == 'n' and ch2 == 'i') {
+            return .{ .kind = .ni, .start = i + 1, .op_len = 2 };
+        }
+    }
+    return null;
+}
+
+/// Evaluate a ``$LHS op $RHS`` expression where *op* is one of the
+/// four string-domain operators.  Substitutes each side via
+/// ``subst_word`` (so ``$var`` and ``[cmd]`` resolve to their string
+/// values), then compares.  ``in`` / ``ni`` treat the RHS as a Tcl
+/// list and check membership.
+fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    // Trim surrounding whitespace from each side.
+    var lhs_start: u32 = 0;
+    var lhs_end: u32 = op.start;
+    while (lhs_start < lhs_end and (src[lhs_start] == ' ' or src[lhs_start] == '\t')) lhs_start += 1;
+    while (lhs_end > lhs_start and (src[lhs_end - 1] == ' ' or src[lhs_end - 1] == '\t')) lhs_end -= 1;
+    var rhs_start: u32 = op.start + op.op_len;
+    var rhs_end: u32 = len;
+    while (rhs_start < rhs_end and (src[rhs_start] == ' ' or src[rhs_start] == '\t')) rhs_start += 1;
+    while (rhs_end > rhs_start and (src[rhs_end - 1] == ' ' or src[rhs_end - 1] == '\t')) rhs_end -= 1;
+    // ``subst_word`` resolves ``$var`` / ``[cmd]`` / backslash escapes
+    // but doesn't strip outer ``{...}`` braces — those are a syntactic
+    // hint that the contents are literal.  Strip them on each side
+    // before subst so ``{}`` evaluates to the empty string and
+    // ``{abc}`` evaluates to ``abc``.  Without the strip,
+    // ``$token ne {}`` compared the (substituted) ``$token`` against
+    // the literal two-char string ``{}`` and never matched the empty
+    // string for which it stands.
+    var ls = lhs_start;
+    var le = lhs_end;
+    var rs = rhs_start;
+    var re = rhs_end;
+    if (le >= ls + 2 and src[ls] == '{' and src[le - 1] == '}') {
+        ls += 1;
+        le -= 1;
+    }
+    if (re >= rs + 2 and src[rs] == '{' and src[re - 1] == '}') {
+        rs += 1;
+        re -= 1;
+    }
+    const lhs_obj = subst_word(ptr + ls, le - ls);
+    const rhs_obj = subst_word(ptr + rs, re - rs);
+    const lhs_raw = obj_ensure_string(lhs_obj);
+    const rhs_raw = obj_ensure_string(rhs_obj);
+    const lhs_s: StringSpan = .{ .ptr = lhs_raw.ptr, .len = lhs_raw.len };
+    const rhs_s: StringSpan = .{ .ptr = rhs_raw.ptr, .len = rhs_raw.len };
+    var result: i64 = 0;
+    switch (op.kind) {
+        .eq => result = if (string_bytes_equal(lhs_s, rhs_s)) @as(i64, 1) else @as(i64, 0),
+        .ne => result = if (string_bytes_equal(lhs_s, rhs_s)) @as(i64, 0) else @as(i64, 1),
+        .in_ => result = if (list_contains_string(rhs_s, lhs_s)) @as(i64, 1) else @as(i64, 0),
+        .ni => result = if (list_contains_string(rhs_s, lhs_s)) @as(i64, 0) else @as(i64, 1),
+    }
+    obj_mod.tcl_obj_release(lhs_obj);
+    obj_mod.tcl_obj_release(rhs_obj);
+    return result;
+}
+
+const StringSpan = struct { ptr: u32, len: u32 };
+
+fn string_bytes_equal(a: StringSpan, b: StringSpan) bool {
+    if (a.len != b.len) return false;
+    if (a.len == 0) return true;
+    const ap: [*]const u8 = @ptrFromInt(a.ptr);
+    const bp: [*]const u8 = @ptrFromInt(b.ptr);
+    var i: u32 = 0;
+    while (i < a.len) : (i += 1) {
+        if (ap[i] != bp[i]) return false;
+    }
+    return true;
+}
+
+fn list_contains_string(list: StringSpan, needle: StringSpan) bool {
+    const n = rt.list_count_elements(list.ptr, list.len);
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        const elem = rt.list_element_at(list.ptr, list.len, idx);
+        // Decode the element's actual byte content (handle braced
+        // quoting) before comparing.
+        if (elem.braced) {
+            const span: StringSpan = .{ .ptr = list.ptr + elem.start, .len = elem.len };
+            if (string_bytes_equal(span, needle)) return true;
+        } else {
+            // Unbraced: backslash sequences need decoding.  Allocate
+            // a tiny scratch buffer and use ``copy_unbraced_elem``
+            // (the canonical decoder used by ``Tcl_SplitList``).
+            const scratch = obj_mod.alloc(elem.len + 1);
+            if (scratch == 0) return false;
+            const real_len = rt.copy_unbraced_elem(scratch, list.ptr + elem.start, elem.len);
+            const decoded: StringSpan = .{ .ptr = scratch, .len = real_len };
+            const matched = string_bytes_equal(decoded, needle);
+            obj_mod.free_sized(scratch, elem.len + 1);
+            if (matched) return true;
+        }
+    }
+    return false;
 }
 
 /// Short-circuit evaluation: when *skip* is true the expression walks the
@@ -917,9 +1131,14 @@ pub fn eval_foreach(words: []const i32) i32 {
         else blk: {
             const buf = alloc(elem.len);
             const out_len = copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-            break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+            break :blk obj_new_string_take(buf, out_len, elem.len);
         };
+        // Issue #317: ``var_set`` retains ``elem_val`` for the
+        // frame slot; without dropping the creator-side ref here,
+        // every iteration leaked one TclObj (plus its bytes after
+        // the ``obj_new_string_take`` switch above).
         _ = frames.var_set(var_name, elem_val);
+        obj_mod.tcl_obj_release(elem_val);
         // Release the prior body result before overwriting (issue
         // #303 — same loop-leak pattern as ``eval_for`` /
         // ``eval_while``).
@@ -986,7 +1205,9 @@ fn emit_child_arity_error(
     for (tail, 0..) |b, k| {
         d[prefix.len + child_name_len + suffix.len + k] = b;
     }
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    // Issue #317: see ``stubs.unsupported`` for the ownership
+    // rationale.
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -1009,7 +1230,8 @@ fn emit_child_bad_option(name_ptr: u32, name_len: u32) void {
     for (CHILD_SUBCOMMAND_LIST, 0..) |b, k| {
         d[prefix.len + name_len + infix.len + k] = b;
     }
-    const msg = rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    // Issue #317: see ``stubs.unsupported``.
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
 
@@ -1383,7 +1605,15 @@ fn build_invocation_list(words: []const i32) i32 {
             off = obj_mod.list_elem_quote_nth(buf, off, s.ptr, s.len);
         }
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    // Issue #317: ``obj_new_string_take`` so the resulting list
+    // owns its buffer; the older borrowing form leaked the buf
+    // every time the eval-fallback proc dispatcher pushed an
+    // argv list.  Combined with the un-released argv ref at the
+    // caller (see ``eval_proc_call_bucket``), this was the
+    // dominant io.test residual — every ``::tcltest::test`` call
+    // (578 invocations in the failing trace) leaked one TclObj
+    // header and one quoted-args buffer.
+    return obj_new_string_take(buf, off, total);
 }
 
 /// Internal: dispatch once the proc bucket is already resolved.
@@ -1489,7 +1719,16 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // Stash the invocation argv (proc name + all call args) so
     // ``info level 0`` inside the body returns the real list
     // rather than the placeholder emitted by legacy callers.
-    frames.frame_set_argv(build_invocation_list(words));
+    // Issue #317: ``frame_set_argv`` retains the list for the
+    // frame's argv slot; without dropping our creator-side ref
+    // here the list TclObj sits at rc=2 once the frame pops, the
+    // frame's release brings it to 1, and the orphan rc keeps
+    // the obj (and its quoted-args buffer) alive forever.  Each
+    // proc call leaked one TclObj + one buf — the dominant
+    // io.test residual.
+    const argv = build_invocation_list(words);
+    frames.frame_set_argv(argv);
+    obj_mod.tcl_obj_release(argv);
 
     // Stamp the proc's namespace onto ``current_ns`` for the
     // duration of the body so unqualified calls inside the body
@@ -1549,6 +1788,15 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
             const param_name_ptr = ps.ptr + param_elem.start;
             const param_name_len = param_elem.len;
             const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
+            // Issue #317: ``local_set`` only reads ``param_name``'s byte
+            // span (the hash table copies the bytes into its own
+            // bucket); the TclObj itself is not retained anywhere
+            // afterwards.  Without this defer, every proc invocation
+            // leaked one TclObj per parameter — the dominant io.test
+            // residual leak source after #303 closed the eval-loop
+            // intermediate-result paths.  The same fix applies in
+            // ``eval_apply`` below.
+            defer obj_mod.tcl_obj_release(param_name);
             const param_name_s: [*]const u8 = @ptrFromInt(param_name_ptr);
             // argv[0] is the command name, so argv[pi+1] is the first arg
             const arg_idx = pi + 1;
@@ -1560,8 +1808,14 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
             if (is_args_param) {
                 // Collect all remaining arguments into a list
                 if (arg_idx >= words.len) {
-                    // No remaining args: set to empty list
-                    _ = frames.local_set(param_name, obj_new_string(0, 0));
+                    // No remaining args: set to empty list.  Drop the
+                    // creator-side ref after ``local_set`` retains so
+                    // the frame slot is the only owner — otherwise the
+                    // empty TclObj leaks at rc=1 once the frame pops
+                    // (issue #317).
+                    const empty = obj_new_string(0, 0);
+                    _ = frames.local_set(param_name, empty);
+                    obj_mod.tcl_obj_release(empty);
                 } else if (arg_idx + 1 == words.len) {
                     // Exactly one remaining arg: use it directly as a list
                     _ = frames.local_set(param_name, words[arg_idx]);
@@ -1574,7 +1828,8 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                         total += sv.len * 2 + 4; // generous quoting estimate
                         if (ai > arg_idx) total += 1;
                     }
-                    const buf = alloc(total + 4);
+                    const args_alloc_size: u32 = total + 4;
+                    const buf = alloc(args_alloc_size);
                     var off: u32 = 0;
                     ai = arg_idx;
                     while (ai < words.len) : (ai += 1) {
@@ -1593,12 +1848,29 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                             off = obj_mod.list_elem_quote_nth(buf, off, sv.ptr, sv.len);
                         }
                     }
-                    _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
+                    // Issue #317: ``obj_new_string_take`` lets the
+                    // resulting TclObj own ``buf`` (so its release
+                    // frees the backing slab via ``free_sized``); the
+                    // matching ``tcl_obj_release`` after ``local_set``
+                    // drops our creator-side ref so the frame slot is
+                    // the only owner.
+                    const args_obj = obj_new_string_take(buf, off, args_alloc_size);
+                    _ = frames.local_set(param_name, args_obj);
+                    obj_mod.tcl_obj_release(args_obj);
                 }
                 break;
             } else {
-                const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
-                _ = frames.local_set(param_name, arg_val);
+                if (arg_idx < words.len) {
+                    // Caller-owned TclObj — no creator-side ref to drop.
+                    _ = frames.local_set(param_name, words[arg_idx]);
+                } else {
+                    // Default-empty for missing positional args; drop
+                    // the creator-side ref the same way as the empty
+                    // ``args`` branch above.
+                    const empty = obj_new_string(0, 0);
+                    _ = frames.local_set(param_name, empty);
+                    obj_mod.tcl_obj_release(empty);
+                }
             }
         }
     }
@@ -1669,6 +1941,18 @@ pub fn eval_interp(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "target")) return interp_impl.eval_interp_target(words);
     if (str_eq(sp, sub.len, "issafe") or str_eq(sp, sub.len, "safe")) {
         return interp_impl.eval_interp_issafe(words);
+    }
+    // ``interp share interpA channel interpB`` / ``interp transfer
+    // interpA channel interpB`` — channel ownership manipulation
+    // between interpreters.  Our runtime exposes ``stdin`` /
+    // ``stdout`` / ``stderr`` as pre-shared global channels and has no
+    // user-creatable channels (``open`` and ``socket`` traps as
+    // unsupported), so there is no per-interp channel table to update.
+    // Accept the call as a no-op so cmdAH-31's interp-sharing tests
+    // proceed past the inter-test setup steps.  Real behaviour can
+    // land alongside a real channel-isolation table later.
+    if (str_eq(sp, sub.len, "share") or str_eq(sp, sub.len, "transfer")) {
+        return 0;
     }
     if (!str_eq(sp, sub.len, "alias") and !str_eq(sp, sub.len, "aliases")) {
         // Unrecognised subcommand: raise tclsh's ``bad option "X"``
@@ -1982,17 +2266,26 @@ pub fn eval_apply(words: []const i32) i32 {
     const params_obj = if (params_elem.braced)
         obj_new_string_copy(lambda_s.ptr + params_elem.start, params_elem.len)
     else blk: {
-        const buf = alloc(params_elem.len + 4);
+        const alloc_size: u32 = params_elem.len + 4;
+        const buf = alloc(alloc_size);
         const out_len = copy_unbraced_elem(buf, lambda_s.ptr + params_elem.start, params_elem.len);
-        break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+        break :blk obj_new_string_take(buf, out_len, alloc_size);
     };
+    // Issue #317: ``params_obj`` / ``body_obj`` are local copies of
+    // the lambda's two list elements; they're never stored in a
+    // frame slot or registered command, so without these defers
+    // every ``apply`` call leaks both TclObjs (and, before
+    // ``obj_new_string_take``, their backing bufs as well).
+    defer obj_mod.tcl_obj_release(params_obj);
     const body_obj = if (body_elem.braced)
         obj_new_string_copy(lambda_s.ptr + body_elem.start, body_elem.len)
     else blk: {
-        const buf = alloc(body_elem.len + 4);
+        const alloc_size: u32 = body_elem.len + 4;
+        const buf = alloc(alloc_size);
         const out_len = copy_unbraced_elem(buf, lambda_s.ptr + body_elem.start, body_elem.len);
-        break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
+        break :blk obj_new_string_take(buf, out_len, alloc_size);
     };
+    defer obj_mod.tcl_obj_release(body_obj);
 
     // Optional namespace from third lambda element
     const saved_ns: u32 = tcl_ns_mod.current_ns;
@@ -2011,6 +2304,8 @@ pub fn eval_apply(words: []const i32) i32 {
 
     // Bind parameters — same pattern as eval_proc_call_bucket but user
     // args start at words[2] (words[0]=apply, words[1]=lambda).
+    // Issue #317: refcount discipline matches eval_proc_call_bucket —
+    // see the comment block there for the per-branch leak rationale.
     const ps = obj_ensure_string(params_obj);
     const n_params: u32 = @intCast(list_count_elements(ps.ptr, ps.len));
     if (ps.len > 0 and n_params > 0) {
@@ -2020,6 +2315,7 @@ pub fn eval_apply(words: []const i32) i32 {
             const param_name_ptr = ps.ptr + param_elem.start;
             const param_name_len = param_elem.len;
             const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
+            defer obj_mod.tcl_obj_release(param_name);
             const param_name_s: [*]const u8 = @ptrFromInt(param_name_ptr);
             const arg_idx = pi + 2; // skip words[0]=apply, words[1]=lambda
             const is_args_param = (pi == n_params - 1) and (param_name_len == 4) and
@@ -2027,7 +2323,9 @@ pub fn eval_apply(words: []const i32) i32 {
                 param_name_s[2] == 'g' and param_name_s[3] == 's';
             if (is_args_param) {
                 if (arg_idx >= words.len) {
-                    _ = frames.local_set(param_name, obj_new_string(0, 0));
+                    const empty = obj_new_string(0, 0);
+                    _ = frames.local_set(param_name, empty);
+                    obj_mod.tcl_obj_release(empty);
                 } else if (arg_idx + 1 == words.len) {
                     _ = frames.local_set(param_name, words[arg_idx]);
                 } else {
@@ -2038,7 +2336,8 @@ pub fn eval_apply(words: []const i32) i32 {
                         total += sv.len * 2 + 4;
                         if (ai > arg_idx) total += 1;
                     }
-                    const buf = alloc(total + 4);
+                    const args_alloc_size: u32 = total + 4;
+                    const buf = alloc(args_alloc_size);
                     var off: u32 = 0;
                     ai = arg_idx;
                     while (ai < words.len) : (ai += 1) {
@@ -2054,12 +2353,19 @@ pub fn eval_apply(words: []const i32) i32 {
                             off = obj_mod.list_elem_quote_nth(buf, off, sv.ptr, sv.len);
                         }
                     }
-                    _ = frames.local_set(param_name, obj_new_string(@bitCast(buf), @bitCast(off)));
+                    const args_obj = obj_new_string_take(buf, off, args_alloc_size);
+                    _ = frames.local_set(param_name, args_obj);
+                    obj_mod.tcl_obj_release(args_obj);
                 }
                 break;
             } else {
-                const arg_val = if (arg_idx < words.len) words[arg_idx] else obj_new_string(0, 0);
-                _ = frames.local_set(param_name, arg_val);
+                if (arg_idx < words.len) {
+                    _ = frames.local_set(param_name, words[arg_idx]);
+                } else {
+                    const empty = obj_new_string(0, 0);
+                    _ = frames.local_set(param_name, empty);
+                    obj_mod.tcl_obj_release(empty);
+                }
             }
         }
     }
@@ -2285,10 +2591,17 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                 } else {
                     const buf = alloc(elem.len);
                     const out_len = copy_unbraced_elem(buf, s.ptr + elem.start, elem.len);
-                    expanded[ecount] = obj_new_string(@bitCast(buf), @bitCast(out_len));
+                    expanded[ecount] = obj_new_string_take(buf, out_len, elem.len);
                 }
                 ecount += 1;
             }
+            // Release the source word obj — its bytes have been copied
+            // into independently-owned ``expanded[]`` entries above.
+            // Without this release, every ``{*}$args`` expansion leaked
+            // the source list object, growing the heap monotonically
+            // across long-running tcltest sweeps and exhausting the
+            // 32-byte slab class.
+            obj_mod.tcl_obj_release(word_obj);
         } else {
             if (ecount < MAX_EXPANDED_WORDS) {
                 expanded[ecount] = word_obj;
@@ -2299,12 +2612,17 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
     // MM-B.4 (slow path): release expanded[] elements after
     // dispatch, with the same alias-aware retain pattern as the
     // fast path.  Each ``{*}$args`` expansion element is a fresh
-    // TclObj — for braced elements, ``obj_new_string_copy``
-    // (cap > 0, owns its own bytes); for unbraced,
-    // ``obj_new_string`` borrowing into a freshly-alloced ``buf``
-    // (cap == 0, leaks the buf safely).  In both cases an element's
-    // release is independent of any peer; releasing one doesn't
-    // free a buffer another element borrows.
+    // TclObj that owns its bytes — braced elements via
+    // ``obj_new_string_copy`` (cap = rounded-up alloc), unbraced
+    // via ``obj_new_string_take`` (cap matches the per-element
+    // ``alloc(elem.len)`` that backed the backslash-decoded copy).
+    // Issue #317: the older ``obj_new_string`` borrowing form left
+    // ``cap = 0`` and leaked one buf per unbraced element on
+    // release — observed under io.test as the residual heap
+    // pressure that pushed the runtime past its 4 GiB ceiling.
+    // In both cases an element's release is independent of any
+    // peer; releasing one doesn't free a buffer another element
+    // borrows.
     const result = eval_command(expanded[0..ecount]);
     var result_is_word = false;
     if (result != 0) {

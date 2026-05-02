@@ -51,6 +51,41 @@ from .._ir import (
 from .._ownership import Ownership
 
 
+def _escape_dquote(text: str) -> str:
+    """Escape a multi-token IR word for embedding inside a ``"…"`` literal.
+
+    The IR mirrors the source byte stream — backslash sequences such as
+    ``\\n`` or ``\\$`` are stored as their two-character source form,
+    not as the substituted byte.  Tcl's in-quote backslash substitution
+    will re-evaluate them to the original byte values when the wrapped
+    script reaches the interpreter, so we leave the backslashes alone.
+
+    Only the closing ``"`` needs escaping so the dquoted span ends at
+    the trailing quote we add — not at the first embedded one.  An
+    embedded ``"`` is preceded by a backslash unless it is already
+    escaped (``\\"`` → leave alone).
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == "\\" and i + 1 < len(text):
+            # Pass through the backslash + next char as-is so Tcl's
+            # in-quote substitution resolves them at eval time.
+            out.append(c)
+            out.append(text[i + 1])
+            i += 2
+            continue
+        if c == '"':
+            out.append("\\")
+            out.append('"')
+            i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def _static_parse_error_message(
     barrier_cmd: str | None,
     reason: str | None,
@@ -289,6 +324,9 @@ class _WasmEmitterStmtMixin(_Base):
                     # callee with ``{*}`` and unexpanded contents.
                     ew = tokens.expand_word
                     argv = tokens.argv if tokens.argv is not None else ()
+                    single_word = (
+                        tokens.single_token_word if tokens.single_token_word is not None else ()
+                    )
                     parts = []
                     for i, t in enumerate(tokens.argv_texts):
                         expand = i < len(ew) and ew[i]
@@ -304,6 +342,28 @@ class _WasmEmitterStmtMixin(_Base):
 
                         if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
                             t = "{" + t + "}"
+                        elif i < len(single_word) and not single_word[i] and t:
+                            # Multi-token concatenation (``"$body (suffix)"``,
+                            # ``foo$bar``, …).  ``_word_piece`` joined the
+                            # piece texts with no separators, so the result
+                            # is a substitution-bearing string that would
+                            # split into multiple words at re-parse time
+                            # if left bare.  Re-wrap in ``"…"`` so it stays
+                            # one word; embedded ``$`` / ``[`` / ``]`` keep
+                            # their substitution semantics inside ``"…"``,
+                            # while ``\`` / ``"`` need escaping so the
+                            # quoted span terminates only at the trailing
+                            # quote we add here.
+                            # Only escape unescaped ``"`` — backslash
+                            # sequences in the IR mirror the source
+                            # (``\n`` is two literal chars), and Tcl's
+                            # backslash substitution inside ``"…"`` will
+                            # re-evaluate them to the same byte values
+                            # the original word produced (``\n`` →
+                            # newline).  Doubling the backslashes here
+                            # would change ``\n`` to a literal ``\n``
+                            # pair instead of a newline.
+                            t = '"' + _escape_dquote(t) + '"'
                         parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(command, args, script_override=script)
@@ -316,6 +376,25 @@ class _WasmEmitterStmtMixin(_Base):
                     )
 
             case IRReturn(value=value, expr=expr):
+                # Inside a compile-time ``catch`` body, ``return`` must
+                # not emit a WASM ``return`` — that would unwind past
+                # ``catch_leave`` and exit the surrounding proc with
+                # the body's value instead of letting ``catch`` absorb
+                # it as TCL_RETURN (return code 2).  Route through the
+                # runtime ``tcl_return_set`` helper instead, which sets
+                # ``return_flag`` + ``return_val``; ``catch_has_error``
+                # then short-circuits the body and ``catch_leave``
+                # reads the flag and reports TCL_RETURN.
+                return_set = self._shared_imports.get("tcl_return_set")
+                if self._catch_depth > 0 and return_set is not None:
+                    if expr is not None:
+                        self._emit_expr_obj(expr)
+                    elif value is not None:
+                        self._emit_value(value)
+                    else:
+                        self._emit_i32_const(0)
+                    self._emit_call(return_set)
+                    return
                 if expr is not None:
                     self._emit_expr_obj(expr)
                 elif value is not None:
@@ -437,18 +516,49 @@ class _WasmEmitterStmtMixin(_Base):
                         )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
                     else:
-                        # Pass barrier_tokens through so per-arg brace
-                        # information survives.  Without it, an arg
-                        # whose IR text starts with ``[`` (a braced
-                        # description containing brackets, e.g.
-                        # tcltest's ``{[Bug 1234] foo}``) would be
-                        # treated as a command-substitution word and
-                        # passed unquoted into the reassembled
-                        # script — at which point ``tcl_eval`` would
-                        # try to invoke ``Bug 1234`` as a command.
-                        self._emit_eval_fallback(
-                            barrier_cmd, barrier_args, tokens=barrier_tokens
-                        )
+                        # Pass the barrier's tokens through so the
+                        # eval-fallback's quoting heuristics can detect
+                        # multi-token / braced words.  Without this an
+                        # ``"$body (suffix)"`` arg lowered through a
+                        # barrier (e.g. namespace-imported user proc
+                        # with ``{*}`` expansion) was passed verbatim
+                        # to the interpreter, splitting at the embedded
+                        # space and breaking the receiver's arg count.
+                        if (
+                            barrier_tokens is not None
+                            and barrier_tokens.expand_word is not None
+                            and any(barrier_tokens.expand_word)
+                            and barrier_tokens.argv_texts
+                        ):
+                            ew = barrier_tokens.expand_word
+                            single_word = (
+                                barrier_tokens.single_token_word
+                                if barrier_tokens.single_token_word is not None
+                                else ()
+                            )
+                            argv = barrier_tokens.argv if barrier_tokens.argv is not None else ()
+                            from .....parsing.tokens import TokenType
+
+                            parts: list[str] = []
+                            for i, t in enumerate(barrier_tokens.argv_texts):
+                                prefix = "{*}" if (i < len(ew) and ew[i]) else ""
+                                if (
+                                    i < len(argv)
+                                    and argv[i] is not None
+                                    and argv[i].type is TokenType.STR
+                                ):
+                                    t = "{" + t + "}"
+                                elif i < len(single_word) and not single_word[i] and t:
+                                    t = '"' + _escape_dquote(t) + '"'
+                                parts.append(prefix + t)
+                            script = " ".join(parts)
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, script_override=script
+                            )
+                        else:
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, tokens=barrier_tokens
+                            )
                     self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
@@ -979,12 +1089,26 @@ class _WasmEmitterStmtMixin(_Base):
         # From inside the body at ctrl_depth D, with loop_ctrl C:
         #   continue: br(D - C) exits the continue block → runs <next>
         #   break:    br(D - C + 2) exits continue block + loop + outer block
-        if canonical_command == "::break" and self._loop_ctrl_depths:
+        #
+        # When an enclosing ``catch`` sits between us and the innermost
+        # loop (``_loop_catch_depths[-1] < _catch_depth``), a structured
+        # ``br`` would jump past ``catch_leave`` and prevent the catch
+        # from absorbing the flow control as a TCL_BREAK / TCL_CONTINUE
+        # return code.  Fall through to the runtime ``break`` /
+        # ``continue`` handlers in that case — they set the matching
+        # flow-control flag, ``catch_has_error`` short-circuits the rest
+        # of the catch body, and ``catch_leave`` reads the flag and
+        # returns the right code.  See cmdAH-0.2 / 3.2 in
+        # ``cmdAH.test``.
+        loop_inside_catch = bool(self._loop_ctrl_depths) and (
+            not self._loop_catch_depths or self._loop_catch_depths[-1] >= self._catch_depth
+        )
+        if canonical_command == "::break" and loop_inside_catch:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl + 2
             self._emit_br(br_depth)
             return
-        if canonical_command == "::continue" and self._loop_ctrl_depths:
+        if canonical_command == "::continue" and loop_inside_catch:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl
             self._emit_br(br_depth)
@@ -1194,6 +1318,24 @@ class _WasmEmitterStmtMixin(_Base):
                             return False
                     return tokens.argv[tok_idx].type == TokenType.STR
 
+                def _arg_is_multi_token(i: int) -> bool:
+                    """Return True if call-site arg *i* is a concatenation of
+                    multiple lexer tokens (e.g. ``"$body (suffix)"`` —
+                    substitution + literal text).
+
+                    Multi-token words must be re-wrapped in double quotes
+                    when fed to ``tcl_eval`` so the interpreter sees them
+                    as a single word; passing the raw IR through verbatim
+                    would let the embedded space split the value into
+                    multiple words at eval time.
+                    """
+                    if tokens is None or tokens.single_token_word is None:
+                        return False
+                    tok_idx = i + 1
+                    if tok_idx >= len(tokens.single_token_word):
+                        return False
+                    return not tokens.single_token_word[tok_idx]
+
                 parts = [command]
                 for i, a in enumerate(args):
                     if _arg_was_braced(i):
@@ -1210,37 +1352,27 @@ class _WasmEmitterStmtMixin(_Base):
                             parts.append(_tcl_list_quote(a, first=False))
                         else:
                             parts.append("{" + a + "}")
+                    elif _arg_is_multi_token(i):
+                        # Concatenation of multiple lexer tokens — one of
+                        # ``"$body (suffix)"`` (subst + literal text),
+                        # ``foo$bar`` (literal + subst, no space),
+                        # ``\n[list ...]`` (escape + cmd subst), ...
+                        # ``_word_piece`` already joined the source
+                        # fragments with no separators, so the IR holds
+                        # the substitution markers verbatim alongside
+                        # any literal text.  Re-wrap in ``"…"`` so the
+                        # interpreter sees one word at eval time;
+                        # embedded ``$`` / ``[`` keep their substitution
+                        # semantics inside ``"…"``.  Backslash sequences
+                        # are passed through unmodified — Tcl's in-quote
+                        # substitution will re-evaluate them to the same
+                        # bytes the original word produced (``\n`` →
+                        # newline).
+                        parts.append('"' + _escape_dquote(a) + '"')
                     elif a.startswith("$") or a.startswith("["):
-                        # Substitution words pass through unquoted so
-                        # the interpreter can resolve them at eval time.
-                        # BUT — when the IR text starts with ``$`` and
-                        # contains internal whitespace (the original
-                        # was a single double-quoted word like
-                        # ``"$n [expr {$n+1}] [expr {$n+2}]"``), a bare
-                        # pass-through splits on the spaces and turns
-                        # one argument into many.  Wrap that case in
-                        # ``"..."`` so the runtime parser keeps the
-                        # boundaries while still doing ``$var`` /
-                        # ``[cmd]`` substitution.  Tcl's rules for
-                        # ``"..."`` treat whitespace literally and
-                        # substitution markers as live; that matches
-                        # what the source word meant.
-                        #
-                        # NOT applied to args starting with ``[`` —
-                        # those are bare ``[cmd ...]`` command-
-                        # substitution words whose source had no
-                        # surrounding ``"..."``, and any embedded
-                        # whitespace already lives inside the
-                        # brackets where the parser handles it.
-                        # Wrapping them would double-escape backslash
-                        # continuations and break round-trip parsing.
-                        if a.startswith("$") and any(c in a for c in (" ", "\t", "\n")):
-                            # Escape ``\`` and ``"`` so the wrapper
-                            # ``"..."`` re-parses to the same value.
-                            esc = a.replace("\\", "\\\\").replace('"', '\\"')
-                            parts.append('"' + esc + '"')
-                        else:
-                            parts.append(a)
+                        # Pure substitution word — pass through unquoted
+                        # so the interpreter resolves it at eval time.
+                        parts.append(a)
                     else:
                         # Literal IR value from an ESC token (plain or
                         # double-quoted word).  The IR stores the RAW

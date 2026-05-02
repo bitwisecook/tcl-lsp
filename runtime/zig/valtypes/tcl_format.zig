@@ -213,7 +213,12 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         );
     }
 
-    return obj_new_string(@bitCast(buf_addr), @bitCast(off));
+    // Issue #317: claim ownership of the format buffer so the
+    // resulting TclObj's release frees it via ``free_sized``.
+    // The older borrowing form leaked one buf per ``format`` call;
+    // tcltest's progress / diagnostic output exercises this path
+    // heavily.
+    return obj.obj_new_string_take(buf_addr, off, bufsize);
 }
 
 fn emit_conversion(

@@ -656,6 +656,59 @@ _GENERATED_TITLES = (
 )
 
 
+# Per-folder configuration scope categorisation (issue #230).
+#
+# Multi-folder VS Code workspaces reject ``window``-scoped settings in
+# folder ``.vscode/settings.json``.  Every generated ``tclLsp.*`` setting
+# must declare a non-``window`` scope.  Categorisation:
+#
+# - ``language-overridable`` for project + per-language settings
+#   (formatting, style — same toggles can vary per Tcl dialect).
+# - ``resource`` for per-folder analysis toggles
+#   (diagnostics, optimiser, shimmer).
+#
+# Hand-edited sections (General, Features, Runtime Validation, AI,
+# Package Manager, XC Migration, Trace) declare their own scopes —
+# pinned by ``tests/test_settings_scope.py``.
+_VSCODE_SCOPE_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("tclLsp.formatting.", "language-overridable"),
+    ("tclLsp.style.", "language-overridable"),
+    ("tclLsp.diagnostics.", "resource"),
+    ("tclLsp.optimiser.", "resource"),
+    ("tclLsp.shimmer.", "resource"),
+)
+
+
+def _resolve_vscode_scope(setting_key: str) -> str | None:
+    """Return the scope string for a generated ``tclLsp.*`` setting key."""
+    for prefix, scope in _VSCODE_SCOPE_PREFIXES:
+        if setting_key.startswith(prefix):
+            return scope
+    return None
+
+
+def _inject_vscode_scopes(sections: list[dict]) -> list[dict]:
+    """Insert ``scope`` as the first key on every generated property.
+
+    The position matters only for diff readability; VS Code accepts any
+    key order.  Generated sections are deterministic, so the resulting
+    package.json is stable across runs.
+    """
+    for section in sections:
+        properties = section.get("properties")
+        if not isinstance(properties, dict):
+            continue
+        new_props: dict[str, dict] = {}
+        for key, schema in properties.items():
+            scope = _resolve_vscode_scope(key)
+            if scope is not None and "scope" not in schema:
+                new_props[key] = {"scope": scope, **schema}
+            else:
+                new_props[key] = schema
+        section["properties"] = new_props
+    return sections
+
+
 def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
     """Regenerate VS Code package.json diagnostic/optimiser settings."""
     path = ROOT / "editors" / "vscode" / "package.json"
@@ -680,7 +733,9 @@ def generate_vscode_package_json(*, dry_run: bool = False) -> tuple[Path, str]:
     new_diag_sections = _build_vscode_diagnostic_sections()
     next_order = max(s["order"] for s in new_diag_sections) + 1 if new_diag_sections else 7
     new_opt_section = _build_vscode_optimiser_section(order=next_order)
-    new_generated = new_formatter_sections + new_diag_sections + [new_opt_section]
+    new_generated = _inject_vscode_scopes(
+        new_formatter_sections + new_diag_sections + [new_opt_section]
+    )
 
     # Reconstruct: before-generated + new-generated + after-generated
     before = config_groups[:first_gen_idx]

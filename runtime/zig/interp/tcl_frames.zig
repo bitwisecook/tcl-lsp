@@ -1148,7 +1148,18 @@ pub export fn var_exists(name: i32) i32 {
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
-            return tcl_array.array_element_exists(arr_name, key);
+            const exists = tcl_array.array_element_exists(arr_name, key);
+            // Issue #317: ``arr_name`` and ``key`` are scratch
+            // borrowing-form TclObjs (cap = 0, bytes belong to
+            // ``sn``).  ``array_element_exists`` only reads their
+            // bytes for the lookup; without these releases every
+            // ``info exists arr(idx)`` probe leaked two TclObj
+            // headers, and tcltest's constraint sweep
+            // (``info exists testConstraints($c)``) hits this path
+            // many times per test.
+            obj.tcl_obj_release(arr_name);
+            obj.tcl_obj_release(key);
+            return exists;
         }
     }
     if (current_frame()) |base| {
