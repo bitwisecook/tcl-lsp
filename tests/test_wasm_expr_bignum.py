@@ -672,3 +672,61 @@ class TestStringIsBignum:
         # string parse entirely.
         src = "set x [expr {1<<200}]\nputs [string is integer $x]\n"
         assert self._run(src) == "1"
+
+
+# Runtime expr evaluator — string-equality and list-membership ops.
+# Stage 2's first cut only handled arithmetic / comparison / shift /
+# bitwise / pow.  ``eq`` / ``ne`` / ``in`` / ``ni`` / ``lt`` / ``le``
+# / ``gt`` / ``ge`` are now wired in too so the runtime path matches
+# the AOT-compiled emitter for these forms.
+
+
+class TestRuntimeExprStringOps:
+    """``expr`` command (runtime path) handles word-form operators."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_eq_equal(self) -> None:
+        assert self._run('puts [expr {"abc" eq "abc"}]') == "1"
+
+    def test_eq_unequal(self) -> None:
+        assert self._run('puts [expr {"abc" eq "def"}]') == "0"
+
+    def test_ne_unequal(self) -> None:
+        assert self._run('puts [expr {"abc" ne "def"}]') == "1"
+
+    def test_lt_string(self) -> None:
+        assert self._run('puts [expr {"a" lt "b"}]') == "1"
+
+    def test_gt_string(self) -> None:
+        assert self._run('puts [expr {"b" gt "a"}]') == "1"
+
+    def test_le_string_equal(self) -> None:
+        assert self._run('puts [expr {"a" le "a"}]') == "1"
+
+    def test_ge_string_equal(self) -> None:
+        assert self._run('puts [expr {"z" ge "z"}]') == "1"
+
+    def test_in_present(self) -> None:
+        assert self._run("puts [expr {2 in {1 2 3}}]") == "1"
+
+    def test_in_absent(self) -> None:
+        assert self._run("puts [expr {5 in {1 2 3}}]") == "0"
+
+    def test_ni_absent(self) -> None:
+        assert self._run("puts [expr {5 ni {1 2 3}}]") == "1"
+
+    def test_ni_present(self) -> None:
+        assert self._run("puts [expr {2 ni {1 2 3}}]") == "0"
+
+    def test_in_with_bignum_value(self) -> None:
+        # Bignum strings as list members.
+        src = (
+            "set big 99999999999999999999999\n"
+            "puts [expr {$big in [list 1 2 99999999999999999999999]}]\n"
+        )
+        assert self._run(src) == "1"

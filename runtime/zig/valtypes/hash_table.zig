@@ -123,6 +123,13 @@ pub fn Table(comptime bucket_size: u32) type {
                     const el: u32 = @bitCast(read_i32(base + 4));
                     const eh: u32 = @bitCast(read_i32(base + 8));
                     if (eh == hash and el == name_len) {
+                        // ``@ptrFromInt(0)`` panics under Zig's
+                        // debug-build pointer-null check even when
+                        // the dereference loop wouldn't run.  Empty-
+                        // string keys (``name_len == 0``) match any
+                        // other empty key without inspecting bytes,
+                        // so short-circuit here.
+                        if (el == 0) return base;
                         const sp: [*]const u8 = @ptrFromInt(ep);
                         const np: [*]const u8 = @ptrFromInt(name_ptr);
                         var match = true;
@@ -204,6 +211,8 @@ pub fn Table(comptime bucket_size: u32) type {
                     const el: u32 = @bitCast(read_i32(base + 4));
                     const eh: u32 = @bitCast(read_i32(base + 8));
                     if (eh == hash and el == name_len) {
+                        // Empty-string key fast-path — see ``find``.
+                        if (el == 0) return base;
                         const sp: [*]const u8 = @ptrFromInt(ep);
                         const np: [*]const u8 = @ptrFromInt(name_ptr);
                         var match = true;

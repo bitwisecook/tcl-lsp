@@ -571,16 +571,47 @@ pub fn obj_get_bignum(obj: i32) i128 {
     if (tag == TYPE_INT) return @as(i128, read_i64(addr + OBJ_INT_CACHE));
     if (tag == TYPE_FLOAT) {
         const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
-        return @as(i128, @intFromFloat(fval));
+        return float_to_i128_clamped(fval);
     }
     if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (bignum.parse_i128(sptr, slen)) |val| return val;
         if (try_parse_int(sptr, slen)) |val| return @as(i128, val);
-        if (try_parse_float(sptr, slen)) |fval| return @as(i128, @intFromFloat(fval));
+        if (try_parse_float(sptr, slen)) |fval| return float_to_i128_clamped(fval);
     }
     return 0;
+}
+
+/// Convert *fval* to ``i128``, clamping to the i128 range and
+/// returning 0 for NaN.  Plain ``@intFromFloat`` panics in debug
+/// builds when *fval* is outside the destination range (so e.g.
+/// ``@intFromFloat(1.0e308)`` traps under wasi-libc); this helper
+/// does the magnitude check explicitly so callers in the obj-
+/// widening path stay safe.  Values that exceed i128 saturate at the
+/// i128 boundary — callers that need full precision must go through
+/// ``tcl_arith.float_to_bignum_obj`` (which uses Managed.setString).
+fn float_to_i128_clamped(fval: f64) i128 {
+    if (std.math.isNan(fval)) return 0;
+    const i128_max_f: f64 = @floatFromInt(std.math.maxInt(i128));
+    const i128_min_f: f64 = @floatFromInt(std.math.minInt(i128));
+    if (fval >= i128_max_f) return std.math.maxInt(i128);
+    if (fval <= i128_min_f) return std.math.minInt(i128);
+    return @intFromFloat(fval);
+}
+
+/// i64 counterpart to :func:`float_to_i128_clamped` — clamps to the
+/// i64 range and returns 0 for NaN.  Used by ``obj_get_int`` paths
+/// that surface a float operand to a caller expecting an i64; debug
+/// builds previously panicked on ``int(1.0e30)`` because the
+/// unchecked ``@intFromFloat`` was outside the i64 range.
+fn float_to_i64_clamped(fval: f64) i64 {
+    if (std.math.isNan(fval)) return 0;
+    const i64_max_f: f64 = @floatFromInt(std.math.maxInt(i64));
+    const i64_min_f: f64 = @floatFromInt(std.math.minInt(i64));
+    if (fval >= i64_max_f) return std.math.maxInt(i64);
+    if (fval <= i64_min_f) return std.math.minInt(i64);
+    return @intFromFloat(fval);
 }
 
 /// Promote any int-shaped operand to a freshly-allocated BigInt,
@@ -660,7 +691,7 @@ pub export fn obj_get_int(obj: i32) i64 {
     if (tag == TYPE_INT) return read_i64(addr + OBJ_INT_CACHE);
     if (tag == TYPE_FLOAT) {
         const fval: f64 = @bitCast(read_i64(addr + OBJ_INT_CACHE));
-        return @intFromFloat(fval);
+        return float_to_i64_clamped(fval);
     }
     if (tag == TYPE_BIGNUM) {
         // Truncating int conversion: take the low 64 bits of the
@@ -685,7 +716,7 @@ pub export fn obj_get_int(obj: i32) i64 {
         // ``expr {int("2.7")}`` = 2).  Do not cache as TYPE_INT since
         // the value retains its fractional form.
         if (try_parse_float(sptr, slen)) |fval| {
-            return @intFromFloat(fval);
+            return float_to_i64_clamped(fval);
         }
         // Bignum-string fallback: the literal exceeds i64 but fits
         // in i128.  We can't shimmer the obj into TYPE_BIGNUM here
@@ -716,7 +747,7 @@ pub export fn obj_get_int(obj: i32) i64 {
         const sptr: u32 = @bitCast(read_i32(addr + OBJ_STR_PTR));
         const slen: u32 = @bitCast(read_i32(addr + OBJ_STR_LEN));
         if (try_parse_int(sptr, slen)) |val| return val;
-        if (try_parse_float(sptr, slen)) |fval| return @intFromFloat(fval);
+        if (try_parse_float(sptr, slen)) |fval| return float_to_i64_clamped(fval);
         if (try_parse_bool(sptr, slen)) |val| return val;
         return 0;
     }
@@ -1085,8 +1116,14 @@ pub fn obj_type(obj: i32) i32 {
     return tag;
 }
 
-/// Copy *len* bytes from src to dst in linear memory.
+/// Copy *len* bytes from src to dst in linear memory.  Null-safe when
+/// *len* is 0 — callers like the hash-table insert path may pass
+/// ``(dst=0, src=0, len=0)`` when storing an empty-string key (an
+/// alias with a stale target descriptor for instance), and
+/// ``@ptrFromInt(0)`` would panic in debug builds even though the
+/// loop body never runs.
 pub fn memcpy(dst: u32, src: u32, len: u32) void {
+    if (len == 0) return;
     const d: [*]u8 = @ptrFromInt(dst);
     const s: [*]const u8 = @ptrFromInt(src);
     for (0..len) |i| {
@@ -1309,8 +1346,8 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         const buf = alloc(cap);
         if (buf == 0) return .{ .ptr = 0, .len = 0 };
         memcpy(buf, @intFromPtr(result.ptr), result.len);
-        write_i32(addr + OBJ_STR_PTR, @intCast(buf));
-        write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+        write_i32(addr + OBJ_STR_PTR, @bitCast(buf));
+        write_i32(addr + OBJ_STR_LEN, @bitCast(result.len));
         write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
         return .{ .ptr = buf, .len = result.len };
     }
@@ -1325,8 +1362,8 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
         const buf = alloc(cap);
         if (buf == 0) return .{ .ptr = 0, .len = 0 };
         memcpy(buf, @intFromPtr(rendered.ptr), len);
-        write_i32(addr + OBJ_STR_PTR, @intCast(buf));
-        write_i32(addr + OBJ_STR_LEN, @intCast(len));
+        write_i32(addr + OBJ_STR_PTR, @bitCast(buf));
+        write_i32(addr + OBJ_STR_LEN, @bitCast(len));
         write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
         return .{ .ptr = buf, .len = len };
     }
@@ -1339,8 +1376,8 @@ pub fn obj_ensure_string(obj: i32) struct { ptr: u32, len: u32 } {
     const buf = alloc(cap);
     if (buf == 0) return .{ .ptr = 0, .len = 0 };
     memcpy(buf, @intFromPtr(result.ptr), result.len);
-    write_i32(addr + OBJ_STR_PTR, @intCast(buf));
-    write_i32(addr + OBJ_STR_LEN, @intCast(result.len));
+    write_i32(addr + OBJ_STR_PTR, @bitCast(buf));
+    write_i32(addr + OBJ_STR_LEN, @bitCast(result.len));
     write_i32(addr + OBJ_STR_CAP, @bitCast(cap));
     return .{ .ptr = buf, .len = result.len };
 }
