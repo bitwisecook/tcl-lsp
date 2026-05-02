@@ -570,3 +570,105 @@ class TestRuntimeExprEval:
         # Combination: shift, mod, bitwise.
         src = "puts [expr {((1 << 100) + (1 << 50)) % (1 << 64)}]"
         assert self._run(src) == str(((1 << 100) + (1 << 50)) % (1 << 64))
+
+
+# ``scan %d / %x / %o`` — values that overflow i64 promote to
+# TYPE_BIGNUM via the ``alloc_from_string`` path in
+# ``runtime/zig/cmds/scan.zig``.  Pre-bignum the parse saturated
+# at ``i64::MAX``; now the captured digit slice is fed to
+# ``Managed.setString`` for the full magnitude.
+
+
+class TestScanBignum:
+    """``scan`` integer specifiers that overflow i64."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_scan_d_bignum(self) -> None:
+        src = "scan 99999999999999999999999 %d n\nputs $n\n"
+        assert self._run(src) == "99999999999999999999999"
+
+    def test_scan_d_negative_bignum(self) -> None:
+        src = "scan -99999999999999999999999 %d n\nputs $n\n"
+        assert self._run(src) == "-99999999999999999999999"
+
+    def test_scan_x_bignum(self) -> None:
+        src = "scan ffffffffffffffffffffff %x n\nputs $n\n"
+        assert self._run(src) == str(int("ffffffffffffffffffffff", 16))
+
+    def test_scan_d_within_i64(self) -> None:
+        # Sanity: small values still go through the i64 fast path
+        # and produce the correct result.  Verifies the overflow
+        # branch isn't accidentally activated for normal values.
+        src = "scan 12345 %d n\nputs $n\n"
+        assert self._run(src) == "12345"
+
+    def test_scan_no_var_form(self) -> None:
+        # ``scan`` without variables returns the matched values
+        # as a list; the bignum still survives that path.
+        src = "puts [scan 99999999999999999999999 %d]"
+        assert self._run(src) == "99999999999999999999999"
+
+
+# ``string is integer`` / ``string is wideinteger`` — recognise
+# bignum-shaped string literals as valid integers.  The pre-bignum
+# ``string_is_integer`` path used ``try_parse_int`` which rejects
+# values exceeding i64; Stage 2 falls through to ``alloc_from_string``
+# so any well-formed integer literal — at any magnitude — passes.
+
+
+class TestStringIsBignum:
+    """``string is integer`` / ``string is wideinteger`` accept bignums."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_is_integer_small(self) -> None:
+        assert self._run("puts [string is integer 123]") == "1"
+
+    def test_is_integer_negative(self) -> None:
+        assert self._run("puts [string is integer -42]") == "1"
+
+    def test_is_integer_bignum(self) -> None:
+        assert self._run("puts [string is integer 99999999999999999999999]") == "1"
+
+    def test_is_integer_huge_bignum(self) -> None:
+        # 50-digit bignum.
+        assert self._run(
+            "puts [string is integer 12345678901234567890123456789012345678901234567890]"
+        ) == "1"
+
+    def test_is_integer_rejects_float(self) -> None:
+        assert self._run("puts [string is integer 12.5]") == "0"
+
+    def test_is_integer_rejects_word(self) -> None:
+        assert self._run("puts [string is integer abc]") == "0"
+
+    def test_is_wideinteger_small(self) -> None:
+        assert self._run("puts [string is wideinteger 99]") == "1"
+
+    def test_is_wideinteger_bignum(self) -> None:
+        # In Tcl 9 ``wideinteger`` and ``integer`` accept the same
+        # set once bignum is the runtime representation.  Stage 1
+        # would have rejected the i64-overflow value here.
+        assert self._run("puts [string is wideinteger 18446744073709551616]") == "1"
+
+    def test_is_wideinteger_negative_bignum(self) -> None:
+        assert self._run("puts [string is wideinteger -18446744073709551616]") == "1"
+
+    def test_is_wideinteger_rejects_float(self) -> None:
+        assert self._run("puts [string is wideinteger 12.5]") == "0"
+
+    def test_is_integer_on_bignum_obj(self) -> None:
+        # When the operand is *already* a TYPE_BIGNUM (produced by
+        # an ``expr {...}`` shift), the type-tag fast path skips the
+        # string parse entirely.
+        src = "set x [expr {1<<200}]\nputs [string is integer $x]\n"
+        assert self._run(src) == "1"

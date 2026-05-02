@@ -28,6 +28,8 @@ const frames = @import("../interp/tcl_frames.zig");
 const stubs  = @import("../stubs/tcl_stubs.zig");
 const chars  = @import("../valtypes/tcl_chars.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
+const bignum = @import("../valtypes/tcl_bignum.zig");
 
 const obj_new_int       = rt.obj_new_int;
 const obj_new_string    = rt.obj_new_string;
@@ -132,11 +134,17 @@ fn scan_int(src: [*]const u8, src_len: u32, pos: *u32,
         const d = digit_val(src[i], base);
         if (d < 0) break;
         val = accumulate(val, base, d) orelse {
-            // Overflow — skip remaining digits and return saturated value.
+            // Overflow — promote to bignum.  Walk forward to the
+            // end of the digit run, then build a Managed via
+            // ``setString`` from the captured slice.  Keeps Tcl 9
+            // semantics where ``[scan 99999999999999999999999 %d
+            // n]`` lets ``$n`` carry the full magnitude rather
+            // than the saturate-to-i64::MAX behaviour we shipped
+            // before bignum support landed.
             while (i < src_len and digit_val(src[i], base) >= 0) i += 1;
             pos.* = i;
             matched.* = true;
-            return obj_new_int(if (neg) INT64_MIN else INT64_MAX);
+            return scan_bignum(src, start, i, base, neg);
         };
     }
     if (i == start) {
@@ -146,6 +154,38 @@ fn scan_int(src: [*]const u8, src_len: u32, pos: *u32,
     pos.* = i;
     matched.* = true;
     return obj_new_int(if (neg) -val else val);
+}
+
+/// Build a TYPE_BIGNUM TclObj from the digit run ``src[start..end]``
+/// in *base* (10 / 16 / 8).  Returns 0 on OOM.
+fn scan_bignum(
+    src: [*]const u8,
+    start: u32,
+    end: u32,
+    base: i64,
+    neg: bool,
+) i32 {
+    const body_len: u32 = end - start;
+    if (body_len == 0) return obj_new_int(0);
+    // Copy the digits into an owned slice for ``setString``; it
+    // can't take a raw (ptr, len) and we may need to skip a leading
+    // sign / base prefix that ``scan_int`` already consumed.
+    const body_buf = bignum.allocator.alloc(u8, body_len) catch return obj_new_int(0);
+    defer bignum.allocator.free(body_buf);
+    for (0..body_len) |k| body_buf[k] = src[start + k];
+
+    const m = bignum.allocator.create(bignum.BigInt) catch return obj_new_int(0);
+    m.* = bignum.BigInt.init(bignum.allocator) catch {
+        bignum.allocator.destroy(m);
+        return obj_new_int(0);
+    };
+    m.setString(@intCast(base), body_buf) catch {
+        m.deinit();
+        bignum.allocator.destroy(m);
+        return obj_new_int(0);
+    };
+    if (neg and !m.eqlZero()) m.negate();
+    return obj_mod.obj_new_bignum_take(m);
 }
 
 // ── main handler ─────────────────────────────────────────────────────────────

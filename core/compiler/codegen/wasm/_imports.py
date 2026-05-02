@@ -237,6 +237,7 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # for the dispatch table; these signatures live here because the
     # registry doesn't model sub-sub-commands.
     "tcl_string_is_integer": ("tcl", "string_is_integer", [ValType.I32], [ValType.I32]),
+    "tcl_string_is_wideinteger": ("tcl", "string_is_wideinteger", [ValType.I32], [ValType.I32]),
     "tcl_string_is_alpha": ("tcl", "string_is_alpha", [ValType.I32], [ValType.I32]),
     "tcl_string_is_digit": ("tcl", "string_is_digit", [ValType.I32], [ValType.I32]),
     "tcl_string_is_space": ("tcl", "string_is_space", [ValType.I32], [ValType.I32]),
@@ -457,6 +458,7 @@ _OBJ_LIFECYCLE_IMPORTS = frozenset(
 # The registry doesn't model sub-sub-commands, so it stays as a dict.
 _STRING_IS_IMPORT: dict[str, str] = {
     "integer": "tcl_string_is_integer",
+    "wideinteger": "tcl_string_is_wideinteger",
     "alpha": "tcl_string_is_alpha",
     "digit": "tcl_string_is_digit",
     "space": "tcl_string_is_space",
