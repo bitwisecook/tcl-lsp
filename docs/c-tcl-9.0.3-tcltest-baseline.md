@@ -19,9 +19,9 @@ combiner is [`scripts/tcl9_baseline_to_csv.py`](../scripts/tcl9_baseline_to_csv.
 | Metric                                                          | C tclsh 9.0.3 | WASM runtime |
 |----------------------------------------------------------------:|--------------:|-------------:|
 | Bundles in scope                                                |          100  |         100  |
-| Bundles that ran to a tcltest summary line                      |           99  |          77  |
-| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,819 / 38,065 (28.4 %) |
-| Coverage vs native                                              |         100 % |         28 % |
+| Bundles that ran to a tcltest summary line                      |           99  |          78  |
+| Individual tcltest tests passing                                |   33,944 / 38,065 (89.2 %) | 10,905 / 38,065 (28.6 %) |
+| Coverage vs native                                              |         100 % |         29 % |
 | Sum of bundle interpreter time (`c_wall_ms` vs `wasm_run_ms`)   |          86 s |        53 s  |
 | Per-bundle median slowdown (`wasm_run_ms / c_wall_ms`)          |             — |       5.8 ×  |
 | Per-bundle mean slowdown                                        |             — |       5.9 ×  |
@@ -66,8 +66,8 @@ rest).
 The 100 bundles split this way under WASM:
 
 - **22 pass** (every assertion green)
-- **55 fail** (bundle finishes, tcltest reports `Failed > 0`)
-- **17 trap** (bundle aborts before reaching a tcltest summary)
+- **56 fail** (bundle finishes, tcltest reports `Failed > 0`)
+- **16 trap** (bundle aborts before reaching a tcltest summary)
 - **3 timeout** (30 s / per-bundle budget, hard SIGKILL)
 - **3 no_summary** (bundle ran but emitted no summary line)
 
@@ -303,7 +303,7 @@ the per-command dispatch, not the broad architecture.
 
 ## Fix history
 
-Five fixes have been applied so far:
+Seven fixes have been applied so far:
 
 1. **Thread `tokens` through `IRBarrier` eval-fallback path** —
    ~10 line change in `_emit_eval_fallback`'s caller. Unlocked the
@@ -336,27 +336,42 @@ Five fixes have been applied so far:
    (the same way `info body` already did) so the
    `[info body unknown.old]` round-trip survives. Unlocked
    `rename.test` (was trap → 19 tests reaching, 8 passing).
+6. **`::errorCode = TCL WRONGARGS` auto-tag** —
+   `runtime/zig/interp/tcl_catch.zig::tcl_cmd_error` now sniffs
+   the message for the standard ``wrong # args:`` prefix and
+   stamps `::errorCode = TCL WRONGARGS` to match reference Tcl's
+   `Tcl_WrongNumArgs`. rename.test 3.1 / 3.2 (and others that
+   grep `errorCode == "TCL WRONGARGS"`) now pass without having
+   to thread an explicit code argument through every emitter.
+7. **Dynamic `switch` runtime handler** —
+   `eval_switch` in `runtime/zig/interp/tcl_interp.zig` covers
+   `-exact` / `-glob` / `-regexp` / `-nocase` / `--`, both the
+   inline pattern/body shape and the single-list-arg shape, plus
+   the `default` fall-through and `-` body forwarding.
+   `-matchvar` / `-indexvar` (regex capture binding) are still
+   stubs. Switch entry was moved out of the STUB_TRAP table into
+   `cmds/loop.zig` BUILTINS. Unlocked `switch.test` (was trap →
+   113 tests reaching, 84 passing).
 
-| Stage                       | Bundles passing | Bundles trapping | Individual tests passing |
-|----------------------------:|----------------:|-----------------:|-------------------------:|
-| Initial                     |             18  |              31  |                  9,323   |
-| After fixes 1-4 (session 1) |             22  |              18  |                 10,797   |
-| After fix 5 (rename)        |             22  |              17  |                 10,819   |
-| **Δ from initial**          |          **+4** |          **−14** |              **+1,496**  |
+| Stage                            | Bundles passing | Bundles trapping | Individual tests passing |
+|---------------------------------:|----------------:|-----------------:|-------------------------:|
+| Initial                          |             18  |              31  |                  9,323   |
+| After fixes 1-4 (session 1)      |             22  |              18  |                 10,797   |
+| After fix 5 (rename)             |             22  |              17  |                 10,819   |
+| After fixes 6-7 (errorCode, switch) |          22  |              16  |                 10,905   |
+| **Δ from initial**               |          **+4** |          **−15** |              **+1,582**  |
 
-That's **+16.0 %** more individual tests passing, with 14 fewer
+That's **+17.0 %** more individual tests passing, with 15 fewer
 bundles trapping out before reaching a tcltest summary.
 
 ## Remaining work (best ROI first)
 
-1. **Implement runtime `switch` handler** — unlocks `switch.test`
-   plus any test that hits the dynamic-switch path indirectly.
-2. **`cmdAH.test` deep dive** — now reaches individual test
+1. **`cmdAH.test` deep dive** — now reaches individual test
    failures rather than trapping at bootstrap. Triage the residual
    failures (likely `source` paths, encoding helpers).
-3. **Bignum support** — `parseExpr-20.3`, `expr-old` and friends
+2. **Bignum support** — `parseExpr-20.3`, `expr-old` and friends
    need integer arithmetic past the 64-bit boundary.
-4. **Compiled-frame `uplevel` / `upvar`** — `uplevel.test`,
+3. **Compiled-frame `uplevel` / `upvar`** — `uplevel.test`,
    `abstractlist`, `opt`, `reg` all hit the same architectural
    limitation: when a compiled proc B is called from a compiled
    proc A and B does `uplevel set X 42`, the write should land
@@ -369,16 +384,16 @@ bundles trapping out before reaching a tcltest summary.
    substantial; the documented note in
    [`tests/test_barrier_relaxation_runtime.py`](../tests/test_barrier_relaxation_runtime.py)
    explains the trade-off in detail.
-5. **`opt` package stubs** — `opt.test` needs the
+4. **`opt` package stubs** — `opt.test` needs the
    `tcl9.0.3/library/opt/optparse.tcl` package's
    `::tcl::OptKeyRegister` / `OptKeyDelete` / `OptParse` /
    `OptDescN`. We could ship a port or add a per-test bundle
    stub; either way ~140 tests are gated on it.
-6. **`rename.test` errorCode** — 8/19 passing now, residual
-   failures all assert `errorCode == "TCL WRONGARGS"` but our
-   runtime emits `NONE`. Wiring up errorCode tracking on
-   `wrong # args` errors would close the gap.
-7. **Fix the semantic bugs surfaced by `fail` bundles** (e.g.
+5. **`switch -matchvar` / `-indexvar`** — the dynamic switch
+   handler covers most of switch.test (84 / 113 passing); the
+   29 remaining failures are mostly capture-binding cases that
+   need regex match-position threading.
+6. **Fix the semantic bugs surfaced by `fail` bundles** (e.g.
    `expr-2.1`, `subst-3.1`) — these are individual bugs that each
    need their own investigation but are typically cheap to fix.
 

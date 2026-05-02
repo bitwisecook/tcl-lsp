@@ -225,6 +225,25 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
     _ = globals.global_set(code_name, code_val);
 }
 
+/// Probe for the ``wrong # args:`` prefix used by reference Tcl's
+/// ``Tcl_WrongNumArgs``.  Reference Tcl stamps ``::errorCode = TCL
+/// WRONGARGS`` on every such error; rename.test 3.1 / 3.2 (and many
+/// others) grep for this exact errorCode in the test result.  The
+/// simplest way to keep all "wrong # args" call sites in sync is to
+/// auto-detect the prefix at the central error sink rather than
+/// thread an explicit ``code`` argument through every call site.
+fn detect_wrong_args_code(msg: i32) i32 {
+    const s = obj_ensure_string(msg);
+    const prefix: []const u8 = "wrong # args:";
+    if (s.len < prefix.len) return 0;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    for (prefix, 0..) |c, i| {
+        if (sp[i] != c) return 0;
+    }
+    const code_text: []const u8 = "TCL WRONGARGS";
+    return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+}
+
 // Exported: error — write message to stderr and trap, OR set error flag in catch.
 //
 // On an out-of-catch error we prefix the stderr line with
@@ -234,8 +253,11 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
 // ``::errorInfo`` and ``::errorCode`` are stamped on every error so
 // ``catch { error boom } msg; puts $::errorInfo`` observes the
 // message even though we don't construct a full traceback yet.
+// ``::errorCode`` defaults to ``NONE`` except when the message
+// starts with ``wrong # args:``, in which case it is auto-tagged
+// ``TCL WRONGARGS`` to match reference Tcl's ``Tcl_WrongNumArgs``.
 pub export fn tcl_cmd_error(msg: i32) void {
-    stamp_error_globals(msg, 0, 0);
+    stamp_error_globals(msg, 0, detect_wrong_args_code(msg));
     if (catch_depth > 0) {
         error_flag = 1;
         error_msg = msg;

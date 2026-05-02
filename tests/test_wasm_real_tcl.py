@@ -1086,6 +1086,34 @@ puts "$ret|$err"
             'can\'t rename "error": built-in command\n'
         ), f"got {out!r}"
 
+    def test_dynamic_switch_runtime(self):
+        # The codegen inlines static ``switch`` shapes via IRSwitch,
+        # but a ``switch`` reached through ``eval`` (or any path that
+        # builds the pattern/body list at runtime) routes through the
+        # interpreter's BUILTIN dispatch.  Until ``eval_switch`` was
+        # added in ``runtime/zig/interp/tcl_interp.zig`` such calls
+        # trapped with ``unsupported command: switch``.  This pins
+        # the four common shapes: -exact, -glob, -regexp, fall-through.
+        source = """\
+proc do_exact {x}  { eval [list switch       $x a {puts A} b {puts B} default {puts D}] }
+proc do_glob  {x}  { eval [list switch -glob $x  a*  {puts gA} b?  {puts gB} default {puts gD}] }
+proc do_re    {x}  { eval [list switch -regexp $x {^[A-Z]+$} {puts ru} {^[a-z]+$} {puts rl} default {puts rd}] }
+proc do_ft    {x}  { eval [list switch       $x a - b {puts AB} c {puts C} default {puts D}] }
+do_exact a
+do_exact x
+do_glob abc
+do_glob bz
+do_re HELLO
+do_re hello
+do_re Mixed
+do_ft a
+do_ft b
+do_ft c
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "A\nD\ngA\ngB\nru\nrl\nrd\nAB\nAB\nC\n", f"got {out!r}"
+
     def test_dict_for_compiled_canonical_name(self):
         # ``dict for {k v} D body`` is canonicalised by the CFG to
         # ``::tcl::dict::for {k v} D body`` so static-foreach-like
