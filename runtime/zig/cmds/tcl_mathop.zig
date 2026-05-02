@@ -43,6 +43,7 @@
 
 const std    = @import("std");
 const obj    = @import("../valtypes/tcl_obj.zig");
+const bignum = @import("../valtypes/tcl_bignum.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 const stubs  = @import("../stubs/tcl_stubs.zig");
 const list   = @import("../valtypes/tcl_list.zig");
@@ -53,8 +54,32 @@ const obj_get_int    = obj.obj_get_int;
 const obj_get_float  = obj.obj_get_float;
 const obj_ensure_str = obj.obj_ensure_string;
 const TYPE_FLOAT     = obj.TYPE_FLOAT;
+const TYPE_BIGNUM    = obj.TYPE_BIGNUM;
 const TYPE_STRING    = obj.TYPE_STRING;
 const TYPE_INLINE_STRING = obj.TYPE_INLINE_STRING;
+
+/// Detect bignum-shaped operand: TYPE_BIGNUM directly, or a string
+/// literal that exceeds the i64 range.  Mirrors :func:`tcl_arith.is_bignum`.
+fn is_bignum(o: i32) bool {
+    if (o == 0) return false;
+    const tag = obj.obj_type(o);
+    if (tag == TYPE_BIGNUM) return true;
+    if (tag == TYPE_STRING or tag == TYPE_INLINE_STRING) {
+        const s = obj_ensure_str(o);
+        if (s.len == 0) return false;
+        if (obj.try_parse_int(s.ptr, s.len) != null) return false;
+        if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+        const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+        bignum.destroy(m);
+        return true;
+    }
+    return false;
+}
+
+fn any_bignum(args: []const i32) bool {
+    for (args) |a| if (is_bignum(a)) return true;
+    return false;
+}
 
 /// Detect float-valued operand using the same heuristics as
 /// ``tcl_arith.zig`` — a TYPE_FLOAT obj or a string literal that
@@ -121,6 +146,35 @@ fn require_arity(args: []const i32, comptime opname: []const u8, comptime min: u
 
 // -- arithmetic --------------------------------------------------------------
 
+/// Bignum-aware variadic accumulator.  Promotes the running
+/// accumulator to a ``*BigInt`` so each step's result keeps full
+/// precision; the i64 fast paths above stay for the common case
+/// where every operand fits.  Returns ``null`` on OOM.
+const AccOp = enum { add, sub, mul };
+
+fn bignum_accumulate(args: []const i32, op: AccOp, init_value: i128) ?*bignum.BigInt {
+    var acc = bignum.alloc_from_int(init_value) orelse return null;
+    for (args) |a| {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) {
+            bignum.destroy(acc);
+            return null;
+        }
+        const new_acc = switch (op) {
+            .add => bignum.alloc_add(acc, ap.m.?),
+            .sub => bignum.alloc_sub(acc, ap.m.?),
+            .mul => bignum.alloc_mul(acc, ap.m.?),
+        } orelse {
+            bignum.destroy(acc);
+            return null;
+        };
+        bignum.destroy(acc);
+        acc = new_acc;
+    }
+    return acc;
+}
+
 fn op_add(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(0);
     if (any_float(args)) {
@@ -128,9 +182,24 @@ fn op_add(args: []const i32) i32 {
         for (args) |a| sum += obj_get_float(a);
         return obj_new_float(sum);
     }
+    if (any_bignum(args)) {
+        const r = bignum_accumulate(args, .add, 0) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     var sum: i64 = 0;
-    for (args) |a| sum +%= obj_get_int(a);
-    return obj_new_int(sum);
+    var overflowed = false;
+    for (args) |a| {
+        const r = @addWithOverflow(sum, obj_get_int(a));
+        if (r[1] != 0) {
+            overflowed = true;
+            break;
+        }
+        sum = r[0];
+    }
+    if (!overflowed) return obj_new_int(sum);
+    // Promote to bignum on i64 overflow.
+    const r = bignum_accumulate(args, .add, 0) orelse return obj_new_int(0);
+    return obj.obj_new_bignum_take(r);
 }
 
 fn op_sub(args: []const i32) i32 {
@@ -144,10 +213,88 @@ fn op_sub(args: []const i32) i32 {
         for (args[1..]) |a| acc -= obj_get_float(a);
         return obj_new_float(acc);
     }
-    if (args.len == 1) return obj_new_int(-%obj_get_int(args[0]));
+    if (any_bignum(args)) {
+        // Unary: ``- x`` = ``0 - x``.
+        if (args.len == 1) {
+            const ap = obj.obj_promote_to_bignum(args[0]);
+            defer if (ap.owned) bignum.destroy(ap.m);
+            if (ap.m == null) return obj_new_int(0);
+            const r = bignum.alloc_neg(ap.m.?) orelse return obj_new_int(0);
+            return obj.obj_new_bignum_take(r);
+        }
+        // Variadic: ``a - b - c`` = ``((a - b) - c)``.  Promote ``a``
+        // to BigInt as the seed accumulator.
+        const ap0 = obj.obj_promote_to_bignum(args[0]);
+        defer if (ap0.owned) bignum.destroy(ap0.m);
+        if (ap0.m == null) return obj_new_int(0);
+        const seed = ap0.m.?.clone() catch return obj_new_int(0);
+        const seed_heap = bignum.allocator.create(bignum.BigInt) catch {
+            var s = seed;
+            s.deinit();
+            return obj_new_int(0);
+        };
+        seed_heap.* = seed;
+        var acc = seed_heap;
+        for (args[1..]) |a| {
+            const ap = obj.obj_promote_to_bignum(a);
+            defer if (ap.owned) bignum.destroy(ap.m);
+            if (ap.m == null) {
+                bignum.destroy(acc);
+                return obj_new_int(0);
+            }
+            const new_acc = bignum.alloc_sub(acc, ap.m.?) orelse {
+                bignum.destroy(acc);
+                return obj_new_int(0);
+            };
+            bignum.destroy(acc);
+            acc = new_acc;
+        }
+        return obj.obj_new_bignum_take(acc);
+    }
+    if (args.len == 1) {
+        const v = obj_get_int(args[0]);
+        if (v == std.math.minInt(i64)) {
+            return obj.obj_new_bignum(-@as(i128, v));
+        }
+        return obj_new_int(-v);
+    }
     var acc: i64 = obj_get_int(args[0]);
-    for (args[1..]) |a| acc -%= obj_get_int(a);
-    return obj_new_int(acc);
+    var overflowed = false;
+    for (args[1..]) |a| {
+        const r = @subWithOverflow(acc, obj_get_int(a));
+        if (r[1] != 0) {
+            overflowed = true;
+            break;
+        }
+        acc = r[0];
+    }
+    if (!overflowed) return obj_new_int(acc);
+    const ap0 = obj.obj_promote_to_bignum(args[0]);
+    defer if (ap0.owned) bignum.destroy(ap0.m);
+    if (ap0.m == null) return obj_new_int(0);
+    const seed = ap0.m.?.clone() catch return obj_new_int(0);
+    const seed_heap = bignum.allocator.create(bignum.BigInt) catch {
+        var s = seed;
+        s.deinit();
+        return obj_new_int(0);
+    };
+    seed_heap.* = seed;
+    var bacc = seed_heap;
+    for (args[1..]) |a| {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) {
+            bignum.destroy(bacc);
+            return obj_new_int(0);
+        }
+        const new_acc = bignum.alloc_sub(bacc, ap.m.?) orelse {
+            bignum.destroy(bacc);
+            return obj_new_int(0);
+        };
+        bignum.destroy(bacc);
+        bacc = new_acc;
+    }
+    return obj.obj_new_bignum_take(bacc);
 }
 
 fn op_mul(args: []const i32) i32 {
@@ -157,9 +304,23 @@ fn op_mul(args: []const i32) i32 {
         for (args) |a| prod *= obj_get_float(a);
         return obj_new_float(prod);
     }
+    if (any_bignum(args)) {
+        const r = bignum_accumulate(args, .mul, 1) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     var prod: i64 = 1;
-    for (args) |a| prod *%= obj_get_int(a);
-    return obj_new_int(prod);
+    var overflowed = false;
+    for (args) |a| {
+        const r = @mulWithOverflow(prod, obj_get_int(a));
+        if (r[1] != 0) {
+            overflowed = true;
+            break;
+        }
+        prod = r[0];
+    }
+    if (!overflowed) return obj_new_int(prod);
+    const r = bignum_accumulate(args, .mul, 1) orelse return obj_new_int(0);
+    return obj.obj_new_bignum_take(r);
 }
 
 fn op_div(args: []const i32) i32 {
@@ -209,16 +370,31 @@ fn op_div(args: []const i32) i32 {
 
 fn op_mod(args: []const i32) i32 {
     if (!require_arity(args, "%", 2, 2)) return obj_new_int(0);
+    if (any_bignum(args)) {
+        const ap = obj.obj_promote_to_bignum(args[0]);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(args[1]);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return obj_new_int(0);
+        if (bp.m.?.eqlZero()) {
+            stubs.raise("divide by zero");
+            return obj_new_int(0);
+        }
+        const r = bignum.alloc_mod_floor(ap.m.?, bp.m.?) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     const b = obj_get_int(args[1]);
     if (b == 0) {
         stubs.raise("divide by zero");
         return obj_new_int(0);
     }
-    // ``@rem`` (sign-of-dividend) matches ``tcl_arith_mod`` / ``expr``.
-    // Switching from ``@mod`` (Euclidean) avoids ``::tcl::mathop::%
-    // -7 3`` returning ``2`` while ``expr {-7 % 3}`` returns ``-1``
-    // (Copilot review).
-    return obj_new_int(@rem(obj_get_int(args[0]), b));
+    // Tcl-correct mod: result has divisor's sign.  Same fixup
+    // ``tcl_arith_mod`` does — earlier ``@rem``-only path returned
+    // ``-1`` for ``[% -1 (1<<63)]`` rather than the upstream-correct
+    // ``9223372036854775807``.
+    var r = @rem(obj_get_int(args[0]), b);
+    if (r != 0 and ((r < 0) != (b < 0))) r += b;
+    return obj_new_int(r);
 }
 
 fn ipow(base: i64, exp_in: i64) i64 {
@@ -270,19 +446,137 @@ fn op_pow(args: []const i32) i32 {
         }
         return obj_new_float(acc);
     }
+    // Bignum-aware right-associative chain: a ** b ** c =
+    // a ** (b ** c).  Each step promotes through tcl_arith_pow's
+    // helper so e.g. ``[** 2 64]`` produces the full bignum.
+    if (any_bignum(args)) {
+        const tcl_arith = @import("../valtypes/tcl_arith.zig");
+        var acc = args[args.len - 1];
+        var i: usize = args.len - 1;
+        while (i > 0) {
+            i -= 1;
+            acc = tcl_arith.tcl_arith_pow(args[i], acc);
+        }
+        return acc;
+    }
+    // i64 fast path with overflow promotion: if any step overflows,
+    // recompute the whole chain in bignum.
     var acc: i64 = obj_get_int(args[args.len - 1]);
     var i: usize = args.len - 1;
-    while (i > 0) {
+    var overflowed = false;
+    while (i > 0 and !overflowed) {
         i -= 1;
-        acc = ipow(obj_get_int(args[i]), acc);
+        const base = obj_get_int(args[i]);
+        // Use ipow with overflow detection: walk the loop with
+        // @mulWithOverflow rather than ``*%``.
+        var result: i64 = 1;
+        var b: i64 = base;
+        var e: i64 = acc;
+        while (e > 0) : (e >>= 1) {
+            if ((e & 1) != 0) {
+                const m = @mulWithOverflow(result, b);
+                if (m[1] != 0) {
+                    overflowed = true;
+                    break;
+                }
+                result = m[0];
+            }
+            if (e > 1) {
+                const m = @mulWithOverflow(b, b);
+                if (m[1] != 0) {
+                    overflowed = true;
+                    break;
+                }
+                b = m[0];
+            }
+        }
+        if (overflowed) break;
+        acc = result;
     }
-    return obj_new_int(acc);
+    if (!overflowed) return obj_new_int(acc);
+    // Re-run as bignum.
+    const tcl_arith = @import("../valtypes/tcl_arith.zig");
+    var bacc = args[args.len - 1];
+    var bi: usize = args.len - 1;
+    while (bi > 0) {
+        bi -= 1;
+        bacc = tcl_arith.tcl_arith_pow(args[bi], bacc);
+    }
+    return bacc;
 }
 
 // -- bitwise / shift ---------------------------------------------------------
 
+const BitOp = enum { band, bor, bxor };
+
+fn bignum_bitwise_chain(args: []const i32, op: BitOp, init_value: i128) ?*bignum.BigInt {
+    var acc = bignum.alloc_from_int(init_value) orelse return null;
+    for (args) |a| {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) {
+            bignum.destroy(acc);
+            return null;
+        }
+        const new_acc = bignum.alloc_zero() orelse {
+            bignum.destroy(acc);
+            return null;
+        };
+        const res = switch (op) {
+            .band => new_acc.bitAnd(acc, ap.m.?),
+            .bor => new_acc.bitOr(acc, ap.m.?),
+            .bxor => new_acc.bitXor(acc, ap.m.?),
+        };
+        res catch {
+            bignum.destroy(new_acc);
+            bignum.destroy(acc);
+            return null;
+        };
+        bignum.destroy(acc);
+        acc = new_acc;
+    }
+    return acc;
+}
+
 fn op_band(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(-1);
+    if (any_bignum(args)) {
+        // Identity for AND is all-ones; using -1 as i128 gives -1
+        // (all-ones in two's complement) which the bignum AND
+        // happily masks to the operand's full magnitude.
+        const seed = args[0];
+        const ap0 = obj.obj_promote_to_bignum(seed);
+        defer if (ap0.owned) bignum.destroy(ap0.m);
+        if (ap0.m == null) return obj_new_int(0);
+        const initial = ap0.m.?.clone() catch return obj_new_int(0);
+        const init_heap = bignum.allocator.create(bignum.BigInt) catch {
+            var s = initial;
+            s.deinit();
+            return obj_new_int(0);
+        };
+        init_heap.* = initial;
+        var acc = init_heap;
+        for (args[1..]) |a| {
+            const ap = obj.obj_promote_to_bignum(a);
+            defer if (ap.owned) bignum.destroy(ap.m);
+            if (ap.m == null) {
+                bignum.destroy(acc);
+                return obj_new_int(0);
+            }
+            const new_acc = bignum.alloc_zero() orelse {
+                bignum.destroy(acc);
+                return obj_new_int(0);
+            };
+            new_acc.bitAnd(acc, ap.m.?) catch {
+                bignum.destroy(new_acc);
+                bignum.destroy(acc);
+                return obj_new_int(0);
+            };
+            bignum.destroy(acc);
+            acc = new_acc;
+        }
+        return obj.obj_new_bignum_take(acc);
+    }
     var acc: i64 = obj_get_int(args[0]);
     for (args[1..]) |a| acc &= obj_get_int(a);
     return obj_new_int(acc);
@@ -290,6 +584,10 @@ fn op_band(args: []const i32) i32 {
 
 fn op_bor(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(0);
+    if (any_bignum(args)) {
+        const r = bignum_bitwise_chain(args, .bor, 0) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     var acc: i64 = obj_get_int(args[0]);
     for (args[1..]) |a| acc |= obj_get_int(a);
     return obj_new_int(acc);
@@ -297,6 +595,10 @@ fn op_bor(args: []const i32) i32 {
 
 fn op_bxor(args: []const i32) i32 {
     if (args.len == 0) return obj_new_int(0);
+    if (any_bignum(args)) {
+        const r = bignum_bitwise_chain(args, .bxor, 0) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     var acc: i64 = obj_get_int(args[0]);
     for (args[1..]) |a| acc ^= obj_get_int(a);
     return obj_new_int(acc);
@@ -304,30 +606,67 @@ fn op_bxor(args: []const i32) i32 {
 
 fn op_bnot(args: []const i32) i32 {
     if (!require_arity(args, "~", 1, 1)) return obj_new_int(0);
+    if (is_bignum(args[0])) {
+        // ``~x`` = ``-x - 1`` in two's complement.  Same identity as
+        // ``tcl_arith.zig::tcl_arith_bnot``.
+        const ap = obj.obj_promote_to_bignum(args[0]);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) return obj_new_int(0);
+        const neg = bignum.alloc_neg(ap.m.?) orelse return obj_new_int(0);
+        defer bignum.destroy(neg);
+        const one = bignum.alloc_from_int(1) orelse return obj_new_int(0);
+        defer bignum.destroy(one);
+        const r = bignum.alloc_sub(neg, one) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
     return obj_new_int(~obj_get_int(args[0]));
 }
 
 fn op_lshift(args: []const i32) i32 {
     if (!require_arity(args, "<<", 2, 2)) return obj_new_int(0);
-    const a = obj_get_int(args[0]);
     const b = obj_get_int(args[1]);
     if (b < 0) {
         stubs.raise("negative shift argument");
         return obj_new_int(0);
     }
-    if (b >= 64) return obj_new_int(0);
+    if (is_bignum(args[0]) or b >= 63) {
+        const ap = obj.obj_promote_to_bignum(args[0]);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) return obj_new_int(0);
+        if (ap.m.?.eqlZero()) return obj_new_int(0);
+        const count: u64 = @bitCast(b);
+        const r = bignum.alloc_shl(ap.m.?, count) orelse return obj_new_int(0);
+        return obj.obj_new_bignum_take(r);
+    }
+    const a = obj_get_int(args[0]);
     const sh: u6 = @intCast(b);
-    return obj_new_int(a << sh);
+    const widened = @as(i128, a) << sh;
+    if (widened >= std.math.minInt(i64) and widened <= std.math.maxInt(i64)) {
+        return obj_new_int(@intCast(widened));
+    }
+    return obj.obj_new_bignum(widened);
 }
 
 fn op_rshift(args: []const i32) i32 {
     if (!require_arity(args, ">>", 2, 2)) return obj_new_int(0);
-    const a = obj_get_int(args[0]);
     const b = obj_get_int(args[1]);
     if (b < 0) {
         stubs.raise("negative shift argument");
         return obj_new_int(0);
     }
+    if (is_bignum(args[0])) {
+        const ap = obj.obj_promote_to_bignum(args[0]);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) return obj_new_int(0);
+        const r = bignum.alloc_zero() orelse return obj_new_int(0);
+        const count: u64 = @bitCast(b);
+        r.shiftRight(ap.m.?, @intCast(count)) catch {
+            bignum.destroy(r);
+            return obj_new_int(0);
+        };
+        return obj.obj_new_bignum_take(r);
+    }
+    const a = obj_get_int(args[0]);
     if (b >= 64) return obj_new_int(if (a < 0) -1 else 0);
     const sh: u6 = @intCast(b);
     return obj_new_int(a >> sh);
@@ -345,12 +684,18 @@ const CmpKind = enum { eq, ne, lt, le, gt, ge };
 fn is_numeric(o: i32) bool {
     if (o == 0) return true; // null / empty obj — defaults to 0 numerically
     const tag = obj.obj_type(o);
-    if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT) return true;
+    if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT or tag == obj.TYPE_BIGNUM) return true;
     const s = obj_ensure_str(o);
     if (s.len == 0) return true;
     if (obj.try_parse_int(s.ptr, s.len) != null) return true;
     if (obj.try_parse_float(s.ptr, s.len) != null) return true;
-    return false;
+    // String literal that exceeds i64 → still numeric for ``mathop``
+    // dispatch.  Without this branch ``[< 99 (1<<200)]`` falls to
+    // bytewise compare and returns the lexicographic answer.
+    if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+    const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+    bignum.destroy(m);
+    return true;
 }
 
 /// Lexical-string comparison for the ``a < b`` family.  Returns
@@ -399,6 +744,27 @@ fn cmp_pair_num(a: i32, b: i32, k: CmpKind) bool {
             .le => af <= bf,
             .gt => af > bf,
             .ge => af >= bf,
+        };
+    }
+    // Bignum-aware integer compare.  Stage 1 truncated bignum
+    // operands via ``obj_get_int``, miscomparing e.g.
+    // ``[< 99 (1<<70)]`` as false (both truncated to 99 vs ~i64::MAX).
+    // Routing through ``Managed.order`` gives the correct answer for
+    // arbitrary magnitude.
+    if (is_bignum(a) or is_bignum(b)) {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(b);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return false;
+        const ord = ap.m.?.order(bp.m.?.*);
+        return switch (k) {
+            .eq => ord == .eq,
+            .ne => ord != .eq,
+            .lt => ord == .lt,
+            .le => ord != .gt,
+            .gt => ord == .gt,
+            .ge => ord != .lt,
         };
     }
     const ai = obj_get_int(a);

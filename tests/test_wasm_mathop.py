@@ -138,13 +138,16 @@ def test_mathop_div_negative_truncates_toward_zero() -> None:
     assert _run("puts [::tcl::mathop::/ -7 -2]") == "3"
 
 
-def test_mathop_mod_uses_remainder_sign_of_dividend() -> None:
-    # ``::tcl::mathop::%`` must use ``@rem`` (sign-of-dividend) to
-    # match ``tcl_arith_mod``.  Earlier ``@mod`` (Euclidean) made
-    # ``[% -7 3]`` return ``2`` while ``expr {-7 % 3}`` returned
-    # ``-1`` (Copilot review).
-    assert _run("puts [::tcl::mathop::% -7 3]") == "-1"
-    assert _run("puts [::tcl::mathop::% 7 -3]") == "1"
+def test_mathop_mod_uses_floor_sign_of_divisor() -> None:
+    # ``::tcl::mathop::%`` matches Tcl 9 floor-mod semantics
+    # (``tclExecute.c`` INST_MOD): the result has the *divisor's*
+    # sign.  The pre-bignum ``@rem``-sign-of-dividend path made
+    # ``[% -7 3]`` return ``-1``, miscompiled w.r.t. C Tcl which
+    # returns ``2``.  ``tcl_arith_mod`` (and thus mathop's ``%``)
+    # now apply the ``r += b when signs differ`` fixup upstream
+    # uses, so all three of these match the C Tcl reference.
+    assert _run("puts [::tcl::mathop::% -7 3]") == "2"
+    assert _run("puts [::tcl::mathop::% 7 -3]") == "-2"
     assert _run("puts [::tcl::mathop::% -7 -3]") == "-1"
 
 

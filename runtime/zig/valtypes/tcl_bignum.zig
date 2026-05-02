@@ -449,6 +449,71 @@ pub fn alloc_format(m: *const BigInt) ?[]u8 {
     return m.toString(allocator, 10, .lower) catch null;
 }
 
+/// Render the BigInt in *base* (2, 8, 10, or 16) into a heap-
+/// allocated buffer.  The Zig 0.16 ``Managed.toString`` has a
+/// limb-boundary bug for power-of-two bases that don't evenly
+/// divide ``Limb`` (notably base 8 on 32-bit wasm limbs), so for
+/// base 8 we walk the bit array directly.  Bases 10 and 16 route
+/// through the stdlib path, which is correct on those.
+pub fn alloc_format_base(m: *const BigInt, base: u8, case: std.fmt.Case) ?[]u8 {
+    if (base != 8) return m.toString(allocator, base, case) catch null;
+    // Octal has no upper/lower variant — ``case`` is consumed by
+    // the non-octal early return above; nothing to do with it here.
+    // Custom base-8 path.  Walk the bit array MSB-first, emitting
+    // 3-bit groups.  This avoids the per-limb extraction bug that
+    // gives wrong digits for bits straddling limb boundaries.
+    const c = m.toConst();
+    if (c.eqlZero()) return allocator.dupe(u8, "0") catch null;
+    // Find total significant bit count.
+    const Limb = std.math.big.Limb;
+    const limb_bits: usize = @bitSizeOf(Limb);
+    const len = c.limbs.len;
+    var top_limb_bits: usize = limb_bits;
+    if (len > 0) {
+        var lz: usize = 0;
+        var top = c.limbs[len - 1];
+        while (top != 0) : (top >>= 1) lz += 1;
+        top_limb_bits = lz;
+    }
+    const total_bits = (len - 1) * limb_bits + top_limb_bits;
+    if (total_bits == 0) return allocator.dupe(u8, "0") catch null;
+
+    // Number of octal digits needed: ceil(total_bits / 3).
+    const ndigits: usize = (total_bits + 2) / 3;
+    const sign_bytes: usize = if (!c.positive) 1 else 0;
+    const buf = allocator.alloc(u8, ndigits + sign_bytes) catch return null;
+    errdefer allocator.free(buf);
+
+    if (!c.positive) buf[0] = '-';
+    var off: usize = sign_bytes;
+
+    // Walk bits MSB-first.  For each output digit, accumulate up to
+    // 3 bits.  Start at the top of the highest significant bit and
+    // work down.
+    // The very first (most-significant) digit may have 1 or 2 bits
+    // (when total_bits % 3 != 0).
+    const first_bits: usize = ((total_bits - 1) % 3) + 1;
+    var bits_left = total_bits;
+    var first = true;
+    while (bits_left > 0) {
+        const take: usize = if (first) first_bits else 3;
+        first = false;
+        var digit: u8 = 0;
+        var k: usize = 0;
+        while (k < take) : (k += 1) {
+            bits_left -= 1;
+            const bit_idx = bits_left;
+            const limb_idx = bit_idx / limb_bits;
+            const bit_in_limb = bit_idx % limb_bits;
+            const bit: u1 = @intCast((c.limbs[limb_idx] >> @intCast(bit_in_limb)) & 1);
+            digit = (digit << 1) | bit;
+        }
+        buf[off] = '0' + digit;
+        off += 1;
+    }
+    return buf[0..off];
+}
+
 /// True iff the BigInt's value fits exactly in an i64.
 pub fn fits_i64(m: *const BigInt) bool {
     return m.fits(i64);
