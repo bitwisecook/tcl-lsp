@@ -396,19 +396,29 @@ def _patch_hello_world_procs(script: str) -> str:
     expression compiler — they're only referenced by the ``-1.1``
     sanity tests, not by any of the bignum-relevant cases.
 
-    Under our WASM AOT path each ``[expr {...}]`` substitution
-    allocates intermediate ``TclObj`` instances that the comparison /
-    arithmetic helpers don't release (a refcount-discipline gap in the
-    AOT emitter that's tracked separately).  When the bodies execute
-    they leak fast enough to overrun the wasi-libc ``BrkAllocator``
-    u32 brk pointer, panicking with ``integer overflow`` before the
-    rest of the test file gets a chance to run.
+    The original blocker was a refcount leak in the AOT emitter:
+    every binary / unary / call / cmp helper invocation on an
+    ``[expr {...}]`` substitution allocated a fresh TclObj that the
+    receiving op consumed without release, so each pass through
+    ``hello_world``'s expression chain leaked dozens of objs.  The
+    leak overran the wasi-libc ``BrkAllocator`` u32 brk pointer
+    after a few thousand calls and panicked with ``integer
+    overflow`` before the bundle reached its tcltest summary.  That
+    leak is now plugged via the ``_emit_expr_obj_arith_*`` /
+    ``_emit_expr_obj_cmp_binary`` / ``_emit_expr_unbox_arith_binary``
+    helpers in :mod:`core.compiler.codegen.wasm._emitter._expressions`
+    — they retain-borrowed-then-release each operand and release the
+    helper's return obj after it's unboxed.
 
-    Until that refcount work lands, replacing the proc bodies with
-    empty bodies lets the bundle reach the tcltest summary line so the
-    real-coverage assertions (the bignum cases plus everything else in
-    the file) can pin our progress.  Mirrors
-    :func:`tests.test_vm_expr_test._patch_hello_world_procs`.
+    What still keeps the workaround in place is a separate codegen
+    bug exposed once the proc actually runs: ``hello_world`` uses
+    deeply nested ``expr {a?b:c?d:e?...:[set v ...]}`` ternaries to
+    set up state on each loop iteration, and a non-short-circuiting
+    branch tries to read ``$h1`` / ``$ll`` before the side-effecting
+    initialisation has run, hitting ``var_unset_error`` and tripping
+    the runtime ``@trap``.  Tracked separately from the leak; the
+    workaround stays until the ternary short-circuit issue is
+    resolved.  Mirrors :func:`tests.test_vm_expr_test._patch_hello_world_procs`.
     """
     for proc_name in ("put_hello_char", "hello_world", "12days", "do_twelve_days"):
         start_marker = f"proc {proc_name} "

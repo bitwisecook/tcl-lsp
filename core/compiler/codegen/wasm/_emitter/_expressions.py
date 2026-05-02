@@ -30,6 +30,7 @@ from .._imports import (
 from .._ir import (
     _BLOCK_I64,
     _BLOCK_VOID,
+    ValType,
     WasmOp,
 )
 from ._ops import _BINOP_WASM
@@ -135,6 +136,190 @@ class _WasmEmitterExprMixin(_Base):
         BinOp.BIT_XOR: "tcl_arith_bxor",
     }
 
+    @staticmethod
+    def _expr_node_is_borrowed(node: "ExprNode") -> bool:
+        """Return True if ``_emit_expr_obj(node)`` leaves a borrowed
+        TclObj on the stack — i.e. the obj's refcount is owned by some
+        external storage (a variable slot) and the consumer must NOT
+        release it.
+
+        Currently the only such case is a plain variable read.  Every
+        other node shape (literal, binary / unary / call result,
+        command-substitution result, ternary, …) lands on the stack
+        with a +1 ref the consumer must release.
+        """
+        return isinstance(node, ExprVar)
+
+    def _emit_expr_obj_arith_binary(
+        self,
+        func_idx: int,
+        left: "ExprNode",
+        right: "ExprNode",
+    ) -> None:
+        """Emit a binary ``tcl_arith_*`` call with proper refcount
+        discipline.
+
+        Each operand is stashed in a scratch local; borrowed operands
+        get an explicit ``tcl_obj_retain`` so we can blanket-release
+        both at the end without breaking the borrow source's ref.
+        Without this, every literal-or-arith-result operand leaks
+        rc=1 per binary op — what triggered the wasi-libc brk-pointer
+        overflow that the ``hello_world`` workaround papered over.
+        """
+        retain_idx = self._shared_imports.get("tcl_obj_retain")
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if retain_idx is None or release_idx is None:
+            # Refcount helpers unavailable — fall back to the leaky
+            # path.  This shouldn't happen in practice (the imports
+            # are always registered) but keep the code robust.
+            self._emit_expr_obj(left)
+            self._emit_expr_obj(right)
+            self._emit_call(func_idx)
+            return
+        l_local = self._add_extra_local("_op_lhs", ValType.I32)
+        r_local = self._add_extra_local("_op_rhs", ValType.I32)
+        # Emit left and stash.
+        self._emit_expr_obj(left)
+        self._emit_local_tee(l_local)
+        if self._expr_node_is_borrowed(left):
+            # Retain so the trailing release matches.
+            self._emit_call(retain_idx)
+            self._emit_local_get(l_local)
+        # Emit right and stash.
+        self._emit_expr_obj(right)
+        self._emit_local_tee(r_local)
+        if self._expr_node_is_borrowed(right):
+            self._emit_call(retain_idx)
+            self._emit_local_get(r_local)
+        # Call the arith helper — leaves the result on the stack.
+        self._emit_call(func_idx)
+        # Release both operands.  Owned: rc 1→0, freed.  Borrowed
+        # (which we retained above): rc K+1→K, source slot keeps
+        # its ref.
+        self._emit_local_get(l_local)
+        self._emit_call(release_idx)
+        self._emit_local_get(r_local)
+        self._emit_call(release_idx)
+
+    def _emit_expr_obj_arith_unary(
+        self,
+        func_idx: int,
+        operand: "ExprNode",
+    ) -> None:
+        """Unary counterpart to :meth:`_emit_expr_obj_arith_binary`."""
+        retain_idx = self._shared_imports.get("tcl_obj_retain")
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if retain_idx is None or release_idx is None:
+            self._emit_expr_obj(operand)
+            self._emit_call(func_idx)
+            return
+        op_local = self._add_extra_local("_op_unary", ValType.I32)
+        self._emit_expr_obj(operand)
+        self._emit_local_tee(op_local)
+        if self._expr_node_is_borrowed(operand):
+            self._emit_call(retain_idx)
+            self._emit_local_get(op_local)
+        self._emit_call(func_idx)
+        self._emit_local_get(op_local)
+        self._emit_call(release_idx)
+
+    def _emit_expr_unbox_arith_binary(
+        self,
+        func_idx: int,
+        left: "ExprNode",
+        right: "ExprNode",
+    ) -> None:
+        """Like :meth:`_emit_expr_obj_arith_binary`, but unbox the
+        result TclObj to i64 and release it before re-pushing.
+
+        This is the i64-context counterpart used by ``_emit_binary``
+        for the float-aware arith / bitwise paths — those routes
+        compute through the runtime helper but want an i64 on the
+        stack for the caller (e.g. an ``if`` condition or a nested
+        ``i64.eq``).  Without releasing the result obj every binary
+        op in i64 context leaks rc=1 per call.
+        """
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if release_idx is None:
+            self._emit_expr_obj(left)
+            self._emit_expr_obj(right)
+            self._emit_call(func_idx)
+            self._emit_unbox_int()
+            return
+        # Refcount-clean obj path leaves the arith result obj on the
+        # stack (operands already released).
+        self._emit_expr_obj_arith_binary(func_idx, left, right)
+        res_local = self._add_extra_local("_arith_res", ValType.I32)
+        val_local = self._add_extra_local("_arith_val", ValType.I64)
+        self._emit_local_tee(res_local)
+        self._emit_unbox_int()
+        self._emit_local_set(val_local)
+        self._emit_local_get(res_local)
+        self._emit_call(release_idx)
+        self._emit_local_get(val_local)
+
+    def _emit_expr_obj_cmp_binary(
+        self,
+        cmp_idx: int,
+        left: "ExprNode",
+        right: "ExprNode",
+    ) -> None:
+        """Emit a binary cmp call (e.g. ``tcl_expr_order_cmp``,
+        ``tcl_string_equal``, ``tcl_string_compare``) and leave the
+        unboxed i64 cmp result on the stack.
+
+        The cmp helper consumes its two TclObj arguments and returns
+        a fresh +1-ref TclObj wrapping ``-1``/``0``/``1`` (or ``0``/``1``
+        for equality).  Without explicit release the cmp-result obj
+        and any owned operand both leak per call — long expressions
+        like ``$a == $b && $c < $d || ...`` then accumulate ints fast
+        enough to overrun wasi-libc's u32 brk pointer.
+
+        Borrowed operands (variable reads) are retained-then-released
+        so the source slot keeps its ref.  Owned operands (literals,
+        nested arith results) are released directly.
+        """
+        retain_idx = self._shared_imports.get("tcl_obj_retain")
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if retain_idx is None or release_idx is None:
+            # Refcount helpers unavailable — fall back to leaky path.
+            self._emit_str_value(left)
+            self._emit_str_value(right)
+            self._emit_call(cmp_idx)
+            self._emit_unbox_int()
+            return
+        l_local = self._add_extra_local("_cmp_lhs", ValType.I32)
+        r_local = self._add_extra_local("_cmp_rhs", ValType.I32)
+        res_local = self._add_extra_local("_cmp_res", ValType.I32)
+        val_local = self._add_extra_local("_cmp_val", ValType.I64)
+        # Emit left and stash.
+        self._emit_str_value(left)
+        self._emit_local_tee(l_local)
+        if self._expr_node_is_borrowed(left):
+            self._emit_call(retain_idx)
+            self._emit_local_get(l_local)
+        # Emit right and stash.
+        self._emit_str_value(right)
+        self._emit_local_tee(r_local)
+        if self._expr_node_is_borrowed(right):
+            self._emit_call(retain_idx)
+            self._emit_local_get(r_local)
+        # Call cmp — TclObj result on stack.
+        self._emit_call(cmp_idx)
+        self._emit_local_tee(res_local)
+        # Unbox to i64 and stash so we can release the obj.
+        self._emit_unbox_int()
+        self._emit_local_set(val_local)
+        # Release cmp result + both operand snapshots.
+        self._emit_local_get(res_local)
+        self._emit_call(release_idx)
+        self._emit_local_get(l_local)
+        self._emit_call(release_idx)
+        self._emit_local_get(r_local)
+        self._emit_call(release_idx)
+        # Re-push the unboxed i64 so the caller can compare it.
+        self._emit_local_get(val_local)
+
     def _emit_expr_obj(self, node: ExprNode) -> None:
         """Emit WASM instructions leaving a TclObj i32 on the stack.
 
@@ -168,9 +353,14 @@ class _WasmEmitterExprMixin(_Base):
                 if func_name is not None:
                     func_idx = self._shared_imports.get(func_name)
                     if func_idx is not None:
-                        self._emit_expr_obj(left)
-                        self._emit_expr_obj(right)
-                        self._emit_call(func_idx)
+                        # Refcount-clean variant — releases each
+                        # operand after the helper consumes it so
+                        # fresh literals / arith intermediates don't
+                        # leak per binary op.  The earlier path
+                        # leaked enough TclObjs through long
+                        # expressions (``hello_world``-style stress
+                        # procs) to overrun the wasi-libc brk pointer.
+                        self._emit_expr_obj_arith_binary(func_idx, left, right)
                         return
                 # Non-arithmetic or missing import: fall back to i64 path.
                 self._emit_expr(node)
@@ -189,62 +379,57 @@ class _WasmEmitterExprMixin(_Base):
                 if uop == UnaryOp.NEG:
                     neg_idx = self._shared_imports.get("tcl_arith_neg")
                     if neg_idx is not None:
-                        self._emit_expr_obj(operand)
-                        self._emit_call(neg_idx)
+                        self._emit_expr_obj_arith_unary(neg_idx, operand)
                         return
                 if uop == UnaryOp.BIT_NOT:
                     bnot_idx = self._shared_imports.get("tcl_arith_bnot")
                     if bnot_idx is not None:
-                        self._emit_expr_obj(operand)
-                        self._emit_call(bnot_idx)
+                        self._emit_expr_obj_arith_unary(bnot_idx, operand)
                         return
                 # Fall back: evaluate as i64, box.
                 self._emit_expr(node)
                 self._emit_box_int()
             case ExprCall(function=func, args=args):
-                # Math functions that return TclObj.
+                # Math functions that return TclObj.  Every helper
+                # consumes its argument(s) and returns a fresh +1-ref
+                # TclObj, so we route through the unary / binary
+                # arith helpers to retain-borrowed-then-release per
+                # operand and avoid leaking literals / arith results.
                 func_idx = None
                 if func == "double" and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_double")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func in ("int", "entier", "wide") and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_int")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func == "round" and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_round")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func == "log" and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_log")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func == "sqrt" and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_sqrt")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func == "exp" and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_exp")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func == "log10" and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_log10")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func in ("sin", "cos", "tan", "asin", "acos", "atan",
                               "sinh", "cosh", "tanh", "floor", "ceil") and len(args) == 1:
@@ -255,23 +440,19 @@ class _WasmEmitterExprMixin(_Base):
                     fn = "tcl_math_" + func
                     func_idx = self._shared_imports.get(fn)
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func in ("fabs", "abs") and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_fabs")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
                 elif func in ("atan2", "fmod", "hypot") and len(args) == 2:
                     # Two-arg float math functions.
                     fn = "tcl_math_" + func
                     func_idx = self._shared_imports.get(fn)
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_expr_obj(args[1])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_binary(func_idx, args[0], args[1])
                         return
                 elif func == "pow" and len(args) == 2:
                     # ``pow(a, b)`` math-function form — route through the
@@ -282,9 +463,7 @@ class _WasmEmitterExprMixin(_Base):
                     # so ``pow(2.1, 3.1)`` mis-rendered as 8.
                     func_idx = self._shared_imports.get("tcl_arith_pow")
                     if func_idx is not None:
-                        self._emit_expr_obj(args[0])
-                        self._emit_expr_obj(args[1])
-                        self._emit_call(func_idx)
+                        self._emit_expr_obj_arith_binary(func_idx, args[0], args[1])
                         return
                 # Fall through to i64 path.
                 self._emit_func_call(func, args)
@@ -780,10 +959,7 @@ class _WasmEmitterExprMixin(_Base):
         # float, string fallback otherwise).
         if op in (BinOp.EQ, BinOp.NE) and self._shared_imports.get("tcl_expr_order_cmp") is not None:
             cmp_idx = self._shared_imports["tcl_expr_order_cmp"]
-            self._emit_str_value(left)
-            self._emit_str_value(right)
-            self._emit_call(cmp_idx)
-            self._emit_unbox_int()  # i64: -1, 0, or 1
+            self._emit_expr_obj_cmp_binary(cmp_idx, left, right)
             self._emit_i64_const(0)
             if op is BinOp.EQ:
                 self._emit(WasmOp.I64_EQ)
@@ -799,10 +975,10 @@ class _WasmEmitterExprMixin(_Base):
         if arith_func is not None:
             arith_idx = self._shared_imports.get(arith_func)
             if arith_idx is not None:
-                self._emit_expr_obj(left)
-                self._emit_expr_obj(right)
-                self._emit_call(arith_idx)  # → i32 TclObj
-                self._emit_unbox_int()  # → i64
+                # Refcount-clean: route through the obj helper +
+                # unbox-and-release wrapper so each arith call doesn't
+                # leak its result obj per binary op.
+                self._emit_expr_unbox_arith_binary(arith_idx, left, right)
                 return
 
         # Bitwise / shift: delegate to tcl_arith_{lshift,rshift,band,bor,bxor}
@@ -813,10 +989,7 @@ class _WasmEmitterExprMixin(_Base):
         if bitwise_func is not None:
             bw_idx = self._shared_imports.get(bitwise_func)
             if bw_idx is not None:
-                self._emit_expr_obj(left)
-                self._emit_expr_obj(right)
-                self._emit_call(bw_idx)  # → i32 TclObj
-                self._emit_unbox_int()  # → i64
+                self._emit_expr_unbox_arith_binary(bw_idx, left, right)
                 return
 
         wasm_op = _BINOP_WASM.get(op)
@@ -860,10 +1033,9 @@ class _WasmEmitterExprMixin(_Base):
             # Runtime helper missing — best effort: always false.
             self._emit_i64_const(0)
             return
-        self._emit_str_value(right)  # list
-        self._emit_str_value(left)  # value
-        self._emit_call(contains_idx)
-        self._emit_unbox_int()
+        # ``tcl_list_contains(list, value)`` — note the operand order
+        # is reversed from the source-level ``$value in $list``.
+        self._emit_expr_obj_cmp_binary(contains_idx, right, left)
         if op == BinOp.NI:
             self._emit_i64_const(1)
             self._emit(WasmOp.I64_XOR)
@@ -873,16 +1045,14 @@ class _WasmEmitterExprMixin(_Base):
 
         Uses the ``string_equal`` runtime import.  Both operands are
         emitted as i32 TclObj values, the runtime returns an i32 TclObj
-        wrapping 0 or 1, which is then unboxed to i64.
+        wrapping 0 or 1, which is then unboxed to i64.  Routed through
+        :meth:`_emit_expr_obj_cmp_binary` so the cmp-result obj and any
+        owned operand are released (otherwise long ``eq``/``ne`` chains
+        leak per call).
         """
         seq_idx = self._shared_imports.get("tcl_string_equal")
         if seq_idx is not None:
-            # Emit left and right as i32 TclObj values
-            self._emit_str_value(left)
-            self._emit_str_value(right)
-            self._emit_call(seq_idx)
-            # string_equal returns TclObj wrapping 0/1 — unbox to i64
-            self._emit_unbox_int()
+            self._emit_expr_obj_cmp_binary(seq_idx, left, right)
         else:
             # Fallback: integer comparison
             self._emit_expr(left)
@@ -900,10 +1070,7 @@ class _WasmEmitterExprMixin(_Base):
         if cmp_idx is None:
             self._emit_i64_const(0)
             return
-        self._emit_str_value(left)
-        self._emit_str_value(right)
-        self._emit_call(cmp_idx)
-        self._emit_unbox_int()  # i64: -1, 0, or 1
+        self._emit_expr_obj_cmp_binary(cmp_idx, left, right)
         self._emit_i64_const(0)
         match op:
             case BinOp.STR_LT:
@@ -934,10 +1101,7 @@ class _WasmEmitterExprMixin(_Base):
             else:
                 self._emit_i64_const(0)
             return
-        self._emit_str_value(left)
-        self._emit_str_value(right)
-        self._emit_call(cmp_idx)
-        self._emit_unbox_int()  # i64: -1, 0, or 1
+        self._emit_expr_obj_cmp_binary(cmp_idx, left, right)
         self._emit_i64_const(0)
         match op:
             case BinOp.LT:
