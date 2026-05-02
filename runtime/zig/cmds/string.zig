@@ -169,7 +169,13 @@ pub fn eval(words: []const i32) i32 {
             }
             return obj_new_int(1);
         }
-        if (str_eq(clsp, cls.len, "integer")) {
+        // ``integer`` and ``wideinteger`` accept the same set of
+        // string forms: optional whitespace, optional sign, then
+        // either a decimal run or a ``0x``-prefixed hex run.  In Tcl
+        // 9 with bignum support the magnitude is unbounded, so the
+        // inline path doesn't need to bound-check — any all-digit
+        // (or hex-digit) run after the prefix passes.
+        if (str_eq(clsp, cls.len, "integer") or str_eq(clsp, cls.len, "wideinteger")) {
             var i: u32 = 0;
             while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
             if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;

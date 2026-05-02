@@ -524,6 +524,13 @@ class _WasmEmitterStmtMixin(_Base):
                         # with ``{*}`` expansion) was passed verbatim
                         # to the interpreter, splitting at the embedded
                         # space and breaking the receiver's arg count.
+                        # Threading ``tokens=`` through the simple-case
+                        # branch also preserves source-level brace /
+                        # quote framing on each arg — without it a
+                        # braced description such as ``{[Bug NNN]: x}``
+                        # reassembles unbraced and the runtime parser
+                        # substitutes the bracketed inner as a command,
+                        # which was the original ``compExpr-7.2`` trap.
                         if (
                             barrier_tokens is not None
                             and barrier_tokens.expand_word is not None

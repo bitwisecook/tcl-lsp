@@ -1496,15 +1496,33 @@ pub export fn tcl_incr(o: i32, amount: i32) i32 {
         raise_expected_integer(amount);
         return obj_new_int_pub(0);
     }
+    // Bignum-aware addition: promote to ``*BigInt`` whenever either
+    // operand is bignum-shaped so a wide variable counter (or a wide
+    // increment delta — used by ``incr x [expr {1<<63}]``) keeps
+    // full precision.  The pre-bignum path silently truncated to i64.
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    if (obj.obj_type(o) == obj.TYPE_BIGNUM or obj.obj_type(amount) == obj.TYPE_BIGNUM) {
+        const ap = obj.obj_promote_to_bignum(o);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(amount);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return obj_new_int_pub(0);
+        const r = bignum.alloc_add(ap.m.?, bp.m.?) orelse return obj_new_int_pub(0);
+        return obj.obj_new_bignum_take(r);
+    }
     const val = obj_get_int_pub(o);
     const amt = obj_get_int_pub(amount);
-    return obj_new_int_pub(val + amt);
+    const r = @addWithOverflow(val, amt);
+    if (r[1] == 0) return obj_new_int_pub(r[0]);
+    // i64 overflow → promote to bignum.
+    return obj.obj_new_bignum(@as(i128, val) + @as(i128, amt));
 }
 
 fn incr_is_strict_int(o: i32) bool {
     if (o == 0) return true;
     const tag = obj.obj_type(o);
     if (tag == obj.TYPE_INT) return true;
+    if (tag == obj.TYPE_BIGNUM) return true;
     if (tag == obj.TYPE_FLOAT) return false;
     // String / inline string — delegate to the canonical strict-decimal
     // parser used by ``obj_get_int``.  Keeping the validation and the
@@ -1534,7 +1552,15 @@ fn incr_is_strict_int(o: i32) bool {
     // separately and out of scope for the bitwise/shift/incr domain
     // fixes covered by issues #260–#262.
     const s = obj.obj_ensure_string(o);
-    return obj.try_parse_int(s.ptr, s.len) != null;
+    if (obj.try_parse_int(s.ptr, s.len) != null) return true;
+    // Accept bignum-shaped string literals so ``incr x 9223372036854775808``
+    // doesn't reject the wide delta as ``expected integer``.  Match the
+    // i128 / Managed parse discipline the arithmetic helpers use.
+    const bignum = @import("../valtypes/tcl_bignum.zig");
+    if (bignum.parse_i128(s.ptr, s.len) != null) return true;
+    const m = bignum.alloc_from_string(s.ptr, s.len) orelse return false;
+    bignum.destroy(m);
+    return true;
 }
 
 fn raise_expected_integer(o: i32) void {

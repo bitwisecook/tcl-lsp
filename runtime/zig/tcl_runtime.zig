@@ -261,6 +261,7 @@ comptime {
     _ = &tcl_string.string_totitle;
     _ = &tcl_string.string_replace;
     _ = &tcl_string.string_is_integer;
+    _ = &tcl_string.string_is_wideinteger;
     _ = &tcl_string.string_is_alpha;
     _ = &tcl_string.string_is_digit;
     _ = &tcl_string.string_is_space;
@@ -444,6 +445,7 @@ comptime {
     _ = &tcl_arith.tcl_arith_bxor;
     _ = &tcl_arith.tcl_arith_bnot;
     _ = &tcl_arith.tcl_arith_neg;
+    _ = &tcl_arith.tcl_arith_pow;
     _ = &tcl_arith.tcl_math_double;
     _ = &tcl_arith.tcl_math_int;
     _ = &tcl_arith.tcl_math_round;
@@ -454,6 +456,18 @@ comptime {
     _ = &tcl_arith.tcl_math_sin;
     _ = &tcl_arith.tcl_math_cos;
     _ = &tcl_arith.tcl_math_fabs;
+    _ = &tcl_arith.tcl_math_tan;
+    _ = &tcl_arith.tcl_math_asin;
+    _ = &tcl_arith.tcl_math_acos;
+    _ = &tcl_arith.tcl_math_atan;
+    _ = &tcl_arith.tcl_math_atan2;
+    _ = &tcl_arith.tcl_math_sinh;
+    _ = &tcl_arith.tcl_math_cosh;
+    _ = &tcl_arith.tcl_math_tanh;
+    _ = &tcl_arith.tcl_math_floor;
+    _ = &tcl_arith.tcl_math_ceil;
+    _ = &tcl_arith.tcl_math_fmod;
+    _ = &tcl_arith.tcl_math_hypot;
     // obj float exports
     _ = &tcl_obj.obj_new_float;
     _ = &tcl_obj.obj_get_float;
