@@ -166,7 +166,22 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         elif sri.results:
             emitter._emit(WasmOp.DROP)
     else:
-        emitter._emit_unsupported_trap(f"dict {subcmd}")
+        # Unknown / not-yet-imported subcommand — delegate to the
+        # interpreter.  ``cmds/dict.zig::eval`` knows how to evaluate
+        # ``append``, ``lappend``, ``incr``, ``info``, ``for``, ``map``,
+        # ``merge``, ``remove``, ``replace``, ``with``, ``filter``;
+        # genuinely unknown subcommands raise ``bad subcommand`` from
+        # the dispatcher, matching the reference Tcl behaviour and
+        # remaining catchable.  This avoids the hard ``UNREACHABLE``
+        # trap that previously aborted the whole bundle even when the
+        # call sat inside a ``catch`` at runtime (the compile-time
+        # ``_catch_depth`` cannot see runtime catch frames).
+        emitter._emit_eval_fallback("dict", args)
+        if defs:
+            def_idx = emitter._intern_local(defs[0])
+            emitter._emit_local_set(def_idx)
+        else:
+            emitter._emit(WasmOp.DROP)
     return True
 
 

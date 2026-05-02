@@ -51,6 +51,41 @@ from .._ir import (
 from .._ownership import Ownership
 
 
+def _escape_dquote(text: str) -> str:
+    """Escape a multi-token IR word for embedding inside a ``"…"`` literal.
+
+    The IR mirrors the source byte stream — backslash sequences such as
+    ``\\n`` or ``\\$`` are stored as their two-character source form,
+    not as the substituted byte.  Tcl's in-quote backslash substitution
+    will re-evaluate them to the original byte values when the wrapped
+    script reaches the interpreter, so we leave the backslashes alone.
+
+    Only the closing ``"`` needs escaping so the dquoted span ends at
+    the trailing quote we add — not at the first embedded one.  An
+    embedded ``"`` is preceded by a backslash unless it is already
+    escaped (``\\"`` → leave alone).
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == "\\" and i + 1 < len(text):
+            # Pass through the backslash + next char as-is so Tcl's
+            # in-quote substitution resolves them at eval time.
+            out.append(c)
+            out.append(text[i + 1])
+            i += 2
+            continue
+        if c == '"':
+            out.append("\\")
+            out.append('"')
+            i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def _static_parse_error_message(
     barrier_cmd: str | None,
     reason: str | None,
@@ -286,6 +321,11 @@ class _WasmEmitterStmtMixin(_Base):
                     # callee with ``{*}`` and unexpanded contents.
                     ew = tokens.expand_word
                     argv = tokens.argv if tokens.argv is not None else ()
+                    single_word = (
+                        tokens.single_token_word
+                        if tokens.single_token_word is not None
+                        else ()
+                    )
                     parts = []
                     for i, t in enumerate(tokens.argv_texts):
                         expand = i < len(ew) and ew[i]
@@ -301,6 +341,28 @@ class _WasmEmitterStmtMixin(_Base):
 
                         if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
                             t = "{" + t + "}"
+                        elif i < len(single_word) and not single_word[i] and t:
+                            # Multi-token concatenation (``"$body (suffix)"``,
+                            # ``foo$bar``, …).  ``_word_piece`` joined the
+                            # piece texts with no separators, so the result
+                            # is a substitution-bearing string that would
+                            # split into multiple words at re-parse time
+                            # if left bare.  Re-wrap in ``"…"`` so it stays
+                            # one word; embedded ``$`` / ``[`` / ``]`` keep
+                            # their substitution semantics inside ``"…"``,
+                            # while ``\`` / ``"`` need escaping so the
+                            # quoted span terminates only at the trailing
+                            # quote we add here.
+                            # Only escape unescaped ``"`` — backslash
+                            # sequences in the IR mirror the source
+                            # (``\n`` is two literal chars), and Tcl's
+                            # backslash substitution inside ``"…"`` will
+                            # re-evaluate them to the same byte values
+                            # the original word produced (``\n`` →
+                            # newline).  Doubling the backslashes here
+                            # would change ``\n`` to a literal ``\n``
+                            # pair instead of a newline.
+                            t = '"' + _escape_dquote(t) + '"'
                         parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(command, args, script_override=script)
@@ -321,7 +383,12 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_i32_const(0)
                 self._emit(WasmOp.RETURN)
 
-            case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
+            case IRBarrier(
+                canonical_command=barrier_cmd,
+                args=barrier_args,
+                reason=reason,
+                tokens=barrier_tokens,
+            ):
                 # Barriers are dynamic commands (eval, uplevel, trace,
                 # etc.) that defeat static *analysis* but may still
                 # have concrete runtime implementations we can call
@@ -429,7 +496,53 @@ class _WasmEmitterStmtMixin(_Base):
                         )
                         self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
                     else:
-                        self._emit_eval_fallback(barrier_cmd, barrier_args)
+                        # Pass the barrier's tokens through so the
+                        # eval-fallback's quoting heuristics can detect
+                        # multi-token / braced words.  Without this an
+                        # ``"$body (suffix)"`` arg lowered through a
+                        # barrier (e.g. namespace-imported user proc
+                        # with ``{*}`` expansion) was passed verbatim
+                        # to the interpreter, splitting at the embedded
+                        # space and breaking the receiver's arg count.
+                        if (
+                            barrier_tokens is not None
+                            and barrier_tokens.expand_word is not None
+                            and any(barrier_tokens.expand_word)
+                            and barrier_tokens.argv_texts
+                        ):
+                            ew = barrier_tokens.expand_word
+                            single_word = (
+                                barrier_tokens.single_token_word
+                                if barrier_tokens.single_token_word is not None
+                                else ()
+                            )
+                            argv = (
+                                barrier_tokens.argv
+                                if barrier_tokens.argv is not None
+                                else ()
+                            )
+                            from .....parsing.tokens import TokenType
+
+                            parts: list[str] = []
+                            for i, t in enumerate(barrier_tokens.argv_texts):
+                                prefix = "{*}" if (i < len(ew) and ew[i]) else ""
+                                if (
+                                    i < len(argv)
+                                    and argv[i] is not None
+                                    and argv[i].type is TokenType.STR
+                                ):
+                                    t = "{" + t + "}"
+                                elif i < len(single_word) and not single_word[i] and t:
+                                    t = '"' + _escape_dquote(t) + '"'
+                                parts.append(prefix + t)
+                            script = " ".join(parts)
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, script_override=script
+                            )
+                        else:
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, tokens=barrier_tokens
+                            )
                     self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
@@ -1164,6 +1277,24 @@ class _WasmEmitterStmtMixin(_Base):
                             return False
                     return tokens.argv[tok_idx].type == TokenType.STR
 
+                def _arg_is_multi_token(i: int) -> bool:
+                    """Return True if call-site arg *i* is a concatenation of
+                    multiple lexer tokens (e.g. ``"$body (suffix)"`` —
+                    substitution + literal text).
+
+                    Multi-token words must be re-wrapped in double quotes
+                    when fed to ``tcl_eval`` so the interpreter sees them
+                    as a single word; passing the raw IR through verbatim
+                    would let the embedded space split the value into
+                    multiple words at eval time.
+                    """
+                    if tokens is None or tokens.single_token_word is None:
+                        return False
+                    tok_idx = i + 1
+                    if tok_idx >= len(tokens.single_token_word):
+                        return False
+                    return not tokens.single_token_word[tok_idx]
+
                 parts = [command]
                 for i, a in enumerate(args):
                     if _arg_was_braced(i):
@@ -1180,9 +1311,26 @@ class _WasmEmitterStmtMixin(_Base):
                             parts.append(_tcl_list_quote(a, first=False))
                         else:
                             parts.append("{" + a + "}")
+                    elif _arg_is_multi_token(i):
+                        # Concatenation of multiple lexer tokens — one of
+                        # ``"$body (suffix)"`` (subst + literal text),
+                        # ``foo$bar`` (literal + subst, no space),
+                        # ``\n[list ...]`` (escape + cmd subst), ...
+                        # ``_word_piece`` already joined the source
+                        # fragments with no separators, so the IR holds
+                        # the substitution markers verbatim alongside
+                        # any literal text.  Re-wrap in ``"…"`` so the
+                        # interpreter sees one word at eval time;
+                        # embedded ``$`` / ``[`` keep their substitution
+                        # semantics inside ``"…"``.  Backslash sequences
+                        # are passed through unmodified — Tcl's in-quote
+                        # substitution will re-evaluate them to the same
+                        # bytes the original word produced (``\n`` →
+                        # newline).
+                        parts.append('"' + _escape_dquote(a) + '"')
                     elif a.startswith("$") or a.startswith("["):
-                        # Substitution words pass through unquoted so
-                        # the interpreter can resolve them at eval time.
+                        # Pure substitution word — pass through unquoted
+                        # so the interpreter resolves it at eval time.
                         parts.append(a)
                     else:
                         # Literal IR value from an ESC token (plain or

@@ -26,6 +26,7 @@ from ....ir import (
     IRExprEval,
     IRIncr,
 )
+from ._statements import _escape_dquote
 from .._encoding import (
     _leb128_signed,
 )
@@ -754,10 +755,29 @@ class _WasmEmitterOptMixin(_Base):
                     # ``{*}`` expansion in tail position — reconstruct
                     # command text with ``{*}`` prefixes for eval.
                     ew = last_tokens.expand_word
-                    parts = [
-                        (f"{{*}}{t}" if (i < len(ew) and ew[i]) else t)
-                        for i, t in enumerate(last_tokens.argv_texts)
-                    ]
+                    single_word = (
+                        last_tokens.single_token_word
+                        if last_tokens.single_token_word is not None
+                        else ()
+                    )
+                    argv = last_tokens.argv if last_tokens.argv is not None else ()
+                    from .....parsing.tokens import TokenType
+
+                    parts: list[str] = []
+                    for i, t in enumerate(last_tokens.argv_texts):
+                        prefix = "{*}" if (i < len(ew) and ew[i]) else ""
+                        if (
+                            i < len(argv)
+                            and argv[i] is not None
+                            and argv[i].type is TokenType.STR
+                        ):
+                            t = "{" + t + "}"
+                        elif i < len(single_word) and not single_word[i] and t:
+                            # Multi-token concatenation (``"$body (suffix)"``,
+                            # ``foo$bar``) — re-wrap in ``"…"`` so the
+                            # interpreter sees a single word at eval time.
+                            t = '"' + _escape_dquote(t) + '"'
+                        parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(last.command, last.args, script_override=script)
                     if self._optimise:
@@ -822,7 +842,54 @@ class _WasmEmitterOptMixin(_Base):
                     # ``if`` barriers at non-tail positions where the
                     # codegen-side trap is safe).
                     if barrier_cmd:
-                        self._emit_eval_fallback(barrier_cmd, barrier_args)
+                        # Use the barrier's own tokens so multi-token
+                        # words (``"$body (suffix)"``) and ``{*}``
+                        # expansion get the same quoting treatment as
+                        # an IRCall — without this the runtime sees
+                        # ``::tcltest::test x ${body} (suffix) {*}args``
+                        # with the embedded space splitting the
+                        # description into multiple words.  See the
+                        # mirror logic in :mod:`_statements`.
+                        last_tokens_b = last.tokens
+                        if (
+                            last_tokens_b is not None
+                            and last_tokens_b.expand_word is not None
+                            and any(last_tokens_b.expand_word)
+                            and last_tokens_b.argv_texts
+                        ):
+                            ew = last_tokens_b.expand_word
+                            single_word = (
+                                last_tokens_b.single_token_word
+                                if last_tokens_b.single_token_word is not None
+                                else ()
+                            )
+                            argv = (
+                                last_tokens_b.argv
+                                if last_tokens_b.argv is not None
+                                else ()
+                            )
+                            from .....parsing.tokens import TokenType
+
+                            parts: list[str] = []
+                            for i, t in enumerate(last_tokens_b.argv_texts):
+                                prefix = "{*}" if (i < len(ew) and ew[i]) else ""
+                                if (
+                                    i < len(argv)
+                                    and argv[i] is not None
+                                    and argv[i].type is TokenType.STR
+                                ):
+                                    t = "{" + t + "}"
+                                elif i < len(single_word) and not single_word[i] and t:
+                                    t = '"' + _escape_dquote(t) + '"'
+                                parts.append(prefix + t)
+                            script = " ".join(parts)
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, script_override=script
+                            )
+                        else:
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, tokens=last_tokens_b
+                            )
                     else:
                         self._emit_eval_fallback(last.reason)
                 if self._optimise:
