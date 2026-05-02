@@ -183,8 +183,9 @@ Trap surface:
 `bad option "}": must be …`,
 `bad option "proc": must be …`.
 
-These hit
-[`tcltest.tcl:1981`](../tmp/tcl9.0.3/library/tcltest/tcltest.tcl)
+These hit `tcltest.tcl:1981` (in the upstream
+``library/tcltest/tcltest.tcl`` source tree fetched on demand to
+``tmp/tcl9.0.3/``)
 inside the test harness's option-validation loop. The option name it
 rejects is *part of the test body* — meaning the WASM runtime parsed
 the test-call words such that a body fragment ended up in the
