@@ -105,8 +105,10 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
         self._emit_script(body)
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
@@ -131,8 +133,10 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
         self._emit_script(body)
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
@@ -259,8 +263,10 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
         self._emit_script(body)
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 

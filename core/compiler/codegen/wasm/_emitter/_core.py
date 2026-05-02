@@ -220,6 +220,15 @@ class _WasmEmitterBase:
         self._loop_depth = 0
         self._ctrl_depth = 0
         self._loop_ctrl_depths: list[int] = []
+        # Snapshot of ``_catch_depth`` at the time each loop entry was
+        # pushed onto ``_loop_ctrl_depths``.  Used by the ``break`` /
+        # ``continue`` codegen to detect loops that sit OUTSIDE an
+        # enclosing ``catch`` — those flow-control words must route
+        # through the runtime so ``catch`` absorbs them as TCL_BREAK /
+        # TCL_CONTINUE return codes rather than ``br`` past
+        # ``catch_leave``.  Loops opened INSIDE the current catch keep
+        # using the structured ``br`` (no catch boundary in the way).
+        self._loop_catch_depths: list[int] = []
 
         # Constant propagation state (for optimised mode)
         self._const_map: dict[str, int] = {}

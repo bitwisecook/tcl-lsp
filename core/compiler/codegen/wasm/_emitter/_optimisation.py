@@ -403,6 +403,7 @@ class _WasmEmitterOptMixin(_Base):
         )  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
 
         # Reserve the step block so ``_emit_loop_body`` stops before it
         # (treating its incoming goto as a "back-edge via step").
@@ -413,6 +414,7 @@ class _WasmEmitterOptMixin(_Base):
         self._emit_loop_body(body_start, header)
 
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
@@ -677,6 +679,7 @@ class _WasmEmitterOptMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
 
         # Mark the foreach header as an active outer loop so that
         # _is_loop_header doesn't treat the header→body back-edge as a
@@ -688,6 +691,7 @@ class _WasmEmitterOptMixin(_Base):
             self._active_loop_headers.discard(header_block)
 
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
