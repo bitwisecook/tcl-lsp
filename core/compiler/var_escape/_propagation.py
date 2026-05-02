@@ -395,7 +395,22 @@ def _handle_upvar(call: IRCall, state: _EscapeState) -> None:
     # Detect the level arg the same way var_scoping does.
     head = args[0]
     is_level_literal = head.lstrip("-").isdigit() or (head.startswith("#") and head[1:].isdigit())
-    if args[0].startswith("$") and not is_level_literal:
+    # Dynamic level detection — anything that isn't a literal integer
+    # or ``#N`` form is potentially dynamic at runtime.  Previously
+    # only ``$var`` was recognised; that missed ``upvar [expr {$n}]
+    # ...`` / ``upvar "#${n}" ...`` / ``upvar [foo] ...`` /
+    # ``upvar $::ns::level ...`` and let those callers stay in
+    # WASM-local-only mirror state, breaking the upvar alias write-
+    # back (Copilot review on PR #325).  Treat any non-literal head
+    # as dynamic so the interprocedural pessimism kicks in.
+    is_dynamic_level = not is_level_literal and (
+        head.startswith("$")
+        or head.startswith("[")
+        or (head.startswith('"') and ("$" in head or "[" in head))
+        or (head.startswith("#") and "$" in head)
+        or (head.startswith("#") and "[" in head)
+    )
+    if is_dynamic_level:
         # Dynamic level — pessimistic.  Also flag the unbounded-upvar
         # source so the interprocedural pass forces callers to spill
         # every local: a dynamic level can resolve to any caller frame

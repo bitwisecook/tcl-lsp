@@ -263,7 +263,21 @@ def _handle_upvar(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
         return
     head = args[0]
     is_level_literal = head.lstrip("-").isdigit() or (head.startswith("#") and head[1:].isdigit())
-    if args[0].startswith("$") and not is_level_literal:
+    # Dynamic level detection — see the matching block in
+    # ``_propagation._handle_upvar`` for the full Copilot-review
+    # rationale.  Any non-literal head shape (``[expr ...]``,
+    # ``"#${n}"``, ``$::ns::level``, …) is potentially dynamic at
+    # runtime; recognising only ``$var`` would let those callsites
+    # bypass the pessimism and leave WASM-local mirrors stale
+    # after an alias write.
+    is_dynamic_level = not is_level_literal and (
+        head.startswith("$")
+        or head.startswith("[")
+        or (head.startswith('"') and ("$" in head or "[" in head))
+        or (head.startswith("#") and "$" in head)
+        or (head.startswith("#") and "[" in head)
+    )
+    if is_dynamic_level:
         # Dynamic level — pessimistic.  Also flag the unbounded-upvar
         # source so the interprocedural pass forces every caller to
         # spill its locals.  See ``_propagation._handle_upvar`` for the
