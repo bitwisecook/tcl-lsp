@@ -270,8 +270,10 @@ class _WasmEmitterExprMixin(_Base):
         new_int_idx = self._shared_imports.get("tcl_obj_new_int")
         new_float_idx = self._shared_imports.get("tcl_obj_new_float")
         new_str_idx = self._shared_imports.get("tcl_obj_new_string")
+        is_integer_literal = False
         try:
             int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)
+            is_integer_literal = True
             # Tcl 9 BigInt literals: ``expr {0x8000000000000000}`` or
             # ``expr {-9223372036854775808}`` (parsed as unary-minus
             # of 2^63) produce values outside signed i64.  Falling
@@ -287,20 +289,32 @@ class _WasmEmitterExprMixin(_Base):
                     self._emit_i64_const(int_val)
                     self._emit_box_int()
                 return
+            # Out-of-i64 integer literal — skip the float fallback
+            # entirely (``float(value)`` truncates ``2^63`` to
+            # ``9.22e18`` and silently loses 11 bits of precision)
+            # and emit the source bytes as a string TclObj.  The
+            # runtime's ``try_parse_int`` / ``bignum.parse_i128``
+            # path then promotes the value to TYPE_BIGNUM the first
+            # time an arithmetic helper reads it, which is the path
+            # exercised by ``expr-32.{3..9}`` and the
+            # ``Tcl_NewWideIntObj`` round-trip cases.
         except ValueError:
             pass
-        try:
-            float_val = float(value)
-            if new_float_idx is not None:
-                self._emit_f64_const(float_val)
-                self._emit_call(new_float_idx)
-            else:
-                self._emit_i64_const(int(float_val))
-                self._emit_box_int()
-            return
-        except ValueError:
-            pass
-        # String literal: create string TclObj.
+        if not is_integer_literal:
+            try:
+                float_val = float(value)
+                if new_float_idx is not None:
+                    self._emit_f64_const(float_val)
+                    self._emit_call(new_float_idx)
+                else:
+                    self._emit_i64_const(int(float_val))
+                    self._emit_box_int()
+                return
+            except ValueError:
+                pass
+        # String literal (or out-of-i64 integer): create string TclObj
+        # and let the runtime parse it as int / bignum / float on first
+        # access.
         if new_str_idx is not None:
             offset = self._intern_string(value)
             encoded = value.encode("utf-8", errors="surrogatepass")

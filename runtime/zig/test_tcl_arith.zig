@@ -59,11 +59,16 @@ test "tcl_arith_add — float + float = float" {
     try expectFloatClose(arith.tcl_arith_add(floatObj(0.1), floatObj(0.2)), 0.3, 1e-12);
 }
 
-test "tcl_arith_add — int overflow wraps (Tcl int is 64-bit two's-complement)" {
+test "tcl_arith_add — int overflow promotes to bignum (Tcl 9.0 semantics)" {
     const max = std.math.maxInt(i64);
-    // Overflow is silent + two's-complement (the ``+%`` operator);
-    // matches reference Tcl behaviour for 64-bit int expressions.
-    try expectInt(arith.tcl_arith_add(intObj(max), intObj(1)), std.math.minInt(i64));
+    // Reference Tcl 9.0 promotes i64 overflow to libtommath bignum.
+    // Our Stage 1 implementation routes through i128 — the result
+    // obj should report the next-higher value, *not* wrap to
+    // ``i64::MIN`` like a plain ``+%``.  See ``valtypes/tcl_bignum.zig``.
+    const r = arith.tcl_arith_add(intObj(max), intObj(1));
+    try testing.expectEqual(obj.TYPE_BIGNUM, obj.obj_type(r));
+    const big: i128 = @as(i128, max) + 1;
+    try testing.expectEqual(big, obj.obj_get_bignum(r));
 }
 
 // ---- sub ------------------------------------------------------------
@@ -77,9 +82,12 @@ test "tcl_arith_sub — float - int = float" {
     try expectFloatClose(arith.tcl_arith_sub(floatObj(2.5), intObj(1)), 1.5, 1e-12);
 }
 
-test "tcl_arith_sub — wraps on underflow" {
+test "tcl_arith_sub — underflow promotes to bignum" {
     const min = std.math.minInt(i64);
-    try expectInt(arith.tcl_arith_sub(intObj(min), intObj(1)), std.math.maxInt(i64));
+    const r = arith.tcl_arith_sub(intObj(min), intObj(1));
+    try testing.expectEqual(obj.TYPE_BIGNUM, obj.obj_type(r));
+    const big: i128 = @as(i128, min) - 1;
+    try testing.expectEqual(big, obj.obj_get_bignum(r));
 }
 
 // ---- mul ------------------------------------------------------------
@@ -187,4 +195,151 @@ test "tcl_math_fabs" {
     try expectFloatClose(arith.tcl_math_fabs(floatObj(-3.5)), 3.5, 0);
     try expectFloatClose(arith.tcl_math_fabs(floatObj(3.5)), 3.5, 0);
     try expectFloatClose(arith.tcl_math_fabs(intObj(-7)), 7.0, 0);
+}
+
+// ---- bignum promotion -----------------------------------------------
+//
+// Stage 1 (i128) bignum-overflow tests.  See
+// ``valtypes/tcl_bignum.zig`` for the underlying parse / format /
+// arithmetic-with-overflow helpers.  These tests exercise the wiring
+// in ``tcl_arith.zig`` that promotes i64 overflow to TYPE_BIGNUM and
+// renders the result through ``obj_ensure_string`` so ``puts`` / list
+// formatting / tcltest's ``-result`` matcher all observe the correct
+// digits — the regression caught by upstream ``expr-32.{3..9}`` and
+// the "Bug 1585704" cluster (``1 << 63``, ``1 % (1 << 63)`` etc.).
+
+fn bignumObj(value: i128) i32 {
+    return obj.obj_new_bignum(value);
+}
+
+fn expectBignum(o: i32, expected: i128) !void {
+    try testing.expectEqual(obj.TYPE_BIGNUM, obj.obj_type(o));
+    try testing.expectEqual(expected, obj.obj_get_bignum(o));
+}
+
+test "tcl_arith_add — bignum + i64 stays bignum" {
+    const big: i128 = @as(i128, std.math.maxInt(i64)) + 1;
+    const r = arith.tcl_arith_add(bignumObj(big), intObj(1));
+    try expectBignum(r, big + 1);
+}
+
+test "tcl_arith_add — bignum result that fits i64 collapses back to int" {
+    const big: i128 = @as(i128, std.math.maxInt(i64)) + 1;
+    const r = arith.tcl_arith_add(bignumObj(big), intObj(-1));
+    try testing.expectEqual(obj.TYPE_INT, obj.obj_type(r));
+    try expectInt(r, std.math.maxInt(i64));
+}
+
+test "tcl_arith_mul — i64 * i64 promoting to bignum" {
+    // ``2^32 * 2^32`` overflows i64 (would wrap to 0) but fits in
+    // i128.  Reference Tcl 9.0 produces ``18446744073709551616``
+    // through the libtommath path; we produce the same value via
+    // i128 promotion.
+    const a: i64 = @as(i64, 1) << 32;
+    const r = arith.tcl_arith_mul(intObj(a), intObj(a));
+    try expectBignum(r, @as(i128, a) * @as(i128, a));
+}
+
+test "tcl_arith_lshift — 1 << 63 promotes to bignum (Bug 1585704)" {
+    const r = arith.tcl_arith_lshift(intObj(1), intObj(63));
+    try expectBignum(r, @as(i128, 1) << 63);
+}
+
+test "tcl_arith_lshift — 1 << 100 promotes to bignum" {
+    const r = arith.tcl_arith_lshift(intObj(1), intObj(100));
+    try expectBignum(r, @as(i128, 1) << 100);
+}
+
+test "tcl_arith_lshift — 0 << huge stays int 0" {
+    const r = arith.tcl_arith_lshift(intObj(0), intObj(1000));
+    try testing.expectEqual(obj.TYPE_INT, obj.obj_type(r));
+    try expectInt(r, 0);
+}
+
+test "tcl_arith_mod — i % (1 << 63) returns i (expr-32.7-9 regression)" {
+    // ``1 % (1 << 63)`` in Tcl 9.0: shift produces bignum
+    // ``9223372036854775808``, mod returns ``1``.  Pre-bignum we
+    // wrapped the shift and got ``1 % -9223372036854775808 = 1``
+    // by coincidence — but ``0 % (1<<63)`` returned ``0`` only by
+    // luck and ``0 % -(1+(1<<63))`` failed.  Lock the bignum path.
+    const lhs = arith.tcl_arith_lshift(intObj(1), intObj(63));
+    try testing.expectEqual(obj.TYPE_BIGNUM, obj.obj_type(lhs));
+    const r = arith.tcl_arith_mod(intObj(1), lhs);
+    // Result fits in i64 so it collapses back to TYPE_INT.
+    try testing.expectEqual(obj.TYPE_INT, obj.obj_type(r));
+    try expectInt(r, 1);
+}
+
+test "tcl_arith_mod — 0 % (1 << 63) = 0 (expr-32.7)" {
+    const lhs = arith.tcl_arith_lshift(intObj(1), intObj(63));
+    const r = arith.tcl_arith_mod(intObj(0), lhs);
+    try expectInt(r, 0);
+}
+
+test "tcl_arith_neg — -(i64::MIN) promotes to bignum" {
+    const r = arith.tcl_arith_neg(intObj(std.math.minInt(i64)));
+    try expectBignum(r, -@as(i128, std.math.minInt(i64)));
+}
+
+test "tcl_arith_neg — bignum value negates as bignum" {
+    const big: i128 = @as(i128, std.math.maxInt(i64)) + 1;
+    const r = arith.tcl_arith_neg(bignumObj(big));
+    // ``-(maxInt(i64) + 1)`` = ``minInt(i64)`` which fits in i64;
+    // collapses back to TYPE_INT.
+    try testing.expectEqual(obj.TYPE_INT, obj.obj_type(r));
+    try expectInt(r, std.math.minInt(i64));
+}
+
+test "tcl_arith_div — i64::MIN / -1 promotes to bignum" {
+    const r = arith.tcl_arith_div(intObj(std.math.minInt(i64)), intObj(-1));
+    try expectBignum(r, -@as(i128, std.math.minInt(i64)));
+}
+
+test "obj_ensure_string — bignum renders to decimal string" {
+    const big: i128 = @as(i128, 1) << 63;
+    const o = bignumObj(big);
+    const s = obj.obj_ensure_string(o);
+    const sl: [*]const u8 = @ptrFromInt(s.ptr);
+    try testing.expectEqualStrings("9223372036854775808", sl[0..s.len]);
+}
+
+test "obj_ensure_string — caches the rendered buffer (str_ptr persists)" {
+    const big: i128 = @as(i128, 1) << 100;
+    const o = bignumObj(big);
+    const s1 = obj.obj_ensure_string(o);
+    const s2 = obj.obj_ensure_string(o);
+    // Second call should return the same cached buffer pointer
+    // (TYPE_BIGNUM uses the same OBJ_STR_PTR/_LEN/_CAP slots as
+    // TYPE_INT for caching, so re-rendering must not re-allocate).
+    try testing.expectEqual(s1.ptr, s2.ptr);
+    try testing.expectEqual(s1.len, s2.len);
+}
+
+test "obj_get_int on bignum truncates to i64 low bits" {
+    // Pick a value whose i64 truncation is well-defined and
+    // distinct from the full i128 magnitude.  ``(1 << 65) | 0xff`` —
+    // the high bits live above the i64 boundary; the low 64 bits
+    // are ``0xff``.
+    const big: i128 = (@as(i128, 1) << 65) | 0xff;
+    const o = bignumObj(big);
+    try expectInt(o, 0xff);
+}
+
+test "obj_get_float on bignum converts (with the usual precision loss)" {
+    const big: i128 = @as(i128, 1) << 63;
+    const o = bignumObj(big);
+    const f = obj.obj_get_float(o);
+    try expectFloatClose(o, @as(f64, @floatFromInt(big)), 1.0);
+    _ = f;
+}
+
+test "is_bignum — string literal exceeding i64 range parses as bignum" {
+    // Operand is a TYPE_STRING whose digits exceed i64 — the
+    // arithmetic helper must promote via the i128 path even when
+    // neither operand was already TYPE_BIGNUM.  Mirrors how a
+    // literal in a Tcl source ``expr 9223372036854775808 + 1``
+    // arrives at the runtime as a string.
+    const big = "9223372036854775808";
+    const r = arith.tcl_arith_add(stringObj(big), intObj(1));
+    try expectBignum(r, @as(i128, std.math.maxInt(i64)) + 2);
 }

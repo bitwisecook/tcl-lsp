@@ -158,6 +158,21 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     # ``tcl_arith_neg`` keeps the float tag through
                     # ``~(-$x)`` chains.
                     needed.add("tcl_arith_neg")
+                if uop == UnaryOp.NEG:
+                    # Without this the obj-context emitter for
+                    # ``-LITERAL`` falls back to the inline ``0 - x``
+                    # i64 path, which can't represent literals beyond
+                    # the i64 boundary (the ``i64.const`` saturates).
+                    # ``tcl_arith_neg`` is the bignum-aware path
+                    # (i128 promotion via ``valtypes/tcl_bignum.zig``)
+                    # — register it whenever a unary NEG appears in
+                    # an expression so e.g. ``expr {-9223372036854775808}``
+                    # round-trips precisely instead of truncating to
+                    # ``-9223372036854775807``.
+                    needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_obj_new_string")
                 _walk(operand)
             case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _walk(cond)

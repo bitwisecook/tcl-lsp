@@ -20,11 +20,13 @@
 
 const std = @import("std");
 const obj = @import("tcl_obj.zig");
+const bignum = @import("tcl_bignum.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
 const TYPE_INT = obj.TYPE_INT;
 const TYPE_FLOAT = obj.TYPE_FLOAT;
 const TYPE_STRING = obj.TYPE_STRING;
+const TYPE_BIGNUM = obj.TYPE_BIGNUM;
 
 fn is_float(o: i32) bool {
     if (o == 0) return false;
@@ -42,22 +44,84 @@ fn is_float(o: i32) bool {
     return false;
 }
 
+/// True iff the operand is already represented as a bignum (TYPE_BIGNUM)
+/// or a string literal that exceeds the i64 range and so demands i128
+/// arithmetic to compute correctly.  Used by the arithmetic helpers to
+/// decide between the fast i64-with-wrap path and the i128 promotion
+/// path.
+fn is_bignum(o: i32) bool {
+    if (o == 0) return false;
+    const tag = obj.obj_type(o);
+    if (tag == TYPE_BIGNUM) return true;
+    if (tag == TYPE_STRING) {
+        // Avoid the i128 parse on every operand by first probing the
+        // i64 parser; only literals that *don't* fit in i64 need the
+        // bignum path.
+        const s = obj.obj_ensure_string(o);
+        if (s.len == 0) return false;
+        if (obj.try_parse_int(s.ptr, s.len) != null) return false;
+        return bignum.parse_i128(s.ptr, s.len) != null;
+    }
+    return false;
+}
+
 pub export fn tcl_arith_add(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) + obj.obj_get_float(b));
-    return obj.obj_new_int(obj.obj_get_int(a) +% obj.obj_get_int(b));
+    if (is_bignum(a) or is_bignum(b)) {
+        const r = bignum.add_overflow(obj.obj_get_bignum(a), obj.obj_get_bignum(b)) orelse {
+            // i128 boundary — saturate to wrap rather than trap.
+            // C Tcl 9.0 produces the mathematically correct value via
+            // libtommath; Stage 1 documents this saturation in
+            // ``tcl_bignum.zig`` and leaves Stage 2 to lift the cap.
+            return obj.obj_new_bignum(std.math.maxInt(i128));
+        };
+        return obj.obj_new_bignum(r);
+    }
+    // Detect i64 overflow and promote to bignum so wrap-around
+    // doesn't silently corrupt mathematically meaningful sums.
+    const ai = obj.obj_get_int(a);
+    const bi = obj.obj_get_int(b);
+    const r = @addWithOverflow(ai, bi);
+    if (r[1] == 0) return obj.obj_new_int(r[0]);
+    return obj.obj_new_bignum(@as(i128, ai) + @as(i128, bi));
 }
 
 pub export fn tcl_arith_sub(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) - obj.obj_get_float(b));
-    return obj.obj_new_int(obj.obj_get_int(a) -% obj.obj_get_int(b));
+    if (is_bignum(a) or is_bignum(b)) {
+        const r = bignum.sub_overflow(obj.obj_get_bignum(a), obj.obj_get_bignum(b)) orelse {
+            return obj.obj_new_bignum(std.math.minInt(i128));
+        };
+        return obj.obj_new_bignum(r);
+    }
+    const ai = obj.obj_get_int(a);
+    const bi = obj.obj_get_int(b);
+    const r = @subWithOverflow(ai, bi);
+    if (r[1] == 0) return obj.obj_new_int(r[0]);
+    return obj.obj_new_bignum(@as(i128, ai) - @as(i128, bi));
 }
 
 pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) * obj.obj_get_float(b));
-    return obj.obj_new_int(obj.obj_get_int(a) *% obj.obj_get_int(b));
+    if (is_bignum(a) or is_bignum(b)) {
+        const r = bignum.mul_overflow(obj.obj_get_bignum(a), obj.obj_get_bignum(b)) orelse {
+            // Pick the saturation sign based on operand signs so the
+            // sign of the result is at least directionally correct.
+            const av = obj.obj_get_bignum(a);
+            const bv = obj.obj_get_bignum(b);
+            const negative = (av < 0) != (bv < 0);
+            return obj.obj_new_bignum(if (negative) std.math.minInt(i128) else std.math.maxInt(i128));
+        };
+        return obj.obj_new_bignum(r);
+    }
+    const ai = obj.obj_get_int(a);
+    const bi = obj.obj_get_int(b);
+    const r = @mulWithOverflow(ai, bi);
+    if (r[1] == 0) return obj.obj_new_int(r[0]);
+    return obj.obj_new_bignum(@as(i128, ai) * @as(i128, bi));
 }
 
 pub export fn tcl_arith_div(a: i32, b: i32) i32 {
@@ -69,29 +133,73 @@ pub export fn tcl_arith_div(a: i32, b: i32) i32 {
         }
         return obj.obj_new_float(obj.obj_get_float(a) / bf);
     }
+    if (is_bignum(a) or is_bignum(b)) {
+        const bv = obj.obj_get_bignum(b);
+        if (bv == 0) {
+            stubs.raise("divide by zero");
+            return obj.obj_new_int(0);
+        }
+        const av = obj.obj_get_bignum(a);
+        // ``i128::MIN / -1`` overflows the signed range.  Promote-
+        // saturate at the i128 boundary; mirrors the wrap of i64
+        // ``min/-1`` we already accept for the i64-only case
+        // (matches ``expr-34.13``'s ``int($min / -1) == 2147483648``
+        // pattern at the next size up).
+        if (av == std.math.minInt(i128) and bv == -1) {
+            return obj.obj_new_bignum(std.math.maxInt(i128));
+        }
+        return obj.obj_new_bignum(@divTrunc(av, bv));
+    }
     const bi = obj.obj_get_int(b);
     if (bi == 0) {
         stubs.raise("divide by zero");
         return obj.obj_new_int(0);
     }
-    return obj.obj_new_int(@divTrunc(obj.obj_get_int(a), bi));
+    const ai = obj.obj_get_int(a);
+    if (ai == std.math.minInt(i64) and bi == -1) {
+        return obj.obj_new_bignum(-@as(i128, ai));
+    }
+    return obj.obj_new_int(@divTrunc(ai, bi));
 }
 
 pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
+    // Tcl's ``%`` follows Python-like "result has same sign as
+    // divisor" semantics — see ``tclExecute.c`` INST_MOD which does
+    // ``remainder = w1 % w2;  if (remainder != 0 && (remainder ^ w2) < 0)
+    // remainder += w2;``.  Zig's ``@rem`` truncates toward zero (C's
+    // ``%``), so we need the sign-fixup or ``-1 % (1 << 63)`` returns
+    // ``-1`` instead of the upstream-correct ``9223372036854775807``
+    // (the regression covered by ``expr-32.4`` and ``expr-32.6`` and
+    // the ``Bug 1585704`` cluster).
     if (is_float(a) or is_float(b)) {
         const bf = obj.obj_get_float(b);
         if (bf == 0.0) {
             stubs.raise("divide by zero");
             return obj.obj_new_int(0);
         }
-        return obj.obj_new_float(@rem(obj.obj_get_float(a), bf));
+        var r = @rem(obj.obj_get_float(a), bf);
+        if (r != 0.0 and ((r < 0) != (bf < 0))) r += bf;
+        return obj.obj_new_float(r);
+    }
+    if (is_bignum(a) or is_bignum(b)) {
+        const bv = obj.obj_get_bignum(b);
+        if (bv == 0) {
+            stubs.raise("divide by zero");
+            return obj.obj_new_int(0);
+        }
+        const av = obj.obj_get_bignum(a);
+        var r = @rem(av, bv);
+        if (r != 0 and ((r < 0) != (bv < 0))) r += bv;
+        return obj.obj_new_bignum(r);
     }
     const bi = obj.obj_get_int(b);
     if (bi == 0) {
         stubs.raise("divide by zero");
         return obj.obj_new_int(0);
     }
-    return obj.obj_new_int(@rem(obj.obj_get_int(a), bi));
+    var r = @rem(obj.obj_get_int(a), bi);
+    if (r != 0 and ((r < 0) != (bi < 0))) r += bi;
+    return obj.obj_new_int(r);
 }
 
 /// double(x) — coerce to float.  Used in ``expr {$n / double($d)}``.
@@ -299,23 +407,31 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
         stubs.raise("negative shift argument");
         return obj.obj_new_int(0);
     }
-    const ai = obj.obj_get_int(a);
-    if (bi >= 64) {
-        // Tcl 9 raises ``integer value too large to represent`` for
-        // very large shift counts on non-zero values.  For simplicity
-        // we collapse to 0 for ``a == 0`` (mirrors ``0 << N == 0``)
-        // and rely on i64 wrap semantics for non-zero ``a`` (matches
-        // the previous inline ``i64.shl`` behaviour up to the count
-        // mask).  Tcl-style ``integer too large`` is out of scope.
-        if (ai == 0) return obj.obj_new_int(0);
-        // Use a safe default: shift by (bi & 63) — this matches what
-        // ``i64.shl`` did before.  Avoids a hard error for callers
-        // that previously relied on the implicit mask.
-        const shift: u6 = @intCast(@as(u64, @bitCast(bi)) & 63);
-        return obj.obj_new_int(ai << shift);
+    // Promote to i128 when the operand is already a bignum, when the
+    // shift count alone would overflow i64, or when the shifted value
+    // would step past i64::MAX / under i64::MIN.  This is the path
+    // that turns ``1 << 63`` from the silent two's-complement wrap
+    // ``-9223372036854775808`` into the mathematically correct
+    // bignum ``9223372036854775808`` — the regression covered by
+    // upstream ``expr-32.{3..9}`` and the ``Bug 1585704`` cluster.
+    if (is_bignum(a) or bi >= 63) {
+        const av = obj.obj_get_bignum(a);
+        if (av == 0) return obj.obj_new_int(0);
+        const count: u32 = if (bi >= std.math.maxInt(u32)) std.math.maxInt(u32) else @intCast(bi);
+        const r = bignum.shl_overflow(av, count) orelse {
+            return obj.obj_new_bignum(if (av < 0) std.math.minInt(i128) else std.math.maxInt(i128));
+        };
+        return obj.obj_new_bignum(r);
     }
+    const ai = obj.obj_get_int(a);
+    // For 0 <= bi < 63 the i64 result is well-defined when no
+    // overflow occurs; if it does overflow, promote to i128.
     const shift: u6 = @intCast(bi);
-    return obj.obj_new_int(ai << shift);
+    const widened = @as(i128, ai) << shift;
+    if (widened >= std.math.minInt(i64) and widened <= std.math.maxInt(i64)) {
+        return obj.obj_new_int(@intCast(widened));
+    }
+    return obj.obj_new_bignum(widened);
 }
 
 pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
@@ -367,7 +483,23 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
 /// ``tcl_arith_bnot``) observe the float on the operand chain.  Without
 /// this helper the inline ``0 - x`` i64 path silently truncates to int
 /// and the float check is bypassed (Codex review on PR #287).
+///
+/// Bignum-aware: ``-(1<<127)`` is i128::MIN whose magnitude exceeds
+/// i128::MAX by 1, so the ``i64.MIN`` wrap-trick for ``-i64::MIN`` no
+/// longer suffices once the operand can carry an i128 payload.  We
+/// route through :func:`bignum.sub_overflow(0, av)` and saturate to
+/// i128::MAX on the one boundary case.
 pub export fn tcl_arith_neg(a: i32) i32 {
     if (is_float(a)) return obj.obj_new_float(-obj.obj_get_float(a));
-    return obj.obj_new_int(-%obj.obj_get_int(a));
+    if (is_bignum(a)) {
+        const av = obj.obj_get_bignum(a);
+        const r = bignum.sub_overflow(0, av) orelse return obj.obj_new_bignum(std.math.maxInt(i128));
+        return obj.obj_new_bignum(r);
+    }
+    const ai = obj.obj_get_int(a);
+    if (ai == std.math.minInt(i64)) {
+        // Promote: ``-(-2^63)`` = ``2^63`` doesn't fit in i64.
+        return obj.obj_new_bignum(-@as(i128, ai));
+    }
+    return obj.obj_new_int(-ai);
 }
