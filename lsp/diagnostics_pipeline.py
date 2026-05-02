@@ -201,29 +201,30 @@ def _publish_diagnostics_sync(
     *,
     force_reanalyse: bool = False,
 ) -> None:
+    cfg = _state.config_for_uri(uri)
     state = _state.workspace_state.update(
         uri,
         source,
         version,
         force_reanalyse=force_reanalyse,
-        line_length=_state.feature_config.line_length,
+        line_length=cfg.line_length,
     )
     partial_mode = state.has_partial_commands
 
-    if _state.feature_config.diagnostics_enabled:
+    if cfg.diagnostics_enabled:
         ws_ctx = _build_workspace_diagnostic_context()
         diagnostics = get_diagnostics(
             source,
             analysis=state.analysis,
             cu=state.compilation_unit,
-            optimiser_enabled=_state.feature_config.optimiser_enabled and not partial_mode,
-            shimmer_enabled=_state.feature_config.shimmer_enabled and not partial_mode,
+            optimiser_enabled=cfg.optimiser_enabled and not partial_mode,
+            shimmer_enabled=cfg.shimmer_enabled and not partial_mode,
             taint_enabled=not partial_mode,
-            xc_diagnostics_enabled=_state.feature_config.xc_diagnostics_enabled,
-            disabled_diagnostics=_state.feature_config.disabled_diagnostics,
-            disabled_optimisations=_state.feature_config.disabled_optimisations,
+            xc_diagnostics_enabled=cfg.xc_diagnostics_enabled,
+            disabled_diagnostics=cfg.disabled_diagnostics,
+            disabled_optimisations=cfg.disabled_optimisations,
             uri=uri,
-            line_length=_state.feature_config.line_length,
+            line_length=cfg.line_length,
             workspace_context=ws_ctx,
         )
     else:
@@ -268,10 +269,11 @@ async def _publish_diagnostics(
 
     await asyncio.sleep(0)
 
-    disabled_diagnostics = set(_state.feature_config.disabled_diagnostics)
-    line_length = _state.feature_config.line_length
-    optimiser_enabled = _state.feature_config.optimiser_enabled
-    disabled_optimisations = set(_state.feature_config.disabled_optimisations)
+    cfg = _state.config_for_uri(uri)
+    disabled_diagnostics = set(cfg.disabled_diagnostics)
+    line_length = cfg.line_length
+    optimiser_enabled = cfg.optimiser_enabled
+    disabled_optimisations = set(cfg.disabled_optimisations)
 
     t_update = time.perf_counter()
     did_analyse = needs_analysis or force_reanalyse
@@ -360,7 +362,7 @@ async def _publish_diagnostics(
         except Exception:
             pass
 
-    if not _state.feature_config.diagnostics_enabled:
+    if not cfg.diagnostics_enabled:
         basic_diags: list[types.Diagnostic] = []
         analysis_result = None
         suppressed: dict[int, frozenset[str]] = {}
@@ -376,6 +378,7 @@ async def _publish_diagnostics(
         )
 
         ws_ctx = _build_workspace_diagnostic_context()
+        formatter_cfg = _state.formatter_config_for_uri(uri)
 
         def _phase1():
             return get_basic_diagnostics(
@@ -386,7 +389,7 @@ async def _publish_diagnostics(
                 disabled_diagnostics=disabled_diagnostics,
                 disabled_optimisations=disabled_optimisations,
                 line_length=line_length,
-                line_ending=_state.formatter_config.line_ending,
+                line_ending=formatter_cfg.line_ending,
                 cached_style_diagnostics=cached_style,
                 workspace_context=ws_ctx,
                 uri=uri,
@@ -397,7 +400,7 @@ async def _publish_diagnostics(
         phase1_ms = (time.perf_counter() - t_phase1) * 1000
         log.info("[timing] phase1 diagnostics %.0fms (diags=%d)", phase1_ms, len(basic_diags))
 
-    if not _state.feature_config.diagnostics_enabled:
+    if not cfg.diagnostics_enabled:
         _publish_diags_to_client(uri, [], version)
         _update_workspace_index(uri, source, state)
         return
@@ -413,12 +416,12 @@ async def _publish_diagnostics(
     if not did_analyse and state.analysis is None:
         return
 
-    opt_enabled = _state.feature_config.optimiser_enabled and not partial_mode
-    shimmer_enabled = _state.feature_config.shimmer_enabled and not partial_mode
+    opt_enabled = cfg.optimiser_enabled and not partial_mode
+    shimmer_enabled = cfg.shimmer_enabled and not partial_mode
     taint_enabled = not partial_mode
-    xc_enabled = _state.feature_config.xc_diagnostics_enabled
-    disabled_diags = set(_state.feature_config.disabled_diagnostics)
-    disabled_opts = set(_state.feature_config.disabled_optimisations)
+    xc_enabled = cfg.xc_diagnostics_enabled
+    disabled_diags = set(cfg.disabled_diagnostics)
+    disabled_opts = set(cfg.disabled_optimisations)
     cu = state.compilation_unit
 
     cached_deep = state.get_cached_deep_diagnostics()
@@ -435,7 +438,7 @@ async def _publish_diagnostics(
 
     _dialect = active_dialect()
     _pool = _state._get_process_pool()
-    _generic_var_patterns = list(_state.feature_config.generic_variable_patterns)
+    _generic_var_patterns = list(cfg.generic_variable_patterns)
 
     async def _deep_coro() -> list[types.Diagnostic]:
         try:
@@ -621,10 +624,9 @@ def _publish_bigip_diagnostics(
         )
         return
 
-    if _state.feature_config.diagnostics_enabled:
-        diagnostics = get_bigip_diagnostics(
-            config, disabled_codes=_state.feature_config.disabled_diagnostics
-        )
+    cfg = _state.config_for_uri(uri)
+    if cfg.diagnostics_enabled:
+        diagnostics = get_bigip_diagnostics(config, disabled_codes=cfg.disabled_diagnostics)
     else:
         diagnostics = []
 
@@ -664,7 +666,8 @@ def _publish_apl_diagnostics(
         )
         return
 
-    if not _state.feature_config.diagnostics_enabled:
+    cfg = _state.config_for_uri(uri)
+    if not cfg.diagnostics_enabled:
         _server.text_document_publish_diagnostics(  # type: ignore[union-attr]
             types.PublishDiagnosticsParams(uri=uri, diagnostics=[], version=version)
         )
@@ -681,10 +684,7 @@ def _publish_apl_diagnostics(
     raw = validate_iapp_presentation(model, impl_var_refs)
     results: list[types.Diagnostic] = []
     for d in raw:
-        if (
-            _state.feature_config.disabled_diagnostics
-            and d.code in _state.feature_config.disabled_diagnostics
-        ):
+        if cfg.disabled_diagnostics and d.code in cfg.disabled_diagnostics:
             continue
         results.append(
             types.Diagnostic(
