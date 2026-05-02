@@ -25,6 +25,7 @@ from .._ir import (
     WasmOp,
 )
 from .._ownership import Ownership
+from ._statements import _escape_dquote
 
 
 class _WasmEmitterCtrlMixin(_Base):
@@ -104,8 +105,10 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
         self._emit_script(body)
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
@@ -130,8 +133,10 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
         self._emit_script(body)
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
@@ -273,8 +278,10 @@ class _WasmEmitterCtrlMixin(_Base):
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
         self._loop_ctrl_depths.append(self._ctrl_depth)
+        self._loop_catch_depths.append(self._catch_depth)
         self._emit_script(body)
         self._loop_ctrl_depths.pop()
+        self._loop_catch_depths.pop()
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
@@ -519,10 +526,24 @@ class _WasmEmitterCtrlMixin(_Base):
                 ):
                     # {*} expansion — eval fallback leaves result on stack.
                     ew = tokens.expand_word
-                    parts = [
-                        (f"{{*}}{t}" if (i < len(ew) and ew[i]) else t)
-                        for i, t in enumerate(tokens.argv_texts)
-                    ]
+                    single_word = (
+                        tokens.single_token_word if tokens.single_token_word is not None else ()
+                    )
+                    argv = tokens.argv if tokens.argv is not None else ()
+                    from .....parsing.tokens import TokenType
+
+                    parts: list[str] = []
+                    for i, t in enumerate(tokens.argv_texts):
+                        prefix = "{*}" if (i < len(ew) and ew[i]) else ""
+                        if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
+                            t = "{" + t + "}"
+                        elif i < len(single_word) and not single_word[i] and t:
+                            # Multi-token word (``"$body (suffix)"``,
+                            # ``\n[list ...]``, …) — wrap in ``"…"`` so
+                            # it stays a single word at eval time while
+                            # ``$`` / ``[`` substitutions still resolve.
+                            t = '"' + _escape_dquote(t) + '"'
+                        parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(command, args, script_override=script)
                     # result is on stack; no DROP here

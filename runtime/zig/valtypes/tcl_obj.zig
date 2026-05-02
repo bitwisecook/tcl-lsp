@@ -39,6 +39,16 @@ pub const TYPE_STRING: i32 = 0;
 pub const TYPE_INT: i32 = 1;
 pub const TYPE_LIST: i32 = 2;
 pub const TYPE_DICT: i32 = 3;
+// Sentinel written into ``OBJ_TYPE_TAG`` of every freed slab before
+// it joins a per-class free-list.  ``tcl_obj_release`` checks for it
+// before reading ``OBJ_REFCOUNT`` (which now overlays the freelist
+// next-link, not a real refcount), so a stale handle that points at
+// a slab on the freelist becomes a survivable no-op rather than the
+// "decrement the next-link" pattern that corrupted the chain and
+// surfaced as an out-of-bounds memory fault inside ``obj_alloc``.
+// ``obj_alloc`` overwrites the tag with ``TYPE_STRING`` when it
+// reissues the slab, so live objects never collide with the marker.
+pub const TYPE_FREED_POISON: i32 = -559038737; // 0xDEADBEEF
 // TYPE_FLOAT: f64 bits stored in the int_cache field via @bitCast.
 // The str_ptr/str_len fields hold a cached string representation
 // once obj_ensure_string has been called.
@@ -306,6 +316,13 @@ pub export fn tcl_oom_clear() void {
 
 fn free_obj(addr: u32) void {
     if (addr == 0) return;
+    // Poison the type tag so a stale ``tcl_obj_release`` on the
+    // freed slab can detect the use-after-free and skip the
+    // decrement-and-write that would otherwise corrupt the freelist
+    // next-link.  ``obj_alloc`` writes ``TYPE_STRING`` over the
+    // poison when the slab is reissued, so the marker only lives
+    // for the slab's freelist sojourn.
+    write_i32(addr + OBJ_TYPE_TAG, TYPE_FREED_POISON);
     // S6.1: TclObj headers are size class 32 (OBJ_SIZE = 32) so
     // try the recycler first.
     if (try_recycle(addr, OBJ_SIZE)) return;
@@ -665,7 +682,21 @@ pub export fn tcl_obj_retain(obj: i32) void {
     // S6.4 — tagged immediates have no refcount header (immortal).
     if (is_immediate(obj)) return;
     const addr: u32 = @bitCast(obj);
+    // Use-after-free guard: same poison + sanity checks as
+    // ``tcl_obj_release``.  Retaining a slab that's currently on a
+    // per-class free-list would write ``previous_head + 1`` to the
+    // slab's first word, corrupting the next-link.  See the
+    // discussion on ``tcl_obj_release`` above.
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_FREED_POISON) {
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     const rc = read_i32(addr + OBJ_REFCOUNT);
+    if (rc < 0 or rc > (1 << 20)) {
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     // PR #237 second-pass review: refuse to retain a deferred-free-
     // queued obj (rc == 0 marker).  Without this guard, the sequence
     //
@@ -772,12 +803,41 @@ pub export fn tcl_obj_release(obj: i32) void {
     // to free; release is a no-op.
     if (is_immediate(obj)) return;
     const addr: u32 = @bitCast(obj);
+    // Use-after-free guard #1: poison check.  ``free_obj`` writes
+    // ``TYPE_FREED_POISON`` into the slab's type tag before recycling
+    // it.  ``obj_alloc`` writes ``TYPE_STRING`` over the marker when
+    // the slab is reissued, so the marker is only present while the
+    // slab sits on a free-list awaiting a new tenant.  A stale handle
+    // that observes the marker is releasing a slab that no longer
+    // backs any logical TclObj — skip the decrement-and-write so
+    // the freelist next-link (overlapping ``OBJ_REFCOUNT``) stays
+    // intact.
+    const tag = read_i32(addr + OBJ_TYPE_TAG);
+    if (tag == TYPE_FREED_POISON) {
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
     const rc = read_i32(addr + OBJ_REFCOUNT);
     if (rc == 0) {
         // Already on the deferred-free queue (rc==0 marker) or
         // freed.  Any further release is the over-release pattern
         // S2's failed attempt hit; record it so leakcheck builds
         // surface it.  Production builds compile this branch out.
+        if (build_options.leak_check) g_double_free_count += 1;
+        return;
+    }
+    // Use-after-free guard #2: refcount sanity check.  A live obj's
+    // refcount tops out at a few dozen in real workloads.  An
+    // implausibly large value means we're reading a freelist
+    // next-link (or other heap address) out of a freed slab's first
+    // word — typically when a stale handle survives across a free.
+    // Skip the decrement so the freelist chain stays intact instead
+    // of accumulating a "head - 1" corruption that traps later in
+    // ``alloc``.  Belt-and-braces with the poison check above; one
+    // catches the slab-on-freelist case, the other catches an
+    // already-libc-freed slab whose first word happens to hold any
+    // garbage.
+    if (rc < 0 or rc > (1 << 20)) {
         if (build_options.leak_check) g_double_free_count += 1;
         return;
     }
@@ -891,6 +951,37 @@ pub fn obj_new_string_copy(src: u32, len: u32) i32 {
     if (obj != 0) {
         write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
     }
+    return obj;
+}
+
+/// Wrap an already-``alloc``-ed buffer in a fresh string TclObj that
+/// *owns* the buffer — ``release_now`` will hand the slab back via
+/// ``free_sized`` instead of leaking it.  The plain ``obj_new_string``
+/// stores ``cap = 0`` (the borrowing variant for buffers that live in
+/// the wasm data segment or in another obj's storage); callers that
+/// allocated a fresh ``buf`` and want the obj to claim ownership must
+/// go through this helper or set ``OBJ_STR_CAP`` themselves.
+///
+/// ``alloc_size`` is the original argument passed to ``alloc``; the
+/// stored cap is rounded symmetrically with ``alloc``'s own rounding so
+/// ``free_sized`` recycles the slab to the right free-list.
+pub fn obj_new_string_take(buf: u32, len: u32, alloc_size: u32) i32 {
+    // Compute the symmetric size class up-front so the OOM cleanup
+    // path can hand ``buf`` back to ``free_sized`` with the same
+    // class the caller's ``alloc`` requested.  Without this the
+    // OOM exit (obj header alloc fails after we already own
+    // ``buf``) would leak the caller-provided buffer — defeating
+    // the whole point of the take-ownership helper (Copilot review
+    // on PR #322).
+    const aligned = (alloc_size + 7) & ~@as(u32, 7);
+    const cap = if (aligned <= 2048) round_up_to_class(aligned) else aligned;
+    const obj = obj_new_string(@bitCast(buf), @bitCast(len));
+    if (obj == 0) {
+        if (buf != 0 and alloc_size != 0) free_sized(buf, cap);
+        return 0;
+    }
+    if (buf == 0 or alloc_size == 0) return obj;
+    write_i32(@as(u32, @bitCast(obj)) + OBJ_STR_CAP, @bitCast(cap));
     return obj;
 }
 

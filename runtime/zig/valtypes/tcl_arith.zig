@@ -258,7 +258,13 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    // Issue #317: ``obj_new_string_take`` so the error TclObj owns
+    // the message buffer; the older ``obj_new_string`` left
+    // ``OBJ_STR_CAP = 0`` and the buf was leaked on release inside
+    // a ``catch``.  Outside of ``catch`` ``tcl_cmd_error`` traps
+    // the process so the leak doesn't accumulate, but io.test
+    // exercises the catched path heavily through tcltest.
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
     @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
 }
 
@@ -299,7 +305,13 @@ fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
         buf[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    // Issue #317: ``obj_new_string_take`` so the error TclObj owns
+    // the message buffer; the older ``obj_new_string`` left
+    // ``OBJ_STR_CAP = 0`` and the buf was leaked on release inside
+    // a ``catch``.  Outside of ``catch`` ``tcl_cmd_error`` traps
+    // the process so the leak doesn't accumulate, but io.test
+    // exercises the catched path heavily through tcltest.
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
     @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
 }
 

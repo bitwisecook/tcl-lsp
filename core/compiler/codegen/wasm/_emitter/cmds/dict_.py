@@ -166,15 +166,16 @@ def _emit_dict(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         elif sri.results:
             emitter._emit(WasmOp.DROP)
     else:
-        # Subcommand has no specialised compile-time path or runtime
-        # import (e.g. ``dict append``, ``dict for``, ``dict merge``
-        # — handled by the interpreter's ``dict eval`` switch in
-        # ``runtime/zig/cmds/dict.zig``).  Route through the generic
-        # eval-fallback so the runtime gets a chance to dispatch
-        # rather than hard-trapping with ``unsupported in WASM``.
-        # The runtime emits ``bad subcommand`` if it doesn't handle
-        # the subcommand either, so genuinely unknown forms still
-        # surface a real error.
+        # Unknown / not-yet-imported subcommand — delegate to the
+        # interpreter.  ``cmds/dict.zig::eval`` knows how to evaluate
+        # ``append``, ``lappend``, ``incr``, ``info``, ``for``, ``map``,
+        # ``merge``, ``remove``, ``replace``, ``with``, ``filter``;
+        # genuinely unknown subcommands raise ``bad subcommand`` from
+        # the dispatcher, matching the reference Tcl behaviour and
+        # remaining catchable.  This avoids the hard ``UNREACHABLE``
+        # trap that previously aborted the whole bundle even when the
+        # call sat inside a ``catch`` at runtime (the compile-time
+        # ``_catch_depth`` cannot see runtime catch frames).
         emitter._emit_eval_fallback("dict", args)
         if defs:
             def_idx = emitter._intern_local(defs[0])

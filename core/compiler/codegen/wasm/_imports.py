@@ -293,6 +293,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_catch_result": ("tcl", "catch_result", [], [ValType.I32]),
     "tcl_catch_has_error": ("tcl", "catch_has_error", [], [ValType.I32]),
     "tcl_catch_set_ok_result": ("tcl", "catch_set_ok_result", [ValType.I32], []),
+    # ``return ?value?`` from inside a compile-time ``catch`` body —
+    # sets ``return_flag`` + ``return_val`` in the runtime.  The codegen
+    # emits this instead of ``WasmOp.RETURN`` so ``catch`` absorbs the
+    # unwind as TCL_RETURN rather than the WASM ``return`` jumping past
+    # ``catch_leave`` and exiting the proc with the value.
+    "tcl_return_set": ("tcl", "tcl_return_set", [ValType.I32], []),
     # 3-arg catch options dict.  ``catch BODY result opt`` populates
     # ``$opt`` with a dict carrying ``-code``, ``-level``, ``-errorcode``
     # and ``-errorinfo`` keys; ``dict get $opt -errorcode`` is the
