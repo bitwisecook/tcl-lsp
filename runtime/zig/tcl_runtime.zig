@@ -297,6 +297,7 @@ comptime {
     _ = &tcl_catch.flow_consume_break;
     _ = &tcl_catch.flow_consume_continue;
     _ = &tcl_catch.tcl_cmd_error;
+    _ = &tcl_catch.tcl_return_set;
     _ = &tcl_catch.var_unset_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:
     // <name>`` so the compiled code sees a clear error rather than

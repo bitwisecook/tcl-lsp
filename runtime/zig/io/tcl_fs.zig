@@ -354,6 +354,111 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
     return true;
 }
 
+/// All ``file`` subcommand canonical names.  Used by
+/// :func:`resolve_file_subcmd` to expand abbreviated forms (``file
+/// ext`` → ``file extension``) the way reference Tcl does.  Order
+/// doesn't matter — the resolver checks every name for prefix
+/// equality and returns the canonical one when exactly one matches.
+const FILE_SUBCMDS = [_][]const u8{
+    "atime",     "attributes",  "channels",   "copy",
+    "ctime",     "delete",      "dirname",    "executable",
+    "exists",    "extension",   "isdirectory","isfile",
+    "join",      "link",        "lstat",      "mkdir",
+    "mtime",     "nativename",  "normalize",  "owned",
+    "pathtype",  "readable",    "readlink",   "rename",
+    "rootname",  "separator",   "size",       "split",
+    "stat",      "system",      "tail",       "tempfile",
+    "type",      "volumes",     "writable",
+};
+
+const FileSubcmdResolution = struct {
+    /// Resolved canonical name span (or the original input span when
+    /// no prefix matched).  Always populated; callers that see an
+    /// ``ambiguous`` flag should bail out before reading these.
+    ptr: u32,
+    len: u32,
+    /// Set when more than one canonical name shares the prefix.  The
+    /// caller raised ``ambiguous subcommand`` via :func:`stubs.raise`
+    /// before returning this value, and the dispatcher should
+    /// short-circuit instead of falling through to the
+    /// ``unsupported command`` path.
+    ambiguous: bool,
+};
+
+/// Match *sub* against the ``file`` subcommand list and return the
+/// canonical name (``ext`` → ``extension``, ``ro`` → ``rootname``,
+/// …).  Returns the input unchanged when the name is exact (so the
+/// caller's downstream comparisons match the original spelling) and
+/// the canonical name when a unique prefix matches.  When two or
+/// more canonical names share the prefix (``file c ...`` matches
+/// ``copy`` and ``ctime`` and ``channels``), this raises Tcl's
+/// standard ``ambiguous subcommand`` error and signals via
+/// ``ambiguous = true`` so the caller short-circuits — without that
+/// signal the dispatcher would fall through to ``unsupported
+/// command`` and lose the diagnostic value of the ambiguous-prefix
+/// hint (Copilot review on PR #324).  Mirrors
+/// ``Tcl_GetIndexFromObj``'s abbreviation rules.
+fn resolve_file_subcmd(ptr: u32, len: u32) FileSubcmdResolution {
+    if (len == 0) return .{ .ptr = ptr, .len = len, .ambiguous = false };
+    const inp: [*]const u8 = @ptrFromInt(ptr);
+    var match_idx: i32 = -1;
+    var ambiguous = false;
+    for (FILE_SUBCMDS, 0..) |name, i| {
+        if (name.len < len) continue;
+        // Exact match wins immediately — never ambiguous against itself.
+        if (name.len == len) {
+            var j: u32 = 0;
+            var ok = true;
+            while (j < len) : (j += 1) {
+                if (inp[j] != name[j]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) return .{
+                .ptr = @intCast(@intFromPtr(name.ptr)),
+                .len = @intCast(name.len),
+                .ambiguous = false,
+            };
+        } else {
+            // Prefix candidate: name is longer, the leading bytes match.
+            var j: u32 = 0;
+            var ok = true;
+            while (j < len) : (j += 1) {
+                if (inp[j] != name[j]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                if (match_idx >= 0) {
+                    ambiguous = true;
+                } else {
+                    match_idx = @intCast(i);
+                }
+            }
+        }
+    }
+    if (ambiguous) {
+        // Raise the canonical Tcl error via :mod:`stubs.tcl_stubs` so
+        // a ``catch`` around the call sees a real error instead of the
+        // less-informative ``unsupported command`` fallthrough.
+        stubs.raise("ambiguous subcommand: must use a unique prefix");
+        return .{ .ptr = ptr, .len = len, .ambiguous = true };
+    }
+    if (match_idx < 0) {
+        // No prefix match — let the dispatcher's final
+        // ``unsupported command`` trap fire with the original word.
+        return .{ .ptr = ptr, .len = len, .ambiguous = false };
+    }
+    const canon = FILE_SUBCMDS[@intCast(match_idx)];
+    return .{
+        .ptr = @intCast(@intFromPtr(canon.ptr)),
+        .len = @intCast(canon.len),
+        .ambiguous = false,
+    };
+}
+
 /// ``file <sub> <arg> ?extra?`` — dispatch for subcommand set.
 /// String-only operations (join / dirname / tail / rootname /
 /// extension / normalize / pathtype / split) compute purely on
@@ -377,37 +482,44 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
         stubs.unsupported("file (empty subcommand)");
         return 0;
     }
-    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Resolve unique-prefix abbreviations to the canonical subcommand
+    // name.  Tcl accepts ``file ext`` for ``extension``, ``file ro`` for
+    // ``rootname``, ``file dir`` for ``dirname``, ``file att`` for
+    // ``attributes``, etc., as long as the prefix matches exactly one
+    // subcommand.  cmdAH-9 / cmdAH-10 sweep both forms.
+    const canon = resolve_file_subcmd(s.ptr, s.len);
+    // Ambiguous prefix — :func:`resolve_file_subcmd` already raised
+    // ``ambiguous subcommand``; short-circuit so we don't fall
+    // through to ``unsupported command``.
+    if (canon.ambiguous) return 0;
+    const sp: [*]const u8 = @ptrFromInt(canon.ptr);
+    const sl = canon.len;
 
     // -- String-only path manipulation --
-    if (eq(sp, s.len, "join")) return file_join(arg1, arg2);
-    if (eq(sp, s.len, "dirname")) return file_dirname(arg1);
-    if (eq(sp, s.len, "tail")) return file_tail(arg1);
-    if (eq(sp, s.len, "rootname")) return file_rootname(arg1);
-    if (eq(sp, s.len, "extension")) return file_extension(arg1);
-    if (eq(sp, s.len, "normalize")) return arg1; // pass-through — we have no symlinks to resolve
-    if (eq(sp, s.len, "pathtype")) return obj.obj_new_string_copy(@intFromPtr("absolute".ptr), 8);
-    if (eq(sp, s.len, "separator")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
-    if (eq(sp, s.len, "nativename")) return arg1; // no native names in WASM
-    if (eq(sp, s.len, "split")) return file_split(arg1);
+    if (eq(sp, sl, "join")) return file_join(arg1, arg2);
+    if (eq(sp, sl, "dirname")) return file_dirname(arg1);
+    if (eq(sp, sl, "tail")) return file_tail(arg1);
+    if (eq(sp, sl, "rootname")) return file_rootname(arg1);
+    if (eq(sp, sl, "extension")) return file_extension(arg1);
+    if (eq(sp, sl, "normalize")) return arg1; // pass-through — we have no symlinks to resolve
+    if (eq(sp, sl, "pathtype")) return obj.obj_new_string_copy(@intFromPtr("absolute".ptr), 8);
+    if (eq(sp, sl, "separator")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
+    if (eq(sp, sl, "nativename")) return arg1; // no native names in WASM
+    if (eq(sp, sl, "split")) return file_split(arg1);
 
     // -- Existence / accessibility queries — real access(2) calls.
-    if (eq(sp, s.len, "exists")) return bool_obj(access(path_cstr(arg1), F_OK) == 0);
-    if (eq(sp, s.len, "readable")) return bool_obj(access(path_cstr(arg1), R_OK) == 0);
-    if (eq(sp, s.len, "writable")) return bool_obj(access(path_cstr(arg1), W_OK) == 0);
-    if (eq(sp, s.len, "executable")) return bool_obj(access(path_cstr(arg1), X_OK) == 0);
+    if (eq(sp, sl, "exists")) return bool_obj(access(path_cstr(arg1), F_OK) == 0);
+    if (eq(sp, sl, "readable")) return bool_obj(access(path_cstr(arg1), R_OK) == 0);
+    if (eq(sp, sl, "writable")) return bool_obj(access(path_cstr(arg1), W_OK) == 0);
+    if (eq(sp, sl, "executable")) return bool_obj(access(path_cstr(arg1), X_OK) == 0);
 
     // -- Type queries — stat + S_IF* bit check.
-    if (eq(sp, s.len, "isfile")) {
+    if (eq(sp, sl, "isfile")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(0);
         return bool_obj((stat_mode(st) & S_IFMT) == S_IFREG);
     }
-    // ``isdir`` is the unique-prefix shorthand Tcl accepts for
-    // ``isdirectory``; tcltest's ``AcceptDirectory`` uses that
-    // shorter form.  Matching both literal spellings is cheaper
-    // than a generic prefix matcher and covers every caller.
-    if (eq(sp, s.len, "isdirectory") or eq(sp, s.len, "isdir")) {
+    if (eq(sp, sl, "isdirectory")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(0);
         return bool_obj((stat_mode(st) & S_IFMT) == S_IFDIR);
@@ -415,61 +527,61 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     // ``file owned`` — always false under WASI (no meaningful
     // user identity); keep the old 0 return rather than faking a
     // match.
-    if (eq(sp, s.len, "owned")) return obj.obj_new_int(0);
+    if (eq(sp, sl, "owned")) return obj.obj_new_int(0);
 
     // -- Size / time queries — stat-derived.  Return -1 (matches
     //    Tcl's typical "unavailable" signal; tclsh would error,
     //    but -1 lets scripts test for non-positive).
-    if (eq(sp, s.len, "size")) {
+    if (eq(sp, sl, "size")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_size(st));
     }
-    if (eq(sp, s.len, "mtime")) {
+    if (eq(sp, sl, "mtime")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_mtim_sec(st));
     }
-    if (eq(sp, s.len, "atime")) {
+    if (eq(sp, sl, "atime")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_atim_sec(st));
     }
-    if (eq(sp, s.len, "ctime")) {
+    if (eq(sp, sl, "ctime")) {
         const st = stat_path(arg1);
         if (st == 0) return obj.obj_new_int(-1);
         return obj.obj_new_int(stat_ctim_sec(st));
     }
 
     // -- Channel inquiry --
-    if (eq(sp, s.len, "channels")) return obj.obj_new_string_copy(@intFromPtr("stdin stdout stderr".ptr), 19);
-    if (eq(sp, s.len, "volumes")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
+    if (eq(sp, sl, "channels")) return obj.obj_new_string_copy(@intFromPtr("stdin stdout stderr".ptr), 19);
+    if (eq(sp, sl, "volumes")) return obj.obj_new_string_copy(@intFromPtr("/".ptr), 1);
 
     // -- Mutating operations backed by wasi-libc --
-    if (eq(sp, s.len, "mkdir")) return file_mkdir(arg1);
-    if (eq(sp, s.len, "delete")) return file_delete(arg1, arg2);
-    if (eq(sp, s.len, "rename")) return file_rename(arg1, arg2);
-    if (eq(sp, s.len, "copy")) return file_copy(arg1, arg2);
-    if (eq(sp, s.len, "type")) return file_type(arg1);
-    if (eq(sp, s.len, "stat")) return file_stat_cmd(arg1, arg2, false);
-    if (eq(sp, s.len, "lstat")) return file_stat_cmd(arg1, arg2, true);
-    if (eq(sp, s.len, "readlink")) return file_readlink(arg1);
-    if (eq(sp, s.len, "link")) return file_link(arg1, arg2);
+    if (eq(sp, sl, "mkdir")) return file_mkdir(arg1);
+    if (eq(sp, sl, "delete")) return file_delete(arg1, arg2);
+    if (eq(sp, sl, "rename")) return file_rename(arg1, arg2);
+    if (eq(sp, sl, "copy")) return file_copy(arg1, arg2);
+    if (eq(sp, sl, "type")) return file_type(arg1);
+    if (eq(sp, sl, "stat")) return file_stat_cmd(arg1, arg2, false);
+    if (eq(sp, sl, "lstat")) return file_stat_cmd(arg1, arg2, true);
+    if (eq(sp, sl, "readlink")) return file_readlink(arg1);
+    if (eq(sp, sl, "link")) return file_link(arg1, arg2);
     // ``file system`` returns the VFS that backs the path.  We
     // only have a single WASI-preopen filesystem; report ``native``
     // with an empty per-volume type, matching what tclsh reports
     // on POSIX.  The second element (``/``) is the mount point.
-    if (eq(sp, s.len, "system")) return obj.obj_new_string_copy(@intFromPtr("native".ptr), 6);
+    if (eq(sp, sl, "system")) return obj.obj_new_string_copy(@intFromPtr("native".ptr), 6);
 
     // -- Mutating operations — trap so scripts can't silently miss
     //    work.  ``attributes`` queries/sets Unix-style owner/group/
     //    permissions which WASI doesn't expose meaningfully; ``tempfile``
     //    needs the mkstemp family that wasi-libc lacks cleanly.  Both
     //    remain trap-as-unsupported until we have a concrete caller.
-    if (eq(sp, s.len, "attributes") or
-        eq(sp, s.len, "tempfile"))
+    if (eq(sp, sl, "attributes") or
+        eq(sp, sl, "tempfile"))
     {
-        const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(s.ptr)))[0..s.len];
+        const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(canon.ptr)))[0..sl];
         stubs.unsupported_sub("file", sub_slice);
         return 0;
     }

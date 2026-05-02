@@ -84,8 +84,221 @@ const subst_flagged = tcl_subst.subst_flagged;
 // Recursive-descent: +, -, *, /, %, ==, !=, <, >, <=, >=, unary -, (), $var, [cmd]
 
 pub fn eval_expr_str(ptr: u32, len: u32) i64 {
+    // Tcl's ``eq`` / ``ne`` / ``in`` / ``ni`` operators take string
+    // operands, not numeric — but the legacy ``expr_*`` chain below is
+    // a pure-numeric evaluator that loses the string form once it
+    // reads an atom.  Pre-scan the expression for a top-level string
+    // operator and dispatch through ``eval_string_expr`` when we see
+    // one; that helper substitutes both sides via ``subst_word`` and
+    // does a real string compare.  Without this dispatch, ``expr
+    // {$token ne {}}`` parses ``$token`` as 0 (string ``"v1"`` is not
+    // a number), then sees the unknown ``ne`` operator, returns 0,
+    // and ``catch {$token ne {}}`` always evaluates false.  See the
+    // ``::tcltest::SubstArguments`` smoke trace in the cmdAH triage
+    // for a worked example.
+    if (find_top_string_op(ptr, len)) |op| {
+        return eval_string_expr(ptr, len, op);
+    }
     var pos: u32 = 0;
     return expr_or(ptr, len, &pos, false);
+}
+
+/// One of the four Tcl string-comparison / list-membership operators
+/// in ``expr``.  The kind is enough to dispatch the comparison; the
+/// position lets the caller split the expression text into LHS / RHS
+/// substrings.
+const StringOp = struct {
+    kind: enum { eq, ne, in_, ni },
+    /// First byte of the operator keyword in the expression text.
+    start: u32,
+    /// Byte length of the keyword (2 for all four operators).
+    op_len: u32,
+};
+
+/// Walk *ptr*[0..*len*] looking for a top-level ``eq`` / ``ne`` / ``in``
+/// / ``ni`` operator.  Skips over ``"..."``, ``{...}``, ``[...]``,
+/// ``(...)`` so nested constructs don't trip the match, and bails out
+/// at the first higher- or equal-precedence boolean / ternary operator
+/// (``&&``, ``||``, ``?``, ``:``) so chained expressions like
+/// ``expr {$a eq $b && $c}`` or ``expr {$a eq $b ? 1 : 0}`` are
+/// recognised as numeric expressions and dispatched through the
+/// regular ``expr_or`` pipeline (which itself recurses back into
+/// ``eval_expr_str`` for each side, picking up the string-op fix
+/// where it actually applies).
+fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
+    if (len < 4) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        const c = src[i];
+        // Skip nested constructs so an inner ``eq`` doesn't get picked.
+        if (c == '"') {
+            i += 1;
+            while (i < len and src[i] != '"') {
+                if (src[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            continue;
+        }
+        if (c == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 1;
+                    continue;
+                }
+                if (src[i] == '{') depth += 1 else if (src[i] == '}') depth -= 1;
+            }
+            // ``i`` now points one past the closing brace; the loop
+            // ``i += 1`` will advance once more, so step back.
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (c == '[') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (c == '(') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '(') depth += 1 else if (src[i] == ')') depth -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        // Bail out at higher- or equal-precedence boolean / ternary
+        // operators so the string-op shortcut only fires for atom-
+        // level ``$a eq $b`` shapes.  Inside a ``&&`` or ``?:``
+        // expression the regular numeric ``expr_or`` chain handles
+        // each operand and recurses back here for each subexpression.
+        if (i + 1 < len and src[i] == '&' and src[i + 1] == '&') return null;
+        if (i + 1 < len and src[i] == '|' and src[i + 1] == '|') return null;
+        if (c == '?' or c == ':') return null;
+        // String operator must be surrounded by whitespace on both
+        // sides — otherwise a variable name like ``$equal`` would
+        // self-match its ``eq`` substring.  Two-char keyword + at
+        // least one trailing byte (the RHS start).
+        if (c != ' ' and c != '\t') continue;
+        if (i + 3 >= len) break;
+        const ch1 = src[i + 1];
+        const ch2 = src[i + 2];
+        const ch3 = src[i + 3];
+        if (ch3 != ' ' and ch3 != '\t') continue;
+        if (ch1 == 'e' and ch2 == 'q') {
+            return .{ .kind = .eq, .start = i + 1, .op_len = 2 };
+        }
+        if (ch1 == 'n' and ch2 == 'e') {
+            return .{ .kind = .ne, .start = i + 1, .op_len = 2 };
+        }
+        if (ch1 == 'i' and ch2 == 'n') {
+            return .{ .kind = .in_, .start = i + 1, .op_len = 2 };
+        }
+        if (ch1 == 'n' and ch2 == 'i') {
+            return .{ .kind = .ni, .start = i + 1, .op_len = 2 };
+        }
+    }
+    return null;
+}
+
+/// Evaluate a ``$LHS op $RHS`` expression where *op* is one of the
+/// four string-domain operators.  Substitutes each side via
+/// ``subst_word`` (so ``$var`` and ``[cmd]`` resolve to their string
+/// values), then compares.  ``in`` / ``ni`` treat the RHS as a Tcl
+/// list and check membership.
+fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    // Trim surrounding whitespace from each side.
+    var lhs_start: u32 = 0;
+    var lhs_end: u32 = op.start;
+    while (lhs_start < lhs_end and (src[lhs_start] == ' ' or src[lhs_start] == '\t')) lhs_start += 1;
+    while (lhs_end > lhs_start and (src[lhs_end - 1] == ' ' or src[lhs_end - 1] == '\t')) lhs_end -= 1;
+    var rhs_start: u32 = op.start + op.op_len;
+    var rhs_end: u32 = len;
+    while (rhs_start < rhs_end and (src[rhs_start] == ' ' or src[rhs_start] == '\t')) rhs_start += 1;
+    while (rhs_end > rhs_start and (src[rhs_end - 1] == ' ' or src[rhs_end - 1] == '\t')) rhs_end -= 1;
+    // ``subst_word`` resolves ``$var`` / ``[cmd]`` / backslash escapes
+    // but doesn't strip outer ``{...}`` braces — those are a syntactic
+    // hint that the contents are literal.  Strip them on each side
+    // before subst so ``{}`` evaluates to the empty string and
+    // ``{abc}`` evaluates to ``abc``.  Without the strip,
+    // ``$token ne {}`` compared the (substituted) ``$token`` against
+    // the literal two-char string ``{}`` and never matched the empty
+    // string for which it stands.
+    var ls = lhs_start;
+    var le = lhs_end;
+    var rs = rhs_start;
+    var re = rhs_end;
+    if (le >= ls + 2 and src[ls] == '{' and src[le - 1] == '}') {
+        ls += 1;
+        le -= 1;
+    }
+    if (re >= rs + 2 and src[rs] == '{' and src[re - 1] == '}') {
+        rs += 1;
+        re -= 1;
+    }
+    const lhs_obj = subst_word(ptr + ls, le - ls);
+    const rhs_obj = subst_word(ptr + rs, re - rs);
+    const lhs_raw = obj_ensure_string(lhs_obj);
+    const rhs_raw = obj_ensure_string(rhs_obj);
+    const lhs_s: StringSpan = .{ .ptr = lhs_raw.ptr, .len = lhs_raw.len };
+    const rhs_s: StringSpan = .{ .ptr = rhs_raw.ptr, .len = rhs_raw.len };
+    var result: i64 = 0;
+    switch (op.kind) {
+        .eq => result = if (string_bytes_equal(lhs_s, rhs_s)) @as(i64, 1) else @as(i64, 0),
+        .ne => result = if (string_bytes_equal(lhs_s, rhs_s)) @as(i64, 0) else @as(i64, 1),
+        .in_ => result = if (list_contains_string(rhs_s, lhs_s)) @as(i64, 1) else @as(i64, 0),
+        .ni => result = if (list_contains_string(rhs_s, lhs_s)) @as(i64, 0) else @as(i64, 1),
+    }
+    obj_mod.tcl_obj_release(lhs_obj);
+    obj_mod.tcl_obj_release(rhs_obj);
+    return result;
+}
+
+const StringSpan = struct { ptr: u32, len: u32 };
+
+fn string_bytes_equal(a: StringSpan, b: StringSpan) bool {
+    if (a.len != b.len) return false;
+    if (a.len == 0) return true;
+    const ap: [*]const u8 = @ptrFromInt(a.ptr);
+    const bp: [*]const u8 = @ptrFromInt(b.ptr);
+    var i: u32 = 0;
+    while (i < a.len) : (i += 1) {
+        if (ap[i] != bp[i]) return false;
+    }
+    return true;
+}
+
+fn list_contains_string(list: StringSpan, needle: StringSpan) bool {
+    const n = rt.list_count_elements(list.ptr, list.len);
+    var idx: i64 = 0;
+    while (idx < n) : (idx += 1) {
+        const elem = rt.list_element_at(list.ptr, list.len, idx);
+        // Decode the element's actual byte content (handle braced
+        // quoting) before comparing.
+        if (elem.braced) {
+            const span: StringSpan = .{ .ptr = list.ptr + elem.start, .len = elem.len };
+            if (string_bytes_equal(span, needle)) return true;
+        } else {
+            // Unbraced: backslash sequences need decoding.  Allocate
+            // a tiny scratch buffer and use ``copy_unbraced_elem``
+            // (the canonical decoder used by ``Tcl_SplitList``).
+            const scratch = obj_mod.alloc(elem.len + 1);
+            if (scratch == 0) return false;
+            const real_len = rt.copy_unbraced_elem(scratch, list.ptr + elem.start, elem.len);
+            const decoded: StringSpan = .{ .ptr = scratch, .len = real_len };
+            const matched = string_bytes_equal(decoded, needle);
+            obj_mod.free_sized(scratch, elem.len + 1);
+            if (matched) return true;
+        }
+    }
+    return false;
 }
 
 /// Short-circuit evaluation: when *skip* is true the expression walks the
@@ -1441,6 +1654,18 @@ pub fn eval_interp(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "issafe") or str_eq(sp, sub.len, "safe")) {
         return interp_impl.eval_interp_issafe(words);
     }
+    // ``interp share interpA channel interpB`` / ``interp transfer
+    // interpA channel interpB`` — channel ownership manipulation
+    // between interpreters.  Our runtime exposes ``stdin`` /
+    // ``stdout`` / ``stderr`` as pre-shared global channels and has no
+    // user-creatable channels (``open`` and ``socket`` traps as
+    // unsupported), so there is no per-interp channel table to update.
+    // Accept the call as a no-op so cmdAH-31's interp-sharing tests
+    // proceed past the inter-test setup steps.  Real behaviour can
+    // land alongside a real channel-isolation table later.
+    if (str_eq(sp, sub.len, "share") or str_eq(sp, sub.len, "transfer")) {
+        return 0;
+    }
     if (!str_eq(sp, sub.len, "alias") and !str_eq(sp, sub.len, "aliases")) {
         // Unrecognised subcommand: raise tclsh's ``bad option "X"``
         // error rather than the stub-dispatch trap.  Matches
@@ -2082,6 +2307,13 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                 }
                 ecount += 1;
             }
+            // Release the source word obj — its bytes have been copied
+            // into independently-owned ``expanded[]`` entries above.
+            // Without this release, every ``{*}$args`` expansion leaked
+            // the source list object, growing the heap monotonically
+            // across long-running tcltest sweeps and exhausting the
+            // 32-byte slab class.
+            obj_mod.tcl_obj_release(word_obj);
         } else {
             if (ecount < MAX_EXPANDED_WORDS) {
                 expanded[ecount] = word_obj;

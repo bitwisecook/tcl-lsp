@@ -72,6 +72,17 @@ def _emit_cmd_return(emitter, args: tuple[str, ...]) -> None:
         return
     if args and args[0].startswith("-"):
         emitter._emit_eval_fallback("return", args)
+        emitter._emit(WasmOp.DROP)
+        return
+    # Inside a compile-time ``catch`` body, route through the runtime
+    # so ``return`` sets ``return_flag`` instead of emitting a WASM
+    # ``return`` that would jump past ``catch_leave``.  ``catch`` is the
+    # universal sink for non-OK return codes — without this, a
+    # ``catch {return foo}`` exits the surrounding proc with ``foo``
+    # instead of returning TCL_RETURN to the catch.
+    if emitter._catch_depth > 0:
+        emitter._emit_eval_fallback("return", args)
+        emitter._emit(WasmOp.DROP)
         return
     if args:
         emitter._emit_value(args[0])
