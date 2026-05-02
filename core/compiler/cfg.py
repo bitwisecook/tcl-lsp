@@ -636,12 +636,17 @@ class _CFGBuilder:
             # target.  When the proc has named params before
             # ``args``, those are not flagged (Lassign's ``list``
             # param is the value, not a var name).
-            tail_start = len(params) - 1 if params and params[-1] == "args" else 0
-            # Skip the first non-args param (Lassign: ``list``) only
-            # when ``args`` is present; otherwise all args are tail.
-            if tail_start == 0 and params:
-                # Defensive — without an ``args`` tail we still treat
-                # everything past the last positional as tail-style.
+            has_args_tail = bool(params) and params[-1] == "args"
+            tail_start = len(params) - 1 if has_args_tail else 0
+            # Without an ``args`` tail we still treat everything past
+            # the last positional as tail-style — but only when the
+            # proc actually has positionals.  For a ``{args}``-only
+            # proc, ``tail_start == 0`` is correct (the first call
+            # arg is part of the variadic tail and IS a potential
+            # upvar target); the previous defensive rewrite to
+            # ``len(params)`` skipped index 0 and missed the only
+            # interesting var (Codex review on PR #325).
+            if tail_start == 0 and params and not has_args_tail:
                 tail_start = len(params)
             for i in range(tail_start, len(args)):
                 arg_name = _normalise_var_name(args[i])
