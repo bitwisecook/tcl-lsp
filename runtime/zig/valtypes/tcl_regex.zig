@@ -317,7 +317,14 @@ pub fn run_match_pub(p_ptr: u32, p_len: u32, s_ptr: u32, s_len: u32, no_case: bo
     const pat_obj = obj_local.obj_new_string(@bitCast(p_ptr), @bitCast(p_len));
     const sub_obj = obj_local.obj_new_string(@bitCast(s_ptr), @bitCast(s_len));
     const flags: c_int = if (no_case) REG_ICASE else 0;
-    return run_match(pat_obj, sub_obj, flags);
+    const matched = run_match(pat_obj, sub_obj, flags);
+    // Both ``obj_new_string`` calls return TclObjs with a +1 hold
+    // that nothing else owns — release them now to avoid leaking
+    // two temporary objects per ``switch -regexp`` arm evaluation
+    // (Copilot review on PR #325).
+    obj_local.tcl_obj_release(pat_obj);
+    obj_local.tcl_obj_release(sub_obj);
+    return matched;
 }
 
 /// ``regexp pattern string`` — 2-arg form.  Returns a TclObj
