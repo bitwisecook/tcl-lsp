@@ -528,7 +528,11 @@ export async function activate(context: ExtensionContext) {
     },
     middleware: {
       workspace: {
-        // Pull path: server requests configuration via workspace/configuration.
+        // Pull path: server requests configuration via workspace/configuration
+        // for each workspace folder (plus an unscoped fallback request).
+        // The default LanguageClient implementation honours scopeUri and
+        // returns the folder's effective settings; we just resolve null
+        // feature toggles to booleans for each item.
         configuration: async (params, token, next) => {
           const result = await next(params, token);
           if (Array.isArray(result)) {
@@ -550,49 +554,13 @@ export async function activate(context: ExtensionContext) {
           }
           return result;
         },
-        // Push path: configurationSection auto-sync sends raw settings
-        // including null defaults that the server's _set_toggle ignores.
-        // We replace the default push with one where feature nulls are
-        // resolved to booleans.  We must send the COMPLETE settings (not
-        // just features) because the server's debounce replaces pending
-        // settings wholesale.
-        didChangeConfiguration: async (_sections, _next) => {
-          if (!client) {
-            return _next(_sections);
-          }
-          // Read the full tclLsp configuration and resolve feature nulls.
-          const allSettings: Record<string, unknown> = {};
-          const cfg = workspace.getConfiguration("tclLsp");
-          // Copy all top-level tclLsp keys.
-          for (const key of [
-            "dialect",
-            "pythonPath",
-            "serverPath",
-            "extraCommands",
-            "libraryPaths",
-            "formatting",
-            "diagnostics",
-            "style",
-            "optimiser",
-            "shimmer",
-            "xcDiagnostics",
-            "runtimeValidation",
-            "ai",
-          ]) {
-            const val = cfg.get(key);
-            if (val !== undefined) allSettings[key] = val;
-          }
-          // Resolve feature toggles.
-          const features = cfg.get<Record<string, unknown>>("features", {});
-          const resolved: Record<string, boolean> = {};
-          for (const [key, val] of Object.entries(features)) {
-            resolved[key] = typeof val === "boolean" ? val : resolveFeatureToggle(key, null);
-          }
-          allSettings.features = resolved;
-          void client.sendNotification("workspace/didChangeConfiguration", {
-            settings: { tclLsp: allSettings },
-          });
-        },
+        // Push path is intentionally NOT overridden.  The default
+        // LanguageClient behaviour sends an empty didChangeConfiguration
+        // notification when settings change, and the server then pulls
+        // per-folder via workspace/configuration — that's what we want for
+        // multi-folder workspaces (issue #230).  A custom push that reads
+        // workspace.getConfiguration("tclLsp") without a scopeUri would
+        // clobber per-folder settings with the workspace-merged value.
       },
     },
   };

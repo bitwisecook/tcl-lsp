@@ -251,6 +251,49 @@ def on_did_rename_files(params: types.RenameFilesParams) -> None:
             )
 
 
+def on_did_change_workspace_folders(params: types.DidChangeWorkspaceFoldersParams) -> None:
+    """Track folder add/remove and re-pull per-folder configuration."""
+    from core.common.user_config import get_all_settings, load_project_config
+    from lsp.settings import _pull_and_apply_configuration, _schedule_apply_merged
+
+    from .workspace.scanner import uri_to_path as _uri_to_path
+
+    event = params.event
+    removed_uris: list[str] = []
+    for folder in getattr(event, "removed", None) or []:
+        folder_uri = getattr(folder, "uri", "")
+        if folder_uri:
+            _state.drop_folder_configs(folder_uri)
+            removed_uris.append(folder_uri)
+
+    for folder in getattr(event, "added", None) or []:
+        folder_uri = getattr(folder, "uri", "")
+        folder_path = _uri_to_path(folder_uri) if folder_uri else None
+        if not folder_uri:
+            continue
+        # Initialise per-folder configs and load .tcl-lsp.ini if present.
+        _state.get_or_init_folder_feature_config(folder_uri)
+        _state.get_or_init_folder_formatter_config(folder_uri)
+        if folder_path:
+            project_settings = get_all_settings(load_project_config(folder_path))
+            _state.project_config_settings_per_folder[folder_uri] = project_settings
+
+    # If the fallback project layer was sourced from a removed folder
+    # (or any folder was removed at all), clear it so files outside every
+    # workspace folder don't see stale project settings.  ``on_initialized``
+    # arbitrarily picks the first folder's ``.tcl-lsp.ini`` as the fallback;
+    # rather than re-pick on every change, drop it back to "none" so the
+    # global user-config layer is the only fallback contributor.
+    if removed_uris:
+        _state.project_config_settings = {}
+
+    # Schedule a merged-settings apply now so per-folder analysis state
+    # reflects the new folder set even if ``_pull_and_apply_configuration``
+    # below fails (e.g. client without ``workspace/configuration`` support).
+    _schedule_apply_merged()
+    _pull_and_apply_configuration()
+
+
 # Registration
 
 
@@ -262,6 +305,9 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.feature(types.TEXT_DOCUMENT_DID_CLOSE)(did_close)
     server_instance.feature(types.SHUTDOWN)(on_shutdown)
     server_instance.feature(types.WORKSPACE_DID_CHANGE_WATCHED_FILES)(did_change_watched_files)
+    server_instance.feature(types.WORKSPACE_DID_CHANGE_WORKSPACE_FOLDERS)(
+        on_did_change_workspace_folders
+    )
     server_instance.feature(types.WORKSPACE_WILL_RENAME_FILES, _RENAME_FILE_OPERATION_OPTIONS)(
         on_will_rename_files
     )
