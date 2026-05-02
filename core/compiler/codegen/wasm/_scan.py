@@ -990,16 +990,6 @@ def _scan_needed_imports(
     # a ``local.get`` returns 0.
     needed.add("tcl_global_get_or_error")
     needed.add("tcl_var_unset_error")
-    # Compiled procs need to detect & propagate signal flags
-    # (``error_flag`` / ``return_flag``) raised by callees and
-    # eval-fallback bodies.  Always include these so the bridge
-    # at every callsite can fire — adding them only when a
-    # specific call is detected misses the case where the signal
-    # is raised by a runtime-dispatched command (e.g. ``puts`` →
-    # I/O error) inside a compiled body.
-    needed.add("tcl_catch_has_error")
-    needed.add("tcl_flow_check_return")
-    needed.add("tcl_flow_take_return")
     # Register each compiled proc by name so the interpreter's
     # host-bridge dispatch can find it when an interpreted caller
     # (a Tcl-source proc body walked by eval_script) invokes a
@@ -1019,6 +1009,17 @@ def _scan_needed_imports(
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")
         needed.add("tcl_frame_get_argv")
+        # Compiled procs need to detect & propagate signal flags
+        # (``error_flag`` / ``return_flag``) raised by callees and
+        # eval-fallback bodies.  Pulled in for any module with procs
+        # since any callee may raise either flag — see the
+        # ``_emit_error_flag_check_and_return`` /
+        # ``_emit_signal_check_and_return`` callsites in
+        # ``_commands.py``.  Pure-arithmetic top-level scripts (no
+        # procs) don't trigger the bridge so they skip these.
+        needed.add("tcl_catch_has_error")
+        needed.add("tcl_flow_check_return")
+        needed.add("tcl_flow_take_return")
         # ``variable X`` / ``global X`` inside a compiled proc emit
         # ``tcl_frame_alias_named`` so an interpreter-side eval inside
         # the body (a ``while``-with-bracket-cond, an explicit ``eval
