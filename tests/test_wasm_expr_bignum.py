@@ -260,3 +260,140 @@ class TestArbitraryPrecision:
             pytest.fail(f"WASM compile/run failed: {err}")
         x = 12345678901234567890123456789012345678901234567890
         assert stdout.rstrip("\n") == str(x * x)
+
+
+# Comparison ops — ``<`` / ``>`` / ``<=`` / ``>=`` / ``==`` / ``!=``
+# with bignum operands.  Stage 2's ``tcl_expr_order_cmp`` falls back
+# to ``Managed.order`` so e.g. ``(1<<200) > (1<<100)`` returns 1
+# rather than the lexicographic-string answer Stage 1 would have
+# given.  These cases also pin the routing of ``==`` / ``!=`` through
+# the bignum-aware path, since the inline ``i64.eq`` truncation made
+# ``(1<<200) == (1<<200)`` equal-by-truncation.
+
+
+class TestBignumComparison:
+    """``<``, ``>``, ``==``, ``!=`` with bignum operands."""
+
+    def test_int_lt_bignum(self) -> None:
+        assert _expr_puts("99 < (1<<70)") == "1"
+
+    def test_bignum_gt_int(self) -> None:
+        assert _expr_puts("(1<<70) > 99") == "1"
+
+    def test_bignum_lt_bignum_smaller_first(self) -> None:
+        assert _expr_puts("(1<<100) < (1<<200)") == "1"
+
+    def test_bignum_eq_bignum_same(self) -> None:
+        assert _expr_puts("(1<<200) == (1<<200)") == "1"
+
+    def test_bignum_ne_bignum_different(self) -> None:
+        assert _expr_puts("(1<<200) != (1<<100)") == "1"
+
+    def test_int_eq_float(self) -> None:
+        # Pre-existing pattern that must keep working — ``1 == 1.0``
+        # still returns true through the bignum-aware path (numeric
+        # float compare is reached when at least one operand is a
+        # float and the other is integer-shaped).
+        assert _expr_puts("1 == 1.0") == "1"
+
+    def test_negative_bignum_cmp(self) -> None:
+        assert _expr_puts("-(1<<200) < 0") == "1"
+
+    def test_bignum_ge_self(self) -> None:
+        assert _expr_puts("(1<<200) >= (1<<200)") == "1"
+
+
+# Bitwise ops with bignum operands.  Stage 2's ``Managed.bitAnd /
+# bitOr / bitXor`` paths preserve precision; Stage 1 truncated each
+# operand to its low 64 bits.
+
+
+class TestBignumBitwise:
+    """Bitwise ops on values exceeding i64."""
+
+    def test_bignum_or_small(self) -> None:
+        assert _expr_puts("(1<<128) | 7") == str((1 << 128) | 7)
+
+    def test_bignum_and_self(self) -> None:
+        assert _expr_puts("(1<<200) & (1<<200)") == str(1 << 200)
+
+    def test_bignum_and_low_mask(self) -> None:
+        # Mask off the high bits — Stage 1 returned 0 because the
+        # low 64 bits of any large power-of-two are zero.  Stage 2
+        # produces the correct ``1<<200 & full-bits-of-2^200`` =
+        # ``1<<200``.
+        assert _expr_puts("(1<<200) & ((1<<201) - 1)") == str(1 << 200)
+
+    def test_bignum_xor(self) -> None:
+        assert _expr_puts("(1<<128) ^ (1<<127)") == str((1 << 128) ^ (1 << 127))
+
+    def test_bignum_bnot(self) -> None:
+        # ``~x`` = ``-x - 1`` in two's complement.
+        assert _expr_puts("~(1<<200)") == str(-(1 << 200) - 1)
+
+    def test_bignum_rshift_recovers_value(self) -> None:
+        # ``(1 << 200) >> 100 == 1 << 100`` — Stage 1 truncated the
+        # bignum operand and returned 0.
+        assert _expr_puts("(1<<200) >> 100") == str(1 << 100)
+
+    def test_bignum_rshift_to_zero(self) -> None:
+        assert _expr_puts("(1<<100) >> 200") == "0"
+
+
+# Power (``**``) — promotes overflow to bignum via ``Managed.pow``
+# instead of the i64 multiply loop the inline emitter used.
+
+
+class TestBignumPower:
+    """``**`` with results exceeding i64 / i128."""
+
+    def test_2_pow_64(self) -> None:
+        assert _expr_puts("2 ** 64") == str(1 << 64)
+
+    def test_3_pow_100(self) -> None:
+        assert _expr_puts("3 ** 100") == str(3 ** 100)
+
+    def test_2_pow_200(self) -> None:
+        assert _expr_puts("2 ** 200") == str(1 << 200)
+
+    def test_neg_one_pow_even(self) -> None:
+        assert _expr_puts("(-1) ** 100") == "1"
+
+    def test_neg_one_pow_odd(self) -> None:
+        assert _expr_puts("(-1) ** 99") == "-1"
+
+    def test_bignum_base_pow_2(self) -> None:
+        # ``(1 << 100) ** 2`` = ``1 << 200``
+        assert _expr_puts("(1 << 100) ** 2") == str(1 << 200)
+
+
+# ``int()`` / ``wide()`` / ``entier()`` — preserve bignum precision
+# on the integer path; for floats truncate toward zero with full
+# precision (``int(1e30)`` = the exact IEEE-754 integer view).
+
+
+class TestBignumIntCoercion:
+    """``int()`` and friends preserve bignum magnitude."""
+
+    def test_int_of_bignum(self) -> None:
+        assert _expr_puts("int(1<<200)") == str(1 << 200)
+
+    def test_wide_of_64bit_hex(self) -> None:
+        # Tcl 9 ``wide(0x8000000000000000)`` is the bignum
+        # ``9223372036854775808`` — fits a wide on 64-bit Tcl, but
+        # the literal value exceeds i64 max so we route through the
+        # bignum path.
+        assert _expr_puts("wide(0x8000000000000000)") == "9223372036854775808"
+
+    def test_int_of_float_within_i128(self) -> None:
+        # ``int(3.7)`` truncates toward zero.
+        assert _expr_puts("int(3.7)") == "3"
+        assert _expr_puts("int(-3.7)") == "-3"
+
+    def test_int_of_huge_float(self) -> None:
+        # Upstream ``expr-old-34.15``: ``round(1.0e30) ==
+        # 1000000000000000019884624838656`` (the exact IEEE-754
+        # double representation truncated to integer).  ``int`` and
+        # ``round`` differ for negative non-integer floats but agree
+        # for ``1e30`` (an integral float).
+        assert _expr_puts("int(1.0e30)") == "1000000000000000019884624838656"

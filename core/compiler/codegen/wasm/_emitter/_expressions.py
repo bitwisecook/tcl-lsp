@@ -115,6 +115,11 @@ class _WasmEmitterExprMixin(_Base):
         BinOp.MUL: "tcl_arith_mul",
         BinOp.DIV: "tcl_arith_div",
         BinOp.MOD: "tcl_arith_mod",
+        # Bignum-aware ``**`` — the inline ``_emit_power`` i64 loop
+        # silently wraps past the i64 boundary; routing through
+        # ``tcl_arith_pow`` promotes the result to TYPE_BIGNUM via
+        # ``Managed.pow`` for arbitrary precision.
+        BinOp.POW: "tcl_arith_pow",
     }
 
     # Maps bitwise / shift BinOp to the runtime helper that enforces the
@@ -738,6 +743,28 @@ class _WasmEmitterExprMixin(_Base):
             self._emit_expr_order_cmp(op, left, right)
             return
 
+        # Numeric ``==`` / ``!=`` route through ``tcl_expr_order_cmp``
+        # so bignum and float-vs-int operands compare correctly.  The
+        # inline ``i64.eq`` path silently truncates a bignum operand
+        # to its low 64 bits — ``expr {(1<<200) == (1<<200)}`` then
+        # compared 0 == 0 and reported equal-by-truncation.  Routing
+        # through the runtime helper picks the right rule (i64 fast
+        # path for both-fit, bignum for any-bignum, float for any-
+        # float, string fallback otherwise).
+        if op in (BinOp.EQ, BinOp.NE) and self._shared_imports.get("tcl_expr_order_cmp") is not None:
+            cmp_idx = self._shared_imports["tcl_expr_order_cmp"]
+            self._emit_str_value(left)
+            self._emit_str_value(right)
+            self._emit_call(cmp_idx)
+            self._emit_unbox_int()  # i64: -1, 0, or 1
+            self._emit_i64_const(0)
+            if op is BinOp.EQ:
+                self._emit(WasmOp.I64_EQ)
+            else:
+                self._emit(WasmOp.I64_NE)
+            self._emit(WasmOp.I64_EXTEND_I32_S)
+            return
+
         # Float-aware arithmetic: delegate to tcl_arith_* runtime helpers
         # which check at runtime whether either operand is a float and
         # produce the correct result (float or int) accordingly.
@@ -960,9 +987,15 @@ class _WasmEmitterExprMixin(_Base):
                         inner = inner[1:-1]
                 self._emit_obj_literal(inner)
                 return
-        # Fallback: evaluate expr to i64 and box
-        self._emit_expr(node)
-        self._emit_box_int()
+        # Fallback: evaluate as TclObj (preserves TYPE_BIGNUM /
+        # TYPE_FLOAT through nested arithmetic).  The previous path
+        # routed through ``_emit_expr`` + ``_emit_box_int``, which
+        # unboxed any bignum result to i64 and re-boxed as TYPE_INT
+        # — silently truncating ``expr {99 < (1<<70)}`` to compare
+        # 99 against ``i64::MAX`` instead of the real ``2^70``.
+        # ``_emit_expr_obj`` keeps the TclObj intact so the receiving
+        # ``tcl_expr_order_cmp`` (or string op) sees the bignum tag.
+        self._emit_expr_obj(node)
 
     def _emit_power(self, base: ExprNode, exp: ExprNode) -> None:
         """Emit integer exponentiation as a loop."""

@@ -64,13 +64,17 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     except Exception:
         return
 
-    _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD})
+    _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW})
     _ARITH_IMPORT = {
         BinOp.ADD: "tcl_arith_add",
         BinOp.SUB: "tcl_arith_sub",
         BinOp.MUL: "tcl_arith_mul",
         BinOp.DIV: "tcl_arith_div",
         BinOp.MOD: "tcl_arith_mod",
+        # ``**`` routes to the bignum-aware runtime helper rather
+        # than the inline i64 loop in ``_emit_power`` (object-context
+        # path only — the i64 path keeps the existing inline loop).
+        BinOp.POW: "tcl_arith_pow",
     }
     # Bitwise / shift — strict integer domain (issues #260, #261).
     _BITWISE_OPS = frozenset(
@@ -114,6 +118,13 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                 if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+                    needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.EQ, BinOp.NE):
+                    # Numeric ``==`` / ``!=`` route through
+                    # ``tcl_expr_order_cmp`` so bignum operands and
+                    # int-vs-float mixed compares pick the right
+                    # rule (the inline ``i64.eq`` truncates bignums
+                    # to their low 64 bits).
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.IN, BinOp.NI):
                     needed.add("tcl_list_contains")

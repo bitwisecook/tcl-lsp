@@ -5,6 +5,7 @@
 // string_is_space, string_trimleft, string_trimright, concat.
 
 const obj = @import("tcl_obj.zig");
+const bignum = @import("tcl_bignum.zig");
 const list_mod = @import("tcl_list.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
@@ -118,7 +119,15 @@ pub export fn string_compare(a: i32, b: i32) i32 {
 // Returns TclObj wrapping -1, 0, or 1.
 // Used for expr's < > <= >= operators (Tcl 9 semantics: numeric when both
 // operands parse as integers, otherwise bytewise string comparison).
+//
+// Bignum-aware: when one or both operands exceed the i64 range, the
+// comparison routes through ``std.math.big.int.Managed.order`` so that
+// e.g. ``expr {99 < (1 << 70)}`` returns 1 rather than the lexicographic
+// ``"99" > "1180591620717411303424"`` answer.  Match the i128-or-bignum
+// promotion discipline the arithmetic helpers use.
 pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
+    // Fast path: both operands fit i64 — preserves the zero-allocation
+    // numeric compare for the common case.
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
     const ai = try_parse_int(sa.ptr, sa.len);
@@ -128,6 +137,44 @@ pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
         const bv = bi.?;
         if (av < bv) return obj_new_int(-1);
         if (av > bv) return obj_new_int(1);
+        return obj_new_int(0);
+    }
+    // Bignum path: if either operand is a TYPE_BIGNUM TclObj, or its
+    // string representation is a valid integer literal too wide for i64,
+    // promote both to ``*BigInt`` and compare via ``Managed.order``.
+    // We promote unconditionally when either side has a non-i64 numeric
+    // form — the fallback to string-compare below still triggers for
+    // genuinely non-numeric operands (lists, named values, …).
+    const a_can_bignum = obj.obj_type(a) == obj.TYPE_BIGNUM or
+        bignum.parse_i128(sa.ptr, sa.len) != null;
+    const b_can_bignum = obj.obj_type(b) == obj.TYPE_BIGNUM or
+        bignum.parse_i128(sb.ptr, sb.len) != null;
+    if (a_can_bignum and b_can_bignum) {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(b);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return obj_new_int(0);
+        return switch (ap.m.?.order(bp.m.?.*)) {
+            .lt => obj_new_int(-1),
+            .eq => obj_new_int(0),
+            .gt => obj_new_int(1),
+        };
+    }
+    // Numeric float compare path: when at least one operand is a
+    // TYPE_FLOAT (or a string like ``"1.5"`` / ``"1e2"``), promote
+    // both to f64 and compare.  Without this branch ``expr {1 ==
+    // 1.0}`` falls through to the bytewise compare below and reports
+    // unequal — Tcl 9 says those should compare equal.
+    const a_can_float = obj.obj_type(a) == obj.TYPE_FLOAT or obj.try_parse_float(sa.ptr, sa.len) != null;
+    const b_can_float = obj.obj_type(b) == obj.TYPE_FLOAT or obj.try_parse_float(sb.ptr, sb.len) != null;
+    if ((a_can_float and (b_can_float or bi != null or a_can_bignum or b_can_bignum)) or
+        (b_can_float and (a_can_float or ai != null or a_can_bignum or b_can_bignum)))
+    {
+        const af = obj.obj_get_float(a);
+        const bf = obj.obj_get_float(b);
+        if (af < bf) return obj_new_int(-1);
+        if (af > bf) return obj_new_int(1);
         return obj_new_int(0);
     }
     // Fall back to bytewise string comparison (Unicode code-point order for

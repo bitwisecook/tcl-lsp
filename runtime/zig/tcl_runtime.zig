@@ -440,6 +440,7 @@ comptime {
     _ = &tcl_arith.tcl_arith_bxor;
     _ = &tcl_arith.tcl_arith_bnot;
     _ = &tcl_arith.tcl_arith_neg;
+    _ = &tcl_arith.tcl_arith_pow;
     _ = &tcl_arith.tcl_math_double;
     _ = &tcl_arith.tcl_math_int;
     _ = &tcl_arith.tcl_math_round;
