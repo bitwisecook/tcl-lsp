@@ -757,6 +757,25 @@ class _WasmEmitterValuesMixin(_Base):
                 self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                 return
 
+        # ``format`` with more than 3 substitution args (or the
+        # ``%-*s`` / ``%.*s`` shapes that consume two args per spec
+        # in opt.test's OptTree) exceeds the fixed-arity
+        # ``tcl_cmd_format`` slot budget; route through the variadic
+        # ``tcl_cmd_format_list`` helper which packs all args into a
+        # Tcl list at runtime.  The same dispatch lives in the
+        # statement-context hook in cmds/format_.py.
+        if cmd_name == "format" and len(cmd_args) > 3:
+            format_list_idx = self._shared_imports.get("tcl_cmd_format_list")
+            list_create_idx = self._shared_imports.get("tcl_list_create")
+            if format_list_idx is not None and list_create_idx is not None:
+                self._emit_value(cmd_args[0])  # fmt
+                self._emit_obj_literal("")  # list seed
+                for a in cmd_args[1:]:
+                    self._emit_value(a)
+                    self._emit_call(list_create_idx)
+                self._emit_call(format_list_idx)
+                return
+
         # Runtime command in value context (llength, lindex, etc.)
         rimp = runtime_import_for(cmd_name)
         if rimp is not None:

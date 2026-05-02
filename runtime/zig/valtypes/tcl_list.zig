@@ -504,8 +504,15 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
     if (l >= n_i64) l = n_i64 - 1;
     if (f > n_i64) f = n_i64;
 
-    const sv_len: u32 = if (value == 0) 0 else obj_ensure_string(value).len;
-    const sv_ptr: u32 = if (value == 0 or sv_len == 0) 0 else obj_ensure_string(value).ptr;
+    // ``value == 0`` is the deletion sentinel; any non-zero handle
+    // — including the empty-string TclObj — represents a real value
+    // that must take the replaced slot, even when its string form
+    // is zero-length.  Reference Tcl: ``lreplace {a b c} 1 1 {}``
+    // returns ``a {} c`` (3 elements with an empty middle), not
+    // ``a c``.  Track ``has_value`` separately from ``sv_len``.
+    const has_value = value != 0;
+    const sv_len: u32 = if (!has_value) 0 else obj_ensure_string(value).len;
+    const sv_ptr: u32 = if (!has_value or sv_len == 0) 0 else obj_ensure_string(value).ptr;
 
     // Over-allocate to fit worst-case brace-wrapping on every
     // preserved element plus the canonically-quoted value.
@@ -517,13 +524,15 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
 
     while (i < n) : (i += 1) {
         if (i == uf) {
-            if (sv_len > 0) {
+            if (has_value) {
                 if (off > 0) {
                     const d: [*]u8 = @ptrFromInt(buf + off);
                     d[0] = ' ';
                     off += 1;
                 }
-                // Quote canonically — see linsert above.
+                // Quote canonically — see linsert above.  Empty
+                // strings encode as ``{}`` so the result lists
+                // round-trip with the right element count.
                 const quoter: *const fn (u32, u32, u32, u32) u32 = if (off == 0) &list_elem_quote else &list_elem_quote_nth;
                 off = quoter(buf, off, sv_ptr, sv_len);
             }
@@ -544,7 +553,7 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
     }
     // If first == n (append) and we never hit the insertion branch
     // above, drop the value at the end instead.
-    if (uf >= n and sv_len > 0) {
+    if (uf >= n and has_value) {
         if (off > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';
