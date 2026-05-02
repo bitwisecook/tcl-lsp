@@ -139,33 +139,44 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
     param_targets: set[str] = set()
     args_tail_upvar = False
 
-    def _uplevel_writes_via_set(text: str) -> bool:
-        """Return True for a script of the form ``[list ::set $X V]`` /
-        ``[list set $X V]`` — Lassign's exact pattern.  A bare
-        ``[list ::set ...]`` is the only shape we recognise; anything
-        more complex (multiple commands, ``::eval``, etc.) is
-        conservatively dropped.
+    def _uplevel_set_target(text: str) -> tuple[str, bool] | None:
+        """Inspect *text* for an uplevel-style ``set X V`` write.
+
+        Returns ``(target, is_dynamic)``:
+
+        * ``target`` is the var name written (literal or
+          ``$param``-stripped name).
+        * ``is_dynamic`` is True for the ``[list ::set $X V]`` shape
+          (Lassign-style — name comes from a caller-supplied param)
+          and False for the literal ``set X V`` shape (uplevel.test
+          ``c1`` -> ``uplevel 1 set x 111`` writes the literal "x").
+
+        Returns None when no recognisable shape matches.
         """
         s = text.strip()
-        if not (s.startswith("[list") or s.startswith("[ list")):
-            # Also accept the bare-command form ``::set $vname value``
-            # which the IR may store after backslash-stripping the
-            # outer ``[list ...]``.
-            words = s.split()
-            return (
-                len(words) >= 3
-                and words[0] in ("::set", "set")
-                and words[1].startswith("$")
-            )
-        # ``[list ::set $X V]`` shape.
-        inner = s[1:-1].strip() if s.endswith("]") else s[1:].strip()
-        words = inner.split()
-        return (
-            len(words) >= 4
-            and words[0] == "list"
-            and words[1] in ("::set", "set")
-            and words[2].startswith("$")
-        )
+        if s.startswith("[list") or s.startswith("[ list"):
+            # ``[list ::set $X V]`` — Lassign shape.
+            inner = s[1:-1].strip() if s.endswith("]") else s[1:].strip()
+            words = inner.split()
+            if (
+                len(words) >= 4
+                and words[0] == "list"
+                and words[1] in ("::set", "set")
+            ):
+                if words[2].startswith("$"):
+                    return (_normalise_var_name(words[2]) or "", True)
+                return (words[2], False)
+            return None
+        # Bare ``set X V`` / ``::set X V`` body — uplevel.test pattern.
+        words = s.split()
+        if (
+            len(words) >= 3
+            and words[0] in ("::set", "set")
+        ):
+            if words[1].startswith("$"):
+                return (_normalise_var_name(words[1]) or "", True)
+            return (words[1], False)
+        return None
 
     def _scan(s: IRScript) -> None:
         nonlocal args_tail_upvar
@@ -214,8 +225,17 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                             if len(body_parts) == 1
                             else " ".join(body_parts)
                         )
-                        if _uplevel_writes_via_set(body):
-                            args_tail_upvar = True
+                        target = _uplevel_set_target(body)
+                        if target is not None:
+                            name, is_dynamic = target
+                            if is_dynamic:
+                                # Lassign shape — every variadic-tail
+                                # call-site arg may be a target.
+                                args_tail_upvar = True
+                            elif name:
+                                # ``uplevel 1 set x 111`` writes
+                                # literal "x" into caller's frame.
+                                literal_targets.add(name)
             elif isinstance(stmt, IRIf):
                 for clause in stmt.clauses:
                     _scan(clause.body)
