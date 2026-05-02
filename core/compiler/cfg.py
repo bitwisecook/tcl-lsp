@@ -158,21 +158,14 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
             # ``[list ::set $X V]`` — Lassign shape.
             inner = s[1:-1].strip() if s.endswith("]") else s[1:].strip()
             words = inner.split()
-            if (
-                len(words) >= 4
-                and words[0] == "list"
-                and words[1] in ("::set", "set")
-            ):
+            if len(words) >= 4 and words[0] == "list" and words[1] in ("::set", "set"):
                 if words[2].startswith("$"):
                     return (_normalise_var_name(words[2]) or "", True)
                 return (words[2], False)
             return None
         # Bare ``set X V`` / ``::set X V`` body — uplevel.test pattern.
         words = s.split()
-        if (
-            len(words) >= 3
-            and words[0] in ("::set", "set")
-        ):
+        if len(words) >= 3 and words[0] in ("::set", "set"):
             if words[1].startswith("$"):
                 return (_normalise_var_name(words[1]) or "", True)
             return (words[1], False)
@@ -205,9 +198,7 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                     else:
                         literal_targets.add(caller_name)
             elif (
-                isinstance(stmt, IRBarrier)
-                and stmt.canonical_command == "::uplevel"
-                and stmt.args
+                isinstance(stmt, IRBarrier) and stmt.canonical_command == "::uplevel" and stmt.args
             ):
                 # uplevel ?level? body — recognise Lassign-style
                 # writers ``uplevel 1 [list ::set $vname value]``.
@@ -220,11 +211,7 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                 if level not in ("#0", "0"):
                     body_parts = a[1:] if is_level else a
                     if body_parts:
-                        body = (
-                            body_parts[-1]
-                            if len(body_parts) == 1
-                            else " ".join(body_parts)
-                        )
+                        body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
                         target = _uplevel_set_target(body)
                         if target is not None:
                             name, is_dynamic = target

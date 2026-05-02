@@ -123,12 +123,14 @@ def run_one(stem: str, *, timeout_s: int) -> dict:
                     rec["stdout_tail"] = stdout[-300:]
                 else:
                     total, passed, skipped, failed = summary
-                    rec.update({
-                        "total": total,
-                        "passed": passed,
-                        "skipped": skipped,
-                        "failed": failed,
-                    })
+                    rec.update(
+                        {
+                            "total": total,
+                            "passed": passed,
+                            "skipped": skipped,
+                            "failed": failed,
+                        }
+                    )
                     rec["first_failing"] = _first_failing(stdout) or ""
                     rec["outcome"] = "pass" if failed == 0 else "fail"
                     if failed > 0:
@@ -157,10 +159,16 @@ def main() -> int:
     p.add_argument("--names", default=None)
     p.add_argument("--timeout", type=int, default=60)
     p.add_argument("--out", default="/tmp/tcltest-sweep-fast.ndjson")
-    p.add_argument("--worker", default=None,
-                   help="Internal: run a single named bundle and print its record to stdout.")
-    p.add_argument("--inproc", action="store_true",
-                   help="Run all bundles in-process (faster, but one stuck test halts the sweep).")
+    p.add_argument(
+        "--worker",
+        default=None,
+        help="Internal: run a single named bundle and print its record to stdout.",
+    )
+    p.add_argument(
+        "--inproc",
+        action="store_true",
+        help="Run all bundles in-process (faster, but one stuck test halts the sweep).",
+    )
     args = p.parse_args()
 
     # Worker mode: run one bundle in-process and print its JSON record.
@@ -193,8 +201,10 @@ def main() -> int:
                         [
                             sys.executable,
                             __file__,
-                            "--worker", stem,
-                            "--timeout", str(args.timeout),
+                            "--worker",
+                            stem,
+                            "--timeout",
+                            str(args.timeout),
                         ],
                         capture_output=True,
                         text=True,
@@ -226,7 +236,7 @@ def main() -> int:
             elapsed = time.monotonic() - sweep_start
             print(
                 f"[{i:3d}/{total}] {stem:20s} "
-                f"{rec.get('outcome','?'):12s} "
+                f"{rec.get('outcome', '?'):12s} "
                 f"wall={rec['wall_ms']:7.0f}ms  "
                 f"(sweep_elapsed={elapsed:.0f}s)",
                 file=sys.stderr,

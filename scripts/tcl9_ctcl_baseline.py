@@ -77,9 +77,12 @@ def run_one(stem: str, *, timeout_s: int) -> dict:
     env.pop("TCL_LIBRARY", None)
 
     cmd = [
-        "/usr/bin/time", "-v",
-        _TCLSH, f"{stem}.test",
-        "-verbose", "",
+        "/usr/bin/time",
+        "-v",
+        _TCLSH,
+        f"{stem}.test",
+        "-verbose",
+        "",
     ]
     t0 = time.monotonic()
     try:
@@ -97,8 +100,16 @@ def run_one(stem: str, *, timeout_s: int) -> dict:
         rec["timed_out"] = False
     except subprocess.TimeoutExpired as exc:
         wall = time.monotonic() - t0
-        stdout = (exc.stdout or b"").decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-        stderr = (exc.stderr or b"").decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        stdout = (
+            (exc.stdout or b"").decode(errors="replace")
+            if isinstance(exc.stdout, bytes)
+            else (exc.stdout or "")
+        )
+        stderr = (
+            (exc.stderr or b"").decode(errors="replace")
+            if isinstance(exc.stderr, bytes)
+            else (exc.stderr or "")
+        )
         rc = -1
         rec["timed_out"] = True
 
@@ -177,11 +188,11 @@ def main() -> int:
             out_f.flush()
             elapsed = time.monotonic() - sweep_start
             rss = rec.get("max_rss_kb")
-            rss_s = f"rss={rss/1024:5.1f}MB" if rss else "rss=?    "
+            rss_s = f"rss={rss / 1024:5.1f}MB" if rss else "rss=?    "
             tot, pas, fail = rec.get("total", 0), rec.get("passed", 0), rec.get("failed", 0)
             print(
                 f"[{i:3d}/{total}] {stem:18s} "
-                f"{rec.get('outcome','?'):10s} "
+                f"{rec.get('outcome', '?'):10s} "
                 f"wall={rec.get('wall_ms', 0):7.0f}ms  "
                 f"{rss_s}  "
                 f"T{tot:4d} P{pas:4d} F{fail:3d}  "

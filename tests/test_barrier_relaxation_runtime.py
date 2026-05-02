@@ -86,9 +86,7 @@ class TestBarrierBracedBracketArg:
         )
         wasm, _ = _compile_tcl_with_diag(source)
         _, stdout = _run_wasm(wasm, capture_stdout=True)
-        assert stdout == (
-            "name=basic-50.1 desc=[586e71dce4] EvalObjv level args=-setup foo\n"
-        )
+        assert stdout == ("name=basic-50.1 desc=[586e71dce4] EvalObjv level args=-setup foo\n")
 
     def test_args_tail_proc_preserves_braced_bug_marker(self):
         # ``[Bug NNN]`` form (the compExpr.test / interp.test /

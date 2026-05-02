@@ -1029,9 +1029,7 @@ puts $d
         # with no separator (matches C tclsh: ``brand`` + ``new`` =
         # ``brandnew``).  ``" there"`` keeps its leading space because
         # the literal carries it.
-        assert out == "a {hello there} b world c brandnew\n", (
-            f"unexpected dict result: {out!r}"
-        )
+        assert out == "a {hello there} b world c brandnew\n", f"unexpected dict result: {out!r}"
 
     def test_rename_builtin_round_trip(self):
         # ``rename list l.new`` must mask ``list`` (so subsequent
@@ -1053,8 +1051,7 @@ puts "$a|$msg1|$b|$c|$msg2|$d"
         ok, out, err = _run_tcl_for_stdout(source)
         assert ok, f"error: {err}"
         assert out == (
-            '1|invalid command name "list"|x y z|'
-            '1|invalid command name "l.new"|111 222\n'
+            '1|invalid command name "list"|x y z|1|invalid command name "l.new"|111 222\n'
         ), f"got {out!r}"
 
     def test_rename_builtin_delete(self):
@@ -1082,8 +1079,7 @@ puts "$ret|$err"
         ok, out, err = _run_tcl_for_stdout(source)
         assert ok, f"error: {err}"
         assert out == (
-            'can\'t rename "return": built-in command|'
-            'can\'t rename "error": built-in command\n'
+            'can\'t rename "return": built-in command|can\'t rename "error": built-in command\n'
         ), f"got {out!r}"
 
     def test_args_tail_quoted_substitution_word(self):

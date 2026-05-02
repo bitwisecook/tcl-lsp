@@ -238,11 +238,7 @@ class _WasmEmitterValuesMixin(_Base):
         # matches the outer ``}``; ``{-fla} {-other}`` opens and
         # closes twice and is NOT a single braced word, so stripping
         # would mangle it to ``-fla} {-other``.
-        if (
-            value.startswith("{")
-            and value.endswith("}")
-            and _outer_braces_balanced(value)
-        ):
+        if value.startswith("{") and value.endswith("}") and _outer_braces_balanced(value):
             self._emit_obj_literal(value[1:-1])
             return Ownership.OWNED
         # Braced token whose outer braces the IR already stripped — emit

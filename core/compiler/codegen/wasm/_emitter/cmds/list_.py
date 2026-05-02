@@ -123,9 +123,7 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
     # the OptProc / OptKeyParse builder in opt.test which
     # constructs proc bodies via this exact form.
     if all(
-        not a.startswith("$")
-        and not a.startswith("[")
-        and not emitter._has_embedded_subst(a)
+        not a.startswith("$") and not a.startswith("[") and not emitter._has_embedded_subst(a)
         for a in args
     ):
         emitter._emit_obj_literal(
@@ -154,11 +152,7 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
         # runtime rather than landing as a literal that contains
         # the unexpanded ``$x``.  See the ``[list a "value=$x" b]``
         # path used by OptProc to build proc bodies.
-        if (
-            a.startswith("$")
-            or a.startswith("[")
-            or emitter._has_embedded_subst(a)
-        ):
+        if a.startswith("$") or a.startswith("[") or emitter._has_embedded_subst(a):
             emitter._emit_value(a)
         else:
             emitter._emit_obj_literal(a)
