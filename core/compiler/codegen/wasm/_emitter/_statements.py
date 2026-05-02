@@ -375,6 +375,25 @@ class _WasmEmitterStmtMixin(_Base):
                     )
 
             case IRReturn(value=value, expr=expr):
+                # Inside a compile-time ``catch`` body, ``return`` must
+                # not emit a WASM ``return`` — that would unwind past
+                # ``catch_leave`` and exit the surrounding proc with
+                # the body's value instead of letting ``catch`` absorb
+                # it as TCL_RETURN (return code 2).  Route through the
+                # runtime ``tcl_return_set`` helper instead, which sets
+                # ``return_flag`` + ``return_val``; ``catch_has_error``
+                # then short-circuits the body and ``catch_leave``
+                # reads the flag and reports TCL_RETURN.
+                return_set = self._shared_imports.get("tcl_return_set")
+                if self._catch_depth > 0 and return_set is not None:
+                    if expr is not None:
+                        self._emit_expr_obj(expr)
+                    elif value is not None:
+                        self._emit_value(value)
+                    else:
+                        self._emit_i32_const(0)
+                    self._emit_call(return_set)
+                    return
                 if expr is not None:
                     self._emit_expr_obj(expr)
                 elif value is not None:
@@ -1062,12 +1081,27 @@ class _WasmEmitterStmtMixin(_Base):
         # From inside the body at ctrl_depth D, with loop_ctrl C:
         #   continue: br(D - C) exits the continue block → runs <next>
         #   break:    br(D - C + 2) exits continue block + loop + outer block
-        if canonical_command == "::break" and self._loop_ctrl_depths:
+        #
+        # When an enclosing ``catch`` sits between us and the innermost
+        # loop (``_loop_catch_depths[-1] < _catch_depth``), a structured
+        # ``br`` would jump past ``catch_leave`` and prevent the catch
+        # from absorbing the flow control as a TCL_BREAK / TCL_CONTINUE
+        # return code.  Fall through to the runtime ``break`` /
+        # ``continue`` handlers in that case — they set the matching
+        # flow-control flag, ``catch_has_error`` short-circuits the rest
+        # of the catch body, and ``catch_leave`` reads the flag and
+        # returns the right code.  See cmdAH-0.2 / 3.2 in
+        # ``cmdAH.test``.
+        loop_inside_catch = bool(self._loop_ctrl_depths) and (
+            not self._loop_catch_depths
+            or self._loop_catch_depths[-1] >= self._catch_depth
+        )
+        if canonical_command == "::break" and loop_inside_catch:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl + 2
             self._emit_br(br_depth)
             return
-        if canonical_command == "::continue" and self._loop_ctrl_depths:
+        if canonical_command == "::continue" and loop_inside_catch:
             loop_ctrl = self._loop_ctrl_depths[-1]
             br_depth = self._ctrl_depth - loop_ctrl
             self._emit_br(br_depth)

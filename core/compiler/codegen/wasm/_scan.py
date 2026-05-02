@@ -344,6 +344,7 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
                     needed.add("tcl_catch_options")
+                    needed.add("tcl_return_set")
                 # Recurse into the command text for nested
                 # substitutions.  Scanning ``parts[-1]`` alone misses
                 # nested brackets that landed in earlier split slots
@@ -766,6 +767,7 @@ def _scan_needed_imports(
                     needed.add("tcl_catch_result")
                     needed.add("tcl_catch_has_error")
                     needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_return_set")
                     needed.add("tcl_catch_options")
                     needed.add("tcl_error_full")
                 elif command == "error" and len(args) >= 2:
@@ -909,6 +911,7 @@ def _scan_needed_imports(
                 needed.add("tcl_catch_leave")
                 needed.add("tcl_catch_result")
                 needed.add("tcl_catch_has_error")
+                needed.add("tcl_return_set")
                 needed.add("tcl_catch_set_ok_result")
                 needed.add("tcl_catch_options")
                 needed.add("tcl_error_full")
