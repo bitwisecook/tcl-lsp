@@ -26,7 +26,6 @@ from ....ir import (
     IRExprEval,
     IRIncr,
 )
-from ._statements import _escape_dquote
 from .._encoding import (
     _leb128_signed,
 )
@@ -37,6 +36,7 @@ from .._ir import (
     WasmOp,
     _decode_leb128_signed,
 )
+from ._statements import _escape_dquote
 
 
 class _WasmEmitterOptMixin(_Base):
@@ -770,11 +770,7 @@ class _WasmEmitterOptMixin(_Base):
                     parts: list[str] = []
                     for i, t in enumerate(last_tokens.argv_texts):
                         prefix = "{*}" if (i < len(ew) and ew[i]) else ""
-                        if (
-                            i < len(argv)
-                            and argv[i] is not None
-                            and argv[i].type is TokenType.STR
-                        ):
+                        if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
                             t = "{" + t + "}"
                         elif i < len(single_word) and not single_word[i] and t:
                             # Multi-token concatenation (``"$body (suffix)"``,
@@ -867,11 +863,7 @@ class _WasmEmitterOptMixin(_Base):
                                 if last_tokens_b.single_token_word is not None
                                 else ()
                             )
-                            argv = (
-                                last_tokens_b.argv
-                                if last_tokens_b.argv is not None
-                                else ()
-                            )
+                            argv = last_tokens_b.argv if last_tokens_b.argv is not None else ()
                             from .....parsing.tokens import TokenType
 
                             parts: list[str] = []

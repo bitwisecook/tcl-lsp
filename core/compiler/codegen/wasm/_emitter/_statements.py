@@ -322,9 +322,7 @@ class _WasmEmitterStmtMixin(_Base):
                     ew = tokens.expand_word
                     argv = tokens.argv if tokens.argv is not None else ()
                     single_word = (
-                        tokens.single_token_word
-                        if tokens.single_token_word is not None
-                        else ()
+                        tokens.single_token_word if tokens.single_token_word is not None else ()
                     )
                     parts = []
                     for i, t in enumerate(tokens.argv_texts):
@@ -535,11 +533,7 @@ class _WasmEmitterStmtMixin(_Base):
                                 if barrier_tokens.single_token_word is not None
                                 else ()
                             )
-                            argv = (
-                                barrier_tokens.argv
-                                if barrier_tokens.argv is not None
-                                else ()
-                            )
+                            argv = barrier_tokens.argv if barrier_tokens.argv is not None else ()
                             from .....parsing.tokens import TokenType
 
                             parts: list[str] = []
@@ -1093,8 +1087,7 @@ class _WasmEmitterStmtMixin(_Base):
         # returns the right code.  See cmdAH-0.2 / 3.2 in
         # ``cmdAH.test``.
         loop_inside_catch = bool(self._loop_ctrl_depths) and (
-            not self._loop_catch_depths
-            or self._loop_catch_depths[-1] >= self._catch_depth
+            not self._loop_catch_depths or self._loop_catch_depths[-1] >= self._catch_depth
         )
         if canonical_command == "::break" and loop_inside_catch:
             loop_ctrl = self._loop_ctrl_depths[-1]

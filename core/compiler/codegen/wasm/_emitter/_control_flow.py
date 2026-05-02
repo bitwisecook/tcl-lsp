@@ -14,7 +14,6 @@ else:
 from ....expr_ast import (
     ExprNode,
 )
-from ._statements import _escape_dquote
 from ....ir import (
     IRIfClause,
     IRScript,
@@ -26,6 +25,7 @@ from .._ir import (
     WasmOp,
 )
 from .._ownership import Ownership
+from ._statements import _escape_dquote
 
 
 class _WasmEmitterCtrlMixin(_Base):
@@ -522,9 +522,7 @@ class _WasmEmitterCtrlMixin(_Base):
                     # {*} expansion — eval fallback leaves result on stack.
                     ew = tokens.expand_word
                     single_word = (
-                        tokens.single_token_word
-                        if tokens.single_token_word is not None
-                        else ()
+                        tokens.single_token_word if tokens.single_token_word is not None else ()
                     )
                     argv = tokens.argv if tokens.argv is not None else ()
                     from .....parsing.tokens import TokenType
@@ -532,11 +530,7 @@ class _WasmEmitterCtrlMixin(_Base):
                     parts: list[str] = []
                     for i, t in enumerate(tokens.argv_texts):
                         prefix = "{*}" if (i < len(ew) and ew[i]) else ""
-                        if (
-                            i < len(argv)
-                            and argv[i] is not None
-                            and argv[i].type is TokenType.STR
-                        ):
+                        if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
                             t = "{" + t + "}"
                         elif i < len(single_word) and not single_word[i] and t:
                             # Multi-token word (``"$body (suffix)"``,
