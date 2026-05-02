@@ -452,6 +452,18 @@ comptime {
     _ = &tcl_arith.tcl_math_sin;
     _ = &tcl_arith.tcl_math_cos;
     _ = &tcl_arith.tcl_math_fabs;
+    _ = &tcl_arith.tcl_math_tan;
+    _ = &tcl_arith.tcl_math_asin;
+    _ = &tcl_arith.tcl_math_acos;
+    _ = &tcl_arith.tcl_math_atan;
+    _ = &tcl_arith.tcl_math_atan2;
+    _ = &tcl_arith.tcl_math_sinh;
+    _ = &tcl_arith.tcl_math_cosh;
+    _ = &tcl_arith.tcl_math_tanh;
+    _ = &tcl_arith.tcl_math_floor;
+    _ = &tcl_arith.tcl_math_ceil;
+    _ = &tcl_arith.tcl_math_fmod;
+    _ = &tcl_arith.tcl_math_hypot;
     // obj float exports
     _ = &tcl_obj.obj_new_float;
     _ = &tcl_obj.obj_get_float;

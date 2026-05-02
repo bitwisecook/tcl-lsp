@@ -246,8 +246,13 @@ class _WasmEmitterExprMixin(_Base):
                         self._emit_expr_obj(args[0])
                         self._emit_call(func_idx)
                         return
-                elif func in ("sin", "cos") and len(args) == 1:
-                    fn = "tcl_math_sin" if func == "sin" else "tcl_math_cos"
+                elif func in ("sin", "cos", "tan", "asin", "acos", "atan",
+                              "sinh", "cosh", "tanh", "floor", "ceil") and len(args) == 1:
+                    # Trig + hyperbolic + floor/ceil — single-arg float
+                    # math functions.  Each maps to a tcl_math_<name>
+                    # runtime helper; routed through obj_context so the
+                    # result stays a TYPE_FLOAT TclObj.
+                    fn = "tcl_math_" + func
                     func_idx = self._shared_imports.get(fn)
                     if func_idx is not None:
                         self._emit_expr_obj(args[0])
@@ -257,6 +262,28 @@ class _WasmEmitterExprMixin(_Base):
                     func_idx = self._shared_imports.get("tcl_math_fabs")
                     if func_idx is not None:
                         self._emit_expr_obj(args[0])
+                        self._emit_call(func_idx)
+                        return
+                elif func in ("atan2", "fmod", "hypot") and len(args) == 2:
+                    # Two-arg float math functions.
+                    fn = "tcl_math_" + func
+                    func_idx = self._shared_imports.get(fn)
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_expr_obj(args[1])
+                        self._emit_call(func_idx)
+                        return
+                elif func == "pow" and len(args) == 2:
+                    # ``pow(a, b)`` math-function form — route through the
+                    # bignum-aware ``tcl_arith_pow`` runtime helper, which
+                    # picks float / integer / bignum based on operand
+                    # types.  The legacy ``_emit_power`` inline-loop
+                    # truncates to i64 even when both operands are floats,
+                    # so ``pow(2.1, 3.1)`` mis-rendered as 8.
+                    func_idx = self._shared_imports.get("tcl_arith_pow")
+                    if func_idx is not None:
+                        self._emit_expr_obj(args[0])
+                        self._emit_expr_obj(args[1])
                         self._emit_call(func_idx)
                         return
                 # Fall through to i64 path.

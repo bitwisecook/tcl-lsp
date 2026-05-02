@@ -720,9 +720,21 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "exp")) return arith.tcl_math_exp(args[0]);
         if (std.mem.eql(u8, name, "sin")) return arith.tcl_math_sin(args[0]);
         if (std.mem.eql(u8, name, "cos")) return arith.tcl_math_cos(args[0]);
+        if (std.mem.eql(u8, name, "tan")) return arith.tcl_math_tan(args[0]);
+        if (std.mem.eql(u8, name, "asin")) return arith.tcl_math_asin(args[0]);
+        if (std.mem.eql(u8, name, "acos")) return arith.tcl_math_acos(args[0]);
+        if (std.mem.eql(u8, name, "atan")) return arith.tcl_math_atan(args[0]);
+        if (std.mem.eql(u8, name, "sinh")) return arith.tcl_math_sinh(args[0]);
+        if (std.mem.eql(u8, name, "cosh")) return arith.tcl_math_cosh(args[0]);
+        if (std.mem.eql(u8, name, "tanh")) return arith.tcl_math_tanh(args[0]);
+        if (std.mem.eql(u8, name, "floor")) return arith.tcl_math_floor(args[0]);
+        if (std.mem.eql(u8, name, "ceil")) return arith.tcl_math_ceil(args[0]);
     }
-    if (args.len == 2 and std.mem.eql(u8, name, "pow")) {
-        return arith.tcl_arith_pow(args[0], args[1]);
+    if (args.len == 2) {
+        if (std.mem.eql(u8, name, "pow")) return arith.tcl_arith_pow(args[0], args[1]);
+        if (std.mem.eql(u8, name, "atan2")) return arith.tcl_math_atan2(args[0], args[1]);
+        if (std.mem.eql(u8, name, "fmod")) return arith.tcl_math_fmod(args[0], args[1]);
+        if (std.mem.eql(u8, name, "hypot")) return arith.tcl_math_hypot(args[0], args[1]);
     }
     return obj_new_int(0);
 }

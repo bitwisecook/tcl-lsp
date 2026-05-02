@@ -204,6 +204,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_math_log10": ("tcl", "tcl_math_log10", [ValType.I32], [ValType.I32]),
     "tcl_math_sin": ("tcl", "tcl_math_sin", [ValType.I32], [ValType.I32]),
     "tcl_math_cos": ("tcl", "tcl_math_cos", [ValType.I32], [ValType.I32]),
+    "tcl_math_tan": ("tcl", "tcl_math_tan", [ValType.I32], [ValType.I32]),
+    "tcl_math_asin": ("tcl", "tcl_math_asin", [ValType.I32], [ValType.I32]),
+    "tcl_math_acos": ("tcl", "tcl_math_acos", [ValType.I32], [ValType.I32]),
+    "tcl_math_atan": ("tcl", "tcl_math_atan", [ValType.I32], [ValType.I32]),
+    "tcl_math_atan2": ("tcl", "tcl_math_atan2", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_math_sinh": ("tcl", "tcl_math_sinh", [ValType.I32], [ValType.I32]),
+    "tcl_math_cosh": ("tcl", "tcl_math_cosh", [ValType.I32], [ValType.I32]),
+    "tcl_math_tanh": ("tcl", "tcl_math_tanh", [ValType.I32], [ValType.I32]),
+    "tcl_math_floor": ("tcl", "tcl_math_floor", [ValType.I32], [ValType.I32]),
+    "tcl_math_ceil": ("tcl", "tcl_math_ceil", [ValType.I32], [ValType.I32]),
+    "tcl_math_fmod": ("tcl", "tcl_math_fmod", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_math_hypot": ("tcl", "tcl_math_hypot", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_math_fabs": ("tcl", "tcl_math_fabs", [ValType.I32], [ValType.I32]),
     # Infra used by the puts specialisation for ``-nonewline``.
     "tcl_puts_nonewline": (

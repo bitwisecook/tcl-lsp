@@ -503,21 +503,9 @@ fn emit_float(
     const prec: usize = if (precision >= 0) @intCast(precision) else 6;
     var tmp_buf: [64]u8 = undefined;
     const slen: u32 = switch (conv) {
-        'e', 'E' => blk: {
-            // Scientific notation: use std.fmt with fixed precision inline.
-            // For now fall back to decimal; tcltest tests don't use %e.
-            const n = fmt_float_decimal(&tmp_buf, fval, prec);
-            break :blk @as(u32, @intCast(n));
-        },
-        'g', 'G' => blk: {
-            // %g: shortest representation. Use std.fmt default.
-            const s = std.fmt.bufPrint(&tmp_buf, "{d}", .{fval}) catch tmp_buf[0..1];
-            break :blk @as(u32, @intCast(s.len));
-        },
-        else => blk: {
-            const n = fmt_float_decimal(&tmp_buf, fval, prec);
-            break :blk @as(u32, @intCast(n));
-        },
+        'e', 'E' => fmt_float_e(&tmp_buf, fval, prec, conv == 'E'),
+        'g', 'G' => fmt_float_g(&tmp_buf, fval, prec, conv == 'G'),
+        else => @intCast(fmt_float_decimal(&tmp_buf, fval, prec)),
     };
     const pad: u32 = if (width > slen) width - slen else 0;
     var k: u32 = 0;
@@ -531,4 +519,98 @@ fn emit_float(
         off += 1;
     }
     return off;
+}
+
+/// ``%e`` / ``%E`` — scientific notation with *prec* digits after
+/// the decimal point.  Uses Zig's stdlib float-to-decimal printer
+/// in the matching format spec.  Returns the byte length written.
+fn fmt_float_e(out: []u8, fval: f64, prec: usize, upper: bool) u32 {
+    const slice = std.fmt.bufPrint(out, "{e:.[1]}", .{ fval, prec }) catch return 0;
+    if (upper) {
+        for (slice) |*ch| {
+            if (ch.* == 'e') ch.* = 'E';
+        }
+    }
+    return @intCast(slice.len);
+}
+
+/// ``%g`` / ``%G`` — shortest representation: scientific when the
+/// exponent is ``< -4`` or ``>= prec``, else fixed-point.  Trailing
+/// zeros after the decimal point are trimmed; an isolated trailing
+/// ``.`` is dropped.  Mirrors C's ``printf("%.<prec>g", ...)``
+/// (which is what Tcl 9 uses for ``format %.6g``).
+///
+/// For ``prec == 0`` we substitute 1 — C's ``%g`` treats prec=0 as
+/// "1 significant digit" rather than "no digits".
+fn fmt_float_g(out: []u8, fval: f64, prec_in: usize, upper: bool) u32 {
+    const prec: usize = if (prec_in == 0) 1 else prec_in;
+    if (std.math.isNan(fval)) {
+        const s = std.fmt.bufPrint(out, "{d}", .{fval}) catch return 0;
+        return @intCast(s.len);
+    }
+    if (fval == 0.0) {
+        out[0] = '0';
+        return 1;
+    }
+    // Determine the decimal exponent.  ``floor(log10(|fval|))``.
+    const abs_v = @abs(fval);
+    const exp10: i32 = @intFromFloat(@floor(std.math.log10(abs_v)));
+    // ``%g`` chooses scientific when exp < -4 or exp >= prec.
+    const use_sci = exp10 < -4 or exp10 >= @as(i32, @intCast(prec));
+    var len: u32 = 0;
+    if (use_sci) {
+        // Scientific with (prec - 1) digits after the decimal.
+        const e_prec: usize = if (prec > 0) prec - 1 else 0;
+        const s = std.fmt.bufPrint(out, "{e:.[1]}", .{ fval, e_prec }) catch return 0;
+        len = @intCast(s.len);
+    } else {
+        // Fixed-point with (prec - 1 - exp10) digits after the
+        // decimal point — choosing total significant digits = prec.
+        const after: i32 = @as(i32, @intCast(prec)) - 1 - exp10;
+        const after_u: usize = if (after < 0) 0 else @intCast(after);
+        const s = std.fmt.bufPrint(out, "{d:.[1]}", .{ fval, after_u }) catch return 0;
+        len = @intCast(s.len);
+    }
+    // Trim trailing zeros / lonely ``.`` from the mantissa portion.
+    // For scientific output the mantissa is everything before ``e``;
+    // for fixed-point it's the whole string.
+    const e_idx: ?u32 = blk: {
+        var i: u32 = 0;
+        while (i < len) : (i += 1) {
+            if (out[i] == 'e' or out[i] == 'E') break :blk i;
+        }
+        break :blk null;
+    };
+    const mantissa_end: u32 = if (e_idx) |e| e else len;
+    // Only trim if there's a ``.`` in the mantissa.
+    var has_dot = false;
+    var i: u32 = 0;
+    while (i < mantissa_end) : (i += 1) {
+        if (out[i] == '.') {
+            has_dot = true;
+            break;
+        }
+    }
+    if (has_dot) {
+        var trim_end = mantissa_end;
+        while (trim_end > 0 and out[trim_end - 1] == '0') trim_end -= 1;
+        if (trim_end > 0 and out[trim_end - 1] == '.') trim_end -= 1;
+        // Slide the exponent suffix (if any) up to the trimmed end.
+        if (e_idx) |e| {
+            var j: u32 = 0;
+            while (e + j < len) : (j += 1) {
+                out[trim_end + j] = out[e + j];
+            }
+            len = trim_end + (len - e);
+        } else {
+            len = trim_end;
+        }
+    }
+    if (upper) {
+        var k: u32 = 0;
+        while (k < len) : (k += 1) {
+            if (out[k] == 'e') out[k] = 'E';
+        }
+    }
+    return len;
 }
