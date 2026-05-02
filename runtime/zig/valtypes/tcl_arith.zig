@@ -457,6 +457,72 @@ pub export fn tcl_math_fabs(a: i32) i32 {
     return obj.obj_new_float(@abs(obj.obj_get_float(a)));
 }
 
+/// tan(x).
+pub export fn tcl_math_tan(a: i32) i32 {
+    return obj.obj_new_float(@tan(obj.obj_get_float(a)));
+}
+
+/// asin(x) — arc sine.  Domain is ``-1 ≤ x ≤ 1``; outside the
+/// domain we follow C / IEEE-754 semantics and emit a NaN
+/// (``std.math.asin`` returns NaN for |x| > 1).
+pub export fn tcl_math_asin(a: i32) i32 {
+    return obj.obj_new_float(std.math.asin(obj.obj_get_float(a)));
+}
+
+/// acos(x) — arc cosine.  Same domain handling as :func:`tcl_math_asin`.
+pub export fn tcl_math_acos(a: i32) i32 {
+    return obj.obj_new_float(std.math.acos(obj.obj_get_float(a)));
+}
+
+/// atan(x) — arc tangent (single-arg form).  ``atan2(y, x)`` is a
+/// separate two-arg helper (:func:`tcl_math_atan2`).
+pub export fn tcl_math_atan(a: i32) i32 {
+    return obj.obj_new_float(std.math.atan(obj.obj_get_float(a)));
+}
+
+/// atan2(y, x) — two-arg arctangent, returning the angle in
+/// ``[-π, π]``.
+pub export fn tcl_math_atan2(y: i32, x: i32) i32 {
+    return obj.obj_new_float(std.math.atan2(obj.obj_get_float(y), obj.obj_get_float(x)));
+}
+
+/// sinh(x) / cosh(x) / tanh(x) — hyperbolic trig.
+pub export fn tcl_math_sinh(a: i32) i32 {
+    return obj.obj_new_float(std.math.sinh(obj.obj_get_float(a)));
+}
+
+pub export fn tcl_math_cosh(a: i32) i32 {
+    return obj.obj_new_float(std.math.cosh(obj.obj_get_float(a)));
+}
+
+pub export fn tcl_math_tanh(a: i32) i32 {
+    return obj.obj_new_float(std.math.tanh(obj.obj_get_float(a)));
+}
+
+/// floor(x) — round toward -∞.  Returns a float per Tcl semantics
+/// (``expr {floor(2.7)}`` is ``2.0``, not the integer ``2``).
+pub export fn tcl_math_floor(a: i32) i32 {
+    return obj.obj_new_float(@floor(obj.obj_get_float(a)));
+}
+
+/// ceil(x) — round toward +∞.  Float result per Tcl semantics.
+pub export fn tcl_math_ceil(a: i32) i32 {
+    return obj.obj_new_float(@ceil(obj.obj_get_float(a)));
+}
+
+/// fmod(x, y) — IEEE-754 remainder of ``x / y`` with the sign of
+/// ``x``.  Distinct from Tcl's ``%`` operator (``expr {x % y}`` is
+/// integer-only and uses divisor sign).
+pub export fn tcl_math_fmod(x: i32, y: i32) i32 {
+    return obj.obj_new_float(@rem(obj.obj_get_float(x), obj.obj_get_float(y)));
+}
+
+/// hypot(x, y) — ``sqrt(x*x + y*y)``, computed without intermediate
+/// overflow.
+pub export fn tcl_math_hypot(x: i32, y: i32) i32 {
+    return obj.obj_new_float(std.math.hypot(obj.obj_get_float(x), obj.obj_get_float(y)));
+}
+
 // ----------------------------------------------------------------------
 // Bitwise / shift helpers — issues #260, #261, #262
 //

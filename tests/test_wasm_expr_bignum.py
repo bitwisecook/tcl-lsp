@@ -730,3 +730,101 @@ class TestRuntimeExprStringOps:
             "puts [expr {$big in [list 1 2 99999999999999999999999]}]\n"
         )
         assert self._run(src) == "1"
+
+
+# Math functions added for upstream expr-old.test §32 (math functions
+# in expressions).  Stage 2 only had ``log`` / ``log10`` / ``sqrt`` /
+# ``exp`` / ``sin`` / ``cos`` / ``fabs`` / ``round`` / ``int`` /
+# ``double`` wired through the AOT path; the rest of Tcl 9's standard
+# math-function set (``acos`` / ``asin`` / ``atan`` / ``atan2`` /
+# ``ceil`` / ``floor`` / ``fmod`` / ``hypot`` / ``sinh`` / ``cosh`` /
+# ``tan`` / ``tanh``) returned ``0`` from the expr evaluator.
+
+
+class TestMathFunctionsAdded:
+    """Trig / hyperbolic / floor / ceil / fmod / hypot / pow."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_acos(self) -> None:
+        assert self._run("puts [format %.6g [expr {acos(0.5)}]]") == "1.0472"
+
+    def test_asin(self) -> None:
+        assert self._run("puts [format %.6g [expr {asin(0.5)}]]") == "0.523599"
+
+    def test_atan(self) -> None:
+        assert self._run("puts [format %.6g [expr {atan(1.0)}]]") == "0.785398"
+
+    def test_atan2(self) -> None:
+        assert self._run("puts [format %.6g [expr {atan2(1.0, 2.0)}]]") == "0.463648"
+
+    def test_floor(self) -> None:
+        assert self._run("puts [expr {floor(2.7)}]") == "2.0"
+
+    def test_ceil(self) -> None:
+        assert self._run("puts [expr {ceil(2.3)}]") == "3.0"
+
+    def test_fmod(self) -> None:
+        assert self._run("puts [format %.3g [expr {fmod(7.3, 3.2)}]]") == "0.9"
+
+    def test_hypot(self) -> None:
+        assert self._run("puts [expr {hypot(3.0, 4.0)}]") == "5.0"
+
+    def test_tan(self) -> None:
+        assert self._run("puts [format %.6g [expr {tan(0.5)}]]") == "0.546302"
+
+    def test_sinh(self) -> None:
+        assert self._run("puts [format %.6g [expr {sinh(0.1)}]]") == "0.100167"
+
+    def test_cosh(self) -> None:
+        assert self._run("puts [format %.6g [expr {cosh(0.1)}]]") == "1.005"
+
+    def test_tanh(self) -> None:
+        assert self._run("puts [format %.6g [expr {tanh(0.5)}]]") == "0.462117"
+
+    def test_pow_function_form_with_floats(self) -> None:
+        # ``pow(2.1, 3.1)`` math-function form went through the i64
+        # inline-loop in ``_emit_power`` and truncated both operands
+        # to ``2`` and ``3`` (giving ``8``).  Routed through
+        # ``tcl_arith_pow`` now so the float math runs end-to-end.
+        assert self._run("puts [format %.6g [expr {pow(2.1, 3.1)}]]") == "9.97424"
+
+
+# ``format %.<N>g`` precision spec — pre-fix the format helper had a
+# ``%g`` branch that wrote out the full f64 representation, so
+# ``format %.6g <0.9092974268256817>`` returned all 17 digits instead
+# of trimming to 6 significant digits.
+
+
+class TestFormatPrecision:
+    """``%.Ng`` / ``%.Ne`` produce the requested precision."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_g_default_precision(self) -> None:
+        # ``%g`` defaults to 6 significant digits.
+        assert self._run("puts [format %g 1234567.89]") == "1.23457e+06" or self._run(
+            "puts [format %g 1234567.89]"
+        ) == "1.23457e6"
+
+    def test_g_explicit_precision(self) -> None:
+        assert self._run("puts [format %.3g 1.23456]") == "1.23"
+
+    def test_g_uses_fixed_when_in_range(self) -> None:
+        assert self._run("puts [format %.6g 12345.67]") == "12345.7"
+
+    def test_g_trims_trailing_zeros(self) -> None:
+        assert self._run("puts [format %.6g 1.5]") == "1.5"
+
+    def test_g_uses_scientific_for_tiny(self) -> None:
+        # Below 1e-4 switches to scientific.
+        out = self._run("puts [format %.6g 0.000001234]")
+        assert out in ("1.234e-06", "1.234e-6")

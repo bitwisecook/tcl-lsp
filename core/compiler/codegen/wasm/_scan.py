@@ -100,6 +100,18 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
         "log10": "tcl_math_log10",
         "sin": "tcl_math_sin",
         "cos": "tcl_math_cos",
+        "tan": "tcl_math_tan",
+        "asin": "tcl_math_asin",
+        "acos": "tcl_math_acos",
+        "atan": "tcl_math_atan",
+        "atan2": "tcl_math_atan2",
+        "sinh": "tcl_math_sinh",
+        "cosh": "tcl_math_cosh",
+        "tanh": "tcl_math_tanh",
+        "floor": "tcl_math_floor",
+        "ceil": "tcl_math_ceil",
+        "fmod": "tcl_math_fmod",
+        "hypot": "tcl_math_hypot",
         "fabs": "tcl_math_fabs",
         "abs": "tcl_math_fabs",
         "double": "tcl_math_double",
@@ -195,6 +207,19 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add(imp)
                     needed.add("tcl_obj_get_int")
                     needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                if func == "pow" and len(args) == 2:
+                    # ``pow(a, b)`` math-function call (distinct from
+                    # the ``**`` operator) — register the bignum-aware
+                    # runtime helper so the obj-context emitter can
+                    # route through it (the inline i64 loop in
+                    # ``_emit_power`` truncates float operands).
+                    needed.add("tcl_arith_pow")
+                    # The float literal box helper is needed for
+                    # operands like ``pow(2.1, 3.1)``; without it the
+                    # ``_emit_obj_literal_for_expr`` float branch
+                    # falls back to ``int(float_val)`` and the args
+                    # become 2/3 instead of 2.1/3.1.
                     needed.add("tcl_obj_new_float")
                 for arg in args:
                     _walk(arg)
@@ -506,6 +531,18 @@ def _scan_needed_imports(
                     "log10": "tcl_math_log10",
                     "sin": "tcl_math_sin",
                     "cos": "tcl_math_cos",
+                    "tan": "tcl_math_tan",
+                    "asin": "tcl_math_asin",
+                    "acos": "tcl_math_acos",
+                    "atan": "tcl_math_atan",
+                    "atan2": "tcl_math_atan2",
+                    "sinh": "tcl_math_sinh",
+                    "cosh": "tcl_math_cosh",
+                    "tanh": "tcl_math_tanh",
+                    "floor": "tcl_math_floor",
+                    "ceil": "tcl_math_ceil",
+                    "fmod": "tcl_math_fmod",
+                    "hypot": "tcl_math_hypot",
                     "fabs": "tcl_math_fabs",
                     "abs": "tcl_math_fabs",
                     "double": "tcl_math_double",
