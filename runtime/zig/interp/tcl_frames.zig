@@ -606,18 +606,29 @@ pub export fn frame_depth_restore(saved: i32) void {
             if (parked_top == 0) break;
             parked_top -= 1;
             const slot = frame_depth - i;
-            // If a compiled-proc dispatched inside the
-            // upleveled body re-allocated this slot, the new
-            // buffer is leaked (kept reachable through the
-            // bump allocator's frame-pool reuse on the next
-            // push at a higher index).  The parked buffer goes
-            // back so the original caller's locals are
-            // recovered byte-for-byte.
-            frame_stack[slot]    = parked_stack[parked_top];
+            // If a compiled-proc dispatched inside the upleveled
+            // body re-allocated this slot, ``frame_stack[slot]``
+            // now points at a fresh buffer.  ``free_sized`` it
+            // before overwriting with the parked pointer — without
+            // this, repeated ``uplevel`` calls that invoke
+            // compiled procs at the parked-slot depth grow linear
+            // memory by one full frame buffer per call (Copilot
+            // review on PR #325).  The capacity-driven size
+            // matches what ``frame_push`` would have allocated;
+            // the bump allocator's free-list reclaims the slab.
+            const orphan_base = frame_stack[slot];
+            const orphan_cap = frame_capacity[slot];
+            if (orphan_base != 0
+                and orphan_base != parked_stack[parked_top]
+                and orphan_cap > 0)
+            {
+                obj.free_sized(orphan_base, orphan_cap * FRAME_BUCKET_SIZE);
+            }
+            frame_stack[slot] = parked_stack[parked_top];
             frame_capacity[slot] = parked_capacity[parked_top];
-            frame_dirty[slot]    = parked_dirty[parked_top];
-            frame_ns[slot]       = parked_ns[parked_top];
-            frame_argv[slot]     = parked_argv[parked_top];
+            frame_dirty[slot] = parked_dirty[parked_top];
+            frame_ns[slot] = parked_ns[parked_top];
+            frame_argv[slot] = parked_argv[parked_top];
         }
     }
 }
