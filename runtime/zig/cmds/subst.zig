@@ -34,9 +34,17 @@ fn eval_subst(words: []const i32) i32 {
 
 fn eval_expr(words: []const i32) i32 {
     if (words.len >= 2) {
-        const interp = @import("../interp/tcl_interp.zig");
+        // Use the bignum-aware evaluator so the runtime ``expr``
+        // command produces the same result as the AOT-compiled
+        // ``expr {...}`` body.  Returns a TclObj directly — no i64
+        // round-trip — so TYPE_BIGNUM results survive intact for
+        // downstream callers (``puts`` / ``set`` / mathop).  Closes
+        // the gap where ``[expr {1 << 70}]`` returned ``1`` (the
+        // legacy ``eval_expr_str`` recursive descent didn't even
+        // recognise ``<<``).
+        const expr_eval = @import("../interp/tcl_expr_eval.zig");
         const es = obj_ensure_string(words[1]);
-        return obj_new_int(interp.eval_expr_str(es.ptr, es.len));
+        return expr_eval.eval(es.ptr, es.len);
     }
     return 0;
 }

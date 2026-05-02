@@ -32,6 +32,7 @@
 
 const std = @import("std");
 const obj = @import("tcl_obj.zig");
+const bignum = @import("tcl_bignum.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
 const obj_ensure_string = obj.obj_ensure_string;
@@ -214,6 +215,14 @@ fn emit_int(
     upper: bool,
 ) u32 {
     var off = off_in;
+    // Bignum-aware path: when the operand exceeds i64, render via
+    // ``Managed.toString`` in the requested base so ``format "%d"
+    // [expr {1<<200}]`` produces the full 61-digit value rather
+    // than the truncated low-64-bits view (which renders to ``0``
+    // for any large power of two).
+    if (arg != 0 and obj.obj_type(arg) == obj.TYPE_BIGNUM) {
+        return emit_int_bignum(out, off_in, arg, left_align, zero_pad, show_sign, width, base, upper);
+    }
     var n: i64 = 0;
     if (arg != 0) n = obj_get_int(arg);
     var digits: [32]u8 = undefined;
@@ -264,6 +273,82 @@ fn emit_int(
     while (j > 0) {
         j -= 1;
         out[off] = digits[j];
+        off += 1;
+    }
+    if (left_align) {
+        var k: u32 = 0;
+        while (k < pad) : (k += 1) {
+            out[off] = ' ';
+            off += 1;
+        }
+    }
+    return off;
+}
+
+/// Render a TYPE_BIGNUM operand into the format buffer using
+/// ``Managed.toString`` for the requested base (10 / 16 / 8 / 2).
+/// Mirrors :func:`emit_int`'s padding logic but works on the
+/// arbitrary-length digit string returned by the bignum formatter.
+fn emit_int_bignum(
+    out: [*]u8,
+    off_in: u32,
+    arg: i32,
+    left_align: bool,
+    zero_pad: bool,
+    show_sign: bool,
+    width: u32,
+    base: u8,
+    upper: bool,
+) u32 {
+    var off = off_in;
+    const m = obj.obj_get_bignum_managed(arg) orelse return off;
+    const case: std.fmt.Case = if (upper) .upper else .lower;
+    // Route through ``alloc_format_base`` so the base-8 limb-
+    // boundary bug in Zig 0.16's ``Managed.toString`` (extracts
+    // bits per-limb without crossing boundaries — wrong for
+    // 3-bit digits on 32-bit limbs) gets the bit-walking
+    // workaround.  Bases 10 / 16 / 2 still go through stdlib.
+    const rendered = bignum.alloc_format_base(m, base, case) orelse return off;
+    defer bignum.allocator.free(rendered);
+
+    // ``Managed.toString`` emits a leading ``-`` for negative values.
+    // Strip it from the digit slice so padding / sign-handling can
+    // run uniformly with the i64 path above.
+    var digits = rendered;
+    var negative = false;
+    if (digits.len > 0 and digits[0] == '-') {
+        negative = true;
+        digits = digits[1..];
+    }
+
+    var prefix_len: u32 = 0;
+    if (negative) prefix_len = 1 else if (show_sign) prefix_len = 1;
+    const dlen: u32 = @intCast(digits.len);
+    const total: u32 = prefix_len + dlen;
+    const pad: u32 = if (width > total) width - total else 0;
+    if (!left_align and !zero_pad) {
+        var k: u32 = 0;
+        while (k < pad) : (k += 1) {
+            out[off] = ' ';
+            off += 1;
+        }
+    }
+    if (negative) {
+        out[off] = '-';
+        off += 1;
+    } else if (show_sign) {
+        out[off] = '+';
+        off += 1;
+    }
+    if (!left_align and zero_pad) {
+        var k: u32 = 0;
+        while (k < pad) : (k += 1) {
+            out[off] = '0';
+            off += 1;
+        }
+    }
+    for (digits) |c| {
+        out[off] = c;
         off += 1;
     }
     if (left_align) {
@@ -418,21 +503,9 @@ fn emit_float(
     const prec: usize = if (precision >= 0) @intCast(precision) else 6;
     var tmp_buf: [64]u8 = undefined;
     const slen: u32 = switch (conv) {
-        'e', 'E' => blk: {
-            // Scientific notation: use std.fmt with fixed precision inline.
-            // For now fall back to decimal; tcltest tests don't use %e.
-            const n = fmt_float_decimal(&tmp_buf, fval, prec);
-            break :blk @as(u32, @intCast(n));
-        },
-        'g', 'G' => blk: {
-            // %g: shortest representation. Use std.fmt default.
-            const s = std.fmt.bufPrint(&tmp_buf, "{d}", .{fval}) catch tmp_buf[0..1];
-            break :blk @as(u32, @intCast(s.len));
-        },
-        else => blk: {
-            const n = fmt_float_decimal(&tmp_buf, fval, prec);
-            break :blk @as(u32, @intCast(n));
-        },
+        'e', 'E' => fmt_float_e(&tmp_buf, fval, prec, conv == 'E'),
+        'g', 'G' => fmt_float_g(&tmp_buf, fval, prec, conv == 'G'),
+        else => @intCast(fmt_float_decimal(&tmp_buf, fval, prec)),
     };
     const pad: u32 = if (width > slen) width - slen else 0;
     var k: u32 = 0;
@@ -446,4 +519,98 @@ fn emit_float(
         off += 1;
     }
     return off;
+}
+
+/// ``%e`` / ``%E`` — scientific notation with *prec* digits after
+/// the decimal point.  Uses Zig's stdlib float-to-decimal printer
+/// in the matching format spec.  Returns the byte length written.
+fn fmt_float_e(out: []u8, fval: f64, prec: usize, upper: bool) u32 {
+    const slice = std.fmt.bufPrint(out, "{e:.[1]}", .{ fval, prec }) catch return 0;
+    if (upper) {
+        for (slice) |*ch| {
+            if (ch.* == 'e') ch.* = 'E';
+        }
+    }
+    return @intCast(slice.len);
+}
+
+/// ``%g`` / ``%G`` — shortest representation: scientific when the
+/// exponent is ``< -4`` or ``>= prec``, else fixed-point.  Trailing
+/// zeros after the decimal point are trimmed; an isolated trailing
+/// ``.`` is dropped.  Mirrors C's ``printf("%.<prec>g", ...)``
+/// (which is what Tcl 9 uses for ``format %.6g``).
+///
+/// For ``prec == 0`` we substitute 1 — C's ``%g`` treats prec=0 as
+/// "1 significant digit" rather than "no digits".
+fn fmt_float_g(out: []u8, fval: f64, prec_in: usize, upper: bool) u32 {
+    const prec: usize = if (prec_in == 0) 1 else prec_in;
+    if (std.math.isNan(fval)) {
+        const s = std.fmt.bufPrint(out, "{d}", .{fval}) catch return 0;
+        return @intCast(s.len);
+    }
+    if (fval == 0.0) {
+        out[0] = '0';
+        return 1;
+    }
+    // Determine the decimal exponent.  ``floor(log10(|fval|))``.
+    const abs_v = @abs(fval);
+    const exp10: i32 = @intFromFloat(@floor(std.math.log10(abs_v)));
+    // ``%g`` chooses scientific when exp < -4 or exp >= prec.
+    const use_sci = exp10 < -4 or exp10 >= @as(i32, @intCast(prec));
+    var len: u32 = 0;
+    if (use_sci) {
+        // Scientific with (prec - 1) digits after the decimal.
+        const e_prec: usize = if (prec > 0) prec - 1 else 0;
+        const s = std.fmt.bufPrint(out, "{e:.[1]}", .{ fval, e_prec }) catch return 0;
+        len = @intCast(s.len);
+    } else {
+        // Fixed-point with (prec - 1 - exp10) digits after the
+        // decimal point — choosing total significant digits = prec.
+        const after: i32 = @as(i32, @intCast(prec)) - 1 - exp10;
+        const after_u: usize = if (after < 0) 0 else @intCast(after);
+        const s = std.fmt.bufPrint(out, "{d:.[1]}", .{ fval, after_u }) catch return 0;
+        len = @intCast(s.len);
+    }
+    // Trim trailing zeros / lonely ``.`` from the mantissa portion.
+    // For scientific output the mantissa is everything before ``e``;
+    // for fixed-point it's the whole string.
+    const e_idx: ?u32 = blk: {
+        var i: u32 = 0;
+        while (i < len) : (i += 1) {
+            if (out[i] == 'e' or out[i] == 'E') break :blk i;
+        }
+        break :blk null;
+    };
+    const mantissa_end: u32 = if (e_idx) |e| e else len;
+    // Only trim if there's a ``.`` in the mantissa.
+    var has_dot = false;
+    var i: u32 = 0;
+    while (i < mantissa_end) : (i += 1) {
+        if (out[i] == '.') {
+            has_dot = true;
+            break;
+        }
+    }
+    if (has_dot) {
+        var trim_end = mantissa_end;
+        while (trim_end > 0 and out[trim_end - 1] == '0') trim_end -= 1;
+        if (trim_end > 0 and out[trim_end - 1] == '.') trim_end -= 1;
+        // Slide the exponent suffix (if any) up to the trimmed end.
+        if (e_idx) |e| {
+            var j: u32 = 0;
+            while (e + j < len) : (j += 1) {
+                out[trim_end + j] = out[e + j];
+            }
+            len = trim_end + (len - e);
+        } else {
+            len = trim_end;
+        }
+    }
+    if (upper) {
+        var k: u32 = 0;
+        while (k < len) : (k += 1) {
+            if (out[k] == 'e') out[k] = 'E';
+        }
+    }
+    return len;
 }
