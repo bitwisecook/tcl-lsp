@@ -145,10 +145,19 @@ pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
     // We promote unconditionally when either side has a non-i64 numeric
     // form — the fallback to string-compare below still triggers for
     // genuinely non-numeric operands (lists, named values, …).
+    //
+    // ``parse_i128`` covers the i64 < |x| <= i128 range cheaply;
+    // ``string_needs_bignum`` (Managed parse) catches integer-shaped
+    // literals beyond i128 like ``"1`` + 100 zeros (Copilot review
+    // #326).  Without that fallback, ``expr {(1<<200) > 99}`` and
+    // similar comparisons of huge string literals fell through to
+    // bytewise compare and produced the wrong sign.
     const a_can_bignum = obj.obj_type(a) == obj.TYPE_BIGNUM or
-        bignum.parse_i128(sa.ptr, sa.len) != null;
+        bignum.parse_i128(sa.ptr, sa.len) != null or
+        bignum.string_needs_bignum(sa.ptr, sa.len);
     const b_can_bignum = obj.obj_type(b) == obj.TYPE_BIGNUM or
-        bignum.parse_i128(sb.ptr, sb.len) != null;
+        bignum.parse_i128(sb.ptr, sb.len) != null or
+        bignum.string_needs_bignum(sb.ptr, sb.len);
     if (a_can_bignum and b_can_bignum) {
         const ap = obj.obj_promote_to_bignum(a);
         defer if (ap.owned) bignum.destroy(ap.m);

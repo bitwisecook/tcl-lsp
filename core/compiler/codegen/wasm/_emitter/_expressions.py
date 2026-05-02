@@ -431,8 +431,23 @@ class _WasmEmitterExprMixin(_Base):
                     if func_idx is not None:
                         self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
-                elif func in ("sin", "cos", "tan", "asin", "acos", "atan",
-                              "sinh", "cosh", "tanh", "floor", "ceil") and len(args) == 1:
+                elif (
+                    func
+                    in (
+                        "sin",
+                        "cos",
+                        "tan",
+                        "asin",
+                        "acos",
+                        "atan",
+                        "sinh",
+                        "cosh",
+                        "tanh",
+                        "floor",
+                        "ceil",
+                    )
+                    and len(args) == 1
+                ):
                     # Trig + hyperbolic + floor/ceil — single-arg float
                     # math functions.  Each maps to a tcl_math_<name>
                     # runtime helper; routed through obj_context so the
@@ -957,7 +972,10 @@ class _WasmEmitterExprMixin(_Base):
         # through the runtime helper picks the right rule (i64 fast
         # path for both-fit, bignum for any-bignum, float for any-
         # float, string fallback otherwise).
-        if op in (BinOp.EQ, BinOp.NE) and self._shared_imports.get("tcl_expr_order_cmp") is not None:
+        if (
+            op in (BinOp.EQ, BinOp.NE)
+            and self._shared_imports.get("tcl_expr_order_cmp") is not None
+        ):
             cmp_idx = self._shared_imports["tcl_expr_order_cmp"]
             self._emit_expr_obj_cmp_binary(cmp_idx, left, right)
             self._emit_i64_const(0)

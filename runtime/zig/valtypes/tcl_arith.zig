@@ -260,9 +260,18 @@ fn float_to_bignum_obj(fval: f64) i32 {
 }
 
 /// double(x) — coerce to float.  Used in ``expr {$n / double($d)}``.
+///
+/// Refcount contract: caller passes ownership of ``a`` and expects a
+/// fresh +1-ref result.  When the operand is already a float we
+/// must NOT return the same handle without bumping its refcount,
+/// otherwise the caller's release-of-arg + release-of-result pair
+/// frees the same TclObj twice (Copilot review #326).
 pub export fn tcl_math_double(a: i32) i32 {
     if (a == 0) return obj.obj_new_float(0.0);
-    if (obj.obj_type(a) == TYPE_FLOAT) return a;
+    if (obj.obj_type(a) == TYPE_FLOAT) {
+        obj.tcl_obj_retain(a);
+        return a;
+    }
     return obj.obj_new_float(obj.obj_get_float(a));
 }
 
@@ -275,9 +284,14 @@ pub export fn tcl_math_int(a: i32) i32 {
     // Already an integer-shaped operand → return as-is (bignum stays
     // bignum, int stays int).  ``int($x)`` on a string operand still
     // routes through obj_get_int below; on a TYPE_FLOAT operand it
-    // truncates toward zero.
+    // truncates toward zero.  Retain on the same-handle return so
+    // the caller's release-of-arg pair doesn't double-free the
+    // shared TclObj (Copilot review #326).
     const tag = obj.obj_type(a);
-    if (tag == TYPE_INT or tag == TYPE_BIGNUM) return a;
+    if (tag == TYPE_INT or tag == TYPE_BIGNUM) {
+        obj.tcl_obj_retain(a);
+        return a;
+    }
     if (tag == TYPE_FLOAT) {
         // Tcl's ``int(3.9)`` = 3, ``int(-3.9)`` = -3 — truncation toward
         // zero.  Float magnitudes that exceed i64 land in TYPE_BIGNUM
@@ -363,7 +377,14 @@ pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
         return obj.obj_new_int(0);
     }
     if (bi == 0) return obj.obj_new_int(1);
-    if (bi == 1) return a;
+    if (bi == 1) {
+        // Same-handle return: retain so the caller's
+        // release-operand + release-result pair doesn't double-
+        // free.  apply_binary in the runtime expr evaluator and
+        // the AOT emitter helpers both follow that contract.
+        obj.tcl_obj_retain(a);
+        return a;
+    }
 
     // For TYPE_INT operands, try i64 multiplication first and
     // promote on overflow.  Empirically the vast majority of Tcl
