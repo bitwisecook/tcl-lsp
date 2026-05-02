@@ -946,10 +946,40 @@ pub export fn upvar_resolve_depth(level_obj: i32, cur_depth: i32) i32 {
         n = n * 10 + @as(i32, @intCast(c - '0'));
     }
     const rel = if (sign < 0) -n else n;
-    // Both ``upvar 1 ...`` and ``upvar -1 ...`` mean "caller's frame";
-    // we treat the absolute value as the up-count.
-    const up: i32 = if (rel < 0) -rel else rel;
-    return cur_depth - up;
+    if (rel < 0) {
+        // Reference Tcl rejects negative ``upvar`` levels with
+        // ``bad level "-N"`` rather than silently aliasing the
+        // wrong frame (Copilot review on PR #325).  Surface the
+        // same error so a script that computes ``upvar [expr
+        // {-$n}] ...`` fails fast.
+        const tcl_catch = @import("tcl_catch.zig");
+        const prefix: []const u8 = "bad level \"";
+        const suffix: []const u8 = "\"";
+        const total: u32 = @as(u32, @intCast(prefix.len)) + sn.len +
+            @as(u32, @intCast(suffix.len));
+        const buf = obj.alloc(total);
+        const d: [*]u8 = @ptrFromInt(buf);
+        var off: u32 = 0;
+        for (prefix) |b| {
+            d[off] = b;
+            off += 1;
+        }
+        if (sn.len > 0) {
+            const src: [*]const u8 = @ptrFromInt(sn.ptr);
+            for (0..sn.len) |k| {
+                d[off] = src[k];
+                off += 1;
+            }
+        }
+        for (suffix) |b| {
+            d[off] = b;
+            off += 1;
+        }
+        const msg = obj.obj_new_string_take(buf, total, total);
+        tcl_catch.tcl_cmd_error(msg);
+        return cur_depth - 1;
+    }
+    return cur_depth - rel;
 }
 
 // -- Local variable operations on current frame --
