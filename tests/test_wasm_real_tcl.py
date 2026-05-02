@@ -1086,6 +1086,35 @@ puts "$ret|$err"
             'can\'t rename "error": built-in command\n'
         ), f"got {out!r}"
 
+    def test_args_tail_quoted_substitution_word(self):
+        # When the eval-fallback path reassembles a call into a
+        # script for ``tcl_eval``, an arg whose IR text is a
+        # double-quoted word with embedded substitutions and
+        # internal whitespace (``"$n [expr {$n+1}] [expr {$n+2}]"``)
+        # would previously pass through unquoted as
+        # ``${n} [expr {$n+1}] [expr {$n+2}]`` -- splitting the
+        # one source argument into three when re-parsed.  That
+        # broke any callee with an ``args`` variadic tail since
+        # ``[llength $args]`` returned the wrong count.
+        # Pinned because opt.test, safe-stock.test, and any
+        # tcltest call passing a ``"...$x..."`` last argument
+        # depend on the boundary survival.
+        source = """\
+namespace eval ::ns {
+    namespace export rcv
+    proc rcv {a b args} {
+        puts "len=[llength $args]"
+        foreach x $args { puts "  e=$x" }
+    }
+}
+namespace import ::ns::*
+set n 5
+rcv name {desc} {body} "$n [expr {$n+1}] [expr {$n+2}]"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "len=2\n  e=body\n  e=5 6 7\n", f"got {out!r}"
+
     def test_dynamic_switch_runtime(self):
         # The codegen inlines static ``switch`` shapes via IRSwitch,
         # but a ``switch`` reached through ``eval`` (or any path that

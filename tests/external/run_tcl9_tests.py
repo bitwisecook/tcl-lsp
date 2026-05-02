@@ -73,6 +73,21 @@ def _tcl9_test_file(name: str) -> Path:
     return p
 
 
+def _tcl9_opt_library() -> Path | None:
+    """Return path to Tcl 9's optparse.tcl, or None if missing.
+
+    Used by test bundles that ``package require opt`` (opt.test,
+    safe-stock.test) — inlining the upstream library lets the
+    interpreter run the real ``::tcl::OptKeyRegister`` /
+    ``OptKeyParse`` / ``OptParse`` machinery rather than a hand-
+    rolled stub, which is the only way to verify our runtime
+    against opt.test's implementation-detail assertions.
+    """
+    tests_dir = ensure_tcl_source("9.0")
+    p = tests_dir.parent / "library" / "opt" / "optparse.tcl"
+    return p if p.exists() else None
+
+
 # ---------------------------------------------------------------------------
 # Bundle construction
 # ---------------------------------------------------------------------------
@@ -453,23 +468,52 @@ def _patch_tcltest_source(src: str) -> str:
 
 
 def _bundle(test_file_path: Path) -> str:
-    """Concatenate Tcl 9 tcltest + preamble + test file into one script."""
+    """Concatenate Tcl 9 tcltest + preamble + test file into one script.
+
+    Test files that ``package require opt`` (or reach for
+    ``::tcl::OptKeyRegister`` / ``::tcl::OptParse`` directly) get
+    the real ``library/opt/optparse.tcl`` inlined ahead of the
+    preamble, wrapped in ``eval { ... }`` so the AOT compiler
+    leaves its procs interpreted (``info body`` / runtime ``proc``
+    re-registration both rely on the interpreted path).  Wrapping
+    in ``eval`` mirrors the existing ``::parray`` / ``::msgcat``
+    stubs in ``_PRE_TCLTEST``.
+    """
     tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
     test_src = test_file_path.read_text(encoding="utf-8")
 
-    return "\n".join(
-        [
-            "# ===== run_tcl9_tests pre-tcltest stubs =====",
-            _PRE_TCLTEST,
-            "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
-            tcltest_src,
-            "# ===== run_tcl9_tests preamble =====",
-            _PREAMBLE,
-            f"# ===== {test_file_path.name} =====",
-            test_src,
-            "",
-        ]
-    )
+    parts: list[str] = [
+        "# ===== run_tcl9_tests pre-tcltest stubs =====",
+        _PRE_TCLTEST,
+    ]
+
+    needs_opt = ("package require opt" in test_src) or ("::tcl::Opt" in test_src)
+    if needs_opt:
+        opt_path = _tcl9_opt_library()
+        if opt_path is not None:
+            opt_src = opt_path.read_text(encoding="utf-8")
+            # Inline the upstream library at top level (NOT wrapped
+            # in ``eval``).  ``namespace eval ::tcl { variable
+            # OptDescN 0 ... }`` only initialises the variable in
+            # the right scope when the runtime sees it as a
+            # top-level statement; nesting under another ``eval``
+            # detaches the namespace context and the bundle's first
+            # ``$::tcl::OptDescN`` read traps with "no such variable".
+            parts.extend([
+                "# ===== Tcl 9 opt library (real upstream optparse.tcl) =====",
+                opt_src,
+            ])
+
+    parts.extend([
+        "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
+        tcltest_src,
+        "# ===== run_tcl9_tests preamble =====",
+        _PREAMBLE,
+        f"# ===== {test_file_path.name} =====",
+        test_src,
+        "",
+    ])
+    return "\n".join(parts)
 
 
 _SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)")

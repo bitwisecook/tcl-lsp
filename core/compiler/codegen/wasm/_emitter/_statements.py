@@ -1199,7 +1199,34 @@ class _WasmEmitterStmtMixin(_Base):
                     elif a.startswith("$") or a.startswith("["):
                         # Substitution words pass through unquoted so
                         # the interpreter can resolve them at eval time.
-                        parts.append(a)
+                        # BUT — when the IR text starts with ``$`` and
+                        # contains internal whitespace (the original
+                        # was a single double-quoted word like
+                        # ``"$n [expr {$n+1}] [expr {$n+2}]"``), a bare
+                        # pass-through splits on the spaces and turns
+                        # one argument into many.  Wrap that case in
+                        # ``"..."`` so the runtime parser keeps the
+                        # boundaries while still doing ``$var`` /
+                        # ``[cmd]`` substitution.  Tcl's rules for
+                        # ``"..."`` treat whitespace literally and
+                        # substitution markers as live; that matches
+                        # what the source word meant.
+                        #
+                        # NOT applied to args starting with ``[`` —
+                        # those are bare ``[cmd ...]`` command-
+                        # substitution words whose source had no
+                        # surrounding ``"..."``, and any embedded
+                        # whitespace already lives inside the
+                        # brackets where the parser handles it.
+                        # Wrapping them would double-escape backslash
+                        # continuations and break round-trip parsing.
+                        if a.startswith("$") and any(c in a for c in (" ", "\t", "\n")):
+                            # Escape ``\`` and ``"`` so the wrapper
+                            # ``"..."`` re-parses to the same value.
+                            esc = a.replace("\\", "\\\\").replace('"', '\\"')
+                            parts.append('"' + esc + '"')
+                        else:
+                            parts.append(a)
                     else:
                         # Literal IR value from an ESC token (plain or
                         # double-quoted word).  The IR stores the RAW
