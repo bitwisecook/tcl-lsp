@@ -17,8 +17,6 @@ summary fields, trap, and durations.
 from __future__ import annotations
 
 import json
-import os
-import re
 import shutil
 import signal
 import sys
@@ -35,8 +33,8 @@ from tests.external.run_tcl9_tests import (  # noqa: E402
     _bundle,
     _first_failing,
     _parse_summary,
-    _tcl9_test_file,
     _tcl9_tcltest,
+    _tcl9_test_file,
 )
 from tests.test_wasm_real_tcl import (  # noqa: E402
     _compile_tcl_with_diag,
