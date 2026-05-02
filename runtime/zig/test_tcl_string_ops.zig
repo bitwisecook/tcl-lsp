@@ -228,6 +228,22 @@ test "string_is_integer" {
     try testing.expectEqual(@as(i64, 0), intResult(str.string_is_integer(s("abc"))));
     // Empty string is NOT integer (matches the implementation).
     try testing.expectEqual(@as(i64, 0), intResult(str.string_is_integer(s(""))));
+    // Bignum-shaped literals (Stage 2): values > i64 still register
+    // as integer because the runtime supports arbitrary precision.
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("18446744073709551616"))));
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("99999999999999999999999"))));
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_integer(s("-99999999999999999999999"))));
+}
+
+test "string_is_wideinteger" {
+    // ``string is wideinteger`` accepts the same set as
+    // ``string is integer`` once bignum support landed — the
+    // distinction collapsed when arbitrary precision became the
+    // runtime default (matches Tcl 9.0 semantics).
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_wideinteger(s("99"))));
+    try testing.expectEqual(@as(i64, 1), intResult(str.string_is_wideinteger(s("18446744073709551616"))));
+    try testing.expectEqual(@as(i64, 0), intResult(str.string_is_wideinteger(s("12.5"))));
+    try testing.expectEqual(@as(i64, 0), intResult(str.string_is_wideinteger(s("abc"))));
 }
 
 test "string_is_alpha / digit / space" {

@@ -259,6 +259,7 @@ comptime {
     _ = &tcl_string.string_totitle;
     _ = &tcl_string.string_replace;
     _ = &tcl_string.string_is_integer;
+    _ = &tcl_string.string_is_wideinteger;
     _ = &tcl_string.string_is_alpha;
     _ = &tcl_string.string_is_digit;
     _ = &tcl_string.string_is_space;

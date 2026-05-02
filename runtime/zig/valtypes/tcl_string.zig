@@ -584,13 +584,45 @@ pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i3
 }
 
 // Exported: string is integer — check if a string is a valid integer.
+//
+// Tcl 9 ``string is integer`` accepts any decimal / hex / octal /
+// binary literal that fits the runtime's arbitrary-precision integer
+// type — i.e. with libtommath / our Managed-backed bignum, *any*
+// integer string regardless of magnitude.  Stage 1's i64-only check
+// rejected literals exceeding i64 (``string is integer
+// 99999999999999999999999`` returned 0); Stage 2 lets the bignum
+// parse path accept them via ``alloc_from_string``.
 pub export fn string_is_integer(value: i32) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len == 0) return obj_new_int(0);
+    // ``string is integer`` accepts a TYPE_BIGNUM directly without
+    // going through the string parse — saves the parse cost when the
+    // operand is already known-integer (``string is integer [expr {1
+    // << 200}]``).
+    if (obj.obj_type(value) == obj.TYPE_BIGNUM or obj.obj_type(value) == obj.TYPE_INT) {
+        return obj_new_int(1);
+    }
     if (try_parse_int(sv.ptr, sv.len) != null) {
         return obj_new_int(1);
     }
-    return obj_new_int(0);
+    // Bignum-shaped literal — ``9223372036854775808`` etc.  The
+    // module-level ``bignum`` import is used for the parse.
+    if (bignum.parse_i128(sv.ptr, sv.len) != null) {
+        return obj_new_int(1);
+    }
+    const m = bignum.alloc_from_string(sv.ptr, sv.len) orelse return obj_new_int(0);
+    bignum.destroy(m);
+    return obj_new_int(1);
+}
+
+// Exported: string is wideinteger — same as ``string is integer``
+// for the bignum path (both accept arbitrary precision), but kept
+// as a separate symbol so the WASM emitter / Python registry can
+// route the ``string is wideinteger ...`` form to it.  In Tcl 9 the
+// distinction is mostly historical — ``wideinteger`` was the
+// 64-bit-or-fits class before bignum landed.
+pub export fn string_is_wideinteger(value: i32) i32 {
+    return string_is_integer(value);
 }
 
 // Exported: string is alpha — check if a string contains only letters.
