@@ -470,6 +470,31 @@ pub export fn frame_get_argv(offset: i32) i32 {
 var ns_save_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var ns_save_top: u32 = 0;
 
+// Side stack for "parked" frames — a frame's full state (buffer
+// pointer + capacity + dirty bitmap + ns + argv) is moved here
+// while ``frame_depth_stash`` shifts the active depth lower for
+// an ``uplevel``.  Without this parking step, a compiled-proc
+// call dispatched *inside* the upleveled body would push its
+// new frame at the index the stashed frame still logically
+// owned — overwriting the caller's locals (selective-clear via
+// the dirty bitmap zeros every populated bucket) and leaving
+// the caller's frame data destroyed once ``uplevel`` returns.
+//
+// One slot per stashed level per active stash, so a deeply
+// nested ``uplevel`` can't run out of room before the frame
+// stack itself does.  The per-stash count lives in
+// ``parked_count_stack`` so each ``frame_depth_restore`` knows
+// exactly how many frames its corresponding stash parked.
+var parked_stack:    [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_dirty:    [MAX_DEPTH]u64 = [_]u64{0} ** MAX_DEPTH;
+var parked_ns:       [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_argv:     [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
+var parked_top: u32 = 0;
+// Per-stash count of parked frames.  Indexed by ``ns_save_top``
+// at stash time so restore can recover the matching count.
+var parked_count_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
 /// Save the current frame depth and decrement it by *relative_up*
 /// (clamped to 0).  Returns the saved depth so the caller can
 /// restore it via ``frame_depth_restore``.  Used by ``uplevel`` to
@@ -483,14 +508,27 @@ var ns_save_top: u32 = 0;
 /// dispatcher in ``::tcltest`` would leave ``current_ns`` pointing
 /// at ``::tcltest`` and the body's array refs would miss the
 /// caller's namespace's array — see :func:`frame_set_ns`.
+///
+/// Parks the top *relative_up* frames in a side stack (clearing
+/// the original slots) so a compiled-proc call inside the
+/// upleveled body gets a fresh slot at ``frame_depth`` instead of
+/// reusing the parked frame's buffer.  ``frame_depth_restore``
+/// puts them back unchanged.  Required because our frame buffers
+/// are reused across pushes via the dirty-bitmap selective
+/// clear — without parking, ``uplevel 1 [list CompiledCall]``
+/// would zero every populated bucket of the caller's frame on
+/// the inner push, losing all of its locals.
 pub export fn frame_depth_stash(relative_up: i32) i32 {
     const saved: i32 = @intCast(frame_depth);
     var up = relative_up;
     if (up < 0) up = 0;
-    const u: u32 = @intCast(up);
+    var u: u32 = @intCast(up);
+    if (u > frame_depth) u = frame_depth;
 
     // Capture caller-ns BEFORE we pop, then push and switch.
+    var stash_idx: u32 = 0;
     if (ns_save_top < MAX_DEPTH) {
+        stash_idx = ns_save_top;
         ns_save_stack[ns_save_top] = tcl_ns.current_ns;
         ns_save_top += 1;
     }
@@ -504,6 +542,37 @@ pub export fn frame_depth_stash(relative_up: i32) i32 {
         tcl_ns.current_ns = target_ns;
     } else if (u >= frame_depth) {
         tcl_ns.current_ns = tcl_ns.ns_root();
+    }
+
+    // Park the top ``u`` frames so the slots can be reused by
+    // any compiled-proc dispatched within the upleveled body
+    // without trampling the stashed locals.  The slots are
+    // cleared (frame_stack=0) so the next ``frame_push`` for
+    // them allocates a brand-new buffer.
+    var parked_here: u32 = 0;
+    if (parked_top + u <= MAX_DEPTH) {
+        var i: u32 = 0;
+        while (i < u) : (i += 1) {
+            const slot = frame_depth - 1 - i;
+            parked_stack[parked_top]    = frame_stack[slot];
+            parked_capacity[parked_top] = frame_capacity[slot];
+            parked_dirty[parked_top]    = frame_dirty[slot];
+            parked_ns[parked_top]       = frame_ns[slot];
+            parked_argv[parked_top]     = frame_argv[slot];
+            // Clear the slot.  ``frame_argv`` is NOT released
+            // here — the parked entry retains the caller's
+            // refcount; restore puts the same handle back.
+            frame_stack[slot]    = 0;
+            frame_capacity[slot] = 0;
+            frame_dirty[slot]    = 0;
+            frame_ns[slot]       = 0;
+            frame_argv[slot]     = 0;
+            parked_top += 1;
+            parked_here += 1;
+        }
+    }
+    if (stash_idx < MAX_DEPTH) {
+        parked_count_stack[stash_idx] = parked_here;
     }
 
     if (u >= frame_depth) {
@@ -526,6 +595,30 @@ pub export fn frame_depth_restore(saved: i32) void {
     if (ns_save_top > 0) {
         ns_save_top -= 1;
         tcl_ns.current_ns = ns_save_stack[ns_save_top];
+        // Unpark the matching frames in reverse insertion order
+        // — the topmost park lands back in the caller's slot,
+        // restoring the buffer pointer + capacity + dirty
+        // bitmap so a subsequent ``local_get`` finds the
+        // pre-uplevel value untouched.
+        const u = parked_count_stack[ns_save_top];
+        var i: u32 = u;
+        while (i > 0) : (i -= 1) {
+            if (parked_top == 0) break;
+            parked_top -= 1;
+            const slot = frame_depth - i;
+            // If a compiled-proc dispatched inside the
+            // upleveled body re-allocated this slot, the new
+            // buffer is leaked (kept reachable through the
+            // bump allocator's frame-pool reuse on the next
+            // push at a higher index).  The parked buffer goes
+            // back so the original caller's locals are
+            // recovered byte-for-byte.
+            frame_stack[slot]    = parked_stack[parked_top];
+            frame_capacity[slot] = parked_capacity[parked_top];
+            frame_dirty[slot]    = parked_dirty[parked_top];
+            frame_ns[slot]       = parked_ns[parked_top];
+            frame_argv[slot]     = parked_argv[parked_top];
+        }
     }
 }
 

@@ -20,6 +20,7 @@ from .._imports import (
     runtime_import_for,
 )
 from .._ir import (
+    _BLOCK_VOID,
     ValType,
     WasmOp,
 )
@@ -221,6 +222,145 @@ class _WasmEmitterCmdMixin(_Base):
             self._emit_local_set(result_tmp)
             self._emit_frame_readback()
             self._emit_local_get(result_tmp)
+        # Error-flag propagation: if the callee raised an error
+        # (set ``error_flag``), the caller must stop executing
+        # subsequent statements and unwind back to the nearest
+        # enclosing ``catch``.  Without this, ``proc Outer {} {
+        # Inner; puts after-Inner }`` would still print "after-
+        # Inner" when ``Inner`` errors — the WASM call returns
+        # normally and the next statement runs regardless.
+        self._emit_error_flag_check_and_return()
+
+    def _emit_error_flag_check_and_return(self) -> None:
+        """Emit a signal-flag check after a compiled-proc call.
+
+        Reads ``catch_has_error`` and ``flow_check_return`` from
+        the runtime — both globals are written by ``error`` /
+        ``return`` (and every other path that ultimately routes
+        through them).  Any signal set by the callee aborts the
+        current compiled function:
+
+        * ``error_flag`` set → discard the call result, push null,
+          ``WASM.RETURN``.  The flag stays live so an enclosing
+          ``catch`` (or ``::top`` trap) sees it.
+        * ``return_flag`` set → at a proc-dispatch boundary the
+          caller absorbs the signal by calling ``flow_take_return``
+          (which clears the flag and yields ``return_val``) and
+          treating that value as the call result, then resumes
+          normally.  Mirrors ``eval_proc_call``'s post-body
+          absorption for interpreted callees.
+
+        Skipped at top level (``::top``) — there's nothing to
+        return from, and ``tcl_cmd_error`` already traps when
+        ``catch_depth == 0``.
+
+        Skipped inside a catch body so the catch's per-statement
+        ``catch_has_error`` check (in ``_emit_catch``) gets to
+        see ``error_flag`` and break out of the catch block
+        before the surrounding proc unwinds.  Without this guard,
+        ``catch { CompiledProc … }`` where the callee errors
+        would return null straight to the caller without ever
+        reaching ``catch_leave`` — the catch would be skipped
+        entirely.
+        """
+        if not self._is_proc:
+            return
+        if self._catch_depth > 0:
+            return
+        has_err_idx = self._shared_imports.get("tcl_catch_has_error")
+        check_ret_idx = self._shared_imports.get("tcl_flow_check_return")
+        take_ret_idx = self._shared_imports.get("tcl_flow_take_return")
+        if has_err_idx is None and check_ret_idx is None:
+            return
+        # Stash the call's i32 TclObj result — both checks may
+        # need to either discard it (error path) or replace it
+        # (return path) before handing back to the caller.
+        result_tmp = self._add_extra_local(
+            prefix="_errchk_res", val_type=ValType.I32
+        )
+        self._emit_local_set(result_tmp)
+        if has_err_idx is not None:
+            self._emit_call(has_err_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            # Error path — discard result, return null.  Flag
+            # stays set so the enclosing catch / outer compiled
+            # frame's check fires next.
+            self._emit_i32_const(0)
+            self._emit(WasmOp.RETURN)
+            self._emit(WasmOp.END)
+        if check_ret_idx is not None and take_ret_idx is not None:
+            # Return-absorption path — proc dispatch boundary, so
+            # consume the flag and substitute return_val for the
+            # call result.  Without this, ``return`` from inside
+            # an eval-fallback in the callee would leak past the
+            # caller's body and re-fire one frame up.
+            self._emit_call(check_ret_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_call(take_ret_idx)
+            self._emit_local_set(result_tmp)
+            self._emit(WasmOp.END)
+        self._emit_local_get(result_tmp)
+
+    def _emit_signal_check_and_return(self) -> None:
+        """Emit a signal check after an eval-fallback's ``tcl_eval``.
+
+        Same flag inspection as :meth:`_emit_error_flag_check_and_return`,
+        but without the proc-dispatch absorption — the eval
+        body lives *inside* the current proc's call, so a
+        ``return`` raised by the body must propagate to the
+        caller (``return`` from inside ``proc P { … set x [eval
+        $body] }`` should make ``P`` return, not just terminate
+        the assignment).  The eval result is left on the stack
+        so the body's final value becomes the implicit ``return``
+        argument, matching Tcl's ``proc P { … return $x }``
+        shape.
+
+        Skipped at top level — ``::top`` doesn't have a function
+        to return from, and the runtime's outer driver handles
+        flag dispatch directly.
+
+        Skipped *inside a catch body* — the surrounding
+        ``_emit_catch`` already emits a per-statement
+        ``catch_has_error`` check that ``br_if`` s out of the
+        body block while leaving ``catch_leave`` to clear the
+        flag.  An early WASM ``return`` here would skip
+        ``catch_leave`` entirely and break the catch's absorption
+        contract (the next ``catch`` would see a stale
+        ``error_flag`` on entry, and ``return $msg`` after a
+        caught error would leak the inner error code).
+        """
+        if not self._is_proc:
+            return
+        if self._catch_depth > 0:
+            return
+        has_err_idx = self._shared_imports.get("tcl_catch_has_error")
+        check_ret_idx = self._shared_imports.get("tcl_flow_check_return")
+        if has_err_idx is None and check_ret_idx is None:
+            return
+        # Stash the eval result so we can return it on the signal
+        # path or hand it back to the caller on the cheap path.
+        result_tmp = self._add_extra_local(
+            prefix="_evalsig_res", val_type=ValType.I32
+        )
+        self._emit_local_set(result_tmp)
+        if has_err_idx is not None:
+            self._emit_call(has_err_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_i32_const(0)
+            self._emit(WasmOp.RETURN)
+            self._emit(WasmOp.END)
+        if check_ret_idx is not None:
+            self._emit_call(check_ret_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            # Hand the eval result back as the proc's result —
+            # ``return $x`` semantics.  Leave the flag set so the
+            # caller's bridge can absorb at the proc-dispatch
+            # boundary; if there's no caller (e.g. ``::top``),
+            # the runtime's outer driver will see the flag.
+            self._emit_local_get(result_tmp)
+            self._emit(WasmOp.RETURN)
+            self._emit(WasmOp.END)
+        self._emit_local_get(result_tmp)
 
     def _emit_cmd_proc_call(
         self,

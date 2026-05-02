@@ -136,6 +136,8 @@ pub const break_flag = &tcl_catch.break_flag;
 pub const continue_flag = &tcl_catch.continue_flag;
 pub const flow_consume_break = tcl_catch.flow_consume_break;
 pub const flow_consume_continue = tcl_catch.flow_consume_continue;
+pub const flow_check_return = tcl_catch.flow_check_return;
+pub const flow_take_return = tcl_catch.flow_take_return;
 
 // Frames
 pub const frame_push = tcl_frames.frame_push;
@@ -295,6 +297,8 @@ comptime {
     _ = &tcl_catch.catch_set_ok_result;
     _ = &tcl_catch.flow_consume_break;
     _ = &tcl_catch.flow_consume_continue;
+    _ = &tcl_catch.flow_check_return;
+    _ = &tcl_catch.flow_take_return;
     _ = &tcl_catch.tcl_cmd_error;
     _ = &tcl_catch.var_unset_error;
     // tcl_*_stubs exports — stubs trap with ``unsupported command:

@@ -312,6 +312,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # because the wasm-side ``br`` only fires for compiled ``break``.
     "tcl_flow_consume_break": ("tcl", "flow_consume_break", [], [ValType.I32]),
     "tcl_flow_consume_continue": ("tcl", "flow_consume_continue", [], [ValType.I32]),
+    # Pending-``return`` flag inspectors.  Compiled procs use these
+    # at every callee / eval-fallback boundary to detect that
+    # ``return`` (or ``return -code return``) raised from inside
+    # the call.  ``check`` is non-destructive so the propagating
+    # frame can decide whether to absorb (proc-dispatch boundary)
+    # or pass through (mid-body eval-fallback).  ``take`` clears
+    # the flag and yields the body's return value so the caller
+    # frame can finish the absorption in one round-trip.
+    "tcl_flow_check_return": ("tcl", "flow_check_return", [], [ValType.I32]),
+    "tcl_flow_take_return": ("tcl", "flow_take_return", [], [ValType.I32]),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
     # Namespace context for eval-fallback calls — compiled procs set the
