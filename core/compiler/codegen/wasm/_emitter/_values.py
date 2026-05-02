@@ -83,6 +83,41 @@ def _contains_expand_prefix(text: str) -> bool:
             return False
 
 
+def _outer_braces_balanced(value: str) -> bool:
+    """Return True if the leading ``{`` matches the trailing ``}``.
+
+    Walks left-to-right tracking brace depth; the outer braces are
+    balanced when depth never returns to zero before reaching the
+    final character.  Used to distinguish single-token braced
+    literals (``{a b c}``) from multi-element list payloads
+    (``{a} {b} {c}``) — the latter opens and closes multiple
+    times so the outer-strip path must NOT fire.
+
+    Backslash-escaped braces (``\\{`` / ``\\}``) don't count for
+    nesting, matching reference Tcl's brace counter.
+    """
+    if len(value) < 2 or value[0] != "{" or value[-1] != "}":
+        return False
+    depth = 0
+    i = 0
+    n = len(value)
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0 and i < n - 1:
+                # Closed before the end — outer braces don't span
+                # the whole value.
+                return False
+        i += 1
+    return depth == 0
+
+
 def _looks_like_string_option(arg: str) -> bool:
     """Detect a leading ``-flag`` argument on a ``string`` sub-command.
 
@@ -196,10 +231,18 @@ class _WasmEmitterValuesMixin(_Base):
             # literal and should fall through to the obj-literal
             # path.
         # Braced literal — outer braces suppress all substitution in Tcl.
-        # _split_command_subst preserves {…} so downstream code can
-        # distinguish a braced word (literal) from a quoted one (allows
-        # substitution).  Strip the braces and emit the content as-is.
-        if value.startswith("{") and value.endswith("}"):
+        # ``_split_command_subst`` preserves ``{…}`` so downstream code
+        # can distinguish a braced word (literal) from a quoted one
+        # (allows substitution).  Strip the braces and emit the
+        # content as-is — but only when the outer ``{`` actually
+        # matches the outer ``}``; ``{-fla} {-other}`` opens and
+        # closes twice and is NOT a single braced word, so stripping
+        # would mangle it to ``-fla} {-other``.
+        if (
+            value.startswith("{")
+            and value.endswith("}")
+            and _outer_braces_balanced(value)
+        ):
             self._emit_obj_literal(value[1:-1])
             return Ownership.OWNED
         # Braced token whose outer braces the IR already stripped — emit
