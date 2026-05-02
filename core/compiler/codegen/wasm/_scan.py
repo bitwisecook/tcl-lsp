@@ -220,11 +220,29 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         # ``tcl_list_insert`` to thread earlier values
                         # before the replaced slot.
                         needed.add("tcl_list_insert")
+                    elif cmd == "format" and len(full_parts) > 4:
+                        # ``format`` with more than 3 substitution
+                        # args exceeds ``tcl_cmd_format``'s fixed-arity
+                        # slot budget; route through the variadic
+                        # ``tcl_cmd_format_list`` helper which packs
+                        # args into a Tcl list at runtime.  Used by
+                        # opt.test's ``OptTree`` (7-arg ``format``
+                        # with ``%-*s`` columns) and any other
+                        # multi-substitution callsite.
+                        needed.add("tcl_cmd_format_list")
+                        needed.add("tcl_list_create")
                 elif cmd == "list":
                     # ``[list $a $b ...]`` with variable/command args uses
                     # tcl_lappend internally in _emit_list_value to properly
                     # quote each element.  Add it so the import is available.
                     needed.add("tcl_lappend")
+                    # Args that are interpolated double-quoted strings
+                    # (``[list "value=$x" b]``) route through ``_emit_value``
+                    # → ``_emit_interpolated_value`` which builds the
+                    # element via a ``tcl_append`` concat chain.  Without
+                    # this import the interpolation collapses to a literal
+                    # in the lookup table and ``$x`` never substitutes.
+                    needed.add("tcl_append")
                 elif cmd == "dict" and len(parts) > 1:
                     subcmd = parts[1]
                     sri = subcommand_runtime_import_for("dict", subcmd)

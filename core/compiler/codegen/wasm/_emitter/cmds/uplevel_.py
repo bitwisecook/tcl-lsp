@@ -64,13 +64,28 @@ def _emit_array(
 def _emit_unset(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
-    """``unset ?-nocomplain? ?--? varName ...`` — array-element unset."""
-    if context is EmitContext.VALUE:
-        # Tail-context not yet migrated — handled inline in _statements.py.
-        return False
+    """``unset ?-nocomplain? ?--? varName ...`` — array-element unset.
+
+    Handles statement and value (tail / implicit return) contexts;
+    in value context an empty string TclObj is pushed after the
+    unset so the proc's tail return slot stays well-typed.  Without
+    this, a proc whose sole tail statement is ``unset arr($k)``
+    would route through the eval-fallback (which lacks the
+    compile-time namespace alias from ``variable``) and miss the
+    unset entirely — opt.test ``OptKeyDelete`` (one-statement
+    body) regressed exactly this way before the value-context
+    branch landed.
+    """
     if not args:
         return False
-    return bool(emitter._emit_unset_array_elems(args))
+    handled = bool(emitter._emit_unset_array_elems(args))
+    if not handled:
+        return False
+    if context is EmitContext.VALUE:
+        # ``unset`` returns the empty string; push it for the tail
+        # value slot.
+        emitter._emit_obj_literal("")
+    return True
 
 
 REGISTRY.register_wasm_emitter("uplevel", _emit_uplevel)

@@ -238,6 +238,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # route through a ``CommandSpec`` — e.g. ``_emit_list_value``
     # builds N-ary lists via ``tcl_list`` pair-chaining.
     "tcl_list_create": ("tcl", "tcl_list", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Variadic ``format`` — ``tcl_cmd_format`` only accepts 3 subst
+    # args; format callsites with more (or with ``%-*s`` / ``%.*s``
+    # consuming two args per spec) route through the list-form
+    # helper.  See ``codegen/wasm/_emitter/cmds/format_.py``.
+    "tcl_cmd_format_list": (
+        "tcl",
+        "tcl_cmd_format_list",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_contains": (
         "tcl",

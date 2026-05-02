@@ -96,9 +96,44 @@ pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
 
 /// double(x) — coerce to float.  Used in ``expr {$n / double($d)}``.
 pub export fn tcl_math_double(a: i32) i32 {
-    if (a == 0) return obj.obj_new_float(0.0);
+    if (a == 0) {
+        // Empty/null arg — match reference Tcl's
+        // ``can't use empty string as operand of "double"``.  In
+        // practice this only fires when the slot was never written;
+        // fall through to a numeric error so callers see a Tcl
+        // diagnostic instead of a silent 0.0.
+        return raise_double_error(a);
+    }
     if (obj.obj_type(a) == TYPE_FLOAT) return a;
-    return obj.obj_new_float(obj.obj_get_float(a));
+    if (obj.obj_type(a) == TYPE_INT or obj.is_immediate(a)) {
+        return obj.obj_new_float(@floatFromInt(obj.obj_get_int(a)));
+    }
+    // String-typed arg — must parse as a number.  Matches reference
+    // Tcl's ``expected floating-point number but got "X"``.
+    const s = obj.obj_ensure_string(a);
+    if (obj.try_parse_float(s.ptr, s.len)) |val| return obj.obj_new_float(val);
+    if (obj.try_parse_int(s.ptr, s.len)) |val| return obj.obj_new_float(@floatFromInt(val));
+    return raise_double_error(a);
+}
+
+fn raise_double_error(a: i32) i32 {
+    if (@import("../interp/tcl_catch.zig").error_flag != 0) return obj.obj_new_float(0.0);
+    const s = obj.obj_ensure_string(a);
+    const prefix: []const u8 = "expected floating-point number but got \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| { buf[off] = c; off += 1; }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| { buf[off] = sp[i]; off += 1; }
+    }
+    for (suffix) |c| { buf[off] = c; off += 1; }
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+    return obj.obj_new_float(0.0);
 }
 
 /// int(x) — truncate to integer.
