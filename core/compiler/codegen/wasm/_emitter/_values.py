@@ -303,6 +303,24 @@ class _WasmEmitterValuesMixin(_Base):
             c = value[i]
             if c == "\\" and i + 1 < n:
                 esc = value[i + 1]
+                # ``\<newline>`` line continuation: skip the backslash,
+                # the newline, and any following ASCII whitespace —
+                # then append a single space.  Mirrors Tcl's documented
+                # ``\<whitespace>`` rule (used by every multi-line
+                # quoted string in optparse.tcl).  Without this branch,
+                # interpolated strings containing ``...$arg,\<NL>\t\t
+                # usage:`` (the OptTooManyArgs message) preserved the
+                # raw newline + tabs and the test message included
+                # ``,\n\t\tusage:`` instead of the expected
+                # ``, usage:``.
+                if esc == "\n" or esc == "\r":
+                    i += 2
+                    if esc == "\r" and i < n and value[i] == "\n":
+                        i += 1
+                    while i < n and value[i] in " \t":
+                        i += 1
+                    buf.append(" ")
+                    continue
                 buf.append({"n": "\n", "t": "\t", "r": "\r"}.get(esc, esc))
                 i += 2
                 continue
