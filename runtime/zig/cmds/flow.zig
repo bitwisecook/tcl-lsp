@@ -59,8 +59,17 @@ fn eval_return(words: []const i32) i32 {
         result_obj = words[wi];
     }
     if (is_error) {
-
-        catch_mod.tcl_cmd_error(result_obj);
+        // ``return -code error msg`` is a USER-supplied error — it
+        // should keep the default ``NONE`` errorCode unless the
+        // caller passed ``-errorcode`` explicitly.  The 1-arg
+        // ``tcl_cmd_error`` auto-detects a leading ``wrong # args:``
+        // and stamps ``TCL WRONGARGS`` (correct for the BUILTIN-
+        // arity-check path that uses it directly).  For
+        // ``return -code error "wrong # args: synthetic"`` from a
+        // script, that auto-detection would mis-tag the user's
+        // message — Copilot review on PR #325.  Route through the
+        // 3-arg form with ``code = 0`` so the default ``NONE`` wins.
+        catch_mod.tcl_cmd_error_full(result_obj, 0, 0);
         return 0;
     }
     rt.return_flag.* = 1;
