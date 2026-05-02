@@ -25,7 +25,23 @@ fn eval_return(words: []const i32) i32 {
                     const code = obj_ensure_string(words[wi + 1]);
                     if (code.len >= 1) {
                         const cp: [*]const u8 = @ptrFromInt(code.ptr);
-                        if (str_eq(cp, code.len, "error")) is_error = true;
+                        // ``error`` keyword OR numeric ``1`` —
+                        // both name TCL_ERROR.  Without the
+                        // numeric branch, idioms like ``set ret
+                        // [catch {...} res]; return -code $ret
+                        // $res`` (used by ``::tcl::OptParse``)
+                        // pass ``$ret`` as ``"1"``, the literal-
+                        // string check missed it, and the runtime
+                        // routed an error through the
+                        // ``return_flag`` path — surrounding
+                        // ``catch`` then saw TCL_RETURN instead
+                        // of TCL_ERROR (opt-3.2 expected ``1 0``,
+                        // got ``2 0``).
+                        if (str_eq(cp, code.len, "error")) {
+                            is_error = true;
+                        } else if (code.len == 1 and cp[0] == '1') {
+                            is_error = true;
+                        }
                     }
                     wi += 1;
                     continue;

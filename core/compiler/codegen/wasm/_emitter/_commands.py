@@ -240,36 +240,38 @@ class _WasmEmitterCmdMixin(_Base):
         through them).  Any signal set by the callee aborts the
         current compiled function:
 
-        * ``error_flag`` set → discard the call result, push null,
-          ``WASM.RETURN``.  The flag stays live so an enclosing
-          ``catch`` (or ``::top`` trap) sees it.
-        * ``return_flag`` set → at a proc-dispatch boundary the
-          caller absorbs the signal by calling ``flow_take_return``
-          (which clears the flag and yields ``return_val``) and
-          treating that value as the call result, then resumes
-          normally.  Mirrors ``eval_proc_call``'s post-body
-          absorption for interpreted callees.
+        * ``error_flag`` set (and not in a compile-time catch) →
+          discard the call result, push null, ``WASM.RETURN``.
+          The flag stays live so an enclosing catch (or ``::top``
+          trap) sees it.  Inside a catch the surrounding
+          ``_emit_catch`` per-statement ``catch_has_error`` check
+          handles the unwind, and an early WASM ``return`` here
+          would skip ``catch_leave`` and break the catch.
+        * ``return_flag`` set → ALWAYS absorb at the proc-dispatch
+          boundary regardless of catch nesting, by calling
+          ``flow_take_return`` (which clears the flag and yields
+          ``return_val``) and treating that value as the call
+          result.  Mirrors ``eval_proc_call``'s post-body
+          absorption for interpreted callees.  In real Tcl,
+          ``return X`` inside a proc body unwinds to the proc
+          dispatch (TCL_OK to caller), so a surrounding ``catch``
+          observes a normal call result — never code 2.  Skipping
+          the absorption inside a compile-time catch made
+          ``set y [catch {Callee} m]`` see TCL_RETURN (2)
+          instead of TCL_OK (0) for any callee that ended its
+          body via ``return`` through the eval-fallback path.
 
-        Skipped at top level (``::top``) — there's nothing to
-        return from, and ``tcl_cmd_error`` already traps when
-        ``catch_depth == 0``.
-
-        Skipped inside a catch body so the catch's per-statement
-        ``catch_has_error`` check (in ``_emit_catch``) gets to
-        see ``error_flag`` and break out of the catch block
-        before the surrounding proc unwinds.  Without this guard,
-        ``catch { CompiledProc … }`` where the callee errors
-        would return null straight to the caller without ever
-        reaching ``catch_leave`` — the catch would be skipped
-        entirely.
+        At top level (``::top``) the WASM ``return`` exit is
+        skipped because there's nothing to return from, but the
+        ``return_flag`` absorption still runs — a callee that
+        ended its body with ``return X`` (via the eval-fallback
+        path) leaves the flag set, and a top-level ``catch
+        {Callee}`` would otherwise see TCL_RETURN instead of
+        TCL_OK.
         """
-        if not self._is_proc:
-            return
-        if self._catch_depth > 0:
-            return
-        has_err_idx = self._shared_imports.get("tcl_catch_has_error")
         check_ret_idx = self._shared_imports.get("tcl_flow_check_return")
         take_ret_idx = self._shared_imports.get("tcl_flow_take_return")
+        has_err_idx = self._shared_imports.get("tcl_catch_has_error")
         if has_err_idx is None and check_ret_idx is None:
             return
         # Stash the call's i32 TclObj result — both checks may
@@ -277,7 +279,24 @@ class _WasmEmitterCmdMixin(_Base):
         # (return path) before handing back to the caller.
         result_tmp = self._add_extra_local(prefix="_errchk_res", val_type=ValType.I32)
         self._emit_local_set(result_tmp)
-        if has_err_idx is not None:
+        # Return absorption runs at every callsite — proc-dispatch
+        # semantics don't change inside a catch, and they also
+        # apply at top level.  Leaking ``return_flag`` past the
+        # dispatch causes the surrounding catch to see TCL_RETURN
+        # where TCL_OK is the correct code.
+        if check_ret_idx is not None and take_ret_idx is not None:
+            self._emit_call(check_ret_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_call(take_ret_idx)
+            self._emit_local_set(result_tmp)
+            self._emit(WasmOp.END)
+        # Error propagation only applies inside a compiled proc
+        # AND outside a compile-time catch — top level has no
+        # function to return from, and inside a catch the
+        # surrounding ``_emit_catch`` per-stmt check ``br_if`` s
+        # out of the body block before ``catch_leave`` clears
+        # ``error_flag``.
+        if has_err_idx is not None and self._is_proc and self._catch_depth == 0:
             self._emit_call(has_err_idx)
             self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
             # Error path — discard result, return null.  Flag
@@ -285,17 +304,6 @@ class _WasmEmitterCmdMixin(_Base):
             # frame's check fires next.
             self._emit_i32_const(0)
             self._emit(WasmOp.RETURN)
-            self._emit(WasmOp.END)
-        if check_ret_idx is not None and take_ret_idx is not None:
-            # Return-absorption path — proc dispatch boundary, so
-            # consume the flag and substitute return_val for the
-            # call result.  Without this, ``return`` from inside
-            # an eval-fallback in the callee would leak past the
-            # caller's body and re-fire one frame up.
-            self._emit_call(check_ret_idx)
-            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
-            self._emit_call(take_ret_idx)
-            self._emit_local_set(result_tmp)
             self._emit(WasmOp.END)
         self._emit_local_get(result_tmp)
 
