@@ -397,3 +397,176 @@ class TestBignumIntCoercion:
         # ``round`` differ for negative non-integer floats but agree
         # for ``1e30`` (an integral float).
         assert _expr_puts("int(1.0e30)") == "1000000000000000019884624838656"
+
+
+# ``::tcl::mathop::*`` prefix-form ops with bignum operands.  The
+# legacy mathop dispatcher used ``obj_get_int`` for every operand,
+# silently truncating bignum values to their low 64 bits.  Now
+# routed through Managed.
+
+
+class TestMathopBignum:
+    """``::tcl::mathop::+`` etc. with values exceeding i64."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_add_with_literal_bignum(self) -> None:
+        # 3 + a 23-digit literal — exceeds i64.
+        assert self._run("puts [::tcl::mathop::+ 1 2 99999999999999999999999]") == (
+            "100000000000000000000002"
+        )
+
+    def test_add_with_var_bignum(self) -> None:
+        src = (
+            "set x [expr {1<<70}]\n"
+            "puts [::tcl::mathop::+ 1 2 $x]\n"
+        )
+        assert self._run(src) == str(1 + 2 + (1 << 70))
+
+    def test_lt_with_bignum(self) -> None:
+        assert self._run("puts [::tcl::mathop::< 99 99999999999999999999999]") == "1"
+
+    def test_eq_with_bignum(self) -> None:
+        assert self._run(
+            "set x 99999999999999999999999\n"
+            "set y 99999999999999999999999\n"
+            "puts [::tcl::mathop::== $x $y]"
+        ) == "1"
+
+    def test_band_with_bignum(self) -> None:
+        # ``& (1<<200) ((1<<201)-1)`` = ``1<<200`` — Stage 1 truncated to 0.
+        src = (
+            "set hi [expr {1<<200}]\n"
+            "set mask [expr {(1<<201)-1}]\n"
+            "puts [::tcl::mathop::& $hi $mask]\n"
+        )
+        assert self._run(src) == str(1 << 200)
+
+    def test_bor_with_bignum(self) -> None:
+        src = "set hi [expr {1<<128}]\nputs [::tcl::mathop::| 7 $hi]\n"
+        assert self._run(src) == str(7 | (1 << 128))
+
+    def test_bnot_with_bignum(self) -> None:
+        src = "set hi [expr {1<<200}]\nputs [::tcl::mathop::~ $hi]\n"
+        assert self._run(src) == str(-((1 << 200) + 1))
+
+    def test_pow_promotes_to_bignum(self) -> None:
+        assert self._run("puts [::tcl::mathop::** 2 100]") == str(1 << 100)
+
+    def test_lshift_promotes_to_bignum(self) -> None:
+        assert self._run("puts [::tcl::mathop::<< 1 200]") == str(1 << 200)
+
+
+# ``incr`` with bignum increment / variable.  The strict-int check
+# now accepts TYPE_BIGNUM and bignum-shaped string literals; the
+# add path promotes through Managed when either side is bignum.
+
+
+class TestIncrBignum:
+    """``incr`` with operands exceeding i64."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_incr_promotes_on_overflow(self) -> None:
+        # ``9223372036854775000 + 9000`` lands at ``i64::MAX + 1``,
+        # which the legacy ``incr`` saturated.  Bignum promotion
+        # lets the counter cross the boundary cleanly.
+        src = "set x 9223372036854775000\nincr x 9000\nputs $x\n"
+        assert self._run(src) == "9223372036854784000"
+
+    def test_incr_crosses_i64_boundary(self) -> None:
+        # Direct boundary-crossing case: ``i64::MAX + 1`` →
+        # ``9223372036854775808`` (just past i64::MAX).
+        src = "set x 9223372036854775807\nincr x 1\nputs $x\n"
+        assert self._run(src) == "9223372036854775808"
+
+    def test_incr_with_bignum_delta(self) -> None:
+        src = "set x 0\nincr x [expr {1<<70}]\nputs $x\n"
+        assert self._run(src) == str(1 << 70)
+
+    def test_incr_with_bignum_var(self) -> None:
+        # Counter that's already a bignum keeps accumulating.
+        src = "set x [expr {1<<200}]\nincr x 5\nputs $x\n"
+        assert self._run(src) == str((1 << 200) + 5)
+
+
+# ``format %d / %x / %o`` with bignum operands.  Previously the
+# format helper used ``obj_get_int`` which truncated bignum to i64;
+# now routes through ``Managed.toString`` for the requested base.
+
+
+class TestFormatBignum:
+    """``format`` with arbitrary-precision integer operands."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_format_d_bignum(self) -> None:
+        src = "puts [format %d [expr {1<<200}]]"
+        assert self._run(src) == str(1 << 200)
+
+    def test_format_x_bignum(self) -> None:
+        src = "puts [format %x [expr {1<<128}]]"
+        assert self._run(src) == "100000000000000000000000000000000"
+
+    def test_format_o_bignum(self) -> None:
+        src = "puts [format %o [expr {1<<70}]]"
+        # 1<<70 in octal: 1 followed by ceil(70/3) = 24 zeros (with adjustment).
+        # Verify against Python.
+        assert self._run(src) == oct(1 << 70)[2:]
+
+    def test_format_negative_bignum(self) -> None:
+        src = "set x [expr {-(1<<128)}]\nputs [format %d $x]\n"
+        assert self._run(src) == str(-(1 << 128))
+
+
+# Runtime ``expr`` evaluator (used by the ``expr`` *command* as
+# opposed to the AOT-compiled ``expr {...}``) — Stage 2 swapped the
+# legacy i64-only recursive descent (which didn't even recognise
+# ``<<``) for a bignum-aware one in
+# ``runtime/zig/interp/tcl_expr_eval.zig``.
+
+
+class TestRuntimeExprEval:
+    """``expr`` command (runtime path) with bignum-producing ops."""
+
+    def _run(self, src: str) -> str:
+        ok, out, err = _run_tcl_for_stdout(src)
+        if not ok:
+            pytest.fail(f"WASM compile/run failed: {err}")
+        return out.rstrip("\n")
+
+    def test_runtime_expr_shift(self) -> None:
+        # ``[expr {1 << 70}]`` from a runtime-eval context.  The
+        # legacy evaluator returned 1 (parser stopped at unknown
+        # ``<<``); the bignum-aware evaluator gives the full
+        # 22-digit value.
+        assert self._run("puts [expr {1 << 70}]") == str(1 << 70)
+
+    def test_runtime_expr_pow(self) -> None:
+        assert self._run("puts [expr {2 ** 64}]") == str(1 << 64)
+
+    def test_runtime_expr_bitwise_chain(self) -> None:
+        # ``(1<<200) & ((1<<201) - 1) == 1<<200`` — bitwise on bignum.
+        src = "puts [expr {(1<<200) & ((1<<201) - 1)}]"
+        assert self._run(src) == str(1 << 200)
+
+    def test_runtime_expr_compare_bignum(self) -> None:
+        # ``99 < (1 << 70)`` — comparison must use numeric not lex.
+        assert self._run("puts [expr {99 < (1 << 70)}]") == "1"
+
+    def test_runtime_expr_mixed_arith(self) -> None:
+        # Combination: shift, mod, bitwise.
+        src = "puts [expr {((1 << 100) + (1 << 50)) % (1 << 64)}]"
+        assert self._run(src) == str(((1 << 100) + (1 << 50)) % (1 << 64))
