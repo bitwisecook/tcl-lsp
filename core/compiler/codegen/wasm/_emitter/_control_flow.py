@@ -14,6 +14,7 @@ else:
 from ....expr_ast import (
     ExprNode,
 )
+from ._statements import _escape_dquote
 from ....ir import (
     IRIfClause,
     IRScript,
@@ -514,10 +515,30 @@ class _WasmEmitterCtrlMixin(_Base):
                 ):
                     # {*} expansion — eval fallback leaves result on stack.
                     ew = tokens.expand_word
-                    parts = [
-                        (f"{{*}}{t}" if (i < len(ew) and ew[i]) else t)
-                        for i, t in enumerate(tokens.argv_texts)
-                    ]
+                    single_word = (
+                        tokens.single_token_word
+                        if tokens.single_token_word is not None
+                        else ()
+                    )
+                    argv = tokens.argv if tokens.argv is not None else ()
+                    from .....parsing.tokens import TokenType
+
+                    parts: list[str] = []
+                    for i, t in enumerate(tokens.argv_texts):
+                        prefix = "{*}" if (i < len(ew) and ew[i]) else ""
+                        if (
+                            i < len(argv)
+                            and argv[i] is not None
+                            and argv[i].type is TokenType.STR
+                        ):
+                            t = "{" + t + "}"
+                        elif i < len(single_word) and not single_word[i] and t:
+                            # Multi-token word (``"$body (suffix)"``,
+                            # ``\n[list ...]``, …) — wrap in ``"…"`` so
+                            # it stays a single word at eval time while
+                            # ``$`` / ``[`` substitutions still resolve.
+                            t = '"' + _escape_dquote(t) + '"'
+                        parts.append(prefix + t)
                     script = " ".join(parts)
                     self._emit_eval_fallback(command, args, script_override=script)
                     # result is on stack; no DROP here
