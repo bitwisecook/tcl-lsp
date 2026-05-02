@@ -311,6 +311,52 @@ class _WasmEmitterCmdMixin(_Base):
             self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
             self._emit_call(take_ret_idx)
             self._emit_local_set(result_tmp)
+            # ``return -code return`` / ``-level N`` propagates past
+            # the immediate callee: ``flow_take_return`` decrements
+            # the extra-level counter and leaves ``return_flag``
+            # set so the caller (the proc emitting this code) also
+            # exits.  Re-check the flag after the take and ``return``
+            # from the surrounding function so the next caller up
+            # observes the unwind too.  Skipped at top level (no
+            # enclosing function) and inside a catch (the
+            # surrounding ``_emit_catch`` per-statement check
+            # handles unwind via the catch absorption path).
+            if self._is_proc and self._catch_depth == 0:
+                self._emit_call(check_ret_idx)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                self._emit_local_get(result_tmp)
+                self._emit(WasmOp.RETURN)
+                self._emit(WasmOp.END)
+            self._emit(WasmOp.END)
+        # ``return -code break`` / ``return -code continue`` from a
+        # compiled callee leaves a signal flag set.  Two cases:
+        #
+        # * Inside a compiled while/foreach: fall through naturally
+        #   to the loop's body-end ``flow_consume_break/continue``
+        #   probes, which catch ``break_flag`` / ``continue_flag``
+        #   (both of which were paired with the signal flag).  No
+        #   explicit branch needed — the flags stay live.  We just
+        #   clear the *signal* side-channel so the next dispatch
+        #   level doesn't try to translate it.
+        #
+        # * Outside any loop in this proc: ``return`` from the WASM
+        #   function so the proc dispatcher (compiled-proc path in
+        #   ``eval_proc_call_bucket`` or the matching post-dispatch
+        #   stamp) translates the signal into the caller's
+        #   ``break_flag`` / ``continue_flag``.  Skipped inside a
+        #   catch — the surrounding ``_emit_catch`` per-statement
+        #   probe handles unwind via the catch absorption path.
+        sig_loop_idx = self._shared_imports.get("tcl_flow_check_signal_loop")
+        if (
+            sig_loop_idx is not None
+            and self._is_proc
+            and self._catch_depth == 0
+            and self._loop_depth == 0
+        ):
+            self._emit_call(sig_loop_idx)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_local_get(result_tmp)
+            self._emit(WasmOp.RETURN)
             self._emit(WasmOp.END)
         # Error propagation only applies inside a compiled proc
         # AND outside a compile-time catch — top level has no

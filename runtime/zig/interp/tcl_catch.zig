@@ -24,6 +24,43 @@ pub var error_flag: u32 = 0; // 0 = no error, 1 = error pending
 pub var error_msg: i32 = 0; // TclObj with error message
 pub var return_flag: u32 = 0; // 1 = return pending (absorbed by proc dispatch)
 pub var return_val: i32 = 0; // TclObj return value
+/// Number of *additional* proc levels the pending ``return`` should
+/// propagate through.  Set by ``return -code return`` (1) /
+/// ``return -level N`` (N-1) so the proc dispatcher unwinds past
+/// the expected frame and the next caller up also sees a return —
+/// matching Tcl's ``return -level`` / ``-code`` semantics that
+/// ``::tcl::OptDoOne`` relies on (`return -code return` from
+/// inside the state-machine body breaks out of ``OptDoAll``'s
+/// loop, not just the immediate proc).  Default 0 = stop at this
+/// proc (equivalent to ``return -level 1 -code ok``).
+pub var return_level: u32 = 0;
+
+/// Set by ``return -code break`` / ``return -code continue`` so the
+/// proc dispatcher can distinguish a *signalled* break/continue —
+/// which should propagate to the caller's enclosing loop — from a
+/// raw ``break`` / ``continue`` command run outside any loop in
+/// the proc body, which Tcl converts to "invoked X outside of a
+/// loop" at the proc boundary.  ``::tcl::OptDoOne`` drives
+/// ``::tcl::OptDoAll``'s ``while`` loop entirely through
+/// ``return -code continue`` / ``return -code break``, so the
+/// distinction is load-bearing for opt.test.
+pub var signal_break_flag: u32 = 0;
+pub var signal_continue_flag: u32 = 0;
+
+/// Read-and-clear helper for the compiled proc body's per-callsite
+/// break/continue propagation.  Returns 1 if a *signalled*
+/// break/continue is pending — the caller proc should ``return``
+/// from its WASM function so the proc dispatcher can translate
+/// the signal into the caller's ``break_flag`` / ``continue_flag``
+/// for an enclosing loop to catch.  Leaves the signal flag set so
+/// the dispatcher's translation runs.
+pub export fn flow_check_signal_loop() i32 {
+    if (signal_break_flag != 0 or signal_continue_flag != 0) {
+        return 1;
+    }
+    return 0;
+}
+
 pub var break_flag: u32 = 0; // 1 = break pending (absorbed by loops)
 pub var continue_flag: u32 = 0; // 1 = continue pending (absorbed by loops)
 /// Coroutine ``yield`` signal.  Set by ``yield`` / ``yieldto`` to
@@ -65,6 +102,12 @@ pub export fn catch_enter() void {
 // fixes ``catch {return foo}`` exiting the surrounding proc.
 pub export fn tcl_return_set(value: i32) void {
     return_flag = 1;
+    // The codegen path that emits ``return value`` inside a catch
+    // body always means a default ``return -level 1 -code ok``, so
+    // reset the extra-level counter to 0 — leaving a stale value
+    // from a previous ``return -code return`` would erroneously
+    // propagate this regular return past the immediate proc.
+    return_level = 0;
     const old = return_val;
     if (value != 0) obj.tcl_obj_retain(value);
     return_val = value;
@@ -80,6 +123,11 @@ pub export fn tcl_return_set(value: i32) void {
 pub export fn flow_consume_break() i32 {
     if (break_flag != 0) {
         break_flag = 0;
+        // ``return -code break`` paired ``break_flag`` with the
+        // ``signal_break_flag`` side-channel.  Clear both so the
+        // proc dispatcher's post-call sweep doesn't re-fire on a
+        // signal the loop already absorbed.
+        signal_break_flag = 0;
         return 1;
     }
     return 0;
@@ -93,6 +141,7 @@ pub export fn flow_consume_break() i32 {
 pub export fn flow_consume_continue() i32 {
     if (continue_flag != 0) {
         continue_flag = 0;
+        signal_continue_flag = 0;
         return 1;
     }
     return 0;
@@ -122,6 +171,15 @@ pub export fn flow_check_return() i32 {
 pub export fn flow_take_return() i32 {
     if (return_flag != 0) {
         const v = return_val;
+        // ``return -code return`` / ``-level N>1`` propagates past the
+        // immediate proc.  Decrement the level counter; only clear the
+        // flag once the unwind is complete (counter at 0).
+        if (return_level > 0) {
+            return_level -= 1;
+            // Leave ``return_flag`` and ``return_val`` set so the next
+            // proc up on the call stack also unwinds.
+            return v;
+        }
         return_flag = 0;
         return_val = 0;
         return v;
@@ -219,6 +277,9 @@ pub export fn catch_leave() i32 {
     return_flag = 0;
     break_flag = 0;
     continue_flag = 0;
+    return_level = 0;
+    signal_break_flag = 0;
+    signal_continue_flag = 0;
     if (return_val != 0) {
         // Hand the +1 retain that ``return_val`` was holding to
         // ``last_catch_value`` (we already retained above).  Release

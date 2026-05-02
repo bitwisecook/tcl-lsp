@@ -648,7 +648,17 @@ pub export fn ns_set(name_ptr: i32, name_len: i32) i64 {
     // for the duration of the fallback, and that secondary call
     // would otherwise clobber the proc-prologue's caller-ns record
     // and leave ``uplevel 1`` shifting to the wrong namespace.
-    frames.frame_set_ns_if_unset(saved);
+    //
+    // Canonicalise ``saved == 0`` (uninitialised ``current_ns`` —
+    // top-level callers) to the root namespace handle so the
+    // ``if_unset`` slot test below considers the slot *filled*.
+    // Without this, a top-level caller's prologue would leave
+    // ``frame_ns[depth-1] == 0``, then a body-side eval-fallback's
+    // ``ns_set`` (saved == proc's own ns) would stamp the slot
+    // with the *proc's* namespace and ``uplevel 1`` would shift
+    // back to the proc's namespace instead of the caller's root.
+    const stamp = if (saved != 0) saved else tcl_ns.ns_root();
+    frames.frame_set_ns_if_unset(stamp);
     return @as(i64, saved);
 }
 
@@ -1702,18 +1712,39 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // dispatch unconditionally converts body-level ``return`` to
         // a normal return value at the dispatch boundary.
         if (rt.return_flag.* != 0) {
-            rt.return_flag.* = 0;
+            const tcl_catch = @import("tcl_catch.zig");
             const rv = rt.return_val.*;
-            rt.return_val.* = 0;
-            // The dispatch-bridge result the WASM-side flow_take_return
-            // already absorbed will be non-zero; only fall back to the
-            // recorded ``return_val`` when the bridge handed us 0.
-            if (result == 0 and rv != 0) {
-                result = rv;
-            } else if (rv != 0 and rv != result) {
-                obj_mod.tcl_obj_release(rv);
+            // ``return -code return`` / ``-level N`` propagates past
+            // the immediate proc — keep the flag set and decrement
+            // the extra-level counter so the next proc up also exits.
+            if (tcl_catch.return_level > 0) {
+                tcl_catch.return_level -= 1;
+                // Leave return_flag/return_val set; produce ``rv`` as
+                // the result so the parent dispatcher sees the value
+                // when it absorbs.
+                if (result == 0 and rv != 0) result = rv;
+            } else {
+                rt.return_flag.* = 0;
+                rt.return_val.* = 0;
+                // The dispatch-bridge result the WASM-side flow_take_return
+                // already absorbed will be non-zero; only fall back to the
+                // recorded ``return_val`` when the bridge handed us 0.
+                if (result == 0 and rv != 0) {
+                    result = rv;
+                } else if (rv != 0 and rv != result) {
+                    obj_mod.tcl_obj_release(rv);
+                }
             }
         }
+        // ``return -code break`` / ``return -code continue`` from
+        // a compiled callee leave the signal flag set; clear it
+        // here so we don't re-route on the next dispatch cycle.
+        // The break_flag / continue_flag they paired with stay
+        // set, so an enclosing compiled while loop's
+        // ``flow_consume_*`` probe catches the unwind.
+        const tcl_catch_c = @import("tcl_catch.zig");
+        if (tcl_catch_c.signal_break_flag != 0) tcl_catch_c.signal_break_flag = 0;
+        if (tcl_catch_c.signal_continue_flag != 0) tcl_catch_c.signal_continue_flag = 0;
         return result;
     }
     const body_obj = procs.proc_get_body(bucket);
@@ -1907,13 +1938,21 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Absorb return signal (like picol: PICOL_RETURN → PICOL_OK)
     if (rt.return_flag.* != 0) {
+        const tcl_catch = @import("tcl_catch.zig");
+        const rv = rt.return_val.*;
+        // ``return -code return`` / ``-level N`` propagates past the
+        // immediate proc — keep the flag set, decrement the extra-
+        // level counter, and let the next proc up absorb.
+        if (tcl_catch.return_level > 0) {
+            tcl_catch.return_level -= 1;
+            return rv;
+        }
         rt.return_flag.* = 0;
         // MM-B.5: ``return_val`` was retained by ``eval_return``.
         // Hand its reference to the caller (no transfer-side
         // retain needed) and clear the slot so a recursive
         // ``return`` doesn't see a stale pointer in its release
         // path.  Caller's standard "holds 1" contract is met.
-        const rv = rt.return_val.*;
         rt.return_val.* = 0;
         return rv;
     }
@@ -1924,8 +1963,25 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // signal so an outer compiled loop still observes it.
     const body_break = rt.break_flag.* != 0;
     const body_continue = rt.continue_flag.* != 0;
+    const tcl_catch_b = @import("tcl_catch.zig");
+    const sig_break = tcl_catch_b.signal_break_flag != 0;
+    const sig_continue = tcl_catch_b.signal_continue_flag != 0;
+    tcl_catch_b.signal_break_flag = 0;
+    tcl_catch_b.signal_continue_flag = 0;
     rt.break_flag.* = saved_break_flag;
     rt.continue_flag.* = saved_continue_flag;
+    // ``return -code break`` / ``return -code continue`` route the
+    // signal to the caller's enclosing loop instead of triggering
+    // the "outside of a loop" error.  Re-stamp the caller's flag so
+    // an enclosing while/foreach catches the loop-control exit.
+    if (sig_break) {
+        rt.break_flag.* = 1;
+        return result;
+    }
+    if (sig_continue) {
+        rt.continue_flag.* = 1;
+        return result;
+    }
     if (body_break) {
         const msg_text = "invoked \"break\" outside of a loop";
         const msg = rt.obj_new_string_copy(@intFromPtr(msg_text.ptr), msg_text.len);
@@ -2399,9 +2455,14 @@ pub fn eval_apply(words: []const i32) i32 {
     frames.frame_pop();
 
     if (rt.return_flag.* != 0) {
+        const tcl_catch = @import("tcl_catch.zig");
+        const rv = rt.return_val.*;
+        if (tcl_catch.return_level > 0) {
+            tcl_catch.return_level -= 1;
+            return rv;
+        }
         rt.return_flag.* = 0;
         // MM-B.5: same as eval_proc_call_bucket.
-        const rv = rt.return_val.*;
         rt.return_val.* = 0;
         return rv;
     }

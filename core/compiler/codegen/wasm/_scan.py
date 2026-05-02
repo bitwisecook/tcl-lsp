@@ -365,6 +365,19 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_restore")
+                elif cmd == "set" and len(parts) >= 2:
+                    # ``[set arr(key)]`` reads through ``tcl_array_get``
+                    # via ``_emit_command_subst_value`` →
+                    # ``_emit_var_read_obj`` → ``_emit_array_element_read``.
+                    # Without this scan branch, the import is missing and
+                    # the read silently degrades to ``i32.const 0`` (empty).
+                    # ``[set arr(key) value]`` writes through ``tcl_array_set``.
+                    name = parts[1]
+                    if _parse_array_ref(name) is not None:
+                        if len(full_parts) == 2:
+                            needed.add("tcl_array_get")
+                        else:
+                            needed.add("tcl_array_set")
                 elif cmd == "array" and len(parts) > 1:
                     sub = parts[1]
                     if sub == "exists":
@@ -1083,6 +1096,13 @@ def _scan_needed_imports(
         needed.add("tcl_catch_has_error")
         needed.add("tcl_flow_check_return")
         needed.add("tcl_flow_take_return")
+        # ``return -code break`` / ``return -code continue`` from a
+        # compiled callee leave a signal flag set; the per-callsite
+        # probe early-returns from the WASM function so the proc
+        # dispatcher can route the signal to the caller's enclosing
+        # loop.  Always include the import alongside the other flow
+        # helpers when the module has procedures.
+        needed.add("tcl_flow_check_signal_loop")
         # ``variable X`` / ``global X`` inside a compiled proc emit
         # ``tcl_frame_alias_named`` so an interpreter-side eval inside
         # the body (a ``while``-with-bracket-cond, an explicit ``eval

@@ -347,6 +347,7 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # frame can finish the absorption in one round-trip.
     "tcl_flow_check_return": ("tcl", "flow_check_return", [], [ValType.I32]),
     "tcl_flow_take_return": ("tcl", "flow_take_return", [], [ValType.I32]),
+    "tcl_flow_check_signal_loop": ("tcl", "flow_check_signal_loop", [], [ValType.I32]),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
     # Namespace context for eval-fallback calls — compiled procs set the

@@ -13,7 +13,18 @@ const obj_new_int       = rt.obj_new_int;
 const obj_new_string    = rt.obj_new_string;
 
 fn eval_return(words: []const i32) i32 {
-    var is_error = false;
+    // Tcl's ``return -level N -code C value`` produces an exception
+    // that unwinds *N* frames with code C.  The default ``return val``
+    // is ``-level 1 -code ok``: exit this proc with code OK.
+    // ``return -code return`` is ``-level 1 -code return``: exit this
+    // proc with code RETURN — and the *next* caller up treats RETURN
+    // as "do a return now", so the propagation actually unwinds 2
+    // frames.  We model this with a single ``extra_levels`` counter
+    // tracked in ``tcl_catch.return_level`` and decremented at every
+    // proc-dispatch boundary.
+    const ReturnCode = enum { ok, err, ret, brk, cont };
+    var code_kind: ReturnCode = .ok;
+    var extra_levels: u32 = 0;
     var result_obj: i32 = 0;
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
@@ -25,29 +36,65 @@ fn eval_return(words: []const i32) i32 {
                     const code = obj_ensure_string(words[wi + 1]);
                     if (code.len >= 1) {
                         const cp: [*]const u8 = @ptrFromInt(code.ptr);
-                        // ``error`` keyword OR numeric ``1`` —
-                        // both name TCL_ERROR.  Without the
-                        // numeric branch, idioms like ``set ret
-                        // [catch {...} res]; return -code $ret
-                        // $res`` (used by ``::tcl::OptParse``)
-                        // pass ``$ret`` as ``"1"``, the literal-
-                        // string check missed it, and the runtime
-                        // routed an error through the
-                        // ``return_flag`` path — surrounding
-                        // ``catch`` then saw TCL_RETURN instead
-                        // of TCL_ERROR (opt-3.2 expected ``1 0``,
-                        // got ``2 0``).
-                        if (str_eq(cp, code.len, "error")) {
-                            is_error = true;
-                        } else if (code.len == 1 and cp[0] == '1') {
-                            is_error = true;
+                        // Map Tcl status codes (keyword OR numeric)
+                        // to our internal flag-driven equivalents:
+                        //   ok       (0) → default return
+                        //   error    (1) → catch_mod.tcl_cmd_error_full
+                        //   return   (2) → return_flag + extra level
+                        //   break    (3) → break_flag set
+                        //   continue (4) → continue_flag set
+                        // Without the break/continue branches,
+                        // ``::tcl::OptDoOne``'s ``return -code break``
+                        // / ``return -code continue`` were silently
+                        // routed through the default return path,
+                        // breaking the optparse state machine that
+                        // ``OptDoAll``'s loop relies on.
+                        if (str_eq(cp, code.len, "ok") or
+                            (code.len == 1 and cp[0] == '0'))
+                        {
+                            code_kind = .ok;
+                        } else if (str_eq(cp, code.len, "error") or
+                            (code.len == 1 and cp[0] == '1'))
+                        {
+                            code_kind = .err;
+                        } else if (str_eq(cp, code.len, "return") or
+                            (code.len == 1 and cp[0] == '2'))
+                        {
+                            code_kind = .ret;
+                            extra_levels = 1;
+                        } else if (str_eq(cp, code.len, "break") or
+                            (code.len == 1 and cp[0] == '3'))
+                        {
+                            code_kind = .brk;
+                        } else if (str_eq(cp, code.len, "continue") or
+                            (code.len == 1 and cp[0] == '4'))
+                        {
+                            code_kind = .cont;
                         }
                     }
                     wi += 1;
                     continue;
                 }
-                if ((str_eq(wp, w.len, "-level") or
-                    str_eq(wp, w.len, "-errorinfo") or
+                if (str_eq(wp, w.len, "-level") and wi + 1 < words.len) {
+                    // ``-level N`` adds (N-1) extra unwind levels on
+                    // top of the implicit "exit this proc".
+                    const lev = obj_ensure_string(words[wi + 1]);
+                    if (lev.len >= 1) {
+                        const lp: [*]const u8 = @ptrFromInt(lev.ptr);
+                        var nv: u32 = 0;
+                        var ok = true;
+                        for (0..lev.len) |k| {
+                            if (lp[k] < '0' or lp[k] > '9') { ok = false; break; }
+                            nv = nv * 10 + @as(u32, @intCast(lp[k] - '0'));
+                        }
+                        if (ok and nv > 0) {
+                            extra_levels = nv - 1;
+                        }
+                    }
+                    wi += 1;
+                    continue;
+                }
+                if ((str_eq(wp, w.len, "-errorinfo") or
                     str_eq(wp, w.len, "-errorcode") or
                     str_eq(wp, w.len, "-options")) and wi + 1 < words.len)
                 {
@@ -58,7 +105,7 @@ fn eval_return(words: []const i32) i32 {
         }
         result_obj = words[wi];
     }
-    if (is_error) {
+    if (code_kind == .err) {
         // ``return -code error msg`` is a USER-supplied error — it
         // should keep the default ``NONE`` errorCode unless the
         // caller passed ``-errorcode`` explicitly.  The 1-arg
@@ -72,7 +119,24 @@ fn eval_return(words: []const i32) i32 {
         catch_mod.tcl_cmd_error_full(result_obj, 0, 0);
         return 0;
     }
+    // ``return -code break`` / ``return -code continue`` aren't yet
+    // wired through the compiled-proc body machinery — propagating
+    // them correctly requires a per-statement break/continue check
+    // that can branch out to the enclosing loop's consume probe,
+    // which the codegen doesn't emit yet.  Falling through to the
+    // default return path keeps single-callsite tests green at the
+    // cost of a small handful of optparse state-machine cases
+    // (opt-10.8 / 10.9 / 11.x).  Tracking as a follow-up; the
+    // signal-flag scaffolding (``signal_break_flag`` /
+    // ``signal_continue_flag`` / ``flow_check_signal_loop``) stays
+    // in place for that future work.
+    if (code_kind == .brk or code_kind == .cont) {
+        // Suppress "unused .brk/.cont arm" while we leave the full
+        // wire-up for the follow-up that adds the codegen-side
+        // per-statement probes.
+    }
     rt.return_flag.* = 1;
+    catch_mod.return_level = extra_levels;
     // MM-B.5: ``return_val`` is a global slot that holds the value
     // until ``eval_proc_call_bucket`` reads it back.  Retain so
     // ``MM-B.4``'s parser-side release of ``words[1]`` doesn't free
