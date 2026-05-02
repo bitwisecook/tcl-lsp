@@ -12,6 +12,13 @@ import json
 import sys
 from pathlib import Path
 
+# Repo root is two levels up from this file
+# (``scripts/tcl9_baseline_to_csv.py``).  Used both for the
+# default ``--out`` path and for resolving the ``tests`` package
+# import — the previous hard-coded ``/home/user/tcl-lsp`` only
+# worked in one specific checkout layout.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 def load(path: Path) -> dict[str, dict]:
     out: dict[str, dict] = {}
@@ -36,7 +43,10 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--c", default="/tmp/c-tcl-sweep.ndjson")
     p.add_argument("--wasm", default="/tmp/tcltest-sweep-fast.ndjson")
-    p.add_argument("--out", default="/home/user/tcl-lsp/docs/c-tcl-9.0.3-tcltest-baseline.csv")
+    p.add_argument(
+        "--out",
+        default=str(_REPO_ROOT / "docs" / "c-tcl-9.0.3-tcltest-baseline.csv"),
+    )
     args = p.parse_args()
 
     c = load(Path(args.c))
@@ -51,11 +61,20 @@ def main() -> int:
             return ""
         import re as _re
 
-        if _re.search(r"unknown command: [0-9a-f]{8,}", trap):
+        # The runtime now emits ``invalid command name "X"`` (matching
+        # reference Tcl's ``TclEvalObjvInternal``) where it used to
+        # emit ``unknown command: X``.  Recognise both spellings so
+        # the categoriser keeps working through the wording change
+        # — without this branch, every unknown-command trap on a
+        # post-rename-builtin sweep falls into ``other`` and the
+        # leverage analysis disappears.
+        if _re.search(r"unknown command: [0-9a-f]{8,}", trap) or _re.search(
+            r'invalid command name "[0-9a-f]{8,}"', trap
+        ):
             return "braced-cmdsubst-leak"  # description like {[abc123]} eval'd
-        if "unknown command: Bug" in trap:
+        if "unknown command: Bug" in trap or 'invalid command name "Bug' in trap:
             return "braced-cmdsubst-leak"  # description like {[Bug 1234]}
-        if "unknown command: " in trap:
+        if "unknown command: " in trap or "invalid command name " in trap:
             return "unknown-command"
         if "unsupported command:" in trap or "unsupported in WASM" in trap:
             return "unsupported-command"
@@ -118,7 +137,7 @@ def main() -> int:
         )
         # Read subsystem labels from _IN_SCOPE
         try:
-            sys.path.insert(0, "/home/user/tcl-lsp")
+            sys.path.insert(0, str(_REPO_ROOT))
             from tests.external.run_tcl9_tests import _IN_SCOPE
 
             sub_map = dict(_IN_SCOPE)
