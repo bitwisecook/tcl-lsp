@@ -5,6 +5,7 @@
 // string_is_space, string_trimleft, string_trimright, concat.
 
 const obj = @import("tcl_obj.zig");
+const bignum = @import("tcl_bignum.zig");
 const list_mod = @import("tcl_list.zig");
 const alloc = obj.alloc;
 const memcpy = obj.memcpy;
@@ -118,7 +119,15 @@ pub export fn string_compare(a: i32, b: i32) i32 {
 // Returns TclObj wrapping -1, 0, or 1.
 // Used for expr's < > <= >= operators (Tcl 9 semantics: numeric when both
 // operands parse as integers, otherwise bytewise string comparison).
+//
+// Bignum-aware: when one or both operands exceed the i64 range, the
+// comparison routes through ``std.math.big.int.Managed.order`` so that
+// e.g. ``expr {99 < (1 << 70)}`` returns 1 rather than the lexicographic
+// ``"99" > "1180591620717411303424"`` answer.  Match the i128-or-bignum
+// promotion discipline the arithmetic helpers use.
 pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
+    // Fast path: both operands fit i64 — preserves the zero-allocation
+    // numeric compare for the common case.
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
     const ai = try_parse_int(sa.ptr, sa.len);
@@ -128,6 +137,53 @@ pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
         const bv = bi.?;
         if (av < bv) return obj_new_int(-1);
         if (av > bv) return obj_new_int(1);
+        return obj_new_int(0);
+    }
+    // Bignum path: if either operand is a TYPE_BIGNUM TclObj, or its
+    // string representation is a valid integer literal too wide for i64,
+    // promote both to ``*BigInt`` and compare via ``Managed.order``.
+    // We promote unconditionally when either side has a non-i64 numeric
+    // form — the fallback to string-compare below still triggers for
+    // genuinely non-numeric operands (lists, named values, …).
+    //
+    // ``parse_i128`` covers the i64 < |x| <= i128 range cheaply;
+    // ``string_needs_bignum`` (Managed parse) catches integer-shaped
+    // literals beyond i128 like ``"1`` + 100 zeros (Copilot review
+    // #326).  Without that fallback, ``expr {(1<<200) > 99}`` and
+    // similar comparisons of huge string literals fell through to
+    // bytewise compare and produced the wrong sign.
+    const a_can_bignum = obj.obj_type(a) == obj.TYPE_BIGNUM or
+        bignum.parse_i128(sa.ptr, sa.len) != null or
+        bignum.string_needs_bignum(sa.ptr, sa.len);
+    const b_can_bignum = obj.obj_type(b) == obj.TYPE_BIGNUM or
+        bignum.parse_i128(sb.ptr, sb.len) != null or
+        bignum.string_needs_bignum(sb.ptr, sb.len);
+    if (a_can_bignum and b_can_bignum) {
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(b);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m == null or bp.m == null) return obj_new_int(0);
+        return switch (ap.m.?.order(bp.m.?.*)) {
+            .lt => obj_new_int(-1),
+            .eq => obj_new_int(0),
+            .gt => obj_new_int(1),
+        };
+    }
+    // Numeric float compare path: when at least one operand is a
+    // TYPE_FLOAT (or a string like ``"1.5"`` / ``"1e2"``), promote
+    // both to f64 and compare.  Without this branch ``expr {1 ==
+    // 1.0}`` falls through to the bytewise compare below and reports
+    // unequal — Tcl 9 says those should compare equal.
+    const a_can_float = obj.obj_type(a) == obj.TYPE_FLOAT or obj.try_parse_float(sa.ptr, sa.len) != null;
+    const b_can_float = obj.obj_type(b) == obj.TYPE_FLOAT or obj.try_parse_float(sb.ptr, sb.len) != null;
+    if ((a_can_float and (b_can_float or bi != null or a_can_bignum or b_can_bignum)) or
+        (b_can_float and (a_can_float or ai != null or a_can_bignum or b_can_bignum)))
+    {
+        const af = obj.obj_get_float(a);
+        const bf = obj.obj_get_float(b);
+        if (af < bf) return obj_new_int(-1);
+        if (af > bf) return obj_new_int(1);
         return obj_new_int(0);
     }
     // Fall back to bytewise string comparison (Unicode code-point order for
@@ -537,13 +593,45 @@ pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i3
 }
 
 // Exported: string is integer — check if a string is a valid integer.
+//
+// Tcl 9 ``string is integer`` accepts any decimal / hex / octal /
+// binary literal that fits the runtime's arbitrary-precision integer
+// type — i.e. with libtommath / our Managed-backed bignum, *any*
+// integer string regardless of magnitude.  Stage 1's i64-only check
+// rejected literals exceeding i64 (``string is integer
+// 99999999999999999999999`` returned 0); Stage 2 lets the bignum
+// parse path accept them via ``alloc_from_string``.
 pub export fn string_is_integer(value: i32) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len == 0) return obj_new_int(0);
+    // ``string is integer`` accepts a TYPE_BIGNUM directly without
+    // going through the string parse — saves the parse cost when the
+    // operand is already known-integer (``string is integer [expr {1
+    // << 200}]``).
+    if (obj.obj_type(value) == obj.TYPE_BIGNUM or obj.obj_type(value) == obj.TYPE_INT) {
+        return obj_new_int(1);
+    }
     if (try_parse_int(sv.ptr, sv.len) != null) {
         return obj_new_int(1);
     }
-    return obj_new_int(0);
+    // Bignum-shaped literal — ``9223372036854775808`` etc.  The
+    // module-level ``bignum`` import is used for the parse.
+    if (bignum.parse_i128(sv.ptr, sv.len) != null) {
+        return obj_new_int(1);
+    }
+    const m = bignum.alloc_from_string(sv.ptr, sv.len) orelse return obj_new_int(0);
+    bignum.destroy(m);
+    return obj_new_int(1);
+}
+
+// Exported: string is wideinteger — same as ``string is integer``
+// for the bignum path (both accept arbitrary precision), but kept
+// as a separate symbol so the WASM emitter / Python registry can
+// route the ``string is wideinteger ...`` form to it.  In Tcl 9 the
+// distinction is mostly historical — ``wideinteger`` was the
+// 64-bit-or-fits class before bignum landed.
+pub export fn string_is_wideinteger(value: i32) i32 {
+    return string_is_integer(value);
 }
 
 // Exported: string is alpha — check if a string contains only letters.

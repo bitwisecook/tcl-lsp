@@ -64,13 +64,17 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     except Exception:
         return
 
-    _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD})
+    _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW})
     _ARITH_IMPORT = {
         BinOp.ADD: "tcl_arith_add",
         BinOp.SUB: "tcl_arith_sub",
         BinOp.MUL: "tcl_arith_mul",
         BinOp.DIV: "tcl_arith_div",
         BinOp.MOD: "tcl_arith_mod",
+        # ``**`` routes to the bignum-aware runtime helper rather
+        # than the inline i64 loop in ``_emit_power`` (object-context
+        # path only — the i64 path keeps the existing inline loop).
+        BinOp.POW: "tcl_arith_pow",
     }
     # Bitwise / shift — strict integer domain (issues #260, #261).
     _BITWISE_OPS = frozenset(
@@ -96,6 +100,18 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
         "log10": "tcl_math_log10",
         "sin": "tcl_math_sin",
         "cos": "tcl_math_cos",
+        "tan": "tcl_math_tan",
+        "asin": "tcl_math_asin",
+        "acos": "tcl_math_acos",
+        "atan": "tcl_math_atan",
+        "atan2": "tcl_math_atan2",
+        "sinh": "tcl_math_sinh",
+        "cosh": "tcl_math_cosh",
+        "tanh": "tcl_math_tanh",
+        "floor": "tcl_math_floor",
+        "ceil": "tcl_math_ceil",
+        "fmod": "tcl_math_fmod",
+        "hypot": "tcl_math_hypot",
         "fabs": "tcl_math_fabs",
         "abs": "tcl_math_fabs",
         "double": "tcl_math_double",
@@ -114,6 +130,13 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                 if op in (BinOp.STR_LT, BinOp.STR_GT, BinOp.STR_LE, BinOp.STR_GE):
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
+                    needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.EQ, BinOp.NE):
+                    # Numeric ``==`` / ``!=`` route through
+                    # ``tcl_expr_order_cmp`` so bignum operands and
+                    # int-vs-float mixed compares pick the right
+                    # rule (the inline ``i64.eq`` truncates bignums
+                    # to their low 64 bits).
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.IN, BinOp.NI):
                     needed.add("tcl_list_contains")
@@ -158,6 +181,21 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     # ``tcl_arith_neg`` keeps the float tag through
                     # ``~(-$x)`` chains.
                     needed.add("tcl_arith_neg")
+                if uop == UnaryOp.NEG:
+                    # Without this the obj-context emitter for
+                    # ``-LITERAL`` falls back to the inline ``0 - x``
+                    # i64 path, which can't represent literals beyond
+                    # the i64 boundary (the ``i64.const`` saturates).
+                    # ``tcl_arith_neg`` is the bignum-aware path
+                    # (i128 promotion via ``valtypes/tcl_bignum.zig``)
+                    # — register it whenever a unary NEG appears in
+                    # an expression so e.g. ``expr {-9223372036854775808}``
+                    # round-trips precisely instead of truncating to
+                    # ``-9223372036854775807``.
+                    needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_obj_new_string")
                 _walk(operand)
             case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _walk(cond)
@@ -169,6 +207,19 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add(imp)
                     needed.add("tcl_obj_get_int")
                     needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                if func == "pow" and len(args) == 2:
+                    # ``pow(a, b)`` math-function call (distinct from
+                    # the ``**`` operator) — register the bignum-aware
+                    # runtime helper so the obj-context emitter can
+                    # route through it (the inline i64 loop in
+                    # ``_emit_power`` truncates float operands).
+                    needed.add("tcl_arith_pow")
+                    # The float literal box helper is needed for
+                    # operands like ``pow(2.1, 3.1)``; without it the
+                    # ``_emit_obj_literal_for_expr`` float branch
+                    # falls back to ``int(float_val)`` and the args
+                    # become 2/3 instead of 2.1/3.1.
                     needed.add("tcl_obj_new_float")
                 for arg in args:
                     _walk(arg)
@@ -480,6 +531,18 @@ def _scan_needed_imports(
                     "log10": "tcl_math_log10",
                     "sin": "tcl_math_sin",
                     "cos": "tcl_math_cos",
+                    "tan": "tcl_math_tan",
+                    "asin": "tcl_math_asin",
+                    "acos": "tcl_math_acos",
+                    "atan": "tcl_math_atan",
+                    "atan2": "tcl_math_atan2",
+                    "sinh": "tcl_math_sinh",
+                    "cosh": "tcl_math_cosh",
+                    "tanh": "tcl_math_tanh",
+                    "floor": "tcl_math_floor",
+                    "ceil": "tcl_math_ceil",
+                    "fmod": "tcl_math_fmod",
+                    "hypot": "tcl_math_hypot",
                     "fabs": "tcl_math_fabs",
                     "abs": "tcl_math_fabs",
                     "double": "tcl_math_double",
