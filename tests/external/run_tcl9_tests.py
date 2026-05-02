@@ -472,12 +472,13 @@ def _bundle(test_file_path: Path) -> str:
 
     Test files that ``package require opt`` (or reach for
     ``::tcl::OptKeyRegister`` / ``::tcl::OptParse`` directly) get
-    the real ``library/opt/optparse.tcl`` inlined ahead of the
-    preamble, wrapped in ``eval { ... }`` so the AOT compiler
-    leaves its procs interpreted (``info body`` / runtime ``proc``
-    re-registration both rely on the interpreted path).  Wrapping
-    in ``eval`` mirrors the existing ``::parray`` / ``::msgcat``
-    stubs in ``_PRE_TCLTEST``.
+    the real ``library/opt/optparse.tcl`` inlined at top level
+    (NOT wrapped in ``eval``).  ``namespace eval ::tcl { variable
+    OptDescN 0 ... }`` only initialises the variable in the right
+    scope when the runtime sees it as a top-level statement;
+    nesting under another ``eval`` detaches the namespace context
+    and the bundle's first ``$::tcl::OptDescN`` read traps with
+    "no such variable".
     """
     tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
     test_src = test_file_path.read_text(encoding="utf-8")

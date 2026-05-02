@@ -14,11 +14,16 @@ with ``cwd`` set to ``tmp/tcl9.0.3/tests/`` so all relative-path
 
 Output: NDJSON to --out, one record per bundle.
 
-Build the tclsh first::
+Build the tclsh first (run from the repo root)::
 
     mkdir -p /tmp/tcl-build && cd /tmp/tcl-build && \
-        ./tmp/tcl9.0.3/unix/configure --prefix=/tmp/tcl-install && \
+        "$REPO_ROOT/tmp/tcl9.0.3/unix/configure" --prefix=/tmp/tcl-install && \
         make -j$(nproc) tclsh
+
+Replace ``$REPO_ROOT`` with the absolute path of the tcl-lsp checkout
+(the previous example resolved ``./tmp/...`` relative to
+``/tmp/tcl-build/`` and produced ``No such file or directory`` for
+anyone following it verbatim — Copilot review on PR #325).
 
 Then run::
 
