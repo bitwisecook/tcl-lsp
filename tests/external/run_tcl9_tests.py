@@ -499,20 +499,24 @@ def _bundle(test_file_path: Path) -> str:
             # top-level statement; nesting under another ``eval``
             # detaches the namespace context and the bundle's first
             # ``$::tcl::OptDescN`` read traps with "no such variable".
-            parts.extend([
-                "# ===== Tcl 9 opt library (real upstream optparse.tcl) =====",
-                opt_src,
-            ])
+            parts.extend(
+                [
+                    "# ===== Tcl 9 opt library (real upstream optparse.tcl) =====",
+                    opt_src,
+                ]
+            )
 
-    parts.extend([
-        "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
-        tcltest_src,
-        "# ===== run_tcl9_tests preamble =====",
-        _PREAMBLE,
-        f"# ===== {test_file_path.name} =====",
-        test_src,
-        "",
-    ])
+    parts.extend(
+        [
+            "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
+            tcltest_src,
+            "# ===== run_tcl9_tests preamble =====",
+            _PREAMBLE,
+            f"# ===== {test_file_path.name} =====",
+            test_src,
+            "",
+        ]
+    )
     return "\n".join(parts)
 
 

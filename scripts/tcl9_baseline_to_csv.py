@@ -50,6 +50,7 @@ def main() -> int:
         if not trap:
             return ""
         import re as _re
+
         if _re.search(r"unknown command: [0-9a-f]{8,}", trap):
             return "braced-cmdsubst-leak"  # description like {[abc123]} eval'd
         if "unknown command: Bug" in trap:
@@ -87,21 +88,39 @@ def main() -> int:
     # slowdown column compares.
     with out_path.open("w", newline="") as f:
         wr = csv.writer(f)
-        wr.writerow([
-            "name",
-            "subsystem",
-            "c_outcome", "c_total", "c_passed", "c_skipped", "c_failed",
-            "c_wall_ms", "c_user_s", "c_sys_s", "c_max_rss_mb",
-            "wasm_outcome", "wasm_total", "wasm_passed", "wasm_skipped", "wasm_failed",
-            "wasm_run_ms", "wasm_pass_rate", "slowdown_x",
-            "wasm_compile_ms", "wasm_wall_ms",
-            "wasm_trap_category",
-            "wasm_first_failing", "wasm_trap",
-        ])
+        wr.writerow(
+            [
+                "name",
+                "subsystem",
+                "c_outcome",
+                "c_total",
+                "c_passed",
+                "c_skipped",
+                "c_failed",
+                "c_wall_ms",
+                "c_user_s",
+                "c_sys_s",
+                "c_max_rss_mb",
+                "wasm_outcome",
+                "wasm_total",
+                "wasm_passed",
+                "wasm_skipped",
+                "wasm_failed",
+                "wasm_run_ms",
+                "wasm_pass_rate",
+                "slowdown_x",
+                "wasm_compile_ms",
+                "wasm_wall_ms",
+                "wasm_trap_category",
+                "wasm_first_failing",
+                "wasm_trap",
+            ]
+        )
         # Read subsystem labels from _IN_SCOPE
         try:
             sys.path.insert(0, "/home/user/tcl-lsp")
             from tests.external.run_tcl9_tests import _IN_SCOPE
+
             sub_map = dict(_IN_SCOPE)
         except Exception:
             sub_map = {}
@@ -122,26 +141,34 @@ def main() -> int:
             pass_rate = ""
             if c_total > 0:
                 pass_rate = f"{100 * w_passed / c_total:.0f}%"
-            wr.writerow([
-                name,
-                sub_map.get(name, ""),
-                cr.get("outcome", ""), cr.get("total", ""), cr.get("passed", ""),
-                cr.get("skipped", ""), cr.get("failed", ""),
-                f"{c_wall:.0f}" if c_wall else "",
-                cr.get("user_s", ""),
-                cr.get("sys_s", ""),
-                f"{cr.get('max_rss_kb',0)/1024:.1f}" if cr.get("max_rss_kb") else "",
-                wr_.get("outcome", ""), wr_.get("total", ""), wr_.get("passed", ""),
-                wr_.get("skipped", ""), wr_.get("failed", ""),
-                f"{w_run:.0f}" if w_run else "",
-                pass_rate,
-                slowdown,
-                f"{wr_.get('compile_ms',0):.0f}" if wr_.get("compile_ms") else "",
-                f"{w_wall:.0f}" if w_wall else "",
-                categorise_trap(wr_.get("trap") or ""),
-                (wr_.get("first_failing") or "")[:60],
-                (wr_.get("trap") or "").replace("\n", " | ")[:200],
-            ])
+            wr.writerow(
+                [
+                    name,
+                    sub_map.get(name, ""),
+                    cr.get("outcome", ""),
+                    cr.get("total", ""),
+                    cr.get("passed", ""),
+                    cr.get("skipped", ""),
+                    cr.get("failed", ""),
+                    f"{c_wall:.0f}" if c_wall else "",
+                    cr.get("user_s", ""),
+                    cr.get("sys_s", ""),
+                    f"{cr.get('max_rss_kb', 0) / 1024:.1f}" if cr.get("max_rss_kb") else "",
+                    wr_.get("outcome", ""),
+                    wr_.get("total", ""),
+                    wr_.get("passed", ""),
+                    wr_.get("skipped", ""),
+                    wr_.get("failed", ""),
+                    f"{w_run:.0f}" if w_run else "",
+                    pass_rate,
+                    slowdown,
+                    f"{wr_.get('compile_ms', 0):.0f}" if wr_.get("compile_ms") else "",
+                    f"{w_wall:.0f}" if w_wall else "",
+                    categorise_trap(wr_.get("trap") or ""),
+                    (wr_.get("first_failing") or "")[:60],
+                    (wr_.get("trap") or "").replace("\n", " | ")[:200],
+                ]
+            )
 
     print(f"Wrote {out_path}")
     return 0

@@ -271,9 +271,7 @@ class _WasmEmitterCtrlMixin(_Base):
             if self._is_frame_only_var(var_name):
                 self._emit_var_write_obj(var_name, source=Ownership.OWNED)
             else:
-                self._emit_owned_local_write(
-                    var_local, Ownership.OWNED, keep_on_stack=False
-                )
+                self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1

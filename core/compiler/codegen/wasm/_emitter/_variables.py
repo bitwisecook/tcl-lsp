@@ -904,22 +904,16 @@ class _WasmEmitterVarMixin(_Base):
         alias_idx = self._shared_imports.get("tcl_frame_alias_frame_var")
         depth_idx = self._shared_imports.get("tcl_frame_get_depth")
         if alias_idx is None or depth_idx is None:
-            self._emit_unsupported_trap(
-                "upvar (frame-var alias runtime helpers missing)"
-            )
+            self._emit_unsupported_trap("upvar (frame-var alias runtime helpers missing)")
             return
 
-        target_idx = self._add_extra_local(
-            prefix=f"_uvr_{local_name}_tgt", val_type=ValType.I32
-        )
+        target_idx = self._add_extra_local(prefix=f"_uvr_{local_name}_tgt", val_type=ValType.I32)
         self._emit_value(target_value)
         self._emit_local_set(target_idx)
 
         abs_tmp = self._add_extra_local(prefix="_uvr_abs", val_type=ValType.I32)
         if not self._emit_upvar_abs_depth(level_spec):
-            self._emit_unsupported_trap(
-                f"upvar level {level_spec} (could not resolve depth)"
-            )
+            self._emit_unsupported_trap(f"upvar level {level_spec} (could not resolve depth)")
             return
         self._emit_local_set(abs_tmp)
 

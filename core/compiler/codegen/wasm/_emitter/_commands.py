@@ -275,9 +275,7 @@ class _WasmEmitterCmdMixin(_Base):
         # Stash the call's i32 TclObj result — both checks may
         # need to either discard it (error path) or replace it
         # (return path) before handing back to the caller.
-        result_tmp = self._add_extra_local(
-            prefix="_errchk_res", val_type=ValType.I32
-        )
+        result_tmp = self._add_extra_local(prefix="_errchk_res", val_type=ValType.I32)
         self._emit_local_set(result_tmp)
         if has_err_idx is not None:
             self._emit_call(has_err_idx)
@@ -339,9 +337,7 @@ class _WasmEmitterCmdMixin(_Base):
             return
         # Stash the eval result so we can return it on the signal
         # path or hand it back to the caller on the cheap path.
-        result_tmp = self._add_extra_local(
-            prefix="_evalsig_res", val_type=ValType.I32
-        )
+        result_tmp = self._add_extra_local(prefix="_evalsig_res", val_type=ValType.I32)
         self._emit_local_set(result_tmp)
         if has_err_idx is not None:
             self._emit_call(has_err_idx)
