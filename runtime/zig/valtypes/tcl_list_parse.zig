@@ -35,8 +35,10 @@ pub const Element = struct {
 };
 
 /// Count whitespace-separated elements in *src*.  Braced ``{...}``
-/// elements count as one; backslash-escaped ``\{`` / ``\}`` inside an
-/// unbraced word do NOT split.
+/// elements count as one; quoted ``"..."`` elements when ``"`` starts
+/// an element similarly count as one (matching Tcl's list-syntax
+/// rules).  Backslash-escaped ``\{`` / ``\}`` / ``\"`` inside an
+/// unbraced/unquoted word do NOT split.
 pub fn count_elements(ptr: u32, len: u32) i64 {
     if (len == 0) return 0;
     const src: [*]const u8 = @ptrFromInt(ptr);
@@ -62,6 +64,24 @@ pub fn count_elements(ptr: u32, len: u32) i64 {
                     depth += 1;
                 } else if (src[i] == '}') {
                     depth -= 1;
+                }
+                i += 1;
+            }
+        } else if (src[i] == '"') {
+            // Quoted list element — closes on the next unescaped
+            // ``"``.  Tcl treats a leading ``"`` as a quoting
+            // character only when it starts an element (the
+            // surrounding whitespace already ensures that).  See
+            // ``TclFindElement`` in upstream ``generic/tclUtil.c``.
+            i += 1;
+            while (i < len) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '"') {
+                    i += 1;
+                    break;
                 }
                 i += 1;
             }
@@ -160,6 +180,34 @@ pub fn element_at(ptr: u32, len: u32, idx: i64) Element {
                 const elem_len = if (depth == 0) i - 1 - inner_start else i - inner_start;
                 return .{ .start = inner_start, .len = elem_len, .braced = true };
             }
+        } else if (src[i] == '"') {
+            // Quoted element ``"..."`` — span runs from the byte
+            // after the opening ``"`` to the byte before the closing
+            // ``"``.  Backslash-escaped ``\"`` doesn't terminate.
+            // Marked ``braced = false`` because the content is still
+            // subject to backslash substitution (Tcl semantics:
+            // quoted elements receive backslash decoding, just like
+            // unquoted ones).
+            i += 1;
+            const inner_start = i;
+            var closed = false;
+            while (i < len) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '"') {
+                    closed = true;
+                    break;
+                }
+                i += 1;
+            }
+            if (count == idx) {
+                const elem_len = i - inner_start;
+                if (closed) i += 1;
+                return .{ .start = inner_start, .len = elem_len, .braced = false };
+            }
+            if (closed) i += 1;
         } else {
             const elem_start = i;
             while (i < len and !is_space(src[i])) {

@@ -827,8 +827,19 @@ class _WasmEmitterStmtMixin(_Base):
             canonical_command = normalise_qualified_name(command) if command else command
         # <upvar-invalidate> — synthetic IRCall emitted by the CFG builder
         # to invalidate caller-side SSA defs around a call that modifies
-        # variables via upvar.  No code to emit at the WASM level.
+        # variables via upvar.  No code to emit at the WASM level — but
+        # we pre-intern the ``defs`` so the next statement's frame-bridge
+        # readback covers them.  Without this, an embedded call like
+        # ``set lg [::tcl::Lassign $item varname arg1 ...]`` (which the
+        # CFG builder represents as a synthetic invalidate followed by
+        # the IRAssignValue) silently drops the uplevel-back writes:
+        # the IRAssignValue's value-context dispatch syncs only the
+        # locals already interned, and ``varname`` / ``arg1`` aren't
+        # interned until the post-call ``$varname`` reads — by which
+        # time the readback has already run with an empty sync set.
         if command == "<upvar-invalidate>":
+            for _def_var in defs:
+                self._intern_local(_def_var)
             return
 
         # <cond> — synthetic IRCall emitted by the CFG builder in front

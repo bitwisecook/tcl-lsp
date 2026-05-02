@@ -231,6 +231,16 @@ def _apply_value_scan(value: str, state: _CfgState, defs: dict[str, int]) -> Non
             head = _normalise_cmd_subst_head(match.group(1))
             if head not in _FRAMELESS_RUNTIME_COMMANDS:
                 state.record_fallback()
+                # Also record the embedded command head as a direct
+                # callee so the interprocedural pass can propagate
+                # the callee's ``unbounded_upvar_source`` /
+                # ``upvar_source_names`` back to this caller.  Without
+                # this, ``set lg [::tcl::Lassign $item varname ...]``
+                # in OptNormalizeOne records no callee for Lassign
+                # and Lassign's pessimistic taint never reaches its
+                # caller.
+                if head and not _is_dynamic_token(head):
+                    state.record_callee(head)
                 break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
@@ -254,7 +264,12 @@ def _handle_upvar(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
     head = args[0]
     is_level_literal = head.lstrip("-").isdigit() or (head.startswith("#") and head[1:].isdigit())
     if args[0].startswith("$") and not is_level_literal:
+        # Dynamic level — pessimistic.  Also flag the unbounded-upvar
+        # source so the interprocedural pass forces every caller to
+        # spill its locals.  See ``_propagation._handle_upvar`` for the
+        # full rationale (opt.test OptTreeVars).
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     for idx in upvar_local_declaration_indices("upvar", args):
         state.escape(args[idx], defs)
@@ -421,23 +436,37 @@ def _handle_uplevel(
     args = barrier.args
     if not args:
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     first = args[0]
     is_level_literal = first.lstrip("-").isdigit() or (
         first.startswith("#") and first[1:].isdigit()
     )
     if not is_level_literal:
+        # Dynamic level — body could write anywhere up the frame stack.
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     if first not in ("#0", "0"):
+        # Caller-frame uplevel — body runs in a caller's frame and
+        # may write any local there.  Treat as unbounded so callers
+        # spill every local.  (See ``::tcl::Lassign`` -> ``uplevel 1
+        # [list ::set $vname value]``: the uplevel writes
+        # caller-side names that callers (e.g. OptNormalizeOne) read
+        # via ``$varname`` afterwards.)
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     body_parts = args[1:]
     if not body_parts:
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
     if _is_dynamic_token(body):
+        # ``uplevel #0 $body`` — body content is unknown, may touch
+        # any global.  Globals don't need ``upvar_source_names``
+        # (they're handled by global storage), so just go pessimistic.
         state.mark_pessimistic()
 
 

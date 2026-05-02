@@ -396,8 +396,18 @@ def _handle_upvar(call: IRCall, state: _EscapeState) -> None:
     head = args[0]
     is_level_literal = head.lstrip("-").isdigit() or (head.startswith("#") and head[1:].isdigit())
     if args[0].startswith("$") and not is_level_literal:
-        # Dynamic level — pessimistic.
+        # Dynamic level — pessimistic.  Also flag the unbounded-upvar
+        # source so the interprocedural pass forces callers to spill
+        # every local: a dynamic level can resolve to any caller frame
+        # and the source-name pairs that follow may name any of the
+        # caller's vars.  Without this, ``proc Caller {} { set x 1;
+        # TreeVars }; proc TreeVars {} { upvar $level $vname var; set
+        # var 99 }`` left Caller's ``x`` as a WASM local mirror —
+        # TreeVars's write to the runtime frame's ``x`` slot via
+        # ``var`` never made it back to the WASM mirror, and ``$x``
+        # in Caller still read 1.  See opt.test (OptTreeVars).
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     for idx in upvar_local_declaration_indices("upvar", args):
         state.escape(args[idx])
@@ -644,11 +654,18 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
     """Handle ``uplevel ?level? body``.
 
     Only ``#0``/``0`` with a literal body is safe (body runs at global).
-    Everything else is proc-pessimistic.
+    Everything else is proc-pessimistic — and a non-zero / dynamic
+    level additionally flags the unbounded-upvar source so the
+    interprocedural pass forces every caller to spill its locals
+    (matches the ``upvar`` dynamic-source treatment; see
+    ``::tcl::Lassign`` -> ``uplevel 1 [list ::set $vname value]``
+    where the uplevel writes caller-side names the caller later
+    reads via ``$varname``).
     """
     args = barrier.args
     if not args:
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     # Determine whether the first arg is a level specifier.
     first = args[0]
@@ -658,15 +675,18 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
     if not is_level_literal:
         # No explicit level ⇒ defaults to 1 (caller frame) — pessimistic.
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     # Only level #0 / 0 is safe (body runs in global scope, our locals
     # aren't visible). Any other literal level touches a non-global frame.
     if first not in ("#0", "0"):
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     body_parts = args[1:]
     if not body_parts:
         state.mark_pessimistic()
+        state.record_unbounded_upvar()
         return
     body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
     if _is_dynamic_token(body):
@@ -821,12 +841,22 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
     # Substitutions whose head isn't in the frameless allow-list may
     # reach the eval fallback (or a command that needs a frame for
     # ``$var`` resolution) — flag ``has_fallback`` so the codegen
-    # keeps the runtime frame around.
+    # keeps the runtime frame around.  Also record the head as a
+    # direct callee so the interprocedural pass can propagate the
+    # callee's pessimistic taint back to this caller (e.g.
+    # ``set lg [::tcl::Lassign $item varname ...]`` — Lassign
+    # uplevel-writes ``varname`` and OptNormalizeOne later reads
+    # ``$varname``; without recording Lassign as a callee here, the
+    # propagation can't make OptNormalizeOne pessimistic and the
+    # frame-bridge sync/readback never fires around the [Lassign...]
+    # call site).
     if "[" in value:
         for match in _CMD_SUBST_HEAD_RE.finditer(value):
             head = _normalise_cmd_subst_head(match.group(1))
             if head not in _FRAMELESS_RUNTIME_COMMANDS:
                 state.record_fallback()
+                if head and not _is_dynamic_token(head):
+                    state.record_callee(head)
                 break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:

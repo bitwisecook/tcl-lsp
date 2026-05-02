@@ -179,20 +179,22 @@ class _WasmEmitterValuesMixin(_Base):
                 # runtime global table via _emit_var_read_obj.
                 self._emit_var_read_obj(var)
                 return Ownership.BORROWED
-            # Try direct local lookup (for bare names like in IRAssignValue).
-            # Alias-aware: checks _aliases before local_index.
-            if value in self._aliases:
-                self._emit_var_read_obj(value)
-                return Ownership.BORROWED
-            if self._optimise and value not in self._aliases and value in self._const_map:
-                immediate = _try_tagged_immediate(self._const_map[value])
-                if immediate is not None:
-                    self._emit_i32_const(immediate)
-                    return Ownership.BORROWED
-            idx = self._local_index.get(value)
-            if idx is not None:
-                self._emit_local_get(idx)
-                return Ownership.BORROWED
+            # NOTE: Tcl bare words (no ``$``/``${...}``) are *string
+            # literals*, not variable references — even when the bare
+            # word happens to match a local-variable name.  ``Echo nl``
+            # passes the string ``nl`` regardless of whether the
+            # caller has a local also called ``nl``.  Earlier revisions
+            # of this method dispatched bare-word matches against
+            # ``_aliases`` / ``_const_map`` / ``_local_index`` to a
+            # local read, which corrupted ``upvar``/``foreach``/proc-
+            # call dispatch where the bare arg is used as a variable
+            # *name* (e.g. ``OptError`` → ``OptLengths $desc nl tl
+            # dl``: the literal "nl" is the argument the callee then
+            # ``upvar``s back into our frame).  The lowering already
+            # marks every variable reference with ``$``/``${...}``;
+            # if a value reaches this point bare, it really is a
+            # literal and should fall through to the obj-literal
+            # path.
         # Braced literal — outer braces suppress all substitution in Tcl.
         # _split_command_subst preserves {…} so downstream code can
         # distinguish a braced word (literal) from a quoted one (allows
@@ -516,7 +518,7 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_i32_const(0)
                 self._emit_args_list(tuple(cmd_args[fixed:]))
                 self._emit_push_pending_argv0(argv0_local)
-                self._emit_call(func_idx)
+                self._emit_compiled_call_with_bridge(func_idx)
                 return
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
@@ -537,7 +539,7 @@ class _WasmEmitterValuesMixin(_Base):
                 # report an accurate argv for ``info level 0``.
                 self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
-            self._emit_call(func_idx)
+            self._emit_compiled_call_with_bridge(func_idx)
             return
 
         # dict sub-command in value context — returns i32 TclObj

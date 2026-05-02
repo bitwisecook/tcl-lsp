@@ -810,6 +810,20 @@ class TestCommandDispatch:
             # the owned-slot wrap can fire on any frame-elided proc.
             "tcl_obj_retain",
             "tcl_obj_release",
+            # Frame-side aliases for ``variable``/``global`` (always
+            # pulled in for any module with procs so interpreter-side
+            # eval inside a compiled proc body sees the same alias the
+            # compiled code uses).
+            "frame_alias_named",
+            "frame_alias_global",
+            # ``upvar N``/``upvar #N`` runtime helpers: install a
+            # caller-frame alias bucket and resolve dynamic ``$level``
+            # tokens.  Pulled in unconditionally whenever a module
+            # has procs because any of them might use ``upvar`` —
+            # see ``_scan.py``.
+            "frame_alias_frame_var",
+            "frame_get_depth",
+            "upvar_resolve_depth",
         }
 
 
