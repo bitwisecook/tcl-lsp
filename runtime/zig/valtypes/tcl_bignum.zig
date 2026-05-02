@@ -608,6 +608,20 @@ pub fn alloc_neg(a: *const BigInt) ?*BigInt {
     return r_heap;
 }
 
+/// ``a ** b`` for non-negative exponent ``b``.  Returns ``null``
+/// on OOM.  Uses ``Managed.pow`` which takes a u32 exponent —
+/// callers must reject huge ``b`` values (no real Tcl program
+/// computes ``x ** (1 << 32)``; the limb buffer would not fit
+/// anyway).
+pub fn alloc_pow(a: *const BigInt, b: u32) ?*BigInt {
+    const r = alloc_zero() orelse return null;
+    r.pow(a, b) catch {
+        destroy(r);
+        return null;
+    };
+    return r;
+}
+
 // ---- tests --------------------------------------------------------
 
 const testing = std.testing;

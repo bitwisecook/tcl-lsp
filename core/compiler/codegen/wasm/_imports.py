@@ -184,6 +184,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # the float and raise the canonical error (Codex review on
     # PR #287; issue #261).
     "tcl_arith_neg": ("tcl", "tcl_arith_neg", [ValType.I32], [ValType.I32]),
+    # ``**`` operator — bignum-aware integer exponentiation.  The
+    # WASM emitter previously inlined an i64 multiplication loop
+    # (``_emit_power``) which silently wrapped past the i64 boundary;
+    # this helper promotes overflowing results to TYPE_BIGNUM via
+    # ``Managed.pow``, matching upstream Tcl 9.0 semantics.
+    "tcl_arith_pow": ("tcl", "tcl_arith_pow", [ValType.I32, ValType.I32], [ValType.I32]),
     # Strict ``incr`` helper — validates the variable's value as a
     # strict integer (rejects float strings like ``"52.60"`` and
     # boolean keywords) before adding the amount.  Issue #262.
