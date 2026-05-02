@@ -171,9 +171,7 @@ class TestArbitraryPrecision:
         #     expr {$x+1}
         # The literal is 80 bits — fits i128 — but the test catches
         # any silent precision loss at the i64→bignum boundary.
-        src = (
-            "set x 665802003400000000000000\nputs [expr {$x+1}]\n"
-        )
+        src = "set x 665802003400000000000000\nputs [expr {$x+1}]\n"
         ok, stdout, err = _run_tcl_for_stdout(src)
         if not ok:
             pytest.fail(f"WASM compile/run failed: {err}")
@@ -198,10 +196,7 @@ class TestArbitraryPrecision:
         # 38 hex digits = 152 bits — exceeds i128.  Stage 1 would
         # have saturated; Stage 2's Managed path produces the exact
         # value ``2^152`` decimal-formatted.
-        src = (
-            'set x " 0xffffffffffffffffffffffffffffffffffffff  "\n'
-            "puts [expr {$x+1}]\n"
-        )
+        src = 'set x " 0xffffffffffffffffffffffffffffffffffffff  "\nputs [expr {$x+1}]\n'
         ok, stdout, err = _run_tcl_for_stdout(src)
         if not ok:
             pytest.fail(f"WASM compile/run failed: {err}")
@@ -221,10 +216,7 @@ class TestArbitraryPrecision:
         # ``(2^100) * (2^100) * (2^100)`` = ``2^300`` — three
         # multiplications past the i128 boundary.  Stage 2 must
         # carry the precision through the chain.
-        src = (
-            "set a [expr {1 << 100}]\n"
-            "puts [expr {$a * $a * $a}]\n"
-        )
+        src = "set a [expr {1 << 100}]\nputs [expr {$a * $a * $a}]\n"
         ok, stdout, err = _run_tcl_for_stdout(src)
         if not ok:
             pytest.fail(f"WASM compile/run failed: {err}")
@@ -251,10 +243,7 @@ class TestArbitraryPrecision:
     def test_round_trip_via_set(self) -> None:
         # Set a 50-digit literal, multiply by itself, render — the
         # result should be the exact 100-digit decimal product.
-        src = (
-            "set x 12345678901234567890123456789012345678901234567890\n"
-            "puts [expr {$x * $x}]\n"
-        )
+        src = "set x 12345678901234567890123456789012345678901234567890\nputs [expr {$x * $x}]\n"
         ok, stdout, err = _run_tcl_for_stdout(src)
         if not ok:
             pytest.fail(f"WASM compile/run failed: {err}")
@@ -351,7 +340,7 @@ class TestBignumPower:
         assert _expr_puts("2 ** 64") == str(1 << 64)
 
     def test_3_pow_100(self) -> None:
-        assert _expr_puts("3 ** 100") == str(3 ** 100)
+        assert _expr_puts("3 ** 100") == str(3**100)
 
     def test_2_pow_200(self) -> None:
         assert _expr_puts("2 ** 200") == str(1 << 200)
@@ -421,21 +410,21 @@ class TestMathopBignum:
         )
 
     def test_add_with_var_bignum(self) -> None:
-        src = (
-            "set x [expr {1<<70}]\n"
-            "puts [::tcl::mathop::+ 1 2 $x]\n"
-        )
+        src = "set x [expr {1<<70}]\nputs [::tcl::mathop::+ 1 2 $x]\n"
         assert self._run(src) == str(1 + 2 + (1 << 70))
 
     def test_lt_with_bignum(self) -> None:
         assert self._run("puts [::tcl::mathop::< 99 99999999999999999999999]") == "1"
 
     def test_eq_with_bignum(self) -> None:
-        assert self._run(
-            "set x 99999999999999999999999\n"
-            "set y 99999999999999999999999\n"
-            "puts [::tcl::mathop::== $x $y]"
-        ) == "1"
+        assert (
+            self._run(
+                "set x 99999999999999999999999\n"
+                "set y 99999999999999999999999\n"
+                "puts [::tcl::mathop::== $x $y]"
+            )
+            == "1"
+        )
 
     def test_band_with_bignum(self) -> None:
         # ``& (1<<200) ((1<<201)-1)`` = ``1<<200`` — Stage 1 truncated to 0.
@@ -641,9 +630,10 @@ class TestStringIsBignum:
 
     def test_is_integer_huge_bignum(self) -> None:
         # 50-digit bignum.
-        assert self._run(
-            "puts [string is integer 12345678901234567890123456789012345678901234567890]"
-        ) == "1"
+        assert (
+            self._run("puts [string is integer 12345678901234567890123456789012345678901234567890]")
+            == "1"
+        )
 
     def test_is_integer_rejects_float(self) -> None:
         assert self._run("puts [string is integer 12.5]") == "0"
@@ -811,9 +801,10 @@ class TestFormatPrecision:
 
     def test_g_default_precision(self) -> None:
         # ``%g`` defaults to 6 significant digits.
-        assert self._run("puts [format %g 1234567.89]") == "1.23457e+06" or self._run(
-            "puts [format %g 1234567.89]"
-        ) == "1.23457e6"
+        assert (
+            self._run("puts [format %g 1234567.89]") == "1.23457e+06"
+            or self._run("puts [format %g 1234567.89]") == "1.23457e6"
+        )
 
     def test_g_explicit_precision(self) -> None:
         assert self._run("puts [format %.3g 1.23456]") == "1.23"

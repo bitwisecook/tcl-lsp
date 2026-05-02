@@ -436,11 +436,13 @@ pub fn string_needs_bignum(ptr: u32, len: u32) bool {
     // Quick path: the i64 parser succeeds → fits i64 → not bignum.
     // (Caller has often already done this check, but repeating it
     // here makes ``string_needs_bignum`` self-contained.)
-    return alloc_from_string(ptr, len) != null and blk: {
-        const m = alloc_from_string(ptr, len).?;
-        defer destroy(m);
-        break :blk !m.fits(i64);
-    };
+    //
+    // Single-parse: the previous double-call form leaked the first
+    // ``alloc_from_string`` allocation when the parse succeeded
+    // (Copilot review #326).
+    const m = alloc_from_string(ptr, len) orelse return false;
+    defer destroy(m);
+    return !m.fits(i64);
 }
 
 /// Render the BigInt as a decimal string into a heap-allocated
@@ -651,6 +653,12 @@ pub fn alloc_mod_floor(a: *const BigInt, b: *const BigInt) ?*BigInt {
 /// any well-formed Tcl program — the TclObj stack would overflow
 /// long before we tried to ``1 << 2^64``).
 pub fn alloc_shl(a: *const BigInt, count: u64) ?*BigInt {
+    // Explicit guard before the cast — on wasm32 ``usize`` is 32 bits,
+    // so a u64 shift count > maxInt(u32) would panic in safe builds
+    // when ``@intCast`` fires (Copilot review #326).  The runtime-
+    // valid range is bounded by ``maxInt(usize)`` regardless of
+    // pointer width.
+    if (count > std.math.maxInt(usize)) return null;
     const r = alloc_zero() orelse return null;
     r.shiftLeft(a, @intCast(count)) catch {
         destroy(r);
