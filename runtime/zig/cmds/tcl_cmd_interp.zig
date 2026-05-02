@@ -113,6 +113,22 @@ fn rename_builtin(
                 }
             }
         }
+        // The proc-table check above only sees user-defined / proc-
+        // registered Commands.  Hardcoded BUILTINs (``set``,
+        // ``list``, ``puts``, …) live in the static dispatch table
+        // and have no proc record until ``rename`` masks/forwards
+        // them.  ``rename list set`` would otherwise install a
+        // forwarder over ``set`` and silently shadow the builtin —
+        // proc dispatch runs before the BUILTIN cmd_table, so the
+        // forwarder would win and ``set`` would lose its identity.
+        // Match reference Tcl by raising ``can't rename to
+        // "set": command already exists`` (Codex review on
+        // PR #325).
+        const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+        if (cmd_table.lookup(new_r.simple_ptr, new_r.simple_len) != null) {
+            rename_error("can't rename to \"", new_s.ptr, new_s.len, "\": command already exists");
+            return 0;
+        }
         const handler_addr: u32 = @intCast(@intFromPtr(handler));
         procs.register_builtin_forward(new_s.ptr, new_s.len, handler_addr);
     }
