@@ -47,6 +47,13 @@ pub export fn catch_enter() void {
     error_flag = 0;
     error_msg = 0;
     catch_ok_result = 0;
+    // Release any captured payload from a previous catch so a
+    // drain between catches doesn't see a stale +1 hold.
+    if (last_catch_value != 0) {
+        const old = last_catch_value;
+        last_catch_value = 0;
+        obj.tcl_obj_release(old);
+    }
 }
 
 // Exported: signal a TCL_RETURN unwind from the compiled catch body.
@@ -124,6 +131,19 @@ const TCL_CONTINUE: i64 = 4;
 // boolean-only path).
 pub var last_catch_code: i64 = 0;
 
+// Snapshot of the body's payload value at ``catch_leave`` time —
+// the ``return`` value when the body unwound with TCL_RETURN, or the
+// ``error_msg`` when it raised TCL_ERROR.  ``catch_result`` returns
+// this so ``catch {return foo} r`` populates ``r`` with ``foo`` (the
+// returned value) rather than the empty string the previous
+// ``catch_ok_result``-only path produced for non-error exceptional
+// returns.  Cleared back to 0 in ``catch_enter`` so a stale snapshot
+// from a previous catch doesn't leak into a fresh scope.  The
+// ``catch_leave`` path retains the value for the slot's hold so the
+// caller's writeback observes a stable refcount independent of any
+// intervening drain.
+pub var last_catch_value: i32 = 0;
+
 // Exported: leave a catch scope.  Returns the TCL_* return code
 // produced by the body — TCL_OK (0), TCL_ERROR (1), TCL_RETURN (2),
 // TCL_BREAK (3), or TCL_CONTINUE (4) — matching reference Tcl's
@@ -141,15 +161,41 @@ pub export fn catch_leave() i32 {
     };
     last_catch_had_error = if (error_flag != 0) 1 else 0;
     last_catch_code = code;
+    // Snapshot the body's payload so ``catch_result`` can hand it back
+    // to the caller's result-var writeback.  TCL_RETURN carries
+    // ``return_val``; TCL_ERROR carries ``error_msg``.  Retain the
+    // handle so a drain between ``catch_leave`` and ``catch_result``
+    // can't free it out from under the writeback (Codex/Copilot
+    // review on PR #324).  The previous occupant of
+    // ``last_catch_value`` is released.
+    const old_value = last_catch_value;
+    var new_value: i32 = 0;
+    if (return_flag != 0) {
+        new_value = return_val;
+    } else if (error_flag != 0) {
+        new_value = error_msg;
+    }
+    if (new_value != 0 and new_value != old_value) obj.tcl_obj_retain(new_value);
+    last_catch_value = new_value;
+    if (old_value != 0 and old_value != new_value) obj.tcl_obj_release(old_value);
     // Absorb every flow-control flag — ``catch`` is the universal sink
     // for non-OK return codes from its body.  Surrounding loops
     // (``flow_consume_break``) and proc dispatchers (``return_flag``)
     // would otherwise re-fire on a code we already converted into a
-    // return value.
+    // return value.  Also clear ``return_val`` so a stale handle
+    // doesn't leak into the next ``return`` site's release of ``old``.
     error_flag = 0;
     return_flag = 0;
     break_flag = 0;
     continue_flag = 0;
+    if (return_val != 0) {
+        // Hand the +1 retain that ``return_val`` was holding to
+        // ``last_catch_value`` (we already retained above).  Release
+        // here cancels the source-side hold.
+        const rv = return_val;
+        return_val = 0;
+        obj.tcl_obj_release(rv);
+    }
     return obj_new_int(code);
 }
 
@@ -170,6 +216,14 @@ pub export fn catch_leave() i32 {
 // not unset).  Materialise an empty TclObj here so the writeback
 // path never plants the unset sentinel.
 pub export fn catch_result() i32 {
+    // TCL_ERROR / TCL_RETURN: hand back the payload captured at
+    // ``catch_leave`` time (error message or ``return`` value).  TCL_OK
+    // (and the bare TCL_BREAK / TCL_CONTINUE no-payload codes) fall
+    // through to the body's last-statement value or the empty
+    // sentinel.  This keeps ``catch {return foo} r`` populating ``r``
+    // with ``foo``, matching reference Tcl's ``Tcl_CatchObjCmd``
+    // (Codex/Copilot review on PR #324).
+    if (last_catch_value != 0) return last_catch_value;
     if (last_catch_had_error != 0) return error_msg;
     if (catch_ok_result == 0) return obj_new_string(0, 0);
     return catch_ok_result;

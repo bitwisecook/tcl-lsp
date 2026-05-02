@@ -371,16 +371,35 @@ const FILE_SUBCMDS = [_][]const u8{
     "type",      "volumes",     "writable",
 };
 
+const FileSubcmdResolution = struct {
+    /// Resolved canonical name span (or the original input span when
+    /// no prefix matched).  Always populated; callers that see an
+    /// ``ambiguous`` flag should bail out before reading these.
+    ptr: u32,
+    len: u32,
+    /// Set when more than one canonical name shares the prefix.  The
+    /// caller raised ``ambiguous subcommand`` via :func:`stubs.raise`
+    /// before returning this value, and the dispatcher should
+    /// short-circuit instead of falling through to the
+    /// ``unsupported command`` path.
+    ambiguous: bool,
+};
+
 /// Match *sub* against the ``file`` subcommand list and return the
 /// canonical name (``ext`` → ``extension``, ``ro`` → ``rootname``,
-/// …).  Returns the input unchanged when the name is exact, when no
-/// canonical name is a prefix-extension of it, or when more than one
-/// canonical name matches (the dispatcher then traps with the
-/// caller-provided ``unsupported command`` message rather than
-/// silently picking one).  Mirrors ``Tcl_GetIndexFromObj``'s
-/// abbreviation rules.
-fn resolve_file_subcmd(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
-    if (len == 0) return .{ .ptr = ptr, .len = len };
+/// …).  Returns the input unchanged when the name is exact (so the
+/// caller's downstream comparisons match the original spelling) and
+/// the canonical name when a unique prefix matches.  When two or
+/// more canonical names share the prefix (``file c ...`` matches
+/// ``copy`` and ``ctime`` and ``channels``), this raises Tcl's
+/// standard ``ambiguous subcommand`` error and signals via
+/// ``ambiguous = true`` so the caller short-circuits — without that
+/// signal the dispatcher would fall through to ``unsupported
+/// command`` and lose the diagnostic value of the ambiguous-prefix
+/// hint (Copilot review on PR #324).  Mirrors
+/// ``Tcl_GetIndexFromObj``'s abbreviation rules.
+fn resolve_file_subcmd(ptr: u32, len: u32) FileSubcmdResolution {
+    if (len == 0) return .{ .ptr = ptr, .len = len, .ambiguous = false };
     const inp: [*]const u8 = @ptrFromInt(ptr);
     var match_idx: i32 = -1;
     var ambiguous = false;
@@ -399,6 +418,7 @@ fn resolve_file_subcmd(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
             if (ok) return .{
                 .ptr = @intCast(@intFromPtr(name.ptr)),
                 .len = @intCast(name.len),
+                .ambiguous = false,
             };
         } else {
             // Prefix candidate: name is longer, the leading bytes match.
@@ -419,19 +439,23 @@ fn resolve_file_subcmd(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
             }
         }
     }
-    if (ambiguous or match_idx < 0) {
-        // Either no prefix match (let the dispatcher's final
-        // ``unsupported command`` trap fire with the original
-        // word) or several names share the prefix and Tcl would
-        // raise ``ambiguous subcommand`` — also fall through so
-        // the dispatcher reports it.  Returning the original
-        // makes both cases visible.
-        return .{ .ptr = ptr, .len = len };
+    if (ambiguous) {
+        // Raise the canonical Tcl error via :mod:`stubs.tcl_stubs` so
+        // a ``catch`` around the call sees a real error instead of the
+        // less-informative ``unsupported command`` fallthrough.
+        stubs.raise("ambiguous subcommand: must use a unique prefix");
+        return .{ .ptr = ptr, .len = len, .ambiguous = true };
+    }
+    if (match_idx < 0) {
+        // No prefix match — let the dispatcher's final
+        // ``unsupported command`` trap fire with the original word.
+        return .{ .ptr = ptr, .len = len, .ambiguous = false };
     }
     const canon = FILE_SUBCMDS[@intCast(match_idx)];
     return .{
         .ptr = @intCast(@intFromPtr(canon.ptr)),
         .len = @intCast(canon.len),
+        .ambiguous = false,
     };
 }
 
@@ -464,6 +488,10 @@ pub export fn tcl_cmd_file(sub: i32, arg1: i32, arg2: i32) i32 {
     // ``attributes``, etc., as long as the prefix matches exactly one
     // subcommand.  cmdAH-9 / cmdAH-10 sweep both forms.
     const canon = resolve_file_subcmd(s.ptr, s.len);
+    // Ambiguous prefix — :func:`resolve_file_subcmd` already raised
+    // ``ambiguous subcommand``; short-circuit so we don't fall
+    // through to ``unsupported command``.
+    if (canon.ambiguous) return 0;
     const sp: [*]const u8 = @ptrFromInt(canon.ptr);
     const sl = canon.len;
 

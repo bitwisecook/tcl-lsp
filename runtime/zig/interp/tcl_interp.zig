@@ -116,13 +116,15 @@ const StringOp = struct {
 };
 
 /// Walk *ptr*[0..*len*] looking for a top-level ``eq`` / ``ne`` / ``in``
-/// / ``ni`` operator.  Skips over ``"..."``, ``{...}``, ``[...]`` so
-/// nested braces / quoted strings / command substitutions don't trip
-/// the match.  Returns the operator's location, or null when no
-/// top-level string operator is present.  We only honour the FIRST
-/// occurrence; chained ``$a eq $b eq $c`` is rare in real Tcl and
-/// the canonical evaluator's left-to-right order is preserved by
-/// recursing on the LHS chunk via :func:`eval_expr_str`.
+/// / ``ni`` operator.  Skips over ``"..."``, ``{...}``, ``[...]``,
+/// ``(...)`` so nested constructs don't trip the match, and bails out
+/// at the first higher- or equal-precedence boolean / ternary operator
+/// (``&&``, ``||``, ``?``, ``:``) so chained expressions like
+/// ``expr {$a eq $b && $c}`` or ``expr {$a eq $b ? 1 : 0}`` are
+/// recognised as numeric expressions and dispatched through the
+/// regular ``expr_or`` pipeline (which itself recurses back into
+/// ``eval_expr_str`` for each side, picking up the string-op fix
+/// where it actually applies).
 fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
     if (len < 4) return null;
     const src: [*]const u8 = @ptrFromInt(ptr);
@@ -162,6 +164,23 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
             if (i > 0) i -= 1;
             continue;
         }
+        if (c == '(') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (src[i] == '(') depth += 1 else if (src[i] == ')') depth -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        // Bail out at higher- or equal-precedence boolean / ternary
+        // operators so the string-op shortcut only fires for atom-
+        // level ``$a eq $b`` shapes.  Inside a ``&&`` or ``?:``
+        // expression the regular numeric ``expr_or`` chain handles
+        // each operand and recurses back here for each subexpression.
+        if (i + 1 < len and src[i] == '&' and src[i + 1] == '&') return null;
+        if (i + 1 < len and src[i] == '|' and src[i + 1] == '|') return null;
+        if (c == '?' or c == ':') return null;
         // String operator must be surrounded by whitespace on both
         // sides — otherwise a variable name like ``$equal`` would
         // self-match its ``eq`` substring.  Two-char keyword + at

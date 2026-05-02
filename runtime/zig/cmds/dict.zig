@@ -114,11 +114,18 @@ pub fn eval(words: []const i32) i32 {
 
 /// ``dict create ?key value ...?`` — build a new dict from alternating
 /// key / value pairs.  ``dict create`` (no args) returns the empty
-/// dict.  ``dict create k1 v1 k2 v2`` returns a 2-entry dict.
+/// dict.  ``dict create k1 v1 k2 v2`` returns a 2-entry dict.  An odd
+/// number of arguments raises ``wrong # args`` to match reference
+/// Tcl — silently dropping the trailing key would mask script bugs
+/// (Copilot review on PR #324).
 fn eval_dict_create(words: []const i32) i32 {
+    if (words.len <= 2) return rt.dict_create();
+    if ((words.len - 2) % 2 != 0) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"dict create ?key value ...?\"");
+        return 0;
+    }
     var d: i32 = rt.dict_create();
-    if (words.len <= 2) return d;
-    if ((words.len - 2) % 2 != 0) return d;
     var wi: u32 = 2;
     while (wi + 1 < words.len) : (wi += 2) {
         d = rt.dict_set(d, words[wi], words[wi + 1]);
@@ -200,9 +207,16 @@ fn eval_dict_remove(words: []const i32) i32 {
 }
 
 /// ``dict replace DICT ?KEY VALUE ...?`` — return a copy of DICT with
-/// each KEY set to VALUE.  Mirrors ``tclDictObj.c::DictReplaceCmd``.
+/// each KEY set to VALUE.  An odd key/value tail raises ``wrong #
+/// args`` to match reference Tcl rather than silently returning the
+/// input unchanged (Copilot review on PR #324).  Mirrors
+/// ``tclDictObj.c::DictReplaceCmd``.
 fn eval_dict_replace(words: []const i32) i32 {
-    if ((words.len - 3) % 2 != 0) return words[2];
+    if ((words.len - 3) % 2 != 0) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"dict replace dictionary ?key value ...?\"");
+        return 0;
+    }
     var result: i32 = words[2];
     var wi: u32 = 3;
     while (wi + 1 < words.len) : (wi += 2) {
@@ -382,15 +396,27 @@ fn eval_dict_with(words: []const i32) i32 {
 /// ``dict filter DICT FILTERTYPE ARG ?ARG ...?`` — filter the dict
 /// by FILTERTYPE.  Supports ``key PATTERN ?PATTERN ...?`` and
 /// ``value PATTERN ?PATTERN ...?`` (glob match against any
-/// supplied pattern).  ``script`` form is not yet implemented and
-/// returns the input dict unchanged.  Mirrors
+/// supplied pattern).  The ``script`` form is not yet implemented;
+/// raise an explicit error rather than silently returning the input
+/// so a script that depends on the script-form filter doesn't
+/// silently produce wrong results (Copilot/Codex review).  Mirrors
 /// ``tclDictObj.c::DictFilterCmd`` for the pattern forms.
 fn eval_dict_filter(words: []const i32) i32 {
     const ft = obj_ensure_string(words[3]);
     const fp: [*]const u8 = @ptrFromInt(ft.ptr);
     const filter_keys = str_eq(fp, ft.len, "key");
     const filter_values = str_eq(fp, ft.len, "value");
-    if (!filter_keys and !filter_values) return words[2];
+    const filter_script = str_eq(fp, ft.len, "script");
+    if (filter_script) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.unsupported_sub("dict filter", "script");
+        return 0;
+    }
+    if (!filter_keys and !filter_values) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("bad filterType: must be key, script, or value");
+        return 0;
+    }
     if (words.len < 5) return rt.dict_create();
 
     const sd = obj_ensure_string(words[2]);
