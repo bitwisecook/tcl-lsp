@@ -786,11 +786,15 @@ class _WasmEmitterOptMixin(_Base):
                     # Pass source spelling so eval-fallback proc resolution
                     # walks Tcl's normal namespace stack; canonical form
                     # drives the literal-string dispatches.  Issue #246.
+                    # Forward ``tokens`` so the hook can probe per-arg
+                    # ``was_braced`` info — required for braced-pattern
+                    # commands like ``string match {\?*} $name``.
                     self._emit_call_stmt_tail(
                         last.command,
                         last.args,
                         last.defs,
                         canonical_command=last.canonical_command,
+                        tokens=getattr(last, "tokens", None),
                     )
             elif isinstance(last, IRBarrier):
                 # IRBarrier in tail position — keep result on stack (no DROP).
@@ -825,6 +829,42 @@ class _WasmEmitterOptMixin(_Base):
                     # signal error.  _emit_cmd_return emits its own RETURN;
                     # the implicit-return RETURN below is unreachable.
                     self._emit_cmd_return(barrier_args)
+                elif barrier_cmd == "::while" and len(barrier_args) >= 2:
+                    # Mirror the ``::while`` brace-wrap special case
+                    # from :mod:`_statements`.  The condition is a
+                    # script that must be re-evaluated each
+                    # iteration; without ``{}`` the runtime parser
+                    # substitutes brackets ONCE at script-eval time
+                    # and freezes the result, turning ``while
+                    # {[info exists arr($n)]} { ... }`` into
+                    # ``while CONST_BOOL { ... }`` that loops
+                    # forever (or never).
+                    cond, body = barrier_args[0], barrier_args[1]
+                    cond_q = (
+                        cond if cond.startswith("{") and cond.endswith("}") else "{" + cond + "}"
+                    )
+                    body_q = (
+                        body if body.startswith("{") and body.endswith("}") else "{" + body + "}"
+                    )
+                    script = "while " + cond_q + " " + body_q
+                    self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
+                elif barrier_cmd == "::for" and len(barrier_args) >= 4:
+                    # Same brace-wrap rule for ``::for`` -- init /
+                    # cond / next / body all need ``{}`` so the
+                    # runtime sees them as scripts to be re-
+                    # evaluated, not pre-substituted constants.
+                    init, cond, nxt, body = (
+                        barrier_args[0],
+                        barrier_args[1],
+                        barrier_args[2],
+                        barrier_args[3],
+                    )
+
+                    def _br(s):
+                        return s if s.startswith("{") and s.endswith("}") else "{" + s + "}"
+
+                    script = "for " + _br(init) + " " + _br(cond) + " " + _br(nxt) + " " + _br(body)
+                    self._emit_eval_fallback(barrier_cmd, barrier_args, script_override=script)
                 else:
                     # Generic barrier in tail position — eval fallback,
                     # result stays on stack.

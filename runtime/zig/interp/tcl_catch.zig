@@ -24,6 +24,43 @@ pub var error_flag: u32 = 0; // 0 = no error, 1 = error pending
 pub var error_msg: i32 = 0; // TclObj with error message
 pub var return_flag: u32 = 0; // 1 = return pending (absorbed by proc dispatch)
 pub var return_val: i32 = 0; // TclObj return value
+/// Number of *additional* proc levels the pending ``return`` should
+/// propagate through.  Set by ``return -code return`` (1) /
+/// ``return -level N`` (N-1) so the proc dispatcher unwinds past
+/// the expected frame and the next caller up also sees a return —
+/// matching Tcl's ``return -level`` / ``-code`` semantics that
+/// ``::tcl::OptDoOne`` relies on (`return -code return` from
+/// inside the state-machine body breaks out of ``OptDoAll``'s
+/// loop, not just the immediate proc).  Default 0 = stop at this
+/// proc (equivalent to ``return -level 1 -code ok``).
+pub var return_level: u32 = 0;
+
+/// Set by ``return -code break`` / ``return -code continue`` so the
+/// proc dispatcher can distinguish a *signalled* break/continue —
+/// which should propagate to the caller's enclosing loop — from a
+/// raw ``break`` / ``continue`` command run outside any loop in
+/// the proc body, which Tcl converts to "invoked X outside of a
+/// loop" at the proc boundary.  ``::tcl::OptDoOne`` drives
+/// ``::tcl::OptDoAll``'s ``while`` loop entirely through
+/// ``return -code continue`` / ``return -code break``, so the
+/// distinction is load-bearing for opt.test.
+pub var signal_break_flag: u32 = 0;
+pub var signal_continue_flag: u32 = 0;
+
+/// Read-and-clear helper for the compiled proc body's per-callsite
+/// break/continue propagation.  Returns 1 if a *signalled*
+/// break/continue is pending — the caller proc should ``return``
+/// from its WASM function so the proc dispatcher can translate
+/// the signal into the caller's ``break_flag`` / ``continue_flag``
+/// for an enclosing loop to catch.  Leaves the signal flag set so
+/// the dispatcher's translation runs.
+pub export fn flow_check_signal_loop() i32 {
+    if (signal_break_flag != 0 or signal_continue_flag != 0) {
+        return 1;
+    }
+    return 0;
+}
+
 pub var break_flag: u32 = 0; // 1 = break pending (absorbed by loops)
 pub var continue_flag: u32 = 0; // 1 = continue pending (absorbed by loops)
 /// Coroutine ``yield`` signal.  Set by ``yield`` / ``yieldto`` to
@@ -65,6 +102,12 @@ pub export fn catch_enter() void {
 // fixes ``catch {return foo}`` exiting the surrounding proc.
 pub export fn tcl_return_set(value: i32) void {
     return_flag = 1;
+    // The codegen path that emits ``return value`` inside a catch
+    // body always means a default ``return -level 1 -code ok``, so
+    // reset the extra-level counter to 0 — leaving a stale value
+    // from a previous ``return -code return`` would erroneously
+    // propagate this regular return past the immediate proc.
+    return_level = 0;
     const old = return_val;
     if (value != 0) obj.tcl_obj_retain(value);
     return_val = value;
@@ -80,6 +123,11 @@ pub export fn tcl_return_set(value: i32) void {
 pub export fn flow_consume_break() i32 {
     if (break_flag != 0) {
         break_flag = 0;
+        // ``return -code break`` paired ``break_flag`` with the
+        // ``signal_break_flag`` side-channel.  Clear both so the
+        // proc dispatcher's post-call sweep doesn't re-fire on a
+        // signal the loop already absorbed.
+        signal_break_flag = 0;
         return 1;
     }
     return 0;
@@ -93,7 +141,48 @@ pub export fn flow_consume_break() i32 {
 pub export fn flow_consume_continue() i32 {
     if (continue_flag != 0) {
         continue_flag = 0;
+        signal_continue_flag = 0;
         return 1;
+    }
+    return 0;
+}
+
+/// Read the pending return flag without clearing it.  Compiled
+/// procs use this to detect that an eval-fallback or callee proc
+/// raised ``return`` — the caller proc must exit immediately
+/// with the pending ``return_val`` as its result, leaving the
+/// flag set so the standard proc-dispatch absorption (in the
+/// caller's caller) clears it.
+pub export fn flow_check_return() i32 {
+    return @as(i32, @intCast(return_flag));
+}
+
+/// Read-and-clear the pending return state, returning the value
+/// the body intended to return.  Used at the compiled-proc-call
+/// boundary in the caller to absorb a callee's ``return`` so
+/// surrounding code resumes normally with the returned value as
+/// the call result — same role :func:`tcl_interp.eval_proc_call`
+/// plays for interpreted callees.
+///
+/// Returns 0 when no return is pending.  Note 0 is also a valid
+/// ``return_val`` for ``return ""`` / ``return`` with no arg —
+/// callers that need to distinguish must call
+/// :func:`flow_check_return` first.
+pub export fn flow_take_return() i32 {
+    if (return_flag != 0) {
+        const v = return_val;
+        // ``return -code return`` / ``-level N>1`` propagates past the
+        // immediate proc.  Decrement the level counter; only clear the
+        // flag once the unwind is complete (counter at 0).
+        if (return_level > 0) {
+            return_level -= 1;
+            // Leave ``return_flag`` and ``return_val`` set so the next
+            // proc up on the call stack also unwinds.
+            return v;
+        }
+        return_flag = 0;
+        return_val = 0;
+        return v;
     }
     return 0;
 }
@@ -188,6 +277,9 @@ pub export fn catch_leave() i32 {
     return_flag = 0;
     break_flag = 0;
     continue_flag = 0;
+    return_level = 0;
+    signal_break_flag = 0;
+    signal_continue_flag = 0;
     if (return_val != 0) {
         // Hand the +1 retain that ``return_val`` was holding to
         // ``last_catch_value`` (we already retained above).  Release
@@ -349,6 +441,25 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
     if (default_code) obj.tcl_obj_release(code_val);
 }
 
+/// Probe for the ``wrong # args:`` prefix used by reference Tcl's
+/// ``Tcl_WrongNumArgs``.  Reference Tcl stamps ``::errorCode = TCL
+/// WRONGARGS`` on every such error; rename.test 3.1 / 3.2 (and many
+/// others) grep for this exact errorCode in the test result.  The
+/// simplest way to keep all "wrong # args" call sites in sync is to
+/// auto-detect the prefix at the central error sink rather than
+/// thread an explicit ``code`` argument through every call site.
+fn detect_wrong_args_code(msg: i32) i32 {
+    const s = obj_ensure_string(msg);
+    const prefix: []const u8 = "wrong # args:";
+    if (s.len < prefix.len) return 0;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    for (prefix, 0..) |c, i| {
+        if (sp[i] != c) return 0;
+    }
+    const code_text: []const u8 = "TCL WRONGARGS";
+    return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+}
+
 // Exported: error — write message to stderr and trap, OR set error flag in catch.
 //
 // On an out-of-catch error we prefix the stderr line with
@@ -358,8 +469,11 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
 // ``::errorInfo`` and ``::errorCode`` are stamped on every error so
 // ``catch { error boom } msg; puts $::errorInfo`` observes the
 // message even though we don't construct a full traceback yet.
+// ``::errorCode`` defaults to ``NONE`` except when the message
+// starts with ``wrong # args:``, in which case it is auto-tagged
+// ``TCL WRONGARGS`` to match reference Tcl's ``Tcl_WrongNumArgs``.
 pub export fn tcl_cmd_error(msg: i32) void {
-    stamp_error_globals(msg, 0, 0);
+    stamp_error_globals(msg, 0, detect_wrong_args_code(msg));
     if (catch_depth > 0) {
         error_flag = 1;
         error_msg = msg;
@@ -398,23 +512,44 @@ pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
     @trap();
 }
 
-// Build a "unknown command: <name>" TclObj and route it through
-// @"error".  Used by the interpreter fallback when a word doesn't
-// match any builtin or registered proc.  Keeping the formatting here
-// rather than in tcl_interp.zig avoids duplicating the obj-allocation
-// dance and guarantees every "unknown command" trap looks the same.
-pub fn error_unknown_command(cmd_obj: i32) void {
-    const prefix: []const u8 = "unknown command: ";
+// Build a ``invalid command name "<name>"`` TclObj and route it
+// through @"error".  Used by the interpreter fallback when a word
+// doesn't match any builtin or registered proc, and by the
+// rename-masked dispatch arm in
+// ``tcl_interp.eval_proc_call_bucket``.  The wording matches
+// reference Tcl's ``TclEvalObjvInternal`` verbatim so tcltest's
+// error-string matchers (``rename.test`` rename-1.2 / 2.1, etc.)
+// agree on the surface.
+//
+// Historical note: this was named ``error_unknown_command`` and
+// emitted ``unknown command: <name>`` until the rename-builtin
+// work landed; it was renamed but the old export name is kept as
+// an alias to avoid breaking the ~10 ``cmds/*.zig`` callers in the
+// alias and stub paths.  See tcl_catch.zig comment block above.
+pub fn error_invalid_command_name(cmd_obj: i32) void {
+    const prefix: []const u8 = "invalid command name \"";
+    const suffix: []const u8 = "\"";
     const s = obj_ensure_string(cmd_obj);
-    const total: u32 = @intCast(prefix.len + s.len);
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
     // Allocate a fresh byte buffer in the bump allocator so the
     // TclObj's string data outlives this frame.
     const buf_addr: u32 = obj.alloc(total);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
-    for (prefix, 0..) |c, i| buf[i] = c;
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
     if (s.len > 0) {
         const src: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| buf[prefix.len + i] = src[i];
+        for (0..s.len) |i| {
+            buf[off] = src[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
     }
     // Issue #317: ``obj_new_string_take`` so the error TclObj
     // owns ``buf_addr`` and ``release_now`` returns it via
@@ -422,6 +557,16 @@ pub fn error_unknown_command(cmd_obj: i32) void {
     // raised error inside a ``catch``.
     const msg = obj.obj_new_string_take(buf_addr, total, total);
     tcl_cmd_error(msg);
+}
+
+/// Backwards-compatible alias preserving the historical export name
+/// used by the alias dispatch path and the eval-fallback's unknown
+/// command surface.  Both names produce the same ``invalid command
+/// name "<name>"`` text now.  Kept until the call sites are
+/// migrated; the duplication is one line of code, not a behaviour
+/// difference.
+pub fn error_unknown_command(cmd_obj: i32) void {
+    error_invalid_command_name(cmd_obj);
 }
 
 // Build a ``can't read "<name>": no such variable`` TclObj and route

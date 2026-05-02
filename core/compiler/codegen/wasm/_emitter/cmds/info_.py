@@ -118,6 +118,15 @@ def _emit_info_value(emitter, args: tuple[str, ...]) -> None:
         gexist_idx = emitter._shared_imports.get("tcl_global_exists")
         aexist_idx = emitter._shared_imports.get("tcl_array_exists")
         binding = emitter._aliases.get(resolved)
+        if binding is not None and binding[0] == "frame_var":
+            # ``upvar N other local`` — the runtime alias bucket is
+            # registered in our frame; ``tcl_info_exists`` (which calls
+            # ``local_exists``) follows the alias to the target frame.
+            info_exists_idx = emitter._shared_imports.get("tcl_info_exists")
+            if info_exists_idx is not None:
+                emitter._emit_obj_literal(resolved)
+                emitter._emit_call(info_exists_idx)
+                return
         if binding is not None and binding[0] == "global":
             _, target_idx = binding
             if aexist_idx is not None and gexist_idx is not None:

@@ -73,12 +73,95 @@ def _tcl9_test_file(name: str) -> Path:
     return p
 
 
+def _tcl9_opt_library() -> Path | None:
+    """Return path to Tcl 9's optparse.tcl, or None if missing.
+
+    Used by test bundles that ``package require opt`` (opt.test,
+    safe-stock.test) — inlining the upstream library lets the
+    interpreter run the real ``::tcl::OptKeyRegister`` /
+    ``OptKeyParse`` / ``OptParse`` machinery rather than a hand-
+    rolled stub, which is the only way to verify our runtime
+    against opt.test's implementation-detail assertions.
+    """
+    tests_dir = ensure_tcl_source("9.0")
+    p = tests_dir.parent / "library" / "opt" / "optparse.tcl"
+    return p if p.exists() else None
+
+
 # ---------------------------------------------------------------------------
 # Bundle construction
 # ---------------------------------------------------------------------------
 
 _PRE_TCLTEST = r"""
 # ----- run_tcl9_tests.py pre-tcltest stubs -----
+# Tcl's standard startup populates a small set of globals that
+# tclsh sets before any user script runs (``tclsh.c`` /
+# ``Tcl_Main`` does this) — ``argv``, ``argv0``, ``argc``,
+# ``tcl_interactive``, ``auto_path``, ``env(*)``.  Our WASM
+# runtime entry point doesn't perform that bootstrap, so test
+# files that reach for ``$argv`` (parseOld), ``$auto_path``
+# (safe-stock), or ``$tcl_interactive`` (uplevel.test diag
+# probes) trap with ``can't read "X": no such variable``.
+#
+# Mirror the tclsh defaults: empty argv list, empty argv0, the
+# single-element auto_path tcllib uses, an empty env array, and
+# tcl_interactive=0 (we're not a terminal).  The values themselves
+# are deliberately minimal — none of the in-scope tests exercise
+# their content, only the readability.
+set ::argv {}
+set ::argv0 ""
+set ::argc 0
+set ::tcl_interactive 0
+set ::auto_path {}
+set ::tcl_library ""
+array set ::env {}
+
+# ``tcl_platform`` — real tclsh exports a dozen-key array that
+# tcltest reads at line 288 / 312 (``$::tcl_platform(platform)``,
+# ``$::tcl_platform(os)``) plus several test files reach for
+# ``pointerSize``, ``wordSize``, ``byteOrder``, etc.  Without
+# these, ``listObj.test`` / ``stringObj.test`` hit the
+# ``set SIZE_MAX [expr {(1 << (8*$::tcl_platform(pointerSize) - 1)) - 1}]``
+# bootstrap with an empty pointerSize, which collapses to a
+# negative shift and traps with ``negative shift argument``.
+# Match the WASM target's actual values: pointerSize=4 (wasm32),
+# wordSize=8 (we report 64-bit ints to scripts), unix-shaped
+# platform/os.  The values are conservative — none of the in-
+# scope tests inspect them beyond the smoke-test reads above.
+array set ::tcl_platform {
+    platform        unix
+    os              "Linux"
+    osVersion       "0.0"
+    machine         "wasm32"
+    byteOrder       littleEndian
+    pointerSize     4
+    wordSize        8
+    threaded        0
+    user            "wasm"
+    pathSeparator   ":"
+    engine          "Tcl"
+}
+
+# ``unknown`` — real tclsh ships an ``::unknown`` proc that handles
+# auto-loading + tab completion + ``$auto_noexec`` exec dispatch.
+# Several test bundles (``rename.test`` 5.1, ``unknown.test``) rename
+# it away as part of their setup and re-instate it later with
+# ``info body unknown``.  Without a stub of our own ``info body
+# unknown.old`` traps with ``"unknown.old" isn't a procedure`` and
+# the bundle aborts before reaching its tcltest summary.
+#
+# The minimal ``unknown`` body emits the standard error string Tcl
+# would produce for any unknown command — same surface as
+# ``error_invalid_command_name`` in the runtime — so tests that
+# *invoke* unknown via a typo see the expected message.  Wrapped in
+# ``eval`` so it goes through the interpreted ``proc`` path; ``info
+# body`` only works on interpreted procs.
+eval {
+    proc ::unknown {args} {
+        return -code error "invalid command name \"[lindex $args 0]\""
+    }
+}
+
 # tcltest.tcl line 919 calls ``auto_load ::parray`` followed by
 # ``proc tcltest::parray {a {pattern *}} [info body ::parray]``.
 # Tcl's auto-loading machinery is not implemented here, so we
@@ -448,14 +531,47 @@ def _patch_hello_world_procs(script: str) -> str:
 
 
 def _bundle(test_file_path: Path) -> str:
-    """Concatenate Tcl 9 tcltest + preamble + test file into one script."""
+    """Concatenate Tcl 9 tcltest + preamble + test file into one script.
+
+    Test files that ``package require opt`` (or reach for
+    ``::tcl::OptKeyRegister`` / ``::tcl::OptParse`` directly) get
+    the real ``library/opt/optparse.tcl`` inlined at top level
+    (NOT wrapped in ``eval``).  ``namespace eval ::tcl { variable
+    OptDescN 0 ... }`` only initialises the variable in the right
+    scope when the runtime sees it as a top-level statement;
+    nesting under another ``eval`` detaches the namespace context
+    and the bundle's first ``$::tcl::OptDescN`` read traps with
+    "no such variable".
+    """
     tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
     test_src = _patch_hello_world_procs(test_file_path.read_text(encoding="utf-8"))
 
-    return "\n".join(
+    parts: list[str] = [
+        "# ===== run_tcl9_tests pre-tcltest stubs =====",
+        _PRE_TCLTEST,
+    ]
+
+    needs_opt = ("package require opt" in test_src) or ("::tcl::Opt" in test_src)
+    if needs_opt:
+        opt_path = _tcl9_opt_library()
+        if opt_path is not None:
+            opt_src = opt_path.read_text(encoding="utf-8")
+            # Inline the upstream library at top level (NOT wrapped
+            # in ``eval``).  ``namespace eval ::tcl { variable
+            # OptDescN 0 ... }`` only initialises the variable in
+            # the right scope when the runtime sees it as a
+            # top-level statement; nesting under another ``eval``
+            # detaches the namespace context and the bundle's first
+            # ``$::tcl::OptDescN`` read traps with "no such variable".
+            parts.extend(
+                [
+                    "# ===== Tcl 9 opt library (real upstream optparse.tcl) =====",
+                    opt_src,
+                ]
+            )
+
+    parts.extend(
         [
-            "# ===== run_tcl9_tests pre-tcltest stubs =====",
-            _PRE_TCLTEST,
             "# ===== Tcl 9 tcltest (tmp/tcl9.0.3/library/tcltest/tcltest.tcl) =====",
             tcltest_src,
             "# ===== run_tcl9_tests preamble =====",
@@ -465,6 +581,7 @@ def _bundle(test_file_path: Path) -> str:
             "",
         ]
     )
+    return "\n".join(parts)
 
 
 _SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d*)\s+Skipped\s+(\d*)\s+Failed\s+(\d*)")

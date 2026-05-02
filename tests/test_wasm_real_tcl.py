@@ -1010,6 +1010,154 @@ return [dict get $d age]
         assert ok, f"error: {err}"
         assert val == 30
 
+    def test_dict_append_runtime(self):
+        # ``dict append varname key ?value ...?`` — concatenates onto
+        # the existing string at KEY (creates an empty entry first if
+        # the key isn't present).  Until the runtime gained an
+        # ``append`` arm in ``cmds/dict.zig`` the codegen routed to
+        # ``_emit_unsupported_trap("dict append")`` and any call
+        # surfaced as ``unsupported in WASM: dict append``.
+        source = """\
+set d {a hello b world}
+dict append d a " there"
+dict append d c brand new
+puts $d
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        # ``dict append`` concatenates its trailing args back-to-back
+        # with no separator (matches C tclsh: ``brand`` + ``new`` =
+        # ``brandnew``).  ``" there"`` keeps its leading space because
+        # the literal carries it.
+        assert out == "a {hello there} b world c brandnew\n", f"unexpected dict result: {out!r}"
+
+    def test_rename_builtin_round_trip(self):
+        # ``rename list l.new`` must mask ``list`` (so subsequent
+        # ``[list ...]`` calls surface ``invalid command name "list"``)
+        # while making ``[l.new ...]`` dispatch to the BUILTIN's
+        # handler.  ``rename l.new list`` must restore the BUILTIN.
+        # See rename.test rename-2.1.  This pins the FORWARD/MASKED
+        # mechanism added to ``runtime/zig/cmds/tcl_cmd_interp.zig``
+        # and ``runtime/zig/interp/tcl_procs.zig``.
+        source = """\
+rename list l.new
+set a [catch list msg1]
+set b [l.new x y z]
+rename l.new list
+set c [catch l.new msg2]
+set d [list 111 222]
+puts "$a|$msg1|$b|$c|$msg2|$d"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == (
+            '1|invalid command name "list"|x y z|1|invalid command name "l.new"|111 222\n'
+        ), f"got {out!r}"
+
+    def test_rename_builtin_delete(self):
+        # ``rename BUILTIN ""`` is the deletion form — the BUILTIN
+        # becomes ``invalid command name`` and stays that way until
+        # the proc is reinstated.
+        source = """\
+rename llength ""
+set a [catch {llength {a b c}} m]
+puts "$a|$m"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == '1|invalid command name "llength"\n', f"got {out!r}"
+
+    def test_rename_protected_builtins_refused(self):
+        # ``return`` and ``error`` are hardcoded protected — a
+        # rename attempt must surface ``can't rename "X": built-in
+        # command`` rather than silently masking the dispatch.
+        source = """\
+catch {rename return foo} ret
+catch {rename error bar} err
+puts "$ret|$err"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == (
+            'can\'t rename "return": built-in command|can\'t rename "error": built-in command\n'
+        ), f"got {out!r}"
+
+    def test_args_tail_quoted_substitution_word(self):
+        # When the eval-fallback path reassembles a call into a
+        # script for ``tcl_eval``, an arg whose IR text is a
+        # double-quoted word with embedded substitutions and
+        # internal whitespace (``"$n [expr {$n+1}] [expr {$n+2}]"``)
+        # would previously pass through unquoted as
+        # ``${n} [expr {$n+1}] [expr {$n+2}]`` -- splitting the
+        # one source argument into three when re-parsed.  That
+        # broke any callee with an ``args`` variadic tail since
+        # ``[llength $args]`` returned the wrong count.
+        # Pinned because opt.test, safe-stock.test, and any
+        # tcltest call passing a ``"...$x..."`` last argument
+        # depend on the boundary survival.
+        source = """\
+namespace eval ::ns {
+    namespace export rcv
+    proc rcv {a b args} {
+        puts "len=[llength $args]"
+        foreach x $args { puts "  e=$x" }
+    }
+}
+namespace import ::ns::*
+set n 5
+rcv name {desc} {body} "$n [expr {$n+1}] [expr {$n+2}]"
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "len=2\n  e=body\n  e=5 6 7\n", f"got {out!r}"
+
+    def test_dynamic_switch_runtime(self):
+        # The codegen inlines static ``switch`` shapes via IRSwitch,
+        # but a ``switch`` reached through ``eval`` (or any path that
+        # builds the pattern/body list at runtime) routes through the
+        # interpreter's BUILTIN dispatch.  Until ``eval_switch`` was
+        # added in ``runtime/zig/interp/tcl_interp.zig`` such calls
+        # trapped with ``unsupported command: switch``.  This pins
+        # the four common shapes: -exact, -glob, -regexp, fall-through.
+        source = """\
+proc do_exact {x}  { eval [list switch       $x a {puts A} b {puts B} default {puts D}] }
+proc do_glob  {x}  { eval [list switch -glob $x  a*  {puts gA} b?  {puts gB} default {puts gD}] }
+proc do_re    {x}  { eval [list switch -regexp $x {^[A-Z]+$} {puts ru} {^[a-z]+$} {puts rl} default {puts rd}] }
+proc do_ft    {x}  { eval [list switch       $x a - b {puts AB} c {puts C} default {puts D}] }
+do_exact a
+do_exact x
+do_glob abc
+do_glob bz
+do_re HELLO
+do_re hello
+do_re Mixed
+do_ft a
+do_ft b
+do_ft c
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "A\nD\ngA\ngB\nru\nrl\nrd\nAB\nAB\nC\n", f"got {out!r}"
+
+    def test_dict_for_compiled_canonical_name(self):
+        # ``dict for {k v} D body`` is canonicalised by the CFG to
+        # ``::tcl::dict::for {k v} D body`` so static-foreach-like
+        # SSA reasoning sees a single command.  The runtime's
+        # ``eval_command`` recognises that ``::tcl::ENSEMBLE::SUBCMD``
+        # FQ form and re-dispatches to the ensemble's BUILTIN
+        # handler — without that rewrite the call traps with
+        # ``unknown command: ::tcl::dict::for``.
+        source = """\
+set out {}
+dict for {k v} {x 1 y 2 z 3} {
+    lappend out "$k=$v"
+}
+puts $out
+"""
+        ok, out, err = _run_tcl_for_stdout(source)
+        assert ok, f"error: {err}"
+        assert out == "x=1 y=2 z=3\n", f"got {out!r}"
+
     def test_nested_proc_calls(self):
         source = """\
 proc double {x} { return [expr {$x * 2}] }
@@ -2151,7 +2299,7 @@ class TestDiagMap:
             # "xabcdef" is 7 chars — previously the trap would have
             # written 6-char "xabcde" with the trailing 'f' lost to
             # the ``]``-consumed-by-next-word parse.
-            assert "unknown command: xabcdef" in stderr, f"stderr was: {stderr!r}"
+            assert 'invalid command name "xabcdef"' in stderr, f"stderr was: {stderr!r}"
 
     def test_runtime_trap_emits_site_prefix(self):
         # End-to-end: trigger an unknown command through the eval
@@ -2167,7 +2315,7 @@ class TestDiagMap:
             # The resolver must map the site back to our source file.
             resolved = _resolve_trap(trap, stderr, diag)
             assert "t.tcl:1:1" in resolved
-            assert "unknown command: definitely_not_a_command" in resolved
+            assert 'invalid command name "definitely_not_a_command"' in resolved
 
 
 class TestReturnCodeError:

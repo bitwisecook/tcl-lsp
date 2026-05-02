@@ -114,17 +114,65 @@ class _UpvarInfo:
     # Parameter names whose runtime values are used as upvar targets
     # (e.g. upvar 1 $param_name local → param_name)
     param_targets: frozenset[str]
+    # True if the proc body uses ``uplevel 1`` (or any non-#0 level)
+    # with a script that writes via ``::set $name value`` and the
+    # script's $name comes from this proc's variadic ``args`` tail.
+    # Lassign-shaped pattern: ``foreach vname $args { uplevel 1
+    # [list ::set $vname value] }``.  Callers must treat every
+    # call-site arg from the first variadic-tail position onwards
+    # as a potential upvar target.
+    args_tail_upvar: bool = False
 
 
 def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
     """Scan *script* for ``upvar`` commands and extract target info.
 
-    Returns None if the script contains no upvar commands.
+    Also detects Lassign-shaped ``uplevel 1 [list ::set $vname
+    value]`` patterns inside ``foreach vname $args { ... }`` so the
+    caller-side invalidation marks every variadic-tail arg as a
+    potential upvar target.
+
+    Returns None if the script contains no upvar / uplevel-write
+    patterns.
     """
     literal_targets: set[str] = set()
     param_targets: set[str] = set()
+    args_tail_upvar = False
+
+    def _uplevel_set_target(text: str) -> tuple[str, bool] | None:
+        """Inspect *text* for an uplevel-style ``set X V`` write.
+
+        Returns ``(target, is_dynamic)``:
+
+        * ``target`` is the var name written (literal or
+          ``$param``-stripped name).
+        * ``is_dynamic`` is True for the ``[list ::set $X V]`` shape
+          (Lassign-style — name comes from a caller-supplied param)
+          and False for the literal ``set X V`` shape (uplevel.test
+          ``c1`` -> ``uplevel 1 set x 111`` writes the literal "x").
+
+        Returns None when no recognisable shape matches.
+        """
+        s = text.strip()
+        if s.startswith("[list") or s.startswith("[ list"):
+            # ``[list ::set $X V]`` — Lassign shape.
+            inner = s[1:-1].strip() if s.endswith("]") else s[1:].strip()
+            words = inner.split()
+            if len(words) >= 4 and words[0] == "list" and words[1] in ("::set", "set"):
+                if words[2].startswith("$"):
+                    return (_normalise_var_name(words[2]) or "", True)
+                return (words[2], False)
+            return None
+        # Bare ``set X V`` / ``::set X V`` body — uplevel.test pattern.
+        words = s.split()
+        if len(words) >= 3 and words[0] in ("::set", "set"):
+            if words[1].startswith("$"):
+                return (_normalise_var_name(words[1]) or "", True)
+            return (words[1], False)
+        return None
 
     def _scan(s: IRScript) -> None:
+        nonlocal args_tail_upvar
         for stmt in s.statements:
             if isinstance(stmt, (IRCall, IRBarrier)) and REGISTRY.is_scope_alias_command(
                 stmt.command
@@ -149,6 +197,32 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                             param_targets.add(param)
                     else:
                         literal_targets.add(caller_name)
+            elif (
+                isinstance(stmt, IRBarrier) and stmt.canonical_command == "::uplevel" and stmt.args
+            ):
+                # uplevel ?level? body — recognise Lassign-style
+                # writers ``uplevel 1 [list ::set $vname value]``.
+                a = stmt.args
+                first = a[0]
+                is_level = first.lstrip("-").isdigit() or (
+                    first.startswith("#") and first[1:].isdigit()
+                )
+                level = first if is_level else "1"
+                if level not in ("#0", "0"):
+                    body_parts = a[1:] if is_level else a
+                    if body_parts:
+                        body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
+                        target = _uplevel_set_target(body)
+                        if target is not None:
+                            name, is_dynamic = target
+                            if is_dynamic:
+                                # Lassign shape — every variadic-tail
+                                # call-site arg may be a target.
+                                args_tail_upvar = True
+                            elif name:
+                                # ``uplevel 1 set x 111`` writes
+                                # literal "x" into caller's frame.
+                                literal_targets.add(name)
             elif isinstance(stmt, IRIf):
                 for clause in stmt.clauses:
                     _scan(clause.body)
@@ -174,11 +248,12 @@ def _collect_upvar_targets(script: IRScript) -> _UpvarInfo | None:
                     _scan(stmt.default_body)
 
     _scan(script)
-    if not literal_targets and not param_targets:
+    if not literal_targets and not param_targets and not args_tail_upvar:
         return None
     return _UpvarInfo(
         literal_targets=frozenset(literal_targets),
         param_targets=frozenset(param_targets),
+        args_tail_upvar=args_tail_upvar,
     )
 
 
@@ -514,9 +589,9 @@ class _CFGBuilder:
             for name in info.literal_targets:
                 if name not in defs:
                     defs.append(name)
+            raw_args = words[1:]
+            params = self._proc_params.get(cmd, ())
             if info.param_targets:
-                raw_args = words[1:]
-                params = self._proc_params.get(cmd, ())
                 for pt in info.param_targets:
                     if pt in params:
                         param_idx = params.index(pt)
@@ -524,6 +599,17 @@ class _CFGBuilder:
                             arg_name = _normalise_var_name(raw_args[param_idx])
                             if arg_name and arg_name not in defs:
                                 defs.append(arg_name)
+            if info.args_tail_upvar:
+                # Lassign-shape: every arg from the variadic ``args``
+                # tail position onwards is an upvar target.  See the
+                # matching logic in ``_resolve_upvar_defs``.
+                tail_start = len(params) - 1 if params and params[-1] == "args" else 0
+                if tail_start == 0 and params:
+                    tail_start = len(params)
+                for i in range(tail_start, len(raw_args)):
+                    arg_name = _normalise_var_name(raw_args[i])
+                    if arg_name and arg_name not in defs:
+                        defs.append(arg_name)
         return defs
 
     def _resolve_upvar_defs(self, cmd: str, args: tuple[str, ...]) -> list[str]:
@@ -535,8 +621,8 @@ class _CFGBuilder:
         for name in info.literal_targets:
             if name not in defs:
                 defs.append(name)
+        params = self._proc_params.get(cmd, ())
         if info.param_targets:
-            params = self._proc_params.get(cmd, ())
             for pt in info.param_targets:
                 if pt in params:
                     param_idx = params.index(pt)
@@ -544,6 +630,28 @@ class _CFGBuilder:
                         arg_name = _normalise_var_name(args[param_idx])
                         if arg_name and arg_name not in defs:
                             defs.append(arg_name)
+        if info.args_tail_upvar:
+            # Lassign-shape: every call-site arg from the variadic
+            # ``args`` tail position onwards is a potential upvar
+            # target.  When the proc has named params before
+            # ``args``, those are not flagged (Lassign's ``list``
+            # param is the value, not a var name).
+            has_args_tail = bool(params) and params[-1] == "args"
+            tail_start = len(params) - 1 if has_args_tail else 0
+            # Without an ``args`` tail we still treat everything past
+            # the last positional as tail-style — but only when the
+            # proc actually has positionals.  For a ``{args}``-only
+            # proc, ``tail_start == 0`` is correct (the first call
+            # arg is part of the variadic tail and IS a potential
+            # upvar target); the previous defensive rewrite to
+            # ``len(params)`` skipped index 0 and missed the only
+            # interesting var (Codex review on PR #325).
+            if tail_start == 0 and params and not has_args_tail:
+                tail_start = len(params)
+            for i in range(tail_start, len(args)):
+                arg_name = _normalise_var_name(args[i])
+                if arg_name and arg_name not in defs:
+                    defs.append(arg_name)
         return defs
 
     def _apply_upvar_invalidation(self, stmt: IRStatement, block: _MutableBlock) -> IRStatement:
@@ -1139,6 +1247,7 @@ def _detect_upvar_procs(module: IRModule) -> dict[str, _UpvarInfo]:
                     # For unqualified calls, map param targets through the
                     # proc's parameter list
                     param_targets=info.param_targets,
+                    args_tail_upvar=info.args_tail_upvar,
                 )
     return result
 

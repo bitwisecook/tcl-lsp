@@ -197,7 +197,7 @@ def test_alias_rename_of_target_breaks_lookup(runtime: RuntimeHandle):
     stored name stop resolving — the alias does NOT automatically
     follow the rename.  If the target is later recreated at the
     original name, the alias starts working again; otherwise calls
-    through the alias raise ``unknown command: <target>``.
+    through the alias raise ``invalid command name "<target>"``.
     """
     runtime.register_proc("::orig", "x", "set ::result called:$x")
     root = runtime.root()

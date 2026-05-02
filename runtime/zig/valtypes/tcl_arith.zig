@@ -272,6 +272,50 @@ pub export fn tcl_math_double(a: i32) i32 {
         obj.tcl_obj_retain(a);
         return a;
     }
+    // ``double(x)`` for a non-numeric string operand should raise
+    // ``expected floating-point number but got "x"`` — matching
+    // reference Tcl's ``ExprDoubleFunc``.  Without the validation
+    // ``obj_get_float`` falls through to ``return 0.0`` and the
+    // caller silently sees ``0.0`` for any non-numeric input,
+    // which made ``::tcl::OptCheckType x float`` succeed when it
+    // should error (opt-7.1 expected ``[catch ... 1]`` for the
+    // ``double(x)`` case but got ``0`` from the silent zero).
+    const tag = obj.obj_type(a);
+    if (tag != TYPE_INT and tag != TYPE_FLOAT and tag != TYPE_BIGNUM) {
+        const sa = obj.obj_ensure_string(a);
+        if (obj.try_parse_float(sa.ptr, sa.len) == null and
+            obj.try_parse_int(sa.ptr, sa.len) == null and
+            bignum.parse_i128(sa.ptr, sa.len) == null and
+            !bignum.string_needs_bignum(sa.ptr, sa.len))
+        {
+            const prefix: []const u8 = "expected floating-point number but got \"";
+            const suffix: []const u8 = "\"";
+            const total: u32 = @as(u32, @intCast(prefix.len)) + sa.len +
+                @as(u32, @intCast(suffix.len));
+            const buf = obj.alloc(total);
+            const d: [*]u8 = @ptrFromInt(buf);
+            var off: u32 = 0;
+            for (prefix) |b| {
+                d[off] = b;
+                off += 1;
+            }
+            if (sa.len > 0) {
+                const sp: [*]const u8 = @ptrFromInt(sa.ptr);
+                for (0..sa.len) |k| {
+                    d[off] = sp[k];
+                    off += 1;
+                }
+            }
+            for (suffix) |b| {
+                d[off] = b;
+                off += 1;
+            }
+            const msg = obj.obj_new_string_take(buf, total, total);
+            const tcl_catch = @import("../interp/tcl_catch.zig");
+            tcl_catch.tcl_cmd_error(msg);
+            return obj.obj_new_float(0.0);
+        }
+    }
     return obj.obj_new_float(obj.obj_get_float(a));
 }
 

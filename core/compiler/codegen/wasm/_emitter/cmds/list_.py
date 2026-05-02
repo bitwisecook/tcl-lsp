@@ -114,7 +114,18 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
     # _tcl_token_value expands each source token to its VALUE (strips
     # braces, applies backslash subst), then _tcl_list_quote encodes
     # the value as a list element.
-    if all(not a.startswith("$") and not a.startswith("[") for a in args):
+    #
+    # ``_has_embedded_subst`` catches mid-string ``$var`` / ``${var}``
+    # / ``[cmd]`` substitutions that would be missed by a plain
+    # leading-char check; without it, ``[list a "value=$x" b]``
+    # took the literal fast path and emitted ``a {value=$x} b``
+    # verbatim — the ``$x`` never substituted at runtime.  See
+    # the OptProc / OptKeyParse builder in opt.test which
+    # constructs proc bodies via this exact form.
+    if all(
+        not a.startswith("$") and not a.startswith("[") and not emitter._has_embedded_subst(a)
+        for a in args
+    ):
         emitter._emit_obj_literal(
             " ".join(
                 _tcl_list_quote(_tcl_token_value(a), first=(i == 0)) for i, a in enumerate(args)
@@ -136,7 +147,12 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
         if a.startswith("{") and a.endswith("}"):
             emitter._emit_obj_literal(a[1:-1])
             return
-        if a.startswith("$") or a.startswith("["):
+        # ``$`` / ``[`` prefix or any embedded substitution — route
+        # through _emit_value so ``"value=$x"`` resolves ``$x`` at
+        # runtime rather than landing as a literal that contains
+        # the unexpanded ``$x``.  See the ``[list a "value=$x" b]``
+        # path used by OptProc to build proc bodies.
+        if a.startswith("$") or a.startswith("[") or emitter._has_embedded_subst(a):
             emitter._emit_value(a)
         else:
             emitter._emit_obj_literal(a)

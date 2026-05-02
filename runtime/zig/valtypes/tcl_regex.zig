@@ -301,6 +301,32 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
     return exec_rc == REG_OKAY;
 }
 
+/// Public wrapper around :func:`run_match` for callers that hold
+/// the pattern / subject as raw byte spans rather than TclObj
+/// handles.  Used by ``eval_switch`` in ``tcl_interp.zig`` to test
+/// each ``-regexp`` arm against the subject without round-tripping
+/// through TclObj allocation.  ``no_case`` toggles ``REG_ICASE`` to
+/// match ``switch -nocase -regexp ...``.  Returns true on a
+/// successful match, false on no-match or compile error (the
+/// regex compile errors do not propagate from here — switch arms
+/// with malformed regexes are silently treated as no-match;
+/// callers wanting strict propagation should use the longer
+/// ``eval_regexp_cmd`` path).
+pub fn run_match_pub(p_ptr: u32, p_len: u32, s_ptr: u32, s_len: u32, no_case: bool) bool {
+    const obj_local = @import("tcl_obj.zig");
+    const pat_obj = obj_local.obj_new_string(@bitCast(p_ptr), @bitCast(p_len));
+    const sub_obj = obj_local.obj_new_string(@bitCast(s_ptr), @bitCast(s_len));
+    const flags: c_int = if (no_case) REG_ICASE else 0;
+    const matched = run_match(pat_obj, sub_obj, flags);
+    // Both ``obj_new_string`` calls return TclObjs with a +1 hold
+    // that nothing else owns — release them now to avoid leaking
+    // two temporary objects per ``switch -regexp`` arm evaluation
+    // (Copilot review on PR #325).
+    obj_local.tcl_obj_release(pat_obj);
+    obj_local.tcl_obj_release(sub_obj);
+    return matched;
+}
+
 /// ``regexp pattern string`` — 2-arg form.  Returns a TclObj
 /// wrapping 1 (match) or 0 (no match).  Higher-arity forms
 /// (options, capture vars) are not handled here — the codegen's

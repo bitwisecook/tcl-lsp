@@ -83,6 +83,41 @@ def _contains_expand_prefix(text: str) -> bool:
             return False
 
 
+def _outer_braces_balanced(value: str) -> bool:
+    """Return True if the leading ``{`` matches the trailing ``}``.
+
+    Walks left-to-right tracking brace depth; the outer braces are
+    balanced when depth never returns to zero before reaching the
+    final character.  Used to distinguish single-token braced
+    literals (``{a b c}``) from multi-element list payloads
+    (``{a} {b} {c}``) — the latter opens and closes multiple
+    times so the outer-strip path must NOT fire.
+
+    Backslash-escaped braces (``\\{`` / ``\\}``) don't count for
+    nesting, matching reference Tcl's brace counter.
+    """
+    if len(value) < 2 or value[0] != "{" or value[-1] != "}":
+        return False
+    depth = 0
+    i = 0
+    n = len(value)
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0 and i < n - 1:
+                # Closed before the end — outer braces don't span
+                # the whole value.
+                return False
+        i += 1
+    return depth == 0
+
+
 def _looks_like_string_option(arg: str) -> bool:
     """Detect a leading ``-flag`` argument on a ``string`` sub-command.
 
@@ -122,6 +157,7 @@ class _WasmEmitterValuesMixin(_Base):
         def _emit_clock_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_list_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_compiled_call_with_bridge(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_value(self, value: str, *, was_braced: bool = False) -> Ownership:
         """Emit an i32 TclObj pointer for *value* and return its
@@ -179,25 +215,31 @@ class _WasmEmitterValuesMixin(_Base):
                 # runtime global table via _emit_var_read_obj.
                 self._emit_var_read_obj(var)
                 return Ownership.BORROWED
-            # Try direct local lookup (for bare names like in IRAssignValue).
-            # Alias-aware: checks _aliases before local_index.
-            if value in self._aliases:
-                self._emit_var_read_obj(value)
-                return Ownership.BORROWED
-            if self._optimise and value not in self._aliases and value in self._const_map:
-                immediate = _try_tagged_immediate(self._const_map[value])
-                if immediate is not None:
-                    self._emit_i32_const(immediate)
-                    return Ownership.BORROWED
-            idx = self._local_index.get(value)
-            if idx is not None:
-                self._emit_local_get(idx)
-                return Ownership.BORROWED
+            # NOTE: Tcl bare words (no ``$``/``${...}``) are *string
+            # literals*, not variable references — even when the bare
+            # word happens to match a local-variable name.  ``Echo nl``
+            # passes the string ``nl`` regardless of whether the
+            # caller has a local also called ``nl``.  Earlier revisions
+            # of this method dispatched bare-word matches against
+            # ``_aliases`` / ``_const_map`` / ``_local_index`` to a
+            # local read, which corrupted ``upvar``/``foreach``/proc-
+            # call dispatch where the bare arg is used as a variable
+            # *name* (e.g. ``OptError`` → ``OptLengths $desc nl tl
+            # dl``: the literal "nl" is the argument the callee then
+            # ``upvar``s back into our frame).  The lowering already
+            # marks every variable reference with ``$``/``${...}``;
+            # if a value reaches this point bare, it really is a
+            # literal and should fall through to the obj-literal
+            # path.
         # Braced literal — outer braces suppress all substitution in Tcl.
-        # _split_command_subst preserves {…} so downstream code can
-        # distinguish a braced word (literal) from a quoted one (allows
-        # substitution).  Strip the braces and emit the content as-is.
-        if value.startswith("{") and value.endswith("}"):
+        # ``_split_command_subst`` preserves ``{…}`` so downstream code
+        # can distinguish a braced word (literal) from a quoted one
+        # (allows substitution).  Strip the braces and emit the
+        # content as-is — but only when the outer ``{`` actually
+        # matches the outer ``}``; ``{-fla} {-other}`` opens and
+        # closes twice and is NOT a single braced word, so stripping
+        # would mangle it to ``-fla} {-other``.
+        if value.startswith("{") and value.endswith("}") and _outer_braces_balanced(value):
             self._emit_obj_literal(value[1:-1])
             return Ownership.OWNED
         # Braced token whose outer braces the IR already stripped — emit
@@ -261,6 +303,24 @@ class _WasmEmitterValuesMixin(_Base):
             c = value[i]
             if c == "\\" and i + 1 < n:
                 esc = value[i + 1]
+                # ``\<newline>`` line continuation: skip the backslash,
+                # the newline, and any following ASCII whitespace —
+                # then append a single space.  Mirrors Tcl's documented
+                # ``\<whitespace>`` rule (used by every multi-line
+                # quoted string in optparse.tcl).  Without this branch,
+                # interpolated strings containing ``...$arg,\<NL>\t\t
+                # usage:`` (the OptTooManyArgs message) preserved the
+                # raw newline + tabs and the test message included
+                # ``,\n\t\tusage:`` instead of the expected
+                # ``, usage:``.
+                if esc == "\n" or esc == "\r":
+                    i += 2
+                    if esc == "\r" and i < n and value[i] == "\n":
+                        i += 1
+                    while i < n and value[i] in " \t":
+                        i += 1
+                    buf.append(" ")
+                    continue
                 buf.append({"n": "\n", "t": "\t", "r": "\r"}.get(esc, esc))
                 i += 2
                 continue
@@ -516,7 +576,7 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_i32_const(0)
                 self._emit_args_list(tuple(cmd_args[fixed:]))
                 self._emit_push_pending_argv0(argv0_local)
-                self._emit_call(func_idx)
+                self._emit_compiled_call_with_bridge(func_idx)
                 return
             for i in range(min(n_params, len(cmd_args))):
                 self._emit_value(cmd_args[i])
@@ -537,7 +597,7 @@ class _WasmEmitterValuesMixin(_Base):
                 # report an accurate argv for ``info level 0``.
                 self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
-            self._emit_call(func_idx)
+            self._emit_compiled_call_with_bridge(func_idx)
             return
 
         # dict sub-command in value context — returns i32 TclObj
@@ -753,6 +813,25 @@ class _WasmEmitterValuesMixin(_Base):
                 # literal ``{a+}`` and pass to the regex engine —
                 # matching nothing).
                 self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
+                return
+
+        # ``format`` with more than 3 substitution args (or the
+        # ``%-*s`` / ``%.*s`` shapes that consume two args per spec
+        # in opt.test's OptTree) exceeds the fixed-arity
+        # ``tcl_cmd_format`` slot budget; route through the variadic
+        # ``tcl_cmd_format_list`` helper which packs all args into a
+        # Tcl list at runtime.  The same dispatch lives in the
+        # statement-context hook in cmds/format_.py.
+        if cmd_name == "format" and len(cmd_args) > 3:
+            format_list_idx = self._shared_imports.get("tcl_cmd_format_list")
+            list_create_idx = self._shared_imports.get("tcl_list_create")
+            if format_list_idx is not None and list_create_idx is not None:
+                self._emit_value(cmd_args[0])  # fmt
+                self._emit_obj_literal("")  # list seed
+                for a in cmd_args[1:]:
+                    self._emit_value(a)
+                    self._emit_call(list_create_idx)
+                self._emit_call(format_list_idx)
                 return
 
         # Runtime command in value context (llength, lindex, etc.)

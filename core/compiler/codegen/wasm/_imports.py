@@ -257,6 +257,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # route through a ``CommandSpec`` — e.g. ``_emit_list_value``
     # builds N-ary lists via ``tcl_list`` pair-chaining.
     "tcl_list_create": ("tcl", "tcl_list", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Variadic ``format`` — ``tcl_cmd_format`` only accepts 3 subst
+    # args; format callsites with more (or with ``%-*s`` / ``%.*s``
+    # consuming two args per spec) route through the list-form
+    # helper.  See ``codegen/wasm/_emitter/cmds/format_.py``.
+    "tcl_cmd_format_list": (
+        "tcl",
+        "tcl_cmd_format_list",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_list_tail": ("tcl", "list_tail", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_list_contains": (
         "tcl",
@@ -327,6 +337,17 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # because the wasm-side ``br`` only fires for compiled ``break``.
     "tcl_flow_consume_break": ("tcl", "flow_consume_break", [], [ValType.I32]),
     "tcl_flow_consume_continue": ("tcl", "flow_consume_continue", [], [ValType.I32]),
+    # Pending-``return`` flag inspectors.  Compiled procs use these
+    # at every callee / eval-fallback boundary to detect that
+    # ``return`` (or ``return -code return``) raised from inside
+    # the call.  ``check`` is non-destructive so the propagating
+    # frame can decide whether to absorb (proc-dispatch boundary)
+    # or pass through (mid-body eval-fallback).  ``take`` clears
+    # the flag and yields the body's return value so the caller
+    # frame can finish the absorption in one round-trip.
+    "tcl_flow_check_return": ("tcl", "flow_check_return", [], [ValType.I32]),
+    "tcl_flow_take_return": ("tcl", "flow_take_return", [], [ValType.I32]),
+    "tcl_flow_check_signal_loop": ("tcl", "flow_check_signal_loop", [], [ValType.I32]),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
     # Namespace context for eval-fallback calls — compiled procs set the
@@ -344,6 +365,39 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # Frame stack (local variable scoping).
     "tcl_frame_push": ("tcl", "frame_push", [], [ValType.I32]),
     "tcl_frame_pop": ("tcl", "frame_pop", [], []),
+    # Frame-side aliases — emitted by the compiled-proc prologue when
+    # the body declares a ``variable X`` / ``global X`` so any
+    # interpreter-side fallback (eval-script, dynamic ``while``,
+    # ``foreach``, ``catch`` body, ...) sees the same alias the
+    # compiled code uses.  Without this, the compiled proc reads /
+    # writes ``X`` via ``tcl_global_get/set(target=::ns::X)`` while
+    # the interpreter creates a fresh local ``X`` in the proc's
+    # runtime frame -- two divergent views of the same variable name.
+    "tcl_frame_alias_named": ("tcl", "frame_alias_named", [ValType.I32, ValType.I32], []),
+    "tcl_frame_alias_global": ("tcl", "frame_alias_global", [ValType.I32], []),
+    # ``upvar N other local`` / ``upvar #N other local`` — register
+    # ``local`` in the current frame as an alias to variable ``other``
+    # in the frame at absolute depth.  Reads/writes of the local then
+    # resolve through ``tcl_local_get/set`` which transparently chase
+    # the ALIAS_EXT bucket back to the target frame's variable.
+    "tcl_frame_alias_frame_var": (
+        "tcl",
+        "frame_alias_frame_var",
+        [ValType.I32, ValType.I32, ValType.I32],
+        [],
+    ),
+    "tcl_frame_get_depth": ("tcl", "frame_get_depth", [], [ValType.I32]),
+    # Resolve a dynamic ``upvar`` level token (``#N`` / ``N`` / ``$x``
+    # post-substitution) to an absolute frame depth.  Mirrors the
+    # parsing reference Tcl does in ``Tcl_UpVar2`` so OptTreeVars's
+    # ``upvar $level $vname var`` (where ``$level`` is something like
+    # ``"#3"``) compiles to a single helper call.
+    "tcl_upvar_resolve_depth": (
+        "tcl",
+        "upvar_resolve_depth",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Per-frame invocation argv — set by the compiled-proc prologue so
     # ``info level 0`` / ``info level -N`` inside the body reads the real
     # invocation list rather than a placeholder.
