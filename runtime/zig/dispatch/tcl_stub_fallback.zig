@@ -68,12 +68,10 @@ const STUB_TRAP: []const []const u8 = &.{
     // override; nothing here.
     // Misc that tcltest specifically references.
     "zlib", "registry",
-    // Core commands without WASM impl yet.
-    // ``switch`` is compiled inline by the code generator (IRSwitch),
-    // so this entry only fires when the interpreter evaluates a
-    // dynamic ``switch`` string — acceptable to trap until a runtime
-    // evaluator lands.
-    "switch",
+    // ``switch`` moved to BUILTINS in cmds/loop.zig with a real
+    // runtime evaluator (see ``tcl_interp.eval_switch``).  The
+    // codegen still inlines ``IRSwitch`` for static shapes; the
+    // BUILTIN fires only on dynamic forms.
     // ``exit`` is a capability-gated BUILTIN in cmds/exit.zig;
     // intentionally absent from STUB_TRAP so the BUILTIN dispatch
     // wins.  Without ``CAP_EXIT`` granted the BUILTIN raises

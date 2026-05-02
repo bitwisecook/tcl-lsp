@@ -692,6 +692,216 @@ pub fn eval_for(words: []const i32) i32 {
     return result;
 }
 
+/// ``switch ?-options? string pattern body ?pattern body ...?``
+/// or ``switch ?-options? string {pattern body ...}``
+///
+/// Supported options:
+///   * ``-exact`` (default) — literal string equality
+///   * ``-glob``            — glob-style wildcards via ``glob_match``
+///   * ``-regexp``          — POSIX-extended regex via ``run_match``
+///   * ``-nocase``          — case-insensitive (modifies match mode)
+///   * ``--``               — end of options
+///
+/// Pattern handling:
+///   * Body of ``-`` means "fall through to next non-``-`` body"
+///   * Pattern ``default`` (only valid in last position) matches if
+///     no earlier pattern did
+///
+/// Not implemented (will trap):
+///   * ``-matchvar`` / ``-indexvar`` — regex capture binding
+pub fn eval_switch(words: []const i32) i32 {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 3) {
+        stubs.raise("wrong # args: should be \"switch ?options? string ?pattern body ...? ?default body?\"");
+        return 0;
+    }
+    // Parse options.
+    const Mode = enum { exact, glob, regexp };
+    var mode: Mode = .exact;
+    var nocase: bool = false;
+    var i: u32 = 1;
+    while (i < words.len) : (i += 1) {
+        const w = obj_ensure_string(words[i]);
+        if (w.len < 1) break;
+        const wp: [*]const u8 = @ptrFromInt(w.ptr);
+        if (wp[0] != '-') break;
+        if (str_eq(wp, w.len, "-exact")) { mode = .exact; continue; }
+        if (str_eq(wp, w.len, "-glob")) { mode = .glob; continue; }
+        if (str_eq(wp, w.len, "-regexp")) { mode = .regexp; continue; }
+        if (str_eq(wp, w.len, "-nocase")) { nocase = true; continue; }
+        if (str_eq(wp, w.len, "--")) { i += 1; break; }
+        if (str_eq(wp, w.len, "-matchvar") or str_eq(wp, w.len, "-indexvar")) {
+            stubs.raise("switch: -matchvar / -indexvar not yet supported");
+            return 0;
+        }
+        // Unknown option — produce reference Tcl's error
+        const prefix: []const u8 = "bad option \"";
+        const suffix: []const u8 = "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --";
+        const total: u32 = @intCast(prefix.len + w.len + suffix.len);
+        const buf = obj_mod.alloc(total);
+        const bp: [*]u8 = @ptrFromInt(buf);
+        var off: usize = 0;
+        for (prefix) |c| { bp[off] = c; off += 1; }
+        if (w.len > 0) {
+            const sp: [*]const u8 = @ptrFromInt(w.ptr);
+            for (0..w.len) |k| { bp[off] = sp[k]; off += 1; }
+        }
+        for (suffix) |c| { bp[off] = c; off += 1; }
+        const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
+        const catch_mod = @import("tcl_catch.zig");
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+
+    if (i >= words.len) {
+        stubs.raise("wrong # args: should be \"switch ?options? string ?pattern body ...? ?default body?\"");
+        return 0;
+    }
+    const subject = words[i];
+    i += 1;
+    const subject_s = obj_ensure_string(subject);
+
+    // Two shapes for the pattern/body list:
+    //   (A) words[i..] are alternating pattern/body pairs.
+    //   (B) words[i] is a single list with even number of elements.
+    // Per Tcl 9 spec the single-arg form is detected by exactly one
+    // remaining word and that word being a list of >= 2 elements.
+    var pairs_in_list: bool = false;
+    if (i + 1 == words.len) {
+        const probe = obj_ensure_string(words[i]);
+        const n_probe = list_count_elements(probe.ptr, probe.len);
+        if (n_probe >= 2 and @rem(n_probe, 2) == 0) pairs_in_list = true;
+    }
+
+    // Helper: match one pattern against subject, accounting for mode/nocase.
+    const PatRunner = struct {
+        fn run(p_ptr: u32, p_len: u32, s_ptr: u32, s_len: u32, mode_v: Mode, no_case: bool) bool {
+            const tcl_string = @import("../valtypes/tcl_string.zig");
+            const tcl_chars = @import("../valtypes/tcl_chars.zig");
+            switch (mode_v) {
+                .exact => {
+                    if (no_case) {
+                        if (p_len != s_len) return false;
+                        const pp: [*]const u8 = @ptrFromInt(p_ptr);
+                        const ss: [*]const u8 = @ptrFromInt(s_ptr);
+                        var k: u32 = 0;
+                        while (k < p_len) : (k += 1) {
+                            const a: u8 = if (pp[k] >= 'A' and pp[k] <= 'Z') pp[k] | 0x20 else pp[k];
+                            const b: u8 = if (ss[k] >= 'A' and ss[k] <= 'Z') ss[k] | 0x20 else ss[k];
+                            if (a != b) return false;
+                        }
+                        return true;
+                    }
+                    if (p_len != s_len) return false;
+                    if (p_len == 0) return true;
+                    const pp: [*]const u8 = @ptrFromInt(p_ptr);
+                    const ss: [*]const u8 = @ptrFromInt(s_ptr);
+                    return tcl_chars.mem_eq(pp, p_len, ss, s_len);
+                },
+                .glob => {
+                    if (no_case) {
+                        // Lowercase both before glob_match.
+                        const obj_alloc = @import("../valtypes/tcl_obj.zig");
+                        const pbuf = obj_alloc.alloc(p_len);
+                        const sbuf = obj_alloc.alloc(s_len);
+                        const pd: [*]u8 = @ptrFromInt(pbuf);
+                        const sd: [*]u8 = @ptrFromInt(sbuf);
+                        const ps: [*]const u8 = @ptrFromInt(p_ptr);
+                        const ss: [*]const u8 = @ptrFromInt(s_ptr);
+                        var k: u32 = 0;
+                        while (k < p_len) : (k += 1) pd[k] = if (ps[k] >= 'A' and ps[k] <= 'Z') ps[k] | 0x20 else ps[k];
+                        k = 0;
+                        while (k < s_len) : (k += 1) sd[k] = if (ss[k] >= 'A' and ss[k] <= 'Z') ss[k] | 0x20 else ss[k];
+                        return tcl_string.glob_match(pbuf, p_len, sbuf, s_len);
+                    }
+                    return tcl_string.glob_match(p_ptr, p_len, s_ptr, s_len);
+                },
+                .regexp => {
+                    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+                    return tcl_regex.run_match_pub(p_ptr, p_len, s_ptr, s_len, no_case);
+                },
+            }
+        }
+    };
+
+    // Iterate pattern/body pairs.  We do two passes when ``-`` body
+    // appears: the first pass picks the matching pattern, the second
+    // walks forward to find the first non-``-`` body.
+    var match_idx: i64 = -1;  // index of matching pair (0-based pair index)
+    var n_pairs: i64 = 0;
+    if (pairs_in_list) {
+        const list_s = obj_ensure_string(words[i]);
+        const total_elems = list_count_elements(list_s.ptr, list_s.len);
+        n_pairs = @divTrunc(total_elems, 2);
+        var pi: i64 = 0;
+        while (pi < n_pairs) : (pi += 1) {
+            const pat_e = list_element_at(list_s.ptr, list_s.len, pi * 2);
+            const is_default = pat_e.len == 7 and blk: {
+                const sp: [*]const u8 = @ptrFromInt(list_s.ptr + pat_e.start);
+                break :blk sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
+                    sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
+            };
+            if (is_default and pi == n_pairs - 1) {
+                if (match_idx == -1) match_idx = pi;
+                break;
+            }
+            if (PatRunner.run(list_s.ptr + pat_e.start, pat_e.len, subject_s.ptr, subject_s.len, mode, nocase)) {
+                match_idx = pi;
+                break;
+            }
+        }
+        if (match_idx == -1) return obj_new_string(0, 0);
+        // Walk forward for non-``-`` body
+        var bi: i64 = match_idx;
+        while (bi < n_pairs) : (bi += 1) {
+            const body_e = list_element_at(list_s.ptr, list_s.len, bi * 2 + 1);
+            if (body_e.len == 1) {
+                const bp: [*]const u8 = @ptrFromInt(list_s.ptr + body_e.start);
+                if (bp[0] == '-') continue;
+            }
+            return eval_script(list_s.ptr + body_e.start, body_e.len);
+        }
+        return obj_mod.obj_new_string(0, 0);
+    }
+
+    // Inline form: words[i..] are alternating pattern/body
+    if (@rem(@as(u32, @intCast(words.len)) - i, 2) != 0) {
+        stubs.raise("extra switch pattern with no body");
+        return 0;
+    }
+    n_pairs = @intCast((words.len - i) / 2);
+    var pi: i64 = 0;
+    while (pi < n_pairs) : (pi += 1) {
+        const pat = words[i + @as(u32, @intCast(pi)) * 2];
+        const pat_s = obj_ensure_string(pat);
+        const is_default = pat_s.len == 7 and blk: {
+            const sp: [*]const u8 = @ptrFromInt(pat_s.ptr);
+            break :blk sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'f' and sp[3] == 'a' and
+                sp[4] == 'u' and sp[5] == 'l' and sp[6] == 't';
+        };
+        if (is_default and pi == n_pairs - 1) {
+            if (match_idx == -1) match_idx = pi;
+            break;
+        }
+        if (PatRunner.run(pat_s.ptr, pat_s.len, subject_s.ptr, subject_s.len, mode, nocase)) {
+            match_idx = pi;
+            break;
+        }
+    }
+    if (match_idx == -1) return obj_new_string(0, 0);
+    var bi: i64 = match_idx;
+    while (bi < n_pairs) : (bi += 1) {
+        const body = words[i + @as(u32, @intCast(bi)) * 2 + 1];
+        const body_s = obj_ensure_string(body);
+        if (body_s.len == 1) {
+            const bp: [*]const u8 = @ptrFromInt(body_s.ptr);
+            if (bp[0] == '-') continue;
+        }
+        return eval_script(body_s.ptr, body_s.len);
+    }
+    return obj_mod.obj_new_string(0, 0);
+}
+
 pub fn eval_foreach(words: []const i32) i32 {
     if (words.len < 4) return 0;
     const var_name = words[1];
