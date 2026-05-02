@@ -149,6 +149,9 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_info_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_clock_value(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_array_subcmd_value(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_signal_check_and_return(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_error_flag_check_and_return(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_compiled_call_with_bridge(self, *a: Any, **kw: Any) -> Any: ...
 
     def _emit_stmt(self, stmt: IRStatement) -> None:
         """Emit WASM for a single IR statement."""
@@ -1326,6 +1329,23 @@ class _WasmEmitterStmtMixin(_Base):
                     self._emit_local_get(ns_saved_idx)
                     self._emit_call(ns_restore_idx)
                     self._emit_local_get(result_tmp)
+            # Signal-flag propagation.  When the eval body raised
+            # ``error`` or ``return``, ``eval_script`` exits early
+            # leaving the corresponding flag set; without an
+            # explicit unwind here the compiled body would happily
+            # run the next statement and (for ``return``) try to
+            # read variables that the body's early exit never
+            # initialised — opt-10.5's "can't read 'arg'" came
+            # from exactly this path: ``OptDoOne`` ran the if-chain
+            # via fallback whose ``return -code return`` set the
+            # flag, then the compiled switch immediately read
+            # ``$arg`` with strict-read.  The unwind hands the
+            # eval result back to the caller (matches Tcl's
+            # ``proc {} { return $x }`` semantics — the body's
+            # final value becomes the proc's result) while
+            # leaving the flag set so the surrounding catch /
+            # outer compiled call can see it.
+            self._emit_signal_check_and_return()
             return
         # No interpreter available — hard trap
         fidx = self._shared_imports.get("tcl_error")
@@ -1411,7 +1431,18 @@ class _WasmEmitterStmtMixin(_Base):
                 for _ in range(n_params - len(args)):
                     self._emit_i32_const(0)
             self._emit_push_pending_argv0(argv0_local)
-            self._emit_call(func_idx)
+            # Pessimistic procs need the frame-bridge sync/readback
+            # around the call so the callee's ``upvar`` /
+            # ``uplevel`` writes propagate (and so the callee can
+            # observe caller-side WASM-local state via the runtime
+            # frame).  The tail position is no exception — without
+            # this, a proc whose only body is ``set X v; Callee X``
+            # never syncs ``X`` to the frame and ``Callee``'s
+            # ``upvar 1 $aN x`` pulls 0 from the empty frame slot,
+            # raising ``can't read "x": no such variable``.  See the
+            # statement-context path in ``_emit_cmd_proc_call`` for
+            # the matching wrap.
+            self._emit_compiled_call_with_bridge(func_idx, defs=defs)
             # i32 result stays on the stack
             return
 

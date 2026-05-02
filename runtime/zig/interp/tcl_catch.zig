@@ -76,6 +76,37 @@ pub export fn flow_consume_continue() i32 {
     return 0;
 }
 
+/// Read the pending return flag without clearing it.  Compiled
+/// procs use this to detect that an eval-fallback or callee proc
+/// raised ``return`` — the caller proc must exit immediately
+/// with the pending ``return_val`` as its result, leaving the
+/// flag set so the standard proc-dispatch absorption (in the
+/// caller's caller) clears it.
+pub export fn flow_check_return() i32 {
+    return @as(i32, @intCast(return_flag));
+}
+
+/// Read-and-clear the pending return state, returning the value
+/// the body intended to return.  Used at the compiled-proc-call
+/// boundary in the caller to absorb a callee's ``return`` so
+/// surrounding code resumes normally with the returned value as
+/// the call result — same role :func:`tcl_interp.eval_proc_call`
+/// plays for interpreted callees.
+///
+/// Returns 0 when no return is pending.  Note 0 is also a valid
+/// ``return_val`` for ``return ""`` / ``return`` with no arg —
+/// callers that need to distinguish must call
+/// :func:`flow_check_return` first.
+pub export fn flow_take_return() i32 {
+    if (return_flag != 0) {
+        const v = return_val;
+        return_flag = 0;
+        return_val = 0;
+        return v;
+    }
+    return 0;
+}
+
 // Exported: record the success result of the catch body's last statement.
 // Called by compiled catch bodies after their last statement when a
 // result variable is needed.  Ignored if an error already occurred.
