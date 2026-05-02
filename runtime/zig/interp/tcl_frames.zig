@@ -797,6 +797,57 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32) void {
     }
 }
 
+/// Resolve a Tcl ``upvar`` *level* token to an absolute frame depth.
+/// *cur_depth* is the runtime's current frame depth (passed in to
+/// avoid duplicate ``frame_get_depth`` reads on the codegen side).
+///
+/// Tcl semantics:
+///   * ``#N`` -> absolute depth ``N`` (``#0`` is global scope).
+///   * ``-?N`` (a bare integer, optionally signed) -> relative,
+///     ``cur_depth - |N|``; reference Tcl rejects negative values
+///     with an error but our codegen never asks for one.
+///   * Anything else (a non-numeric token) means the level was
+///     absent and the caller should have passed ``"1"`` instead;
+///     we still return ``cur_depth - 1`` defensively rather than
+///     trapping so a mis-detected dynamic value degrades gracefully.
+pub export fn upvar_resolve_depth(level_obj: i32, cur_depth: i32) i32 {
+    const sn = obj_ensure_string(level_obj);
+    if (sn.len == 0) return cur_depth - 1;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sp[0] == '#') {
+        // Absolute level.
+        var n: i32 = 0;
+        var i: u32 = 1;
+        while (i < sn.len) : (i += 1) {
+            const c = sp[i];
+            if (c < '0' or c > '9') return cur_depth - 1;
+            n = n * 10 + @as(i32, @intCast(c - '0'));
+        }
+        return n;
+    }
+    // Relative integer (possibly signed).
+    var i: u32 = 0;
+    var sign: i32 = 1;
+    if (sp[0] == '-') {
+        sign = -1;
+        i = 1;
+    } else if (sp[0] == '+') {
+        i = 1;
+    }
+    if (i >= sn.len) return cur_depth - 1;
+    var n: i32 = 0;
+    while (i < sn.len) : (i += 1) {
+        const c = sp[i];
+        if (c < '0' or c > '9') return cur_depth - 1;
+        n = n * 10 + @as(i32, @intCast(c - '0'));
+    }
+    const rel = if (sign < 0) -n else n;
+    // Both ``upvar 1 ...`` and ``upvar -1 ...`` mean "caller's frame";
+    // we treat the absolute value as the up-count.
+    const up: i32 = if (rel < 0) -rel else rel;
+    return cur_depth - up;
+}
+
 // -- Local variable operations on current frame --
 
 /// Set a local variable in the current frame.

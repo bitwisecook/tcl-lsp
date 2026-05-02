@@ -976,6 +976,25 @@ def _scan_needed_imports(
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")
         needed.add("tcl_frame_get_argv")
+        # ``variable X`` / ``global X`` inside a compiled proc emit
+        # ``tcl_frame_alias_named`` so an interpreter-side eval inside
+        # the body (a ``while``-with-bracket-cond, an explicit ``eval
+        # { ... }``, the eval-fallback for an unknown command) sees
+        # the same alias the compiled code uses.  Without this, the
+        # body's ``incr X`` lands in a fresh frame-local while
+        # compiled reads/writes go to the ns var -- two divergent
+        # views of the same name.
+        needed.add("tcl_frame_alias_named")
+        needed.add("tcl_frame_alias_global")
+        # ``upvar 1 other local`` / ``upvar N other local`` / ``upvar
+        # #N other local`` (with N > 0) compiled-proc support: register
+        # the local as an alias to a variable in another frame so the
+        # callee's ``set local x`` lands in the caller's slot.  Used by
+        # opt.test (``OptDoAll``, ``OptDoOne``, ``OptCurSetValue``,
+        # ``OptTreeVars``), uplevel.test, abstractlist.test, reg.test.
+        needed.add("tcl_frame_alias_frame_var")
+        needed.add("tcl_frame_get_depth")
+        needed.add("tcl_upvar_resolve_depth")
         # Pending-argv0 ABI: the callee prologue reads this slot
         # (cleared on read) to pick up the invoked word recorded by
         # the caller immediately before the compiled ``call``.  The

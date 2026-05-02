@@ -20,6 +20,7 @@ from .._imports import (
     runtime_import_for,
 )
 from .._ir import (
+    ValType,
     WasmOp,
 )
 
@@ -35,6 +36,9 @@ class _WasmEmitterCmdMixin(_Base):
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_unsupported_trap(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_diag_site(self, *a: Any, **kw: Any) -> Any: ...
+        # From _WasmEmitterVarMixin
+        def _emit_frame_sync(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_frame_readback(self, *a: Any, **kw: Any) -> Any: ...
 
     def _runtime_prep(
         self,
@@ -157,6 +161,67 @@ class _WasmEmitterCmdMixin(_Base):
         self._emit_call(func_idx)
         self._runtime_call_end(rimp, defs, context)
 
+    def _emit_compiled_call_with_bridge(
+        self,
+        func_idx: int,
+        *,
+        defs: tuple[str, ...] = (),
+    ) -> None:
+        """Emit a compiled-proc ``call`` with an optional frame
+        sync/readback bridge.
+
+        When the caller's escape summary is ``dynamic_barrier=True``
+        we cannot prove the callee won't reach into the caller's
+        frame via ``upvar``/``uplevel``.  Mirror every Tcl-visible
+        WASM local into the runtime frame immediately before the
+        call (so ``var_resolve`` finds the right value) and reload
+        from the frame after the call (so writes the callee made
+        through an upvar/uplevel land back in the caller's WASM
+        slots).  Eval-fallback paths already wrap their own
+        sync/readback so this helper is only relevant for direct
+        compiled-to-compiled dispatch (statement context via
+        :meth:`_emit_cmd_proc_call`, value context via
+        ``_emit_command_subst_value``).
+
+        *defs* are caller-side names the CFG builder marked as
+        upvar-back targets — pre-interned so they appear in
+        ``_tcl_var_locals`` and the readback covers them.
+
+        Stack on entry: callee args + pending-argv0 already pushed
+        and stashed; ``call func_idx`` is the only consume here.
+        Stack on exit: the callee's return value (i32 TclObj).
+        """
+        summary = self._escape_summary
+        needs_frame_bridge = (
+            summary is not None
+            and summary.dynamic_barrier
+            and self._is_proc
+            and "tcl_local_set" in self._shared_imports
+        )
+        if needs_frame_bridge:
+            # Pre-intern any caller-side names the CFG builder
+            # marked as upvar-back ``defs``.  Without this, a name
+            # first introduced via the callee's upvar (e.g.
+            # ``OptLengths $desc nl tl dl`` writing back into a
+            # fresh ``nl``) isn't in ``_tcl_var_locals`` yet, so
+            # the readback below silently skips it and the post-
+            # call ``$nl`` read raises ``can't read "nl": no such
+            # variable`` despite the runtime frame having the
+            # value.
+            for _def_var in defs:
+                self._intern_local(_def_var)
+            self._emit_frame_sync()
+        self._emit_call(func_idx)
+        if needs_frame_bridge:
+            # Stash the call's result before the readback rebinds
+            # WASM locals — readback runs through ``tcl_local_get``
+            # (lenient) for every Tcl-visible local, so the result
+            # must be parked in a scratch local until we're done.
+            result_tmp = self._add_extra_local(prefix="_pcall_res", val_type=ValType.I32)
+            self._emit_local_set(result_tmp)
+            self._emit_frame_readback()
+            self._emit_local_get(result_tmp)
+
     def _emit_cmd_proc_call(
         self,
         func_idx: int,
@@ -260,7 +325,7 @@ class _WasmEmitterCmdMixin(_Base):
         # slot right before the call — the callee's prologue
         # consumes it on entry.
         self._emit_push_pending_argv0(argv0_local)
-        self._emit_call(func_idx)
+        self._emit_compiled_call_with_bridge(func_idx, defs=defs)
 
         # This method is only called from statement context (_emit_call_stmt).
         # The CFG builder populates `defs` with upvar-tracked variables (variables
