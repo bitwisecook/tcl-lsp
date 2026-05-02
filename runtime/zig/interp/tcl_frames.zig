@@ -1077,6 +1077,40 @@ pub export fn local_exists(name: i32) i32 {
 /// This is the standard Tcl lookup order for the interpreter.
 pub export fn var_resolve(name: i32) i32 {
     const sn = obj_ensure_string(name);
+    // Array-element form ``arr(key)`` — split into ``arr`` + ``key``
+    // and route through the array directory.  The previous code
+    // handed the entire ``arr(key)`` string to ``ns_var_find`` /
+    // ``frame_find``, which look for SCALAR slots and miss every
+    // array element.  ``info exists arr(key)`` already does this
+    // split (see ``var_exists`` below); without the matching read
+    // path, ``set $::ns::arr(key)`` reading an existing element
+    // returned empty even when ``info exists`` confirmed the
+    // element was set — root cause of opt-10.5..10 / 11.1 (the
+    // tcltest test bodies use ``$::tcl::OptDesc(...)`` reads
+    // through the eval-fallback path).
+    if (sn.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var paren: u32 = 0;
+        var found = false;
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            if (sp[k] == '(') {
+                paren = k;
+                found = true;
+                break;
+            }
+        }
+        if (found and paren > 0 and sp[sn.len - 1] == ')') {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            const key_len = sn.len - paren - 2;
+            const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
+            const v = tcl_array.array_get(arr_name, key);
+            obj.tcl_obj_release(arr_name);
+            obj.tcl_obj_release(key);
+            return v;
+        }
+    }
     // ``::``-qualified names always go to globals.
     if (sn.len >= 2) {
         const sp: [*]const u8 = @ptrFromInt(sn.ptr);
@@ -1145,10 +1179,40 @@ pub export fn var_resolve(name: i32) i32 {
 /// Set a variable: sets in current frame if one is active, otherwise global.
 /// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
+    const sn = obj_ensure_string(name);
+    // Array-element form ``arr(key)`` — split off the key and route
+    // through ``array_set``.  Mirrors the read path in
+    // ``var_resolve``; without this, ``set ::ns::arr(key) value``
+    // would be stored as a SCALAR ns var literally named
+    // ``arr(key)`` and the matching read would need to use the
+    // same literal-string key path.  The split keeps array reads
+    // and writes in the same array directory.
+    if (sn.len >= 3) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        var paren: u32 = 0;
+        var found = false;
+        var k: u32 = 0;
+        while (k < sn.len) : (k += 1) {
+            if (sp[k] == '(') {
+                paren = k;
+                found = true;
+                break;
+            }
+        }
+        if (found and paren > 0 and sp[sn.len - 1] == ')') {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            const key_len = sn.len - paren - 2;
+            const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
+            _ = tcl_array.array_set(arr_name, key, value);
+            obj.tcl_obj_release(arr_name);
+            obj.tcl_obj_release(key);
+            return value;
+        }
+    }
     // ``::``-qualified names are always global, regardless of frame
     // depth — matches Tcl's namespace resolution where an absolute
     // name bypasses all local scopes.
-    const sn = obj_ensure_string(name);
     if (sn.len >= 2) {
         const sp: [*]const u8 = @ptrFromInt(sn.ptr);
         if (sp[0] == ':' and sp[1] == ':') {
