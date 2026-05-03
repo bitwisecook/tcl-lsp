@@ -922,7 +922,17 @@ def _scan_needed_imports(
                 needed.add("tcl_catch_has_error")
                 needed.add("tcl_flow_check_return")
                 needed.add("tcl_flow_take_return")
-                if barrier_cmd == "uplevel":
+                if barrier_cmd in ("catch", "::catch"):
+                    # Catch barriers may be AOT-compiled (when the body
+                    # is a static literal) — ensure the catch runtime
+                    # imports are present so the emitter can use them.
+                    needed.add("tcl_catch_enter")
+                    needed.add("tcl_catch_leave")
+                    needed.add("tcl_catch_result")
+                    needed.add("tcl_catch_set_ok_result")
+                    needed.add("tcl_catch_options")
+                    needed.add("tcl_error_full")
+                elif barrier_cmd == "uplevel":
                     needed.add("tcl_frame_depth_stash")
                     needed.add("tcl_frame_depth_restore")
                     # The body may contain ``$var``/``[cmd]`` references

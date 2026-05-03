@@ -471,6 +471,34 @@ class _WasmEmitterStmtMixin(_Base):
                     if hook is None or not hook(self, barrier_args, (), EmitContext.STATEMENT):
                         self._emit_cmd_runtime(barrier_cmd, barrier_args, ())
                 elif barrier_cmd:
+                    # ``catch $dyn_body result ?opts?`` — result and
+                    # options variables are written by the runtime
+                    # eval_catch but are not visible to the lowering
+                    # pass (no static IRCatch.result_var).  Pre-intern
+                    # them so _emit_frame_readback reloads them after
+                    # the eval_script call; without this the compiled
+                    # proc reads a zero-initialised WASM local and
+                    # raises ``can't read "res": no such variable``.
+                    _barrier_needs_drop = True
+                    if barrier_cmd in ("catch", "::catch"):
+                        for vname in barrier_args[1:3]:
+                            if vname and not vname.startswith("$") and not vname.startswith("["):
+                                self._intern_local(vname)
+                        # Try the AOT catch hook for static bodies (bare
+                        # words and braced scripts).  Dynamic bodies
+                        # ($var, [cmd]) are filtered inside the hook and
+                        # fall through to eval_fallback.
+                        hook = _REGISTRY.get_wasm_hook("::catch")
+                        if hook is not None and hook(
+                            self, barrier_args, (), EmitContext.STATEMENT
+                        ):
+                            # AOT path — catch_enter/leave handle everything;
+                            # no i32 return value left on the WASM stack.
+                            _barrier_needs_drop = False
+                        else:
+                            self._emit_eval_fallback(
+                                barrier_cmd, barrier_args, tokens=barrier_tokens
+                            )
                     # ``while`` / ``for`` / ``if`` barriers carry their
                     # condition / scripts as plain ``args`` strings
                     # rather than tokens.  The default eval-fallback
@@ -483,7 +511,7 @@ class _WasmEmitterStmtMixin(_Base):
                     # Build a script with the cond/scripts always
                     # brace-wrapped so the runtime sees the literal
                     # expression / body.
-                    if barrier_cmd == "::while" and len(barrier_args) >= 2:
+                    elif barrier_cmd == "::while" and len(barrier_args) >= 2:
                         cond, body = barrier_args[0], barrier_args[1]
                         script = (
                             "while "
@@ -566,7 +594,8 @@ class _WasmEmitterStmtMixin(_Base):
                             self._emit_eval_fallback(
                                 barrier_cmd, barrier_args, tokens=barrier_tokens
                             )
-                    self._emit(WasmOp.DROP)
+                    if _barrier_needs_drop:
+                        self._emit(WasmOp.DROP)
                 else:
                     self._emit_eval_fallback(reason)
                     self._emit(WasmOp.DROP)

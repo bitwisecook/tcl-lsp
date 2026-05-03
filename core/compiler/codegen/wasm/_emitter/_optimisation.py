@@ -740,6 +740,16 @@ class _WasmEmitterOptMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
+        # After body: if any control-flow flag is set (error / return /
+        # break / continue via runtime handler), exit the loop immediately
+        # so that the variable bindings from THIS iteration survive and
+        # the enclosing catch (or top-level trap) sees the flag.
+        # br(1) targets the foreach-break BLOCK (0=LOOP, 1=BLOCK).
+        has_error_idx = self._shared_imports.get("tcl_catch_has_error")
+        if has_error_idx is not None:
+            self._emit_call(has_error_idx)
+            self._emit_br_if(1)
+
         # counter += 1 (counter is the iteration index now)
         self._emit_local_get(counter)
         self._emit_i64_const(1)

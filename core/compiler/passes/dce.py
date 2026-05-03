@@ -509,6 +509,14 @@ def _read_one(stmt: object, counts: dict[str, int]) -> None:
         # Pure literal write — no reads on the RHS.
         return
     if isinstance(stmt, IRCall):
+        # ``set varName`` (1-arg read form): the bare name is a variable read.
+        # _scan_string only finds $var patterns, so without this, DCE sees
+        # reads['varName']=0 and incorrectly deletes writes to varName inside
+        # nested bodies (catch/foreach/while) even when the outer scope reads them.
+        if stmt.command in ("set", "::set") and len(stmt.args) == 1:
+            name = stmt.args[0]
+            if name and not name.startswith("$") and not name.startswith("[") and _is_dceable_name(name):
+                counts[name] = counts.get(name, 0) + 1
         for arg in stmt.args:
             _scan_string(arg, counts)
         for r in stmt.reads:

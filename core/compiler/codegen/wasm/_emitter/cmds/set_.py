@@ -41,6 +41,7 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
             or array_base_aliased
             or array_ref is not None
             or in_ns_block
+            or emitter._is_frame_only_var(var)
         )
         if use_var_path:
             if len(args) >= 2:

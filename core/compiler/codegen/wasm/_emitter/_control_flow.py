@@ -183,96 +183,106 @@ class _WasmEmitterCtrlMixin(_Base):
     ) -> None:
         """Emit a foreach loop using real list element access.
 
-        Calls ``list_length`` to get the element count, then iterates
-        with a counter calling ``list_index`` on each iteration to
-        extract each per-iteration element and assign it to the
-        corresponding loop variable.  ``foreach {a b} {1 2 3 4} …``
-        groups elements in pairs (or n-tuples when there are n vars);
-        the counter advances by ``len(first_vars)`` each iteration.
+        Handles the full multi-iterator form
+        ``foreach v1 L1 ?v2 L2 ...? body``.  Iteration count is the
+        maximum of ``ceil(len(L_i) / step_i)`` across all iterators.
+        Each iterator's counter advances by its own ``step`` so that
+        multi-var iterators (``foreach {a b} L …``) consume pairs.
 
-        The body runs once more when the list length isn't a multiple
-        of the variable count, with the trailing variable(s) bound to
-        the empty string — matching reference Tcl semantics (see
-        ``foreach`` manual page).
-
-        Internal counter/limit are i64; the loop variable and list
-        are i32 TclObj pointers.
+        Internal counter/limit are i64; list locals are i32 TclObj.
         """
-        counter = self._add_extra_local("_foreach_i")
+        llength_idx   = self._shared_imports.get("tcl_list_length")
+        lindex_idx    = self._shared_imports.get("tcl_list_index")
+        has_error_idx = self._shared_imports.get("tcl_catch_has_error")
+
+        # Per-iterator locals: (list_local, step, vars).
+        iter_info: list[tuple[Any, int, tuple[str, ...]]] = []
+        for i, (vars_i, list_expr_i) in enumerate(iterators):
+            step_i = max(len(vars_i), 1)
+            list_local_i = self._add_extra_local(f"_foreach_list_{i}", ValType.I32)
+            self._emit_value(list_expr_i)
+            self._emit_local_set(list_local_i)
+            iter_info.append((list_local_i, step_i, vars_i))
+
+        # limit = max_i( ceil(len(L_i) / step_i) )
+        # Emit as: accumulate max on the WASM value stack.
         limit = self._add_extra_local("_foreach_n")
-        list_local = self._add_extra_local("_foreach_list", ValType.I32)
+        for i, (list_local_i, step_i, _) in enumerate(iter_info):
+            # iter_count_i = ceil(len(L_i) / step_i)
+            if llength_idx is not None:
+                self._emit_local_get(list_local_i)
+                self._emit_call(llength_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_local_get(list_local_i)
+                self._emit_unbox_int()
+            if step_i > 1:
+                # ceil(n, step) = (n + step - 1) // step
+                self._emit_i64_const(step_i - 1)
+                self._emit(WasmOp.I64_ADD)
+                self._emit_i64_const(step_i)
+                self._emit(WasmOp.I64_DIV_S)
+            # Stack now has iter_count_i.  On iterations after the first
+            # keep the running max: if stack_top > prev_max pick stack_top.
+            if i > 0:
+                # max(limit, cur): cur is on the stack, limit is in local.
+                # WASM SELECT stack order: val1, val2, cond → returns val1 if cond else val2.
+                # We want: if cur > limit → cur, else → limit.
+                cur_tmp = self._add_extra_local(f"_foreach_cur_{i}")
+                self._emit_local_set(cur_tmp)       # save cur
+                self._emit_local_get(cur_tmp)       # val1 = cur
+                self._emit_local_get(limit)         # val2 = limit
+                self._emit_local_get(cur_tmp)       # cond: compute cur > limit
+                self._emit_local_get(limit)
+                self._emit(WasmOp.I64_GT_S)         # i32: cur > limit
+                self._emit(WasmOp.SELECT)            # → cur if cur > limit else limit
+            self._emit_local_set(limit)
 
-        first_vars, first_list = iterators[0]
-        step = max(len(first_vars), 1)
-
-        # Store the list TclObj for repeated list_index calls
-        self._emit_value(first_list)
-        self._emit_local_set(list_local)
-
-        # limit = list_length(list) — unbox to i64
-        llength_idx = self._shared_imports.get("tcl_list_length")
-        if llength_idx is not None:
-            self._emit_local_get(list_local)
-            self._emit_call(llength_idx)
-            self._emit_unbox_int()
-        else:
-            # Fallback: use integer value as count
-            self._emit_local_get(list_local)
-            self._emit_unbox_int()
-        self._emit_local_set(limit)
-
-        # counter = 0
+        # idx = 0  (iteration number, not element index)
+        idx = self._add_extra_local("_foreach_i")
         self._emit_i64_const(0)
-        self._emit_local_set(counter)
+        self._emit_local_set(idx)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="foreach break")
         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="foreach")
 
-        # if counter >= limit, break
-        self._emit_local_get(counter)
+        # if idx >= limit, break
+        self._emit_local_get(idx)
         self._emit_local_get(limit)
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # For each loop variable: load list_index(list, counter+slot)
-        # and assign.  When ``counter + slot >= limit`` the runtime
-        # returns the empty-string TclObj, so trailing slots in the
-        # last iteration bind to "" as expected.
-        #
-        # Pessimistic procs (``dynamic_barrier=True``) need the loop
-        # variable to land in the runtime frame so that body reads
-        # — which go through ``tcl_local_get_or_error`` for FRAME-
-        # tagged names — see the per-iteration value.  Route through
-        # ``_emit_var_write_obj`` for the FRAME-only case so the
-        # right primitive (frame ``local_set`` vs. WASM-local write)
-        # fires; otherwise fall through to the fast WASM-local path
-        # to avoid the frame_set overhead on tight non-pessimistic
-        # foreach loops.
-        lindex_idx = self._shared_imports.get("tcl_list_index")
-        for slot, var_name in enumerate(first_vars):
-            var_local = self._intern_local(var_name)
-            if lindex_idx is not None:
-                self._emit_local_get(list_local)
-                self._emit_local_get(counter)
-                if slot > 0:
-                    self._emit_i64_const(slot)
-                    self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()  # index as TclObj
-                self._emit_call(lindex_idx)
-            else:
-                # Fallback: use counter as element value
-                self._emit_local_get(counter)
-                if slot > 0:
-                    self._emit_i64_const(slot)
-                    self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()
-            # Both branches produce a fresh TclObj (tcl_list_index
-            # returns obj_new_string_copy, the fallback boxes a fresh
-            # int).  S2.3 migration.
-            if self._is_frame_only_var(var_name):
-                self._emit_var_write_obj(var_name, source=Ownership.OWNED)
-            else:
-                self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
+        # For each iterator i, for each var slot j in vars_i:
+        #   elem_index = idx * step_i + j
+        #   var = list_index(L_i, elem_index)
+        for list_local_i, step_i, vars_i in iter_info:
+            for slot, var_name in enumerate(vars_i):
+                var_local = self._intern_local(var_name)
+                if lindex_idx is not None:
+                    self._emit_local_get(list_local_i)
+                    # elem_index = idx * step_i + slot
+                    self._emit_local_get(idx)
+                    if step_i > 1:
+                        self._emit_i64_const(step_i)
+                        self._emit(WasmOp.I64_MUL)
+                    if slot > 0:
+                        self._emit_i64_const(slot)
+                        self._emit(WasmOp.I64_ADD)
+                    self._emit_box_int()
+                    self._emit_call(lindex_idx)
+                else:
+                    self._emit_local_get(idx)
+                    if step_i > 1:
+                        self._emit_i64_const(step_i)
+                        self._emit(WasmOp.I64_MUL)
+                    if slot > 0:
+                        self._emit_i64_const(slot)
+                        self._emit(WasmOp.I64_ADD)
+                    self._emit_box_int()
+                if self._is_frame_only_var(var_name):
+                    self._emit_var_write_obj(var_name, source=Ownership.OWNED)
+                else:
+                    self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1
@@ -284,11 +294,22 @@ class _WasmEmitterCtrlMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
-        # counter += step
-        self._emit_local_get(counter)
-        self._emit_i64_const(step)
+        # After body: if any control-flow flag is set (error / return / break
+        # / continue via runtime handler), exit the loop immediately so that
+        # the variable bindings from THIS iteration survive and the enclosing
+        # catch (or top-level trap handler) sees the flag.  Without this check
+        # the loop would continue to iterate, overwriting loop variables and
+        # masking the error.  br(1) targets the foreach-break BLOCK (two labels
+        # above: 0=LOOP, 1=BLOCK), leaving any enclosing catch structure intact.
+        if has_error_idx is not None:
+            self._emit_call(has_error_idx)
+            self._emit_br_if(1)
+
+        # idx += 1
+        self._emit_local_get(idx)
+        self._emit_i64_const(1)
         self._emit(WasmOp.I64_ADD)
-        self._emit_local_set(counter)
+        self._emit_local_set(idx)
 
         self._emit_br(0)
         self._emit(WasmOp.END)
