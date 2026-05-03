@@ -451,6 +451,13 @@ fn find_or_create(name: i32) u32 {
 fn find_table(name: i32) u32 {
     const n = normalize_ns_name(name);
     const sn = obj_ensure_string(n);
+    // Null-TclObj guard: obj_ensure_string(0) returns (ptr=0, len=0).
+    // @ptrFromInt(0) panics in WASM safety mode before any dereference,
+    // so bail early when the name string has no backing memory.
+    // Note: sn.len == 0 alone is NOT guarded here — empty-string array
+    // names ("" / "") are valid Tcl, and a non-zero ptr with len=0 is
+    // safe throughout the rest of the function (issue #327, var.test).
+    if (sn.ptr == 0) return 0;
     if (dir_buf == 0) return 0;
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
