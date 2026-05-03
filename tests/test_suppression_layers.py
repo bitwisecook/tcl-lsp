@@ -129,14 +129,14 @@ class TestNoqaNextLineSuppression:
         # noqa inside the first body brace, W306 fires on the regexp in the
         # elseif condition (next line in source). Issue #306 case 1.
         source = (
-            'if {[regexp -nocase {^([^#]+)} $name -> nameParsed]} {\n'
+            "if {[regexp -nocase {^([^#]+)} $name -> nameParsed]} {\n"
             '    set nameModif "result"\n'
-            '# noqa: W306\n'
+            "# noqa: W306\n"
             '} elseif {[regexp -nocase "^i\\\\((\\\\[^)]+)\\\\)$" $name]} {\n'
-            '    set nameModif $name\n'
-            '} else {\n'
-            '    set nameModif $name\n'
-            '}\n'
+            "    set nameModif $name\n"
+            "} else {\n"
+            "    set nameModif $name\n"
+            "}\n"
         )
         diags, _, _ = get_basic_diagnostics(source)
         assert "W306" not in _codes(diags)
