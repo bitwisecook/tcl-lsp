@@ -393,6 +393,15 @@ pub fn ns_resolve_qualified(cxt: u32, name_ptr: u32, name_len: u32) QualifiedRes
         .alt_ns = 0,
     };
 
+    // Null name_ptr guard: obj_ensure_string(0) returns (ptr=0, len=0)
+    // so callers that forward a null TclObj's bytes can reach here with
+    // name_ptr == 0.  @ptrFromInt(0) panics in safety mode; short-
+    // circuit before the first cast (issue #327, namespace.test).
+    if (name_ptr == 0) {
+        result.target_ns = if (cxt != 0) cxt else ns_root();
+        return result;
+    }
+
     const root = ns_root();
 
     // 1. Anchor.  ``::``-prefixed → root; else ``cxt`` (or root if
