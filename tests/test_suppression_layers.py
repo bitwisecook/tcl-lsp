@@ -141,6 +141,22 @@ class TestNoqaNextLineSuppression:
         diags, _, _ = get_basic_diagnostics(source)
         assert "W306" not in _codes(diags)
 
+    def test_analyse_chunked_applies_next_line_suppression(self):
+        # analyse_chunked is the primary LSP incremental path and must also
+        # apply next-line noqa suppression.
+        source = "# noqa: W115\n## continued comment\\\n    next line\nset x 1\n"
+        commands = segment_commands(source)
+        result, _ = Analyser().analyse_chunked(source, [list(commands)])
+        assert 1 in result.suppressed_lines  # line 1 is the ##nagelfar line
+
+    def test_analyse_commands_applies_next_line_suppression(self):
+        # analyse_commands is the incremental restore path and must also apply
+        # next-line noqa suppression.
+        source = "# noqa: W115\n## continued comment\\\n    next line\nset x 1\n"
+        commands = segment_commands(source)
+        result = Analyser().analyse_commands(source, list(commands))
+        assert 1 in result.suppressed_lines  # line 1 is the ##nagelfar line
+
 
 # Layer 2: top-of-file ``# tcl-lsp: disable=...`` directive.
 
