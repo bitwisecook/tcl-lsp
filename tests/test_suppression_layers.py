@@ -30,6 +30,7 @@ from core.analysis import Analyser, analyse
 from core.analysis._analyser._utils import (
     _FILE_DIRECTIVE_SCAN_LINES,
     parse_file_suppression,
+    parse_noqa_line_suppressions,
 )
 from core.analysis.semantic_model import _FILE_SUPPRESS_KEY
 from core.common.user_config import (
@@ -86,6 +87,59 @@ class TestInlineSuppression:
         source = "# noqa: W100\nset a 1\nexpr $x + 1\n"
         diags, _, _ = get_basic_diagnostics(source)
         assert "W100" in _codes(diags)
+
+
+class TestNoqaNextLineSuppression:
+    """``# noqa`` also suppresses the line immediately following the comment.
+
+    This covers two cases the command-level ``preceding_comment`` mechanism
+    cannot handle (issue #306):
+
+    1. A noqa comment orphaned at the tail of a brace body — the diagnostic
+       fires on the ``} elseif …`` line that immediately follows.
+    2. A noqa comment placed before another comment line that itself generates
+       a diagnostic (e.g. W115 on a ``\\``-continued comment).
+    """
+
+    def test_noqa_before_w115_comment_suppresses_it(self):
+        # W115 fires on the ##nagelfar line (a backslash-continued comment).
+        # The # noqa: W115 comment is on the line immediately before it.
+        source = "# noqa: W115\n## continued comment\\\n    next line\nset x 1\n"
+        diags, _, _ = get_basic_diagnostics(source)
+        assert "W115" not in _codes(diags)
+
+    def test_noqa_before_w115_does_not_suppress_other_codes(self):
+        source = "# noqa: W115\n## continued comment\\\n    next line\nexpr $x + 1\n"
+        diags, _, _ = get_basic_diagnostics(source)
+        assert "W115" not in _codes(diags)
+        assert "W100" in _codes(diags)
+
+    def test_bare_noqa_before_comment_suppresses_all(self):
+        source = "# noqa\n## continued comment\\\n    next line\nset x 1\n"
+        diags, _, _ = get_basic_diagnostics(source)
+        assert "W115" not in _codes(diags)
+
+    def test_parse_noqa_line_suppressions_unit(self):
+        source = "set x 1\n# noqa: W306\n} elseif {cond} {\n"
+        result = parse_noqa_line_suppressions(source)
+        assert 2 in result
+        assert "W306" in result[2]
+
+    def test_noqa_orphaned_in_if_body_suppresses_elseif_diagnostic(self):
+        # noqa inside the first body brace, W306 fires on the regexp in the
+        # elseif condition (next line in source). Issue #306 case 1.
+        source = (
+            'if {[regexp -nocase {^([^#]+)} $name -> nameParsed]} {\n'
+            '    set nameModif "result"\n'
+            '# noqa: W306\n'
+            '} elseif {[regexp -nocase "^i\\\\((\\\\[^)]+)\\\\)$" $name]} {\n'
+            '    set nameModif $name\n'
+            '} else {\n'
+            '    set nameModif $name\n'
+            '}\n'
+        )
+        diags, _, _ = get_basic_diagnostics(source)
+        assert "W306" not in _codes(diags)
 
 
 # Layer 2: top-of-file ``# tcl-lsp: disable=...`` directive.

@@ -22,6 +22,7 @@ from ...parsing.argv import widen_argv_tokens_to_word_spans
 from ...parsing.tokens import Token
 from ..semantic_model import (
     ParamDef,
+    _NOQA_ALL,
 )
 
 log = logging.getLogger(__name__)
@@ -135,6 +136,42 @@ def parse_file_suppression(source: str) -> frozenset[str]:
             if token:
                 codes.add(token)
     return frozenset(codes)
+
+
+def parse_noqa_line_suppressions(source: str) -> dict[int, frozenset[str]]:
+    """Scan source for ``# noqa`` comments and record next-line suppressions.
+
+    For each ``# noqa`` / ``# noqa: CODE`` comment on line N, stores
+    suppression codes for line N+1.  This handles two cases the
+    command-level ``preceding_comment`` mechanism cannot reach:
+
+    * A noqa comment at the tail of a brace body (orphaned — no following
+      command in that scope), where the diagnostic fires on the immediately
+      following ``} elseif …`` or similar line.
+    * A noqa comment immediately before another comment line that itself
+      generates a diagnostic (e.g. W115 on a ``\\``-continued comment).
+    """
+    result: dict[int, frozenset[str]] = {}
+    for i, line in enumerate(source.split("\n")):
+        stripped = line.strip()
+        if not stripped.startswith("#"):
+            continue
+        lower = stripped.lower()
+        noqa_pos = lower.find("noqa")
+        if noqa_pos < 0:
+            continue
+        rest = stripped[noqa_pos + 4 :].strip()
+        if rest.startswith(":"):
+            codes: frozenset[str] = frozenset(c.strip() for c in rest[1:].split(",") if c.strip())
+        else:
+            codes = _NOQA_ALL
+        next_line = i + 1
+        existing = result.get(next_line)
+        if existing is not None:
+            result[next_line] = existing | codes
+        else:
+            result[next_line] = codes
+    return result
 
 
 def _possible_paste_fingerprint(stmt: IRStatement) -> tuple[str, str] | None:

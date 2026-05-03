@@ -31,7 +31,7 @@ from ..semantic_model import (
 )
 from ..stub_comments import scan_source_for_stubs
 from ._snapshot import AnalyserSnapshot
-from ._utils import parse_file_suppression
+from ._utils import parse_file_suppression, parse_noqa_line_suppressions
 
 log = logging.getLogger(__name__)
 
@@ -395,6 +395,15 @@ class _AnalyserBase:
         file_codes = parse_file_suppression(source)
         if file_codes:
             self.result.suppressed_lines[_FILE_SUPPRESS_KEY] = file_codes
+        # Pre-scan for next-line noqa suppressions.  Handles orphaned noqa
+        # comments at the tail of a brace body and noqa comments immediately
+        # before a comment line that itself generates a diagnostic (e.g. W115).
+        for ln, codes in parse_noqa_line_suppressions(source).items():
+            existing = self.result.suppressed_lines.get(ln)
+            if existing is not None:
+                self.result.suppressed_lines[ln] = existing | codes
+            else:
+                self.result.suppressed_lines[ln] = codes
         self._analyse_body(source, self._current_scope)
         self._emit_unresolved_command_diagnostics(cu=cu)
         self._emit_variable_usage_diagnostics()
