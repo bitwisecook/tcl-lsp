@@ -236,7 +236,7 @@ domain-specific token types:
 
 Arity errors, unknown subcommands, best-practice violations, and security
 issues are reported with precise ranges.  Diagnostics can be suppressed
-inline, per-file, per-project, or globally — see
+inline, per-file, per-project, per-editor, or globally — see
 [Suppressing diagnostics](#suppressing-diagnostics).
 
 ```tcl
