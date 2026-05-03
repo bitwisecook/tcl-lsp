@@ -235,8 +235,9 @@ domain-specific token types:
 ### Diagnostics
 
 Arity errors, unknown subcommands, best-practice violations, and security
-issues are reported with precise ranges.  All diagnostics support inline
-suppression with `# noqa: CODE` comments.
+issues are reported with precise ranges.  Diagnostics can be suppressed
+inline, per-file, per-project, or globally — see
+[Suppressing diagnostics](#suppressing-diagnostics).
 
 ```tcl
 string frobulate $x          ;# W001: unknown subcommand 'frobulate'
@@ -1486,10 +1487,51 @@ body) are supported as a fallback when no preceding comment exists.
 All options are exposed through `tclLsp.formatting.*` settings (see
 [Configuration](#formatter-settings) below).
 
-## Diagnostic codes
+## Suppressing diagnostics
 
-All diagnostics support inline suppression with `# noqa: CODE1,CODE2` comments.
-Use `# noqa: *` to suppress all diagnostics on a line.
+Diagnostics can be suppressed at five different scopes.  Smaller scope is
+always better — turning a code off globally hides real problems in future
+projects.
+
+| Scope | How |
+|-------|-----|
+| One command | `# noqa: CODE` on the line before the command |
+| One file | `# tcl-lsp: disable=CODE,CODE` near the top of the file |
+| One project | `[diagnostics]\ndisabled = CODE` in `.tcl-lsp.ini` at the workspace root |
+| One editor | `tclLsp.diagnostics.CODE: false` in editor settings |
+| Everywhere | `[diagnostics]\ndisabled = CODE` in the [global config file](#configuration-file) |
+
+**Inline** — put on the line *before* the command:
+
+```tcl
+# noqa: W100
+expr $x + 1
+
+# noqa: *
+eval $user_input
+```
+
+**Top-of-file** — before the first non-comment line:
+
+```tcl
+#!/usr/bin/env tclsh
+# tcl-lsp: disable=W100,O111
+```
+
+**Project config** — `.tcl-lsp.ini` at the workspace root (commit with source):
+
+```ini
+[diagnostics]
+disabled = W111, IRULE1005
+
+[optimiser]
+disabled = O109
+```
+
+For the complete reference, see
+[`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
+
+## Diagnostic codes
 
 ### Errors
 
@@ -2147,27 +2189,30 @@ All diagnostic codes can be toggled individually via
 
 ### Configuration File
 
-Settings can be stored in an INI file that follows platform-native
-conventions.  This is useful for editor-agnostic defaults that apply
-across all workspaces and editors.
+Settings can be stored in INI files.  Two files are read:
 
-| Platform | Default path |
-|----------|-------------|
-| **Linux / BSD / WSL2** | `~/.config/tcl-lsp/config.ini` |
-| **macOS** | `~/Library/Application Support/tcl-lsp/config.ini` |
-| **Windows** | `%APPDATA%\tcl-lsp\config.ini` |
-| **MSYS2 / Cygwin** | `~/.config/tcl-lsp/config.ini` |
+- **Global** — user-wide defaults, platform-native location:
 
-Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
+  | Platform | Default path |
+  |----------|-------------|
+  | **Linux / BSD / WSL2** | `~/.config/tcl-lsp/config.ini` |
+  | **macOS** | `~/Library/Application Support/tcl-lsp/config.ini` |
+  | **Windows** | `%APPDATA%\tcl-lsp\config.ini` |
+  | **MSYS2 / Cygwin** | `~/.config/tcl-lsp/config.ini` |
+
+  Setting `$XDG_CONFIG_HOME` overrides the default on every platform.
+
+- **Project** — `.tcl-lsp.ini` at the workspace root, committed with the
+  source so every contributor picks up the same rules automatically.
 
 **Precedence** (applied in order — later entries override earlier):
 
 1. Built-in defaults
-2. Config file
+2. Global config file
 3. Editor settings (VS Code `settings.json`, Neovim `lspconfig`, etc.)
+4. Project config file (`.tcl-lsp.ini` — highest server-level priority)
 
-The file uses INI format with section names matching the `tclLsp.*`
-namespace:
+Both files use the same INI schema:
 
 ```ini
 [diagnostics]
@@ -2186,7 +2231,7 @@ inlayHints = false
 indent_size = 2
 ```
 
-See [`docs/kcs/kcs-xdg-config.md`](docs/kcs/kcs-xdg-config.md) for the
+See [`docs/design/contracts/xdg-config.md`](docs/design/contracts/xdg-config.md) for the
 full reference, including how settings interact with each editor.
 
 ### Export Settings
