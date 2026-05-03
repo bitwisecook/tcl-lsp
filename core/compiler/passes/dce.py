@@ -70,6 +70,11 @@ from ..ir import (
 # the array name (``arr``) — that's correct for our purposes.
 _VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)")
 
+# Matches ``[set varname]`` (1-arg form = read).  The 2-arg form
+# ``[set varname value]`` would have non-']' content after the name,
+# so this pattern only matches the read form.
+_SET_READ_RE = re.compile(r"\[set\s+([A-Za-z_][A-Za-z0-9_]*)\s*\]")
+
 
 def dce_module(module: IRModule, summaries: object | None = None) -> IRModule:
     """Return a new module with dead local stores removed.
@@ -572,7 +577,8 @@ def _read_one(stmt: object, counts: dict[str, int]) -> None:
 
 def _scan_string(text: str, counts: dict[str, int]) -> None:
     """Scan ``text`` for ``$var`` / ``${var}`` substitutions and bump the
-    read count for each name found.
+    read count for each name found.  Also recognises ``[set varname]``
+    (the 1-arg read form) as a variable read.
 
     Conservative: any match (even inside what might be a string
     literal a parser would not interpret as a substitution) keeps
@@ -588,5 +594,9 @@ def _scan_string(text: str, counts: dict[str, int]) -> None:
         paren = name.find("(")
         if paren >= 0:
             name = name[:paren]
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+    for m in _SET_READ_RE.finditer(text):
+        name = m.group(1)
         if name:
             counts[name] = counts.get(name, 0) + 1

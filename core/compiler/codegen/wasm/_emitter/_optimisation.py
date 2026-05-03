@@ -584,45 +584,93 @@ class _WasmEmitterOptMixin(_Base):
     ) -> None:
         """Emit a list-iteration loop for a foreach CFG pattern.
 
-        Uses ``list_length`` to get element count and ``list_index`` to
-        extract each element.  Falls back to counter-as-value when the
-        runtime imports are unavailable.
+        Supports both single-iterator (``foreach var list body``) and
+        multi-iterator (``foreach v1 l1 v2 l2 ... body``) forms,
+        including multi-var groups (``foreach {a b} l1 c l2 body``).
+
+        The counter tracks the *iteration index* (0, 1, 2, …); element
+        indices for each group are ``counter * group_size + slot``.
+        The overall limit is ``max(ceil(len(Li)/group_size_i))`` across
+        all iterators — matching reference Tcl semantics where the loop
+        runs until the longest list is exhausted.
 
         Internal counter/limit are i64; the loop variable is i32 TclObj.
         """
-        list_var: str | None = None
-        loop_vars: tuple[str, ...] = ()
+        # Locate the foreach/lmap IRCall in the header
+        foreach_call: "IRCall | None" = None
         for stmt in header_stmts:
-            if isinstance(stmt, IRCall) and stmt.canonical_command == "::foreach":
-                if stmt.args:
-                    list_var = stmt.args[0]
-                if stmt.defs:
-                    loop_vars = stmt.defs
+            if isinstance(stmt, IRCall) and stmt.canonical_command in ("::foreach", "::lmap"):
+                foreach_call = stmt
                 break
 
-        step = max(len(loop_vars), 1)
+        loop_vars: tuple[str, ...] = foreach_call.defs if foreach_call else ()
+        list_args: tuple[str, ...] = foreach_call.args if foreach_call else ()
+        groups: tuple[int, ...] | None = (
+            foreach_call.foreach_groups if foreach_call is not None else None
+        )
+
+        # Build iterator descriptors: list of (list_arg, group_vars)
+        iterators: list[tuple[str, tuple[str, ...]]] = []
+        if groups and len(list_args) == len(groups):
+            var_offset = 0
+            for list_arg, gsize in zip(list_args, groups):
+                iterators.append((list_arg, loop_vars[var_offset : var_offset + gsize]))
+                var_offset += gsize
+        elif list_args:
+            # Fallback: single iterator, all vars form one group
+            iterators = [(list_args[0], loop_vars)]
+        else:
+            iterators = [("", loop_vars)]
+
+        llength_idx = self._shared_imports.get("tcl_list_length")
+        lindex_idx = self._shared_imports.get("tcl_list_index")
+        global_set_idx = self._shared_imports.get("tcl_global_set")
 
         counter = self._add_extra_local("_foreach_i")
         limit = self._add_extra_local("_foreach_n")
-        list_local = self._add_extra_local("_foreach_list", ValType.I32)
 
-        # Store the list TclObj for repeated list_index calls
-        if list_var is not None:
-            self._emit_value(list_var)
-        else:
-            self._emit_i32_const(0)
-        self._emit_local_set(list_local)
+        # Allocate one WASM local per iterator and load each list
+        list_locals: list[int] = []
+        for list_arg, _ in iterators:
+            ll = self._add_extra_local("_foreach_list", ValType.I32)
+            list_locals.append(ll)
+            if list_arg:
+                self._emit_value(list_arg)
+            else:
+                self._emit_i32_const(0)
+            self._emit_local_set(ll)
 
-        # limit = list_length(list)
-        llength_idx = self._shared_imports.get("tcl_list_length")
-        if llength_idx is not None:
-            self._emit_local_get(list_local)
-            self._emit_call(llength_idx)
-            self._emit_unbox_int()
-        else:
-            self._emit_local_get(list_local)
-            self._emit_unbox_int()
+        # Compute limit = max(ceil(len(Li) / group_size_i)) over all iterators.
+        # Uses a running max: initialise to 0, then update for each iterator.
+        # For each iterator: n_iters_i = ceil(len / gsize) = (len + gsize-1) / gsize.
+        # Max update: if n_iters_i > limit: limit = n_iters_i.
+        # Uses a scratch i64 local for the compare-and-select.
+        limit_tmp = self._add_extra_local("_foreach_n_tmp")
+        self._emit_i64_const(0)
         self._emit_local_set(limit)
+        for ll, (_, group_vars) in zip(list_locals, iterators):
+            gsize = max(len(group_vars), 1)
+            if llength_idx is not None:
+                self._emit_local_get(ll)
+                self._emit_call(llength_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+            if gsize > 1:
+                # ceil(n, gsize) = (n + gsize - 1) / gsize (non-negative n)
+                self._emit_i64_const(gsize - 1)
+                self._emit(WasmOp.I64_ADD)
+                self._emit_i64_const(gsize)
+                self._emit(WasmOp.I64_DIV_S)
+            # stack: [n_iters_i]  — update limit = max(limit, n_iters_i)
+            self._emit_local_set(limit_tmp)
+            self._emit_local_get(limit_tmp)
+            self._emit_local_get(limit)
+            self._emit(WasmOp.I64_GT_S)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_local_get(limit_tmp)
+            self._emit_local_set(limit)
+            self._emit(WasmOp.END)
 
         # counter = 0
         self._emit_i64_const(0)
@@ -637,43 +685,40 @@ class _WasmEmitterOptMixin(_Base):
         self._emit(WasmOp.I64_GE_S)
         self._emit_br_if(1)
 
-        # For each loop variable: load list_index(list, counter+slot)
-        # and assign.  Past-end slots in the final iteration receive
-        # empty-string TclObjs from the runtime, matching reference
-        # Tcl's ``foreach {a b} {1 2 3}`` semantics (b="" last iter).
-        lindex_idx = self._shared_imports.get("tcl_list_index")
-        global_set_idx = self._shared_imports.get("tcl_global_set")
-        for slot, var_name in enumerate(loop_vars):
-            var_local = self._intern_local(var_name)
-            if lindex_idx is not None:
-                self._emit_local_get(list_local)
-                self._emit_local_get(counter)
-                if slot > 0:
-                    self._emit_i64_const(slot)
-                    self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()
-                self._emit_call(lindex_idx)
-            else:
-                self._emit_local_get(counter)
-                if slot > 0:
-                    self._emit_i64_const(slot)
-                    self._emit(WasmOp.I64_ADD)
-                self._emit_box_int()
-            self._emit_local_set(var_local)
-            # At top level (not inside a proc), also publish the
-            # iteration value as a global so eval-fallbacks inside
-            # the body can resolve ``$var_name`` via
-            # ``tcl_global_get``.  Without this, a top-level
-            # ``foreach i [list a b c] { ... $i ... }`` where the
-            # body falls back to ``tcl_eval`` (e.g. ``interp
-            # delete $i``) sees ``i`` as empty and traps.  This
-            # only fires at top level — inside a proc the body
-            # can reach the value via the proc's frame-sync path.
-            if not self._is_proc and global_set_idx is not None:
-                self._emit_obj_literal(var_name)
-                self._emit_local_get(var_local)
-                self._emit_call(global_set_idx)
-                self._emit(WasmOp.DROP)
+        # For each iterator, bind its variables from list[counter*gsize + slot].
+        # Past-end indices return empty-string TclObjs from the runtime,
+        # matching reference Tcl's ``foreach {a b} {1 2 3}`` semantics.
+        for ll, (_, group_vars) in zip(list_locals, iterators):
+            gsize = max(len(group_vars), 1)
+            for slot, var_name in enumerate(group_vars):
+                var_local = self._intern_local(var_name)
+                if lindex_idx is not None:
+                    self._emit_local_get(ll)
+                    # element index = counter * gsize + slot
+                    self._emit_local_get(counter)
+                    if gsize > 1:
+                        self._emit_i64_const(gsize)
+                        self._emit(WasmOp.I64_MUL)
+                    if slot > 0:
+                        self._emit_i64_const(slot)
+                        self._emit(WasmOp.I64_ADD)
+                    self._emit_box_int()
+                    self._emit_call(lindex_idx)
+                else:
+                    # Fallback: use raw counter as value
+                    self._emit_local_get(counter)
+                    if slot > 0:
+                        self._emit_i64_const(slot)
+                        self._emit(WasmOp.I64_ADD)
+                    self._emit_box_int()
+                self._emit_local_set(var_local)
+                # At top level also publish via tcl_global_set so
+                # eval-fallbacks in the body can read the variable.
+                if not self._is_proc and global_set_idx is not None:
+                    self._emit_obj_literal(var_name)
+                    self._emit_local_get(var_local)
+                    self._emit_call(global_set_idx)
+                    self._emit(WasmOp.DROP)
 
         # Wrap body in block for break/continue
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
@@ -695,9 +740,9 @@ class _WasmEmitterOptMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
-        # counter += step (len(loop_vars), defaulting to 1 for single-var)
+        # counter += 1 (counter is the iteration index now)
         self._emit_local_get(counter)
-        self._emit_i64_const(step)
+        self._emit_i64_const(1)
         self._emit(WasmOp.I64_ADD)
         self._emit_local_set(counter)
 

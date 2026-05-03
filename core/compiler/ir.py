@@ -135,6 +135,7 @@ class IRCall:
     safe_on_uninit: bool = False
     tokens: CommandTokens | None = None
     canonical_command: str = ""
+    foreach_groups: tuple[int, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
