@@ -923,9 +923,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
     green sweep.
     """
     filename = f"{test_name}.test"
-    baseline_io = (
-        _IO_BASELINE.get(test_name) if subsystem == "io" else _BASELINE.get(test_name)
-    )
+    baseline_io = _IO_BASELINE.get(test_name) if subsystem == "io" else _BASELINE.get(test_name)
 
     class _TestClass:
         def test_compiles(self, request: pytest.FixtureRequest) -> None:
