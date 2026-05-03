@@ -21,8 +21,8 @@ from ...compiler.ir import (
 from ...parsing.argv import widen_argv_tokens_to_word_spans
 from ...parsing.tokens import Token
 from ..semantic_model import (
-    ParamDef,
     _NOQA_ALL,
+    ParamDef,
 )
 
 log = logging.getLogger(__name__)
