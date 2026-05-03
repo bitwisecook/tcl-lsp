@@ -188,6 +188,15 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             }
         }
         if (i >= fs.len) break;
+        // Skip C-style length modifiers (l, ll, h, hh, L, j, z, t, q).
+        // Reference Tcl reads all integers as i64, so modifiers are no-ops.
+        while (i < fs.len) : (i += 1) {
+            switch (fp[i]) {
+                'l', 'h', 'L', 'j', 'z', 't', 'q' => {},
+                else => break,
+            }
+        }
+        if (i >= fs.len) break;
         const conv = fp[i];
         i += 1;
 

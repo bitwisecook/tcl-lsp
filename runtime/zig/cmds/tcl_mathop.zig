@@ -363,6 +363,10 @@ fn op_div(args: []const i32) i32 {
         // the rest of the runtime.  Earlier ``@divFloor`` produced
         // ``-3`` for ``[/ 5 -2]`` instead of the Tcl-correct ``-2``
         // (Copilot review).
+        // Guard the one overflow case: minInt(i64) / -1 = 2^63 exceeds i64.
+        if (acc == std.math.minInt(i64) and v == -1) {
+            return obj.obj_new_bignum(@divTrunc(@as(i128, acc), @as(i128, v)));
+        }
         acc = @divTrunc(acc, v);
     }
     return obj_new_int(acc);
@@ -660,6 +664,12 @@ fn op_rshift(args: []const i32) i32 {
         if (ap.m == null) return obj_new_int(0);
         const r = bignum.alloc_zero() orelse return obj_new_int(0);
         const count: u64 = @bitCast(b);
+        // On wasm32, usize == u32; guard @intCast for large shift amounts —
+        // no bignum can have > 2^32 bits, so the result is trivially 0/-1.
+        if (count > std.math.maxInt(usize)) {
+            bignum.destroy(r);
+            return obj_new_int(if (ap.m.?.isPositive()) 0 else -1);
+        }
         r.shiftRight(ap.m.?, @intCast(count)) catch {
             bignum.destroy(r);
             return obj_new_int(0);
@@ -820,6 +830,40 @@ fn slice_eq(a: i32, b: i32) bool {
     return true;
 }
 
+// Returns negative/zero/positive like C strcmp.
+fn slice_cmp(a: i32, b: i32) i32 {
+    const sa = obj_ensure_str(a);
+    const sb = obj_ensure_str(b);
+    const pa: [*]const u8 = if (sa.ptr != 0) @ptrFromInt(sa.ptr) else &[_]u8{};
+    const pb: [*]const u8 = if (sb.ptr != 0) @ptrFromInt(sb.ptr) else &[_]u8{};
+    const min_len = @min(sa.len, sb.len);
+    for (0..min_len) |i| {
+        if (pa[i] < pb[i]) return -1;
+        if (pa[i] > pb[i]) return 1;
+    }
+    if (sa.len < sb.len) return -1;
+    if (sa.len > sb.len) return 1;
+    return 0;
+}
+
+const StrCmpKind = enum { lt, le, gt, ge };
+
+fn op_chain_str(args: []const i32, kind: StrCmpKind) i32 {
+    if (args.len <= 1) return obj_new_int(1);
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        const c = slice_cmp(args[i], args[i + 1]);
+        const ok = switch (kind) {
+            .lt => c < 0,
+            .le => c <= 0,
+            .gt => c > 0,
+            .ge => c >= 0,
+        };
+        if (!ok) return obj_new_int(0);
+    }
+    return obj_new_int(1);
+}
+
 fn op_eq_str(args: []const i32) i32 {
     // Variadic chain: all-equal-as-strings.
     if (args.len < 2) return obj_new_int(1);
@@ -964,6 +1008,10 @@ fn eval(words: []const i32) i32 {
     if (std.mem.eql(u8, op, ">=")) return op_ge_num(rest);
     if (std.mem.eql(u8, op, "eq")) return op_eq_str(rest);
     if (std.mem.eql(u8, op, "ne")) return op_ne_str(rest);
+    if (std.mem.eql(u8, op, "lt")) return op_chain_str(rest, .lt);
+    if (std.mem.eql(u8, op, "le")) return op_chain_str(rest, .le);
+    if (std.mem.eql(u8, op, "gt")) return op_chain_str(rest, .gt);
+    if (std.mem.eql(u8, op, "ge")) return op_chain_str(rest, .ge);
     if (std.mem.eql(u8, op, "in")) return op_in(rest);
     if (std.mem.eql(u8, op, "ni")) return op_ni(rest);
     if (std.mem.eql(u8, op, "&")) return op_band(rest);
@@ -1003,6 +1051,10 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "::tcl::mathop::>=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::eq", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::ne", .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "::tcl::mathop::lt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::le", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::gt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::ge", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::in", .arity_min = 2, .arity_max = 2,    .handler = &eval },
     .{ .name = "::tcl::mathop::ni", .arity_min = 2, .arity_max = 2,    .handler = &eval },
     .{ .name = "::tcl::mathop::&",  .arity_min = 0, .arity_max = null, .handler = &eval },
@@ -1032,6 +1084,10 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "tcl::mathop::>=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::eq", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::ne", .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "tcl::mathop::lt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::le", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::gt", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::ge", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::in", .arity_min = 2, .arity_max = 2,    .handler = &eval },
     .{ .name = "tcl::mathop::ni", .arity_min = 2, .arity_max = 2,    .handler = &eval },
     .{ .name = "tcl::mathop::&",  .arity_min = 0, .arity_max = null, .handler = &eval },

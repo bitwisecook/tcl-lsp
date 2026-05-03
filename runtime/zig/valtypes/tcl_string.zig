@@ -103,6 +103,9 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
 pub export fn string_compare(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
+    if (sa.len == 0 and sb.len == 0) return obj_new_int(0);
+    if (sa.len == 0) return obj_new_int(-1);
+    if (sb.len == 0) return obj_new_int(1);
     const min_len = if (sa.len < sb.len) sa.len else sb.len;
     const pa: [*]const u8 = @ptrFromInt(sa.ptr);
     const pb: [*]const u8 = @ptrFromInt(sb.ptr);

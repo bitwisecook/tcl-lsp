@@ -775,6 +775,12 @@ pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
         // arithmetic-shift convention, which Managed handles natively.
         const shift: u64 = @bitCast(bi);
         const r = bignum.alloc_zero() orelse return obj.obj_new_int(0);
+        // On wasm32, usize == u32; guard @intCast for large shift amounts —
+        // no bignum can have > 2^32 bits, so the result is trivially 0/-1.
+        if (shift > std.math.maxInt(usize)) {
+            bignum.destroy(r);
+            return obj.obj_new_int(if (ap.m.isPositive()) 0 else -1);
+        }
         r.shiftRight(ap.m, @intCast(shift)) catch {
             bignum.destroy(r);
             return obj.obj_new_int(0);

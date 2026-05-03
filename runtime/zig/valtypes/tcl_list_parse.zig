@@ -40,7 +40,7 @@ pub const Element = struct {
 /// rules).  Backslash-escaped ``\{`` / ``\}`` / ``\"`` inside an
 /// unbraced/unquoted word do NOT split.
 pub fn count_elements(ptr: u32, len: u32) i64 {
-    if (len == 0) return 0;
+    if (len == 0 or ptr == 0) return 0;
     const src: [*]const u8 = @ptrFromInt(ptr);
     var count: i64 = 0;
     var i: u32 = 0;
@@ -107,7 +107,7 @@ pub fn count_elements(ptr: u32, len: u32) i64 {
 /// while ``linsert`` / ``lrepeat`` / ``lseq`` continue to operate
 /// on whatever string they're given.
 pub fn validate_list_braces(ptr: u32, len: u32) bool {
-    if (len == 0) return true;
+    if (len == 0 or ptr == 0) return true;
     const src: [*]const u8 = @ptrFromInt(ptr);
     var i: u32 = 0;
     while (i < len) {
@@ -146,7 +146,7 @@ pub fn validate_list_braces(ptr: u32, len: u32) bool {
 /// Out-of-range requests return a zero-length element so callers can
 /// treat them as empty without a separate ``is_valid`` check.
 pub fn element_at(ptr: u32, len: u32, idx: i64) Element {
-    if (len == 0) return .{ .start = 0, .len = 0, .braced = false };
+    if (len == 0 or ptr == 0) return .{ .start = 0, .len = 0, .braced = false };
     const src: [*]const u8 = @ptrFromInt(ptr);
     var count: i64 = 0;
     var i: u32 = 0;
@@ -224,6 +224,76 @@ pub fn element_at(ptr: u32, len: u32, idx: i64) Element {
         count += 1;
     }
     return .{ .start = 0, .len = 0, .braced = false };
+}
+
+/// Sequential list cursor — advances one element at a time in O(1) per
+/// step, avoiding the O(N) rescan that :func:`element_at` would incur
+/// when called in a loop.  Callers that iterate all elements should
+/// prefer this over repeated ``element_at(i)`` calls.
+pub const Cursor = struct {
+    pos: u32,
+};
+
+/// Advance *cursor* past the next whitespace-separated element.
+/// Returns the element span (offsets relative to ``ptr``).
+/// When the list is exhausted returns a zero-length element with
+/// ``cursor.pos`` set to ``len``.
+pub fn cursor_next(ptr: u32, len: u32, cursor: *Cursor) Element {
+    if (ptr == 0 or cursor.pos >= len)
+        return .{ .start = 0, .len = 0, .braced = false };
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = cursor.pos;
+    while (i < len and is_space(src[i])) i += 1;
+    if (i >= len) {
+        cursor.pos = len;
+        return .{ .start = 0, .len = 0, .braced = false };
+    }
+    if (src[i] == '{') {
+        i += 1;
+        const inner_start = i;
+        var depth: u32 = 1;
+        while (i < len and depth > 0) {
+            if (src[i] == '\\' and i + 1 < len) { i += 2; continue; }
+            if (src[i] == '{') depth += 1
+            else if (src[i] == '}') depth -= 1;
+            i += 1;
+        }
+        cursor.pos = i;
+        const elem_len = if (depth == 0) i - 1 - inner_start else i - inner_start;
+        return .{ .start = inner_start, .len = elem_len, .braced = true };
+    } else if (src[i] == '"') {
+        i += 1;
+        const inner_start = i;
+        var closed = false;
+        while (i < len) {
+            if (src[i] == '\\' and i + 1 < len) { i += 2; continue; }
+            if (src[i] == '"') { closed = true; break; }
+            i += 1;
+        }
+        const elem_len = i - inner_start;
+        if (closed) i += 1;
+        cursor.pos = i;
+        return .{ .start = inner_start, .len = elem_len, .braced = false };
+    } else {
+        const elem_start = i;
+        while (i < len and !is_space(src[i])) {
+            if (src[i] == '\\' and i + 1 < len) i += 2
+            else i += 1;
+        }
+        cursor.pos = i;
+        return .{ .start = elem_start, .len = i - elem_start, .braced = false };
+    }
+}
+
+/// Skip *count* elements starting from *cursor.pos*.  Cheaper than
+/// calling :func:`cursor_next` and discarding results when jumping
+/// forward by ``stride`` steps.
+pub fn cursor_skip(ptr: u32, len: u32, cursor: *Cursor, count: u32) void {
+    var k: u32 = 0;
+    while (k < count) : (k += 1) {
+        const e = cursor_next(ptr, len, cursor);
+        if (e.len == 0 and cursor.pos >= len) break;
+    }
 }
 
 /// Copy an unbraced list-element's bytes, expanding backslash sequences

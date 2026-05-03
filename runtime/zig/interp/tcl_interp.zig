@@ -1127,31 +1127,60 @@ pub fn eval_switch(words: []const i32) i32 {
 }
 
 pub fn eval_foreach(words: []const i32) i32 {
-    if (words.len < 4) return 0;
-    const var_name = words[1];
-    const list_s = obj_ensure_string(words[2]);
-    const body_s = obj_ensure_string(words[3]);
-    const n = list_count_elements(list_s.ptr, list_s.len);
+    // foreach v1 l1 ?v2 l2 ...? body
+    // words[0]=foreach, words[1..len-2]=(varname,list) pairs (even count), words[len-1]=body
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const wrong_args_msg = "wrong # args: should be \"foreach varList list ?varList list ...? command\"";
+    if (words.len < 4) {
+        stubs.raise(wrong_args_msg);
+        return 0;
+    }
+    const pair_words = words.len - 2; // words[1..words.len-1]
+    if (pair_words % 2 != 0) {
+        stubs.raise(wrong_args_msg);
+        return 0;
+    }
+    const n_pairs = pair_words / 2;
+    const MAX_PAIRS = 63; // (MAX_WORDS-2)/2
+    if (n_pairs > MAX_PAIRS) return 0;
+    const body_s = obj_ensure_string(words[words.len - 1]);
+    // Compute each list's length and the iteration ceiling.
+    var list_lens: [MAX_PAIRS]i64 = [_]i64{0} ** MAX_PAIRS;
+    var n: i64 = 0;
+    {
+        var p: u32 = 0;
+        while (p < n_pairs) : (p += 1) {
+            const ls = obj_ensure_string(words[2 + p * 2]);
+            const len = list_count_elements(ls.ptr, ls.len);
+            list_lens[p] = len;
+            if (len > n) n = len;
+        }
+    }
     var result: i32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
-        const elem = list_element_at(list_s.ptr, list_s.len, idx);
-        const elem_val = if (elem.braced)
-            obj_new_string_copy(list_s.ptr + elem.start, elem.len)
-        else blk: {
-            const buf = alloc(elem.len);
-            const out_len = copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-            break :blk obj_new_string_take(buf, out_len, elem.len);
-        };
-        // Issue #317: ``var_set`` retains ``elem_val`` for the
-        // frame slot; without dropping the creator-side ref here,
-        // every iteration leaked one TclObj (plus its bytes after
-        // the ``obj_new_string_take`` switch above).
-        _ = frames.var_set(var_name, elem_val);
-        obj_mod.tcl_obj_release(elem_val);
-        // Release the prior body result before overwriting (issue
-        // #303 — same loop-leak pattern as ``eval_for`` /
-        // ``eval_while``).
+        // Bind each loop variable for this iteration step.
+        var p: u32 = 0;
+        while (p < n_pairs) : (p += 1) {
+            const var_name = words[1 + p * 2];
+            const list_obj = words[2 + p * 2];
+            const elem_val: i32 = if (idx < list_lens[p]) blk: {
+                const ls = obj_ensure_string(list_obj);
+                const elem = list_element_at(ls.ptr, ls.len, idx);
+                break :blk if (elem.braced)
+                    obj_new_string_copy(ls.ptr + elem.start, elem.len)
+                else inner: {
+                    const buf = alloc(elem.len);
+                    const out_len = copy_unbraced_elem(buf, ls.ptr + elem.start, elem.len);
+                    break :inner obj_new_string_take(buf, out_len, elem.len);
+                };
+            } else
+                obj_new_string(0, 0); // past end of this list → ""
+            // var_set retains elem_val for the frame slot; release creator ref (issue #317).
+            _ = frames.var_set(var_name, elem_val);
+            obj_mod.tcl_obj_release(elem_val);
+        }
+        // Release the prior body result before overwriting (issue #303).
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
@@ -2576,6 +2605,7 @@ fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
 /// original script bytes; ``parse.Token.start`` values are offsets
 /// relative to it.
 fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
+    if (tokens_ptr == 0) return 0;
     const tokens: [*]parse.Token = @ptrFromInt(tokens_ptr);
     var has_expand = false;
     {

@@ -16,6 +16,7 @@ fn eval_subst(words: []const i32) i32 {
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
         const a  = obj_ensure_string(words[wi]);
+        if (a.ptr == 0 or a.len == 0) break;
         const ap: [*]const u8 = @ptrFromInt(a.ptr);
         if (str_eq(ap, a.len, "-nobackslashes")) {
             do_bs = false;

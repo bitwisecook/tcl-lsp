@@ -1123,7 +1123,7 @@ pub fn obj_type(obj: i32) i32 {
 /// ``@ptrFromInt(0)`` would panic in debug builds even though the
 /// loop body never runs.
 pub fn memcpy(dst: u32, src: u32, len: u32) void {
-    if (len == 0) return;
+    if (len == 0 or src == 0 or dst == 0) return;
     const d: [*]u8 = @ptrFromInt(dst);
     const s: [*]const u8 = @ptrFromInt(src);
     for (0..len) |i| {
