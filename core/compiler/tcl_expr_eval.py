@@ -45,7 +45,7 @@ log = logging.getLogger(__name__)
 TclValue: TypeAlias = int | float
 """Result of evaluating a Tcl expression: int or IEEE-754 double."""
 
-_MAX_EXPONENT = 10_000  # guard against pathological 2**999999999
+_MAX_EXPONENT = (1 << 28) - 1  # reference Tcl INST_EXPON limit: exponent must be < 2^28
 
 
 # Public API

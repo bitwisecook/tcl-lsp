@@ -33,6 +33,7 @@ pub const FLAG_CONVERT_MASK: u8 = FLAG_CONVERT_BRACE | FLAG_CONVERT_ESCAPE;
 /// for what is a three-line byte copy; keeps this module free of
 /// TclObj / allocator dependencies.
 fn memcpy(dst: u32, src: u32, len: u32) void {
+    if (len == 0 or src == 0 or dst == 0) return;
     const d: [*]u8 = @ptrFromInt(dst);
     const s: [*]const u8 = @ptrFromInt(src);
     for (0..len) |i| d[i] = s[i];

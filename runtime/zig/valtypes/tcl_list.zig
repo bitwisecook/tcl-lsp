@@ -182,14 +182,16 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
     // also looks up ``OBJ_STR_CAP > 0`` to decide whether the
     // in-place fast path is safe; with cap=0 the slow rebuild
     // ran every time (multiplying allocator pressure further).
-    if (sa.len == 0) {
+    if (sa.len == 0 or sa.ptr == 0) {
         const alloc_size: u32 = sb.len * 2 + 4;
         const buf = alloc(alloc_size);
-        const off = list_elem_quote(buf, 0, sb.ptr, sb.len);
+        if (buf == 0) return obj_new_string(0, 0);
+        const off = if (sb.ptr != 0) list_elem_quote(buf, 0, sb.ptr, sb.len) else 0;
         return obj.obj_new_string_take(buf, off, alloc_size);
     }
     const alloc_size: u32 = sa.len + sb.len * 2 + 8;
     const buf = alloc(alloc_size);
+    if (buf == 0) return obj_new_string(0, 0);
     memcpy(buf, sa.ptr, sa.len);
     var off: u32 = sa.len;
     const d: [*]u8 = @ptrFromInt(buf + off);

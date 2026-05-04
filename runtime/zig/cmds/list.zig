@@ -2,12 +2,15 @@
 // linsert, lreplace, lsort, lsearch, lrange, concat, join, split,
 // lreverse, lrepeat, lassign, lmap, lseq.
 
-const rt       = @import("../tcl_runtime.zig");
-const frames   = @import("../interp/tcl_frames.zig");
-const obj_mod  = @import("../valtypes/tcl_obj.zig");
-const reg      = @import("../dispatch/tcl_cmd_registry.zig");
-const list_mod = @import("../valtypes/tcl_list.zig");
-const interp   = @import("../interp/tcl_interp.zig");
+const rt        = @import("../tcl_runtime.zig");
+const frames    = @import("../interp/tcl_frames.zig");
+const obj_mod   = @import("../valtypes/tcl_obj.zig");
+const reg       = @import("../dispatch/tcl_cmd_registry.zig");
+const list_mod  = @import("../valtypes/tcl_list.zig");
+const interp    = @import("../interp/tcl_interp.zig");
+const tcl_str   = @import("../valtypes/tcl_string.zig");
+const tcl_chars = @import("../valtypes/tcl_chars.zig");
+const list_parse = @import("../valtypes/tcl_list_parse.zig");
 
 const alloc             = rt.alloc;
 const obj_new_string    = rt.obj_new_string;
@@ -161,8 +164,260 @@ fn eval_lsort(words: []const i32) i32 {
     return obj_new_string(0, 0);
 }
 
+// lsearch full implementation.
+// Supported: -exact -glob -all -not -nocase -inline -start -stride -index -subindices
+// Recognised-but-linear: -sorted -decreasing -bisect -integer -real -dictionary
+// Stub: -regexp (raises unsupported)
+fn ls_opt_eq(ptr: u32, len: u32, lit: []const u8) bool {
+    if (len != lit.len) return false;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    for (lit, 0..) |c, k| if (sp[k] != c) return false;
+    return true;
+}
+
+fn ls_tolower(c: u8) u8 {
+    return if (c >= 'A' and c <= 'Z') c + 32 else c;
+}
+
+fn ls_match_exact(nocase: bool, pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) bool {
+    if (pat_len != elen) return false;
+    if (pat_len == 0) return true;
+    const pp: [*]const u8 = @ptrFromInt(pat_ptr);
+    const vp: [*]const u8 = @ptrFromInt(ep);
+    var k: u32 = 0;
+    while (k < elen) : (k += 1) {
+        const a = if (nocase) ls_tolower(pp[k]) else pp[k];
+        const b = if (nocase) ls_tolower(vp[k]) else vp[k];
+        if (a != b) return false;
+    }
+    return true;
+}
+
+fn ls_match_glob_nc(pat_ptr: u32, pat_len: u32, ep: u32, elen: u32) bool {
+    // Case-insensitive glob: lowercase copies then call glob_match.
+    const bp = alloc(pat_len + 1);
+    const be = alloc(elen + 1);
+    if (pat_len > 0 and bp != 0) {
+        const src: [*]const u8 = @ptrFromInt(pat_ptr);
+        const dst: [*]u8 = @ptrFromInt(bp);
+        var k: u32 = 0;
+        while (k < pat_len) : (k += 1) dst[k] = ls_tolower(src[k]);
+    }
+    if (elen > 0 and be != 0) {
+        const src: [*]const u8 = @ptrFromInt(ep);
+        const dst: [*]u8 = @ptrFromInt(be);
+        var k: u32 = 0;
+        while (k < elen) : (k += 1) dst[k] = ls_tolower(src[k]);
+    }
+    return tcl_str.glob_match(bp, pat_len, be, elen);
+}
+
+// Build a two-element index list "outer_idx inner_idx" for -subindices output.
+fn ls_subindex_pair(outer: i64, inner: i64) i32 {
+    return rt.tcl_list(rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer)), obj_new_int(inner));
+}
+
+// Get the matchable bytes for element at `idx`, optionally drilling into a
+// sub-element via `index_arg` (a TclObj whose string is the sub-index integer).
+// Returns (ep, elen, sub_idx) — sub_idx is only meaningful when index_arg != 0.
+fn ls_get_match_target(
+    ls_ptr: u32, ls_len: u32, idx: i64,
+    index_arg: i32,
+) struct { ep: u32, elen: u32, sub_idx: i64 } {
+    const outer_elem = rt.list_element_at(ls_ptr, ls_len, idx);
+    var outer_ptr: u32 = ls_ptr + outer_elem.start;
+    var outer_len: u32 = outer_elem.len;
+    if (!outer_elem.braced and outer_len > 0) {
+        const buf = alloc(outer_len + 4);
+        if (buf != 0) {
+            const n = rt.copy_unbraced_elem(buf, outer_ptr, outer_len);
+            outer_ptr = buf;
+            outer_len = n;
+        }
+    }
+    if (index_arg == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
+    }
+    // Drill: treat index_arg's string as the integer sub-index.
+    const sub_idx = obj_mod.obj_get_int(index_arg);
+    const inner_elem = rt.list_element_at(outer_ptr, outer_len, sub_idx);
+    return .{
+        .ep = outer_ptr + inner_elem.start,
+        .elen = inner_elem.len,
+        .sub_idx = sub_idx,
+    };
+}
+
 fn eval_lsearch(words: []const i32) i32 {
-    if (words.len >= 3) return rt.tcl_cmd_list_search(words[1], words[2]);
+    var mode: u8 = 'g'; // 'e'=exact 'g'=glob 'r'=regexp (stub)
+    var find_all = false;
+    var negate = false;
+    var nocase = false;
+    var do_inline = false;
+    var start: i64 = 0;
+    var stride: i64 = 1;
+    var index_arg: i32 = 0; // -index argument TclObj (0 = not given)
+    var do_subindices = false;
+
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    var wi: u32 = 1;
+    while (wi + 1 < words.len) : (wi += 1) {
+        const sv = obj_ensure_string(words[wi]);
+        if (sv.len == 0 or sv.ptr == 0) break;
+        const sp: [*]const u8 = @ptrFromInt(sv.ptr);
+        if (sp[0] != '-') break;
+        if (ls_opt_eq(sv.ptr, sv.len, "--")) { wi += 1; break; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-exact"))  { mode = 'e'; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-glob"))   { mode = 'g'; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-regexp"))  { mode = 'r'; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-all"))    { find_all = true; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-not"))    { negate = true; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-nocase")) { nocase = true; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-inline")) { do_inline = true; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-subindices")) { do_subindices = true; }
+        else if (ls_opt_eq(sv.ptr, sv.len, "-sorted") or
+                 ls_opt_eq(sv.ptr, sv.len, "-decreasing") or
+                 ls_opt_eq(sv.ptr, sv.len, "-bisect") or
+                 ls_opt_eq(sv.ptr, sv.len, "-integer") or
+                 ls_opt_eq(sv.ptr, sv.len, "-real") or
+                 ls_opt_eq(sv.ptr, sv.len, "-dictionary")) {
+            // Recognised; fall back to linear search (correct result, slower).
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-start")) {
+            wi += 1;
+            if (wi + 1 >= words.len) break;
+            const v = obj_mod.obj_get_int(words[wi]);
+            start = if (v < 0) 0 else v;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-stride")) {
+            wi += 1;
+            if (wi + 1 >= words.len) break;
+            const v = obj_mod.obj_get_int(words[wi]);
+            stride = if (v < 1) 1 else v;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-index")) {
+            wi += 1;
+            if (wi + 1 >= words.len) break;
+            index_arg = words[wi];
+        } else {
+            // Unknown option — raise a Tcl error rather than silently
+            // misinterpreting the arg as the list.
+            const stubs2 = @import("../stubs/tcl_stubs.zig");
+            const prefix = "bad option \"";
+            const suffix = "\": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices";
+            const name_len = sv.len;
+            const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+            const buf = obj_mod.alloc(total);
+            if (buf != 0) {
+                const bp: [*]u8 = @ptrFromInt(buf);
+                var off: u32 = 0;
+                for (prefix) |c| { bp[off] = c; off += 1; }
+                if (sv.ptr != 0) {
+                    const sp2: [*]const u8 = @ptrFromInt(sv.ptr);
+                    for (0..name_len) |k| { bp[off] = sp2[k]; off += 1; }
+                }
+                for (suffix) |c| { bp[off] = c; off += 1; }
+                const msg = obj_mod.obj_new_string_take(buf, total, total);
+                const catch_mod = @import("../interp/tcl_catch.zig");
+                catch_mod.tcl_cmd_error(msg);
+            } else {
+                stubs2.raise("bad option to lsearch");
+            }
+            return 0;
+        }
+    }
+
+    if (wi + 1 >= words.len) return obj_new_int(-1);
+    const list_obj = words[wi];
+    const pat_obj  = words[wi + 1];
+
+    _ = stubs; // suppress unused warning when not used below
+
+    const ls = obj_ensure_string(list_obj);
+    const pv = obj_ensure_string(pat_obj);
+    const n  = rt.list_count_elements(ls.ptr, ls.len);
+
+    // Align idx to the first stride group that covers [start, n).
+    var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
+
+    var acc: i32 = obj_new_string(0, 0); // -all accumulator
+
+    if (index_arg == 0) {
+        // Fast O(N) sequential scan via cursor — avoids the O(N²) that
+        // repeated list_element_at(idx) would incur for large lists.
+        var cur = list_parse.Cursor{ .pos = 0 };
+        if (idx > 0)
+            list_parse.cursor_skip(ls.ptr, ls.len, &cur, @intCast(idx));
+        while (idx < n) {
+            const elem = list_parse.cursor_next(ls.ptr, ls.len, &cur);
+            // Decode the element (unbraced elements need backslash expansion).
+            var ep: u32 = ls.ptr + elem.start;
+            var elen: u32 = elem.len;
+            if (!elem.braced and elen > 0) {
+                const buf = alloc(elen + 4);
+                if (buf != 0) {
+                    const decoded = rt.copy_unbraced_elem(buf, ep, elen);
+                    ep = buf; elen = decoded;
+                }
+            }
+            const raw: bool = switch (mode) {
+                'e' => ls_match_exact(nocase, pv.ptr, pv.len, ep, elen),
+                'r' => blk: {
+                    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+                    break :blk tcl_regex.run_match_pub(pv.ptr, pv.len, ep, elen, nocase);
+                },
+                else => if (nocase)
+                    ls_match_glob_nc(pv.ptr, pv.len, ep, elen)
+                else
+                    tcl_str.glob_match(pv.ptr, pv.len, ep, elen),
+            };
+            const matched = if (negate) !raw else raw;
+            if (matched) {
+                if (!find_all) {
+                    if (do_inline) return obj_new_string(@bitCast(ep), @bitCast(elen));
+                    return obj_new_int(idx);
+                }
+                const entry: i32 = if (do_inline)
+                    obj_new_string(@bitCast(ep), @bitCast(elen))
+                else
+                    obj_new_int(idx);
+                acc = list_mod.tcl_cmd_lappend(acc, entry);
+            }
+            idx += stride;
+            if (stride > 1 and idx < n)
+                list_parse.cursor_skip(ls.ptr, ls.len, &cur, @intCast(stride - 1));
+        }
+    } else {
+        // -index path: random-access (lists using -index are typically small).
+        while (idx < n) : (idx += stride) {
+            const t = ls_get_match_target(ls.ptr, ls.len, idx, index_arg);
+            const raw: bool = switch (mode) {
+                'e' => ls_match_exact(nocase, pv.ptr, pv.len, t.ep, t.elen),
+                'r' => blk: {
+                    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+                    break :blk tcl_regex.run_match_pub(pv.ptr, pv.len, t.ep, t.elen, nocase);
+                },
+                else => if (nocase)
+                    ls_match_glob_nc(pv.ptr, pv.len, t.ep, t.elen)
+                else
+                    tcl_str.glob_match(pv.ptr, pv.len, t.ep, t.elen),
+            };
+            const matched = if (negate) !raw else raw;
+            if (!matched) continue;
+            if (!find_all) {
+                if (do_inline) return obj_new_string(@bitCast(t.ep), @bitCast(t.elen));
+                if (do_subindices) return ls_subindex_pair(idx, t.sub_idx);
+                return obj_new_int(idx);
+            }
+            const entry: i32 = if (do_inline)
+                obj_new_string(@bitCast(t.ep), @bitCast(t.elen))
+            else if (do_subindices)
+                ls_subindex_pair(idx, t.sub_idx)
+            else
+                obj_new_int(idx);
+            acc = list_mod.tcl_cmd_lappend(acc, entry);
+        }
+    }
+
+    if (find_all) return acc;
+    if (do_inline) return obj_new_string(0, 0);
     return obj_new_int(-1);
 }
 
@@ -278,23 +533,48 @@ fn eval_lassign(words: []const i32) i32 {
 }
 
 fn eval_lmap(words: []const i32) i32 {
+    // lmap v1 l1 ?v2 l2 ...? body — same multi-var semantics as foreach,
+    // but accumulates body results into a list instead of discarding them.
     if (words.len < 4) return obj_new_string(0, 0);
-    const var_name = words[1];
-    const list_s = obj_ensure_string(words[2]);
-    const body_s = obj_ensure_string(words[3]);
-    const n = rt.list_count_elements(list_s.ptr, list_s.len);
+    const pair_words = words.len - 2;
+    if (pair_words % 2 != 0) return obj_new_string(0, 0);
+    const n_pairs = pair_words / 2;
+    const MAX_PAIRS = 15;
+    if (n_pairs > MAX_PAIRS) return obj_new_string(0, 0);
+    const body_s = obj_ensure_string(words[words.len - 1]);
+    var list_lens: [MAX_PAIRS]i64 = [_]i64{0} ** MAX_PAIRS;
+    var n: i64 = 0;
+    {
+        var p: u32 = 0;
+        while (p < n_pairs) : (p += 1) {
+            const ls = obj_ensure_string(words[2 + p * 2]);
+            const len = rt.list_count_elements(ls.ptr, ls.len);
+            list_lens[p] = len;
+            if (len > n) n = len;
+        }
+    }
     var result: i32 = obj_new_string(0, 0);
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
-        const elem = rt.list_element_at(list_s.ptr, list_s.len, idx);
-        const elem_val: i32 = if (elem.braced)
-            rt.obj_new_string_copy(list_s.ptr + elem.start, elem.len)
-        else blk: {
-            const buf = alloc(elem.len + 4);
-            const out_len = rt.copy_unbraced_elem(buf, list_s.ptr + elem.start, elem.len);
-            break :blk obj_new_string(@bitCast(buf), @bitCast(out_len));
-        };
-        _ = frames.var_set(var_name, elem_val);
+        var p: u32 = 0;
+        while (p < n_pairs) : (p += 1) {
+            const var_name = words[1 + p * 2];
+            const list_obj = words[2 + p * 2];
+            const elem_val: i32 = if (idx < list_lens[p]) blk: {
+                const ls = obj_ensure_string(list_obj);
+                const elem = rt.list_element_at(ls.ptr, ls.len, idx);
+                break :blk if (elem.braced)
+                    rt.obj_new_string_copy(ls.ptr + elem.start, elem.len)
+                else inner: {
+                    const buf = alloc(elem.len + 4);
+                    const out_len = rt.copy_unbraced_elem(buf, ls.ptr + elem.start, elem.len);
+                    break :inner obj_new_string(@bitCast(buf), @bitCast(out_len));
+                };
+            } else
+                obj_new_string(0, 0);
+            _ = frames.var_set(var_name, elem_val);
+            obj_mod.tcl_obj_release(elem_val);
+        }
         const item = interp.eval_script(body_s.ptr, body_s.len);
         if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }

@@ -1082,12 +1082,16 @@ class _CFGBuilder:
 
         # Collect all iteration variable names across all iterator groups.
         all_vars: list[str] = []
+        group_sizes: list[int] = []
         for var_names, _list_arg in stmt.iterators:
             all_vars.extend(var_names)
+            group_sizes.append(len(var_names))
 
         # Synthetic def node for iteration variables — SSA sees these as
         # definitions produced by the foreach header on each iteration.
         # Carry list expressions in args so codegen can emit foreach_start.
+        # foreach_groups encodes the number of vars per iterator group so
+        # the codegen can reconstruct the original pairing.
         list_args = tuple(list_arg for _, list_arg in stmt.iterators)
         if stmt.is_dict_iteration:
             fe_cmd = "dict for" if not stmt.is_lmap else "dict map"
@@ -1103,6 +1107,7 @@ class _CFGBuilder:
             canonical_command=fe_canonical,
             args=list_args,
             defs=tuple(all_vars),
+            foreach_groups=tuple(group_sizes),
         )
         self._block(header_block).statements.append(var_def)
 

@@ -339,6 +339,7 @@ pub export fn tcl_cmd_regexp(pattern: i32, subject: i32) i32 {
 
 /// Convert a codepoint index into its byte offset in a UTF-8 string.
 fn codepoint_to_byte(src_ptr: u32, src_len: u32, cp_offset: u32) u32 {
+    if (src_ptr == 0) return 0;
     const src: [*]const u8 = @ptrFromInt(src_ptr);
     var byte_pos: u32 = 0;
     var cp_count: u32 = 0;

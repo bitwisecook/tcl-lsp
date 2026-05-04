@@ -29,7 +29,7 @@
 // specially (not whitespace per-se, but command terminators), so
 // importing ``chars.is_space`` wouldn't be a drop-in swap.
 
-pub const MAX_WORDS: u32 = 32;
+pub const MAX_WORDS: u32 = 128;
 
 // ---------------------------------------------------------------------
 // Flat-array API — legacy.  Kept here so callers don't have to migrate

@@ -275,7 +275,7 @@ class _WasmEmitterValuesMixin(_Base):
                 continue
             if c == "$" and i + 1 < n:
                 nxt = value[i + 1]
-                if nxt == "{" or nxt.isalpha() or nxt == "_":
+                if nxt == "{" or nxt.isalpha() or nxt == "_" or nxt == ":":
                     return True
             if c == "[":
                 return True
@@ -508,8 +508,15 @@ class _WasmEmitterValuesMixin(_Base):
         # through ``_emit_eval_fallback`` would rebuild the script as
         # ``catch $v1 $v2 ...`` and lose the body's word structure.
         if cmd_name == "catch" and cmd_args:
-            self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
-            return
+            body = cmd_args[0].strip()
+            if body.startswith("{") and body.endswith("}"):
+                self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
+                return
+            # Dynamic body — pre-intern result/options vars so the
+            # frame readback after _emit_eval_fallback reloads them.
+            for vname in cmd_args[1:3]:
+                if vname and not vname.startswith("$") and not vname.startswith("["):
+                    self._intern_local(vname)
 
         # ``[set varname]`` — 1-arg read form.  Without this shortcut
         # the call falls through to the eval fallback, which rebuilds

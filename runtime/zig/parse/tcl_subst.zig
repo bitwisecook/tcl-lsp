@@ -216,6 +216,7 @@ pub fn subst_flagged(
             // fixes the leak and avoids the libc round-trip.
             const esc_alloc = arena.arena_alloc_or_libc(4);
             const esc_ptr = esc_alloc.addr;
+            if (esc_ptr == 0) { lit_run += wlen - i; break; }
             const r = obj_mod.consume_bs_escape(src, i + 1, wlen, @ptrFromInt(esc_ptr));
             i = r.next_si;
             push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, r.written);

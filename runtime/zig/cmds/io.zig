@@ -213,11 +213,9 @@ fn eval_append(words: []const i32) i32 {
 }
 
 fn eval_format(words: []const i32) i32 {
-    const fmt  = if (words.len >= 2) words[1] else 0;
-    const a1   = if (words.len >= 3) words[2] else 0;
-    const a2   = if (words.len >= 4) words[3] else 0;
-    const a3   = if (words.len >= 5) words[4] else 0;
-    return fmt_mod.tcl_cmd_format(fmt, a1, a2, a3);
+    const fmt = if (words.len >= 2) words[1] else 0;
+    const args = if (words.len >= 3) words[2..] else words[0..0];
+    return fmt_mod.tcl_cmd_format_args(fmt, args);
 }
 
 pub const registrations = [_]reg.CmdEntry{

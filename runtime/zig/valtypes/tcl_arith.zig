@@ -451,9 +451,9 @@ pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
     // Bignum path.  Promote base to BigInt, take exponent as u32.
     const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
     defer release_promoted(ap);
-    if (bi > std.math.maxInt(u32)) {
-        // 4-billion-bit result exceeds anything realistic — match the
-        // behaviour of upstream INST_EXPON which raises here.
+    if (bi >= (1 << 28)) {
+        // Reference Tcl refuses exponents >= 2^28 = 268435456 — match
+        // INST_EXPON's "exponent too large" check (tclExecute.c).
         stubs.raise("exponent too large");
         return obj.obj_new_int(0);
     }
@@ -775,6 +775,12 @@ pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
         // arithmetic-shift convention, which Managed handles natively.
         const shift: u64 = @bitCast(bi);
         const r = bignum.alloc_zero() orelse return obj.obj_new_int(0);
+        // On wasm32, usize == u32; guard @intCast for large shift amounts —
+        // no bignum can have > 2^32 bits, so the result is trivially 0/-1.
+        if (shift > std.math.maxInt(usize)) {
+            bignum.destroy(r);
+            return obj.obj_new_int(if (ap.m.isPositive()) 0 else -1);
+        }
         r.shiftRight(ap.m, @intCast(shift)) catch {
             bignum.destroy(r);
             return obj.obj_new_int(0);
