@@ -373,12 +373,43 @@ fn skip_quoted_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
 fn skip_bracket_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
     var p = start + 1;
     var depth: u32 = 1;
+    // Whether the next non-whitespace byte starts a fresh command —
+    // i.e., we're at the start of the bracket or just past ``\n`` /
+    // ``;``.  Comments (``#``) only act at command-start positions; a
+    // ``#`` mid-word is a literal byte.  parse-6.10 puts ``]`` inside a
+    // ``# this is a comment ]`` line which must NOT close the bracket.
+    var at_cmd_start: bool = true;
     while (p < len and depth > 0) {
         if (sp[p] == '\\' and p + 1 < len) {
             p += 2;
             continue;
         }
         const c = sp[p];
+        if (c == '\n' or c == ';') {
+            at_cmd_start = true;
+            p += 1;
+            continue;
+        }
+        if (c == ' ' or c == '\t' or c == '\r') {
+            p += 1;
+            continue;
+        }
+        if (at_cmd_start and c == '#') {
+            // Comment line — consume to next un-escaped ``\n``.
+            while (p < len) {
+                if (sp[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                } else if (sp[p] == '\n') {
+                    p += 1;
+                    break;
+                } else {
+                    p += 1;
+                }
+            }
+            at_cmd_start = true;
+            continue;
+        }
+        at_cmd_start = false;
         if (c == '[') {
             depth += 1;
             p += 1;

@@ -2685,6 +2685,18 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                 word_objs[wi] = subst_word(wptr_abs, tok.len);
             }
             wi += 1;
+            // If a substitution raised break / continue / return /
+            // error, abort word evaluation now and let the enclosing
+            // eval_script loop observe the flag — a ``[continue]``
+            // inside ``w[continue]`` must propagate as TCL_CONTINUE
+            // (parse-17.1), not result in a phantom dispatch of ``w``.
+            if (has_signal()) {
+                var rj: u32 = 0;
+                while (rj < wi) : (rj += 1) {
+                    if (word_objs[rj] != 0) obj_mod.tcl_obj_release(word_objs[rj]);
+                }
+                return 0;
+            }
         }
         // MM-B.4: release the per-word TclObjs after dispatch.
         // The dispatch result's refcount semantics are "+1 for the
