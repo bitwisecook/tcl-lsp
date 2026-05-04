@@ -163,7 +163,7 @@
     "split": "IMPLEMENTED",
     "string": "IMPLEMENTED",
     "subst": "IMPLEMENTED",
-    "switch": "TRAPPING_STUB",
+    "switch": "IMPLEMENTED",
     "tailcall": "IMPLEMENTED",
     "tcl::build-info": "IMPLEMENTED",
     "tcl::mathop::!": "NOT_REQUIRED",
@@ -218,7 +218,16 @@
   },
   "dangling": {
     "ffi_imports_without_export": [],
-    "orphan_builtins": [],
+    "orphan_builtins": [
+      "::tcl::mathop::ge",
+      "::tcl::mathop::gt",
+      "::tcl::mathop::le",
+      "::tcl::mathop::lt",
+      "tcl::mathop::ge",
+      "tcl::mathop::gt",
+      "tcl::mathop::le",
+      "tcl::mathop::lt"
+    ],
     "orphan_cmd_runtime": [],
     "orphan_dispatch": []
   },
