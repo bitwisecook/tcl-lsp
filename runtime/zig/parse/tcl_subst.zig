@@ -314,6 +314,7 @@ pub fn subst_flagged_full(
             i += 1;
             const cs = i;
             var depth: u32 = 1;
+            var bk_at_word_start: bool = true;
             while (i < wlen and depth > 0) {
                 const c = src[i];
                 if (c == '\\' and i + 1 < wlen) {
@@ -323,13 +324,16 @@ pub fn subst_flagged_full(
                     i += 2;
                     continue;
                 }
-                if (c == '{') {
+                if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+                    bk_at_word_start = true;
+                    i += 1;
+                    continue;
+                }
+                if (bk_at_word_start and c == '{') {
                     // Brace-quoted words inside ``[...]`` are literal —
                     // a ``[`` / ``]`` inside them must not affect
-                    // bracket depth.  Without this, a script like
-                    // ``[catch {subst {[set a 1}} msg]`` mis-counts the
-                    // inner ``[`` and never finds the real matching
-                    // ``]``.
+                    // bracket depth.  Only at word start; ``${foo}`` is
+                    // a variable reference, not a brace word.
                     i += 1;
                     var bdepth: u32 = 1;
                     while (i < wlen and bdepth > 0) {
@@ -341,9 +345,10 @@ pub fn subst_flagged_full(
                         else if (src[i] == '}') bdepth -= 1;
                         i += 1;
                     }
+                    bk_at_word_start = false;
                     continue;
                 }
-                if (c == '"') {
+                if (bk_at_word_start and c == '"') {
                     // Quoted strings inside ``[...]`` — same reasoning:
                     // ``]`` inside is literal.
                     i += 1;
@@ -351,8 +356,10 @@ pub fn subst_flagged_full(
                         if (src[i] == '\\' and i + 1 < wlen) i += 2 else i += 1;
                     }
                     if (i < wlen) i += 1;
+                    bk_at_word_start = false;
                     continue;
                 }
+                bk_at_word_start = false;
                 if (c == '[') depth += 1 else if (c == ']') depth -= 1;
                 if (depth > 0) i += 1 else i += 1;
             }

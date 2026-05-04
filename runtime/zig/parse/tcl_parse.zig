@@ -144,18 +144,27 @@ pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
 /// this, ``[catch {subst {[set a 1}} msg]`` would scan the inner ``[``
 /// as a depth bump and the outer ``]`` as depth-1 (not 0), causing the
 /// caller to consume the rest of the source into one giant "word".
+///
+/// Brace and quote skipping ONLY fires at word-start positions
+/// (after whitespace, ``;``, ``\n``, or the bracket open) — a ``{``
+/// mid-word (e.g. inside ``${foo}``) is not a brace-quoted word and
+/// must not consume the trailing ``]`` looking for a missing ``}``.
 pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos + 1;
     var depth: u32 = 1;
+    var at_word_start: bool = true;
     while (p < len and depth > 0) {
         const c = src[p];
         if (c == '\\' and p + 1 < len) {
             p += 2;
             continue;
         }
-        if (c == '{') {
-            // Skip a balanced braced word (with backslash escapes).
-            // Brace count is independent of bracket depth.
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+            at_word_start = true;
+            p += 1;
+            continue;
+        }
+        if (at_word_start and c == '{') {
             p += 1;
             var bdepth: u32 = 1;
             while (p < len and bdepth > 0) {
@@ -167,19 +176,19 @@ pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
                 else if (src[p] == '}') bdepth -= 1;
                 p += 1;
             }
+            at_word_start = false;
             continue;
         }
-        if (c == '"') {
-            // Skip a quoted string (with backslash escapes).  Inside
-            // a quoted string, ``[``/``]`` are literal so the bracket
-            // depth doesn't change.
+        if (at_word_start and c == '"') {
             p += 1;
             while (p < len and src[p] != '"') {
                 if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
             }
-            if (p < len) p += 1; // skip the closing "
+            if (p < len) p += 1;
+            at_word_start = false;
             continue;
         }
+        at_word_start = false;
         if (c == '[') depth += 1
         else if (c == ']') depth -= 1;
         p += 1;
