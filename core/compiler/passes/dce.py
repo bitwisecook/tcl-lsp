@@ -515,7 +515,12 @@ def _read_one(stmt: object, counts: dict[str, int]) -> None:
         # nested bodies (catch/foreach/while) even when the outer scope reads them.
         if stmt.command in ("set", "::set") and len(stmt.args) == 1:
             name = stmt.args[0]
-            if name and not name.startswith("$") and not name.startswith("[") and _is_dceable_name(name):
+            if (
+                name
+                and not name.startswith("$")
+                and not name.startswith("[")
+                and _is_dceable_name(name)
+            ):
                 counts[name] = counts.get(name, 0) + 1
         for arg in stmt.args:
             _scan_string(arg, counts)

@@ -489,9 +489,7 @@ class _WasmEmitterStmtMixin(_Base):
                         # ($var, [cmd]) are filtered inside the hook and
                         # fall through to eval_fallback.
                         hook = _REGISTRY.get_wasm_hook("::catch")
-                        if hook is not None and hook(
-                            self, barrier_args, (), EmitContext.STATEMENT
-                        ):
+                        if hook is not None and hook(self, barrier_args, (), EmitContext.STATEMENT):
                             # AOT path — catch_enter/leave handle everything;
                             # no i32 return value left on the WASM stack.
                             _barrier_needs_drop = False

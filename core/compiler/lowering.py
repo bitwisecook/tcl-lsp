@@ -1203,7 +1203,11 @@ class _Lowerer:
         # fall through to the runtime eval_catch, which calls eval_script on
         # the substituted value.  Without this guard, ``catch $cmd res`` was
         # compiled as "call the proc named by $cmd with 0 args" — wrong.
-        if body_tok is None or not (arg_single and arg_single[0]) or body_tok.type is not TokenType.STR:
+        if (
+            body_tok is None
+            or not (arg_single and arg_single[0])
+            or body_tok.type is not TokenType.STR
+        ):
             return IRBarrier(
                 range=cmd.range,
                 reason="catch with dynamic body",

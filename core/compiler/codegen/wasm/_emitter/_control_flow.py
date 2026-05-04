@@ -191,8 +191,8 @@ class _WasmEmitterCtrlMixin(_Base):
 
         Internal counter/limit are i64; list locals are i32 TclObj.
         """
-        llength_idx   = self._shared_imports.get("tcl_list_length")
-        lindex_idx    = self._shared_imports.get("tcl_list_index")
+        llength_idx = self._shared_imports.get("tcl_list_length")
+        lindex_idx = self._shared_imports.get("tcl_list_index")
         has_error_idx = self._shared_imports.get("tcl_catch_has_error")
 
         # Per-iterator locals: (list_local, step, vars).
@@ -229,13 +229,13 @@ class _WasmEmitterCtrlMixin(_Base):
                 # WASM SELECT stack order: val1, val2, cond → returns val1 if cond else val2.
                 # We want: if cur > limit → cur, else → limit.
                 cur_tmp = self._add_extra_local(f"_foreach_cur_{i}")
-                self._emit_local_set(cur_tmp)       # save cur
-                self._emit_local_get(cur_tmp)       # val1 = cur
-                self._emit_local_get(limit)         # val2 = limit
-                self._emit_local_get(cur_tmp)       # cond: compute cur > limit
+                self._emit_local_set(cur_tmp)  # save cur
+                self._emit_local_get(cur_tmp)  # val1 = cur
+                self._emit_local_get(limit)  # val2 = limit
+                self._emit_local_get(cur_tmp)  # cond: compute cur > limit
                 self._emit_local_get(limit)
-                self._emit(WasmOp.I64_GT_S)         # i32: cur > limit
-                self._emit(WasmOp.SELECT)            # → cur if cur > limit else limit
+                self._emit(WasmOp.I64_GT_S)  # i32: cur > limit
+                self._emit(WasmOp.SELECT)  # → cur if cur > limit else limit
             self._emit_local_set(limit)
 
         # idx = 0  (iteration number, not element index)

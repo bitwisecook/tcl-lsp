@@ -121,6 +121,7 @@ def _scan_script_body_imports(body_text: str, needed: set[str]) -> None:
     """
     try:
         from ...lowering import lower_to_ir
+
         ir_module = lower_to_ir(body_text)
     except Exception:
         return
@@ -135,7 +136,7 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
     Subset of ``_scan_needed_imports`` that works without a CFGModule.
     Called by ``_scan_script_body_imports`` for inline body text.
     """
-    from ...ir import IRForeach, IRWhile, IRFor, IRCatch, IRSwitch, IRTry, IRIf
+    from ...ir import IRCatch, IRFor, IRForeach, IRIf, IRSwitch, IRTry, IRWhile
 
     def _scan_s(script: IRScript) -> None:
         for stmt in script.statements:
