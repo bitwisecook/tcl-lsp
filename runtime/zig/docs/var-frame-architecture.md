@@ -4,16 +4,16 @@ Status by phase:
 
 | Phase | Status | Notes |
 |---|---|---|
-| 1: Variable unification (scalar+array+link) | **deferred** | Largest scope; touches ~15 files. Documented for a follow-up PR. |
-| 2: `InterpResult` typed return code | **deferred** | Touches every command (50+ files). |
+| 1: Variable unification (scalar+array+link) | **landed** | Implemented as the simpler "single directory, synthetic ``::__local::N::*`` namespace" form. Frame buckets are no longer involved in local-array storage; ``array_names`` / ``info exists`` / ``array unset`` etc. all reach the same table. Frame_pop drops local entries via ``drop_local_arrays_for_depth``. |
+| 2: `InterpResult` typed return code | **deferred** | Genuinely multi-PR — touches every command implementation (50+ files) and every dispatcher. The design records the target shape; landing it requires a coordinated migration window per command family. |
 | 3: `Frame.cmd_source` metadata | **landed** | Reserved-field-only — see phase 5 note. |
-| 4: Cross-interp alias namespace preservation | **deferred** | parse-8.12 already passes via the auto_index ns-prefix probe; phase 4 would let us delete that workaround but isn't unblocking any failing test. |
+| 4: Cross-interp alias namespace preservation | **n/a** | On further investigation the existing ``dispatch_alias`` behaviour (anchor at parent's root namespace) is the correct TCL_EVAL_INVOKE semantic that real Tcl 9 implements. The proposed "save/restore parent's prior current_ns" would change that semantic and break parse-8.12, not fix it. No work needed. |
 | 5: Multi-frame `Tcl_LogCommandInfo` traceback | **landed** | Driven off `tcl_diag.eval_ctx_*` push/pop instead of per-frame `cmd_source`; the latter is reserved for phase 8 (info frame). |
-| 6: `trace add variable` | **deferred** | Depends on phase 1. |
-| 7: Compile-time slot resolution | **deferred** | Depends on phase 1. |
-| 8: `info frame` rich metadata | **deferred** | Depends on phase 3 + frame `cmd_source` refactor. |
-| 9: Cross-thread / cross-interp variable channels | **deferred** | Depends on phase 1. |
-| 10: Coroutine-aware frame stacks | **deferred** | Depends on phase 3 (frame stack abstraction). |
+| 6: `trace add variable` | **deferred** | Depends on having a single per-name Variable record (phase 1 here landed scope-keyed names rather than per-name records, so phase 6 needs a follow-up that adds the trace-list field to each directory entry). |
+| 7: Compile-time slot resolution | **deferred** | Independent of phase 1's scope-keyed approach; needs a separate "compiled proc declares fixed locals" mechanism the codegen would emit. |
+| 8: `info frame` rich metadata | **deferred** | Phase 3's groundwork (frame metadata API) is in place; phase 8 reuses it. |
+| 9: Cross-thread / cross-interp variable channels | **deferred** | Builds on the InterpResult work in phase 2. |
+| 10: Coroutine-aware frame stacks | **deferred** | Builds on phase 3's frame metadata. |
 
 The "shims" the original plan called for at the end of each phase
 were eliminated as each phase landed — there is **no** backward-
