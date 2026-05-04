@@ -1,6 +1,24 @@
 # Cohesive variable / frame / namespace / exception architecture
 
-Status: design proposal, not yet implemented.
+Status by phase:
+
+| Phase | Status | Notes |
+|---|---|---|
+| 1: Variable unification (scalar+array+link) | **deferred** | Largest scope; touches ~15 files. Documented for a follow-up PR. |
+| 2: `InterpResult` typed return code | **deferred** | Touches every command (50+ files). |
+| 3: `Frame.cmd_source` metadata | **landed** | Reserved-field-only — see phase 5 note. |
+| 4: Cross-interp alias namespace preservation | **deferred** | parse-8.12 already passes via the auto_index ns-prefix probe; phase 4 would let us delete that workaround but isn't unblocking any failing test. |
+| 5: Multi-frame `Tcl_LogCommandInfo` traceback | **landed** | Driven off `tcl_diag.eval_ctx_*` push/pop instead of per-frame `cmd_source`; the latter is reserved for phase 8 (info frame). |
+| 6: `trace add variable` | **deferred** | Depends on phase 1. |
+| 7: Compile-time slot resolution | **deferred** | Depends on phase 1. |
+| 8: `info frame` rich metadata | **deferred** | Depends on phase 3 + frame `cmd_source` refactor. |
+| 9: Cross-thread / cross-interp variable channels | **deferred** | Depends on phase 1. |
+| 10: Coroutine-aware frame stacks | **deferred** | Depends on phase 3 (frame stack abstraction). |
+
+The "shims" the original plan called for at the end of each phase
+were eliminated as each phase landed — there is **no** backward-
+compatibility veneer in the runtime today.  The deferred phases
+will land directly without a transition window.
 
 ## Why this exists
 
