@@ -2735,9 +2735,66 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // wasm32 4 GiB linear-memory ceiling.
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
+        // ``Tcl_LogCommandInfo``: when a fresh error fires here,
+        // append the failing command's source to ``::errorInfo``.
+        // The ``error_logged`` flag (managed in tcl_catch) prevents
+        // re-stamping as the error unwinds through nested
+        // eval_script frames (parse-9.2).
+        if (rt.error_flag.* != 0) {
+            const tcl_catch = @import("tcl_catch.zig");
+            if (tcl_catch.error_logged == 0) {
+                log_command_info(script_ptr, cmd.command_start, cmd.command_len);
+                tcl_catch.error_logged = 1;
+            }
+        }
         if (has_signal()) return result;
     }
     return result;
+}
+
+/// Append a ``while executing "<cmd>"`` traceback frame to
+/// ``::errorInfo``.  Mirrors reference Tcl's ``Tcl_LogCommandInfo``
+/// (tclBasic.c): truncates the command span to 150 bytes plus an
+/// ellipsis when the source is longer.  Only called once per
+/// fresh error event (gated on ``error_logged`` in the caller).
+fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
+    if (cmd_len == 0) return;
+    const tcl_catch = @import("tcl_catch.zig");
+    const cur = tcl_catch.error_msg;
+    if (cur == 0) return;
+    const max_len: u32 = 150;
+    const ellipsis = "...";
+    const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
+    const need_ellipsis: bool = cmd_len > max_len;
+    const cur_s = obj_mod.obj_ensure_string(cur);
+    const prefix = "\n    while executing\n\"";
+    const suffix = "\"";
+    var total: u32 = cur_s.len + @as(u32, @intCast(prefix.len)) + trunc_len;
+    if (need_ellipsis) total += @as(u32, @intCast(ellipsis.len));
+    total += @as(u32, @intCast(suffix.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    if (cur_s.len > 0) {
+        const csp: [*]const u8 = @ptrFromInt(cur_s.ptr);
+        for (0..cur_s.len) |k| { dst[off] = csp[k]; off += 1; }
+    }
+    for (prefix) |b| { dst[off] = b; off += 1; }
+    const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
+    for (0..trunc_len) |k| { dst[off] = cmdp[k]; off += 1; }
+    if (need_ellipsis) {
+        for (ellipsis) |b| { dst[off] = b; off += 1; }
+    }
+    for (suffix) |b| { dst[off] = b; off += 1; }
+    // Only update ``::errorInfo`` — ``error_msg`` (which becomes
+    // the ``catch BODY msg`` variable) MUST stay just the original
+    // error string per Tcl semantics.  The ``while executing`` frame
+    // belongs in errorInfo only.
+    const new_msg = obj_mod.obj_new_string_take(buf, total, total);
+    const info_name = obj_mod.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+    _ = tcl_ns.global_set(info_name, new_msg);
+    obj_mod.tcl_obj_release(info_name);
 }
 
 /// Replay pre-parsed command records from a parse-cache slab.

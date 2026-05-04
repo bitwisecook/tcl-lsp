@@ -10,9 +10,24 @@ const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string    = rt.obj_new_string;
 
 fn eval_set(words: []const i32) i32 {
-    if (words.len >= 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
-    if (words.len >= 2) return frames.var_resolve(words[1]);
-    return 0;
+    // Reference Tcl: ``set varName ?newValue?`` takes 1 or 2 args.
+    // Out-of-range arities raise ``wrong # args`` (parse-9.2).
+    if (words.len < 2 or words.len > 3) {
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const msg_text: []const u8 = "wrong # args: should be \"set varName ?newValue?\"";
+        const buf = rt.alloc(@intCast(msg_text.len));
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return 0;
+        }
+        const dst: [*]u8 = @ptrFromInt(buf);
+        for (msg_text, 0..) |b, k| dst[k] = b;
+        const msg = rt.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+        catch_mod.tcl_cmd_error(msg);
+        return 0;
+    }
+    if (words.len == 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
+    return frames.var_resolve(words[1]);
 }
 
 fn eval_incr(words: []const i32) i32 {
