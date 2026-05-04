@@ -22,21 +22,14 @@ const fd_write_all = io.fd_write_all;
 pub var catch_depth: u32 = 0;
 pub var error_flag: u32 = 0; // 0 = no error, 1 = error pending
 pub var error_msg: i32 = 0; // TclObj with error message
-/// Set to 1 once ``::errorInfo`` has been augmented with the
-/// initial ``while executing "<cmd>"`` traceback frame for the
-/// current error event.  Subsequent unwinding ``eval_script`` frames
-/// add ``invoked from within "<cmd>"`` lines.  Cleared by
-/// ``tcl_cmd_error`` / ``tcl_cmd_error_full`` (fresh error event)
-/// and by ``catch_leave`` (the catch absorbed the error so further
-/// unwind shouldn't extend the trace).
-pub var error_logged: u32 = 0;
-
 /// Last ``(script_ptr, cmd_start)`` pair that ``log_command_info``
 /// stamped onto ``::errorInfo`` for the current error event.  The
 /// next stamp dedupes against this and uses the
 /// ``invoked from within`` prefix instead of ``while executing``.
 /// ``script_ptr == 0`` means "no frame logged yet" — stamp uses
-/// ``while executing``.
+/// ``while executing``.  Reset to 0 on every fresh error event
+/// (``tcl_cmd_error`` / ``tcl_cmd_error_full``) and on
+/// ``catch_leave`` (the catch absorbed the error).
 pub var last_log_script: u32 = 0;
 pub var last_log_pos: u32 = 0;
 pub var return_flag: u32 = 0; // 1 = return pending (absorbed by proc dispatch)
@@ -291,7 +284,6 @@ pub export fn catch_leave() i32 {
     // return value.  Also clear ``return_val`` so a stale handle
     // doesn't leak into the next ``return`` site's release of ``old``.
     error_flag = 0;
-    error_logged = 0;
     last_log_script = 0;
     last_log_pos = 0;
     return_flag = 0;
@@ -493,7 +485,6 @@ fn detect_wrong_args_code(msg: i32) i32 {
 // starts with ``wrong # args:``, in which case it is auto-tagged
 // ``TCL WRONGARGS`` to match reference Tcl's ``Tcl_WrongNumArgs``.
 pub export fn tcl_cmd_error(msg: i32) void {
-    error_logged = 0;
     last_log_script = 0;
     last_log_pos = 0;
     stamp_error_globals(msg, 0, detect_wrong_args_code(msg));
@@ -518,7 +509,6 @@ pub export fn tcl_cmd_error(msg: i32) void {
 // (``error msg ?info? ?code?``).  Either or both extras may be
 // ``0`` to use the defaults.
 pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
-    error_logged = 0;
     last_log_script = 0;
     last_log_pos = 0;
     stamp_error_globals(msg, info, code);

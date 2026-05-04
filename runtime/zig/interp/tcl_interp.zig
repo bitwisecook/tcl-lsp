@@ -1941,33 +1941,6 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
-    // Stamp the invoking command's source span on the new frame so
-    // ``Tcl_LogCommandInfo``-style traceback construction can emit
-    // ``\n    while executing\n"<cmd>"`` for every active frame
-    // (parse-9.1).  ``current_eval_ptr/pos`` was set by the caller's
-    // ``eval_script`` immediately before dispatching this command.
-    {
-        const dg = @import("../dispatch/tcl_diag.zig");
-        if (dg.current_eval_ptr != 0 and dg.current_eval_len > dg.current_eval_pos) {
-            // Re-parse the head of the remaining script to find the
-            // current command's exact length.  Cheap (bounded by
-            // MAX_WORDS) and lets the traceback show just the one
-            // command instead of "rest of script".
-            var stamp_tok: [2 * parse.MAX_WORDS]parse.Token = undefined;
-            const cmd_src: [*]const u8 = @ptrFromInt(dg.current_eval_ptr);
-            const cstamp = parse.ParseCommand(cmd_src, dg.current_eval_pos, dg.current_eval_len, &stamp_tok, stamp_tok.len);
-            const span_len: u32 = if (cstamp.next > dg.current_eval_pos) cstamp.next - dg.current_eval_pos else 0;
-            // Trim trailing whitespace / ``;`` / newline so the
-            // traceback span matches the command body, not the
-            // separator.
-            var trimmed: u32 = span_len;
-            while (trimmed > 0) {
-                const c = cmd_src[dg.current_eval_pos + trimmed - 1];
-                if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') trimmed -= 1 else break;
-            }
-            frames.frame_set_cmd_source(dg.current_eval_ptr + dg.current_eval_pos, trimmed);
-        }
-    }
     // Tcl semantics: ``break`` / ``continue`` inside a proc body
     // are local to that body's enclosing loop, NOT the caller's
     // loop.  Save and clear any pending caller-scope flow signal
