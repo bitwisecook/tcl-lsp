@@ -27,7 +27,17 @@ fn eval_set(words: []const i32) i32 {
         return 0;
     }
     if (words.len == 3) { _ = frames.var_set(words[1], words[2]); return words[2]; }
-    return frames.var_resolve(words[1]);
+    // Read form: ``set varName``.  When the variable doesn't exist,
+    // raise ``can't read "<name>": no such variable`` per Tcl 9
+    // semantics (set-1.13).  ``var_resolve`` returns 0 silently for
+    // missing slots — we re-raise via ``var_unset_error``.
+    const v = frames.var_resolve(words[1]);
+    if (v == 0) {
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        catch_mod.var_unset_error(words[1]);
+        return 0;
+    }
+    return v;
 }
 
 fn eval_incr(words: []const i32) i32 {

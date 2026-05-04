@@ -2712,9 +2712,12 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         if (cmd.extra_chars_after_close) {
             // Reference Tcl raises this at parse time; route through
             // ``tcl_cmd_error`` so a surrounding ``catch`` observes it
-            // and ``::errorInfo`` is stamped (parse-18.19 / 18.20 /
-            // 18.21).
-            const msg_text: []const u8 = "extra characters after close-brace";
+            // and ``::errorInfo`` is stamped (parse-18.19/20/21,
+            // set-1.3, set-3.3).
+            const msg_text: []const u8 = if (cmd.extra_chars_after_quote)
+                "extra characters after close-quote"
+            else
+                "extra characters after close-brace";
             const buf = obj_mod.alloc(@intCast(msg_text.len));
             if (buf != 0) {
                 const dst: [*]u8 = @ptrFromInt(buf);

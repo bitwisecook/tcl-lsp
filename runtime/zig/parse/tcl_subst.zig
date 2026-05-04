@@ -393,6 +393,7 @@ pub fn subst_flagged_full(
             // (parse-18.19 / 18.20 / 18.21).
             var eval_len: u32 = ce - cs;
             var deferred_err: bool = false;
+            var deferred_err_quote: bool = false;
             if (from_subst_cmd and ce > cs) {
                 const parse_mod = @import("tcl_parse.zig");
                 var pre_pos: u32 = 0;
@@ -407,6 +408,7 @@ pub fn subst_flagged_full(
                         // raise the deferred error if we don't break.
                         eval_len = pre_pos;
                         deferred_err = true;
+                        deferred_err_quote = pcmd.extra_chars_after_quote;
                         break;
                     }
                     if (pcmd.next <= pre_pos) break;
@@ -434,7 +436,7 @@ pub fn subst_flagged_full(
                         }
                         arena.arena_free(retained_alloc);
                         arena.arena_free(pieces_alloc);
-                        return raise_subst_error("extra characters after close-brace");
+                        return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
                     }
                     lit_start = i;
                     continue;
@@ -452,7 +454,7 @@ pub fn subst_flagged_full(
                         }
                         arena.arena_free(retained_alloc);
                         arena.arena_free(pieces_alloc);
-                        return raise_subst_error("extra characters after close-brace");
+                        return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
                     }
                     if (rv != 0) {
                         const sv = obj_ensure_string(rv);
@@ -491,7 +493,7 @@ pub fn subst_flagged_full(
                 }
                 arena.arena_free(retained_alloc);
                 arena.arena_free(pieces_alloc);
-                return raise_subst_error("extra characters after close-brace");
+                return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
             }
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
