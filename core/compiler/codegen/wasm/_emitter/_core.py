@@ -339,7 +339,12 @@ class _WasmEmitterBase:
             # reference and starts literal-text territory, which
             # means the value is an interpolated string.
             #
-            # Exception: ``$arr(key)`` is a single variable reference
+            # Exception 1: ``$::name`` / ``$::ns::var`` are fully-qualified
+            # global variable references.  Accept ``::`` as a valid
+            # namespace separator so ``$::errorInfo`` is treated as a
+            # single variable name rather than falling through to literal.
+            #
+            # Exception 2: ``$arr(key)`` is a single variable reference
             # (array element read) — once we see ``(`` after a valid
             # identifier head, consume through the matching ``)`` and
             # treat the whole thing as the variable name so that the
@@ -350,6 +355,10 @@ class _WasmEmitterBase:
                 c = value[i]
                 if c.isalnum() or c == "_":
                     i += 1
+                    continue
+                if c == ":" and i + 1 < len(value) and value[i + 1] == ":":
+                    # ``::`` namespace separator — consume both colons and continue
+                    i += 2
                     continue
                 break
             if i < len(value) and value[i] == "(" and value.endswith(")"):
@@ -1079,9 +1088,13 @@ class _WasmEmitterBase:
 
         self._emit_block(self._cfg.entry)
 
-        # Ensure function has a return value on all paths (i32 null TclObj)
+        # Ensure function has a return value on all paths.
+        # Use "" (empty string TclObj) rather than 0 (null/unset TclObj):
+        # loops (foreach/while/for) and empty procs return "" in Tcl.
+        # Returning 0 caused "can't read" errors when callers stored
+        # the result via ``set r [proc_with_loop_last]``.
         if not self._body or self._body[-1].op != WasmOp.RETURN:
-            self._emit_i32_const(0)
+            self._emit_obj_literal("")
             self._emit(WasmOp.END)
         else:
             self._emit(WasmOp.END)

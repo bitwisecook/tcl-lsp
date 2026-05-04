@@ -257,7 +257,6 @@ class _WasmEmitterCtrlMixin(_Base):
         #   var = list_index(L_i, elem_index)
         for list_local_i, step_i, vars_i in iter_info:
             for slot, var_name in enumerate(vars_i):
-                var_local = self._intern_local(var_name)
                 if lindex_idx is not None:
                     self._emit_local_get(list_local_i)
                     # elem_index = idx * step_i + slot
@@ -279,10 +278,7 @@ class _WasmEmitterCtrlMixin(_Base):
                         self._emit_i64_const(slot)
                         self._emit(WasmOp.I64_ADD)
                     self._emit_box_int()
-                if self._is_frame_only_var(var_name):
-                    self._emit_var_write_obj(var_name, source=Ownership.OWNED)
-                else:
-                    self._emit_owned_local_write(var_local, Ownership.OWNED, keep_on_stack=False)
+                self._emit_var_write_obj(var_name, source=Ownership.OWNED)
 
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target
         self._loop_depth += 1

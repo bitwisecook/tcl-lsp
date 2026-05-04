@@ -1127,8 +1127,9 @@ pub fn eval_switch(words: []const i32) i32 {
 }
 
 pub fn eval_foreach(words: []const i32) i32 {
-    // foreach v1 l1 ?v2 l2 ...? body
-    // words[0]=foreach, words[1..len-2]=(varname,list) pairs (even count), words[len-1]=body
+    // foreach varList1 list1 ?varList2 list2 ...? body
+    // varList may be a list of multiple var names (e.g. {a b}).
+    // words[0]=foreach, words[1..len-2]=(varlist,list) pairs (even count), words[len-1]=body
     const stubs = @import("../stubs/tcl_stubs.zig");
     const wrong_args_msg = "wrong # args: should be \"foreach varList list ?varList list ...? command\"";
     if (words.len < 4) {
@@ -1144,41 +1145,76 @@ pub fn eval_foreach(words: []const i32) i32 {
     const MAX_PAIRS = 63; // (MAX_WORDS-2)/2
     if (n_pairs > MAX_PAIRS) return 0;
     const body_s = obj_ensure_string(words[words.len - 1]);
-    // Compute each list's length and the iteration ceiling.
+
+    // For each pair, compute the step (number of vars in the varlist) and the
+    // list length.  Iteration count = max(ceil(list_len / step)) across pairs.
     var list_lens: [MAX_PAIRS]i64 = [_]i64{0} ** MAX_PAIRS;
+    var steps: [MAX_PAIRS]i64 = [_]i64{1} ** MAX_PAIRS;
     var n: i64 = 0;
     {
         var p: u32 = 0;
         while (p < n_pairs) : (p += 1) {
+            const varlist_obj = words[1 + p * 2];
+            const vls = obj_ensure_string(varlist_obj);
+            const count = list_count_elements(vls.ptr, vls.len);
+            if (count == 0) {
+                stubs.raise("foreach varlist is empty");
+                return 0;
+            }
+            const step: i64 = count;
+            steps[p] = step;
+
             const ls = obj_ensure_string(words[2 + p * 2]);
             const len = list_count_elements(ls.ptr, ls.len);
             list_lens[p] = len;
-            if (len > n) n = len;
+            // Iteration count for this pair: ceil(len / step)
+            const iters: i64 = @divTrunc(len + step - 1, step);
+            if (iters > n) n = iters;
         }
     }
     var result: i32 = 0;
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
-        // Bind each loop variable for this iteration step.
+        // Bind each variable in each varlist for this iteration step.
         var p: u32 = 0;
         while (p < n_pairs) : (p += 1) {
-            const var_name = words[1 + p * 2];
+            const varlist_obj = words[1 + p * 2];
             const list_obj = words[2 + p * 2];
-            const elem_val: i32 = if (idx < list_lens[p]) blk: {
-                const ls = obj_ensure_string(list_obj);
-                const elem = list_element_at(ls.ptr, ls.len, idx);
-                break :blk if (elem.braced)
-                    obj_new_string_copy(ls.ptr + elem.start, elem.len)
+            const vls = obj_ensure_string(varlist_obj);
+            const ls = obj_ensure_string(list_obj);
+            const step = steps[p];
+            var j: i64 = 0;
+            while (j < step) : (j += 1) {
+                const elem_idx = idx * step + j;
+                // Get the variable name for slot j in this varlist
+                const var_elem = list_element_at(vls.ptr, vls.len, j);
+                const src_vname = vls.ptr + var_elem.start;
+                const var_name_obj: i32 = if (var_elem.braced or src_vname == 0)
+                    obj_new_string_copy(src_vname, var_elem.len)
                 else inner: {
-                    const buf = alloc(elem.len);
-                    const out_len = copy_unbraced_elem(buf, ls.ptr + elem.start, elem.len);
-                    break :inner obj_new_string_take(buf, out_len, elem.len);
+                    const buf = alloc(var_elem.len + 1);
+                    if (buf == 0) break :inner obj_new_string(0, 0);
+                    const out_len = copy_unbraced_elem(buf, src_vname, var_elem.len);
+                    break :inner obj_new_string_take(buf, out_len, var_elem.len + 1);
                 };
-            } else
-                obj_new_string(0, 0); // past end of this list → ""
-            // var_set retains elem_val for the frame slot; release creator ref (issue #317).
-            _ = frames.var_set(var_name, elem_val);
-            obj_mod.tcl_obj_release(elem_val);
+                // Get the value from the list at element index elem_idx
+                const elem_val: i32 = if (elem_idx < list_lens[p]) blk: {
+                    const elem = list_element_at(ls.ptr, ls.len, elem_idx);
+                    const src_elem = ls.ptr + elem.start;
+                    break :blk if (elem.braced or src_elem == 0)
+                        obj_new_string_copy(src_elem, elem.len)
+                    else inner: {
+                        const buf = alloc(elem.len + 1);
+                        if (buf == 0) break :inner obj_new_string(0, 0);
+                        const out_len = copy_unbraced_elem(buf, src_elem, elem.len);
+                        break :inner obj_new_string_take(buf, out_len, elem.len + 1);
+                    };
+                } else
+                    obj_new_string(0, 0); // past end of list → ""
+                _ = frames.var_set(var_name_obj, elem_val);
+                obj_mod.tcl_obj_release(elem_val);
+                obj_mod.tcl_obj_release(var_name_obj);
+            }
         }
         // Release the prior body result before overwriting (issue #303).
         if (result != 0) obj_mod.tcl_obj_release(result);
@@ -1187,7 +1223,9 @@ pub fn eval_foreach(words: []const i32) i32 {
         if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
         if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
     }
-    return result;
+    // foreach returns "" on normal completion — discard last body result.
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    return obj_new_string(0, 0);
 }
 
 // -- Proc dispatch (picol-style) --

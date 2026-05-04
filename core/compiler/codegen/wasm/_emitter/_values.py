@@ -275,7 +275,7 @@ class _WasmEmitterValuesMixin(_Base):
                 continue
             if c == "$" and i + 1 < n:
                 nxt = value[i + 1]
-                if nxt == "{" or nxt.isalpha() or nxt == "_":
+                if nxt == "{" or nxt.isalpha() or nxt == "_" or nxt == ":":
                     return True
             if c == "[":
                 return True

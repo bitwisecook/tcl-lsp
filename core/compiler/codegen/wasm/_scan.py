@@ -54,6 +54,150 @@ from ._imports import (
 from ._parsing import _has_embedded_subst_scan, _parse_array_ref
 
 
+def _split_tcl_words(text: str) -> list[str]:
+    """Split Tcl command text into words, respecting braces and brackets.
+
+    Returns each word with its outer brace/bracket delimiters intact so
+    callers can distinguish brace-quoted literals from bare words.
+    """
+    parts: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        while i < n and text[i] in " \t\n":
+            i += 1
+        if i >= n:
+            break
+        if text[i] == "{":
+            depth = 1
+            start = i
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "\\" and i + 1 < n and text[i + 1] in "{}":
+                    i += 2
+                    continue
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                i += 1
+            parts.append(text[start:i])
+        elif text[i] == "[":
+            depth = 1
+            start = i
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "[":
+                    depth += 1
+                elif text[i] == "]":
+                    depth -= 1
+                i += 1
+            parts.append(text[start:i])
+        elif text[i] == '"':
+            start = i
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\":
+                    i += 1
+                i += 1
+            i += 1
+            parts.append(text[start:i])
+        else:
+            start = i
+            while i < n and text[i] not in " \t\n":
+                i += 1
+            parts.append(text[start:i])
+    return parts
+
+
+def _scan_script_body_imports(body_text: str, needed: set[str]) -> None:
+    """Parse a Tcl script body and add any runtime imports it needs.
+
+    Used by ``_scan_text_for_cmd_subst`` to scan catch bodies that
+    appear in command-substitution position (e.g. ``[catch {foreach …} msg]``).
+    Without this, imports required by the body (e.g. ``tcl_list_length``
+    for ``foreach``) are missed because the text scanner only searches
+    for ``[…]`` command substitutions, not brace-quoted body content.
+    """
+    try:
+        from ...lowering import lower_to_ir
+        ir_module = lower_to_ir(body_text)
+    except Exception:
+        return
+    # We don't have a CFGModule for this snippet; pass a dummy.  The
+    # inner scanner only uses the IR, not the CFG.
+    _scan_needed_imports_ir_only(ir_module, needed)
+
+
+def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
+    """Walk *ir_module* and add needed imports to *needed*.
+
+    Subset of ``_scan_needed_imports`` that works without a CFGModule.
+    Called by ``_scan_script_body_imports`` for inline body text.
+    """
+    from ...ir import IRForeach, IRWhile, IRFor, IRCatch, IRSwitch, IRTry, IRIf
+
+    def _scan_s(script: IRScript) -> None:
+        for stmt in script.statements:
+            _scan_st(stmt)
+
+    def _scan_st(stmt: IRStatement) -> None:  # type: ignore[type-arg]
+        match stmt:
+            case IRForeach(body=body):
+                needed.add("tcl_list_length")
+                needed.add("tcl_list_index")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                _scan_s(body)
+            case IRFor(init=init, body=body, next=next_script):
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                _scan_s(init)
+                _scan_s(body)
+                _scan_s(next_script)
+            case IRWhile(body=body):
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_flow_consume_break")
+                needed.add("tcl_flow_consume_continue")
+                _scan_s(body)
+            case IRIf(clauses=clauses, else_body=else_body):
+                for clause in clauses:
+                    _scan_s(clause.body)
+                if else_body:
+                    _scan_s(else_body)
+            case IRCatch(body=body):
+                needed.add("tcl_catch_enter")
+                needed.add("tcl_catch_leave")
+                needed.add("tcl_catch_result")
+                needed.add("tcl_catch_has_error")
+                needed.add("tcl_catch_set_ok_result")
+                needed.add("tcl_return_set")
+                needed.add("tcl_catch_options")
+                _scan_s(body)
+            case IRSwitch(arms=arms, default_body=default_body):
+                for arm in arms:
+                    if arm.body:
+                        _scan_s(arm.body)
+                if default_body:
+                    _scan_s(default_body)
+            case IRTry(body=body, finally_body=finally_body):
+                _scan_s(body)
+                if finally_body:
+                    _scan_s(finally_body)
+            case _:
+                # Scan value strings in IRCall / IRAssignValue for cmd-substs.
+                if hasattr(stmt, "args"):
+                    for a in stmt.args:
+                        if isinstance(a, str) and "[" in a:
+                            _scan_text_for_cmd_subst(a, needed)
+
+    _scan_s(ir_module.top_level)
+    for proc in ir_module.procedures.values():
+        _scan_s(proc.body)
+
+
 def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     """Parse an expression body and add any runtime imports it needs."""
     from ....parsing.expr_parser import parse_expr
@@ -427,6 +571,17 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                     needed.add("tcl_catch_set_ok_result")
                     needed.add("tcl_catch_options")
                     needed.add("tcl_return_set")
+                    # Also scan the catch body at the IR level so that
+                    # nested loop/switch commands (e.g. ``foreach``)
+                    # get their own required imports added.  Without
+                    # this, ``[catch {foreach a L body} msg]`` misses
+                    # ``tcl_list_length`` / ``tcl_list_index`` and the
+                    # emitted foreach silently produces 0 iterations.
+                    _catch_words = _split_tcl_words(cmd_text)
+                    if len(_catch_words) >= 2:
+                        _body_arg = _catch_words[1]
+                        if _body_arg.startswith("{") and _body_arg.endswith("}"):
+                            _scan_script_body_imports(_body_arg[1:-1], needed)
                 # Recurse into the command text for nested
                 # substitutions.  Scanning ``parts[-1]`` alone misses
                 # nested brackets that landed in earlier split slots
