@@ -212,11 +212,24 @@ pub fn subst_flagged_full(
                     n_retained += 1;
                 }
             } else {
-                while (i < wlen and ((src[i] >= 'a' and src[i] <= 'z') or
-                    (src[i] >= 'A' and src[i] <= 'Z') or
-                    (src[i] >= '0' and src[i] <= '9') or src[i] == '_'))
-                {
-                    i += 1;
+                // Variable-name scanner: bareword chars + ``::``
+                // namespace separator (Tcl 9: ``$::tcl_library`` /
+                // ``$ns::var``).  ``::`` consumes two bytes as a unit
+                // — a single ``:`` does NOT belong to a variable name
+                // (so ``$x:foo`` resolves ``$x`` and leaves ``:foo``
+                // as literal).
+                while (i < wlen) {
+                    const c = src[i];
+                    if ((c >= 'a' and c <= 'z') or
+                        (c >= 'A' and c <= 'Z') or
+                        (c >= '0' and c <= '9') or c == '_')
+                    {
+                        i += 1;
+                    } else if (c == ':' and i + 1 < wlen and src[i + 1] == ':') {
+                        i += 2;
+                    } else {
+                        break;
+                    }
                 }
                 const name_obj = obj_new_string(@bitCast(wptr + vstart), @bitCast(i - vstart));
                 // Array-element form ``$arr(idx)``: when the next byte

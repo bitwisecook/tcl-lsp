@@ -195,57 +195,208 @@ pub export fn info_args(name: i32) i32 {
     return params;
 }
 
-/// info complete script — returns 1 if the script has matched
-/// braces / brackets / quotes so ``eval`` would accept it, 0
-/// otherwise.  This is a structural sanity check used by tcltest
-/// and other harnesses to validate user-supplied scripts before
-/// evaluating them.
+/// ``info complete script`` — returns 1 iff the script can be
+/// safely passed to ``eval`` without the parser running out of
+/// source mid-construct (mid-brace, mid-quote, mid-bracket,
+/// mid-``${name}``, mid-``$arr(idx)``, mid-comment-line-continuation,
+/// or trailing ``\<NL>`` line continuation).
 ///
-/// Brackets inside braced text (``{a [b} c]``) do NOT count —
-/// brace-quoted words treat ``[`` as a literal character, not a
-/// command-substitution marker.  So a script like ``"{[}"`` is
-/// structurally complete: the outer ``[`` / ``]`` are consumed by
-/// the braced word, which is itself balanced.  Only brackets
-/// outside brace depth 0 affect completeness.  Similarly quotes
-/// are literal inside braces.
+/// Mirrors reference Tcl's ``Tcl_CommandComplete`` — which drives
+/// ``Tcl_ParseCommand`` over the full source and reports ``1`` whenever
+/// ``parse.incomplete`` is **not** set, even if a parse error like
+/// "extra characters after close-brace" was raised.  The implementation
+/// here walks the script with a state machine that tracks word
+/// boundaries (``{`` / ``"`` / ``[`` / ``$`` only act as openers at
+/// word start), backslash escapes (``\X`` consumes two bytes; ``\<NL>``
+/// at the very end is a continuation that signals incomplete), and
+/// comment processing (``#`` at command start runs to the next
+/// unescaped newline; ``\<NL>`` inside a comment extends the line).
 pub fn info_complete(script: i32) i32 {
     const s = obj_ensure_string(script);
     if (s.len == 0) return obj_new_int(1);
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    var brace: i32 = 0;
-    var bracket: i32 = 0;
-    var in_quote: bool = false;
-    var i: u32 = 0;
-    while (i < s.len) : (i += 1) {
-        const c = sp[i];
-        if (c == '\\' and i + 1 < s.len) {
-            i += 1;
-            continue;
+    return obj_new_int(if (check_complete(sp, s.len)) 1 else 0);
+}
+
+fn check_complete(sp: [*]const u8, len: u32) bool {
+    var p: u32 = 0;
+    while (p < len) {
+        // Inter-command whitespace + line continuations.
+        while (p < len) {
+            const c = sp[p];
+            if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+                p += 1;
+            } else if (c == '\\' and p + 1 < len and sp[p + 1] == '\n') {
+                p += 2;
+            } else {
+                break;
+            }
         }
-        if (brace > 0) {
-            switch (c) {
-                '{' => brace += 1,
-                '}' => brace -= 1,
-                else => {},
+        if (p >= len) break;
+        // Comment at command start: consume to next unescaped ``\n``;
+        // ``\<X>`` inside a comment skips two bytes (so a literal
+        // ``\<NL>`` extends the comment line).
+        if (sp[p] == '#') {
+            while (p < len) {
+                if (sp[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                } else if (sp[p] == '\n') {
+                    p += 1;
+                    break;
+                } else {
+                    p += 1;
+                }
             }
             continue;
         }
-        if (in_quote) {
-            if (c == '"') in_quote = false;
+        // Parse one word.
+        if (sp[p] == '{') {
+            const next = skip_braced_complete(sp, p, len) orelse return false;
+            p = next;
+            // "Extra characters after close-brace" is a syntax error
+            // but not an incomplete one — Tcl's CommandComplete returns
+            // 1.  Stop scanning so we don't miscount the trailing junk.
+            if (p < len) {
+                const c = sp[p];
+                if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+                    return true;
+                }
+            }
+        } else if (sp[p] == '"') {
+            const next = skip_quoted_complete(sp, p, len) orelse return false;
+            p = next;
+            if (p < len) {
+                const c = sp[p];
+                if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+                    return true;
+                }
+            }
+        } else {
+            // Bare word: scan until whitespace / separator / line
+            // continuation.  Inside, brackets must close, ``${name}``
+            // must close, ``$arr(idx)`` must close, ``\X`` consumes 2.
+            while (p < len) {
+                const c = sp[p];
+                if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') break;
+                if (c == '\\' and p + 1 < len) {
+                    if (sp[p + 1] == '\n') break; // line continuation = word terminator
+                    p += 2;
+                } else if (c == '[') {
+                    const next = skip_bracket_complete(sp, p, len) orelse return false;
+                    p = next;
+                } else if (c == '$' and p + 1 < len) {
+                    p += 1;
+                    if (sp[p] == '{') {
+                        p += 1;
+                        while (p < len and sp[p] != '}') {
+                            if (sp[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+                        }
+                        if (p >= len) return false;
+                        p += 1;
+                    } else {
+                        while (p < len) {
+                            const cc = sp[p];
+                            if ((cc >= 'a' and cc <= 'z') or
+                                (cc >= 'A' and cc <= 'Z') or
+                                (cc >= '0' and cc <= '9') or cc == '_')
+                            {
+                                p += 1;
+                            } else if (cc == ':' and p + 1 < len and sp[p + 1] == ':') {
+                                p += 2;
+                            } else {
+                                break;
+                            }
+                        }
+                        if (p < len and sp[p] == '(') {
+                            p += 1;
+                            while (p < len and sp[p] != ')') {
+                                if (sp[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+                            }
+                            if (p >= len) return false;
+                            p += 1;
+                        }
+                    }
+                } else {
+                    p += 1;
+                }
+            }
+        }
+    }
+    // Trailing line continuation: source ends with an UN-escaped
+    // ``\<NL>`` (odd number of preceding backslashes).  parse-15.39 /
+    // 15.45 / 15.50 — the ``\<NL>`` signals the command continues to
+    // a line that isn't there, so the script is incomplete.
+    if (len >= 2 and sp[len - 1] == '\n') {
+        var bs_count: u32 = 0;
+        var j: u32 = len - 1;
+        while (j > 0) {
+            j -= 1;
+            if (sp[j] == '\\') bs_count += 1 else break;
+        }
+        if (bs_count % 2 == 1) return false;
+    }
+    return true;
+}
+
+fn skip_braced_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
+    var p = start + 1;
+    var depth: u32 = 1;
+    while (p < len and depth > 0) {
+        if (sp[p] == '\\' and p + 1 < len) {
+            p += 2;
             continue;
         }
-        switch (c) {
-            '{' => brace += 1,
-            '}' => brace -= 1,
-            '[' => bracket += 1,
-            ']' => bracket -= 1,
-            '"' => in_quote = true,
-            else => {},
-        }
-        if (brace < 0 or bracket < 0) return obj_new_int(0);
+        if (sp[p] == '{') depth += 1
+        else if (sp[p] == '}') depth -= 1;
+        p += 1;
     }
-    if (brace == 0 and bracket == 0 and !in_quote) return obj_new_int(1);
-    return obj_new_int(0);
+    if (depth != 0) return null;
+    return p;
+}
+
+fn skip_quoted_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
+    var p = start + 1;
+    while (p < len and sp[p] != '"') {
+        if (sp[p] == '\\' and p + 1 < len) {
+            p += 2;
+        } else if (sp[p] == '[') {
+            const next = skip_bracket_complete(sp, p, len) orelse return null;
+            p = next;
+        } else {
+            p += 1;
+        }
+    }
+    if (p >= len) return null;
+    return p + 1;
+}
+
+fn skip_bracket_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
+    var p = start + 1;
+    var depth: u32 = 1;
+    while (p < len and depth > 0) {
+        if (sp[p] == '\\' and p + 1 < len) {
+            p += 2;
+            continue;
+        }
+        const c = sp[p];
+        if (c == '[') {
+            depth += 1;
+            p += 1;
+        } else if (c == ']') {
+            depth -= 1;
+            p += 1;
+        } else if (c == '{') {
+            const next = skip_braced_complete(sp, p, len) orelse return null;
+            p = next;
+        } else if (c == '"') {
+            const next = skip_quoted_complete(sp, p, len) orelse return null;
+            p = next;
+        } else {
+            p += 1;
+        }
+    }
+    if (depth != 0) return null;
+    return p;
 }
 
 pub fn info_nameofexecutable() i32 {
