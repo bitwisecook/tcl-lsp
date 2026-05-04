@@ -28,6 +28,133 @@ const obj_new_int = obj.obj_new_int;
 const obj_new_string = obj.obj_new_string;
 const obj_get_int = obj.obj_get_int;
 
+/// Phase-1 unification: every array — global, namespace-qualified, or
+/// proc-local — lives in the single :data:`dir_buf` directory.  Local
+/// arrays get a synthetic FQ name of the form
+/// ``::__local::<frame_depth>::<arr>`` so they share storage and
+/// iteration paths with global arrays.  ``frame_pop`` calls
+/// :func:`drop_local_arrays_for_depth` to evict the entries when the
+/// frame unwinds.
+///
+/// Naming convention rationale: ``::`` starts a fully-qualified name
+/// so :func:`normalize_ns_name` won't re-prefix it.  ``__local`` is
+/// reserved (double-underscore prefix per Tcl convention for runtime-
+/// internal names).  ``<frame_depth>`` keeps unique per-call entries
+/// even when a slot is reused.  All four parts are joined with the
+/// standard ``::`` separator so debug dumps look like a normal FQ
+/// name.
+const LOCAL_PREFIX: []const u8 = "::__local::";
+
+/// Build the FQ local-array name for a user-facing array name at the
+/// given frame depth.  Allocated bytes live in the bump allocator;
+/// the returned TclObj is the caller's responsibility to release.
+pub fn make_local_array_obj(arr: i32, frame_depth: u32) i32 {
+    const arr_s = obj_ensure_string(arr);
+    if (arr_s.ptr == 0) return 0;
+    // Rough upper bound: depth fits in 10 decimal digits for a u32.
+    const total: u32 = @as(u32, @intCast(LOCAL_PREFIX.len)) + 10 + 2 + arr_s.len;
+    const buf = alloc(total);
+    if (buf == 0) return 0;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (LOCAL_PREFIX) |b| { dst[off] = b; off += 1; }
+    // Render frame_depth as decimal.
+    var d_tmp: [10]u8 = undefined;
+    var d_len: u32 = 0;
+    var d_val: u32 = frame_depth;
+    if (d_val == 0) { d_tmp[0] = '0'; d_len = 1; } else {
+        while (d_val > 0) {
+            d_tmp[d_len] = @intCast('0' + (d_val % 10));
+            d_val /= 10;
+            d_len += 1;
+        }
+    }
+    var di: u32 = d_len;
+    while (di > 0) {
+        di -= 1;
+        dst[off] = d_tmp[di];
+        off += 1;
+    }
+    dst[off] = ':'; off += 1;
+    dst[off] = ':'; off += 1;
+    if (arr_s.len > 0) {
+        const ap: [*]const u8 = @ptrFromInt(arr_s.ptr);
+        for (0..arr_s.len) |k| { dst[off] = ap[k]; off += 1; }
+    }
+    return obj.obj_new_string_take(buf, off, total);
+}
+
+/// True iff *name_ptr / name_len* names a Phase-1 internal
+/// proc-local array entry (``::__local::*``).  Used by directory-
+/// iteration helpers (``array_dir_names_matching``, etc.) to filter
+/// these out of user-visible listings like ``info vars``.
+fn name_ptr_is_local_internal(name_ptr: u32, name_len: u32) bool {
+    if (name_len < LOCAL_PREFIX.len) return false;
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    for (LOCAL_PREFIX, 0..) |b, k| if (sp[k] != b) return false;
+    return true;
+}
+
+/// Walk the array directory and tombstone every entry whose name
+/// starts with ``::__local::<depth>::``.  Called by ``frame_pop`` so
+/// arrays a returning proc created don't leak into the next call at
+/// the same depth.  Also called on ``frame_push`` defensively in case
+/// a previous push at this slot didn't clean up (interpreter trap, …).
+pub fn drop_local_arrays_for_depth(frame_depth: u32) void {
+    if (dir_buf == 0) return;
+    // Build the depth-specific prefix once.
+    var prefix_buf: [LOCAL_PREFIX.len + 12]u8 = undefined;
+    var pi: u32 = 0;
+    for (LOCAL_PREFIX) |b| { prefix_buf[pi] = b; pi += 1; }
+    var d_tmp: [10]u8 = undefined;
+    var d_len: u32 = 0;
+    var d_val: u32 = frame_depth;
+    if (d_val == 0) { d_tmp[0] = '0'; d_len = 1; } else {
+        while (d_val > 0) {
+            d_tmp[d_len] = @intCast('0' + (d_val % 10));
+            d_val /= 10;
+            d_len += 1;
+        }
+    }
+    var di: u32 = d_len;
+    while (di > 0) {
+        di -= 1;
+        prefix_buf[pi] = d_tmp[di];
+        pi += 1;
+    }
+    prefix_buf[pi] = ':'; pi += 1;
+    prefix_buf[pi] = ':'; pi += 1;
+
+    var i: u32 = 0;
+    while (i < dir_cap) : (i += 1) {
+        const bucket = dir_buf + i * DIR_BUCKET_SIZE;
+        const ep: u32 = @bitCast(read_i32(bucket));
+        if (ep == 0) continue; // empty
+        if (ep == @as(u32, 0xFFFFFFFF)) continue; // tombstone
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        if (el < pi) continue;
+        const sp: [*]const u8 = @ptrFromInt(ep);
+        var match = true;
+        for (0..pi) |k| { if (sp[k] != prefix_buf[k]) { match = false; break; } }
+        if (!match) continue;
+        // Release the array's element table values, then tombstone.
+        const t: u32 = @bitCast(read_i32(bucket + 12));
+        if (t != 0) {
+            const cap = ar_cap(t);
+            var j: u32 = 0;
+            while (j < cap) : (j += 1) {
+                const eb = t + AR_HEADER_SIZE + j * AR_BUCKET_SIZE;
+                const raw = read_i32(eb);
+                if (raw == 0 or raw == AR_TOMBSTONE) continue;
+                const old: i32 = read_i32(eb + 12);
+                if (old != 0) obj.tcl_obj_release(old);
+                write_i32(eb, AR_TOMBSTONE);
+            }
+        }
+        write_i32(bucket, @bitCast(@as(u32, 0xFFFFFFFF))); // tombstone
+    }
+}
+
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
@@ -70,6 +197,15 @@ fn dir_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
         const bucket = dir_buf + idx * DIR_BUCKET_SIZE;
         const ep: u32 = @bitCast(read_i32(bucket));
         if (ep == 0) return null;
+        // Phase 1: ``drop_local_arrays_for_depth`` tombstones entries
+        // it removes (``ep == 0xFFFFFFFF``).  Skip past them — the
+        // probe chain may have grown over them while they were live,
+        // so we cannot stop here without breaking lookups for entries
+        // hashed earlier.
+        if (ep == @as(u32, 0xFFFFFFFF)) {
+            idx = (idx + 1) & mask;
+            continue;
+        }
         const el: u32 = @bitCast(read_i32(bucket + 4));
         const eh: u32 = @bitCast(read_i32(bucket + 8));
         if (eh == hash and el == name_len) {
@@ -96,7 +232,12 @@ fn dir_insert(name_ptr: u32, name_len: u32, hash: u32, table_ptr: u32) void {
     var idx = hash & mask;
     while (true) {
         const bucket = dir_buf + idx * DIR_BUCKET_SIZE;
-        if (read_i32(bucket) == 0) {
+        const ep: u32 = @bitCast(read_i32(bucket));
+        // Empty (ep == 0) and tombstoned (ep == 0xFFFFFFFF) buckets
+        // are both reusable for inserts.  The find path skips
+        // tombstones so claiming one here doesn't shadow live entries
+        // probed via the same chain.
+        if (ep == 0 or ep == @as(u32, 0xFFFFFFFF)) {
             const nbuf = alloc(name_len);
             memcpy(nbuf, name_ptr, name_len);
             write_i32(bucket, @bitCast(nbuf));
@@ -124,7 +265,7 @@ fn dir_grow() void {
     while (j < old_cap) : (j += 1) {
         const bucket = old_buf + j * DIR_BUCKET_SIZE;
         const ep: u32 = @bitCast(read_i32(bucket));
-        if (ep == 0) continue;
+        if (ep == 0 or ep == @as(u32, 0xFFFFFFFF)) continue; // empty / tombstone
         const el: u32 = @bitCast(read_i32(bucket + 4));
         const eh: u32 = @bitCast(read_i32(bucket + 8));
         const tp: u32 = @bitCast(read_i32(bucket + 12));
@@ -726,30 +867,18 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const ps = obj_ensure_string(pattern);
         break :blk ps.len > 0;
     };
-    const matches = struct {
-        fn go(use: bool, pat: i32, key_ptr: u32, key_len: u32) bool {
-            if (!use) return true;
-            const k = obj_new_string(@bitCast(key_ptr), @bitCast(key_len));
-            const r = str_mod.string_match(pat, k);
-            return obj_get_int(r) != 0;
-        }
-    }.go;
-
     const t = find_table(arr);
-    const cap = if (t == 0) 0 else ar_cap(t);
+    if (t == 0) return obj_new_string(0, 0);
+    const cap = ar_cap(t);
 
-    // Two-pass accumulator: count + assemble.  First pass gathers
-    // both the array directory entries (for global / namespace-
-    // qualified arrays) and any frame-local "arr(key)" scalars
-    // (set-1.26 — proc-local arrays live in the frame, not in the
-    // directory).
+    // Two-pass build: size, then assemble.  Phase 1 routes proc-local
+    // arrays through the same directory under ``::__local::*`` keys,
+    // so a single pass over the per-array element table covers every
+    // scope uniformly.  Raw byte concat (no list-element quoting)
+    // matches Tcl's ``lsort``-style output for elements that contain
+    // unescaped quotes or commas.
     var total: u32 = 0;
     var nonempty: u32 = 0;
-
-    // Sizing pass: directory entries.  Match Tcl ``lsort``-style raw
-    // byte concat — array_names emits elements without re-quoting
-    // (set-1.26 expects raw-byte output, including unescaped ``"``
-    // mid-element).
     var i: u32 = 0;
     while (i < cap) : (i += 1) {
         const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
@@ -757,49 +886,16 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
-        if (!matches(use_filter, pattern, ep, el)) continue;
+        if (use_filter) {
+            const k = obj_new_string(@bitCast(ep), @bitCast(el));
+            if (obj_get_int(str_mod.string_match(pattern, k)) == 0) continue;
+        }
         total += el;
         if (nonempty > 0) total += 1;
         nonempty += 1;
     }
-
-    // Sizing pass: frame-local ``<arr>(<elem>)`` scalars.
-    const frames = @import("../interp/tcl_frames.zig");
-    const arr_s = obj_ensure_string(arr);
-    const SizeCtx = struct {
-        total: u32,
-        nonempty: u32,
-        use: bool,
-        pat: i32,
-        match_fn: *const fn (use: bool, pat: i32, key_ptr: u32, key_len: u32) bool,
-    };
-    var size_ctx: SizeCtx = .{
-        .total = total,
-        .nonempty = nonempty,
-        .use = use_filter,
-        .pat = pattern,
-        .match_fn = &matches,
-    };
-    const size_cb = struct {
-        fn go(ctx: *anyopaque, elem_ptr: u32, elem_len: u32) void {
-            const c: *SizeCtx = @ptrCast(@alignCast(ctx));
-            if (!c.match_fn(c.use, c.pat, elem_ptr, elem_len)) return;
-            c.total += elem_len;
-            if (c.nonempty > 0) c.total += 1;
-            c.nonempty += 1;
-        }
-    }.go;
-    if (arr_s.len > 0) {
-        frames.frame_iter_local_array(arr_s.ptr, arr_s.len, &size_ctx, size_cb);
-    }
-    total = size_ctx.total;
-    nonempty = size_ctx.nonempty;
-
     if (nonempty == 0) return obj_new_string(0, 0);
     const buf = alloc(total);
-
-    // Emit pass: directory entries.  Use ``list_elem_quote`` so
-    // elements containing spaces / special chars get braced.
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -809,7 +905,10 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         if (raw == 0 or raw == AR_TOMBSTONE) continue;
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
-        if (!matches(use_filter, pattern, ep, el)) continue;
+        if (use_filter) {
+            const k = obj_new_string(@bitCast(ep), @bitCast(el));
+            if (obj_get_int(str_mod.string_match(pattern, k)) == 0) continue;
+        }
         if (written > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';
@@ -819,43 +918,6 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         off += el;
         written += 1;
     }
-
-    // Emit pass: frame-local entries.
-    const EmitCtx = struct {
-        buf: u32,
-        off: u32,
-        written: u32,
-        use: bool,
-        pat: i32,
-        match_fn: *const fn (use: bool, pat: i32, key_ptr: u32, key_len: u32) bool,
-    };
-    var emit_ctx: EmitCtx = .{
-        .buf = buf,
-        .off = off,
-        .written = written,
-        .use = use_filter,
-        .pat = pattern,
-        .match_fn = &matches,
-    };
-    const emit_cb = struct {
-        fn go(ctx: *anyopaque, elem_ptr: u32, elem_len: u32) void {
-            const c: *EmitCtx = @ptrCast(@alignCast(ctx));
-            if (!c.match_fn(c.use, c.pat, elem_ptr, elem_len)) return;
-            if (c.written > 0) {
-                const d: [*]u8 = @ptrFromInt(c.buf + c.off);
-                d[0] = ' ';
-                c.off += 1;
-            }
-            memcpy(c.buf + c.off, elem_ptr, elem_len);
-            c.off += elem_len;
-            c.written += 1;
-        }
-    }.go;
-    if (arr_s.len > 0) {
-        frames.frame_iter_local_array(arr_s.ptr, arr_s.len, &emit_ctx, emit_cb);
-    }
-    off = emit_ctx.off;
-
     return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 
@@ -875,7 +937,10 @@ pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     while (i < dir_cap) : (i += 1) {
         const bucket = dir_buf + i * DIR_BUCKET_SIZE;
         const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
+        if (name_ptr == 0 or name_ptr == @as(u32, 0xFFFFFFFF)) continue;
+        // Skip Phase-1 internal names (``::__local::*``) so
+        // ``info vars`` etc. don't surface them.
+        if (name_ptr_is_local_internal(name_ptr, @bitCast(read_i32(bucket + 4)))) continue;
         const name_len: u32 = @bitCast(read_i32(bucket + 4));
         const table_ptr: u32 = @bitCast(read_i32(bucket + 12));
         if (table_ptr == 0) continue; // array_unset'd
@@ -893,7 +958,10 @@ pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     while (i < dir_cap) : (i += 1) {
         const bucket = dir_buf + i * DIR_BUCKET_SIZE;
         const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
+        if (name_ptr == 0 or name_ptr == @as(u32, 0xFFFFFFFF)) continue;
+        // Skip Phase-1 internal names (``::__local::*``) so
+        // ``info vars`` etc. don't surface them.
+        if (name_ptr_is_local_internal(name_ptr, @bitCast(read_i32(bucket + 4)))) continue;
         const name_len: u32 = @bitCast(read_i32(bucket + 4));
         const table_ptr: u32 = @bitCast(read_i32(bucket + 12));
         if (table_ptr == 0) continue;

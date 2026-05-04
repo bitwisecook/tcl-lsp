@@ -56,11 +56,16 @@ fn eval_unset(words: []const i32) i32 {
         if (w.len == 0) continue;
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
         if (wp[0] == '-') continue;
-        // Clear the array table before nulling the variable so that
-        // ``info exists`` on an upvar alias finds no stale array
-        // entries after an ``unset`` (Tcl semantics: unset removes
-        // both the scalar slot and any associated array).
-        _ = tcl_array.array_unset(words[i]);
+        // Clear the array table before nulling the variable so
+        // ``info exists arr`` returns 0 after ``unset arr``.  Phase
+        // 1: route through ``frame_resolve_array_name`` so a
+        // proc-local ``unset arr`` evicts the
+        // ``::__local::<depth>::arr`` directory entry, not just a
+        // global ``arr``.
+        const resolved_arr = frames.frame_resolve_array_name(words[i]);
+        const tcl_obj_mod = @import("../valtypes/tcl_obj.zig");
+        defer if (resolved_arr != words[i]) tcl_obj_mod.tcl_obj_release(resolved_arr);
+        _ = tcl_array.array_unset(resolved_arr);
         // Namespace-qualified names (containing ``::``) always live in
         // the global table, even without a leading ``::`` prefix.
         var is_global: bool = (w.len >= 2 and wp[0] == ':' and wp[1] == ':');

@@ -365,6 +365,13 @@ fn frame_grow_at_base(base: u32) u32 {
 /// Pop the current call frame. Caller should not access frame locals after this.
 pub export fn frame_pop() void {
     if (frame_depth > 0) {
+        // Phase 1: drop every ``::__local::<depth>::*`` array that
+        // belonged to this frame from the global directory.  Without
+        // this the next call at the same depth would inherit the
+        // returning frame's array elements and ``info exists arr``
+        // / ``array names arr`` would lie.
+        const tcl_array = @import("../valtypes/tcl_array.zig");
+        tcl_array.drop_local_arrays_for_depth(frame_depth);
         frame_depth -= 1;
         // MM-B.5: release the argv reference we retained in
         // frame_set_argv before clearing the slot.
@@ -650,53 +657,6 @@ fn frame_at_depth(abs_depth: u32) ?u32 {
 fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     const t = frame_table(base);
     return t.find(name_ptr, name_len, hash);
-}
-
-/// Enumerate every name in the current frame's hash table whose key
-/// looks like ``<arr>(<elem>)`` for the given array name.  Calls
-/// ``callback(elem_ptr, elem_len)`` for each match.  Used by
-/// ``array_names`` so locally-stored array elements (which we keep as
-/// frame-local scalars literally named ``arr(key)`` per the discussion
-/// in :func:`var_set`) become visible to introspection (set-1.26).
-///
-/// Walks the raw bucket array directly because the generic
-/// :type:`hash_table.Table` doesn't expose an iterator.  Skips empty
-/// (``ep == 0``) and tombstoned (``ep == TOMBSTONE``) buckets.
-pub fn frame_iter_local_array(
-    arr_name_ptr: u32,
-    arr_name_len: u32,
-    ctx: *anyopaque,
-    callback: *const fn (ctx: *anyopaque, elem_ptr: u32, elem_len: u32) void,
-) void {
-    const base = current_frame() orelse return;
-    const t = frame_table(base);
-    if (t.buf == 0 or t.cap == 0) return;
-    const cap = t.cap;
-    const ap: [*]const u8 = if (arr_name_len > 0) @ptrFromInt(arr_name_ptr) else undefined;
-    var i: u32 = 0;
-    while (i < cap) : (i += 1) {
-        const bucket = t.buf + i * FRAME_BUCKET_SIZE;
-        const ep: u32 = @bitCast(read_i32(bucket));
-        if (ep == 0) continue;
-        const TOMBSTONE: u32 = 0xFFFFFFFF;
-        if (ep == TOMBSTONE) continue;
-        const el: u32 = @bitCast(read_i32(bucket + 4));
-        // Match ``<arr_name>(<...>)`` exactly.  Need at least
-        // ``arr_name_len + 2`` (for the parens).
-        if (el < arr_name_len + 2) continue;
-        const sp: [*]const u8 = @ptrFromInt(ep);
-        // Prefix match.
-        var match = true;
-        for (0..arr_name_len) |k| {
-            if (sp[k] != ap[k]) { match = false; break; }
-        }
-        if (!match) continue;
-        if (sp[arr_name_len] != '(') continue;
-        if (sp[el - 1] != ')') continue;
-        const elem_start = arr_name_len + 1;
-        const elem_len = el - 1 - elem_start;
-        callback(ctx, ep + elem_start, elem_len);
-    }
 }
 
 fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) void {
@@ -1149,24 +1109,16 @@ pub export fn var_resolve(name: i32) i32 {
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
-            // Inside a proc frame, check for a local "arr(key)" slot
-            // stored by the matching var_set path before falling through
-            // to the global array directory.
-            if (current_frame()) |base| {
-                const full_hash = fnv1a(sn.ptr, sn.len);
-                if (frame_find(base, sn.ptr, sn.len, full_hash)) |bucket| {
-                    const v = read_i32(bucket + OFF_VALUE);
-                    if (v != ALIAS_GLOBAL and !is_alias_ext(v)) return v;
-                }
-            }
+            // Phase 1: a single lookup path.  The Variable lives in
+            // the array directory; ``frame_resolve_array_name`` picks
+            // global / namespace / proc-local based on context.
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
-            // Resolve upvar alias so ``set a($k)`` inside a proc where
-            // ``a`` is aliased to global array ``x`` finds ``x``, not ``a``.
             const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
             const v = tcl_array.array_get(resolved_arr, key);
             obj.tcl_obj_release(arr_name);
+            if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
             obj.tcl_obj_release(key);
             return v;
         }
@@ -1261,40 +1213,20 @@ pub export fn var_set(name: i32, value: i32) i32 {
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
-            // Inside a proc frame, array-element writes are LOCAL unless
-            // the array name is aliased to global (via ``global arr`` or
-            // ``upvar``).  Without this check, ``foreach {a(3)} ...``
-            // inside a proc would write to the global array directory,
-            // corrupting subsequent top-level code that reads ``$a``.
-            if (current_frame()) |base| {
-                const arr_hash = fnv1a(sn.ptr, paren);
-                const is_aliased: bool = blk: {
-                    if (frame_find(base, sn.ptr, paren, arr_hash)) |bucket| {
-                        const v = read_i32(bucket + OFF_VALUE);
-                        // ALIAS_GLOBAL and ALIAS_EXT (upvar) both mean the
-                        // array lives in the global directory; route writes
-                        // there.  An unaliased local array variable stores
-                        // elements as frame-local "arr(key)" scalars.
-                        break :blk v == ALIAS_GLOBAL or is_alias_ext(v);
-                    }
-                    break :blk false;
-                };
-                if (!is_aliased) {
-                    // Store the element as a frame-local scalar keyed by
-                    // the full "arr(key)" string.  This keeps proc-local
-                    // array writes invisible to the global array directory.
-                    return local_set(name, value);
-                }
-            }
+            // Phase 1 unification: every array — global, namespace,
+            // proc-local — lives in the same ``tcl_array`` directory.
+            // ``frame_resolve_array_name`` picks the right key:
+            //   * already-FQ ``::ns::arr``  → unchanged.
+            //   * upvar / global alias       → follow alias to target.
+            //   * unaliased proc-local       → ``::__local::<depth>::arr``.
+            //   * top-level                  → unchanged (global).
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
-            // Resolve upvar alias so writes via ``set a($k) v`` inside a proc
-            // where ``a`` is aliased (via upvar) to global array ``x`` land in
-            // ``x``, not a local shadow.
             const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
             _ = tcl_array.array_set(resolved_arr, key, value);
             obj.tcl_obj_release(arr_name);
+            if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
             obj.tcl_obj_release(key);
             return value;
         }
@@ -1340,18 +1272,15 @@ pub export fn var_exists(name: i32) i32 {
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            // Phase 1: route through ``frame_resolve_array_name`` so a
+            // proc-local ``info exists arr(key)`` finds the
+            // ``::__local::<depth>::arr`` directory entry.
+            const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
-            const exists = tcl_array.array_element_exists(arr_name, key);
-            // Issue #317: ``arr_name`` and ``key`` are scratch
-            // borrowing-form TclObjs (cap = 0, bytes belong to
-            // ``sn``).  ``array_element_exists`` only reads their
-            // bytes for the lookup; without these releases every
-            // ``info exists arr(idx)`` probe leaked two TclObj
-            // headers, and tcltest's constraint sweep
-            // (``info exists testConstraints($c)``) hits this path
-            // many times per test.
+            const exists = tcl_array.array_element_exists(resolved_arr, key);
             obj.tcl_obj_release(arr_name);
+            if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
             obj.tcl_obj_release(key);
             return exists;
         }
@@ -1379,6 +1308,12 @@ pub export fn var_exists(name: i32) i32 {
 /// When there is no alias, return *local_name* unchanged.
 pub export fn frame_resolve_array_name(local_name: i32) i32 {
     const sn = obj_ensure_string(local_name);
+    // Already-FQ names (``::nsa::name``) bypass scope resolution —
+    // they point at a specific global / namespace array directly.
+    if (sn.len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        if (sp[0] == ':' and sp[1] == ':') return local_name;
+    }
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
@@ -1391,7 +1326,16 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                     return tgt;
                 }
             }
+            if (v == ALIAS_GLOBAL) return local_name; // global alias keeps the same name
         }
+        // Phase 1 unification: an unqualified, unaliased array inside
+        // a proc frame lives in the global directory under a synthetic
+        // ``::__local::<depth>::<name>`` key so :func:`array_names`,
+        // ``array exists``, etc. all reach the same storage as
+        // ``set arr(key)`` / ``$arr(key)``.  ``frame_pop`` evicts these
+        // entries via ``drop_local_arrays_for_depth``.
+        const tcl_array = @import("../valtypes/tcl_array.zig");
+        return tcl_array.make_local_array_obj(local_name, frame_depth);
     }
     return local_name;
 }

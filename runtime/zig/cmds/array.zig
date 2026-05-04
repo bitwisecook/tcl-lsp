@@ -41,39 +41,36 @@ pub fn eval(words: []const i32) i32 {
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     const array_mod = @import("../valtypes/tcl_array.zig");
+    const frames_mod = @import("../interp/tcl_frames.zig");
+    // Phase 1: every array subcommand routes its array-name argument
+    // through ``frame_resolve_array_name`` so the local / global /
+    // namespace / aliased cases all reach the right table.  The
+    // resolved obj is owned here; release after use unless it
+    // aliases the input.
+    const resolved_name: i32 = frames_mod.frame_resolve_array_name(words[2]);
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    defer if (resolved_name != words[2]) obj_mod.tcl_obj_release(resolved_name);
     if (str_eq(sp, sub.len, "get")) {
-        if (words.len >= 4) return array_mod.array_get(words[2], words[3]);
-        return array_mod.array_get(words[2], obj_new_string(0, 0));
+        if (words.len >= 4) return array_mod.array_get(resolved_name, words[3]);
+        return array_mod.array_get(resolved_name, obj_new_string(0, 0));
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 4) {
-        // ``array set arr pairlist`` — the payload is a Tcl list
-        // of ``{k v k v …}`` pairs.  We always route through
-        // ``array_set_list`` because even a single-pair invocation
-        // (``array set a {key value}``) is just a 2-element list.
-        // The previous shape ``array_set(words[2], words[3], 0)``
-        // stored the whole payload under one key with a null
-        // value — that silently broke tcltest's
-        // ``ArrayDefault numTests [list Total 0 …]``
-        // initialisation (``incr numTests(Total)`` then ran on
-        // an uninitialised element).
-        return array_mod.array_set_list(words[2], words[3]);
+        // ``array set arr pairlist`` — payload is a flat
+        // ``{k v k v …}`` list, always routed through
+        // ``array_set_list`` even for the single-pair shape so
+        // tcltest's ``ArrayDefault`` initialiser populates each
+        // element individually.
+        return array_mod.array_set_list(resolved_name, words[3]);
     }
-    if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(words[2]);
+    if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(resolved_name);
     if (str_eq(sp, sub.len, "names")) {
-        // ``array names arr ?pattern? ?mode?`` — we handle the
-        // first two positions; ``mode`` (``-exact`` / ``-glob`` /
-        // ``-regexp``) beyond glob isn't wired yet.
-        // Resolve upvar aliases so ``array names a`` inside a proc where
-        // ``a`` is aliased to a global array ``x`` finds the correct table.
-        const frames_mod = @import("../interp/tcl_frames.zig");
-        const resolved_name: i32 = frames_mod.frame_resolve_array_name(words[2]);
         const pat: i32 = if (words.len >= 4) words[3] else 0;
         return array_mod.array_names(resolved_name, pat);
     }
-    if (str_eq(sp, sub.len, "size")) return array_mod.array_size(words[2]);
+    if (str_eq(sp, sub.len, "size")) return array_mod.array_size(resolved_name);
     if (str_eq(sp, sub.len, "unset")) {
-        if (words.len >= 4) return array_mod.array_unset_element(words[2], words[3]);
-        return array_mod.array_unset(words[2]);
+        if (words.len >= 4) return array_mod.array_unset_element(resolved_name, words[3]);
+        return array_mod.array_unset(resolved_name);
     }
     // Other subcommands (statistics, startsearch, …) not yet wired —
     // fall through to the stub dispatch which raises the exception.
