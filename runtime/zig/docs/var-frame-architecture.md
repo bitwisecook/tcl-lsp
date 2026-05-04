@@ -224,20 +224,151 @@ parse-9.1 (currently `testevalex`-skipped) actually run.
   `array_get`) continue to work — they become thin shims over the
   new core during phases 1–2.
 
-## Out of scope (for now)
+## Phases 6–10 (formerly "out of scope")
 
-* `trace add variable` support (the `traces` field is there to keep
-  the door open).
-* Bytecode-level direct frame access (we still go through the
-  hash table).
-* Cross-thread / cross-interp variable access beyond what
-  `interp alias` already does.
+The phases above (1–5) close the bugs we're tripping over today.
+Phases 6–10 round out the model to handle features we don't
+implement yet but that the unified design naturally accommodates.
+Each is independently landable after phases 1–5.
+
+### Phase 6: Variable traces
+
+`trace add variable name ops cmd` — install a callback that fires
+on read / write / unset of a variable.  The `Variable.traces`
+field reserved in phase 1 is the storage; this phase wires the
+callbacks:
+
+```zig
+pub const TraceList = struct {
+    head: ?*Trace,
+};
+pub const Trace = struct {
+    next: ?*Trace,
+    ops: TraceOps,             // bitmask: READ | WRITE | UNSET | ARRAY
+    cmd_prefix: i32,           // TclObj — script prefix to invoke
+};
+```
+
+Hook points: `var_set` / `var_lookup` (read) / `var_unset` /
+`array_set` walk the variable's `traces` list and invoke each
+callback with `(name, op)`.  Re-entrancy is guarded by a per-
+variable "trace active" bit so a write trace that sets the same
+variable doesn't loop.
+
+Closes: `trace.test` (currently mostly skipped), `var.test`
+trace-related cases.
+
+### Phase 7: Compile-time variable resolution
+
+The bytecode compiler currently emits `var_set` / `var_resolve`
+calls keyed on the variable name string — every call hashes the
+name.  With Phase 1's typed variables, the compiler can resolve a
+local name once at compile time to a frame slot index and emit
+direct `frame_local_at(idx)` accesses, skipping the hash on every
+call.
+
+```zig
+pub const ProcLocal = struct {
+    name: []const u8,          // for `info locals`
+    slot: u32,                 // index into Frame.locals_array
+    has_default: bool,
+    default_value: i32,
+};
+pub const Frame = struct {
+    parent: ?*Frame,
+    namespace: *Namespace,
+    cmd_source: ?SourceSpan,
+    cmd_obj: i32,
+    locals_array: []Variable,  // direct-indexed; for compiled procs
+    locals_table: VariableTable, // hash for dynamic / unknown names
+    argv: ?[]i32,
+};
+```
+
+Compiled procs get the array form (zero-hash); interpreted bodies
+fall back to the table.  `info locals` walks both.
+
+Closes: `proc.test` `Tcl 9` semantic gaps; major perf win on tight
+loops that hammer the same name.
+
+### Phase 8: Real Tcl call-frame stack for `info frame` / `info level`
+
+`info frame` returns rich call-site metadata (script, line, type,
+proc, etc.).  Today we expose only `info level` with a single-arg
+shim.  Phase 8 captures the metadata at frame push time:
+
+```zig
+pub const FrameInfo = struct {
+    type: enum { proc, source, eval, uplevel, alias, unknown },
+    script_obj: i32,           // the script being evaluated
+    line: u32,                 // 1-based line within script
+    cmd_text: i32,             // source slice for the call site
+    proc_name: i32,            // for type=proc
+};
+```
+
+Stamped on `frame_push` from the same source the traceback uses
+(phase 5's `cmd_source`).  The diag module already tracks
+`current_eval_ptr/pos`; phase 8 promotes that into a stack of
+typed entries.
+
+Closes: `info.test` `info frame` cases; debugger / step-over
+support.
+
+### Phase 9: Cross-thread / cross-interp variable channels
+
+Today `interp eval` runs the target interp's script on the calling
+thread.  `interp transfer` (Tcl 8.6+) hands a channel between
+interps; `Tcl_TransferResult` likewise hands a result.  Phase 9
+generalises:
+
+* Each interp gets a typed handle (`*Interp`) instead of the raw
+  base address we use today.
+* Cross-interp variable links (a `Variable.link` whose target is
+  `OtherInterp.namespace.var`) work transparently — the lookup
+  walks links across interp boundaries.
+* `interp transfer` becomes a Variable-link rebinding.
+
+Closes: `interp.test` `interp transfer` cases; `thread`-package
+support if/when we ship one.
+
+### Phase 10: Coroutine-aware frame stacks
+
+`coroutine` / `yield` / `yieldto` swap the active frame stack.
+Today's globals (`frame_stack`, `frame_depth`) make this awkward
+— we have to manually save/restore each global on every yield.
+Phase 10 captures the stack head as a `*FrameContext`:
+
+```zig
+pub const FrameContext = struct {
+    head: ?*Frame,             // top of the active stack
+    depth: u32,
+    saved_eval_ctx: ?*EvalContext, // for nested coros
+};
+pub var current_context: *FrameContext;
+```
+
+`yield` swaps `current_context` to the parent coroutine's; resume
+swaps back.  Dispatched commands always read `current_context.head`
+so they automatically see the right stack.  `frame_push` /
+`frame_pop` mutate `current_context` instead of the file-scope
+globals.
+
+Closes: `coroutine.test` (currently partially supported);
+generator-style iterators in user code.
 
 ## Action item
 
 Treat this doc as the contract for the next round of internal
 plumbing changes. Each phase lands behind a `--strict-vars` style
-build flag if needed, but the public surface stays compatible. The
-remaining stragglers in set.test / parse.test / namespace.test that
-have been deferred as "deep refactor" become tractable once phases 1
-and 4 land.
+build flag if needed, but the public surface stays compatible
+during the migration window — at the END of the refactor, the
+backward-compat shims (e.g. `tcl_array.array_set` proxying to
+`scope.var_set` for an `ARRAY` variable) get deleted, since this
+is an internal runtime and we don't ship a stable C ABI.
+
+The remaining stragglers in set.test / parse.test / namespace.test
+that have been deferred as "deep refactor" become tractable once
+phases 1 and 4 land.  Phases 6–10 unlock features we don't yet
+support (trace, info frame, coroutines, transfer) without further
+restructure — they're additive against the unified core.

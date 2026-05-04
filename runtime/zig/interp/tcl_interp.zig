@@ -1941,6 +1941,33 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Stamp the invoking command's source span on the new frame so
+    // ``Tcl_LogCommandInfo``-style traceback construction can emit
+    // ``\n    while executing\n"<cmd>"`` for every active frame
+    // (parse-9.1).  ``current_eval_ptr/pos`` was set by the caller's
+    // ``eval_script`` immediately before dispatching this command.
+    {
+        const dg = @import("../dispatch/tcl_diag.zig");
+        if (dg.current_eval_ptr != 0 and dg.current_eval_len > dg.current_eval_pos) {
+            // Re-parse the head of the remaining script to find the
+            // current command's exact length.  Cheap (bounded by
+            // MAX_WORDS) and lets the traceback show just the one
+            // command instead of "rest of script".
+            var stamp_tok: [2 * parse.MAX_WORDS]parse.Token = undefined;
+            const cmd_src: [*]const u8 = @ptrFromInt(dg.current_eval_ptr);
+            const cstamp = parse.ParseCommand(cmd_src, dg.current_eval_pos, dg.current_eval_len, &stamp_tok, stamp_tok.len);
+            const span_len: u32 = if (cstamp.next > dg.current_eval_pos) cstamp.next - dg.current_eval_pos else 0;
+            // Trim trailing whitespace / ``;`` / newline so the
+            // traceback span matches the command body, not the
+            // separator.
+            var trimmed: u32 = span_len;
+            while (trimmed > 0) {
+                const c = cmd_src[dg.current_eval_pos + trimmed - 1];
+                if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') trimmed -= 1 else break;
+            }
+            frames.frame_set_cmd_source(dg.current_eval_ptr + dg.current_eval_pos, trimmed);
+        }
+    }
     // Tcl semantics: ``break`` / ``continue`` inside a proc body
     // are local to that body's enclosing loop, NOT the caller's
     // loop.  Save and clear any pending caller-scope flow signal
@@ -2667,18 +2694,13 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
-    // when they return.  Without this the outermost frame's trap
-    // context would be replaced by the innermost — and the reader
-    // would lose the "which fallback fired this?" line.
+    // when they return.  Routes through ``diag.push_eval_ctx`` /
+    // ``pop_eval_ctx`` so the saved chain is also visible to
+    // ``Tcl_LogCommandInfo``-style multi-frame traceback construction
+    // (parse-9.1).
     const diag = @import("../dispatch/tcl_diag.zig");
-    const saved_ptr = diag.current_eval_ptr;
-    const saved_len = diag.current_eval_len;
-    const saved_pos = diag.current_eval_pos;
-    defer {
-        diag.current_eval_ptr = saved_ptr;
-        diag.current_eval_len = saved_len;
-        diag.current_eval_pos = saved_pos;
-    }
+    const saved_ctx_depth = diag.push_eval_ctx();
+    defer diag.pop_eval_ctx(saved_ctx_depth);
 
     // P9.2: fast path — if this body was pre-parsed by
     // ``parse_cache.build_for_body`` (called from ``proc_register``
@@ -2738,39 +2760,54 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // wasm32 4 GiB linear-memory ceiling.
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
-        // ``Tcl_LogCommandInfo``: when a fresh error fires here,
-        // append the failing command's source to ``::errorInfo``.
-        // The ``error_logged`` flag (managed in tcl_catch) prevents
-        // re-stamping as the error unwinds through nested
-        // eval_script frames (parse-9.2).
+        // ``Tcl_LogCommandInfo`` (parse-9.2 / parse-9.1): when an
+        // error fires inside the executed command, append THIS
+        // frame's command source to ``::errorInfo``.  Each frame
+        // in the unwind contributes one ``while executing`` /
+        // ``invoked from within`` line; the dedup happens inside
+        // ``log_command_info`` (last_log_script/pos), and the
+        // unwind stops when ``catch_leave`` clears
+        // ``error_flag`` + ``last_log_*``.
         if (rt.error_flag.* != 0) {
-            const tcl_catch = @import("tcl_catch.zig");
-            if (tcl_catch.error_logged == 0) {
-                log_command_info(script_ptr, cmd.command_start, cmd.command_len);
-                tcl_catch.error_logged = 1;
-            }
+            log_command_info(script_ptr, cmd.command_start, cmd.command_len);
         }
         if (has_signal()) return result;
     }
     return result;
 }
 
-/// Append a ``while executing "<cmd>"`` traceback frame to
-/// ``::errorInfo``.  Mirrors reference Tcl's ``Tcl_LogCommandInfo``
-/// (tclBasic.c): truncates the command span to 150 bytes plus an
-/// ellipsis when the source is longer.  Only called once per
-/// fresh error event (gated on ``error_logged`` in the caller).
+/// Append a single ``while executing "<cmd>"`` (or, on subsequent
+/// calls, ``invoked from within "<cmd>"``) frame to ``::errorInfo``.
+/// Mirrors reference Tcl's ``Tcl_LogCommandInfo`` (tclBasic.c) — the
+/// first call after a fresh error event uses ``while executing``;
+/// every later call as the error unwinds through enclosing
+/// ``eval_script`` frames uses ``invoked from within``.  ``catch``
+/// stops the unwind by clearing ``error_flag``, so the trace
+/// terminates at the catch boundary.
+///
+/// Per-call deduplication: if the same (script_ptr, cmd_start) was
+/// already logged for this error event we skip — guards against an
+/// inner eval_script that re-enters log_command_info before its
+/// caller has unwound (e.g. recursive substitution paths).
 fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     if (cmd_len == 0) return;
     const tcl_catch = @import("tcl_catch.zig");
     const cur = tcl_catch.error_msg;
     if (cur == 0) return;
+    if (script_ptr == tcl_catch.last_log_script and cmd_start == tcl_catch.last_log_pos) return;
     const max_len: u32 = 150;
-    const ellipsis = "...";
     const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
     const need_ellipsis: bool = cmd_len > max_len;
     const cur_s = obj_mod.obj_ensure_string(cur);
-    const prefix = "\n    while executing\n\"";
+    // First frame after a fresh error → ``while executing``;
+    // subsequent unwinding frames → ``invoked from within``.  The
+    // ``last_log_script == 0`` sentinel is reset by ``tcl_cmd_error``
+    // / ``catch_leave`` on each new error event.
+    const prefix: []const u8 = if (tcl_catch.last_log_script == 0)
+        "\n    while executing\n\""
+    else
+        "\n    invoked from within\n\"";
+    const ellipsis = "...";
     const suffix = "\"";
     var total: u32 = cur_s.len + @as(u32, @intCast(prefix.len)) + trunc_len;
     if (need_ellipsis) total += @as(u32, @intCast(ellipsis.len));
@@ -2786,18 +2823,18 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     for (prefix) |b| { dst[off] = b; off += 1; }
     const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
     for (0..trunc_len) |k| { dst[off] = cmdp[k]; off += 1; }
-    if (need_ellipsis) {
-        for (ellipsis) |b| { dst[off] = b; off += 1; }
-    }
+    if (need_ellipsis) for (ellipsis) |b| { dst[off] = b; off += 1; };
     for (suffix) |b| { dst[off] = b; off += 1; }
-    // Only update ``::errorInfo`` — ``error_msg`` (which becomes
-    // the ``catch BODY msg`` variable) MUST stay just the original
-    // error string per Tcl semantics.  The ``while executing`` frame
+    // Only update ``::errorInfo`` — ``error_msg`` (which becomes the
+    // ``catch BODY msg`` variable) MUST stay just the original error
+    // string per Tcl semantics.  The ``while executing`` frame
     // belongs in errorInfo only.
     const new_msg = obj_mod.obj_new_string_take(buf, total, total);
     const info_name = obj_mod.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
     _ = tcl_ns.global_set(info_name, new_msg);
     obj_mod.tcl_obj_release(info_name);
+    tcl_catch.last_log_script = script_ptr;
+    tcl_catch.last_log_pos = cmd_start;
 }
 
 /// Replay pre-parsed command records from a parse-cache slab.

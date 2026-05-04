@@ -183,6 +183,42 @@ pub inline fn mark_dirty(idx: u32, bucket_offset: u32) void {
 // against 0 and fall back to an empty list.
 var frame_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
 
+// Per-frame command-source span — the byte range in the SCRIPT
+// (body bytes) that contained the command which caused this frame
+// to be pushed.  Populated by callers immediately after
+// ``frame_push`` (the dispatcher captures
+// ``diag.current_eval_ptr/pos`` at the call site and forwards
+// them via ``frame_set_cmd_source``).  Used by
+// ``Tcl_LogCommandInfo``-equivalent traceback construction to
+// emit the multi-frame ``while executing "<cmd>"`` chain that
+// reference Tcl 9 reports for nested call sites
+// (parse-9.1 / parse-9.2).
+//
+// ``cmd_source_ptr`` is 0 when the caller didn't populate the
+// slot — the traceback walker treats that as "no frame to
+// report" and skips silently.
+var frame_cmd_ptr: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var frame_cmd_len: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
+/// Stamp the command-source span onto the active frame.  Both args
+/// are 0 to clear the slot (used when the caller doesn't have
+/// useful source bytes — e.g. ``apply`` with a transient body).
+pub export fn frame_set_cmd_source(ptr: u32, len: u32) void {
+    if (frame_depth == 0) return;
+    frame_cmd_ptr[frame_depth - 1] = ptr;
+    frame_cmd_len[frame_depth - 1] = len;
+}
+
+/// Read the command-source span on the frame *offset* steps below
+/// the current one (0 = current).  Returns ``(ptr=0, len=0)`` if
+/// the slot was never populated or if *offset* exceeds the live
+/// stack depth.
+pub fn frame_get_cmd_source(offset: u32) struct { ptr: u32, len: u32 } {
+    if (frame_depth == 0 or offset >= frame_depth) return .{ .ptr = 0, .len = 0 };
+    const idx = frame_depth - 1 - offset;
+    return .{ .ptr = frame_cmd_ptr[idx], .len = frame_cmd_len[idx] };
+}
+
 // Pending ``argv0`` for the next compiled-proc entry.  Set by a
 // compiled caller via ``frame_set_pending_argv0`` immediately
 // before it transfers control to a compiled callee, and consumed
@@ -275,6 +311,10 @@ pub export fn frame_push() i32 {
     // slot so ``info level 0`` after a push without a subsequent
     // ``frame_set_argv`` reads 0, not an outdated list.
     frame_argv[idx] = 0;
+    // Same for the command-source span — recycled slot must not
+    // leak its previous occupant's traceback frame.
+    frame_cmd_ptr[idx] = 0;
+    frame_cmd_len[idx] = 0;
     frame_depth += 1;
     return @intCast(idx);
 }
