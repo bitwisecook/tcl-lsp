@@ -142,7 +142,7 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
         for stmt in script.statements:
             _scan_st(stmt)
 
-    def _scan_st(stmt: IRStatement) -> None:  # type: ignore[type-arg]
+    def _scan_st(stmt: IRStatement) -> None:
         match stmt:
             case IRForeach(body=body):
                 needed.add("tcl_list_length")
@@ -189,8 +189,9 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
                     _scan_s(finally_body)
             case _:
                 # Scan value strings in IRCall / IRAssignValue for cmd-substs.
-                if hasattr(stmt, "args"):
-                    for a in stmt.args:
+                args = getattr(stmt, "args", None)
+                if isinstance(args, (list, tuple)):
+                    for a in args:
                         if isinstance(a, str) and "[" in a:
                             _scan_text_for_cmd_subst(a, needed)
 
