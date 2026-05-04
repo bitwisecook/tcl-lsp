@@ -1623,6 +1623,24 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
             }
         }
     }
+    // Auto-index fallback before declaring the alias target unknown
+    // (parse-8.12).  We're still in the entered-parent-interp scope
+    // and ns_root, so the lookup picks up ``::auto_index`` exactly as
+    // the test expects.
+    const ai_loaded = try_auto_index_load(new_words[0]);
+    if (ai_loaded != 0) {
+        defer obj_mod.tcl_obj_release(ai_loaded);
+        const ai_bucket = procs.proc_lookup(ai_loaded);
+        if (ai_bucket != 0) {
+            // Swap in the loaded FQ name as the dispatched command
+            // name so ``info level 0`` etc see the canonical form.
+            new_words[0] = ai_loaded;
+            obj_mod.tcl_obj_retain(ai_loaded);
+            const result = eval_proc_call_bucket(new_words[0..total], ai_bucket);
+            interp_reg.leave(save);
+            return result;
+        }
+    }
     interp_reg.leave(save);
     const catch_mod = @import("tcl_catch.zig");
     catch_mod.error_unknown_command(new_words[0]);
@@ -1632,6 +1650,30 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
 fn eval_proc_call(words: []const i32) i32 {
     const bucket = procs.proc_lookup(words[0]);
     if (bucket == 0) {
+        // Before declaring the command unknown, try the ``auto_index``
+        // auto-load mechanism (parse-8.12).  Tcl's stdlib ``unknown``
+        // proc consults ``::auto_index($cmd)`` when a command isn't
+        // found and evaluates the value (typically a ``proc`` definition)
+        // to load it.  We replicate that lookup at the C level so the
+        // test passes without shipping init.tcl.
+        const loaded_name = try_auto_index_load(words[0]);
+        if (loaded_name != 0) {
+            defer obj_mod.tcl_obj_release(loaded_name);
+            const bucket2 = procs.proc_lookup(loaded_name);
+            if (bucket2 != 0) {
+                // Replace words[0] with the loaded FQ name so the
+                // dispatched call sees the canonical command name.
+                var new_words: [parse.MAX_WORDS]i32 = undefined;
+                new_words[0] = loaded_name;
+                obj_mod.tcl_obj_retain(loaded_name);
+                var k: u32 = 1;
+                while (k < words.len) : (k += 1) new_words[k] = words[k];
+                const result = eval_proc_call_bucket(new_words[0..words.len], bucket2);
+                obj_mod.tcl_obj_release(loaded_name);
+                return result;
+            }
+            // Loaded but no proc registered — fall through.
+        }
         // Before declaring the command unknown, consult the stub
         // dispatch table — Tcl 8.4–9.0 core commands we haven't
         // implemented (encoding, fconfigure, regexp, trace, …) are
@@ -1653,6 +1695,75 @@ fn eval_proc_call(words: []const i32) i32 {
         return 0;
     }
     return eval_proc_call_bucket(words, bucket);
+}
+
+/// Implement the C-level half of Tcl's ``unknown`` / ``auto_load``
+/// machinery: look up ``::auto_index(<calling-ns>::$cmd)`` first
+/// (mirroring ``auto_load $cmd $namespace``'s namespace probe), then
+/// fall back to ``::auto_index($cmd)``.  Evaluates the matching
+/// entry (conventionally a ``proc`` definition).
+///
+/// Returns the FQ name TclObj that was registered (so the caller can
+/// dispatch via that name) or 0 if no auto_index entry matched or
+/// evaluation failed.  ``current_ns`` at call time supplies the
+/// namespace for the namespaced probe — for ``interp alias``
+/// dispatches that's the global root (TCL_EVAL_INVOKE), so only the
+/// bare entry can match (parse-8.12).
+fn try_auto_index_load(cmd_obj: i32) i32 {
+    if (cmd_obj == 0) return 0;
+    const cmd_s = obj_ensure_string(cmd_obj);
+    if (cmd_s.ptr == 0 or cmd_s.len == 0) return 0;
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const arr_name = obj_mod.obj_new_string_copy(@intFromPtr("::auto_index".ptr), 12);
+    defer obj_mod.tcl_obj_release(arr_name);
+    const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+    const cmd_is_fq = cmd_s.len >= 2 and cmd_p[0] == ':' and cmd_p[1] == ':';
+
+    // 1. Namespaced probe — ``auto_index(<current_ns_full>::<cmd>)``.
+    //    Skipped when caller is at the global root (so the alias-
+    //    dispatch path falls through to the bare-name probe).
+    if (!cmd_is_fq) {
+        const ns_full_ptr = tcl_ns.current_ns_full_ptr();
+        const ns_full_len = tcl_ns.current_ns_full_len();
+        if (ns_full_len > 2) { // ">2" excludes the bare "::" root
+            const total: u32 = ns_full_len + 2 + cmd_s.len;
+            const buf = obj_mod.alloc(total);
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                const nsp: [*]const u8 = @ptrFromInt(ns_full_ptr);
+                var off: u32 = 0;
+                for (0..ns_full_len) |k| { dst[off] = nsp[k]; off += 1; }
+                dst[off] = ':'; off += 1;
+                dst[off] = ':'; off += 1;
+                for (0..cmd_s.len) |k| { dst[off] = cmd_p[k]; off += 1; }
+                const fq_key = obj_mod.obj_new_string_take(buf, total, total);
+                const entry = tcl_array.array_get(arr_name, fq_key);
+                if (entry != 0) {
+                    const es = obj_ensure_string(entry);
+                    if (es.len > 0) {
+                        const r = eval_script(es.ptr, es.len);
+                        if (r != 0) obj_mod.tcl_obj_release(r);
+                        if (rt.error_flag.* == 0) return fq_key;
+                    }
+                }
+                obj_mod.tcl_obj_release(fq_key);
+            }
+        }
+    }
+    // 2. Bare-name probe.
+    const entry2 = tcl_array.array_get(arr_name, cmd_obj);
+    if (entry2 != 0) {
+        const es = obj_ensure_string(entry2);
+        if (es.len > 0) {
+            const r = eval_script(es.ptr, es.len);
+            if (r != 0) obj_mod.tcl_obj_release(r);
+            if (rt.error_flag.* == 0) {
+                obj_mod.tcl_obj_retain(cmd_obj);
+                return cmd_obj;
+            }
+        }
+    }
+    return 0;
 }
 
 /// Build a Tcl list TclObj from every word in ``words`` (the proc
