@@ -50,6 +50,12 @@ pub export fn tcl_cmd_format(fmt: i32, a1: i32, a2: i32, a3: i32) i32 {
     return format_internal(fmt, args[0..]);
 }
 
+/// Variadic ``format`` — args supplied as a slice of TclObj handles.
+/// Used by ``eval_format`` when the caller has more than 3 arguments.
+pub fn tcl_cmd_format_args(fmt: i32, args: []const i32) i32 {
+    return format_internal(fmt, args);
+}
+
 /// Variadic ``format`` — args supplied as a Tcl list TclObj.  Used
 /// by callers that exceed the three-slot ``tcl_cmd_format``
 /// signature, e.g. ``[format "%-*s %-*s %-*s %s" $nl $name $tl $type
