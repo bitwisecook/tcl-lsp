@@ -9,6 +9,7 @@ const frames = @import("../interp/tcl_frames.zig");
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const arena = @import("../valtypes/tcl_arena.zig");
 const tcl_array = @import("../valtypes/tcl_array.zig");
+const catch_mod = @import("../interp/tcl_catch.zig");
 
 const alloc            = rt.alloc;
 const memcpy           = rt.memcpy;
@@ -16,6 +17,26 @@ const read_i32         = obj_mod.read_i32;
 const write_i32        = obj_mod.write_i32;
 const obj_new_string   = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
+
+/// Build an error TclObj from a literal byte slice and route it
+/// through ``tcl_cmd_error``.  Used by :func:`subst_flagged` to
+/// report ``missing close-brace for variable name`` /
+/// ``missing close-bracket`` / ``extra characters after close-brace``
+/// — the fixed-text errors that reference Tcl's ``Tcl_SubstObj`` /
+/// ``ParseTokens`` raise for malformed substitutions.
+fn raise_subst_error(text: []const u8) i32 {
+    const len: u32 = @intCast(text.len);
+    const buf_addr = alloc(len);
+    if (buf_addr == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return 0;
+    }
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    for (text, 0..) |c, k| buf[k] = c;
+    const msg = obj_mod.obj_new_string_take(buf_addr, len, len);
+    catch_mod.tcl_cmd_error(msg);
+    return 0;
+}
 
 /// Expand ``$var`` / ``[cmd]`` / ``\x`` in a raw byte span, with each
 /// substitution kind independently enabled.  ``do_vars`` / ``do_cmds``
@@ -34,6 +55,27 @@ pub fn subst_flagged(
     do_vars: bool,
     do_cmds: bool,
     do_bs: bool,
+) i32 {
+    return subst_flagged_full(wptr, wlen, do_vars, do_cmds, do_bs, false);
+}
+
+/// Same as :func:`subst_flagged` but with explicit ``from_subst_cmd``
+/// gating.  Reference Tcl's ``Tcl_SubstObj`` (the ``subst`` command's
+/// implementation) catches ``TCL_BREAK`` / ``TCL_CONTINUE`` /
+/// ``TCL_RETURN`` from each nested ``[cmd]`` and folds them into the
+/// substituted text — *but* normal word substitution during script
+/// evaluation does NOT: a ``[break]`` inside ``while {1} {puts [break]}``
+/// must propagate to the enclosing ``while`` loop.  Pass ``true``
+/// from the ``subst`` command path; pass ``false`` from
+/// ``subst_word`` / expression substitution / recursive
+/// ``$arr(idx)`` resolution so the flags surface to the caller.
+pub fn subst_flagged_full(
+    wptr: u32,
+    wlen: u32,
+    do_vars: bool,
+    do_cmds: bool,
+    do_bs: bool,
+    from_subst_cmd: bool,
 ) i32 {
     if (wlen == 0) return obj_new_string(0, 0);
     // Defensive bound: any wlen this large is almost certainly a corrupted
@@ -129,9 +171,30 @@ pub fn subst_flagged(
             if (src[i] == '{') {
                 i += 1;
                 const vs = i;
-                while (i < wlen and src[i] != '}') i += 1;
+                while (i < wlen and src[i] != '}') {
+                    // ``\<X>`` inside ``${...}`` consumes two bytes
+                    // verbatim — the brace scanner must skip the
+                    // escape so a ``\}`` doesn't close early.
+                    if (src[i] == '\\' and i + 1 < wlen) i += 2 else i += 1;
+                }
+                if (i >= wlen) {
+                    // Unclosed ``${...}`` — reference Tcl raises
+                    // ``missing close-brace for variable name``
+                    // (parse-18.9 / 18.10 / 18.11 / 18.12).  Cleanup
+                    // happens via the deferred ``arena_restore``;
+                    // any retained source objs are released below
+                    // before we return.
+                    var rj: u32 = 0;
+                    while (rj < n_retained) : (rj += 1) {
+                        const r = read_i32(retained_objs + rj * 4);
+                        if (r != 0) obj_mod.tcl_obj_release(r);
+                    }
+                    arena.arena_free(retained_alloc);
+                    arena.arena_free(pieces_alloc);
+                    return raise_subst_error("missing close-brace for variable name");
+                }
                 const ve = i;
-                if (i < wlen) i += 1;
+                i += 1; // consume '}'
                 const name_obj = obj_new_string(@bitCast(wptr + vs), @bitCast(ve - vs));
                 const val = frames.var_resolve(name_obj);
                 // Release the temp name TclObj immediately — its
@@ -205,25 +268,73 @@ pub fn subst_flagged(
             const cs = i;
             var depth: u32 = 1;
             while (i < wlen and depth > 0) {
+                if (src[i] == '\\' and i + 1 < wlen) {
+                    // ``\<X>`` inside ``[...]`` consumes two bytes;
+                    // depth is unaffected so a ``\[`` / ``\]`` inside
+                    // a sub-script doesn't confuse the matcher.
+                    i += 2;
+                    continue;
+                }
                 if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
                 if (depth > 0) i += 1 else i += 1;
             }
-            // Unclosed ``[``: the loop ran out of source with depth>0
-            // (e.g. ``subst \[`` → arg is the single byte ``[``).  Real
-            // Tcl raises ``missing close-bracket`` here, but ``ce - cs``
-            // below underflows the u32 (cs == 1, ce == 0) and panics in
-            // ReleaseSafe before we can do anything useful.  Skip the
-            // command-substitution attempt; the unterminated fragment
-            // becomes empty.  Plumbing the proper error message through
-            // is a follow-up — this branch only stops the crash so the
-            // rest of the test file can run.
+            // Unclosed ``[``: real Tcl raises ``missing close-bracket``
+            // (parse-18.13, subst-12.1 / 12.2).  Release retained
+            // source refs and free scratch before bailing.
             if (depth != 0) {
-                lit_start = i;
-                continue;
+                var rj: u32 = 0;
+                while (rj < n_retained) : (rj += 1) {
+                    const r = read_i32(retained_objs + rj * 4);
+                    if (r != 0) obj_mod.tcl_obj_release(r);
+                }
+                arena.arena_free(retained_alloc);
+                arena.arena_free(pieces_alloc);
+                return raise_subst_error("missing close-bracket");
             }
             const ce = i - 1;
             const interp = @import("../interp/tcl_interp.zig");
             const result = interp.eval_script(wptr + cs, ce - cs);
+            // Tcl_SubstObj exception handling (parse-18.14..18.27,
+            // subst-8.* / 10.* / 11.*).  Only applies when called
+            // from the ``subst`` command — for normal word
+            // substitution (subst_word) or expression substitution,
+            // break/continue/return must propagate to the enclosing
+            // loop / proc, so we leave the flags alone and let the
+            // caller observe them.  ``error_flag`` we let through in
+            // both paths (the eval_script loop already short-circuits
+            // on it after each command).
+            if (from_subst_cmd) {
+                if (rt.break_flag.* != 0) {
+                    rt.break_flag.* = 0;
+                    lit_start = i;
+                    break;
+                }
+                if (rt.continue_flag.* != 0) {
+                    rt.continue_flag.* = 0;
+                    lit_start = i;
+                    continue;
+                }
+                if (rt.return_flag.* != 0) {
+                    const rv = rt.return_val.*;
+                    rt.return_flag.* = 0;
+                    rt.return_val.* = 0;
+                    if (rv != 0) {
+                        const sv = obj_ensure_string(rv);
+                        push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                        obj_mod.tcl_obj_retain(rv);
+                        write_i32(retained_objs + n_retained * 4, rv);
+                        n_retained += 1;
+                    }
+                    lit_start = i;
+                    continue;
+                }
+            }
+            // Non-subst-cmd path: any break/continue/return flags
+            // remain set on rt.* and propagate to the enclosing
+            // ``eval_script`` loop, which will handle them after this
+            // word's substitution completes.  We deliberately don't
+            // bail early here — a partial substitution result is still
+            // safe to return; the caller's flag check supersedes it.
             if (result != 0) {
                 const sv = obj_ensure_string(result);
                 push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);

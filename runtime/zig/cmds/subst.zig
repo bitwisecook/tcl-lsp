@@ -30,7 +30,10 @@ fn eval_subst(words: []const i32) i32 {
     }
     if (wi >= words.len) return obj_new_string(0, 0);
     const s = obj_ensure_string(words[wi]);
-    return tcl_subst.subst_flagged(s.ptr, s.len, do_vars, do_cmds, do_bs);
+    // ``from_subst_cmd=true`` activates Tcl_SubstObj exception handling:
+    // ``[break]`` / ``[continue]`` / ``[return]`` inside ``[...]`` are
+    // folded into the subst result rather than propagating up.
+    return tcl_subst.subst_flagged_full(s.ptr, s.len, do_vars, do_cmds, do_bs, true);
 }
 
 fn eval_expr(words: []const i32) i32 {
