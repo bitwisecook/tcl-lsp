@@ -137,16 +137,51 @@ pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
 /// ``]``.  Shared helper for :func:`parse_bare` and the substitution
 /// path (``tcl_interp.subst_flagged``) so both use the same nesting
 /// / backslash-escape semantics.
+///
+/// Tracks ``{...}`` braces and ``"..."`` quotes inside the bracket
+/// content so a ``]`` inside a brace-quoted word or quoted string is
+/// treated literally — matching reference Tcl's parser.  Without
+/// this, ``[catch {subst {[set a 1}} msg]`` would scan the inner ``[``
+/// as a depth bump and the outer ``]`` as depth-1 (not 0), causing the
+/// caller to consume the rest of the source into one giant "word".
 pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos + 1;
     var depth: u32 = 1;
     while (p < len and depth > 0) {
-        if (src[p] == '\\' and p + 1 < len) {
+        const c = src[p];
+        if (c == '\\' and p + 1 < len) {
             p += 2;
             continue;
         }
-        if (src[p] == '[') depth += 1;
-        if (src[p] == ']') depth -= 1;
+        if (c == '{') {
+            // Skip a balanced braced word (with backslash escapes).
+            // Brace count is independent of bracket depth.
+            p += 1;
+            var bdepth: u32 = 1;
+            while (p < len and bdepth > 0) {
+                if (src[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                    continue;
+                }
+                if (src[p] == '{') bdepth += 1
+                else if (src[p] == '}') bdepth -= 1;
+                p += 1;
+            }
+            continue;
+        }
+        if (c == '"') {
+            // Skip a quoted string (with backslash escapes).  Inside
+            // a quoted string, ``[``/``]`` are literal so the bracket
+            // depth doesn't change.
+            p += 1;
+            while (p < len and src[p] != '"') {
+                if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+            }
+            if (p < len) p += 1; // skip the closing "
+            continue;
+        }
+        if (c == '[') depth += 1
+        else if (c == ']') depth -= 1;
         p += 1;
     }
     return p;
