@@ -377,25 +377,65 @@ pub fn subst_flagged_full(
                 return raise_subst_error("missing close-bracket");
             }
             const ce = i - 1;
+            // Tcl 9 ``subst`` pre-parses the bracket body to bytecode.
+            // When the parse fails partway (e.g. ``[continue; expr;
+            // set {} {}{}]`` has an "extra characters after
+            // close-brace" error in the third command), Tcl saves the
+            // error, compiles the prefix that DID parse cleanly, and
+            // raises the saved error only after running that prefix.
+            // ``[break]`` exits cleanly without firing the error;
+            // continue/return/normal-completion all end up firing it.
+            //
+            // Mirror that behaviour: pre-walk the bracket body
+            // command-by-command, find the prefix that parses cleanly,
+            // run that prefix, then (for ``subst`` cmd context) fire
+            // the saved error unless ``break_flag`` was raised
+            // (parse-18.19 / 18.20 / 18.21).
+            var eval_len: u32 = ce - cs;
+            var deferred_err: bool = false;
+            if (from_subst_cmd and ce > cs) {
+                const parse_mod = @import("tcl_parse.zig");
+                var pre_pos: u32 = 0;
+                var pre_tok: [2 * parse_mod.MAX_WORDS]parse_mod.Token = undefined;
+                const body_ptr: [*]const u8 = @ptrFromInt(wptr + cs);
+                const body_len: u32 = ce - cs;
+                while (pre_pos < body_len) {
+                    const pcmd = parse_mod.ParseCommand(body_ptr, pre_pos, body_len, &pre_tok, pre_tok.len);
+                    if (pcmd.extra_chars_after_close) {
+                        // The failing command starts at pre_pos.
+                        // Eval the prefix [0..pre_pos) and remember to
+                        // raise the deferred error if we don't break.
+                        eval_len = pre_pos;
+                        deferred_err = true;
+                        break;
+                    }
+                    if (pcmd.next <= pre_pos) break;
+                    pre_pos = pcmd.next;
+                }
+            }
             const interp = @import("../interp/tcl_interp.zig");
-            const result = interp.eval_script(wptr + cs, ce - cs);
-            // Tcl_SubstObj exception handling (parse-18.14..18.27,
-            // subst-8.* / 10.* / 11.*).  Only applies when called
-            // from the ``subst`` command — for normal word
-            // substitution (subst_word) or expression substitution,
-            // break/continue/return must propagate to the enclosing
-            // loop / proc, so we leave the flags alone and let the
-            // caller observe them.  ``error_flag`` we let through in
-            // both paths (the eval_script loop already short-circuits
-            // on it after each command).
+            const result = interp.eval_script(wptr + cs, eval_len);
             if (from_subst_cmd) {
                 if (rt.break_flag.* != 0) {
+                    // Break cleanly aborts the entire subst — even a
+                    // pending deferred parse error is dropped (Tcl 9
+                    // semantics, parse-18.18 vs parse-18.19).
                     rt.break_flag.* = 0;
                     lit_start = i;
                     break;
                 }
                 if (rt.continue_flag.* != 0) {
                     rt.continue_flag.* = 0;
+                    if (deferred_err) {
+                        var rj: u32 = 0;
+                        while (rj < n_retained) : (rj += 1) {
+                            const r = read_i32(retained_objs + rj * 4);
+                            if (r != 0) obj_mod.tcl_obj_release(r);
+                        }
+                        arena.arena_free(retained_alloc);
+                        arena.arena_free(pieces_alloc);
+                        return raise_subst_error("extra characters after close-brace");
+                    }
                     lit_start = i;
                     continue;
                 }
@@ -403,6 +443,17 @@ pub fn subst_flagged_full(
                     const rv = rt.return_val.*;
                     rt.return_flag.* = 0;
                     rt.return_val.* = 0;
+                    if (deferred_err) {
+                        if (rv != 0) obj_mod.tcl_obj_release(rv);
+                        var rj: u32 = 0;
+                        while (rj < n_retained) : (rj += 1) {
+                            const r = read_i32(retained_objs + rj * 4);
+                            if (r != 0) obj_mod.tcl_obj_release(r);
+                        }
+                        arena.arena_free(retained_alloc);
+                        arena.arena_free(pieces_alloc);
+                        return raise_subst_error("extra characters after close-brace");
+                    }
                     if (rv != 0) {
                         const sv = obj_ensure_string(rv);
                         push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
@@ -426,6 +477,21 @@ pub fn subst_flagged_full(
                 obj_mod.tcl_obj_retain(result);
                 write_i32(retained_objs + n_retained * 4, result);
                 n_retained += 1;
+            }
+            // Normal-completion deferred-error fire (parse-18.19 etc):
+            // when the bracket body parsed cleanly up to N commands but
+            // command N+1 had a parse error, raise that error AFTER
+            // running the prefix.  Only the ``subst`` command path
+            // owns this fold (subst_word leaves it to the caller).
+            if (from_subst_cmd and deferred_err) {
+                var rj: u32 = 0;
+                while (rj < n_retained) : (rj += 1) {
+                    const r = read_i32(retained_objs + rj * 4);
+                    if (r != 0) obj_mod.tcl_obj_release(r);
+                }
+                arena.arena_free(retained_alloc);
+                arena.arena_free(pieces_alloc);
+                return raise_subst_error("extra characters after close-brace");
             }
             lit_start = i;
         } else if (do_bs and src[i] == '\\' and i + 1 < wlen) {
