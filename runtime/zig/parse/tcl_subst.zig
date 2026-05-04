@@ -286,7 +286,32 @@ pub fn subst_flagged_full(
                             continue;
                         }
                     }
-                    const elem = tcl_array.array_get(name_obj, key_obj);
+                    // Route the read through ``var_resolve`` so it
+                    // checks the proc-local frame for ``arr(key)``
+                    // scalars FIRST (matching the write side in
+                    // ``var_set``), then falls through to the global
+                    // array directory.  Without this, ``$be(x,y)``
+                    // inside an ``apply`` body always missed the
+                    // local entry and returned empty (set-1.26).
+                    const arr_s = obj_ensure_string(name_obj);
+                    const key_s = obj_ensure_string(key_obj);
+                    const full_len: u32 = arr_s.len + 2 + key_s.len;
+                    const fbuf = alloc(full_len);
+                    var elem: i32 = 0;
+                    if (fbuf != 0) {
+                        const fd: [*]u8 = @ptrFromInt(fbuf);
+                        const ap: [*]const u8 = @ptrFromInt(arr_s.ptr);
+                        for (0..arr_s.len) |k| fd[k] = ap[k];
+                        fd[arr_s.len] = '(';
+                        if (key_s.len > 0) {
+                            const kp: [*]const u8 = @ptrFromInt(key_s.ptr);
+                            for (0..key_s.len) |k| fd[arr_s.len + 1 + k] = kp[k];
+                        }
+                        fd[arr_s.len + 1 + key_s.len] = ')';
+                        const full_obj = obj_new_string(@bitCast(fbuf), @bitCast(full_len));
+                        elem = frames.var_resolve(full_obj);
+                        obj_mod.tcl_obj_release(full_obj);
+                    }
                     obj_mod.tcl_obj_release(name_obj);
                     if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
                     if (elem != 0) {

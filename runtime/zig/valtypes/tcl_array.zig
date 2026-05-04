@@ -721,35 +721,35 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
 /// Pattern of ``0`` or an empty string disables the filter and
 /// returns every key.
 pub export fn array_names(arr: i32, pattern: i32) i32 {
-    const t = find_table(arr);
-    if (t == 0) return obj_new_string(0, 0);
-    const cap = ar_cap(t);
-
-    // Resolve the pattern filter up-front.  Empty pattern → match
-    // everything.  Import ``string_match`` lazily to avoid a
-    // circular ``tcl_string`` import at module init.
     const str_mod = @import("tcl_string.zig");
     const use_filter = pattern != 0 and blk: {
         const ps = obj_ensure_string(pattern);
         break :blk ps.len > 0;
     };
-
-    // Inline matcher wrapper that keeps the hash-table walk tidy.
     const matches = struct {
         fn go(use: bool, pat: i32, key_ptr: u32, key_len: u32) bool {
             if (!use) return true;
             const k = obj_new_string(@bitCast(key_ptr), @bitCast(key_len));
-            // ``string_match`` returns a TclObj wrapping 1 or 0.
             const r = str_mod.string_match(pat, k);
             return obj_get_int(r) != 0;
         }
     }.go;
 
-    // First pass: compute required buffer size.  Skip empty and
-    // tombstoned slots and slots whose key doesn't match the
-    // pattern.
+    const t = find_table(arr);
+    const cap = if (t == 0) 0 else ar_cap(t);
+
+    // Two-pass accumulator: count + assemble.  First pass gathers
+    // both the array directory entries (for global / namespace-
+    // qualified arrays) and any frame-local "arr(key)" scalars
+    // (set-1.26 — proc-local arrays live in the frame, not in the
+    // directory).
     var total: u32 = 0;
     var nonempty: u32 = 0;
+
+    // Sizing pass: directory entries.  Match Tcl ``lsort``-style raw
+    // byte concat — array_names emits elements without re-quoting
+    // (set-1.26 expects raw-byte output, including unescaped ``"``
+    // mid-element).
     var i: u32 = 0;
     while (i < cap) : (i += 1) {
         const bucket = t + AR_HEADER_SIZE + i * AR_BUCKET_SIZE;
@@ -759,11 +759,47 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const el: u32 = @bitCast(read_i32(bucket + 4));
         if (!matches(use_filter, pattern, ep, el)) continue;
         total += el;
-        if (nonempty > 0) total += 1; // separator
+        if (nonempty > 0) total += 1;
         nonempty += 1;
     }
+
+    // Sizing pass: frame-local ``<arr>(<elem>)`` scalars.
+    const frames = @import("../interp/tcl_frames.zig");
+    const arr_s = obj_ensure_string(arr);
+    const SizeCtx = struct {
+        total: u32,
+        nonempty: u32,
+        use: bool,
+        pat: i32,
+        match_fn: *const fn (use: bool, pat: i32, key_ptr: u32, key_len: u32) bool,
+    };
+    var size_ctx: SizeCtx = .{
+        .total = total,
+        .nonempty = nonempty,
+        .use = use_filter,
+        .pat = pattern,
+        .match_fn = &matches,
+    };
+    const size_cb = struct {
+        fn go(ctx: *anyopaque, elem_ptr: u32, elem_len: u32) void {
+            const c: *SizeCtx = @ptrCast(@alignCast(ctx));
+            if (!c.match_fn(c.use, c.pat, elem_ptr, elem_len)) return;
+            c.total += elem_len;
+            if (c.nonempty > 0) c.total += 1;
+            c.nonempty += 1;
+        }
+    }.go;
+    if (arr_s.len > 0) {
+        frames.frame_iter_local_array(arr_s.ptr, arr_s.len, &size_ctx, size_cb);
+    }
+    total = size_ctx.total;
+    nonempty = size_ctx.nonempty;
+
     if (nonempty == 0) return obj_new_string(0, 0);
     const buf = alloc(total);
+
+    // Emit pass: directory entries.  Use ``list_elem_quote`` so
+    // elements containing spaces / special chars get braced.
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -783,6 +819,43 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         off += el;
         written += 1;
     }
+
+    // Emit pass: frame-local entries.
+    const EmitCtx = struct {
+        buf: u32,
+        off: u32,
+        written: u32,
+        use: bool,
+        pat: i32,
+        match_fn: *const fn (use: bool, pat: i32, key_ptr: u32, key_len: u32) bool,
+    };
+    var emit_ctx: EmitCtx = .{
+        .buf = buf,
+        .off = off,
+        .written = written,
+        .use = use_filter,
+        .pat = pattern,
+        .match_fn = &matches,
+    };
+    const emit_cb = struct {
+        fn go(ctx: *anyopaque, elem_ptr: u32, elem_len: u32) void {
+            const c: *EmitCtx = @ptrCast(@alignCast(ctx));
+            if (!c.match_fn(c.use, c.pat, elem_ptr, elem_len)) return;
+            if (c.written > 0) {
+                const d: [*]u8 = @ptrFromInt(c.buf + c.off);
+                d[0] = ' ';
+                c.off += 1;
+            }
+            memcpy(c.buf + c.off, elem_ptr, elem_len);
+            c.off += elem_len;
+            c.written += 1;
+        }
+    }.go;
+    if (arr_s.len > 0) {
+        frames.frame_iter_local_array(arr_s.ptr, arr_s.len, &emit_ctx, emit_cb);
+    }
+    off = emit_ctx.off;
+
     return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 

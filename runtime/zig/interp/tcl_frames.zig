@@ -652,6 +652,53 @@ fn frame_find(base: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     return t.find(name_ptr, name_len, hash);
 }
 
+/// Enumerate every name in the current frame's hash table whose key
+/// looks like ``<arr>(<elem>)`` for the given array name.  Calls
+/// ``callback(elem_ptr, elem_len)`` for each match.  Used by
+/// ``array_names`` so locally-stored array elements (which we keep as
+/// frame-local scalars literally named ``arr(key)`` per the discussion
+/// in :func:`var_set`) become visible to introspection (set-1.26).
+///
+/// Walks the raw bucket array directly because the generic
+/// :type:`hash_table.Table` doesn't expose an iterator.  Skips empty
+/// (``ep == 0``) and tombstoned (``ep == TOMBSTONE``) buckets.
+pub fn frame_iter_local_array(
+    arr_name_ptr: u32,
+    arr_name_len: u32,
+    ctx: *anyopaque,
+    callback: *const fn (ctx: *anyopaque, elem_ptr: u32, elem_len: u32) void,
+) void {
+    const base = current_frame() orelse return;
+    const t = frame_table(base);
+    if (t.buf == 0 or t.cap == 0) return;
+    const cap = t.cap;
+    const ap: [*]const u8 = if (arr_name_len > 0) @ptrFromInt(arr_name_ptr) else undefined;
+    var i: u32 = 0;
+    while (i < cap) : (i += 1) {
+        const bucket = t.buf + i * FRAME_BUCKET_SIZE;
+        const ep: u32 = @bitCast(read_i32(bucket));
+        if (ep == 0) continue;
+        const TOMBSTONE: u32 = 0xFFFFFFFF;
+        if (ep == TOMBSTONE) continue;
+        const el: u32 = @bitCast(read_i32(bucket + 4));
+        // Match ``<arr_name>(<...>)`` exactly.  Need at least
+        // ``arr_name_len + 2`` (for the parens).
+        if (el < arr_name_len + 2) continue;
+        const sp: [*]const u8 = @ptrFromInt(ep);
+        // Prefix match.
+        var match = true;
+        for (0..arr_name_len) |k| {
+            if (sp[k] != ap[k]) { match = false; break; }
+        }
+        if (!match) continue;
+        if (sp[arr_name_len] != '(') continue;
+        if (sp[el - 1] != ')') continue;
+        const elem_start = arr_name_len + 1;
+        const elem_len = el - 1 - elem_start;
+        callback(ctx, ep + elem_start, elem_len);
+    }
+}
+
 fn frame_insert(base: u32, name_ptr: u32, name_len: u32, hash: u32, value: i32) void {
     var current_base = base;
     var attempts: u32 = 0;
