@@ -196,7 +196,17 @@ pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
     return p;
 }
 
-pub const CommandResult = struct { count: u32, next: u32 };
+pub const CommandResult = struct {
+    count: u32,
+    next: u32,
+    /// Set when ``parse_command`` saw a brace-quoted or quoted-string
+    /// word followed immediately by a non-separator byte
+    /// (``set {} {}{}`` or ``foo "bar"baz``).  Reference Tcl raises
+    /// ``extra characters after close-brace`` at parse time; we can't
+    /// raise from this pure-parser module so eval_script picks up the
+    /// flag and routes it through ``tcl_cmd_error``.
+    extra_chars_after_close: bool = false,
+};
 
 pub fn parse_command(
     src: [*]const u8,
@@ -268,6 +278,7 @@ pub fn parse_command(
             }
         }
 
+        var word_kind_brace_or_quote = false;
         if (src[p] == '{') {
             const r = parse_braced(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -276,6 +287,7 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+            word_kind_brace_or_quote = true;
         } else if (src[p] == '"') {
             const r = parse_quoted(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -284,6 +296,7 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+            word_kind_brace_or_quote = true;
         } else {
             const r = parse_bare(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -292,6 +305,19 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+        }
+        // After a brace-quoted or ``"..."``-quoted word, the next
+        // byte must be a word separator (whitespace, ``;``, ``\n``,
+        // ``\r``) or end-of-source.  Anything else is a syntax error
+        // — reference Tcl raises ``extra characters after
+        // close-brace`` (parse-18.19 / 18.20 / 18.21).  Surface it
+        // via the ``extra_chars_after_close`` flag so the caller
+        // (eval_script) can route the error through tcl_cmd_error.
+        if (word_kind_brace_or_quote and p < len) {
+            const c = src[p];
+            if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+                return .{ .count = count, .next = p, .extra_chars_after_close = true };
+            }
         }
     }
     return .{ .count = count, .next = p };
@@ -387,6 +413,9 @@ pub const Parse = struct {
     /// Count of top-level words (``.WORD`` / ``.SIMPLE_WORD``
     /// entries) — convenience for consumers.
     n_words: u32,
+    /// Surfaces the "extra characters after close-brace" parse error.
+    /// See :data:`CommandResult.extra_chars_after_close`.
+    extra_chars_after_close: bool = false,
 };
 
 /// Token-tree form of :func:`parse_command`.  Writes at most
@@ -455,5 +484,6 @@ pub fn ParseCommand(
         .command_len = r.next - pos,
         .next = r.next,
         .n_words = r.count,
+        .extra_chars_after_close = r.extra_chars_after_close,
     };
 }

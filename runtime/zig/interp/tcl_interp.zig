@@ -2598,6 +2598,22 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 
         const cmd = parse.ParseCommand(src, pos, script_len, &tok_buf, tok_buf.len);
         pos = cmd.next;
+        if (cmd.extra_chars_after_close) {
+            // Reference Tcl raises this at parse time; route through
+            // ``tcl_cmd_error`` so a surrounding ``catch`` observes it
+            // and ``::errorInfo`` is stamped (parse-18.19 / 18.20 /
+            // 18.21).
+            const msg_text: []const u8 = "extra characters after close-brace";
+            const buf = obj_mod.alloc(@intCast(msg_text.len));
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                for (msg_text, 0..) |b, k| dst[k] = b;
+                const tcl_catch = @import("tcl_catch.zig");
+                const msg = obj_mod.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+                tcl_catch.tcl_cmd_error(msg);
+            }
+            return result;
+        }
         if (cmd.n_words == 0) continue;
 
         // Release the previous command's result obj before
