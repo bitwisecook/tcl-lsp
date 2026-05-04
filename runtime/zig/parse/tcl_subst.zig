@@ -36,6 +36,17 @@ pub fn subst_flagged(
     do_bs: bool,
 ) i32 {
     if (wlen == 0) return obj_new_string(0, 0);
+    // Defensive bound: any wlen this large is almost certainly a corrupted
+    // Token (likely from the parse cache replaying a slab whose source
+    // buffer was freed).  Without this guard the per-piece scratch sizing
+    // below (wlen*8 / wlen*4) panics on u32 overflow in ReleaseSafe and
+    // takes the whole WASM module down.  Returning the bytes verbatim
+    // matches the no-substitution fast path two lines down and is strictly
+    // safer than allocating ~64 MiB of scratch for a junk span.
+    const MAX_SUBST_WLEN: u32 = 8 * 1024 * 1024;
+    if (wlen > MAX_SUBST_WLEN) {
+        return obj_new_string(@bitCast(wptr), @bitCast(wlen));
+    }
     const src: [*]const u8 = @ptrFromInt(wptr);
     var has_dollar = false;
     var has_bracket = false;
@@ -57,7 +68,7 @@ pub fn subst_flagged(
     const arena_saved = arena.arena_save();
     defer arena.arena_restore(arena_saved);
 
-    const pieces_cap: u32 = wlen * 8;
+    const pieces_cap: u32 = @min(wlen *| 8, 64 * 1024 * 1024);
     const pieces_alloc = arena.arena_alloc_or_libc(pieces_cap);
     const pieces_buf = pieces_alloc.addr;
     if (pieces_buf == 0) {
@@ -80,7 +91,7 @@ pub fn subst_flagged(
     // we're done concatenating, then releases them.  Bound is
     // wlen $-substs / [bracket] subs, so wlen u32s of scratch
     // is the worst case.
-    const retained_cap: u32 = wlen * 4;
+    const retained_cap: u32 = @min(wlen *| 4, 32 * 1024 * 1024);
     const retained_alloc = arena.arena_alloc_or_libc(retained_cap);
     const retained_objs = retained_alloc.addr;
     if (retained_objs == 0) {
@@ -196,6 +207,19 @@ pub fn subst_flagged(
             while (i < wlen and depth > 0) {
                 if (src[i] == '[') depth += 1 else if (src[i] == ']') depth -= 1;
                 if (depth > 0) i += 1 else i += 1;
+            }
+            // Unclosed ``[``: the loop ran out of source with depth>0
+            // (e.g. ``subst \[`` → arg is the single byte ``[``).  Real
+            // Tcl raises ``missing close-bracket`` here, but ``ce - cs``
+            // below underflows the u32 (cs == 1, ce == 0) and panics in
+            // ReleaseSafe before we can do anything useful.  Skip the
+            // command-substitution attempt; the unterminated fragment
+            // becomes empty.  Plumbing the proper error message through
+            // is a follow-up — this branch only stops the crash so the
+            // rest of the test file can run.
+            if (depth != 0) {
+                lit_start = i;
+                continue;
             }
             const ce = i - 1;
             const interp = @import("../interp/tcl_interp.zig");
