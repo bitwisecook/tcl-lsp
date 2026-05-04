@@ -142,6 +142,83 @@ pub fn validate_list_braces(ptr: u32, len: u32) bool {
     return true;
 }
 
+/// Validate that a string is a well-formed Tcl list.  Returns 0 on success.
+/// On failure, raises an error via ``stubs.raise`` and returns -1.
+/// Specifically detects the ``{elem}{next}`` case (brace element not
+/// followed by whitespace or end) which ``count_elements`` silently
+/// ignores but Tcl 9 reports as ``list element in braces followed by
+/// "<token>" instead of space``.
+pub fn check_list_syntax(ptr: u32, len: u32) i32 {
+    if (len == 0 or ptr == 0) return 0;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const obj = @import("tcl_obj.zig");
+    var i: u32 = 0;
+    while (i < len) {
+        while (i < len and is_space(src[i])) i += 1;
+        if (i >= len) break;
+        if (src[i] == '{') {
+            i += 1;
+            var depth: u32 = 1;
+            while (i < len and depth > 0) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '{') depth += 1
+                else if (src[i] == '}') depth -= 1;
+                i += 1;
+            }
+            if (depth > 0) {
+                stubs.raise("unmatched open brace in list");
+                return -1;
+            }
+            // After closing '}', next char must be whitespace or end.
+            if (i < len and !is_space(src[i])) {
+                // Build error: ``list element in braces followed by "<tok>" instead of space``
+                // Capture the offending token (up to first whitespace or end).
+                const tok_start = i;
+                var tok_end = i;
+                while (tok_end < len and !is_space(src[tok_end])) tok_end += 1;
+                const tok_len = tok_end - tok_start;
+                // Build the error message as a TclObj string.
+                const prefix = "list element in braces followed by \"";
+                const suffix = "\" instead of space";
+                const total: u32 = @intCast(prefix.len + tok_len + suffix.len);
+                const buf_addr: u32 = obj.alloc(total);
+                if (buf_addr == 0) {
+                    stubs.raise("list element in braces followed by something instead of space");
+                    return -1;
+                }
+                const buf: [*]u8 = @ptrFromInt(buf_addr);
+                var off: u32 = 0;
+                for (prefix) |c| { buf[off] = c; off += 1; }
+                for (0..tok_len) |k| { buf[off] = src[tok_start + k]; off += 1; }
+                for (suffix) |c| { buf[off] = c; off += 1; }
+                // Route through catch_mod directly (same as stubs.raise but
+                // with a pre-built buffer we already own).
+                const catch_mod = @import("../interp/tcl_catch.zig");
+                const msg_obj2 = obj.obj_new_string_take(buf_addr, total, total);
+                catch_mod.tcl_cmd_error(msg_obj2);
+                return -1;
+            }
+        } else if (src[i] == '"') {
+            i += 1;
+            while (i < len) {
+                if (src[i] == '\\' and i + 1 < len) { i += 2; continue; }
+                if (src[i] == '"') { i += 1; break; }
+                i += 1;
+            }
+        } else {
+            while (i < len and !is_space(src[i])) {
+                if (src[i] == '\\' and i + 1 < len) { i += 2; }
+                else i += 1;
+            }
+        }
+    }
+    return 0;
+}
+
 /// Return the (start, len, braced) span of the nth element (0-based).
 /// Out-of-range requests return a zero-length element so callers can
 /// treat them as empty without a separate ``is_valid`` check.

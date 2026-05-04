@@ -1156,6 +1156,11 @@ pub fn eval_foreach(words: []const i32) i32 {
         while (p < n_pairs) : (p += 1) {
             const varlist_obj = words[1 + p * 2];
             const vls = obj_ensure_string(varlist_obj);
+            // Validate varlist syntax.
+            {
+                const lp = @import("../valtypes/tcl_list_parse.zig");
+                if (lp.check_list_syntax(vls.ptr, vls.len) != 0) return 0;
+            }
             const count = list_count_elements(vls.ptr, vls.len);
             if (count == 0) {
                 stubs.raise("foreach varlist is empty");
@@ -1165,6 +1170,11 @@ pub fn eval_foreach(words: []const i32) i32 {
             steps[p] = step;
 
             const ls = obj_ensure_string(words[2 + p * 2]);
+            // Validate list syntax (e.g. {a}{b} is illegal in Tcl).
+            {
+                const lp = @import("../valtypes/tcl_list_parse.zig");
+                if (lp.check_list_syntax(ls.ptr, ls.len) != 0) return 0;
+            }
             const len = list_count_elements(ls.ptr, ls.len);
             list_lens[p] = len;
             // Iteration count for this pair: ceil(len / step)
