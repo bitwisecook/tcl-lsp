@@ -63,8 +63,12 @@ pub fn eval(words: []const i32) i32 {
         // ``array names arr ?pattern? ?mode?`` — we handle the
         // first two positions; ``mode`` (``-exact`` / ``-glob`` /
         // ``-regexp``) beyond glob isn't wired yet.
+        // Resolve upvar aliases so ``array names a`` inside a proc where
+        // ``a`` is aliased to a global array ``x`` finds the correct table.
+        const frames_mod = @import("../interp/tcl_frames.zig");
+        const resolved_name: i32 = frames_mod.frame_resolve_array_name(words[2]);
         const pat: i32 = if (words.len >= 4) words[3] else 0;
-        return array_mod.array_names(words[2], pat);
+        return array_mod.array_names(resolved_name, pat);
     }
     if (str_eq(sp, sub.len, "size")) return array_mod.array_size(words[2]);
     if (str_eq(sp, sub.len, "unset")) {

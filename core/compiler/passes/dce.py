@@ -70,6 +70,11 @@ from ..ir import (
 # the array name (``arr``) — that's correct for our purposes.
 _VAR_REF_RE = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?)")
 
+# Matches ``[set varname]`` (1-arg form = read).  The 2-arg form
+# ``[set varname value]`` would have non-']' content after the name,
+# so this pattern only matches the read form.
+_SET_READ_RE = re.compile(r"\[set\s+([A-Za-z_][A-Za-z0-9_]*)\s*\]")
+
 
 def dce_module(module: IRModule, summaries: object | None = None) -> IRModule:
     """Return a new module with dead local stores removed.
@@ -504,6 +509,19 @@ def _read_one(stmt: object, counts: dict[str, int]) -> None:
         # Pure literal write — no reads on the RHS.
         return
     if isinstance(stmt, IRCall):
+        # ``set varName`` (1-arg read form): the bare name is a variable read.
+        # _scan_string only finds $var patterns, so without this, DCE sees
+        # reads['varName']=0 and incorrectly deletes writes to varName inside
+        # nested bodies (catch/foreach/while) even when the outer scope reads them.
+        if stmt.command in ("set", "::set") and len(stmt.args) == 1:
+            name = stmt.args[0]
+            if (
+                name
+                and not name.startswith("$")
+                and not name.startswith("[")
+                and _is_dceable_name(name)
+            ):
+                counts[name] = counts.get(name, 0) + 1
         for arg in stmt.args:
             _scan_string(arg, counts)
         for r in stmt.reads:
@@ -572,7 +590,8 @@ def _read_one(stmt: object, counts: dict[str, int]) -> None:
 
 def _scan_string(text: str, counts: dict[str, int]) -> None:
     """Scan ``text`` for ``$var`` / ``${var}`` substitutions and bump the
-    read count for each name found.
+    read count for each name found.  Also recognises ``[set varname]``
+    (the 1-arg read form) as a variable read.
 
     Conservative: any match (even inside what might be a string
     literal a parser would not interpret as a substitution) keeps
@@ -588,5 +607,9 @@ def _scan_string(text: str, counts: dict[str, int]) -> None:
         paren = name.find("(")
         if paren >= 0:
             name = name[:paren]
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+    for m in _SET_READ_RE.finditer(text):
+        name = m.group(1)
         if name:
             counts[name] = counts.get(name, 0) + 1

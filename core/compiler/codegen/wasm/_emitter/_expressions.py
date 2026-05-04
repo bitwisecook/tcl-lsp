@@ -625,9 +625,16 @@ class _WasmEmitterExprMixin(_Base):
         # losing the body's word boundaries when the first body word
         # starts with ``$``.
         if cmd_name == "catch" and cmd_args:
-            self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
-            self._emit_unbox_int()
-            return
+            body = cmd_args[0].strip()
+            if body.startswith("{") and body.endswith("}"):
+                self._emit_catch_from_args(tuple(cmd_args), defs=(), keep_on_stack=True)
+                self._emit_unbox_int()
+                return
+            # Dynamic body — pre-intern result/options vars so the
+            # frame readback after _emit_eval_fallback can reload them.
+            for vname in cmd_args[1:3]:
+                if vname and not vname.startswith("$") and not vname.startswith("["):
+                    self._intern_local(vname)
 
         # ``[set varname]`` — 1-arg read form in expression context
         # (e.g. ``if {[set a(x)] == 1} ...``).  Mirror the value-

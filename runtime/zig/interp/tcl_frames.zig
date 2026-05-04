@@ -1102,10 +1102,23 @@ pub export fn var_resolve(name: i32) i32 {
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
+            // Inside a proc frame, check for a local "arr(key)" slot
+            // stored by the matching var_set path before falling through
+            // to the global array directory.
+            if (current_frame()) |base| {
+                const full_hash = fnv1a(sn.ptr, sn.len);
+                if (frame_find(base, sn.ptr, sn.len, full_hash)) |bucket| {
+                    const v = read_i32(bucket + OFF_VALUE);
+                    if (v != ALIAS_GLOBAL and !is_alias_ext(v)) return v;
+                }
+            }
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            // Resolve upvar alias so ``set a($k)`` inside a proc where
+            // ``a`` is aliased to global array ``x`` finds ``x``, not ``a``.
+            const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
-            const v = tcl_array.array_get(arr_name, key);
+            const v = tcl_array.array_get(resolved_arr, key);
             obj.tcl_obj_release(arr_name);
             obj.tcl_obj_release(key);
             return v;
@@ -1201,10 +1214,39 @@ pub export fn var_set(name: i32, value: i32) i32 {
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
+            // Inside a proc frame, array-element writes are LOCAL unless
+            // the array name is aliased to global (via ``global arr`` or
+            // ``upvar``).  Without this check, ``foreach {a(3)} ...``
+            // inside a proc would write to the global array directory,
+            // corrupting subsequent top-level code that reads ``$a``.
+            if (current_frame()) |base| {
+                const arr_hash = fnv1a(sn.ptr, paren);
+                const is_aliased: bool = blk: {
+                    if (frame_find(base, sn.ptr, paren, arr_hash)) |bucket| {
+                        const v = read_i32(bucket + OFF_VALUE);
+                        // ALIAS_GLOBAL and ALIAS_EXT (upvar) both mean the
+                        // array lives in the global directory; route writes
+                        // there.  An unaliased local array variable stores
+                        // elements as frame-local "arr(key)" scalars.
+                        break :blk v == ALIAS_GLOBAL or is_alias_ext(v);
+                    }
+                    break :blk false;
+                };
+                if (!is_aliased) {
+                    // Store the element as a frame-local scalar keyed by
+                    // the full "arr(key)" string.  This keeps proc-local
+                    // array writes invisible to the global array directory.
+                    return local_set(name, value);
+                }
+            }
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            // Resolve upvar alias so writes via ``set a($k) v`` inside a proc
+            // where ``a`` is aliased (via upvar) to global array ``x`` land in
+            // ``x``, not a local shadow.
+            const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
-            _ = tcl_array.array_set(arr_name, key, value);
+            _ = tcl_array.array_set(resolved_arr, key, value);
             obj.tcl_obj_release(arr_name);
             obj.tcl_obj_release(key);
             return value;
@@ -1278,4 +1320,31 @@ pub export fn var_exists(name: i32) i32 {
     }
     // Check global
     return globals.global_exists(name);
+}
+
+/// Resolve an alias to get the underlying array name for ``array names``,
+/// ``array exists``, ``array size``, etc.  When the current frame has an
+/// ALIAS_EXT entry for *local_name* (created by ``upvar N otherVar
+/// localName``), return the target's name TclObj so array operations can
+/// find the array in the global directory.  For KIND_GLOBAL_NAMED and
+/// KIND_FRAME_VAR descriptors the stored ``tgt`` field IS the name; for
+/// KIND_NS_VAR_PTR the name isn't available, so fall back to *local_name*.
+/// When there is no alias, return *local_name* unchanged.
+pub export fn frame_resolve_array_name(local_name: i32) i32 {
+    const sn = obj_ensure_string(local_name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + OFF_VALUE);
+            if (is_alias_ext(v)) {
+                const desc = alias_desc_ptr(v);
+                const kind = read_i32(desc);
+                const tgt = read_i32(desc + 8);
+                if (kind == KIND_GLOBAL_NAMED or kind == KIND_FRAME_VAR) {
+                    return tgt;
+                }
+            }
+        }
+    }
+    return local_name;
 }

@@ -132,7 +132,11 @@ class TestExponentiation:
         assert _eval("2.0 ** -1") == 0.5
 
     def test_huge_exponent_guard(self):
-        assert _eval("2 ** 100000") is None
+        # Guard triggers at exponent >= 2**28 (268435456) — matches
+        # reference Tcl's INST_EXPON limit.  Values below the limit are
+        # valid bignum operations that must be allowed.
+        assert _eval("2 ** 268435456") is None  # at the limit → guarded
+        assert _eval("2 ** 268435455") is not None  # one below → allowed
 
 
 class TestComparisons:
@@ -901,7 +905,7 @@ class TestTcl9EdgeCases:
         assert _eval("0 ** -1") is None
 
     def test_huge_exponent(self):
-        assert _eval("2 ** 100000") is None
+        assert _eval("2 ** 268435456") is None  # at Tcl's INST_EXPON limit → guarded
 
     def test_rshift_large(self):
         """Large shift amounts should be handled safely."""

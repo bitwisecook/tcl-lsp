@@ -483,7 +483,13 @@ class _WasmEmitterVarMixin(_Base):
         rather than the bare global ``Option(-match)``.
         """
         binding = self._aliases.get(arr)
-        if binding is not None and binding[0] == "global":
+        if binding is not None and binding[0] in ("global", "frame_var"):
+            # For "global" aliases (upvar #0 / variable): target_idx holds
+            # the name of the global.
+            # For "frame_var" aliases (upvar N): target_idx holds the name
+            # of the target variable in the caller frame.  Passing it to the
+            # array helpers routes to the correct array in the global directory
+            # (top-level arrays are stored there regardless of call depth).
             self._emit_local_get(binding[1])
             return
         if arr.startswith("::"):

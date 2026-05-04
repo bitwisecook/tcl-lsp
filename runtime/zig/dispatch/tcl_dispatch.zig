@@ -135,6 +135,7 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
         const suffix: []const u8 = " arg ...\"";
         const total: u32 = @as(u32, @intCast(prefix.len)) + proc_len + @as(u32, @intCast(suffix.len));
         const buf = obj.alloc(total);
+        if (buf == 0) { catch_mod.tcl_cmd_error(0); return 0; }
         const d: [*]u8 = @ptrFromInt(buf);
         for (prefix, 0..) |b, k| d[k] = b;
         if (proc_len > 0) {
@@ -235,6 +236,7 @@ fn build_args_list(words: []const i32, fixed: u32) i32 {
     }
     if (total == 0) return obj.obj_new_string(0, 0);
     const buf = obj.alloc(total);
+    if (buf == 0) return obj.obj_new_string(0, 0);
     var off: u32 = 0;
     i = start;
     while (i < words.len) : (i += 1) {

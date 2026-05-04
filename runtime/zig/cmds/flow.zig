@@ -153,13 +153,19 @@ fn eval_return(words: []const i32) i32 {
 }
 
 fn eval_break(words: []const i32) i32 {
-    _ = words;
+    if (words.len > 1) {
+        stubs.raise("wrong # args: should be \"break\"");
+        return 0;
+    }
     rt.break_flag.* = 1;
     return 0;
 }
 
 fn eval_continue(words: []const i32) i32 {
-    _ = words;
+    if (words.len > 1) {
+        stubs.raise("wrong # args: should be \"continue\"");
+        return 0;
+    }
     rt.continue_flag.* = 1;
     return 0;
 }
