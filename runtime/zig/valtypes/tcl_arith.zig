@@ -451,9 +451,9 @@ pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
     // Bignum path.  Promote base to BigInt, take exponent as u32.
     const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
     defer release_promoted(ap);
-    if (bi > std.math.maxInt(u32)) {
-        // 4-billion-bit result exceeds anything realistic — match the
-        // behaviour of upstream INST_EXPON which raises here.
+    if (bi >= (1 << 28)) {
+        // Reference Tcl refuses exponents >= 2^28 = 268435456 — match
+        // INST_EXPON's "exponent too large" check (tclExecute.c).
         stubs.raise("exponent too large");
         return obj.obj_new_int(0);
     }
