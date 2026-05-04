@@ -297,7 +297,30 @@ fn eval_lsearch(words: []const i32) i32 {
             if (wi + 1 >= words.len) break;
             index_arg = words[wi];
         } else {
-            break; // unknown flag → treat as list argument
+            // Unknown option — raise a Tcl error rather than silently
+            // misinterpreting the arg as the list.
+            const stubs2 = @import("../stubs/tcl_stubs.zig");
+            const prefix = "bad option \"";
+            const suffix = "\": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices";
+            const name_len = sv.len;
+            const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+            const buf = obj_mod.alloc(total);
+            if (buf != 0) {
+                const bp: [*]u8 = @ptrFromInt(buf);
+                var off: u32 = 0;
+                for (prefix) |c| { bp[off] = c; off += 1; }
+                if (sv.ptr != 0) {
+                    const sp2: [*]const u8 = @ptrFromInt(sv.ptr);
+                    for (0..name_len) |k| { bp[off] = sp2[k]; off += 1; }
+                }
+                for (suffix) |c| { bp[off] = c; off += 1; }
+                const msg = obj_mod.obj_new_string_take(buf, total, total);
+                const catch_mod = @import("../interp/tcl_catch.zig");
+                catch_mod.tcl_cmd_error(msg);
+            } else {
+                stubs2.raise("bad option to lsearch");
+            }
+            return 0;
         }
     }
 
@@ -305,13 +328,7 @@ fn eval_lsearch(words: []const i32) i32 {
     const list_obj = words[wi];
     const pat_obj  = words[wi + 1];
 
-    if (mode == 'r') {
-        // -regexp: delegate to the real regexp engine via tcl_cmd_regexp.
-        // Simpler than reimplementing regex match here; just wrap each element.
-        // Fall through to a basic linear glob so tests don't hard-fail.
-        mode = 'g'; // demote to glob — close enough for most test patterns
-        _ = stubs; // suppress unused warning
-    }
+    _ = stubs; // suppress unused warning when not used below
 
     const ls = obj_ensure_string(list_obj);
     const pv = obj_ensure_string(pat_obj);
@@ -342,6 +359,10 @@ fn eval_lsearch(words: []const i32) i32 {
             }
             const raw: bool = switch (mode) {
                 'e' => ls_match_exact(nocase, pv.ptr, pv.len, ep, elen),
+                'r' => blk: {
+                    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+                    break :blk tcl_regex.run_match_pub(pv.ptr, pv.len, ep, elen, nocase);
+                },
                 else => if (nocase)
                     ls_match_glob_nc(pv.ptr, pv.len, ep, elen)
                 else
@@ -369,6 +390,10 @@ fn eval_lsearch(words: []const i32) i32 {
             const t = ls_get_match_target(ls.ptr, ls.len, idx, index_arg);
             const raw: bool = switch (mode) {
                 'e' => ls_match_exact(nocase, pv.ptr, pv.len, t.ep, t.elen),
+                'r' => blk: {
+                    const tcl_regex = @import("../valtypes/tcl_regex.zig");
+                    break :blk tcl_regex.run_match_pub(pv.ptr, pv.len, t.ep, t.elen, nocase);
+                },
                 else => if (nocase)
                     ls_match_glob_nc(pv.ptr, pv.len, t.ep, t.elen)
                 else
