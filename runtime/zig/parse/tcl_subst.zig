@@ -247,12 +247,46 @@ pub fn subst_flagged_full(
                     while (i < wlen and src[i] != ')') i += 1;
                     const ke = i;
                     if (i < wlen) i += 1; // consume ')'
-                    const key_obj = subst_flagged(wptr + ks, ke - ks, do_vars, do_cmds, do_bs);
+                    // Recursive call uses ``from_subst_cmd=false`` so
+                    // any break/continue/return raised by ``[cmd]`` in
+                    // the index span surfaces here as the rt.* flag.
+                    // We then apply the outer subst command's
+                    // exception-handling fold (parse-18.* / subst-8.9
+                    // / 10.6 / 11.6).
+                    const key_obj = subst_flagged_full(wptr + ks, ke - ks, do_vars, do_cmds, do_bs, false);
+                    if (from_subst_cmd) {
+                        if (rt.break_flag.* != 0) {
+                            rt.break_flag.* = 0;
+                            obj_mod.tcl_obj_release(name_obj);
+                            if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                            lit_start = i;
+                            break;
+                        }
+                        if (rt.continue_flag.* != 0) {
+                            rt.continue_flag.* = 0;
+                            obj_mod.tcl_obj_release(name_obj);
+                            if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                            lit_start = i;
+                            continue;
+                        }
+                        if (rt.return_flag.* != 0) {
+                            const rv = rt.return_val.*;
+                            rt.return_flag.* = 0;
+                            rt.return_val.* = 0;
+                            obj_mod.tcl_obj_release(name_obj);
+                            if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                            if (rv != 0) {
+                                const sv = obj_ensure_string(rv);
+                                push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                                obj_mod.tcl_obj_retain(rv);
+                                write_i32(retained_objs + n_retained * 4, rv);
+                                n_retained += 1;
+                            }
+                            lit_start = i;
+                            continue;
+                        }
+                    }
                     const elem = tcl_array.array_get(name_obj, key_obj);
-                    // Release the per-substitution temps — both
-                    // ``name_obj`` (built from the source span) and
-                    // ``key_obj`` (returned by the recursive
-                    // subst) are scratch.  Issue #303 leak fix.
                     obj_mod.tcl_obj_release(name_obj);
                     if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
                     if (elem != 0) {

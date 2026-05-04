@@ -9,6 +9,18 @@ const obj_new_string    = rt.obj_new_string;
 const obj_new_int       = rt.obj_new_int;
 const obj_ensure_string = rt.obj_ensure_string;
 
+/// Return ``true`` iff ``arg`` is a non-empty prefix of ``opt``.
+/// Mirrors Tcl's ``Tcl_GetIndexFromObj`` prefix-matching for subst's
+/// option list — ``-nov`` matches ``-novariables``, ``-noc`` matches
+/// ``-nocommands``, etc. (subst-7.7).
+fn is_prefix(arg: [*]const u8, arg_len: u32, opt: []const u8) bool {
+    if (arg_len == 0 or arg_len > opt.len) return false;
+    for (0..arg_len) |i| {
+        if (arg[i] != opt[i]) return false;
+    }
+    return true;
+}
+
 fn eval_subst(words: []const i32) i32 {
     var do_vars = true;
     var do_cmds = true;
@@ -18,11 +30,27 @@ fn eval_subst(words: []const i32) i32 {
         const a  = obj_ensure_string(words[wi]);
         if (a.ptr == 0 or a.len == 0) break;
         const ap: [*]const u8 = @ptrFromInt(a.ptr);
-        if (str_eq(ap, a.len, "-nobackslashes")) {
+        if (a.len < 2 or ap[0] != '-') break;
+        // Disambiguate by prefix: ``-no`` alone is ambiguous (matches
+        // all three), ``-nob`` → ``-nobackslashes``, ``-noc`` →
+        // ``-nocommands``, ``-nov`` → ``-novariables``.  Real Tcl
+        // raises an "ambiguous option" error for the bare ``-no``;
+        // for now we treat anything not uniquely matching as a
+        // non-option and break out of the flag loop.
+        if (is_prefix(ap, a.len, "-nobackslashes") and
+            !is_prefix(ap, a.len, "-nocommands") and
+            !is_prefix(ap, a.len, "-novariables"))
+        {
             do_bs = false;
-        } else if (str_eq(ap, a.len, "-nocommands")) {
+        } else if (is_prefix(ap, a.len, "-nocommands") and
+                   !is_prefix(ap, a.len, "-nobackslashes") and
+                   !is_prefix(ap, a.len, "-novariables"))
+        {
             do_cmds = false;
-        } else if (str_eq(ap, a.len, "-novariables")) {
+        } else if (is_prefix(ap, a.len, "-novariables") and
+                   !is_prefix(ap, a.len, "-nobackslashes") and
+                   !is_prefix(ap, a.len, "-nocommands"))
+        {
             do_vars = false;
         } else {
             break;

@@ -65,9 +65,10 @@ pub fn consume_bs_escape(
         'f' => { out[0] = 0x0C; return .{ .next_si = si + 1, .written = 1 }; },
         'v' => { out[0] = 0x0B; return .{ .next_si = si + 1, .written = 1 }; },
         'x' => {
-            // ``\xNN`` — 1 or 2 hex digits.  ``\X`` is NOT recognised
-            // (Tcl is case-sensitive here) and falls through to the
-            // ``else`` branch via the outer switch.
+            // ``\xNN`` — 1 or 2 hex digits → Unicode codepoint U+00NN
+            // emitted as UTF-8 (Tcl 9 semantics).  When no hex digit
+            // follows, the backslash is dropped and ``x`` is emitted
+            // literally (matching the unknown-escape rule, subst-3.1).
             si += 1;
             var val: u32 = 0;
             var ndig: u32 = 0;
@@ -78,8 +79,12 @@ pub fn consume_bs_escape(
                 else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
                 else break;
             }
-            out[0] = @intCast(val & 0xFF);
-            return .{ .next_si = si, .written = 1 };
+            if (ndig == 0) {
+                // No hex digits — emit the literal ``x`` byte.
+                out[0] = 'x';
+                return .{ .next_si = si, .written = 1 };
+            }
+            return .{ .next_si = si, .written = encode_utf8(out, val) };
         },
         'u' => {
             // ``\uNNNN`` — up to 4 hex digits → UTF-8.
@@ -110,19 +115,19 @@ pub fn consume_bs_escape(
             return .{ .next_si = si, .written = encode_utf8(out, cp) };
         },
         '0'...'7' => {
-            // ``\NNN`` — up to 3 octal digits.  ``\8`` / ``\9`` are
-            // NOT octal: real Tcl treats them as unknown escapes and
-            // emits the literal byte (``subst "\\8"`` → ``"8"``), so
-            // they fall through to the ``else`` arm below rather than
-            // being accepted by this case.
+            // ``\NNN`` — up to 3 octal digits → Unicode codepoint
+            // emitted as UTF-8 (Tcl 9 semantics; subst-3.2).
+            // ``\8`` / ``\9`` are NOT octal: real Tcl treats them as
+            // unknown escapes and emits the literal byte (``subst
+            // "\\8"`` → ``"8"``), so they fall through to the ``else``
+            // arm below rather than being accepted by this case.
             var val: u32 = 0;
             var ndig: u32 = 0;
             while (ndig < 3 and si < len and src[si] >= '0' and src[si] <= '7') {
                 val = val * 8 + @as(u32, src[si] - '0');
                 si += 1; ndig += 1;
             }
-            out[0] = @intCast(val & 0xFF);
-            return .{ .next_si = si, .written = 1 };
+            return .{ .next_si = si, .written = encode_utf8(out, val) };
         },
         ' ', '\n', '\t', '\r' => {
             // ``\<whitespace>`` → single space; ``\<newline>``
