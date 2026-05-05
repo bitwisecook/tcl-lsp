@@ -1,6 +1,6 @@
 [package]
 name = "tcl-lsp-zed"
-version = "1.7.2"
+version = "1.8.0"
 edition = "2021"
 
 [lib]
