@@ -306,6 +306,13 @@ class IRCatch:
     result_var: str | None = None
     options_var: str | None = None
     raw_args: tuple[str, ...] = ()
+    # Original parsed tokens (incl. braced/quoted flags).  Threaded
+    # through so the cfg's IRCatch → IRCall lowering can preserve the
+    # ``{...}`` braces around the body when the codegen falls back
+    # to ``tcl_eval``.  Without this, ``catch {$undef} msg`` gets
+    # reconstructed as ``catch $undef msg`` and the unset-var read
+    # fires before catch can intercept it.
+    tokens: CommandTokens | None = None
 
 
 @dataclass(frozen=True, slots=True)
