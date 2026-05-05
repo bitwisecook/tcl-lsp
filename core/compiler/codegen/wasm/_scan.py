@@ -510,6 +510,7 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 elif cmd == "uplevel":
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
                 elif cmd == "set" and len(parts) >= 2:
                     # ``[set arr(key)]`` reads through ``tcl_array_get``
@@ -987,6 +988,7 @@ def _scan_needed_imports(
                 elif command == "::uplevel":
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
                     # Multi-word bodies concat with spaces; also each body
                     # part is run through _emit_value which may need
@@ -1095,6 +1097,7 @@ def _scan_needed_imports(
                     needed.add("tcl_error_full")
                 elif barrier_cmd == "uplevel":
                     needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
                     # The body may contain ``$var``/``[cmd]`` references
                     # that have to be resolved BEFORE eval — scan for

@@ -502,6 +502,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32],
         [ValType.I32],
     ),
+    "tcl_frame_depth_stash_abs": (
+        "tcl",
+        "frame_depth_stash_abs",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
     # Arrays — dedicated per-array hash tables.  ``array`` subcommands
     # are spec-owned but the helpers the codegen calls are shared

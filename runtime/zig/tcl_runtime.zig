@@ -160,6 +160,7 @@ pub const frame_local_at = tcl_frames.frame_local_at;
 pub const frame_local_set_at = tcl_frames.frame_local_set_at;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const frame_depth_stash = tcl_frames.frame_depth_stash;
+pub const frame_depth_stash_abs = tcl_frames.frame_depth_stash_abs;
 pub const frame_depth_restore = tcl_frames.frame_depth_restore;
 pub const var_resolve = tcl_frames.var_resolve;
 pub const var_set = tcl_frames.var_set;
@@ -405,6 +406,7 @@ comptime {
     _ = &tcl_frames.frame_take_pending_argv0;
     _ = &tcl_frames.frame_get_depth;
     _ = &tcl_frames.frame_depth_stash;
+    _ = &tcl_frames.frame_depth_stash_abs;
     _ = &tcl_frames.frame_depth_restore;
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
