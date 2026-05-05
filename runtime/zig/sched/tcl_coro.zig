@@ -407,6 +407,29 @@ fn resume_segments(c: *Coro) i32 {
         }
         const ir = result_mod.snapshot(result);
         if (ir.code == .ERROR or ir.code == .RETURN) {
+            // Consume the signal — the coroutine is terminating with
+            // this segment's result as its ``[c]`` return value.
+            // Without consuming, the RETURN flag leaks past the
+            // coroutine boundary and any subsequent ``catch`` /
+            // ``has_signal`` probe at script level mistakes the
+            // coroutine's terminal state for an in-flight return,
+            // tagging the next command's catch result with rc=2 and
+            // the coroutine's return value (regression caught by
+            // ``test_coroutine_command_removed_after_terminal_return``).
+            // ERROR similarly: if the coroutine body errored, the
+            // error should be the coroutine's terminal observable
+            // result; the surrounding caller decides whether to
+            // forward it (compiled-proc dispatch) or swallow it
+            // (background scheduler).  Today the only consumer is
+            // ``puts [c]`` which propagates the i32 result by
+            // value, so consuming here keeps the global state
+            // clean for the next top-level command.
+            if (ir.code == .RETURN) result_mod.consume(.RETURN);
+            // ERROR is left set so the caller still observes it —
+            // the coroutine's command-table tombstone clears on
+            // ``cleanup_terminated`` so a follow-up ``[c]`` correctly
+            // surfaces ``invalid command name``, but the body's
+            // original error should still propagate this round.
             c.state = .DEAD;
             return result;
         }
