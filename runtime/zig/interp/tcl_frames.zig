@@ -674,6 +674,68 @@ pub fn frame_context_save() FrameContext {
     };
 }
 
+/// Phase 10: transfer-ownership variant of :func:`frame_context_save`.
+/// The snapshot inherits the per-frame TclObj retains the live slots
+/// were holding (``frame_argv`` plus ``frame_info``'s ``script_obj`` /
+/// ``cmd_text`` / ``proc_name``); the live slots are zeroed so a
+/// subsequent ``frame_pop`` or restore-into-different-state can't
+/// double-release.  Used by the coroutine driver: a yielding coro
+/// snapshots its frame stack with this primitive, then restores the
+/// caller's previously-snapshotted context — both sides stay
+/// refcount-balanced because the snapshots are the only place a
+/// given retain lives at a time.
+pub fn frame_context_save_transfer() FrameContext {
+    const ctx: FrameContext = .{
+        .depth = frame_depth,
+        .stack = frame_stack,
+        .capacity = frame_capacity,
+        .ns = frame_ns,
+        .argv = frame_argv,
+        .info = frame_info,
+    };
+    // Live slots: the snapshot owns the retains now.  Zero so the
+    // next ``frame_push`` for these slots starts clean and the
+    // dirty bitmap (already zeroed in the snapshot) gets re-armed
+    // when needed.
+    var i: u32 = 0;
+    while (i < MAX_DEPTH) : (i += 1) {
+        frame_argv[i] = 0;
+        frame_info[i] = .{};
+        frame_ns[i] = 0;
+        frame_stack[i] = 0;
+        frame_capacity[i] = 0;
+        frame_dirty[i] = 0;
+        frame_trace_heads[i] = 0;
+    }
+    frame_depth = 0;
+    return ctx;
+}
+
+/// Phase 10: transfer-ownership variant of
+/// :func:`frame_context_restore`.  Symmetric to
+/// :func:`frame_context_save_transfer` — caller is responsible for
+/// having drained the live state (typically via a paired
+/// ``save_transfer`` call) before invoking this.  No retain/release
+/// happens here; the snapshot's holds become the live state's holds.
+pub fn frame_context_restore_transfer(ctx: FrameContext) void {
+    frame_depth = ctx.depth;
+    frame_stack = ctx.stack;
+    frame_capacity = ctx.capacity;
+    frame_ns = ctx.ns;
+    frame_argv = ctx.argv;
+    frame_info = ctx.info;
+    // ``frame_dirty`` and ``frame_trace_heads`` are not part of
+    // ``FrameContext`` (they're cheap to rebuild — the dirty mask
+    // is a cache, the trace heads are zero in any newly-pushed
+    // frame).  Reset them so a stale entry from the previous
+    // tenant doesn't leak.
+    var i: u32 = 0;
+    while (i < MAX_DEPTH) : (i += 1) {
+        frame_dirty[i] = 0;
+        frame_trace_heads[i] = 0;
+    }
+}
+
 /// Restore the live frame state from a previously-captured
 /// ``FrameContext``.  Mirror of :func:`frame_context_save`.
 ///
