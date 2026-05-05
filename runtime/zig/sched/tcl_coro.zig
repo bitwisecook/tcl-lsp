@@ -53,7 +53,7 @@ const tcl_catch = @import("../interp/tcl_catch.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const tcl_async = @import("tcl_asyncify.zig");
 
-// The yield signal flag lives on ``tcl_catch.yield_flag`` so
+// The yield signal flag lives on ``tcl_catch.state.yield_flag`` so
 // ``has_signal()`` in the interpreter sees it without a module-
 // circular import.  Reads/writes go through tcl_catch directly.
 
@@ -115,8 +115,8 @@ var g_call_depth: u32 = 0;
 pub fn reset() void {
     g_n_coros = 0;
     g_call_depth = 0;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 }
 
 fn name_eq(c: *const Coro, ptr: u32, len: u32) bool {
@@ -330,8 +330,8 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     // returns instead.
 
     c.state = .RUNNING;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 
     if (is_resume) {
         // Last instrumented call is push_call above; from here to
@@ -352,9 +352,9 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     const state = tcl_async.asyncify_get_state();
     if (state == tcl_async.STATE_UNWINDING) {
         tcl_async.asyncify_stop_unwind();
-        const yv = tcl_catch.yield_value;
-        tcl_catch.yield_flag = 0;
-        tcl_catch.yield_value = 0;
+        const yv = tcl_catch.state.yield_value;
+        tcl_catch.state.yield_flag = 0;
+        tcl_catch.state.yield_value = 0;
         c.state = .SUSPENDED;
         // pop_call() runs while state is NORMAL — safe (no rewind
         // active).  But to keep the semantics of the v1 driver
@@ -389,8 +389,8 @@ fn resume_segments(c: *Coro) i32 {
     defer pop_call();
 
     c.state = .RUNNING;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 
     var result: i32 = 0;
     while (c.next_segment < c.n_segments) {
@@ -398,10 +398,10 @@ fn resume_segments(c: *Coro) i32 {
         c.next_segment += 1;
         if (seg.src_len == 0) continue;
         result = interp.eval_script(seg.src_ptr, seg.src_len);
-        if (tcl_catch.yield_flag != 0) {
-            tcl_catch.yield_flag = 0;
-            const yv = tcl_catch.yield_value;
-            tcl_catch.yield_value = 0;
+        if (tcl_catch.state.yield_flag != 0) {
+            tcl_catch.state.yield_flag = 0;
+            const yv = tcl_catch.state.yield_value;
+            tcl_catch.state.yield_value = 0;
             c.state = .SUSPENDED;
             return yv;
         }
@@ -447,8 +447,8 @@ pub fn resume_one(c: *Coro) i32 {
 pub fn signal_yield(value: i32) bool {
     if (g_call_depth == 0) return false;
     if (value != 0) tcl_obj_retain(value);
-    tcl_catch.yield_flag = 1;
-    tcl_catch.yield_value = value;
+    tcl_catch.state.yield_flag = 1;
+    tcl_catch.state.yield_value = value;
     if (tcl_async.ENABLED) {
         if (current_coro()) |c| {
             tcl_async.coro_yield_unwind(c.async_buf);

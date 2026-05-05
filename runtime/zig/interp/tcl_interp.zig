@@ -36,7 +36,7 @@ const list_element_at = rt.list_element_at;
 fn has_signal() bool {
     const tcl_catch = @import("tcl_catch.zig");
     return result_mod.has_signal(result_mod.snapshot(0)) or
-        tcl_catch.yield_flag != 0;
+        tcl_catch.state.yield_flag != 0;
 }
 
 // -- Tokeniser --
@@ -1925,7 +1925,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
             // the immediate proc — keep the flag set and decrement
             // the extra-level counter so the next proc up also exits.
             if (ir_compiled.return_level > 0) {
-                tcl_catch.return_level -= 1;
+                tcl_catch.state.return_level -= 1;
                 // Leave return_flag/return_val set; produce ``rv`` as
                 // the result so the parent dispatcher sees the value
                 // when it absorbs.
@@ -2146,7 +2146,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // immediate proc — keep the flag set, decrement the extra-
         // level counter, and let the next proc up absorb.
         if (ir_proc.return_level > 0) {
-            tcl_catch.return_level -= 1;
+            tcl_catch.state.return_level -= 1;
             return rv;
         }
         // MM-B.5: ``return_val`` was retained by ``eval_return``.
@@ -2655,7 +2655,7 @@ pub fn eval_apply(words: []const i32) i32 {
         const tcl_catch = @import("tcl_catch.zig");
         const rv = ir_apply.value;
         if (ir_apply.return_level > 0) {
-            tcl_catch.return_level -= 1;
+            tcl_catch.state.return_level -= 1;
             return rv;
         }
         // MM-B.5: same as eval_proc_call_bucket.
@@ -2761,7 +2761,7 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // ``has_signal`` doesn't cover it.  Coroutine bodies that
         // yield mid-iteration unwind here.
         const tcl_catch_y = @import("tcl_catch.zig");
-        if (tcl_catch_y.yield_flag != 0) return result;
+        if (tcl_catch_y.state.yield_flag != 0) return result;
     }
     return result;
 }
@@ -2782,9 +2782,9 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     if (cmd_len == 0) return;
     const tcl_catch = @import("tcl_catch.zig");
-    const cur = tcl_catch.error_msg;
+    const cur = tcl_catch.state.error_msg;
     if (cur == 0) return;
-    if (script_ptr == tcl_catch.last_log_script and cmd_start == tcl_catch.last_log_pos) return;
+    if (script_ptr == tcl_catch.state.last_log_script and cmd_start == tcl_catch.state.last_log_pos) return;
     const max_len: u32 = 150;
     const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
     const need_ellipsis: bool = cmd_len > max_len;
@@ -2793,7 +2793,7 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     // subsequent unwinding frames → ``invoked from within``.  The
     // ``last_log_script == 0`` sentinel is reset by ``tcl_cmd_error``
     // / ``catch_leave`` on each new error event.
-    const prefix: []const u8 = if (tcl_catch.last_log_script == 0)
+    const prefix: []const u8 = if (tcl_catch.state.last_log_script == 0)
         "\n    while executing\n\""
     else
         "\n    invoked from within\n\"";
@@ -2823,8 +2823,8 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     const info_name = obj_mod.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
     _ = tcl_ns.global_set(info_name, new_msg);
     obj_mod.tcl_obj_release(info_name);
-    tcl_catch.last_log_script = script_ptr;
-    tcl_catch.last_log_pos = cmd_start;
+    tcl_catch.state.last_log_script = script_ptr;
+    tcl_catch.state.last_log_pos = cmd_start;
 }
 
 /// Replay pre-parsed command records from a parse-cache slab.

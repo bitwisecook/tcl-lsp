@@ -62,7 +62,7 @@ pub const InterpResult = struct {
     ///   * ``BREAK`` / ``CONTINUE`` — the result obj at signal time.
     value: i32,
     /// Extra-frames for ``return -level N``; copied from
-    /// ``tcl_catch.return_level``.  Only meaningful when
+    /// ``tcl_catch.state.return_level``.  Only meaningful when
     /// ``code == .RETURN``.
     return_level: u32,
 };
@@ -75,28 +75,28 @@ pub const InterpResult = struct {
 ///
 /// Does NOT clear the globals — call :func:`consume` after handling.
 pub fn snapshot(returned_value: i32) InterpResult {
-    if (tcl_catch.error_flag != 0) {
+    if (tcl_catch.state.error_flag != 0) {
         return .{
             .code = .ERROR,
-            .value = tcl_catch.error_msg,
+            .value = tcl_catch.state.error_msg,
             .return_level = 0,
         };
     }
-    if (tcl_catch.return_flag != 0) {
+    if (tcl_catch.state.return_flag != 0) {
         return .{
             .code = .RETURN,
-            .value = tcl_catch.return_val,
-            .return_level = tcl_catch.return_level,
+            .value = tcl_catch.state.return_val,
+            .return_level = tcl_catch.state.return_level,
         };
     }
-    if (tcl_catch.break_flag != 0) {
+    if (tcl_catch.state.break_flag != 0) {
         return .{
             .code = .BREAK,
             .value = returned_value,
             .return_level = 0,
         };
     }
-    if (tcl_catch.continue_flag != 0) {
+    if (tcl_catch.state.continue_flag != 0) {
         return .{
             .code = .CONTINUE,
             .value = returned_value,
@@ -123,27 +123,27 @@ pub fn consume(code: Code) void {
     switch (code) {
         .OK => {},
         .ERROR => {
-            tcl_catch.error_flag = 0;
+            tcl_catch.state.error_flag = 0;
             // Caller owns the message — don't clear it here, but do
             // reset the log-tracker so a subsequent fresh error gets
             // a clean ``while executing`` traceback.
-            tcl_catch.last_log_script = 0;
-            tcl_catch.last_log_pos = 0;
+            tcl_catch.state.last_log_script = 0;
+            tcl_catch.state.last_log_pos = 0;
         },
         .RETURN => {
-            tcl_catch.return_flag = 0;
+            tcl_catch.state.return_flag = 0;
             // Same ownership story — caller forwards return_val
             // before this clear.
-            tcl_catch.return_val = 0;
-            tcl_catch.return_level = 0;
+            tcl_catch.state.return_val = 0;
+            tcl_catch.state.return_level = 0;
         },
         .BREAK => {
-            tcl_catch.break_flag = 0;
-            tcl_catch.signal_break_flag = 0;
+            tcl_catch.state.break_flag = 0;
+            tcl_catch.state.signal_break_flag = 0;
         },
         .CONTINUE => {
-            tcl_catch.continue_flag = 0;
-            tcl_catch.signal_continue_flag = 0;
+            tcl_catch.state.continue_flag = 0;
+            tcl_catch.state.signal_continue_flag = 0;
         },
     }
 }
@@ -156,19 +156,19 @@ pub fn restore(ir: InterpResult) void {
     switch (ir.code) {
         .OK => {},
         .ERROR => {
-            tcl_catch.error_flag = 1;
-            tcl_catch.error_msg = ir.value;
+            tcl_catch.state.error_flag = 1;
+            tcl_catch.state.error_msg = ir.value;
         },
         .RETURN => {
-            tcl_catch.return_flag = 1;
-            tcl_catch.return_val = ir.value;
-            tcl_catch.return_level = ir.return_level;
+            tcl_catch.state.return_flag = 1;
+            tcl_catch.state.return_val = ir.value;
+            tcl_catch.state.return_level = ir.return_level;
         },
         .BREAK => {
-            tcl_catch.break_flag = 1;
+            tcl_catch.state.break_flag = 1;
         },
         .CONTINUE => {
-            tcl_catch.continue_flag = 1;
+            tcl_catch.state.continue_flag = 1;
         },
     }
 }
@@ -253,12 +253,12 @@ pub inline fn cont() InterpResult {
 ///   * ``dict update`` / ``dict with`` re-raising a body's break;
 ///   * any site that absorbed a break and decides to propagate.
 pub fn set_break() void {
-    tcl_catch.break_flag = 1;
+    tcl_catch.state.break_flag = 1;
 }
 
 /// Raise a ``CONTINUE`` signal — counterpart of :func:`set_break`.
 pub fn set_continue() void {
-    tcl_catch.continue_flag = 1;
+    tcl_catch.state.continue_flag = 1;
 }
 
 /// Raise a ``RETURN`` signal with payload ``value`` and the optional
@@ -267,9 +267,9 @@ pub fn set_continue() void {
 /// tcl_catch.zig because it has special retain bookkeeping for the
 /// payload obj).
 pub fn set_return(value: i32, level: u32) void {
-    tcl_catch.return_flag = 1;
-    tcl_catch.return_val = value;
-    tcl_catch.return_level = level;
+    tcl_catch.state.return_flag = 1;
+    tcl_catch.state.return_val = value;
+    tcl_catch.state.return_level = level;
 }
 
 /// Raise the ``signal_break_flag`` side-channel — paired with the
@@ -278,12 +278,12 @@ pub fn set_return(value: i32, level: u32) void {
 /// rather than triggering the "invoked break outside of a loop"
 /// diagnostic at the proc boundary.
 pub fn set_signal_break() void {
-    tcl_catch.signal_break_flag = 1;
+    tcl_catch.state.signal_break_flag = 1;
 }
 
 /// Counterpart of :func:`set_signal_break` for ``return -code continue``.
 pub fn set_signal_continue() void {
-    tcl_catch.signal_continue_flag = 1;
+    tcl_catch.state.signal_continue_flag = 1;
 }
 
 /// All four signal flags collected for save/restore around an
@@ -315,29 +315,29 @@ pub const SignalSnapshot = struct {
 /// scheduled body should leak to the timer driver).
 pub fn signal_save_and_clear() SignalSnapshot {
     const snap = SignalSnapshot{
-        .error_flag = tcl_catch.error_flag,
-        .error_msg = tcl_catch.error_msg,
-        .return_flag = tcl_catch.return_flag,
-        .return_val = tcl_catch.return_val,
-        .return_level = tcl_catch.return_level,
-        .break_flag = tcl_catch.break_flag,
-        .continue_flag = tcl_catch.continue_flag,
-        .signal_break_flag = tcl_catch.signal_break_flag,
-        .signal_continue_flag = tcl_catch.signal_continue_flag,
-        .yield_flag = tcl_catch.yield_flag,
-        .yield_value = tcl_catch.yield_value,
+        .error_flag = tcl_catch.state.error_flag,
+        .error_msg = tcl_catch.state.error_msg,
+        .return_flag = tcl_catch.state.return_flag,
+        .return_val = tcl_catch.state.return_val,
+        .return_level = tcl_catch.state.return_level,
+        .break_flag = tcl_catch.state.break_flag,
+        .continue_flag = tcl_catch.state.continue_flag,
+        .signal_break_flag = tcl_catch.state.signal_break_flag,
+        .signal_continue_flag = tcl_catch.state.signal_continue_flag,
+        .yield_flag = tcl_catch.state.yield_flag,
+        .yield_value = tcl_catch.state.yield_value,
     };
-    tcl_catch.error_flag = 0;
-    tcl_catch.error_msg = 0;
-    tcl_catch.return_flag = 0;
-    tcl_catch.return_val = 0;
-    tcl_catch.return_level = 0;
-    tcl_catch.break_flag = 0;
-    tcl_catch.continue_flag = 0;
-    tcl_catch.signal_break_flag = 0;
-    tcl_catch.signal_continue_flag = 0;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.error_flag = 0;
+    tcl_catch.state.error_msg = 0;
+    tcl_catch.state.return_flag = 0;
+    tcl_catch.state.return_val = 0;
+    tcl_catch.state.return_level = 0;
+    tcl_catch.state.break_flag = 0;
+    tcl_catch.state.continue_flag = 0;
+    tcl_catch.state.signal_break_flag = 0;
+    tcl_catch.state.signal_continue_flag = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
     return snap;
 }
 
@@ -346,17 +346,17 @@ pub fn signal_save_and_clear() SignalSnapshot {
 /// for any pending obj-release on intermediate values; this just
 /// rewrites the slots verbatim.
 pub fn signal_restore(snap: SignalSnapshot) void {
-    tcl_catch.error_flag = snap.error_flag;
-    tcl_catch.error_msg = snap.error_msg;
-    tcl_catch.return_flag = snap.return_flag;
-    tcl_catch.return_val = snap.return_val;
-    tcl_catch.return_level = snap.return_level;
-    tcl_catch.break_flag = snap.break_flag;
-    tcl_catch.continue_flag = snap.continue_flag;
-    tcl_catch.signal_break_flag = snap.signal_break_flag;
-    tcl_catch.signal_continue_flag = snap.signal_continue_flag;
-    tcl_catch.yield_flag = snap.yield_flag;
-    tcl_catch.yield_value = snap.yield_value;
+    tcl_catch.state.error_flag = snap.error_flag;
+    tcl_catch.state.error_msg = snap.error_msg;
+    tcl_catch.state.return_flag = snap.return_flag;
+    tcl_catch.state.return_val = snap.return_val;
+    tcl_catch.state.return_level = snap.return_level;
+    tcl_catch.state.break_flag = snap.break_flag;
+    tcl_catch.state.continue_flag = snap.continue_flag;
+    tcl_catch.state.signal_break_flag = snap.signal_break_flag;
+    tcl_catch.state.signal_continue_flag = snap.signal_continue_flag;
+    tcl_catch.state.yield_flag = snap.yield_flag;
+    tcl_catch.state.yield_value = snap.yield_value;
 }
 
 /// Lighter-weight save/restore for break/continue only — used by the
@@ -369,17 +369,17 @@ pub const BreakContinueSnapshot = struct {
 
 pub fn break_continue_save_and_clear() BreakContinueSnapshot {
     const snap = BreakContinueSnapshot{
-        .break_flag = tcl_catch.break_flag,
-        .continue_flag = tcl_catch.continue_flag,
+        .break_flag = tcl_catch.state.break_flag,
+        .continue_flag = tcl_catch.state.continue_flag,
     };
-    tcl_catch.break_flag = 0;
-    tcl_catch.continue_flag = 0;
+    tcl_catch.state.break_flag = 0;
+    tcl_catch.state.continue_flag = 0;
     return snap;
 }
 
 pub fn break_continue_restore(snap: BreakContinueSnapshot) void {
-    tcl_catch.break_flag = snap.break_flag;
-    tcl_catch.continue_flag = snap.continue_flag;
+    tcl_catch.state.break_flag = snap.break_flag;
+    tcl_catch.state.continue_flag = snap.continue_flag;
 }
 
 /// Three-field save/restore for return + break + continue — used by
@@ -398,26 +398,26 @@ pub const FlowSnapshot = struct {
 
 pub fn flow_save_and_clear() FlowSnapshot {
     const snap = FlowSnapshot{
-        .return_flag = tcl_catch.return_flag,
-        .return_val = tcl_catch.return_val,
-        .return_level = tcl_catch.return_level,
-        .break_flag = tcl_catch.break_flag,
-        .continue_flag = tcl_catch.continue_flag,
+        .return_flag = tcl_catch.state.return_flag,
+        .return_val = tcl_catch.state.return_val,
+        .return_level = tcl_catch.state.return_level,
+        .break_flag = tcl_catch.state.break_flag,
+        .continue_flag = tcl_catch.state.continue_flag,
     };
-    tcl_catch.return_flag = 0;
-    tcl_catch.return_val = 0;
-    tcl_catch.return_level = 0;
-    tcl_catch.break_flag = 0;
-    tcl_catch.continue_flag = 0;
+    tcl_catch.state.return_flag = 0;
+    tcl_catch.state.return_val = 0;
+    tcl_catch.state.return_level = 0;
+    tcl_catch.state.break_flag = 0;
+    tcl_catch.state.continue_flag = 0;
     return snap;
 }
 
 pub fn flow_restore(snap: FlowSnapshot) void {
-    tcl_catch.return_flag = snap.return_flag;
-    tcl_catch.return_val = snap.return_val;
-    tcl_catch.return_level = snap.return_level;
-    tcl_catch.break_flag = snap.break_flag;
-    tcl_catch.continue_flag = snap.continue_flag;
+    tcl_catch.state.return_flag = snap.return_flag;
+    tcl_catch.state.return_val = snap.return_val;
+    tcl_catch.state.return_level = snap.return_level;
+    tcl_catch.state.break_flag = snap.break_flag;
+    tcl_catch.state.continue_flag = snap.continue_flag;
 }
 
 /// Read-and-clear the ``signal_break_flag`` / ``signal_continue_flag``
@@ -426,9 +426,9 @@ pub fn flow_restore(snap: FlowSnapshot) void {
 /// caller's enclosing loop should handle.  Returns ``(was_break,
 /// was_continue)``.
 pub fn take_signal_break_continue() struct { was_break: bool, was_continue: bool } {
-    const wb = tcl_catch.signal_break_flag != 0;
-    const wc = tcl_catch.signal_continue_flag != 0;
-    tcl_catch.signal_break_flag = 0;
-    tcl_catch.signal_continue_flag = 0;
+    const wb = tcl_catch.state.signal_break_flag != 0;
+    const wc = tcl_catch.state.signal_continue_flag != 0;
+    tcl_catch.state.signal_break_flag = 0;
+    tcl_catch.state.signal_continue_flag = 0;
     return .{ .was_break = wb, .was_continue = wc };
 }

@@ -339,9 +339,9 @@ fn run_script_obj(script_obj: i32) void {
     // captures the post-eval payloads (without clearing them), so we
     // can release through the live slots before the restore stamps
     // back the caller's saved state.
-    if (tcl_catch.error_msg != 0) tcl_obj_release(tcl_catch.error_msg);
-    if (tcl_catch.return_val != 0) tcl_obj_release(tcl_catch.return_val);
-    if (tcl_catch.yield_value != 0) tcl_obj_release(tcl_catch.yield_value);
+    if (tcl_catch.state.error_msg != 0) tcl_obj_release(tcl_catch.state.error_msg);
+    if (tcl_catch.state.return_val != 0) tcl_obj_release(tcl_catch.state.return_val);
+    if (tcl_catch.state.yield_value != 0) tcl_obj_release(tcl_catch.state.yield_value);
     result_mod.signal_restore(snap);
 }
 
