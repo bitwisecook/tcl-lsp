@@ -69,8 +69,17 @@ var dir_count: u32 = 0;
 
 fn dir_init() void {
     if (dir_cap != 0) return;
+    const buf = alloc(DIR_INITIAL_CAP * DIR_BUCKET_SIZE);
+    if (buf == 0) {
+        // OOM — leave the registry uninitialised so subsequent
+        // ``dir_find`` calls bail via the ``dir_buf == 0`` guard
+        // and ``add`` / ``dir_get_or_create`` callers re-attempt
+        // on the next install rather than writing through a null
+        // pointer.  Codex/Copilot review.
+        return;
+    }
+    dir_buf = buf;
     dir_cap = DIR_INITIAL_CAP;
-    dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
         write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
@@ -108,13 +117,22 @@ fn dir_find(name_ptr: u32, name_len: u32, hash: u32) ?u32 {
 fn dir_grow() void {
     const old_buf = dir_buf;
     const old_cap = dir_cap;
-    dir_cap *= 2;
-    dir_buf = alloc(dir_cap * DIR_BUCKET_SIZE);
+    const new_cap = dir_cap * 2;
+    const new_buf = alloc(new_cap * DIR_BUCKET_SIZE);
+    if (new_buf == 0) {
+        // OOM — leave the existing buffer in place.  The trace
+        // install that triggered this growth will fail (callers
+        // detect via the post-grow ``dir_find``); existing traces
+        // keep working off the smaller buffer.  Codex/Copilot
+        // review.
+        return;
+    }
+    dir_cap = new_cap;
+    dir_buf = new_buf;
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
         write_i32(dir_buf + i * DIR_BUCKET_SIZE, 0);
     }
-    const old_count = dir_count;
     dir_count = 0;
     var j: u32 = 0;
     while (j < old_cap) : (j += 1) {
@@ -126,7 +144,6 @@ fn dir_grow() void {
         const hp: u32 = @bitCast(read_i32(bucket + 12));
         dir_insert_known(ep, el, eh, hp);
     }
-    _ = old_count;
 }
 
 fn dir_insert_known(name_ptr: u32, name_len: u32, hash: u32, head_ptr: u32) void {
@@ -149,25 +166,38 @@ fn dir_insert_known(name_ptr: u32, name_len: u32, hash: u32, head_ptr: u32) void
     }
 }
 
+/// Look up ``name_ptr``/``name_len``'s directory bucket, allocating
+/// it if missing.  Returns 0 on OOM so the caller can drop the
+/// install attempt cleanly (rather than dereferencing a null
+/// pointer when ``dir_init`` / ``dir_grow`` / the name copy fails).
 fn dir_get_or_create(name_ptr: u32, name_len: u32) u32 {
     const hash = fnv1a(name_ptr, name_len);
     if (dir_find(name_ptr, name_len, hash)) |bucket| return bucket;
     dir_init();
+    if (dir_buf == 0) return 0;
     if (dir_count * 4 >= dir_cap * 3) dir_grow();
     // Copy name bytes into a stable allocation (caller's buffer may be
     // a transient subst payload).
     const nbuf = alloc(name_len);
+    if (nbuf == 0) return 0;
     memcpy(nbuf, name_ptr, name_len);
     dir_insert_known(nbuf, name_len, hash, 0);
     // dir_insert_known incremented dir_count and possibly triggered a
     // grow; re-find to return the post-insert bucket address.
-    return dir_find(nbuf, name_len, hash).?;
+    return dir_find(nbuf, name_len, hash) orelse 0;
 }
 
 // --- Trace record ops --------------------------------------------------
 
 fn trace_new(ops: u32, cmd_prefix: i32) u32 {
     const rec = alloc(TRACE_REC_SIZE);
+    if (rec == 0) {
+        // OOM — return 0 so :func:`add` can drop the install
+        // attempt cleanly.  Without this guard the caller's
+        // ``write_i32(rec + ...)`` writes through address 0 and
+        // traps in ReleaseSafe.  Codex/Copilot review.
+        return 0;
+    }
     write_i32(rec + OFF_NEXT, 0);
     write_i32(rec + OFF_OPS, @bitCast(ops));
     write_i32(rec + OFF_CMD, cmd_prefix);
@@ -200,8 +230,10 @@ pub fn add(name: i32, ops: u32, cmd_prefix: i32) void {
     const sn = obj_ensure_string(name);
     if (sn.ptr == 0 or sn.len == 0) return;
     const bucket = dir_get_or_create(sn.ptr, sn.len);
-    const head: u32 = @bitCast(read_i32(bucket + 12));
+    if (bucket == 0) return; // OOM in dir_init / dir_grow / name copy
     const rec = trace_new(ops, cmd_prefix);
+    if (rec == 0) return;    // OOM allocating the Trace record
+    const head: u32 = @bitCast(read_i32(bucket + 12));
     write_i32(rec + OFF_NEXT, @bitCast(head));
     write_i32(bucket + 12, @bitCast(rec));
 }
@@ -343,19 +375,32 @@ pub fn fire(
     if (name1_ptr == 0 or name1_len == 0) return;
     // Use the array name (name1) as the lookup key — whole-array
     // traces store under the array's name.  Element-specific traces
-    // store under ``arr(key)``; we probe both.
+    // store under ``arr(key)``; we probe both.  Tcl arrays allow
+    // empty-string keys (``set a() 1`` is valid), and a trace
+    // installed against ``a()`` should fire on that operation, so
+    // build the ``arr(key)`` form even when ``name2_len == 0`` —
+    // skip only when ``name2_ptr`` is genuinely null (i.e., the
+    // caller is signalling "no element context", not "element with
+    // empty-string key").  Codex/Copilot review.
     fire_at_key(name1_ptr, name1_len, name1_ptr, name1_len, name2_ptr, name2_len, op, op_char);
-    if (name2_len > 0 and name2_ptr != 0) {
+    // Element-form probe: fire whenever the caller passed a key,
+    // which includes the empty-string case (``set arr() 1``).
+    // ``name2_ptr == 0 and name2_len == 0`` is the sentinel for
+    // "no element context" — array-wide ops (e.g. ``array unset
+    // arr``) take that path and don't probe the element form.
+    if (name2_ptr != 0 or name2_len > 0) {
         // Build ``arr(key)`` and probe element-level traces.
         const total: u32 = name1_len + 2 + name2_len;
         const buf = alloc(total);
         if (buf == 0) return;
         const dst: [*]u8 = @ptrFromInt(buf);
         const ap: [*]const u8 = @ptrFromInt(name1_ptr);
-        const kp: [*]const u8 = @ptrFromInt(name2_ptr);
         for (0..name1_len) |i| dst[i] = ap[i];
         dst[name1_len] = '(';
-        for (0..name2_len) |i| dst[name1_len + 1 + i] = kp[i];
+        if (name2_len > 0) {
+            const kp: [*]const u8 = @ptrFromInt(name2_ptr);
+            for (0..name2_len) |i| dst[name1_len + 1 + i] = kp[i];
+        }
         dst[total - 1] = ')';
         fire_at_key(buf, total, name1_ptr, name1_len, name2_ptr, name2_len, op, op_char);
         obj.free_sized(buf, total);
@@ -387,7 +432,13 @@ fn fire_at_key(
 }
 
 /// Build ``CMD name1 name2 op`` and feed it to the interpreter via
-/// :func:`eval_script`.
+/// :func:`eval_script`.  Variable names and array keys can contain
+/// arbitrary bytes (an unbalanced ``}`` in a key is valid Tcl), so
+/// each appended element is routed through ``list_elem_quote`` /
+/// ``list_elem_quote_nth`` — the canonical quoter — to keep the
+/// resulting script syntactically well-formed.  Codex/Copilot
+/// review: the previous bare ``{...}`` wrap broke trace firing on
+/// keys containing ``{`` / ``}``.
 fn invoke_cb(
     cmd_prefix: i32,
     name1_ptr: u32,
@@ -398,29 +449,27 @@ fn invoke_cb(
 ) void {
     const interp = @import("tcl_interp.zig");
     const cs = obj_ensure_string(cmd_prefix);
-    // Compute total worst-case length.  Each appended word may need
-    // brace-quoting; for safety we add a generous slack.
-    const slack: u32 = 16;
-    const total: u32 = cs.len + 1 + name1_len + 2 + 1 + name2_len + 2 + 1 + 1 + slack;
+    // Worst-case expansion per element: ``2 * len + 2`` (full
+    // backslash-escape mode), plus one separator byte per gap and
+    // the trailing ``op`` byte.
+    const total: u32 = cs.len + 1 + (name1_len * 2 + 2) + 1 +
+        (name2_len * 2 + 2) + 1 + 1 + 8;
     const buf = alloc(total);
+    if (buf == 0) return;
     const dst: [*]u8 = @ptrFromInt(buf);
     const cp: [*]const u8 = @ptrFromInt(cs.ptr);
     var off: u32 = 0;
+    // The command prefix is already a syntactically-valid script
+    // fragment (caller passes ``trace add variable NAME OPS CMD``'s
+    // ``CMD`` argument verbatim) — copy it as-is.
     for (0..cs.len) |i| { dst[off] = cp[i]; off += 1; }
     dst[off] = ' '; off += 1;
-    // name1 — brace-quote if it contains non-bareword chars
-    dst[off] = '{'; off += 1;
-    const np1: [*]const u8 = @ptrFromInt(name1_ptr);
-    for (0..name1_len) |i| { dst[off] = np1[i]; off += 1; }
-    dst[off] = '}'; off += 1;
+    // name1 — quote-as-list-element so binary-safe names round-trip.
+    off = obj.list_elem_quote_nth(buf, off, name1_ptr, name1_len);
     dst[off] = ' '; off += 1;
-    // name2
-    dst[off] = '{'; off += 1;
-    if (name2_len > 0) {
-        const np2: [*]const u8 = @ptrFromInt(name2_ptr);
-        for (0..name2_len) |i| { dst[off] = np2[i]; off += 1; }
-    }
-    dst[off] = '}'; off += 1;
+    // name2 — same.  When ``name2_len == 0`` (whole-array trace
+    // fire) ``list_elem_quote_nth`` emits ``{}`` correctly.
+    off = obj.list_elem_quote_nth(buf, off, name2_ptr, name2_len);
     dst[off] = ' '; off += 1;
     dst[off] = op_char; off += 1;
     const r = interp.eval_script(buf, off);

@@ -650,7 +650,28 @@ pub fn info_frame(arg: i32) i32 {
     const tcl_max: i64 = cur_depth + 1; // top-level + every push
     const tcl_abs: i64 = if (want > 0) want else tcl_max + want;
     if (tcl_abs < 1 or tcl_abs > tcl_max) {
-        return obj.obj_new_string_copy(@intFromPtr("type eval".ptr), 9);
+        // Reference Tcl 9 raises ``bad level "<N>"`` here — see
+        // ``InfoFrameCmd`` in ``tclCmdIL.c``.  Routing through the
+        // standard error path lets ``catch {info frame ...}`` see
+        // a real ``catch`` outcome (rc=1) instead of a fabricated
+        // ``type eval`` dict.  Codex review.
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const prefix: []const u8 = "bad level \"";
+        const arg_s = obj.obj_ensure_string(arg);
+        const total: u32 = @intCast(prefix.len + arg_s.len + 1);
+        const buf = obj.alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        var off: u32 = 0;
+        for (prefix) |c| { dst[off] = c; off += 1; }
+        if (arg_s.len > 0) {
+            const ap: [*]const u8 = @ptrFromInt(arg_s.ptr);
+            for (0..arg_s.len) |i| { dst[off] = ap[i]; off += 1; }
+        }
+        dst[off] = '"';
+        const msg = obj.obj_new_string_take(buf, total, total);
+        catch_mod.tcl_cmd_error(msg);
+        return obj_new_string(0, 0);
     }
     // Frame 1 is the synthetic top-level (no FrameInfo).
     if (tcl_abs == 1) {

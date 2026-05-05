@@ -670,74 +670,54 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
 /// and call var_trace.fire(WRITE).  Hot-path optimised: skip the
 /// expensive name-build when no trace is installed.
 fn fire_var_trace_write(arr: i32, key_ptr: u32, key_len: u32) void {
-    const an = normalize_ns_name(arr);
-    const sn = obj_ensure_string(an);
-    if (sn.ptr == 0 or sn.len == 0) return;
-    if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_WRITE)) {
-        // Probe the element-specific form once before bailing.  Skip
-        // when key_ptr/key_len are 0 — ``@ptrFromInt(0)`` panics.
-        if (key_ptr == 0 or key_len == 0) return;
-        const total: u32 = sn.len + 2 + key_len;
-        const buf = alloc(total);
-        if (buf == 0) return;
-        const dst: [*]u8 = @ptrFromInt(buf);
-        const ap: [*]const u8 = @ptrFromInt(sn.ptr);
-        const kp: [*]const u8 = @ptrFromInt(key_ptr);
-        for (0..sn.len) |i| dst[i] = ap[i];
-        dst[sn.len] = '(';
-        for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
-        dst[total - 1] = ')';
-        const has_elem = var_trace.has_trace(buf, total, var_trace.OP_WRITE);
-        obj.free_sized(buf, total);
-        if (!has_elem) return;
-    }
-    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, var_trace.OP_WRITE, 'w');
+    fire_var_trace(arr, key_ptr, key_len, var_trace.OP_WRITE, 'w');
 }
 
 fn fire_var_trace_read(arr: i32, key_ptr: u32, key_len: u32) void {
-    const an = normalize_ns_name(arr);
-    const sn = obj_ensure_string(an);
-    if (sn.ptr == 0 or sn.len == 0) return;
-    if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_READ)) {
-        if (key_ptr == 0 or key_len == 0) return;
-        const total: u32 = sn.len + 2 + key_len;
-        const buf = alloc(total);
-        if (buf == 0) return;
-        const dst: [*]u8 = @ptrFromInt(buf);
-        const ap: [*]const u8 = @ptrFromInt(sn.ptr);
-        const kp: [*]const u8 = @ptrFromInt(key_ptr);
-        for (0..sn.len) |i| dst[i] = ap[i];
-        dst[sn.len] = '(';
-        for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
-        dst[total - 1] = ')';
-        const has_elem = var_trace.has_trace(buf, total, var_trace.OP_READ);
-        obj.free_sized(buf, total);
-        if (!has_elem) return;
-    }
-    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, var_trace.OP_READ, 'r');
+    fire_var_trace(arr, key_ptr, key_len, var_trace.OP_READ, 'r');
 }
 
 fn fire_var_trace_unset(arr: i32, key_ptr: u32, key_len: u32) void {
+    fire_var_trace(arr, key_ptr, key_len, var_trace.OP_UNSET, 'u');
+}
+
+/// Common ``has_trace`` probe + ``fire`` dispatch for the three
+/// ``array_*`` hook points.  Probes both whole-array (``arr``) and
+/// element-specific (``arr(key)``) registry entries; fires the
+/// trace callback when either matches.  Tcl arrays allow
+/// empty-string keys (``set arr() X``) so the element-form probe
+/// runs even when ``key_len == 0`` — the key bytes are simply
+/// omitted from the formatted ``arr()`` lookup name.
+///
+/// Returns early on null array name (defensive — ``@ptrFromInt(0)``
+/// panics in ReleaseSafe even without a deref) and on the per-
+/// element scratch-buffer OOM path so a failed allocation doesn't
+/// trap the runtime.
+fn fire_var_trace(arr: i32, key_ptr: u32, key_len: u32, op: u32, op_char: u8) void {
     const an = normalize_ns_name(arr);
     const sn = obj_ensure_string(an);
     if (sn.ptr == 0 or sn.len == 0) return;
-    if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_UNSET)) {
-        if (key_ptr == 0 or key_len == 0) return;
+    if (!var_trace.has_trace(sn.ptr, sn.len, op)) {
+        // Probe the element-specific ``arr(key)`` form before
+        // bailing.  Build the form even for an empty key so
+        // ``trace add variable arr() OPS CMD`` is honoured.
         const total: u32 = sn.len + 2 + key_len;
         const buf = alloc(total);
         if (buf == 0) return;
         const dst: [*]u8 = @ptrFromInt(buf);
         const ap: [*]const u8 = @ptrFromInt(sn.ptr);
-        const kp: [*]const u8 = @ptrFromInt(key_ptr);
         for (0..sn.len) |i| dst[i] = ap[i];
         dst[sn.len] = '(';
-        for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
+        if (key_len > 0 and key_ptr != 0) {
+            const kp: [*]const u8 = @ptrFromInt(key_ptr);
+            for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
+        }
         dst[total - 1] = ')';
-        const has_elem = var_trace.has_trace(buf, total, var_trace.OP_UNSET);
+        const has_elem = var_trace.has_trace(buf, total, op);
         obj.free_sized(buf, total);
         if (!has_elem) return;
     }
-    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, var_trace.OP_UNSET, 'u');
+    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, op, op_char);
 }
 
 /// ``array set arrName {k v k v …}`` — the *list-of-pairs* form.

@@ -498,24 +498,32 @@ pub const CrossInterpLink = extern struct {
     target_name: i32,
 };
 
-/// Transfer a TclObj result from one interp to another, releasing
-/// the source-side hold.  Used by the ``interp transfer`` command
-/// so the value's lifetime moves cleanly across the boundary
-/// without a redundant copy / retain pair.
+/// Hand a TclObj result from one interp to another by adding a
+/// fresh retain for the destination interp's hold.  Used by the
+/// ``interp transfer`` command (when wired up — Phase 9 follow-up;
+/// see ``docs/var-frame-architecture.md``) so the value survives
+/// the boundary crossing while the dest interp stamps it into its
+/// pending result.
 ///
-/// Retains the value once for the destination interp's hold (the
-/// caller stamps it into the dest's pending result via the typed
-/// API).  Releases the source-side hold so the net retain count is
-/// unchanged but ownership has migrated.  When ``value == 0``
-/// (the "no-result" handle) this is a no-op.
+/// The caller is responsible for dropping the source-side hold —
+/// this primitive doesn't do it because the source interp's
+/// ``pending_result`` slot is the caller's contract, not ours.
+/// Calling sequence is typically:
+///
+///     const dest_value = transfer_result(from, to, src_value);
+///     // … stamp dest_value into dest's pending …
+///     // … then on the source side, ``consume(.OK)`` or whatever
+///     // releases the original hold.
+///
+/// When ``value == 0`` (the "no-result" handle) this is a no-op.
 pub fn transfer_result(from_interp: u32, to_interp: u32, value: i32) i32 {
     _ = from_interp;
     _ = to_interp;
     if (value == 0) return 0;
     // The result handle's bytes live in the shared linear memory
     // — both interps see the same address space, so the "transfer"
-    // is purely refcount bookkeeping.  Net effect: caller drops
-    // its source-side hold; dest gains a fresh hold.  Same total.
+    // is purely refcount bookkeeping.  Add the destination's hold;
+    // caller releases the source's hold separately.
     obj.tcl_obj_retain(value);
     return value;
 }

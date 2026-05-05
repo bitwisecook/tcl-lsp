@@ -320,7 +320,14 @@ fn run_script_obj(script_obj: i32) void {
     // errors through ``bgerror``; for v1 we just swallow them after
     // writing to stderr.  Codex / Copilot review on PR #284.
     const snap = result_mod.signal_save_and_clear();
-    _ = interp.eval_script(s.ptr, s.len);
+    // ``eval_script`` returns the body's last-command result with a
+    // +1 retain owed to the caller.  We don't surface the value to
+    // anyone (background scripts don't have a result destination —
+    // Stage 4's bgerror will route them through a callback), so
+    // release the +1 here to avoid leaking one TclObj per scheduled
+    // script run.
+    const sched_result = interp.eval_script(s.ptr, s.len);
+    if (sched_result != 0) tcl_obj_release(sched_result);
     if (result_mod.snapshot(0).code == .ERROR) {
         // Write a minimal background-error marker to stderr so the
         // failure isn't silent.  Stage 4 promotes this to a real

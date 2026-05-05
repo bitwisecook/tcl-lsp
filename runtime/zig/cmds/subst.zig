@@ -34,28 +34,45 @@ fn eval_subst(words: []const i32) result_mod.InterpResult {
         if (a.len < 2 or ap[0] != '-') break;
         // Disambiguate by prefix: ``-no`` alone is ambiguous (matches
         // all three), ``-nob`` → ``-nobackslashes``, ``-noc`` →
-        // ``-nocommands``, ``-nov`` → ``-novariables``.  Real Tcl
-        // raises an "ambiguous option" error for the bare ``-no``;
-        // for now we treat anything not uniquely matching as a
-        // non-option and break out of the flag loop.
-        if (is_prefix(ap, a.len, "-nobackslashes") and
-            !is_prefix(ap, a.len, "-nocommands") and
-            !is_prefix(ap, a.len, "-novariables"))
-        {
-            do_bs = false;
-        } else if (is_prefix(ap, a.len, "-nocommands") and
-                   !is_prefix(ap, a.len, "-nobackslashes") and
-                   !is_prefix(ap, a.len, "-novariables"))
-        {
-            do_cmds = false;
-        } else if (is_prefix(ap, a.len, "-novariables") and
-                   !is_prefix(ap, a.len, "-nobackslashes") and
-                   !is_prefix(ap, a.len, "-nocommands"))
-        {
-            do_vars = false;
-        } else {
+        // ``-nocommands``, ``-nov`` → ``-novariables``.  Reference
+        // Tcl raises ``ambiguous option "<prefix>"`` for an
+        // ambiguous prefix — surface that error so user mistakes
+        // aren't silently treated as "not an option" (subst-7.x).
+        const m_bs = is_prefix(ap, a.len, "-nobackslashes");
+        const m_c  = is_prefix(ap, a.len, "-nocommands");
+        const m_v  = is_prefix(ap, a.len, "-novariables");
+        const matches = @as(u32, @intFromBool(m_bs)) +
+            @as(u32, @intFromBool(m_c)) +
+            @as(u32, @intFromBool(m_v));
+        if (matches == 0) {
+            // Not a known option prefix — bail out of option scan;
+            // the word is the script.
             break;
         }
+        if (matches > 1) {
+            // Ambiguous prefix.  Build ``ambiguous option "<arg>":
+            // must be -nobackslashes, -nocommands, or -novariables``
+            // and route through the standard error path.  Codex
+            // review.
+            const catch_mod = @import("../interp/tcl_catch.zig");
+            const obj_mod = @import("../valtypes/tcl_obj.zig");
+            const prefix: []const u8 = "ambiguous option \"";
+            const middle: []const u8 = "\": must be -nobackslashes, -nocommands, or -novariables";
+            const total: u32 = @intCast(prefix.len + a.len + middle.len);
+            const buf = obj_mod.alloc(total);
+            if (buf == 0) return result_mod.from_globals(0);
+            const dst: [*]u8 = @ptrFromInt(buf);
+            var off: u32 = 0;
+            for (prefix) |c| { dst[off] = c; off += 1; }
+            for (0..a.len) |i| { dst[off] = ap[i]; off += 1; }
+            for (middle) |c| { dst[off] = c; off += 1; }
+            const msg = obj_mod.obj_new_string_take(buf, total, total);
+            catch_mod.tcl_cmd_error(msg);
+            return result_mod.from_globals(0);
+        }
+        if (m_bs) do_bs = false
+        else if (m_c) do_cmds = false
+        else do_vars = false;
     }
     if (wi >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
     const s = obj_ensure_string(words[wi]);

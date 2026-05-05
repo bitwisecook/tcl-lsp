@@ -1674,7 +1674,23 @@ fn eval_proc_call(words: []const i32) i32 {
         // found and evaluates the value (typically a ``proc`` definition)
         // to load it.  We replicate that lookup at the C level so the
         // test passes without shipping init.tcl.
+        //
+        // If the autoload script itself errors, the error is the
+        // user's actual diagnostic (e.g. a syntax error in the
+        // loader script body); surface it by short-circuiting the
+        // unknown-command fallback.  Codex review: previously this
+        // path ignored the loader's error and overwrote it with
+        // ``invalid command name`` in ``error_unknown_command``
+        // below, hiding the real failure.
         const loaded_name = try_auto_index_load(words[0]);
+        if (result_mod.snapshot(0).code == .ERROR) {
+            // Loader script raised; ``error_msg`` already holds the
+            // user-facing message.  Drop any retained ``loaded_name``
+            // (the loader-attempt path returned a name token only
+            // when the script ran cleanly) and propagate.
+            if (loaded_name != 0) obj_mod.tcl_obj_release(loaded_name);
+            return 0;
+        }
         if (loaded_name != 0) {
             defer obj_mod.tcl_obj_release(loaded_name);
             const bucket2 = procs.proc_lookup(loaded_name);
