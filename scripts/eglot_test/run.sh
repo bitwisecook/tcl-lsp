@@ -20,10 +20,38 @@ if ! command -v emacs >/dev/null 2>&1; then
   exit 2
 fi
 
-# 2. Ensure eglot 1.23+ from GNU ELPA (the one bundled with Emacs 29 has
-#    no semantic-tokens support).
-if ! ls "$elpa"/eglot-1.* >/dev/null 2>&1; then
-  echo "Installing eglot from GNU ELPA into $elpa..." >&2
+# 2. Build -L args from any existing ELPA dirs (used both for the
+#    capability probe below and for the final harness invocation).
+build_load_args() {
+  load_args=()
+  local d
+  for d in "$elpa"/{eglot,jsonrpc,eldoc,flymake}-*; do
+    if [ -d "$d" ]; then
+      load_args+=(-L "$d")
+    fi
+  done
+  return 0
+}
+build_load_args
+
+# 3. Probe whether the eglot already on disk has the symbols we need
+#    (`eglot-semantic-tokens-mode' was added in eglot 1.20 and the
+#    bundled Emacs-29 eglot doesn't have it).  An older 1.x build
+#    cached in tmp/elpa would skip a directory-based "is it installed"
+#    check yet still fail the harness, so probe the symbol directly.
+have_eglot=0
+if [ ${#load_args[@]} -gt 0 ]; then
+  if emacs -Q --batch "${load_args[@]}" \
+       --eval "(unless (and (require 'eglot nil t) \
+                            (fboundp 'eglot-semantic-tokens-mode)) \
+                 (kill-emacs 1))" \
+       >/dev/null 2>&1; then
+    have_eglot=1
+  fi
+fi
+
+if [ "$have_eglot" -eq 0 ]; then
+  echo "Installing eglot from GNU ELPA into $elpa (need >= 1.20)..." >&2
   emacs -Q --batch \
     --eval "(setq package-user-dir \"$elpa\")" \
     --eval "(require 'package)" \
@@ -32,24 +60,27 @@ if ! ls "$elpa"/eglot-1.* >/dev/null 2>&1; then
     --eval "(package-initialize)" \
     --eval "(package-refresh-contents)" \
     --eval "(package-install 'eglot)" >&2
+  build_load_args
 fi
-
-# 3. Build -L args so the ELPA eglot beats the built-in one.
-load_args=()
-for d in "$elpa"/{eglot,jsonrpc,eldoc,flymake}-*; do
-  [ -d "$d" ] && load_args+=(-L "$d")
-done
 
 export TCL_LSP_REPO="$repo"
 cd "$repo"
 
 # 4. Run.  Tee output to LOGFILE; print only the high-signal sections.
+#
+# `grep' returns 1 when no lines match — that can happen if emacs dies
+# before producing any "==========" headers (e.g. .elc load error).
+# Wrap it in `|| true' so a non-matching grep doesn't trip pipefail
+# and bypass the explicit emacs-status capture below.
 emacs -Q -batch \
   "${load_args[@]}" \
   --eval "(setq debug-on-error t)" \
   -l "$repo/scripts/eglot_test/test_issue333.el" 2>&1 | tee "$log" \
-  | grep -E "^(==========|  (text-equal|PASS|FAIL|XFAIL|--|pos=|edit=|reload=|[a-z][a-z0-9-]+ +(PASS|FAIL|XFAIL)))"
+  | { grep -E "^(==========|  (text-equal|PASS|FAIL|XFAIL|--|pos=|edit=|reload=|[a-z][a-z0-9-]+ +(PASS|FAIL|XFAIL)))" || true; }
 status="${PIPESTATUS[0]}"
 echo
 echo "Full log: $log"
+if [ "$status" -ne 0 ]; then
+  echo "(emacs exited with status $status — see log for details)" >&2
+fi
 exit "$status"
