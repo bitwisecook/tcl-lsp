@@ -12,7 +12,6 @@ from ..models import (
     HoverSnippet,
     SubCommand,
     ValidationSpec,
-    WasmRuntimeImport,
 )
 from ..signatures import ArgRole, Arity
 from ._base import register
@@ -111,11 +110,12 @@ class TraceCommand(CommandDef):
                     connection_side=ConnectionSide.NONE,
                 ),
             ),
-            wasm_runtime_import=WasmRuntimeImport(
-                import_key="tcl_trace",
-                argc=2,
-                export_name="tcl_cmd_trace_cmd",
-                params=("i32", "i32"),
-                results=("i32",),
-            ),
+            # No ``wasm_runtime_import`` — ``trace add variable`` and
+            # friends take 5 words (``trace add variable NAME OPS CMD``)
+            # which the generic two-arg ``tcl_cmd_trace_cmd`` import
+            # can't carry.  The compiled call path falls through to the
+            # interpreter via ``_emit_eval_fallback`` and lands in
+            # :func:`cmds/inspect.zig::eval_trace`, which dispatches to
+            # both the directory-keyed registry (globals / namespace
+            # vars / arrays) and the per-frame chain (proc-locals).
         )

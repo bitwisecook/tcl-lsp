@@ -227,9 +227,27 @@ pub const FrameInfo = struct {
     /// meaningful for type=proc).  Retained; released on
     /// ``frame_pop``.
     proc_name: i32 = 0,
+    /// Phase 8 follow-up: 1 = the codegen owns the ``line`` field
+    /// for this frame (i.e. the compiled-proc prologue is going to
+    /// stamp ``frame_set_line`` per-statement).  ``eval_script``
+    /// suppresses its own line stamping when this flag is set so
+    /// nested command-substitution / ``[…]`` evaluations don't
+    /// clobber the outer compiled stamp.  0 = the interpreter's
+    /// :func:`eval_script` is the line authority for the frame.
+    line_owned_by_codegen: u8 = 0,
 };
 
 var frame_info: [MAX_DEPTH]FrameInfo = [_]FrameInfo{.{}} ** MAX_DEPTH;
+
+// Phase 6 follow-up: per-frame variable-trace lists.  Each slot holds
+// the head pointer of a singly-linked chain of frame-local trace
+// records (records are allocated in :file:`tcl_var_trace.zig`).  A
+// frame with no traces installed has ``frame_trace_heads[idx] == 0``
+// — the read / write hooks short-circuit on that case so untraced
+// procs pay nothing per-access.  ``frame_pop`` calls ``drain_list``
+// to fire UNSET callbacks for every record, release the chain, and
+// reset the slot to 0 before the frame is reused.
+pub var frame_trace_heads: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 
 // Pending ``argv0`` for the next compiled-proc entry.  Set by a
 // compiled caller via ``frame_set_pending_argv0`` immediately
@@ -413,6 +431,13 @@ fn frame_grow_at_base(base: u32) u32 {
 /// Pop the current call frame. Caller should not access frame locals after this.
 pub export fn frame_pop() void {
     if (frame_depth > 0) {
+        // Phase 6 follow-up: fire UNSET callbacks for every
+        // frame-local trace, release the chain, and clear the head
+        // slot.  Drains BEFORE the array directory cleanup so a
+        // trace body's read-back of ``$arr(key)`` still sees the
+        // pre-pop state.
+        const tcl_var_trace = @import("tcl_var_trace.zig");
+        tcl_var_trace.drain_list(&frame_trace_heads[frame_depth - 1]);
         // Phase 1: drop every ``::__local::<depth>::*`` array that
         // belonged to this frame from the global directory.  Without
         // this the next call at the same depth would inherit the
@@ -531,6 +556,37 @@ pub export fn frame_set_script(script_obj: i32) void {
 
 /// Record the 1-based line within ``script_obj`` where the
 /// invocation appears.  0 = unknown.
+/// Read the line number recorded for the frame *offset* steps below
+/// the top (0 = current).  Returns 0 when the offset is out of range
+/// or no line was stamped.  Phase 8 follow-up — used by
+/// ``eval_script`` to save/restore the caller's line across an inner
+/// command-subst body's execution.
+pub export fn frame_get_line(offset: i32) u32 {
+    if (offset < 0) return 0;
+    const u: u32 = @intCast(offset);
+    if (u >= frame_depth) return 0;
+    return frame_info[frame_depth - 1 - u].line;
+}
+
+/// Phase 8 follow-up: claim line-stamping ownership for the current
+/// frame on behalf of compiled-proc codegen.  After this call,
+/// :func:`eval_script` suppresses its own per-command line updates
+/// for any nested invocation under this frame — the prologue's
+/// ``frame_set_line`` emissions are the single source of truth for
+/// ``info frame -line`` inside compiled procs.  Idempotent.
+pub export fn frame_claim_line_codegen() void {
+    if (frame_depth == 0) return;
+    frame_info[frame_depth - 1].line_owned_by_codegen = 1;
+}
+
+/// True when the current frame's line is owned by the compiled-proc
+/// prologue.  Read by :func:`eval_script` to decide whether to
+/// stamp.  Returns false for top-level / interpreted-proc frames.
+pub fn frame_line_owned_by_codegen() bool {
+    if (frame_depth == 0) return false;
+    return frame_info[frame_depth - 1].line_owned_by_codegen != 0;
+}
+
 pub export fn frame_set_line(line: u32) void {
     if (frame_depth == 0) return;
     frame_info[frame_depth - 1].line = line;
@@ -1306,11 +1362,13 @@ pub export fn local_set(name: i32, value: i32) i32 {
             if (value != 0) obj.tcl_obj_retain(value);
             write_i32(bucket + OFF_VALUE, value);
             if (v != 0 and v != value) obj.tcl_obj_release(v);
+            fire_local_trace(sn.ptr, sn.len, value);
             return value;
         }
         // Fresh insert — retain the new value (no old to release).
         if (value != 0) obj.tcl_obj_retain(value);
         frame_insert(base, sn.ptr, sn.len, hash, value);
+        fire_local_trace(sn.ptr, sn.len, value);
         return value;
     }
     // No frame active — set global (var_set_scalar handles
@@ -1318,10 +1376,84 @@ pub export fn local_set(name: i32, value: i32) i32 {
     return globals.global_set(name, value);
 }
 
+/// Phase 6 follow-up: fire any matching frame-local WRITE / UNSET
+/// trace.  ``value == 0`` is the in-runtime "unset" signal (matches
+/// the ``var_set(name, 0)`` route taken by ``unset NAME`` in
+/// :file:`cmds/var.zig`); for non-zero values we fire WRITE.  No-op
+/// when the frame's trace head is empty — the hot path for untraced
+/// procs.
+fn fire_local_trace(name_ptr: u32, name_len: u32, value: i32) void {
+    if (frame_depth == 0) return;
+    const head = frame_trace_heads[frame_depth - 1];
+    if (head == 0) return;
+    const tcl_var_trace = @import("tcl_var_trace.zig");
+    if (value == 0) {
+        tcl_var_trace.fire_in_list(head, name_ptr, name_len, tcl_var_trace.OP_UNSET, 'u');
+    } else {
+        tcl_var_trace.fire_in_list(head, name_ptr, name_len, tcl_var_trace.OP_WRITE, 'w');
+    }
+}
+
+/// Frame-sync write — store ``value`` in the local slot for ``name``
+/// without firing variable traces.  Used by the codegen's
+/// ``_emit_frame_sync`` path on its way into a ``tcl_eval`` /
+/// runtime-import boundary: the call is a state transfer (mirror
+/// the WASM local into the frame so the interpreter sees the
+/// up-to-date value), not a user-visible assignment, so a write
+/// trace must not observe it.  Same refcount discipline as
+/// :func:`local_set`.
+pub export fn local_set_silent(name: i32, value: i32) i32 {
+    const sn = obj_ensure_string(name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + OFF_VALUE);
+            if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
+            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
+            if (value != 0) obj.tcl_obj_retain(value);
+            write_i32(bucket + OFF_VALUE, value);
+            if (v != 0 and v != value) obj.tcl_obj_release(v);
+            return value;
+        }
+        if (value != 0) obj.tcl_obj_retain(value);
+        frame_insert(base, sn.ptr, sn.len, hash, value);
+        return value;
+    }
+    return globals.global_set(name, value);
+}
+
 /// Get a local variable from the current frame.
 /// Returns 0 if not found in current frame (does NOT fall through to globals).
 /// Follows ALIAS_GLOBAL and ALIAS_EXT on read.
 pub export fn local_get(name: i32) i32 {
+    const sn = obj_ensure_string(name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + OFF_VALUE);
+            if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
+            // Phase 6 follow-up: fire READ trace before handing the
+            // value back.  Trace bodies can mutate the slot (write
+            // trace + assign), so re-read after firing.
+            if (frame_depth != 0 and frame_trace_heads[frame_depth - 1] != 0) {
+                const tcl_var_trace = @import("tcl_var_trace.zig");
+                if (tcl_var_trace.has_trace_in_list(frame_trace_heads[frame_depth - 1], sn.ptr, sn.len, tcl_var_trace.OP_READ)) {
+                    tcl_var_trace.fire_in_list(frame_trace_heads[frame_depth - 1], sn.ptr, sn.len, tcl_var_trace.OP_READ, 'r');
+                    return read_i32(bucket + OFF_VALUE);
+                }
+            }
+            return v;
+        }
+    }
+    return 0;
+}
+
+/// Frame-readback read — counterpart of :func:`local_set_silent`.
+/// Reads the local slot without firing READ traces; used by the
+/// codegen ``_emit_frame_readback`` path that pulls interpreter-side
+/// updates back into WASM locals after a ``tcl_eval`` boundary.
+pub export fn local_get_silent(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);

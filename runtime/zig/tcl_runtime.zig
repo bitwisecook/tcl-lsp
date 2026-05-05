@@ -153,6 +153,7 @@ pub const frame_set_script = tcl_frames.frame_set_script;
 pub const frame_set_line = tcl_frames.frame_set_line;
 pub const frame_set_cmd_text = tcl_frames.frame_set_cmd_text;
 pub const frame_set_proc_name = tcl_frames.frame_set_proc_name;
+pub const frame_claim_line_codegen = tcl_frames.frame_claim_line_codegen;
 // Phase 7: codegen-callable indexed local accessors.
 pub const frame_local_at = tcl_frames.frame_local_at;
 pub const frame_local_set_at = tcl_frames.frame_local_set_at;
@@ -165,6 +166,8 @@ pub const var_exists = tcl_frames.var_exists;
 pub const local_set = tcl_frames.local_set;
 pub const local_get = tcl_frames.local_get;
 pub const local_get_or_error = tcl_frames.local_get_or_error;
+pub const local_set_silent = tcl_frames.local_set_silent;
+pub const local_get_silent = tcl_frames.local_get_silent;
 
 // Procs
 pub const proc_register = tcl_procs.proc_register;
@@ -405,6 +408,8 @@ comptime {
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
     _ = &tcl_frames.local_get_or_error;
+    _ = &tcl_frames.local_set_silent;
+    _ = &tcl_frames.local_get_silent;
     _ = &tcl_frames.local_exists;
     _ = &tcl_frames.var_resolve;
     _ = &tcl_frames.var_set;
@@ -414,6 +419,8 @@ comptime {
     _ = &tcl_frames.frame_set_line;
     _ = &tcl_frames.frame_set_cmd_text;
     _ = &tcl_frames.frame_set_proc_name;
+    _ = &tcl_frames.frame_claim_line_codegen;
+    _ = &tcl_frames.frame_get_line;
     _ = &tcl_frames.frame_local_at;
     _ = &tcl_frames.frame_local_set_at;
     // tcl_procs exports

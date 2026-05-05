@@ -738,6 +738,20 @@ pub fn info_frame(arg: i32) i32 {
         obj.tcl_obj_release(k);
         result = r2;
     }
+    // -script BODY (Phase 8 follow-up).  The frame's script_obj is
+    // stamped by the proc-call dispatcher (interpreted procs) and
+    // by the compiled-proc prologue (Phase 8 follow-up codegen
+    // change), so this field is populated for every proc frame
+    // whose body source is known at compile time.
+    if (fi.script_obj != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("script".ptr), 6);
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, fi.script_obj);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        result = r2;
+    }
     return result;
 }
 

@@ -5,7 +5,31 @@ const result_mod = @import("../interp/tcl_result.zig");
 const info      = @import("./tcl_cmd_info.zig");
 const trace_mod = @import("../interp/tcl_trace.zig");
 const var_trace = @import("../interp/tcl_var_trace.zig");
+const frames    = @import("../interp/tcl_frames.zig");
 const reg       = @import("../dispatch/tcl_cmd_registry.zig");
+
+/// Phase 6 follow-up: classify ``NAME`` for ``trace add/remove/info
+/// variable``.  Proc-local traces go on the per-frame chain (so two
+/// distinct procs with same-named locals don't share traces) iff:
+///   * a frame is active,
+///   * the name has no ``::`` qualifier (which would force the
+///     global / namespace path),
+///   * the name has no ``(`` array-element notation (array-element
+///     traces flow through the array directory unchanged).
+/// Returns true when the per-frame chain owns the trace.
+fn is_local_trace_target(name: i32) bool {
+    if (frames.frame_depth == 0) return false;
+    const sn = rt.obj_ensure_string(name);
+    if (sn.len == 0 or sn.ptr == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') return false;
+    var k: u32 = 0;
+    while (k < sn.len) : (k += 1) {
+        if (sp[k] == ':' and k + 1 < sn.len and sp[k + 1] == ':') return false;
+        if (sp[k] == '(') return false;
+    }
+    return true;
+}
 
 const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
 const obj_new_string    = rt.obj_new_string;
@@ -44,7 +68,7 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         if (str_eq(kind_p, kind_s.len, "variable")) {
             const name = words[3];
             const ops = parse_ops(words[4]);
-            var_trace.add(name, ops, words[5]);
+            install_var_trace(name, ops, words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
         // execution / command tracing — pass-through NOP.
@@ -57,7 +81,7 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         if (str_eq(kind_p, kind_s.len, "variable")) {
             const name = words[3];
             const ops = parse_ops(words[4]);
-            _ = var_trace.remove(name, ops, words[5]);
+            _ = uninstall_var_trace(name, ops, words[5]);
             return result_mod.from_globals(obj_new_string(0, 0));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
@@ -67,28 +91,56 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
         const kind_s = obj_ensure_string(words[2]);
         const kind_p: [*]const u8 = @ptrFromInt(kind_s.ptr);
         if (str_eq(kind_p, kind_s.len, "variable")) {
-            return result_mod.from_globals(var_trace.info(words[3]));
+            return result_mod.from_globals(query_var_trace(words[3]));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     // Legacy forms: ``trace variable NAME OPS CMD`` /
     // ``trace vdelete NAME OPS CMD`` / ``trace vinfo NAME``.
     if (str_eq(sub_p, sub_s.len, "variable") and words.len >= 5) {
-        var_trace.add(words[2], parse_ops(words[3]), words[4]);
+        install_var_trace(words[2], parse_ops(words[3]), words[4]);
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     if (str_eq(sub_p, sub_s.len, "vdelete") and words.len >= 5) {
-        _ = var_trace.remove(words[2], parse_ops(words[3]), words[4]);
+        _ = uninstall_var_trace(words[2], parse_ops(words[3]), words[4]);
         return result_mod.from_globals(obj_new_string(0, 0));
     }
     if (str_eq(sub_p, sub_s.len, "vinfo") and words.len >= 3) {
-        return result_mod.from_globals(var_trace.info(words[2]));
+        return result_mod.from_globals(query_var_trace(words[2]));
     }
     // Anything else: defer to the legacy NOP module so we don't trap
     // tests that rely on pass-through behaviour.
     const sub     = if (words.len >= 2) words[1] else 0;
     const arg_obj = if (words.len >= 3) words[2] else 0;
     return result_mod.from_globals(trace_mod.tcl_cmd_trace_cmd(sub, arg_obj));
+}
+
+/// Phase 6 follow-up: route a trace install to the per-frame chain
+/// when the target is a proc-local, otherwise to the canonical-name
+/// directory.  Centralised so all ``trace add variable`` /
+/// ``trace variable`` entry points stay in sync.
+fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
+    if (is_local_trace_target(name)) {
+        var_trace.add_to_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
+        return;
+    }
+    var_trace.add(name, ops, cmd_prefix);
+}
+
+/// Mirror of :func:`install_var_trace` for the remove path.
+fn uninstall_var_trace(name: i32, ops: u32, cmd_prefix: i32) bool {
+    if (is_local_trace_target(name)) {
+        return var_trace.remove_from_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
+    }
+    return var_trace.remove(name, ops, cmd_prefix);
+}
+
+/// Mirror of :func:`install_var_trace` for the ``trace info`` query.
+fn query_var_trace(name: i32) i32 {
+    if (is_local_trace_target(name)) {
+        return var_trace.info_for_list(frames.frame_trace_heads[frames.frame_depth - 1], name);
+    }
+    return var_trace.info(name);
 }
 
 /// Parse the ops list ``{read write unset array}`` (any subset, in

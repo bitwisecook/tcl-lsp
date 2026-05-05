@@ -431,6 +431,11 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_frame_set_proc_name": ("tcl", "frame_set_proc_name", [ValType.I32], []),
     "tcl_frame_set_cmd_text": ("tcl", "frame_set_cmd_text", [ValType.I32], []),
     "tcl_frame_set_line": ("tcl", "frame_set_line", [ValType.I32], []),
+    # Phase 8 follow-up: codegen claims line-stamp ownership for the
+    # current frame so nested ``eval_script`` calls (resolving
+    # ``[…]`` inside compiled bodies) don't overwrite per-statement
+    # line stamps emitted by the prologue / body.
+    "tcl_frame_claim_line_codegen": ("tcl", "frame_claim_line_codegen", [], []),
     # Phase 7: indexed local-variable accessors for codegen-resolved
     # compile-time-known scalar locals.  Bypasses the hash-keyed
     # store; per-frame slot capacity is ``LOCALS_ARRAY_CAP = 16``.
@@ -451,6 +456,15 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # no such variable`` when the frame slot has never been set.
     # Mirror of ``tcl_global_get_or_error`` for proc-local reads.
     "tcl_local_get_or_error": ("tcl", "local_get_or_error", [ValType.I32], [ValType.I32]),
+    # Phase 6 follow-up: silent variants used by the codegen's
+    # ``_emit_frame_sync`` / ``_emit_frame_readback`` paths.  They
+    # share the value-store semantics of ``tcl_local_set`` /
+    # ``tcl_local_get`` but bypass the variable-trace fire hooks —
+    # frame syncs are state transfers between WASM-locals and the
+    # frame's hash store, not user-visible assignments, so a
+    # variable trace must not observe them.
+    "tcl_local_set_silent": ("tcl", "local_set_silent", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_local_get_silent": ("tcl", "local_get_silent", [ValType.I32], [ValType.I32]),
     # Proc registry.
     "tcl_proc_register": (
         "tcl",

@@ -1259,6 +1259,21 @@ def _scan_needed_imports(
         # body script + per-command line tracking are follow-ups.
         needed.add("tcl_frame_set_type")
         needed.add("tcl_frame_set_proc_name")
+        # Phase 8 follow-up: stamp ``frame_set_script`` from the
+        # compiled-proc prologue so ``info frame -script`` returns
+        # the proc's body for compiled procs (interpreted procs were
+        # already covered).  No-op for synthetic procs without a
+        # body_source.
+        needed.add("tcl_frame_set_script")
+        # Phase 8 follow-up: per-call-site ``frame_set_line`` stamp
+        # so ``info frame -line`` returns the source line of the
+        # currently-executing command rather than the proc's
+        # entry-point line.
+        needed.add("tcl_frame_set_line")
+        # Phase 8 follow-up: prologue claims line-stamp ownership so
+        # nested ``eval_script`` calls don't overwrite the per-stmt
+        # stamps emitted from compiled bodies.
+        needed.add("tcl_frame_claim_line_codegen")
         # The proc-name TclObj is built via obj_new_string from the
         # FQ-name literal in the data segment; pull in the helper
         # unconditionally for procs so the prologue can construct it.
@@ -1312,6 +1327,11 @@ def _scan_needed_imports(
         needed.add("tcl_local_get")
         # Strict variant for compiled-proc var reads — see issue #263.
         needed.add("tcl_local_get_or_error")
+        # Phase 6 follow-up: silent variants used by the frame-sync /
+        # frame-readback codegen paths so they don't fire variable
+        # traces on every interpreter boundary.
+        needed.add("tcl_local_set_silent")
+        needed.add("tcl_local_get_silent")
         # tcl_list is used by the compiled-proc prologue to build
         # the invocation argv list, element by element, before
         # stashing it via frame_set_argv.

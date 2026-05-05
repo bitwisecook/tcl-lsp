@@ -791,11 +791,20 @@ class _WasmEmitterVarMixin(_Base):
         """
         if not self._is_proc:
             return
-        lset_idx = self._shared_imports.get("tcl_local_set")
+        # Frame-sync uses the silent setter so a write trace doesn't
+        # observe each phantom assignment on every interpreter
+        # boundary.  The user-visible writes still go through
+        # ``tcl_local_set`` (with traces); the state-transfer
+        # mirroring is invisible to ``trace add variable``.  Falls
+        # back to the trace-firing setter only if the silent variant
+        # isn't imported (older runtimes).
+        lset_idx = self._shared_imports.get("tcl_local_set_silent")
+        if lset_idx is None:
+            lset_idx = self._shared_imports.get("tcl_local_set")
         if lset_idx is None:
             return
         for name, idx in self._iter_sync_locals(vars_used):
-            # Emit: if (local != 0) { tcl_local_set(name_obj, local) }
+            # Emit: if (local != 0) { tcl_local_set_silent(name_obj, local) }
             # Skips zero-initialised locals that were never assigned so they
             # don't create spurious frame entries.
             self._emit_local_get(idx)
@@ -815,7 +824,13 @@ class _WasmEmitterVarMixin(_Base):
         """
         if not self._is_proc:
             return
-        lget_idx = self._shared_imports.get("tcl_local_get")
+        # Mirror of ``_emit_frame_sync``: use the silent reader so
+        # READ traces don't fire on every interpreter-boundary
+        # readback.  Only user-visible reads (``$x`` / ``set x``)
+        # should trigger a trace.
+        lget_idx = self._shared_imports.get("tcl_local_get_silent")
+        if lget_idx is None:
+            lget_idx = self._shared_imports.get("tcl_local_get")
         if lget_idx is None:
             return
         for name, idx in self._iter_sync_locals(vars_used):

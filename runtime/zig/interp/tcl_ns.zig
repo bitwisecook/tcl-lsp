@@ -1408,7 +1408,53 @@ pub export fn global_set(name: i32, value: i32) i32 {
     // vwait is active.
     const sched = @import("../sched/tcl_sched.zig");
     sched.note_var_write(k.ptr, k.len);
+    // Phase 6 follow-up: fire any matching scalar variable trace.
+    // The directory-keyed registry probes for both the bare name
+    // (``g``) and the FQ form (``::g``) so callers that installed
+    // via either spelling resolve to the same record.
+    fire_scalar_trace(sn.ptr, sn.len, value);
     return value;
+}
+
+/// Fire the ``read`` / ``write`` / ``unset`` callback on the scalar
+/// (non-array) trace registry for ``name``.  ``value == 0`` is the
+/// runtime's "unset" sentinel; non-zero values fire ``write``.  Probes
+/// both the as-passed-in form and the FQ ``::name`` form so callers
+/// who installed a trace under either spelling resolve.  Fires once
+/// per matching record; the per-record ``active`` flag in the trace
+/// module guards against re-entrancy.
+fn fire_scalar_trace(name_ptr: u32, name_len: u32, value: i32) void {
+    const var_trace = @import("tcl_var_trace.zig");
+    const op: u32 = if (value == 0) var_trace.OP_UNSET else var_trace.OP_WRITE;
+    const op_char: u8 = if (value == 0) 'u' else 'w';
+    fire_scalar_trace_op(name_ptr, name_len, op, op_char);
+}
+
+fn fire_scalar_trace_op(name_ptr: u32, name_len: u32, op: u32, op_char: u8) void {
+    const var_trace = @import("tcl_var_trace.zig");
+    if (name_ptr == 0 or name_len == 0) return;
+    // First probe: as-passed-in.
+    var_trace.fire(name_ptr, name_len, 0, 0, op, op_char);
+    // If the caller passed a non-FQ name (no leading ``::``), probe
+    // the FQ form as well so a trace installed via ``::name``
+    // resolves on a write through ``set name`` (and vice versa).
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    const has_fq_prefix = name_len >= 2 and sp[0] == ':' and sp[1] == ':';
+    if (!has_fq_prefix) {
+        const total: u32 = name_len + 2;
+        const buf = obj.alloc(total);
+        if (buf == 0) return;
+        const dst: [*]u8 = @ptrFromInt(buf);
+        dst[0] = ':';
+        dst[1] = ':';
+        for (0..name_len) |i| dst[2 + i] = sp[i];
+        var_trace.fire(buf, total, 0, 0, op, op_char);
+        obj.free_sized(buf, total);
+    } else if (name_len > 2) {
+        // Caller passed FQ; also probe the bare form for traces
+        // installed without the ``::`` prefix.
+        var_trace.fire(name_ptr + 2, name_len - 2, 0, 0, op, op_char);
+    }
 }
 
 /// Probe used by ``tcl_array.find_or_create`` to detect a
@@ -1448,7 +1494,47 @@ pub export fn global_get(name: i32) i32 {
     const k = strip_global_prefix(sn.ptr, sn.len);
     const v = ns_var_find(ns_root(), k.ptr, k.len);
     if (v == 0) return 0;
+    // Phase 6 follow-up: fire READ trace before returning the
+    // value.  Trace bodies can mutate the slot, so re-read after
+    // firing.  Fast path: skip the fire entirely when no scalar
+    // trace is registered for either form of this name.
+    const var_trace = @import("tcl_var_trace.zig");
+    if (var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_READ) or
+        scalar_has_fq_or_bare_trace(sn.ptr, sn.len, var_trace.OP_READ))
+    {
+        fire_scalar_trace_op(sn.ptr, sn.len, var_trace.OP_READ, 'r');
+        // Re-fetch in case the trace body modified the slot.
+        const v2 = ns_var_find(ns_root(), k.ptr, k.len);
+        if (v2 == 0) return 0;
+        return @bitCast(var_get_scalar(v2));
+    }
     return @bitCast(var_get_scalar(v));
+}
+
+/// Probe for a scalar trace under either the bare or FQ form of
+/// ``(name_ptr, name_len)``.  Used by :func:`global_get` to skip the
+/// fire side-effects when no read trace exists in either form.
+fn scalar_has_fq_or_bare_trace(name_ptr: u32, name_len: u32, op: u32) bool {
+    const var_trace = @import("tcl_var_trace.zig");
+    if (var_trace.has_trace(name_ptr, name_len, op)) return true;
+    if (name_ptr == 0 or name_len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    const has_fq_prefix = name_len >= 2 and sp[0] == ':' and sp[1] == ':';
+    if (!has_fq_prefix) {
+        const total: u32 = name_len + 2;
+        const buf = obj.alloc(total);
+        if (buf == 0) return false;
+        const dst: [*]u8 = @ptrFromInt(buf);
+        dst[0] = ':';
+        dst[1] = ':';
+        for (0..name_len) |i| dst[2 + i] = sp[i];
+        const hit = var_trace.has_trace(buf, total, op);
+        obj.free_sized(buf, total);
+        return hit;
+    } else if (name_len > 2) {
+        return var_trace.has_trace(name_ptr + 2, name_len - 2, op);
+    }
+    return false;
 }
 
 /// Strict variant of :func:`global_get` for codegen-emitted reads of

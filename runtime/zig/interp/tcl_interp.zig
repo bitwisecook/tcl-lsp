@@ -33,6 +33,35 @@ const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
 
 // Convenience: check if any signal flag is set (error, return, break, continue, yield)
+/// Phase 8 follow-up: re-entry counter for ``eval_script`` so
+/// nested invocations (command substitutions, ``eval`` bodies,
+/// ``subst`` partial brackets, ``uplevel``) don't clobber the
+/// outer frame's recorded line number.  Only ``eval_script_depth
+/// == 1`` (the outermost call) drives ``frame_set_line``; nested
+/// calls leave the slot alone so an outer compiled stamp survives
+/// while a sub-eval runs to completion.  ``info frame -line``
+/// reads what the outer stamp wrote, matching reference Tcl's
+/// notion of "the currently-executing command in the proc body".
+var eval_script_depth: u32 = 0;
+
+/// Phase 8 follow-up: count 1-based line number of byte offset
+/// ``pos`` within the script buffer at ``src``.  Each ``\n`` bumps
+/// the count by one; the first line is 1.  ``\r\n`` and lone ``\r``
+/// don't bump separately — Tcl's parser itself only treats ``\n``
+/// as a command terminator.  Linear scan, O(pos) per call; eval_script
+/// invokes this once per parsed command, so the cumulative cost is
+/// O(N²) worst-case for huge scripts.  The cached-slab replay path
+/// stores the per-command line in the slab record so cached bodies
+/// pay O(1).
+fn count_lines_to(src: [*]const u8, pos: u32) u32 {
+    var line: u32 = 1;
+    var i: u32 = 0;
+    while (i < pos) : (i += 1) {
+        if (src[i] == '\n') line += 1;
+    }
+    return line;
+}
+
 fn has_signal() bool {
     const tcl_catch = @import("tcl_catch.zig");
     return result_mod.has_signal(result_mod.snapshot(0)) or
@@ -2744,12 +2773,43 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
     // worst-case slot count.
     var tok_buf: [2 * MAX_WORDS]parse.Token = undefined;
 
+    // Phase 8 follow-up: line counter for ``info frame -line``.
+    // Bumps whenever the parse loop advances past a newline in the
+    // source.  Each command's stamp uses :func:`count_lines_to` from
+    // the script start to the command start, then we update the
+    // frame's recorded line via ``frame_set_line`` so a body
+    // running inside this command observes the correct line number.
+    //
+    // ``eval_script`` re-enters itself for command substitutions
+    // (``[…]``), ``eval`` / ``uplevel`` bodies, and ``subst`` partial
+    // bracket execution.  Only the OUTERMOST eval_script for the
+    // current proc body should drive the recorded line — a nested
+    // eval would otherwise clobber the outer compiled stamp's line
+    // and leave ``info frame -line`` reading the inner script's
+    // line instead of the outer call site's.  Track re-entry via
+    // ``eval_script_depth``; non-zero means "we're inside someone
+    // else's eval_script call", so leave the line alone.
+    eval_script_depth += 1;
+    defer eval_script_depth -= 1;
+    // Update the recorded line only when (a) this is the outermost
+    // ``eval_script`` invocation for the chain (no nested clobbering)
+    // AND (b) the current frame hasn't claimed line ownership for
+    // compiled-proc codegen.  In the latter case the prologue's
+    // emitted ``frame_set_line`` calls are the single source of
+    // truth — eval_script entries that resolve a ``[…]`` inside a
+    // compiled body must not overwrite the outer stamp.
+    const update_line = (eval_script_depth == 1) and !frames.frame_line_owned_by_codegen();
     while (pos < script_len) {
         diag.current_eval_ptr = script_ptr;
         diag.current_eval_len = script_len;
         diag.current_eval_pos = pos;
 
         const cmd = parse.ParseCommand(src, pos, script_len, &tok_buf, tok_buf.len);
+        // Compute 1-based line number of this command's start.
+        if (update_line) {
+            const cmd_line = count_lines_to(src, cmd.command_start);
+            frames.frame_set_line(cmd_line);
+        }
         pos = cmd.next;
         if (cmd.extra_chars_after_close) {
             // Reference Tcl raises this at parse time; route through
@@ -2876,6 +2936,15 @@ fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
     const n_cmds = parse_cache.slab_n_commands(slab);
     var result: i32 = 0;
     var i: u32 = 0;
+    const src: [*]const u8 = @ptrFromInt(body_ptr);
+    // Phase 8 follow-up: same re-entry guard as the cold path so a
+    // nested cached replay doesn't overwrite the outer frame's line.
+    eval_script_depth += 1;
+    defer eval_script_depth -= 1;
+    // Same gate as the cold path — both checks must pass before we
+    // can trust ``frame_set_line`` not to overwrite the outer
+    // compiled stamp.
+    const update_line = (eval_script_depth == 1) and !frames.frame_line_owned_by_codegen();
     while (i < n_cmds) : (i += 1) {
         const rec = parse_cache.command_record(slab, i);
         const tok_offset: u32 = @bitCast(obj_mod.read_i32(rec + parse_cache.OFF_CR_TOKENS_OFFSET));
@@ -2888,7 +2957,15 @@ fn eval_cached_slab(slab: u32, body_ptr: u32, body_len: u32) i32 {
         // publishing it as ``current_eval_pos`` keeps trap
         // diagnostics pointing at the right source span for
         // errors triggered inside the dispatched command.
-        diag.current_eval_pos = if (i == 0) 0 else @bitCast(obj_mod.read_i32(parse_cache.command_record(slab, i - 1) + parse_cache.OFF_CR_NEXT_POS));
+        const cmd_start: u32 = if (i == 0) 0 else @bitCast(obj_mod.read_i32(parse_cache.command_record(slab, i - 1) + parse_cache.OFF_CR_NEXT_POS));
+        diag.current_eval_pos = cmd_start;
+        // Phase 8 follow-up: stamp the frame's recorded line so a
+        // command body's ``info frame`` reads the right line number.
+        // O(cmd_start) per record; cached-body replay still wins on
+        // parse cost which dominates for proc bodies.  Skipped when
+        // we're a nested ``eval_script`` call — the outer stamp
+        // survives.
+        if (update_line) frames.frame_set_line(count_lines_to(src, cmd_start));
         const tokens_ptr = parse_cache.token_at(slab, tok_offset);
         // Release prior command result before overwriting — same
         // leak pattern as the cold path (issue #303).

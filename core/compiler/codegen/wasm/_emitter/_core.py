@@ -70,6 +70,7 @@ class _WasmEmitterBase:
         shared_string_index: dict[str, int] | None = None,
         shared_string_offset: list[int] | None = None,
         proc_qname: str | None = None,
+        proc_body_source: str | None = None,
         diag_map: DiagMap | None = None,
         escape_summary: "ProcEscapeSummary | None" = None,
         proc_imports: dict[str, dict[str, str]] | None = None,
@@ -91,6 +92,12 @@ class _WasmEmitterBase:
         # None for ``::top`` and other non-proc emitters.
         self._proc_qname = proc_qname
         self._proc_namespace = _derive_proc_namespace(proc_qname) if proc_qname else "::"
+        # Phase 8 follow-up: original Tcl source for the proc body, so
+        # the prologue can stamp ``frame_set_script`` for ``info frame
+        # -script`` queries.  ``None`` for synthetic procs (e.g.
+        # ``when`` handlers) — the prologue skips the stamp in that
+        # case.
+        self._proc_body_source = proc_body_source
 
         # Shared state from module compilation
         self._shared_imports: dict[str, int] = shared_imports or {}
@@ -1112,6 +1119,33 @@ class _WasmEmitterBase:
             self._emit_i32_const(len(qname_bytes))
             self._emit_call(obj_str_idx)
             self._emit_call(proc_name_idx)
+            # Phase 8 follow-up: stamp ``frame_set_script`` with the
+            # proc body's original source so ``info frame -script``
+            # works inside compiled procs.  Synthetic procs without
+            # a body_source skip the stamp; the FrameInfo's
+            # ``script_obj`` stays at 0 and ``info frame`` reports
+            # the missing-source case the same way it does for
+            # eval-fallback frames.
+            if (
+                self._proc_body_source is not None
+                and "tcl_frame_set_script" in self._shared_imports
+            ):
+                set_script_idx = self._shared_imports["tcl_frame_set_script"]
+                body_offset = self._intern_string(self._proc_body_source)
+                body_bytes = self._proc_body_source.encode("utf-8", errors="surrogatepass")
+                self._emit_i32_const(body_offset + 4)
+                self._emit_i32_const(len(body_bytes))
+                self._emit_call(obj_str_idx)
+                self._emit_call(set_script_idx)
+            # Phase 8 follow-up: claim line-stamp ownership so a
+            # nested ``eval_script`` (e.g. resolving a ``[…]`` inside
+            # the body) doesn't clobber the per-statement stamps
+            # we're about to emit.  The runtime checks this flag
+            # inside ``eval_script`` and skips its own line update
+            # whenever the current frame is codegen-owned.
+            if "tcl_frame_claim_line_codegen" in self._shared_imports:
+                claim_idx = self._shared_imports["tcl_frame_claim_line_codegen"]
+                self._emit_call(claim_idx)
 
         # Record where the body begins — we need to walk only the
         # body instructions in the frame_pop post-process, not the
