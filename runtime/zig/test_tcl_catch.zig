@@ -42,8 +42,8 @@ fn body_clean_run() void {}
 test "catch_enter / catch_leave on a clean run leaves error_flag at 0" {
     const result = fixture.with_catch(&body_clean_run);
     try testing.expect(result == null);
-    try testing.expectEqual(@as(u32, 0), catch_mod.error_flag);
-    try testing.expectEqual(@as(i32, 0), catch_mod.error_msg);
+    try testing.expectEqual(@as(u32, 0), catch_mod.state.error_flag);
+    try testing.expectEqual(@as(i32, 0), catch_mod.state.error_msg);
 }
 
 fn body_raise() void {
@@ -55,8 +55,8 @@ test "raise inside a catch sets error_flag and error_msg" {
     body_raise();
     // ``error_flag`` and ``error_msg`` must be live BEFORE the leave —
     // the leave's job is to read + clear them.
-    try testing.expectEqual(@as(u32, 1), catch_mod.error_flag);
-    try testing.expect(catch_mod.error_msg != 0);
+    try testing.expectEqual(@as(u32, 1), catch_mod.state.error_flag);
+    try testing.expect(catch_mod.state.error_msg != 0);
 
     const had_error = catch_mod.catch_leave();
     try testing.expectEqual(@as(i64, 1), obj.obj_get_int(had_error));
@@ -64,13 +64,13 @@ test "raise inside a catch sets error_flag and error_msg" {
     // ``catch_leave`` clears ``error_flag`` for the surrounding
     // (non-catch) code; ``last_catch_had_error`` remains so
     // ``catch_result`` can still report.
-    try testing.expectEqual(@as(u32, 0), catch_mod.error_flag);
-    try testing.expectEqual(@as(u32, 1), catch_mod.last_catch_had_error);
+    try testing.expectEqual(@as(u32, 0), catch_mod.state.error_flag);
+    try testing.expectEqual(@as(u32, 1), catch_mod.state.last_catch_had_error);
 
     // Reset for subsequent tests.
-    catch_mod.last_catch_had_error = 0;
-    catch_mod.error_msg = 0;
-    catch_mod.catch_ok_result = 0;
+    catch_mod.state.last_catch_had_error = 0;
+    catch_mod.state.error_msg = 0;
+    catch_mod.state.catch_ok_result = 0;
 }
 
 test "catch_result returns error_msg after a caught error" {
@@ -82,8 +82,8 @@ test "catch_result returns error_msg after a caught error" {
     const s = obj.obj_ensure_string(r);
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     try testing.expectEqualStrings("oops", src[0..s.len]);
-    catch_mod.last_catch_had_error = 0;
-    catch_mod.error_msg = 0;
+    catch_mod.state.last_catch_had_error = 0;
+    catch_mod.state.error_msg = 0;
 }
 
 test "catch_result returns ok_result on a clean run" {
@@ -92,7 +92,7 @@ test "catch_result returns ok_result on a clean run" {
     _ = catch_mod.catch_leave();
     const r = catch_mod.catch_result();
     try testing.expectEqual(@as(i64, 99), obj.obj_get_int(r));
-    catch_mod.catch_ok_result = 0;
+    catch_mod.state.catch_ok_result = 0;
 }
 
 test "catch_set_ok_result is ignored once an error has been raised" {
@@ -109,8 +109,8 @@ test "catch_set_ok_result is ignored once an error has been raised" {
     const s = obj.obj_ensure_string(r);
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     try testing.expectEqualStrings("first", src[0..s.len]);
-    catch_mod.last_catch_had_error = 0;
-    catch_mod.error_msg = 0;
+    catch_mod.state.last_catch_had_error = 0;
+    catch_mod.state.error_msg = 0;
 }
 
 test "catch_has_error mirrors error_flag while inside the catch scope" {
@@ -119,22 +119,22 @@ test "catch_has_error mirrors error_flag while inside the catch scope" {
     stubs.raise("x");
     try testing.expectEqual(@as(i32, 1), catch_mod.catch_has_error());
     _ = catch_mod.catch_leave();
-    catch_mod.last_catch_had_error = 0;
-    catch_mod.error_msg = 0;
+    catch_mod.state.last_catch_had_error = 0;
+    catch_mod.state.error_msg = 0;
 }
 
 // -- nested catches --------------------------------------------------
 
 test "nested catch_enter increments catch_depth then decrements on leave" {
-    const depth0 = catch_mod.catch_depth;
+    const depth0 = catch_mod.state.catch_depth;
     catch_mod.catch_enter();
-    try testing.expectEqual(depth0 + 1, catch_mod.catch_depth);
+    try testing.expectEqual(depth0 + 1, catch_mod.state.catch_depth);
     catch_mod.catch_enter();
-    try testing.expectEqual(depth0 + 2, catch_mod.catch_depth);
+    try testing.expectEqual(depth0 + 2, catch_mod.state.catch_depth);
     _ = catch_mod.catch_leave();
-    try testing.expectEqual(depth0 + 1, catch_mod.catch_depth);
+    try testing.expectEqual(depth0 + 1, catch_mod.state.catch_depth);
     _ = catch_mod.catch_leave();
-    try testing.expectEqual(depth0, catch_mod.catch_depth);
+    try testing.expectEqual(depth0, catch_mod.state.catch_depth);
 }
 
 fn body_inner_raises_outer_does_not() void {
@@ -146,35 +146,35 @@ fn body_inner_raises_outer_does_not() void {
 test "inner catch absorbs the error; outer scope sees no pending error" {
     const result = fixture.with_catch(&body_inner_raises_outer_does_not);
     try testing.expect(result == null);
-    try testing.expectEqual(@as(u32, 0), catch_mod.error_flag);
+    try testing.expectEqual(@as(u32, 0), catch_mod.state.error_flag);
 }
 
 // -- loop-flow flags -------------------------------------------------
 
 test "flow_consume_break clears the flag and reports it once" {
-    catch_mod.break_flag = 1;
+    catch_mod.state.break_flag = 1;
     try testing.expectEqual(@as(i32, 1), catch_mod.flow_consume_break());
     // Second consume must report 0 — the previous call cleared the
     // flag.  Otherwise a single ``break`` could escape multiple
     // enclosing loops.
     try testing.expectEqual(@as(i32, 0), catch_mod.flow_consume_break());
-    try testing.expectEqual(@as(u32, 0), catch_mod.break_flag);
+    try testing.expectEqual(@as(u32, 0), catch_mod.state.break_flag);
 }
 
 test "flow_consume_break returns 0 when no break is pending" {
-    catch_mod.break_flag = 0;
+    catch_mod.state.break_flag = 0;
     try testing.expectEqual(@as(i32, 0), catch_mod.flow_consume_break());
 }
 
 test "flow_consume_continue clears the flag and reports it once" {
-    catch_mod.continue_flag = 1;
+    catch_mod.state.continue_flag = 1;
     try testing.expectEqual(@as(i32, 1), catch_mod.flow_consume_continue());
     try testing.expectEqual(@as(i32, 0), catch_mod.flow_consume_continue());
-    try testing.expectEqual(@as(u32, 0), catch_mod.continue_flag);
+    try testing.expectEqual(@as(u32, 0), catch_mod.state.continue_flag);
 }
 
 test "flow_consume_continue returns 0 when no continue is pending" {
-    catch_mod.continue_flag = 0;
+    catch_mod.state.continue_flag = 0;
     try testing.expectEqual(@as(i32, 0), catch_mod.flow_consume_continue());
 }
 

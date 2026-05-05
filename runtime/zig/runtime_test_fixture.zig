@@ -95,13 +95,13 @@ pub fn catch_enter() void {
 /// ``catch_result()`` call, which keys its return value on
 /// ``last_catch_had_error``.
 pub fn catch_leave() ?[]const u8 {
-    const had_error = catch_mod.error_flag;
-    const msg_obj = catch_mod.error_msg;
+    const had_error = catch_mod.state.error_flag;
+    const msg_obj = catch_mod.state.error_msg;
     _ = catch_mod.catch_leave();
-    catch_mod.error_flag = 0;
-    catch_mod.error_msg = 0;
-    catch_mod.last_catch_had_error = 0;
-    catch_mod.catch_ok_result = 0;
+    catch_mod.state.error_flag = 0;
+    catch_mod.state.error_msg = 0;
+    catch_mod.state.last_catch_had_error = 0;
+    catch_mod.state.catch_ok_result = 0;
     if (had_error == 0) return null;
     if (msg_obj == 0) {
         error_msg_len = 0;
@@ -182,10 +182,10 @@ pub fn with_interp(body: *const fn () void) void {
 }
 
 fn reset_loop_flags() void {
-    catch_mod.return_flag = 0;
-    catch_mod.return_val = 0;
-    catch_mod.break_flag = 0;
-    catch_mod.continue_flag = 0;
+    catch_mod.state.return_flag = 0;
+    catch_mod.state.return_val = 0;
+    catch_mod.state.break_flag = 0;
+    catch_mod.state.continue_flag = 0;
 }
 
 // -- Frame helpers ---------------------------------------------------
