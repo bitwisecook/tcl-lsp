@@ -24,6 +24,12 @@ use pyo3::prelude::*;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
 
+/// Tuple shape of one compiler-check diagnostic returned to
+/// Python: `(code, category, severity, message, start_offset,
+/// end_offset, replacement_or_none)`.  The Python caller wraps
+/// each row in its own `Diagnostic` dataclass.
+type DiagnosticRow = (String, String, String, String, u32, u32, Option<String>);
+
 /// Run every landed compiler check against `source` and return a
 /// flat list of diagnostic tuples:
 ///
@@ -42,11 +48,7 @@ use tcl_compiler::compiler_checks::run_all_checks;
 /// `dialect` is forwarded as-is; `None` selects plain Tcl.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-#[allow(clippy::type_complexity)]
-pub fn compiler_checks_run_all(
-    source: &str,
-    dialect: Option<&str>,
-) -> Vec<(String, String, String, String, u32, u32, Option<String>)> {
+pub fn compiler_checks_run_all(source: &str, dialect: Option<&str>) -> Vec<DiagnosticRow> {
     let registry = crate::registry::default_registry();
     let cu =
         CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, dialect);

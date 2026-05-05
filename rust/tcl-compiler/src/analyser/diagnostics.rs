@@ -1124,7 +1124,10 @@ Consider capturing the result: catch {\u{2026}} result"
         // as literal inside ``"…"``) is not detected.  Real W101
         // shapes don't hit that pattern; documented for posterity.
         let has_substitution = arg_tokens.iter().enumerate().any(|(i, tok)| {
-            if matches!(tok.kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd) {
+            if matches!(
+                tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            ) {
                 return true;
             }
             if arg_single.get(i).copied() == Some(true) {

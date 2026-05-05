@@ -16,6 +16,25 @@ use pyo3::prelude::*;
 
 use tcl_compiler::optimiser;
 
+/// Tuple shape of one optimisation record returned to Python:
+/// `(code, message, start_offset, end_offset, replacement,
+///   group_or_none, hint_only)`.  The Python caller wraps each
+/// row in its own `Optimisation` dataclass so this crate
+/// doesn't need to know about Python-side types.
+type OptimisationRow = (String, String, u32, u32, String, Option<u32>, bool);
+
+fn lift_optimisation(o: optimiser::Optimisation) -> OptimisationRow {
+    (
+        o.code,
+        o.message,
+        o.span.start(),
+        o.span.end(),
+        o.replacement,
+        o.group,
+        o.hint_only,
+    )
+}
+
 /// Run every landed optimisation pass against `source` and
 /// return the overlap-free list of suggestions as a tuple per
 /// diagnostic:
@@ -32,25 +51,11 @@ use tcl_compiler::optimiser;
 /// plain Tcl.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-#[allow(clippy::type_complexity)]
-pub fn optimiser_find_optimisations(
-    source: &str,
-    dialect: Option<&str>,
-) -> Vec<(String, String, u32, u32, String, Option<u32>, bool)> {
+pub fn optimiser_find_optimisations(source: &str, dialect: Option<&str>) -> Vec<OptimisationRow> {
     let registry = crate::registry::default_registry();
     optimiser::optimise_with_dialect(source, registry, dialect)
         .into_iter()
-        .map(|o| {
-            (
-                o.code,
-                o.message,
-                o.span.start(),
-                o.span.end(),
-                o.replacement,
-                o.group,
-                o.hint_only,
-            )
-        })
+        .map(lift_optimisation)
         .collect()
 }
 
@@ -60,27 +65,16 @@ pub fn optimiser_find_optimisations(
 /// tests + tooling that want to inspect the raw per-pass output.
 #[pyfunction]
 #[pyo3(signature = (source, dialect = None, /))]
-#[allow(clippy::type_complexity)]
 pub fn optimiser_find_optimisations_raw(
     source: &str,
     dialect: Option<&str>,
-) -> Vec<(String, String, u32, u32, String, Option<u32>, bool)> {
+) -> Vec<OptimisationRow> {
     let registry = crate::registry::default_registry();
     // optimise_raw already constructs a CompilationUnit internally;
     // no need to build one here.
-    let opts = optimiser::optimise_raw(source, registry, dialect);
-    opts.into_iter()
-        .map(|o| {
-            (
-                o.code,
-                o.message,
-                o.span.start(),
-                o.span.end(),
-                o.replacement,
-                o.group,
-                o.hint_only,
-            )
-        })
+    optimiser::optimise_raw(source, registry, dialect)
+        .into_iter()
+        .map(lift_optimisation)
         .collect()
 }
 
