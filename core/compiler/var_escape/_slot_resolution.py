@@ -52,20 +52,12 @@ from ..ir import (
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
-    IRBlock,
     IRCall,
-    IRCatch,
     IRExprEval,
-    IRFor,
-    IRForeach,
-    IRIf,
     IRIncr,
     IRReturn,
     IRScript,
     IRStatement,
-    IRSwitch,
-    IRTry,
-    IRWhile,
 )
 from ._types import ProcEscapeSummary
 
