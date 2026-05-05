@@ -5,6 +5,7 @@
 
 const rt = @import("../tcl_runtime.zig");
 
+const result_mod = @import("../interp/tcl_result.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
 
@@ -36,8 +37,8 @@ pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "unset", .arity_min = 1, .arity_max = 2, .handler = &eval },
 };
 
-pub fn eval(words: []const i32) i32 {
-    if (words.len < 3) return 0;
+pub fn eval(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) return result_mod.from_globals(0);
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     const array_mod = @import("../valtypes/tcl_array.zig");
@@ -51,8 +52,8 @@ pub fn eval(words: []const i32) i32 {
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     defer if (resolved_name != words[2]) obj_mod.tcl_obj_release(resolved_name);
     if (str_eq(sp, sub.len, "get")) {
-        if (words.len >= 4) return array_mod.array_get(resolved_name, words[3]);
-        return array_mod.array_get(resolved_name, obj_new_string(0, 0));
+        if (words.len >= 4) return result_mod.from_globals(array_mod.array_get(resolved_name, words[3]));
+        return result_mod.from_globals(array_mod.array_get(resolved_name, obj_new_string(0, 0)));
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 4) {
         // ``array set arr pairlist`` — payload is a flat
@@ -60,22 +61,22 @@ pub fn eval(words: []const i32) i32 {
         // ``array_set_list`` even for the single-pair shape so
         // tcltest's ``ArrayDefault`` initialiser populates each
         // element individually.
-        return array_mod.array_set_list(resolved_name, words[3]);
+        return result_mod.from_globals(array_mod.array_set_list(resolved_name, words[3]));
     }
-    if (str_eq(sp, sub.len, "exists")) return array_mod.array_exists(resolved_name);
+    if (str_eq(sp, sub.len, "exists")) return result_mod.from_globals(array_mod.array_exists(resolved_name));
     if (str_eq(sp, sub.len, "names")) {
         const pat: i32 = if (words.len >= 4) words[3] else 0;
-        return array_mod.array_names(resolved_name, pat);
+        return result_mod.from_globals(array_mod.array_names(resolved_name, pat));
     }
-    if (str_eq(sp, sub.len, "size")) return array_mod.array_size(resolved_name);
+    if (str_eq(sp, sub.len, "size")) return result_mod.from_globals(array_mod.array_size(resolved_name));
     if (str_eq(sp, sub.len, "unset")) {
-        if (words.len >= 4) return array_mod.array_unset_element(resolved_name, words[3]);
-        return array_mod.array_unset(resolved_name);
+        if (words.len >= 4) return result_mod.from_globals(array_mod.array_unset_element(resolved_name, words[3]));
+        return result_mod.from_globals(array_mod.array_unset(resolved_name));
     }
     // Other subcommands (statistics, startsearch, …) not yet wired —
     // fall through to the stub dispatch which raises the exception.
     const stubs_mod = @import("../stubs/tcl_stubs.zig");
     const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(sub.ptr)))[0..sub.len];
     stubs_mod.unsupported_sub("array", sub_slice);
-    return 0;
+    return result_mod.from_globals(0);
 }

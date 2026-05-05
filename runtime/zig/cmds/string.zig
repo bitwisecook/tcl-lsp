@@ -7,6 +7,7 @@
 
 const rt = @import("../tcl_runtime.zig");
 
+const result_mod = @import("../interp/tcl_result.zig");
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_string = rt.obj_new_string;
 const obj_new_int = rt.obj_new_int;
@@ -51,16 +52,16 @@ pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "wordstart", .arity_min = 2, .arity_max = 2, .handler = &eval },
 };
 
-pub fn eval(words: []const i32) i32 {
-    if (words.len < 3) return 0;
+pub fn eval(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) return result_mod.from_globals(0);
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
-    if (str_eq(sp, sub.len, "length")) return rt.string_length(words[2]);
-    if (str_eq(sp, sub.len, "index") and words.len >= 4) return rt.string_index(words[2], words[3]);
-    if (str_eq(sp, sub.len, "range") and words.len >= 5) return rt.string_range(words[2], words[3], words[4]);
-    if (str_eq(sp, sub.len, "compare") and words.len >= 4) return rt.string_compare(words[2], words[3]);
-    if (str_eq(sp, sub.len, "equal") and words.len >= 4) return rt.string_equal(words[2], words[3]);
-    if (str_eq(sp, sub.len, "match") and words.len >= 4) return rt.string_match(words[2], words[3]);
+    if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
+    if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));
+    if (str_eq(sp, sub.len, "range") and words.len >= 5) return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
+    if (str_eq(sp, sub.len, "compare") and words.len >= 4) return result_mod.from_globals(rt.string_compare(words[2], words[3]));
+    if (str_eq(sp, sub.len, "equal") and words.len >= 4) return result_mod.from_globals(rt.string_equal(words[2], words[3]));
+    if (str_eq(sp, sub.len, "match") and words.len >= 4) return result_mod.from_globals(rt.string_match(words[2], words[3]));
     if (str_eq(sp, sub.len, "map") and words.len >= 4) {
         // ``string map ?-nocase? CHARMAP STRING`` — accept the
         // optional ``-nocase`` flag.  Without this branch, the
@@ -79,34 +80,34 @@ pub fn eval(words: []const i32) i32 {
                 map_idx = 3;
             }
         }
-        if (map_idx + 1 >= words.len) return obj_new_string(0, 0);
-        if (nocase) return rt.string_map_nocase(words[map_idx], words[map_idx + 1]);
-        return rt.string_map(words[map_idx], words[map_idx + 1]);
+        if (map_idx + 1 >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+        if (nocase) return result_mod.from_globals(rt.string_map_nocase(words[map_idx], words[map_idx + 1]));
+        return result_mod.from_globals(rt.string_map(words[map_idx], words[map_idx + 1]));
     }
     if (str_eq(sp, sub.len, "trim")) {
         const chars = if (words.len >= 4) words[3] else 0;
-        return rt.string_trim(words[2], chars);
+        return result_mod.from_globals(rt.string_trim(words[2], chars));
     }
     if (str_eq(sp, sub.len, "trimleft")) {
         const chars = if (words.len >= 4) words[3] else 0;
-        return rt.string_trimleft(words[2], chars);
+        return result_mod.from_globals(rt.string_trimleft(words[2], chars));
     }
     if (str_eq(sp, sub.len, "trimright")) {
         const chars = if (words.len >= 4) words[3] else 0;
-        return rt.string_trimright(words[2], chars);
+        return result_mod.from_globals(rt.string_trimright(words[2], chars));
     }
-    if (str_eq(sp, sub.len, "first") and words.len >= 4) return rt.string_first(words[2], words[3]);
-    if (str_eq(sp, sub.len, "last") and words.len >= 4) return rt.string_last(words[2], words[3]);
-    if (str_eq(sp, sub.len, "toupper")) return rt.string_toupper(words[2]);
-    if (str_eq(sp, sub.len, "tolower")) return rt.string_tolower(words[2]);
-    if (str_eq(sp, sub.len, "reverse")) return rt.string_reverse(words[2]);
-    if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return rt.string_repeat(words[2], words[3]);
-    if (str_eq(sp, sub.len, "replace") and words.len >= 6) return rt.string_replace(words[2], words[3], words[4], words[5]);
+    if (str_eq(sp, sub.len, "first") and words.len >= 4) return result_mod.from_globals(rt.string_first(words[2], words[3]));
+    if (str_eq(sp, sub.len, "last") and words.len >= 4) return result_mod.from_globals(rt.string_last(words[2], words[3]));
+    if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
+    if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
+    if (str_eq(sp, sub.len, "reverse")) return result_mod.from_globals(rt.string_reverse(words[2]));
+    if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
+    if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
     if (str_eq(sp, sub.len, "is")) {
         // ``string is class ?-strict? ?-failindex var? str``
         // Find the class name (words[2]) and the final string arg.
         // Skip any -strict / -failindex flags and their args.
-        if (words.len < 4) return obj_new_int(1); // empty string: non-strict default is 1
+        if (words.len < 4) return result_mod.from_globals(obj_new_int(1)); // empty string: non-strict default is 1
         const cls = obj_ensure_string(words[2]);
         const clsp: [*]const u8 = @ptrFromInt(cls.ptr);
         var str_idx: u32 = 3;
@@ -119,11 +120,11 @@ pub fn eval(words: []const i32) i32 {
                 str_idx += 1;
             } else break;
         }
-        if (str_idx >= words.len) return obj_new_int(1);
+        if (str_idx >= words.len) return result_mod.from_globals(obj_new_int(1));
         const sv = obj_ensure_string(words[str_idx]);
         if (sv.len == 0) {
             // non-strict: empty is 1 for all; strict: 0
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         const svp: [*]const u8 = @ptrFromInt(sv.ptr);
         if (str_eq(clsp, cls.len, "print")) {
@@ -132,42 +133,42 @@ pub fn eval(words: []const i32) i32 {
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
                 if (b >= 0x80) continue; // multibyte UTF-8 — treat as printable
-                if (b < 0x20 or b == 0x7F) return obj_new_int(0);
+                if (b < 0x20 or b == 0x7F) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "alpha")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
                 if (b >= 0x80) { i += 1; continue; }
-                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) return obj_new_int(0);
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "digit")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
-                if (svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+                if (svp[i] < '0' or svp[i] > '9') return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "alnum")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
                 if (b >= 0x80) { i += 1; continue; }
-                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or (b >= '0' and b <= '9'))) return obj_new_int(0);
+                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or (b >= '0' and b <= '9'))) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "space") or str_eq(clsp, cls.len, "whitespace")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b != ' ' and b != '\t' and b != '\n' and b != '\r' and b != 0x0C and b != 0x0B) return obj_new_int(0);
+                if (b != ' ' and b != '\t' and b != '\n' and b != '\r' and b != 0x0C and b != 0x0B) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         // ``integer`` and ``wideinteger`` accept the same set of
         // string forms: optional whitespace, optional sign, then
@@ -181,18 +182,18 @@ pub fn eval(words: []const i32) i32 {
             if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
             if (i < sv.len and svp[i] == '0' and i + 1 < sv.len and (svp[i+1] == 'x' or svp[i+1] == 'X')) {
                 i += 2;
-                if (i >= sv.len) return obj_new_int(0);
+                if (i >= sv.len) return result_mod.from_globals(obj_new_int(0));
                 while (i < sv.len) : (i += 1) {
                     const b = svp[i];
-                    if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return obj_new_int(0);
+                    if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return result_mod.from_globals(obj_new_int(0));
                 }
-                return obj_new_int(1);
+                return result_mod.from_globals(obj_new_int(1));
             }
-            if (i >= sv.len) return obj_new_int(0);
+            if (i >= sv.len) return result_mod.from_globals(obj_new_int(0));
             while (i < sv.len) : (i += 1) {
-                if (svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+                if (svp[i] < '0' or svp[i] > '9') return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "boolean")) {
             if (str_eq(svp, sv.len, "1") or str_eq(svp, sv.len, "0") or
@@ -200,51 +201,51 @@ pub fn eval(words: []const i32) i32 {
                 str_eq(svp, sv.len, "yes") or str_eq(svp, sv.len, "no") or
                 str_eq(svp, sv.len, "on") or str_eq(svp, sv.len, "off") or
                 str_eq(svp, sv.len, "True") or str_eq(svp, sv.len, "False") or
-                str_eq(svp, sv.len, "TRUE") or str_eq(svp, sv.len, "FALSE")) return obj_new_int(1);
-            return obj_new_int(0);
+                str_eq(svp, sv.len, "TRUE") or str_eq(svp, sv.len, "FALSE")) return result_mod.from_globals(obj_new_int(1));
+            return result_mod.from_globals(obj_new_int(0));
         }
         if (str_eq(clsp, cls.len, "ascii")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
-                if (svp[i] > 0x7F) return obj_new_int(0);
+                if (svp[i] > 0x7F) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "control")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) return obj_new_int(0);
-                if (b >= 0x20 and b != 0x7F) return obj_new_int(0);
+                if (b >= 0x80) return result_mod.from_globals(obj_new_int(0));
+                if (b >= 0x20 and b != 0x7F) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "graph")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
                 if (b >= 0x80) { i += 1; continue; }
-                if (b <= 0x20 or b == 0x7F) return obj_new_int(0);
+                if (b <= 0x20 or b == 0x7F) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "lower")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
                 if (b >= 0x80) { i += 1; continue; }
-                if (b < 'a' or b > 'z') return obj_new_int(0);
+                if (b < 'a' or b > 'z') return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "upper")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
                 if (b >= 0x80) { i += 1; continue; }
-                if (b < 'A' or b > 'Z') return obj_new_int(0);
+                if (b < 'A' or b > 'Z') return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "punct")) {
             var i: u32 = 0;
@@ -253,17 +254,17 @@ pub fn eval(words: []const i32) i32 {
                 if (b >= 0x80) { i += 1; continue; }
                 const is_punct = (b >= '!' and b <= '/') or (b >= ':' and b <= '@') or
                     (b >= '[' and b <= '`') or (b >= '{' and b <= '~');
-                if (!is_punct) return obj_new_int(0);
+                if (!is_punct) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "xdigit")) {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return obj_new_int(0);
+                if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return result_mod.from_globals(obj_new_int(0));
             }
-            return obj_new_int(1);
+            return result_mod.from_globals(obj_new_int(1));
         }
         if (str_eq(clsp, cls.len, "double") or str_eq(clsp, cls.len, "float")) {
             // Very basic: try to parse as number with optional decimal/exponent
@@ -276,18 +277,18 @@ pub fn eval(words: []const i32) i32 {
                 i += 1;
                 while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
             }
-            if (!has_digit) return obj_new_int(0);
+            if (!has_digit) return result_mod.from_globals(obj_new_int(0));
             if (i < sv.len and (svp[i] == 'e' or svp[i] == 'E')) {
                 i += 1;
                 if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
-                if (i >= sv.len or svp[i] < '0' or svp[i] > '9') return obj_new_int(0);
+                if (i >= sv.len or svp[i] < '0' or svp[i] > '9') return result_mod.from_globals(obj_new_int(0));
                 while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') i += 1;
             }
-            if (i != sv.len) return obj_new_int(0);
-            return obj_new_int(1);
+            if (i != sv.len) return result_mod.from_globals(obj_new_int(0));
+            return result_mod.from_globals(obj_new_int(1));
         }
         // Unknown class — return 0
-        return obj_new_int(0);
+        return result_mod.from_globals(obj_new_int(0));
     }
-    return 0;
+    return result_mod.from_globals(0);
 }

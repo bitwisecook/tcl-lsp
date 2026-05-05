@@ -534,8 +534,12 @@ fn eval_command(words: []const i32) i32 {
     }
 
     // Registered builtin dispatch — all builtin commands are in per-module
-    // files under cmds/ and assembled in tcl_cmd_table.zig.
-    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words);
+    // files under cmds/ and assembled in tcl_cmd_table.zig.  Handlers now
+    // return :type:`InterpResult`; the legacy globals are still set as
+    // a side effect of ``tcl_cmd_error`` etc., so we extract ``.value``
+    // for the i32-returning ``eval_command`` contract and let the
+    // surrounding ``snapshot``-based inspection observe the signal.
+    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words).value;
 
     // ``::concat``, ``::expr``, etc. — fully-qualified names for
     // root-namespace builtins.  Strip the leading ``::`` and retry
@@ -546,7 +550,7 @@ fn eval_command(words: []const i32) i32 {
         const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
         if (cmd_p[0] == ':' and cmd_p[1] == ':') {
             if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
-                return handler(words);
+                return handler(words).value;
             }
             // Ensemble FQ rewrites — the CFG canonicalises
             // ``dict for`` to ``::tcl::dict::for`` (and friends).
@@ -610,7 +614,7 @@ fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
     while (k < words.len) : (k += 1) {
         slot[k + 1] = words[k];
     }
-    return handler(slot[0..total]);
+    return handler(slot[0..total]).value;
 }
 
 const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
@@ -1620,7 +1624,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     const target_s = obj_ensure_string(new_words[0]);
     if (target_s.len > 0) {
         if (cmd_table.lookup(target_s.ptr, target_s.len)) |handler| {
-            const result = handler(new_words[0..total]);
+            const result = handler(new_words[0..total]).value;
             interp_reg.leave(save);
             return result;
         }
@@ -1630,7 +1634,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
             const tp: [*]const u8 = @ptrFromInt(target_s.ptr);
             if (tp[0] == ':' and tp[1] == ':') {
                 if (cmd_table.lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
-                    const result = handler(new_words[0..total]);
+                    const result = handler(new_words[0..total]).value;
                     interp_reg.leave(save);
                     return result;
                 }
@@ -1867,7 +1871,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         const handler_addr: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_PARAMS_OBJ));
         const reg = @import("../dispatch/tcl_cmd_registry.zig");
         const handler: reg.HandlerFn = @ptrFromInt(handler_addr);
-        return handler(words);
+        return handler(words).value;
     }
     // ``CMD_BUILTIN_MASKED`` Commands are tombstones — set by
     // ``rename BUILTIN ""`` so a subsequent ``[BUILTIN ...]`` call

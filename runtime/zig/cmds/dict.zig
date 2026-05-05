@@ -54,11 +54,11 @@ pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "with", .arity_min = 2, .arity_max = null, .handler = &eval },
 };
 
-pub fn eval(words: []const i32) i32 {
-    if (words.len < 3) return 0;
+pub fn eval(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) return result_mod.from_globals(0);
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
-    if (str_eq(sp, sub.len, "get") and words.len >= 4) return rt.dict_get(words[2], words[3]);
+    if (str_eq(sp, sub.len, "get") and words.len >= 4) return result_mod.from_globals(rt.dict_get(words[2], words[3]));
     // ``dict getd DICT KEY ?KEY ...? DEFAULT`` — Tcl 9's
     // default-value lookup form.  Returns the existing value when
     // the key chain resolves; otherwise returns the trailing
@@ -75,41 +75,41 @@ pub fn eval(words: []const i32) i32 {
         var ki: u32 = 3;
         while (ki + 1 < words.len) : (ki += 1) {
             if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
-                return default_obj;
+                return result_mod.from_globals(default_obj);
             }
             cur = rt.dict_get(cur, words[ki]);
         }
-        return cur;
+        return result_mod.from_globals(cur);
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 5) {
         const cur = frames.var_resolve(words[2]);
         const result = rt.dict_set(cur, words[3], words[4]);
         _ = frames.var_set(words[2], result);
-        return result;
+        return result_mod.from_globals(result);
     }
     if (str_eq(sp, sub.len, "unset") and words.len >= 4) {
         const cur = frames.var_resolve(words[2]);
         const result = rt.dict_unset(cur, words[3]);
         _ = frames.var_set(words[2], result);
-        return result;
+        return result_mod.from_globals(result);
     }
-    if (str_eq(sp, sub.len, "update") and words.len >= 6) return eval_dict_update(words);
-    if (str_eq(sp, sub.len, "exists") and words.len >= 4) return rt.dict_exists(words[2], words[3]);
-    if (str_eq(sp, sub.len, "keys")) return rt.dict_keys(words[2]);
-    if (str_eq(sp, sub.len, "values")) return rt.dict_values(words[2]);
-    if (str_eq(sp, sub.len, "size")) return rt.dict_size(words[2]);
-    if (str_eq(sp, sub.len, "create")) return eval_dict_create(words);
-    if (str_eq(sp, sub.len, "append") and words.len >= 4) return eval_dict_append(words);
-    if (str_eq(sp, sub.len, "lappend") and words.len >= 4) return eval_dict_lappend(words);
-    if (str_eq(sp, sub.len, "incr") and words.len >= 4) return eval_dict_incr(words);
-    if (str_eq(sp, sub.len, "merge")) return eval_dict_merge(words);
-    if (str_eq(sp, sub.len, "remove") and words.len >= 3) return eval_dict_remove(words);
-    if (str_eq(sp, sub.len, "replace") and words.len >= 3) return eval_dict_replace(words);
-    if (str_eq(sp, sub.len, "info") and words.len >= 3) return eval_dict_info(words);
-    if (str_eq(sp, sub.len, "for") and words.len >= 5) return eval_dict_for(words);
-    if (str_eq(sp, sub.len, "map") and words.len >= 5) return eval_dict_map(words);
-    if (str_eq(sp, sub.len, "with") and words.len >= 4) return eval_dict_with(words);
-    if (str_eq(sp, sub.len, "filter") and words.len >= 4) return eval_dict_filter(words);
+    if (str_eq(sp, sub.len, "update") and words.len >= 6) return result_mod.from_globals(eval_dict_update(words));
+    if (str_eq(sp, sub.len, "exists") and words.len >= 4) return result_mod.from_globals(rt.dict_exists(words[2], words[3]));
+    if (str_eq(sp, sub.len, "keys")) return result_mod.from_globals(rt.dict_keys(words[2]));
+    if (str_eq(sp, sub.len, "values")) return result_mod.from_globals(rt.dict_values(words[2]));
+    if (str_eq(sp, sub.len, "size")) return result_mod.from_globals(rt.dict_size(words[2]));
+    if (str_eq(sp, sub.len, "create")) return result_mod.from_globals(eval_dict_create(words));
+    if (str_eq(sp, sub.len, "append") and words.len >= 4) return result_mod.from_globals(eval_dict_append(words));
+    if (str_eq(sp, sub.len, "lappend") and words.len >= 4) return result_mod.from_globals(eval_dict_lappend(words));
+    if (str_eq(sp, sub.len, "incr") and words.len >= 4) return result_mod.from_globals(eval_dict_incr(words));
+    if (str_eq(sp, sub.len, "merge")) return result_mod.from_globals(eval_dict_merge(words));
+    if (str_eq(sp, sub.len, "remove") and words.len >= 3) return result_mod.from_globals(eval_dict_remove(words));
+    if (str_eq(sp, sub.len, "replace") and words.len >= 3) return result_mod.from_globals(eval_dict_replace(words));
+    if (str_eq(sp, sub.len, "info") and words.len >= 3) return result_mod.from_globals(eval_dict_info(words));
+    if (str_eq(sp, sub.len, "for") and words.len >= 5) return result_mod.from_globals(eval_dict_for(words));
+    if (str_eq(sp, sub.len, "map") and words.len >= 5) return result_mod.from_globals(eval_dict_map(words));
+    if (str_eq(sp, sub.len, "with") and words.len >= 4) return result_mod.from_globals(eval_dict_with(words));
+    if (str_eq(sp, sub.len, "filter") and words.len >= 4) return result_mod.from_globals(eval_dict_filter(words));
     // Unrecognised subcommand — surface Tcl's standard ``unknown or
     // ambiguous subcommand`` diagnostic so a compiled ``dict foo
     // ...`` callsite that fell through to this dispatcher (because
@@ -148,7 +148,7 @@ pub fn eval(words: []const i32) i32 {
     const msg = obj_mod.obj_new_string_take(buf, total, total);
     const catch_mod = @import("../interp/tcl_catch.zig");
     catch_mod.tcl_cmd_error(msg);
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 /// ``dict create ?key value ...?`` — build a new dict from alternating

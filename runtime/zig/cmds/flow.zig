@@ -13,7 +13,7 @@ const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int       = rt.obj_new_int;
 const obj_new_string    = rt.obj_new_string;
 
-fn eval_return(words: []const i32) i32 {
+fn eval_return(words: []const i32) result_mod.InterpResult {
     // Tcl's ``return -level N -code C value`` produces an exception
     // that unwinds *N* frames with code C.  The default ``return val``
     // is ``-level 1 -code ok``: exit this proc with code OK.
@@ -118,7 +118,7 @@ fn eval_return(words: []const i32) i32 {
         // message — Copilot review on PR #325.  Route through the
         // 3-arg form with ``code = 0`` so the default ``NONE`` wins.
         catch_mod.tcl_cmd_error_full(result_obj, 0, 0);
-        return 0;
+        return result_mod.from_globals(0);
     }
     // ``return -code break`` / ``return -code continue`` aren't yet
     // wired through the compiled-proc body machinery — propagating
@@ -147,42 +147,42 @@ fn eval_return(words: []const i32) i32 {
     if (result_obj != 0) obj_mod.tcl_obj_retain(result_obj);
     if (old != 0 and old != result_obj) obj_mod.tcl_obj_release(old);
     result_mod.set_return(result_obj, extra_levels);
-    return result_obj;
+    return result_mod.from_globals(result_obj);
 }
 
-fn eval_break(words: []const i32) i32 {
+fn eval_break(words: []const i32) result_mod.InterpResult {
     if (words.len > 1) {
         stubs.raise("wrong # args: should be \"break\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     result_mod.set_break();
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_continue(words: []const i32) i32 {
+fn eval_continue(words: []const i32) result_mod.InterpResult {
     if (words.len > 1) {
         stubs.raise("wrong # args: should be \"continue\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     result_mod.set_continue();
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_error(words: []const i32) i32 {
+fn eval_error(words: []const i32) result_mod.InterpResult {
     // ``error msg ?info? ?code?`` — populate ``::errorInfo`` /
     // ``::errorCode`` from the optional 2nd / 3rd args.  Without
     // this, ``catch ... opt; dict get $opt -errorcode`` always
     // saw ``NONE`` because the upstream ``error -code FOO`` form
     // never made it into the global.
-    if (words.len < 2) return 0;
+    if (words.len < 2) return result_mod.from_globals(0);
     const msg = words[1];
     const info: i32 = if (words.len >= 3) words[2] else 0;
     const code: i32 = if (words.len >= 4) words[3] else 0;
     catch_mod.tcl_cmd_error_full(msg, info, code);
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_catch(words: []const i32) i32 {
+fn eval_catch(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
         rt.catch_enter();
@@ -210,25 +210,25 @@ fn eval_catch(words: []const i32) i32 {
         if (words.len >= 4) {
             _ = frames.var_set(words[3], catch_mod.catch_options());
         }
-        return code;
+        return result_mod.from_globals(code);
     }
-    return obj_new_int(0);
+    return result_mod.from_globals(obj_new_int(0));
 }
 
 // ``throw type message`` — raise error with explicit errorCode.
-fn eval_throw(words: []const i32) i32 {
+fn eval_throw(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) {
         stubs.raise("wrong # args: should be \"throw type message\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
 
     catch_mod.tcl_cmd_error_full(words[2], 0, words[1]);
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 // ``try body ?on code varlist handler? ... ?finally body?``
-fn eval_try(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_try(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const interp    = @import("../interp/tcl_interp.zig");
 
 
@@ -343,32 +343,32 @@ fn eval_try(words: []const i32) i32 {
         if (rt.obj_get_int(finally_code) != 0) {
             // Finally raised an error — propagate it, overriding handler result.
             catch_mod.tcl_cmd_error(fb_val);
-            return fb_result;
+            return result_mod.from_globals(fb_result);
         }
         // If finally set a return/break/continue signal, propagate it.
         const fb_ir = result_mod.snapshot(fb_result);
         if (fb_ir.code == .RETURN or fb_ir.code == .BREAK or fb_ir.code == .CONTINUE) {
-            return fb_result;
+            return result_mod.from_globals(fb_result);
         }
         // Finally completed normally: restore signals from after handlers ran.
         result_mod.flow_restore(snap);
     }
 
     if (error_raised and !handled) catch_mod.tcl_cmd_error(catch_val);
-    return final_result;
+    return result_mod.from_globals(final_result);
 }
 
 // ``apply`` — delegate to tcl_interp.eval_apply.
-fn eval_apply_cmd(words: []const i32) i32 {
+fn eval_apply_cmd(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
-    return interp.eval_apply(words);
+    return result_mod.from_globals(interp.eval_apply(words));
 }
 
 // ``tailcall cmd ?arg ...?`` — call target, force-return from current proc.
-fn eval_tailcall(words: []const i32) i32 {
+fn eval_tailcall(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         rt.tcl_cmd_error(obj_new_string(0, 0));
-        return 0;
+        return result_mod.from_globals(0);
     }
     const interp = @import("../interp/tcl_interp.zig");
     const result = interp.eval_call(words[1..]);
@@ -376,12 +376,12 @@ fn eval_tailcall(words: []const i32) i32 {
     if (ir.code != .ERROR and ir.code != .RETURN) {
         result_mod.set_return(result, 0);
     }
-    return result;
+    return result_mod.from_globals(result);
 }
 
 // ``time script ?count?`` — measure microseconds per iteration.
-fn eval_time(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_time(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const interp = @import("../interp/tcl_interp.zig");
     const clock  = @import("../io/tcl_clock.zig");
 
@@ -394,7 +394,7 @@ fn eval_time(words: []const i32) i32 {
     while (i < count) : (i += 1) {
         last = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(last);
-        if (ir.code == .ERROR or ir.code == .RETURN) return last;
+        if (ir.code == .ERROR or ir.code == .RETURN) return result_mod.from_globals(last);
     }
     const end_us   = rt.obj_get_int(clock.clock_clicks());
     const per_iter = if (count > 0) @divTrunc(end_us - start_us, count) else 0;
@@ -410,7 +410,7 @@ fn eval_time(words: []const i32) i32 {
         const d: [*]u8 = @ptrFromInt(buf + pi_s.len + k);
         d[0] = suffix[k];
     }
-    return rt.obj_new_string(@bitCast(buf), @bitCast(total));
+    return result_mod.from_globals(rt.obj_new_string(@bitCast(buf), @bitCast(total)));
 }
 
 pub const registrations = [_]reg.CmdEntry{

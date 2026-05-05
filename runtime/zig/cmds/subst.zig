@@ -1,6 +1,7 @@
 // ``subst``, ``expr`` — substitution and expression evaluation commands.
 
 const rt        = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const tcl_subst = @import("../parse/tcl_subst.zig");
 const reg       = @import("../dispatch/tcl_cmd_registry.zig");
 
@@ -21,7 +22,7 @@ fn is_prefix(arg: [*]const u8, arg_len: u32, opt: []const u8) bool {
     return true;
 }
 
-fn eval_subst(words: []const i32) i32 {
+fn eval_subst(words: []const i32) result_mod.InterpResult {
     var do_vars = true;
     var do_cmds = true;
     var do_bs   = true;
@@ -56,15 +57,15 @@ fn eval_subst(words: []const i32) i32 {
             break;
         }
     }
-    if (wi >= words.len) return obj_new_string(0, 0);
+    if (wi >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
     const s = obj_ensure_string(words[wi]);
     // ``from_subst_cmd=true`` activates Tcl_SubstObj exception handling:
     // ``[break]`` / ``[continue]`` / ``[return]`` inside ``[...]`` are
     // folded into the subst result rather than propagating up.
-    return tcl_subst.subst_flagged_full(s.ptr, s.len, do_vars, do_cmds, do_bs, true);
+    return result_mod.from_globals(tcl_subst.subst_flagged_full(s.ptr, s.len, do_vars, do_cmds, do_bs, true));
 }
 
-fn eval_expr(words: []const i32) i32 {
+fn eval_expr(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
         // Use the bignum-aware evaluator so the runtime ``expr``
         // command produces the same result as the AOT-compiled
@@ -76,9 +77,9 @@ fn eval_expr(words: []const i32) i32 {
         // recognise ``<<``).
         const expr_eval = @import("../interp/tcl_expr_eval.zig");
         const es = obj_ensure_string(words[1]);
-        return expr_eval.eval(es.ptr, es.len);
+        return result_mod.from_globals(expr_eval.eval(es.ptr, es.len));
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 pub const registrations = [_]reg.CmdEntry{

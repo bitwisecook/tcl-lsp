@@ -179,6 +179,62 @@ pub inline fn has_signal(ir: InterpResult) bool {
     return ir.code != .OK;
 }
 
+// --- Handler return-value constructors (Phase 2b/2c) -------------------
+//
+// Every migrated ``HandlerFn`` returns an ``InterpResult`` by ending
+// with one of these constructors.  ``from_globals`` is the bridge for
+// handlers that internally call ``tcl_cmd_error`` / ``set_break`` /
+// etc. (which still write the globals as transient storage) — it
+// snapshots the post-mutation state into a typed result so the
+// dispatcher doesn't need to peek at the globals separately.  The
+// explicit ``ok`` / ``err`` / ``ret`` / ``brk`` / ``cont``
+// constructors are for handlers that don't touch the globals at all
+// and want to surface the outcome directly.
+
+/// Wrap the i32 result of a handler that may have written through the
+/// legacy globals (``tcl_cmd_error`` / ``set_break`` / ``set_return``
+/// / ``set_continue``) into a typed ``InterpResult``.  Identical to
+/// :func:`snapshot` — exists as a named alias so handler return
+/// statements read intent (``return result_mod.from_globals(v)``)
+/// rather than dispatch-loop intent (``snapshot(v)``).
+pub inline fn from_globals(value: i32) InterpResult {
+    return snapshot(value);
+}
+
+/// Build an OK ``InterpResult`` carrying ``value`` as the command
+/// result.  Use when the handler doesn't touch any flag state.
+pub inline fn ok(value: i32) InterpResult {
+    return .{ .code = .OK, .value = value, .return_level = 0 };
+}
+
+/// Build an ERROR ``InterpResult`` carrying ``msg`` as the error
+/// message.  Note: this does NOT call ``tcl_cmd_error`` — it does
+/// not stamp ``::errorInfo`` / ``::errorCode`` and it does not
+/// write to stderr / @trap when out of a catch scope.  Most
+/// handlers continue to call ``tcl_cmd_error`` for the side
+/// effects and end with :func:`from_globals` to capture the
+/// resulting state.  Use this constructor only when you've
+/// already arranged for the side effects elsewhere.
+pub inline fn err(msg: i32) InterpResult {
+    return .{ .code = .ERROR, .value = msg, .return_level = 0 };
+}
+
+/// Build a RETURN ``InterpResult`` carrying ``value`` and the
+/// optional ``return -level N`` extra-frame counter.
+pub inline fn ret(value: i32, level: u32) InterpResult {
+    return .{ .code = .RETURN, .value = value, .return_level = level };
+}
+
+/// Build a BREAK ``InterpResult``.
+pub inline fn brk() InterpResult {
+    return .{ .code = .BREAK, .value = 0, .return_level = 0 };
+}
+
+/// Build a CONTINUE ``InterpResult``.
+pub inline fn cont() InterpResult {
+    return .{ .code = .CONTINUE, .value = 0, .return_level = 0 };
+}
+
 // --- Typed setters (Phase 2b/2c) ---------------------------------------
 //
 // The legacy ``tcl_catch.{error,return,break,continue}_flag`` globals

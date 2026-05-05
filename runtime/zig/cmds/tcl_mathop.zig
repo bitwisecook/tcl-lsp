@@ -42,6 +42,7 @@
 // ``DIVZERO`` paths.
 
 const std    = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
 const obj    = @import("../valtypes/tcl_obj.zig");
 const bignum = @import("../valtypes/tcl_bignum.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
@@ -988,45 +989,45 @@ fn op_at(args: []const i32) i32 {
 /// Single entry point for every registered mathop spelling — examines
 /// the trailing operator name (``foo::bar::==`` → ``==``) and dispatches
 /// to the per-op handler.  ``words[1..]`` is the operand list.
-fn eval(words: []const i32) i32 {
+fn eval(words: []const i32) result_mod.InterpResult {
     const op = op_name(words);
     const rest = words[1..];
     // Stable order: arithmetic > comparison > bitwise > logical >
     // misc.  Linear scan is fine — there are ~25 ops and the
     // frequently-hit ones (``==``, ``+``, ``-``) are checked first.
-    if (std.mem.eql(u8, op, "+")) return op_add(rest);
-    if (std.mem.eql(u8, op, "-")) return op_sub(rest);
-    if (std.mem.eql(u8, op, "*")) return op_mul(rest);
-    if (std.mem.eql(u8, op, "/")) return op_div(rest);
-    if (std.mem.eql(u8, op, "%")) return op_mod(rest);
-    if (std.mem.eql(u8, op, "**")) return op_pow(rest);
-    if (std.mem.eql(u8, op, "==")) return op_eq_num(rest);
-    if (std.mem.eql(u8, op, "!=")) return op_ne_num(rest);
-    if (std.mem.eql(u8, op, "<")) return op_lt_num(rest);
-    if (std.mem.eql(u8, op, ">")) return op_gt_num(rest);
-    if (std.mem.eql(u8, op, "<=")) return op_le_num(rest);
-    if (std.mem.eql(u8, op, ">=")) return op_ge_num(rest);
-    if (std.mem.eql(u8, op, "eq")) return op_eq_str(rest);
-    if (std.mem.eql(u8, op, "ne")) return op_ne_str(rest);
-    if (std.mem.eql(u8, op, "lt")) return op_chain_str(rest, .lt);
-    if (std.mem.eql(u8, op, "le")) return op_chain_str(rest, .le);
-    if (std.mem.eql(u8, op, "gt")) return op_chain_str(rest, .gt);
-    if (std.mem.eql(u8, op, "ge")) return op_chain_str(rest, .ge);
-    if (std.mem.eql(u8, op, "in")) return op_in(rest);
-    if (std.mem.eql(u8, op, "ni")) return op_ni(rest);
-    if (std.mem.eql(u8, op, "&")) return op_band(rest);
-    if (std.mem.eql(u8, op, "|")) return op_bor(rest);
-    if (std.mem.eql(u8, op, "^")) return op_bxor(rest);
-    if (std.mem.eql(u8, op, "~")) return op_bnot(rest);
-    if (std.mem.eql(u8, op, "<<")) return op_lshift(rest);
-    if (std.mem.eql(u8, op, ">>")) return op_rshift(rest);
-    if (std.mem.eql(u8, op, "!")) return op_not(rest);
-    if (std.mem.eql(u8, op, "&&")) return op_and(rest);
-    if (std.mem.eql(u8, op, "||")) return op_or(rest);
-    if (std.mem.eql(u8, op, "min")) return op_min(rest);
-    if (std.mem.eql(u8, op, "max")) return op_max(rest);
-    if (std.mem.eql(u8, op, "@")) return op_at(rest);
-    return obj_new_int(0);
+    if (std.mem.eql(u8, op, "+")) return result_mod.from_globals(op_add(rest));
+    if (std.mem.eql(u8, op, "-")) return result_mod.from_globals(op_sub(rest));
+    if (std.mem.eql(u8, op, "*")) return result_mod.from_globals(op_mul(rest));
+    if (std.mem.eql(u8, op, "/")) return result_mod.from_globals(op_div(rest));
+    if (std.mem.eql(u8, op, "%")) return result_mod.from_globals(op_mod(rest));
+    if (std.mem.eql(u8, op, "**")) return result_mod.from_globals(op_pow(rest));
+    if (std.mem.eql(u8, op, "==")) return result_mod.from_globals(op_eq_num(rest));
+    if (std.mem.eql(u8, op, "!=")) return result_mod.from_globals(op_ne_num(rest));
+    if (std.mem.eql(u8, op, "<")) return result_mod.from_globals(op_lt_num(rest));
+    if (std.mem.eql(u8, op, ">")) return result_mod.from_globals(op_gt_num(rest));
+    if (std.mem.eql(u8, op, "<=")) return result_mod.from_globals(op_le_num(rest));
+    if (std.mem.eql(u8, op, ">=")) return result_mod.from_globals(op_ge_num(rest));
+    if (std.mem.eql(u8, op, "eq")) return result_mod.from_globals(op_eq_str(rest));
+    if (std.mem.eql(u8, op, "ne")) return result_mod.from_globals(op_ne_str(rest));
+    if (std.mem.eql(u8, op, "lt")) return result_mod.from_globals(op_chain_str(rest, .lt));
+    if (std.mem.eql(u8, op, "le")) return result_mod.from_globals(op_chain_str(rest, .le));
+    if (std.mem.eql(u8, op, "gt")) return result_mod.from_globals(op_chain_str(rest, .gt));
+    if (std.mem.eql(u8, op, "ge")) return result_mod.from_globals(op_chain_str(rest, .ge));
+    if (std.mem.eql(u8, op, "in")) return result_mod.from_globals(op_in(rest));
+    if (std.mem.eql(u8, op, "ni")) return result_mod.from_globals(op_ni(rest));
+    if (std.mem.eql(u8, op, "&")) return result_mod.from_globals(op_band(rest));
+    if (std.mem.eql(u8, op, "|")) return result_mod.from_globals(op_bor(rest));
+    if (std.mem.eql(u8, op, "^")) return result_mod.from_globals(op_bxor(rest));
+    if (std.mem.eql(u8, op, "~")) return result_mod.from_globals(op_bnot(rest));
+    if (std.mem.eql(u8, op, "<<")) return result_mod.from_globals(op_lshift(rest));
+    if (std.mem.eql(u8, op, ">>")) return result_mod.from_globals(op_rshift(rest));
+    if (std.mem.eql(u8, op, "!")) return result_mod.from_globals(op_not(rest));
+    if (std.mem.eql(u8, op, "&&")) return result_mod.from_globals(op_and(rest));
+    if (std.mem.eql(u8, op, "||")) return result_mod.from_globals(op_or(rest));
+    if (std.mem.eql(u8, op, "min")) return result_mod.from_globals(op_min(rest));
+    if (std.mem.eql(u8, op, "max")) return result_mod.from_globals(op_max(rest));
+    if (std.mem.eql(u8, op, "@")) return result_mod.from_globals(op_at(rest));
+    return result_mod.from_globals(obj_new_int(0));
 }
 
 // Each operator gets two registered spellings: the fully-qualified

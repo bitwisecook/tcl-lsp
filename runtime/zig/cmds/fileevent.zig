@@ -12,15 +12,16 @@
 // Setting an empty script clears the handler.
 
 const std = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const sched = @import("../sched/tcl_sched.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 
-fn eval_fileevent(words: []const i32) i32 {
+fn eval_fileevent(words: []const i32) result_mod.InterpResult {
     if (words.len < 3 or words.len > 4) {
         stubs.raise("wrong # args: should be \"fileevent channelId event ?script?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     const chan = obj.obj_ensure_string(words[1]);
     const ev = obj.obj_ensure_string(words[2]);
@@ -30,7 +31,7 @@ fn eval_fileevent(words: []const i32) i32 {
     const is_write = std.mem.eql(u8, ev_s, "writable");
     if (!is_read and !is_write) {
         stubs.raise("bad event: must be readable or writable");
-        return 0;
+        return result_mod.from_globals(0);
     }
     if (words.len == 3) {
         // Query form.  The dispatcher contract is "+1 for caller" on
@@ -42,9 +43,9 @@ fn eval_fileevent(words: []const i32) i32 {
             sched.fileevent_get_readable(chan.ptr, chan.len)
         else
             sched.fileevent_get_writable(chan.ptr, chan.len);
-        if (cur == 0) return obj.obj_new_string(0, 0);
+        if (cur == 0) return result_mod.from_globals(obj.obj_new_string(0, 0));
         obj.tcl_obj_retain(cur);
-        return cur;
+        return result_mod.from_globals(cur);
     }
     // Set form — empty script deregisters.
     const script = words[3];
@@ -55,7 +56,7 @@ fn eval_fileevent(words: []const i32) i32 {
     } else {
         sched.fileevent_set_writable(chan.ptr, chan.len, effective);
     }
-    return obj.obj_new_string(0, 0);
+    return result_mod.from_globals(obj.obj_new_string(0, 0));
 }
 
 pub const registrations = [_]reg.CmdEntry{

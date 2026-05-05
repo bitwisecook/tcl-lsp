@@ -20,20 +20,21 @@
 // host-import contract is added.
 
 const std = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const caps = @import("../interp/tcl_caps.zig");
 
-fn eval_exit(words: []const i32) i32 {
-    if (!caps.check(caps.CAP_EXIT, "exit", "EXIT")) return 0;
+fn eval_exit(words: []const i32) result_mod.InterpResult {
+    if (!caps.check(caps.CAP_EXIT, "exit", "EXIT")) return result_mod.from_globals(0);
     var code: u32 = 0;
     if (words.len >= 2) {
         const s = obj.obj_ensure_string(words[1]);
         const parsed = obj.try_parse_int(s.ptr, s.len);
         if (parsed == null) {
             stubs.raise("exit: returnCode must be an integer");
-            return 0;
+            return result_mod.from_globals(0);
         }
         code = exit_code_from_i64(parsed.?);
     }

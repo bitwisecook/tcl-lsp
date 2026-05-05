@@ -33,8 +33,23 @@
 
 /// Handler function type shared by every registered builtin command.
 /// words[0] is the command name; words[1..] are the arguments.
-/// Returns a TclObj (i32 handle into WASM linear memory).
-pub const HandlerFn = *const fn (words: []const i32) i32;
+/// Returns a typed :type:`InterpResult` carrying the command's
+/// outcome — OK with the result obj, ERROR with the message,
+/// RETURN with the value + level, or BREAK / CONTINUE.  The
+/// dispatcher inspects ``code`` and propagates accordingly.
+///
+/// Migrated handlers end with one of the ``result_mod.*``
+/// constructors:
+///   * ``return result_mod.ok(value)`` — clean OK with no flag state
+///   * ``return result_mod.from_globals(value)`` — bridge for handlers
+///     that internally call ``tcl_cmd_error`` / ``set_break`` /
+///     ``set_return`` / ``set_continue`` (which still write through
+///     the legacy globals as transient storage).
+///   * ``return result_mod.err(msg)`` — explicit error without
+///     ``::errorInfo`` stamping (rare; most error paths still go
+///     through ``tcl_cmd_error`` for the stamp + trap side effects).
+pub const HandlerFn = *const fn (words: []const i32) result_mod.InterpResult;
+const result_mod = @import("../interp/tcl_result.zig");
 
 /// One registered builtin command.
 ///

@@ -32,6 +32,7 @@
 // answer, oo.test reaches its summary line.
 
 const std = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const procs = @import("../interp/tcl_procs.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
@@ -93,41 +94,41 @@ fn synthesise_object_name() i32 {
 /// ``oo::class create NAME ?defscript?`` / ``oo::class new`` —
 /// registers NAME (or an auto-generated name for ``new``) as a
 /// proc.  Ignores the optional defscript.  Returns the proc name.
-fn eval_oo_class(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_oo_class(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const sub_obj = words[1];
     const sub = obj_ensure_string(sub_obj);
-    if (sub.len == 0) return obj_new_string(0, 0);
+    if (sub.len == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     if (sub.len == 6 and sp[0] == 'c' and sp[1] == 'r' and sp[2] == 'e' and sp[3] == 'a' and sp[4] == 't' and sp[5] == 'e') {
-        if (words.len < 3) return obj_new_string(0, 0);
+        if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
         const name_obj = words[2];
         register_object_proc(name_obj);
-        return name_obj;
+        return result_mod.from_globals(name_obj);
     }
     if (sub.len == 3 and sp[0] == 'n' and sp[1] == 'e' and sp[2] == 'w') {
         const name_obj = synthesise_object_name();
         register_object_proc(name_obj);
-        return name_obj;
+        return result_mod.from_globals(name_obj);
     }
     if (sub.len == 7 and sp[0] == 'd' and sp[1] == 'e' and sp[2] == 's' and sp[3] == 't' and sp[4] == 'r' and sp[5] == 'o' and sp[6] == 'y') {
-        return obj_new_string(0, 0);
+        return result_mod.from_globals(obj_new_string(0, 0));
     }
-    return obj_new_string(0, 0);
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
 /// ``oo::object create NAME`` / ``oo::object new`` — registers a
 /// fresh named or auto-named object proc.  Ignores destroy.
-fn eval_oo_object(words: []const i32) i32 {
+fn eval_oo_object(words: []const i32) result_mod.InterpResult {
     return eval_oo_class(words);
 }
 
 /// Catch-all no-op for the remaining oo:: commands.  Returns the
 /// empty string for every call — enough to keep tests that reach
 /// these commands from trapping while real behaviour is missing.
-fn eval_oo_noop(words: []const i32) i32 {
+fn eval_oo_noop(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return obj_new_string(0, 0);
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
 // Arities mirror ``core/commands/registry/tcl/oo_*.py`` so the

@@ -18,8 +18,8 @@ const obj_new_string    = rt.obj_new_string;
 const obj_new_int       = rt.obj_new_int;
 const obj_ensure_string = rt.obj_ensure_string;
 
-fn eval_list(words: []const i32) i32 {
-    if (words.len <= 1) return obj_new_string(0, 0);
+fn eval_list(words: []const i32) result_mod.InterpResult {
+    if (words.len <= 1) return result_mod.from_globals(obj_new_string(0, 0));
     var max_total: u32 = 0;
     var ei: u32 = 1;
     while (ei < words.len) : (ei += 1) {
@@ -49,10 +49,10 @@ fn eval_list(words: []const i32) i32 {
     // ``[list ...]`` invocation leaked one buf, and the
     // resulting cap=0 also forced ``lappend``'s slow rebuild
     // path on every subsequent append.
-    return obj_mod.obj_new_string_take(buf, off, alloc_size);
+    return result_mod.from_globals(obj_mod.obj_new_string_take(buf, off, alloc_size));
 }
 
-fn eval_lappend(words: []const i32) i32 {
+fn eval_lappend(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
         var result = frames.var_resolve(words[1]);
         var wi: u32 = 2;
@@ -60,22 +60,22 @@ fn eval_lappend(words: []const i32) i32 {
             result = rt.tcl_cmd_lappend(result, words[wi]);
         }
         _ = frames.var_set(words[1], result);
-        return result;
+        return result_mod.from_globals(result);
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_llength(words: []const i32) i32 {
-    if (words.len >= 2) return rt.tcl_cmd_list_length(words[1]);
-    return 0;
+fn eval_llength(words: []const i32) result_mod.InterpResult {
+    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_list_length(words[1]));
+    return result_mod.from_globals(0);
 }
 
-fn eval_lindex(words: []const i32) i32 {
-    if (words.len >= 3) return rt.tcl_cmd_list_index(words[1], words[2]);
-    return 0;
+fn eval_lindex(words: []const i32) result_mod.InterpResult {
+    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_list_index(words[1], words[2]));
+    return result_mod.from_globals(0);
 }
 
-fn eval_lset(words: []const i32) i32 {
+fn eval_lset(words: []const i32) result_mod.InterpResult {
     if (words.len >= 3) {
         const current = frames.var_resolve(words[1]);
         const newval = words[words.len - 1];
@@ -93,12 +93,12 @@ fn eval_lset(words: []const i32) i32 {
         };
         const result = rt.tcl_cmd_list_set(current, indices, newval);
         _ = frames.var_set(words[1], result);
-        return result;
+        return result_mod.from_globals(result);
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_linsert(words: []const i32) i32 {
+fn eval_linsert(words: []const i32) result_mod.InterpResult {
     if (words.len >= 4) {
         const list_arg = words[1];
         const idx_arg = words[2];
@@ -121,18 +121,18 @@ fn eval_linsert(words: []const i32) i32 {
                 result = rt.tcl_cmd_list_insert(result, idx_arg, words[wi]);
             }
         }
-        return result;
+        return result_mod.from_globals(result);
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_lreplace(words: []const i32) i32 {
+fn eval_lreplace(words: []const i32) result_mod.InterpResult {
     if (words.len >= 4) {
         const list_arg  = words[1];
         const first_arg = words[2];
         const last_arg  = words[3];
         if (words.len == 4) {
-            return rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
+            return result_mod.from_globals(rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0));
         }
         const idx_s = obj_ensure_string(first_arg);
         var forward = false;
@@ -146,7 +146,7 @@ fn eval_lreplace(words: []const i32) i32 {
             while (wi < words.len) : (wi += 1) {
                 result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
             }
-            return result;
+            return result_mod.from_globals(result);
         } else {
             var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[words.len - 1]);
             var wi: u32 = words.len - 1;
@@ -154,15 +154,15 @@ fn eval_lreplace(words: []const i32) i32 {
                 wi -= 1;
                 result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
             }
-            return result;
+            return result_mod.from_globals(result);
         }
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_lsort(words: []const i32) i32 {
-    if (words.len >= 2) return rt.tcl_cmd_list_sort(words[words.len - 1]);
-    return obj_new_string(0, 0);
+fn eval_lsort(words: []const i32) result_mod.InterpResult {
+    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_list_sort(words[words.len - 1]));
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
 // lsearch full implementation.
@@ -249,7 +249,7 @@ fn ls_get_match_target(
     };
 }
 
-fn eval_lsearch(words: []const i32) i32 {
+fn eval_lsearch(words: []const i32) result_mod.InterpResult {
     var mode: u8 = 'g'; // 'e'=exact 'g'=glob 'r'=regexp (stub)
     var find_all = false;
     var negate = false;
@@ -321,11 +321,11 @@ fn eval_lsearch(words: []const i32) i32 {
             } else {
                 stubs2.raise("bad option to lsearch");
             }
-            return 0;
+            return result_mod.from_globals(0);
         }
     }
 
-    if (wi + 1 >= words.len) return obj_new_int(-1);
+    if (wi + 1 >= words.len) return result_mod.from_globals(obj_new_int(-1));
     const list_obj = words[wi];
     const pat_obj  = words[wi + 1];
 
@@ -372,8 +372,8 @@ fn eval_lsearch(words: []const i32) i32 {
             const matched = if (negate) !raw else raw;
             if (matched) {
                 if (!find_all) {
-                    if (do_inline) return obj_new_string(@bitCast(ep), @bitCast(elen));
-                    return obj_new_int(idx);
+                    if (do_inline) return result_mod.from_globals(obj_new_string(@bitCast(ep), @bitCast(elen)));
+                    return result_mod.from_globals(obj_new_int(idx));
                 }
                 const entry: i32 = if (do_inline)
                     obj_new_string(@bitCast(ep), @bitCast(elen))
@@ -403,9 +403,9 @@ fn eval_lsearch(words: []const i32) i32 {
             const matched = if (negate) !raw else raw;
             if (!matched) continue;
             if (!find_all) {
-                if (do_inline) return obj_new_string(@bitCast(t.ep), @bitCast(t.elen));
-                if (do_subindices) return ls_subindex_pair(idx, t.sub_idx);
-                return obj_new_int(idx);
+                if (do_inline) return result_mod.from_globals(obj_new_string(@bitCast(t.ep), @bitCast(t.elen)));
+                if (do_subindices) return result_mod.from_globals(ls_subindex_pair(idx, t.sub_idx));
+                return result_mod.from_globals(obj_new_int(idx));
             }
             const entry: i32 = if (do_inline)
                 obj_new_string(@bitCast(t.ep), @bitCast(t.elen))
@@ -417,54 +417,54 @@ fn eval_lsearch(words: []const i32) i32 {
         }
     }
 
-    if (find_all) return acc;
-    if (do_inline) return obj_new_string(0, 0);
-    return obj_new_int(-1);
+    if (find_all) return result_mod.from_globals(acc);
+    if (do_inline) return result_mod.from_globals(obj_new_string(0, 0));
+    return result_mod.from_globals(obj_new_int(-1));
 }
 
-fn eval_lrange(words: []const i32) i32 {
-    if (words.len >= 4) return rt.tcl_cmd_list_range(words[1], words[2], words[3]);
-    return obj_new_string(0, 0);
+fn eval_lrange(words: []const i32) result_mod.InterpResult {
+    if (words.len >= 4) return result_mod.from_globals(rt.tcl_cmd_list_range(words[1], words[2], words[3]));
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
-fn eval_concat(words: []const i32) i32 {
-    if (words.len <= 1) return obj_new_string(0, 0);
+fn eval_concat(words: []const i32) result_mod.InterpResult {
+    if (words.len <= 1) return result_mod.from_globals(obj_new_string(0, 0));
     var acc = words[1];
     var ci: usize = 2;
     while (ci < words.len) : (ci += 1) {
         acc = rt.tcl_cmd_concat(acc, words[ci]);
     }
-    return acc;
+    return result_mod.from_globals(acc);
 }
 
-fn eval_join(words: []const i32) i32 {
-    if (words.len >= 3) return rt.tcl_cmd_join(words[1], words[2]);
+fn eval_join(words: []const i32) result_mod.InterpResult {
+    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
     if (words.len >= 2) {
         const sp = alloc(1);
         const d: [*]u8 = @ptrFromInt(sp);
         d[0] = ' ';
-        return rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1));
+        return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
     }
-    return obj_new_string(0, 0);
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
-fn eval_split(words: []const i32) i32 {
-    if (words.len >= 3) return rt.tcl_cmd_split(words[1], words[2]);
-    if (words.len >= 2) return rt.tcl_cmd_split(words[1], obj_new_string(0, 0));
-    return obj_new_string(0, 0);
+fn eval_split(words: []const i32) result_mod.InterpResult {
+    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_split(words[1], words[2]));
+    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_split(words[1], obj_new_string(0, 0)));
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
-fn eval_lreverse(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
-    return rt.tcl_cmd_list_reverse(words[1]);
+fn eval_lreverse(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
+    return result_mod.from_globals(rt.tcl_cmd_list_reverse(words[1]));
 }
 
-fn eval_lrepeat(words: []const i32) i32 {
-    if (words.len < 3) return obj_new_string(0, 0);
-    if (words.len == 3) return rt.tcl_cmd_list_repeat(words[1], words[2]);
+fn eval_lrepeat(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
+    if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_list_repeat(words[1], words[2]));
     // Multi-value: build one cycle then repeat it count times.
     const count_val = rt.obj_get_int(words[1]);
-    if (count_val <= 0) return obj_new_string(0, 0);
+    if (count_val <= 0) return result_mod.from_globals(obj_new_string(0, 0));
     const count: u32 = @intCast(count_val);
     var cycle_max: u32 = 0;
     var vi: u32 = 2;
@@ -489,7 +489,7 @@ fn eval_lrepeat(words: []const i32) i32 {
             cycle_off = obj_mod.list_elem_quote_nth(cycle_buf, cycle_off, s.ptr, s.len);
         }
     }
-    if (cycle_off == 0) return obj_new_string(0, 0);
+    if (cycle_off == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const total: u32 = count * (cycle_off + 1);
     const result_buf = alloc(total);
     var off: u32 = 0;
@@ -503,11 +503,11 @@ fn eval_lrepeat(words: []const i32) i32 {
         rt.memcpy(result_buf + off, cycle_buf, cycle_off);
         off += cycle_off;
     }
-    return obj_new_string(@bitCast(result_buf), @bitCast(off));
+    return result_mod.from_globals(obj_new_string(@bitCast(result_buf), @bitCast(off)));
 }
 
-fn eval_lassign(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_lassign(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const list_obj = words[1];
     const list_s = obj_ensure_string(list_obj);
     const n = rt.list_count_elements(list_s.ptr, list_s.len);
@@ -528,20 +528,20 @@ fn eval_lassign(words: []const i32) i32 {
         i += 1;
     }
     const assigned: i64 = @intCast(words.len - 2);
-    if (assigned >= n or n == 0) return obj_new_string(0, 0);
+    if (assigned >= n or n == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const start_obj = obj_new_int(assigned);
-    return list_mod.list_tail(list_obj, start_obj);
+    return result_mod.from_globals(list_mod.list_tail(list_obj, start_obj));
 }
 
-fn eval_lmap(words: []const i32) i32 {
+fn eval_lmap(words: []const i32) result_mod.InterpResult {
     // lmap v1 l1 ?v2 l2 ...? body — same multi-var semantics as foreach,
     // but accumulates body results into a list instead of discarding them.
-    if (words.len < 4) return obj_new_string(0, 0);
+    if (words.len < 4) return result_mod.from_globals(obj_new_string(0, 0));
     const pair_words = words.len - 2;
-    if (pair_words % 2 != 0) return obj_new_string(0, 0);
+    if (pair_words % 2 != 0) return result_mod.from_globals(obj_new_string(0, 0));
     const n_pairs = pair_words / 2;
     const MAX_PAIRS = 15;
-    if (n_pairs > MAX_PAIRS) return obj_new_string(0, 0);
+    if (n_pairs > MAX_PAIRS) return result_mod.from_globals(obj_new_string(0, 0));
     const body_s = obj_ensure_string(words[words.len - 1]);
     var list_lens: [MAX_PAIRS]i64 = [_]i64{0} ** MAX_PAIRS;
     var n: i64 = 0;
@@ -582,10 +582,10 @@ fn eval_lmap(words: []const i32) i32 {
             .OK => result = rt.tcl_list(result, item),
             .BREAK => { result_mod.consume(.BREAK); break; },
             .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
-            .ERROR, .RETURN => return item,
+            .ERROR, .RETURN => return result_mod.from_globals(item),
         }
     }
-    return result;
+    return result_mod.from_globals(result);
 }
 
 /// Match a separator word (``to`` / ``..``) at index ``i``.  Returns
@@ -617,8 +617,8 @@ fn lseq_match_word(words: []const i32, i: u32, expected: []const u8) bool {
 /// integer-only; tests that need ``arithSeriesDouble`` are SKIPPED
 /// by tcltest's constraint table because ``arithSeriesDouble``
 /// isn't set.
-fn eval_lseq(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_lseq(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     var start_val: i64 = 0;
     var end_val: i64 = 0;
     var step_val: i64 = 1;
@@ -627,7 +627,7 @@ fn eval_lseq(words: []const i32) i32 {
     if (words.len == 2) {
         // ``lseq N`` -> 0 .. N-1
         const count = rt.obj_get_int(words[1]);
-        if (count <= 0) return obj_new_string(0, 0);
+        if (count <= 0) return result_mod.from_globals(obj_new_string(0, 0));
         end_val = count - 1;
     } else {
         // Two-or-more forms.  After ``words[1] = START``, scan for an
@@ -638,7 +638,7 @@ fn eval_lseq(words: []const i32) i32 {
         if (lseq_match_word(words, idx, "to") or lseq_match_word(words, idx, "..")) {
             idx += 1;
         }
-        if (idx >= words.len) return obj_new_string(0, 0);
+        if (idx >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
         // ``lseq START by STEP`` (no end) means N=START items; the
         // separator-less ``words[2]`` could be ``by`` instead of an
         // end value.
@@ -646,9 +646,9 @@ fn eval_lseq(words: []const i32) i32 {
             // ``lseq START by STEP`` — start=0, count=START, step
             const cnt = start_val;
             start_val = 0;
-            if (cnt <= 0) return obj_new_string(0, 0);
+            if (cnt <= 0) return result_mod.from_globals(obj_new_string(0, 0));
             if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
-            if (step_val == 0) return obj_new_string(0, 0);
+            if (step_val == 0) return result_mod.from_globals(obj_new_string(0, 0));
             end_val = start_val + (cnt - 1) * step_val;
             have_step = true;
         } else {
@@ -675,7 +675,7 @@ fn eval_lseq(words: []const i32) i32 {
             if (end_val < start_val) step_val = -1 else step_val = 1;
         }
     }
-    if (step_val == 0) return obj_new_string(0, 0);
+    if (step_val == 0) return result_mod.from_globals(obj_new_string(0, 0));
 
     // Sanity bound: ``lseq 1e50 1e50+1`` and similar large-double
     // forms convert to out-of-range i64 via ``@intFromFloat`` and
@@ -688,7 +688,7 @@ fn eval_lseq(words: []const i32) i32 {
     const max_count: i64 = 16 * 1024 * 1024; // 16 M elements
     const span: i64 = if (step_val > 0) end_val - start_val else start_val - end_val;
     if (span < 0 or @divTrunc(span, if (step_val > 0) step_val else -step_val) > max_count) {
-        return obj_new_string(0, 0);
+        return result_mod.from_globals(obj_new_string(0, 0));
     }
 
     var acc: i32 = obj_new_string(0, 0);
@@ -698,7 +698,7 @@ fn eval_lseq(words: []const i32) i32 {
     } else {
         while (i >= end_val) : (i += step_val) acc = rt.tcl_list(acc, obj_new_int(i));
     }
-    return acc;
+    return result_mod.from_globals(acc);
 }
 
 pub const registrations = [_]reg.CmdEntry{
